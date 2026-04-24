@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1B2235">
+<title>Application</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   RouteReady Mobile Application Page
+   Single-page flow: welcome → form → video → submit → done
+   Designed mobile-first, works on iOS Safari + Android Chrome
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --bolt: #C85A1E;
+  --bolt-bright: #e97f40;
+  --bg: #1B2235;
+  --bg-card: #232B42;
+  --bg-elev: #2A334D;
+  --border: rgba(255,255,255,.08);
+  --border-strong: rgba(255,255,255,.14);
+  --w: #ffffff;
+  --w70: rgba(255,255,255,.70);
+  --w50: rgba(255,255,255,.50);
+  --w35: rgba(255,255,255,.35);
+  --red: #F87171;
+  --green: #34D399;
+  --amber: #FFB74D;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--w);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+/* ── HEADER ────────────────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.app-logo {
+  width: 34px;
+  height: 34px;
+  background: var(--bolt);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.app-dsp-name { font-size: 14px; font-weight: 600; line-height: 1.2; }
+.app-dsp-sub { font-size: 10px; color: var(--w50); margin-top: 1px; letter-spacing: .03em; }
+
+/* ── PROGRESS BAR ──────────────────────────────────────────── */
+.progress-bar {
+  display: flex;
+  gap: 4px;
+  padding: 14px 20px;
+  background: var(--bg);
+}
+.progress-dot {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-elev);
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+.progress-dot.done { background: var(--green); }
+.progress-dot.current { background: var(--bolt); }
+
+/* ── CONTENT ───────────────────────────────────────────────── */
+.content {
+  flex: 1;
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.step { display: none; flex-direction: column; flex: 1; min-height: 0; }
+.step.active { display: flex; }
+
+.step-eyebrow {
+  font-size: 11px;
+  color: var(--bolt);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.step-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin-bottom: 10px;
+}
+.step-body {
+  font-size: 14px;
+  color: var(--w70);
+  line-height: 1.55;
+  margin-bottom: 22px;
+}
+
+/* ── WELCOME SCREEN ────────────────────────────────────────── */
+.welcome-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.welcome-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.welcome-item-num {
+  width: 28px;
+  height: 28px;
+  background: var(--bolt);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.welcome-item-text { font-size: 14px; font-weight: 500; }
+.welcome-item-sub { font-size: 11px; color: var(--w50); margin-top: 2px; }
+
+.trust-meta {
+  display: flex;
+  justify-content: space-around;
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 22px;
+}
+.trust-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.trust-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--green);
+}
+.trust-label { font-size: 10px; color: var(--w70); font-weight: 500; }
+
+/* ── FORM QUESTIONS ────────────────────────────────────────── */
+.form-question {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.form-q-label {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  line-height: 1.3;
+}
+.yesno-buttons {
+  display: flex;
+  gap: 10px;
+}
+.yesno-btn {
+  flex: 1;
+  padding: 14px;
+  background: var(--bg-elev);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  color: var(--w);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.yesno-btn.selected {
+  background: rgba(200,90,30,.15);
+  border-color: var(--bolt);
+  color: var(--bolt-bright);
+}
+.yesno-btn:active { transform: scale(0.98); }
+
+.checkbox-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-elev);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.checkbox-row.checked {
+  background: rgba(200,90,30,.1);
+  border-color: var(--bolt);
+}
+.checkbox-box {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--w50);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+}
+.checkbox-row.checked .checkbox-box {
+  background: var(--bolt);
+  border-color: var(--bolt);
+}
+.checkbox-box::after { content: ""; color: #fff; font-size: 14px; font-weight: 700; }
+.checkbox-row.checked .checkbox-box::after { content: "✓"; }
+.checkbox-text { font-size: 14px; font-weight: 500; }
+
+.form-input {
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  color: var(--w);
+  font-family: inherit;
+  font-size: 15px;
+}
+.form-input:focus { outline: none; border-color: var(--bolt); }
+.form-input::placeholder { color: var(--w35); }
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+/* ── VIDEO RECORDING ───────────────────────────────────────── */
+.video-preamble {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.video-preamble-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--bolt-bright);
+}
+.video-preamble-body { font-size: 13px; color: var(--w70); line-height: 1.6; }
+.video-preamble-body + .video-preamble-body { margin-top: 10px; }
+
+.camera-wrap {
+  background: #000;
+  border-radius: 14px;
+  aspect-ratio: 9/16;
+  max-height: 480px;
+  width: 100%;
+  margin: 0 auto 16px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+}
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--w35);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
+}
+.camera-overlay-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.65) 0%, transparent 25%, transparent 75%, rgba(0,0,0,.75) 100%);
+  pointer-events: none;
+}
+.prompt-overlay {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-shadow: 0 1px 4px rgba(0,0,0,.9);
+  pointer-events: none;
+}
+.prompt-tag {
+  display: inline-block;
+  padding: 3px 9px;
+  background: var(--bolt);
+  border-radius: 10px;
+  font-size: 10px;
+  margin-right: 8px;
+  letter-spacing: 0.05em;
+}
+.rec-indicator {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,.75);
+  padding: 5px 11px;
+  border-radius: 100px;
+  font-size: 11px;
+  color: #fff;
+  font-weight: 600;
+  pointer-events: none;
+}
+.rec-indicator.active { display: flex; }
+.rec-blink {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: blink 1s infinite;
+}
+@keyframes blink { 50% { opacity: 0.3; } }
+
+.timer-bar-wrap {
+  position: absolute;
+  bottom: 18px;
+  left: 16px;
+  right: 16px;
+  pointer-events: none;
+}
+.timer-count {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+}
+.timer-bar {
+  height: 4px;
+  background: rgba(255,255,255,.25);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.timer-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--bolt);
+  border-radius: 2px;
+  transition: width 0.2s linear;
+}
+
+.record-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0 18px;
+  flex-wrap: wrap;
+}
+.record-btn {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 5px solid rgba(248,113,113,.25);
+  background: var(--red);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.15s;
+}
+.record-btn:active { transform: scale(0.94); }
+.record-btn.recording {
+  background: var(--red);
+  border-color: rgba(248,113,113,.5);
+}
+.record-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--w50);
+  margin-top: 4px;
+}
+
+.recorded-clips {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.clip-row {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.clip-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-elev);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--w50);
+  flex-shrink: 0;
+}
+.clip-row.done .clip-num { background: var(--green); color: #000; }
+.clip-row.current .clip-num { background: var(--bolt); color: #fff; }
+.clip-info { flex: 1; min-width: 0; }
+.clip-prompt {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clip-status { font-size: 11px; color: var(--w50); }
+.clip-status.done { color: var(--green); }
+
+/* ── UPLOAD / SUBMIT ───────────────────────────────────────── */
+.upload-progress {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 20px;
+  text-align: center;
+  margin: 20px 0;
+}
+.upload-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.upload-sub { font-size: 12px; color: var(--w50); margin-bottom: 18px; }
+.progress-track {
+  height: 8px;
+  background: var(--bg-elev);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--bolt);
+  width: 0%;
+  transition: width 0.3s;
+}
+.progress-pct { font-size: 13px; color: var(--w70); font-variant-numeric: tabular-nums; }
+
+/* ── DONE / FAILED SCREENS ─────────────────────────────────── */
+.status-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin: 40px auto 20px;
+}
+.status-icon.success {
+  background: rgba(52,211,153,.1);
+  border: 2px solid var(--green);
+  color: var(--green);
+}
+.status-icon.filtered {
+  background: rgba(255,255,255,.04);
+  border: 2px solid var(--border-strong);
+  color: var(--w50);
+}
+.status-icon.error {
+  background: rgba(248,113,113,.1);
+  border: 2px solid var(--red);
+  color: var(--red);
+}
+
+.next-steps-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-top: 24px;
+  text-align: left;
+}
+.next-steps-title {
+  font-size: 11px;
+  color: var(--w50);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.next-steps-list { font-size: 13px; color: var(--w70); line-height: 1.7; }
+
+/* ── BUTTONS ───────────────────────────────────────────────── */
+.btn-primary {
+  width: 100%;
+  padding: 16px;
+  background: var(--bolt);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary:active { background: var(--bolt-bright); transform: scale(0.99); }
+.btn-primary:disabled { background: var(--bg-elev); color: var(--w35); cursor: not-allowed; }
+.btn-ghost {
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  color: var(--w70);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.footer-actions {
+  padding-top: 20px;
+  margin-top: auto;
+}
+
+/* ── ERROR STATES ──────────────────────────────────────────── */
+.browser-warning {
+  background: rgba(255,183,77,.08);
+  border: 1px solid rgba(255,183,77,.3);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.browser-warning-title { font-size: 13px; font-weight: 600; color: var(--amber); margin-bottom: 4px; }
+.browser-warning-body { font-size: 12px; color: var(--w70); line-height: 1.5; }
+
+/* ── POWERED BY ────────────────────────────────────────────── */
+.powered-by {
+  text-align: center;
+  font-size: 10px;
+  color: var(--w35);
+  padding: 14px 0;
+  letter-spacing: 0.05em;
+}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="app-logo" id="dsp-logo">R</div>
+  <div>
+    <div class="app-dsp-name" id="dsp-name">Loading...</div>
+    <div class="app-dsp-sub">Driver Application</div>
+  </div>
+</div>
+
+<div class="progress-bar">
+  <div class="progress-dot current" data-step="1"></div>
+  <div class="progress-dot" data-step="2"></div>
+  <div class="progress-dot" data-step="3"></div>
+  <div class="progress-dot" data-step="4"></div>
+  <div class="progress-dot" data-step="5"></div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ STEP 1: WELCOME ═══ -->
+  <div class="step active" id="step-welcome">
+    <div class="step-eyebrow">WELCOME</div>
+    <h1 class="step-title" id="welcome-title">Let's get started</h1>
+    <p class="step-body" id="welcome-body">Takes about 3 minutes. You'll answer a few quick questions, then record a short video intro. No app to download.</p>
+
+    <div class="welcome-list">
+      <div class="welcome-item">
+        <div class="welcome-item-num">1</div>
+        <div>
+          <div class="welcome-item-text">Quick questions</div>
+          <div class="welcome-item-sub">About 1 minute</div>
+        </div>
+      </div>
+      <div class="welcome-item">
+        <div class="welcome-item-num">2</div>
+        <div>
+          <div class="welcome-item-text">Record 3 short videos</div>
+          <div class="welcome-item-sub">About 20 seconds each</div>
+        </div>
+      </div>
+      <div class="welcome-item">
+        <div class="welcome-item-num">3</div>
+        <div>
+          <div class="welcome-item-text">Submit</div>
+          <div class="welcome-item-sub">We'll text you within 24 hours</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="trust-meta">
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <div class="trust-label">Secure</div>
+      </div>
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div class="trust-label">3 minutes</div>
+      </div>
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>
+        <div class="trust-label">Retakes OK</div>
+      </div>
+    </div>
+
+    <div id="browser-check"></div>
+
+    <div class="footer-actions">
+      <button class="btn-primary" onclick="goToStep('contact')">Start application &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 2: CONTACT INFO ═══ -->
+  <div class="step" id="step-contact">
+    <div class="step-eyebrow">YOUR CONTACT</div>
+    <h1 class="step-title">Tell us who you are</h1>
+    <p class="step-body">We need this to get back to you.</p>
+
+    <div class="contact-grid">
+      <input class="form-input" type="text" id="input-firstName" placeholder="First name" autocomplete="given-name">
+      <input class="form-input" type="text" id="input-lastName" placeholder="Last name" autocomplete="family-name">
+    </div>
+    <input class="form-input" type="email" id="input-email" placeholder="Email address" autocomplete="email" style="margin-bottom: 14px">
+    <input class="form-input" type="tel" id="input-phone" placeholder="Phone number" autocomplete="tel" style="margin-bottom: 14px">
+
+    <div class="footer-actions">
+      <button class="btn-primary" onclick="goToStep('form')">Continue &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 3: FORM QUESTIONS ═══ -->
+  <div class="step" id="step-form">
+    <div class="step-eyebrow">QUICK QUESTIONS</div>
+    <h1 class="step-title">A few basics</h1>
+    <p class="step-body">Quick yes/no stuff so we know you're a fit.</p>
+
+    <div id="form-questions"></div>
+
+    <div class="footer-actions">
+      <button class="btn-primary" id="btn-form-continue" onclick="submitForm()">Continue &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 4: VIDEO RECORDING ═══ -->
+  <div class="step" id="step-video">
+    <div class="step-eyebrow">VIDEO INTRO</div>
+    <h1 class="step-title" id="video-step-title">Record your video</h1>
+
+    <div class="video-preamble" id="video-preamble">
+      <div class="video-preamble-title">Tips before you start</div>
+      <div class="video-preamble-body">&bull; Find a quiet spot with decent lighting</div>
+      <div class="video-preamble-body">&bull; Hold your phone steady, face the camera</div>
+      <div class="video-preamble-body">&bull; Speak naturally — this isn't a test</div>
+      <div class="video-preamble-body">&bull; You can re-record if you don't like the first take</div>
+    </div>
+
+    <div class="camera-wrap" id="camera-wrap">
+      <video class="camera-video" id="camera-video" autoplay muted playsinline webkit-playsinline></video>
+      <div class="camera-placeholder" id="camera-placeholder">Tap "Start camera" to begin</div>
+      <div class="camera-overlay-gradient"></div>
+      <div class="prompt-overlay" id="prompt-overlay" style="display: none">
+        <span id="prompt-text"></span>
+      </div>
+      <div class="rec-indicator" id="rec-indicator">
+        <span class="rec-blink"></span>
+        REC
+      </div>
+      <div class="timer-bar-wrap" id="timer-wrap" style="display: none">
+        <div class="timer-count" id="timer-count">0:00 / 0:30</div>
+        <div class="timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="record-controls" id="record-controls">
+      <button class="btn-primary" id="btn-start-camera" onclick="startCamera()">Start camera</button>
+    </div>
+    <div class="record-hint" id="record-hint"></div>
+
+    <div class="recorded-clips" id="recorded-clips"></div>
+
+    <div class="footer-actions" id="video-footer" style="display: none">
+      <button class="btn-primary" id="btn-submit-videos" onclick="submitApplication()">Submit application &rarr;</button>
+      <button class="btn-ghost" onclick="resetRecordings()">Re-record</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 5: UPLOADING ═══ -->
+  <div class="step" id="step-uploading">
+    <div class="upload-progress">
+      <div class="upload-title">Sending your application...</div>
+      <div class="upload-sub">This takes a minute. Don't close the page.</div>
+      <div class="progress-track"><div class="progress-fill" id="upload-fill"></div></div>
+      <div class="progress-pct" id="upload-pct">0%</div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 6: DONE ═══ -->
+  <div class="step" id="step-done">
+    <div class="status-icon success">&#10003;</div>
+    <h1 class="step-title" style="text-align: center">You're all set!</h1>
+    <p class="step-body" style="text-align: center" id="done-body">We'll review your application and text you within 24 hours.</p>
+
+    <div class="next-steps-card">
+      <div class="next-steps-title">WHAT HAPPENS NEXT</div>
+      <div class="next-steps-list">
+        1. We review your videos<br>
+        2. If you move forward, you'll get a booking link<br>
+        3. Show up prepared. You've got this.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 7: FILTERED (didn't meet basic requirements) ═══ -->
+  <div class="step" id="step-filtered">
+    <div class="status-icon filtered">i</div>
+    <h1 class="step-title" style="text-align: center">Thanks for your interest</h1>
+    <p class="step-body" style="text-align: center">Unfortunately you don't meet the basic requirements for this role. We appreciate you taking the time.</p>
+  </div>
+
+  <!-- ═══ STEP 8: ERROR ═══ -->
+  <div class="step" id="step-error">
+    <div class="status-icon error">!</div>
+    <h1 class="step-title" style="text-align: center">Something went wrong</h1>
+    <p class="step-body" style="text-align: center" id="error-body">We couldn't process your application. Please try again or contact support.</p>
+    <div class="footer-actions">
+      <button class="btn-primary" onclick="location.reload()">Try again</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="powered-by">Powered by RouteReady</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONFIGURATION
+// IMPORTANT: Update this URL to your Apps Script deployment URL
+// ═══════════════════════════════════════════════════════════════
+const API_URL = "https://script.google.com/macros/s/AKfycbwiWxrTv5ulBLP0sYT9kAhoPMW4KEO4agLn2Jk8e1wW4l8689ttOxOywKGQG1USittn/exec";
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let config = null;              // From getRecordConfig
+let applicantId = "";           // From URL ?id=
+let currentStep = "welcome";
+let currentPromptIndex = 0;     // 0, 1, 2 for the 3 video prompts
+let mediaStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];        // Blob chunks for current recording
+let recordedBlobs = [];         // Final Blob per prompt (indexed 0-2)
+let recordingTimer = null;
+let recordingStartTime = 0;
+let uploadId = "";              // Unique ID for this upload session
+
+// Contact + form state
+const applicant = {
+  firstName: "", lastName: "", email: "", phone: "",
+  answers: {}
+};
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener("DOMContentLoaded", init);
+
+async function init() {
+  // Read applicant ID from URL
+  const params = new URLSearchParams(window.location.search);
+  applicantId = params.get("id") || "";
+  uploadId = "up_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
+
+  // Check browser compatibility
+  if (!checkBrowserSupport()) {
+    document.getElementById("browser-check").innerHTML = `
+      <div class="browser-warning">
+        <div class="browser-warning-title">Your browser may not support video recording</div>
+        <div class="browser-warning-body">For the best experience, open this link in Safari (iPhone) or Chrome (Android). If you're already using one of these, try updating to the latest version.</div>
+      </div>
+    `;
+  }
+
+  // Fetch config from backend
+  try {
+    const res = await fetch(API_URL + "?action=getRecordConfig&id=" + encodeURIComponent(applicantId));
+    config = await res.json();
+    if (config.status === "error") {
+      showError(config.message);
+      return;
+    }
+    applyConfig(config);
+  } catch (err) {
+    console.error("Config load failed:", err);
+    showError("Could not load application. Check your internet connection and try again.");
+  }
+}
+
+function applyConfig(cfg) {
+  // DSP branding
+  document.getElementById("dsp-name").textContent = cfg.dspName || "Driver Application";
+  document.getElementById("dsp-logo").textContent = (cfg.dspName || "R").charAt(0).toUpperCase();
+
+  // Pre-fill first name if we have an applicant id
+  if (cfg.firstName) {
+    document.getElementById("input-firstName").value = cfg.firstName;
+    document.getElementById("welcome-title").textContent = "Hi " + cfg.firstName + "!";
+  }
+
+  // Build form questions
+  renderFormQuestions(cfg.formQuestions || []);
+}
+
+function checkBrowserSupport() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STEP NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+const STEP_ORDER = {
+  welcome:    { num: 1, id: "step-welcome" },
+  contact:    { num: 2, id: "step-contact" },
+  form:       { num: 3, id: "step-form" },
+  video:      { num: 4, id: "step-video" },
+  uploading:  { num: 5, id: "step-uploading" },
+  done:       { num: 5, id: "step-done" },
+  filtered:   { num: 5, id: "step-filtered" },
+  error:      { num: 5, id: "step-error" }
+};
+
+function goToStep(name) {
+  // Validation gates
+  if (name === "form") {
+    const fn = document.getElementById("input-firstName").value.trim();
+    const ln = document.getElementById("input-lastName").value.trim();
+    const em = document.getElementById("input-email").value.trim();
+    const ph = document.getElementById("input-phone").value.trim();
+    if (!fn) return alert("First name is required");
+    if (!ln) return alert("Last name is required");
+    if (!em || !em.includes("@")) return alert("Valid email is required");
+    if (!ph) return alert("Phone number is required");
+    applicant.firstName = fn;
+    applicant.lastName  = ln;
+    applicant.email     = em;
+    applicant.phone     = ph;
+  }
+
+  document.querySelectorAll(".step").forEach(function(s) { s.classList.remove("active"); });
+  const info = STEP_ORDER[name];
+  if (!info) return;
+  document.getElementById(info.id).classList.add("active");
+  updateProgress(info.num);
+  currentStep = name;
+  window.scrollTo(0, 0);
+}
+
+function updateProgress(stepNum) {
+  document.querySelectorAll(".progress-dot").forEach(function(dot) {
+    const n = parseInt(dot.dataset.step);
+    dot.classList.remove("done", "current");
+    if (n < stepNum) dot.classList.add("done");
+    else if (n === stepNum) dot.classList.add("current");
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FORM QUESTIONS
+// ═══════════════════════════════════════════════════════════════
+function renderFormQuestions(questions) {
+  const container = document.getElementById("form-questions");
+  container.innerHTML = "";
+  questions.forEach(function(q) {
+    const qDiv = document.createElement("div");
+    qDiv.className = "form-question";
+    qDiv.innerHTML = `<div class="form-q-label">${escapeHtml(q.label)}</div>`;
+
+    if (q.type === "yesno") {
+      const wrap = document.createElement("div");
+      wrap.className = "yesno-buttons";
+      ["Yes","No"].forEach(function(val) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "yesno-btn";
+        btn.textContent = val;
+        btn.onclick = function() {
+          wrap.querySelectorAll(".yesno-btn").forEach(function(b) { b.classList.remove("selected"); });
+          btn.classList.add("selected");
+          applicant.answers[q.id] = val.toLowerCase();
+        };
+        wrap.appendChild(btn);
+      });
+      qDiv.appendChild(wrap);
+    }
+
+    if (q.type === "checkbox") {
+      const wrap = document.createElement("div");
+      wrap.className = "checkbox-options";
+      applicant.answers[q.id] = [];
+      (q.options || []).forEach(function(opt) {
+        const row = document.createElement("div");
+        row.className = "checkbox-row";
+        row.innerHTML = `<div class="checkbox-box"></div><div class="checkbox-text">${escapeHtml(opt)}</div>`;
+        row.onclick = function() {
+          row.classList.toggle("checked");
+          const arr = applicant.answers[q.id];
+          const idx = arr.indexOf(opt);
+          if (row.classList.contains("checked")) {
+            if (idx === -1) arr.push(opt);
+          } else {
+            if (idx !== -1) arr.splice(idx, 1);
+          }
+        };
+        wrap.appendChild(row);
+      });
+      qDiv.appendChild(wrap);
+    }
+
+    container.appendChild(qDiv);
+  });
+}
+
+function submitForm() {
+  const questions = (config && config.formQuestions) || [];
+  // Validate required and check hard filters
+  let filtered = false;
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const ans = applicant.answers[q.id];
+    if (q.required && (ans === undefined || ans === null || (Array.isArray(ans) && ans.length === 0))) {
+      alert("Please answer: " + q.label);
+      return;
+    }
+    if (q.failIf && String(ans).toLowerCase() === q.failIf) filtered = true;
+  }
+
+  if (filtered) {
+    goToStep("filtered");
+    // Silently send the "filtered" event to backend for analytics
+    sendFilteredEvent();
+    return;
+  }
+  goToStep("video");
+  preparePrompt(0);
+}
+
+function sendFilteredEvent() {
+  const params = new URLSearchParams({
+    action: "finalizeApplication",
+    uploadId: uploadId,
+    applicantId: applicantId,
+    firstName: applicant.firstName,
+    lastName:  applicant.lastName,
+    email:     applicant.email,
+    phone:     applicant.phone,
+    formAnswers: JSON.stringify(applicant.answers),
+    filteredOnly: "1"
+  });
+  fetch(API_URL + "?" + params.toString()).catch(function(){});
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIDEO RECORDING
+// ═══════════════════════════════════════════════════════════════
+function preparePrompt(idx) {
+  if (!config || !config.prompts || idx >= config.prompts.length) return;
+  currentPromptIndex = idx;
+  const p = config.prompts[idx];
+
+  document.getElementById("video-step-title").textContent = "Record your video";
+  document.getElementById("prompt-overlay").style.display = "block";
+  document.getElementById("prompt-text").textContent = p.text;
+
+  renderClipList();
+  document.getElementById("video-preamble").style.display = "block";
+}
+
+async function startCamera() {
+  document.getElementById("btn-start-camera").disabled = true;
+  document.getElementById("btn-start-camera").textContent = "Starting...";
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: true
+    });
+    const video = document.getElementById("camera-video");
+    video.srcObject = mediaStream;
+    document.getElementById("camera-placeholder").style.display = "none";
+
+    // Replace start button with record button
+    document.getElementById("record-controls").innerHTML = `
+      <button class="record-btn" id="btn-record" onclick="toggleRecording()">REC</button>
+    `;
+    document.getElementById("record-hint").textContent = "Tap to start recording";
+  } catch(err) {
+    console.error("Camera error:", err);
+    document.getElementById("btn-start-camera").disabled = false;
+    document.getElementById("btn-start-camera").textContent = "Start camera";
+    if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+      alert("Camera access is required. Please allow camera access and try again. On iPhone, you may need to go to Settings > Safari > Camera and enable it.");
+    } else {
+      alert("Could not access camera: " + err.message);
+    }
+  }
+}
+
+function toggleRecording() {
+  if (!mediaRecorder || mediaRecorder.state === "inactive") {
+    startRecording();
+  } else {
+    stopRecording();
+  }
+}
+
+function startRecording() {
+  if (!mediaStream) return;
+  recordedChunks = [];
+  const mimeType = getSupportedMimeType();
+  try {
+    mediaRecorder = new MediaRecorder(mediaStream, { mimeType: mimeType });
+  } catch(e) {
+    try { mediaRecorder = new MediaRecorder(mediaStream); } catch(e2) {
+      alert("This browser does not support video recording. Please try Chrome or Safari.");
+      return;
+    }
+  }
+  mediaRecorder.ondataavailable = function(e) {
+    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+  };
+  mediaRecorder.onstop = function() {
+    const blob = new Blob(recordedChunks, { type: mimeType || "video/webm" });
+    recordedBlobs[currentPromptIndex] = blob;
+    clearInterval(recordingTimer);
+    document.getElementById("rec-indicator").classList.remove("active");
+    document.getElementById("timer-wrap").style.display = "none";
+    const btn = document.getElementById("btn-record");
+    if (btn) { btn.classList.remove("recording"); btn.textContent = "REC"; }
+    afterClipRecorded();
+  };
+  mediaRecorder.start();
+  recordingStartTime = Date.now();
+  document.getElementById("rec-indicator").classList.add("active");
+  document.getElementById("timer-wrap").style.display = "block";
+  const btn = document.getElementById("btn-record");
+  if (btn) { btn.classList.add("recording"); btn.textContent = "STOP"; }
+  document.getElementById("record-hint").textContent = "Recording... tap to stop";
+
+  const maxSec = (config && config.prompts[currentPromptIndex] && config.prompts[currentPromptIndex].seconds) || 30;
+  recordingTimer = setInterval(function() {
+    const elapsed = (Date.now() - recordingStartTime) / 1000;
+    const pct = Math.min(100, (elapsed / maxSec) * 100);
+    document.getElementById("timer-fill").style.width = pct + "%";
+    document.getElementById("timer-count").textContent = formatTime(elapsed) + " / " + formatTime(maxSec);
+    if (elapsed >= maxSec) stopRecording();
+  }, 100);
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+}
+
+function getSupportedMimeType() {
+  // Prefer mp4 — Google Drive plays it back immediately after upload.
+  // webm requires ~5-10min of Drive-side transcoding before playback works,
+  // which is a terrible UX for reviewing applicants right after they submit.
+  // Falls back to webm if the browser doesn't support mp4 recording.
+  const types = [
+    "video/mp4;codecs=h264",
+    "video/mp4",
+    "video/webm;codecs=h264",
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm"
+  ];
+  for (let i = 0; i < types.length; i++) {
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
+  }
+  return "";
+}
+
+function afterClipRecorded() {
+  renderClipList();
+  // Single video flow — one clip, done
+  document.getElementById("record-hint").textContent = "Video recorded!";
+  document.getElementById("video-footer").style.display = "block";
+  document.getElementById("record-controls").innerHTML = `
+    <button class="btn-ghost" style="width: auto; padding: 10px 20px" onclick="rerecordCurrent()">Re-record</button>
+  `;
+}
+
+function rerecordCurrent() {
+  recordedBlobs[currentPromptIndex] = null;
+  renderClipList();
+  document.getElementById("record-controls").innerHTML = `
+    <button class="record-btn" id="btn-record" onclick="toggleRecording()">REC</button>
+  `;
+  document.getElementById("video-footer").style.display = "none";
+  document.getElementById("record-hint").textContent = "Tap to re-record this clip";
+}
+
+function renderClipList() {
+  const wrap = document.getElementById("recorded-clips");
+  wrap.innerHTML = "";
+  const p = config && config.prompts && config.prompts[0];
+  if (!p) return;
+  const isDone = !!recordedBlobs[0];
+  const row = document.createElement("div");
+  row.className = "clip-row" + (isDone ? " done" : " current");
+  row.innerHTML = `
+    <div class="clip-num">${isDone ? '&#10003;' : '1'}</div>
+    <div class="clip-info">
+      <div class="clip-prompt">${escapeHtml(p.text)}</div>
+      <div class="clip-status ${isDone ? 'done' : ''}">${isDone ? 'Recorded' : 'Ready to record'}</div>
+    </div>
+  `;
+  wrap.appendChild(row);
+}
+
+function resetRecordings() {
+  if (!confirm("Start over from the first clip?")) return;
+  recordedBlobs = [];
+  currentPromptIndex = 0;
+  preparePrompt(0);
+  document.getElementById("video-footer").style.display = "none";
+  document.getElementById("record-controls").innerHTML = `
+    <button class="record-btn" id="btn-record" onclick="toggleRecording()">REC</button>
+  `;
+  document.getElementById("record-hint").textContent = "Tap to start recording";
+}
+
+function formatTime(sec) {
+  const s = Math.floor(sec);
+  return "0:" + (s < 10 ? "0" + s : s);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUBMIT APPLICATION
+// ═══════════════════════════════════════════════════════════════
+async function submitApplication() {
+  if (!recordedBlobs[0]) {
+    alert("Please record your video before submitting.");
+    return;
+  }
+  // Stop the camera
+  if (mediaStream) mediaStream.getTracks().forEach(function(t) { t.stop(); });
+
+  goToStep("uploading");
+
+  try {
+    // v3.7 — Cloudflare R2 direct upload flow
+    // Browser uploads binary blob directly to R2, bypassing Apps Script
+    // entirely for the file transfer. Instant playback, no transcoding.
+    updateUploadProgress(0, 1, "Preparing upload…");
+    const uploadResult = await uploadBlobDirect(recordedBlobs[0], 1);
+    updateUploadProgress(1, 1, "Finishing up…");
+
+    // Pass whatever the upload returned to finalize — supports both R2 and Drive
+    const fileIds = [uploadResult];
+
+    // Finalize — tell backend the file IDs, let it update Master + send SMS
+    const params = new URLSearchParams({
+      action: "finalizeApplication",
+      applicantId: applicantId,
+      firstName: applicant.firstName,
+      lastName:  applicant.lastName,
+      email:     applicant.email,
+      phone:     applicant.phone,
+      formAnswers: JSON.stringify(applicant.answers),
+      fileIds: JSON.stringify(fileIds),
+      userAgent: navigator.userAgent.substring(0, 200)
+    });
+    const res = await fetch(API_URL + "?" + params.toString());
+    const result = await res.json();
+    if (result.status === "ok") {
+      goToStep("done");
+    } else if (result.status === "filtered") {
+      goToStep("filtered");
+    } else {
+      showError(result.message || "Upload failed. Please try again.");
+    }
+  } catch(err) {
+    console.error("Submit error:", err);
+    showError("Upload failed: " + err.message);
+  }
+}
+
+// Update the progress bar + text during uploads
+function updateUploadProgress(completed, total, label) {
+  const pct = Math.round((completed / total) * 100);
+  const fill = document.getElementById("upload-fill");
+  const pctEl = document.getElementById("upload-pct");
+  if (fill) fill.style.width = pct + "%";
+  if (pctEl) pctEl.textContent = label || (pct + "%");
+}
+
+// Upload a video blob — tries R2 first, falls back to Drive/Apps Script
+// Returns entry ready for fileIds array: { promptNum, publicUrl, objectKey } OR { promptNum, fileId }
+async function uploadBlobDirect(blob, promptNum) {
+  const extension = (blob.type || "").indexOf("mp4") !== -1 ? ".mp4" : ".webm";
+  const fileName = "video_p" + promptNum + "_" + Date.now() + extension;
+  const mimeType = blob.type || "video/mp4";
+
+  // ── Try R2 first ──
+  try {
+    const sessionParams = new URLSearchParams({
+      action: "getR2UploadUrl",
+      fileName: fileName,
+      mimeType: mimeType
+    });
+    const sessionRes = await fetch(API_URL + "?" + sessionParams.toString());
+    const session = await sessionRes.json();
+    if (session.status === "ok" && session.uploadUrl) {
+      // Direct PUT to R2 — no preflight because Content-Type is simple video/*
+      // and we don't set extra headers
+      const r2Res = await fetch(session.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": mimeType },
+        body: blob
+      });
+      if (r2Res.ok) {
+        return { promptNum: promptNum, publicUrl: session.publicUrl, objectKey: session.objectKey };
+      }
+      console.warn("R2 upload failed with status " + r2Res.status + " — falling back to Drive");
+    } else {
+      console.warn("R2 not configured (" + (session.message || "unknown") + ") — falling back to Drive");
+    }
+  } catch(r2err) {
+    console.warn("R2 upload error — falling back to Drive:", r2err.message);
+  }
+
+  // ── Fallback: Drive via Apps Script (base64 POST) ──
+  const base64 = await blobToBase64(blob);
+  const params = new URLSearchParams();
+  params.append("action", "uploadVideoComplete");
+  params.append("fileName", fileName);
+  params.append("mimeType", mimeType);
+  params.append("data", base64);
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString()
+  });
+  if (!res.ok) throw new Error("Upload failed with status " + res.status);
+  const result = await res.json();
+  if (result.status === "ok" && result.fileId) {
+    return { promptNum: promptNum, fileId: result.fileId };
+  }
+  throw new Error(result.message || "Upload failed");
+}
+
+function blobToBase64(blob) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onloadend = function() {
+      // Strip the "data:video/webm;base64," prefix
+      const str = reader.result;
+      const commaIdx = str.indexOf(",");
+      resolve(commaIdx > -1 ? str.substring(commaIdx + 1) : str);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════
+function showError(msg) {
+  document.getElementById("error-body").textContent = msg;
+  goToStep("error");
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, function(c) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+</script>
+
+</body>
+</html>

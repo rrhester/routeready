@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How RouteReady Works — Your Hiring. Handled.</title>
+<meta name="description" content="See exactly how RouteReady contacts, screens, scores and books DSP driver applicants. Plus the pipeline throttle, DSP preferences, and the human layer behind the automation.">
+<link rel="icon" href="data:image/png;base64,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">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+
+/* ─── RESET ─────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{font-family:'DM Sans',sans-serif;background:#F7F6F3;color:#1A1A1A;overflow-x:hidden;line-height:1.6;}
+a{text-decoration:none;color:inherit;}
+svg{display:block;}
+
+/* ─── TOKENS ─────────────────────────────────────────────── */
+:root{
+  /* Light surface tokens */
+  --bg:#FAFAF9;
+  --bg2:#F3F2EF;
+  --bg3:#ECEAE6;
+  --surface:#FFFFFF;
+  --border:#E8E6E1;
+  --border-dark:#C2BFB8;
+
+  /* Dark section tokens */
+  --ink:#1B2235;
+  --ink2:#222C42;
+  --ink3:#2A3550;
+
+  /* Brand */
+  --bolt:#C85A1E;
+  --bolt-dim:rgba(200,90,30,.1);
+  --bolt-glow:rgba(200,90,30,.2);
+  --green:#1A7A4A;
+  --green-light:#ECFDF5;
+  --red:#B33300;
+
+  /* Light text */
+  --text:#1A1A1A;
+  --text2:#4A4A4A;
+  --text3:#6B6B6B;
+  --text4:#9A9A9A;
+
+  /* Dark section text (on ink backgrounds) */
+  --white:#FFFFFF;
+  --w90:rgba(255,255,255,.9);
+  --w70:rgba(255,255,255,.7);
+  --w50:rgba(255,255,255,.5);
+  --w30:rgba(255,255,255,.3);
+  --w15:rgba(255,255,255,.15);
+  --w08:rgba(255,255,255,.08);
+  --w04:rgba(255,255,255,.04);
+
+  --r:12px;
+  --r-sm:8px;
+  --r-lg:18px;
+  --max:1080px;
+}
+
+/* ─── KEYFRAMES ──────────────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:translateY(0);}}
+@keyframes breathe{0%,100%{opacity:.7;transform:scale(1);}50%{opacity:1;transform:scale(1.06);}}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+@keyframes pulse{0%,100%{box-shadow:0 0 32px rgba(200,90,30,.15);}50%{box-shadow:0 0 64px rgba(200,90,30,.3);}}
+@keyframes drift{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+
+/* Hero entry */
+.fu{animation:fadeUp .9s cubic-bezier(.16,1,.3,1) both;}
+.d1{animation-delay:.1s;}.d2{animation-delay:.22s;}
+.d3{animation-delay:.36s;}.d4{animation-delay:.52s;}.d5{animation-delay:.68s;}
+
+/* Scroll reveal */
+.sr{opacity:0;transform:translateY(24px);transition:opacity .85s cubic-bezier(.16,1,.3,1),transform .85s cubic-bezier(.16,1,.3,1);}
+.sr.on{opacity:1;transform:none;}
+.sr.r2{transition-delay:.12s;}.sr.r3{transition-delay:.24s;}.sr.r4{transition-delay:.36s;}
+
+/* ─── LAYOUT ──────────────────────────────────────────────── */
+.wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 2rem;}
+.hr{height:1px;background:var(--border);}
+
+/* Section labels — two modes */
+.section-label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text4);font-weight:600;display:block;margin-bottom:1.25rem;}
+.section-label-light{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.4);font-weight:600;display:block;margin-bottom:1.25rem;}
+
+/* Headings — two modes */
+.section-h{font-family:'DM Serif Display',serif;font-size:clamp(30px,4vw,48px);line-height:1.1;letter-spacing:-1px;color:var(--text);margin-bottom:1.5rem;}
+.section-h em{color:var(--bolt);font-style:normal;}
+.section-h-light{font-family:'DM Serif Display',serif;font-size:clamp(30px,4vw,48px);line-height:1.1;letter-spacing:-1px;color:var(--white);margin-bottom:1.5rem;}
+.section-h-light em{color:rgba(200,90,30,.85);font-style:normal;}
+
+.section-body{font-size:16px;color:var(--text2);line-height:1.85;max-width:480px;font-weight:300;}
+.section-body strong{color:var(--text);font-weight:500;}
+
+/* ─── NAV ─────────────────────────────────────────────────── */
+nav{position:fixed;top:0;left:0;right:0;z-index:300;height:64px;background:rgba(27,34,53,.88);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid rgba(255,255,255,.08);transition:background .4s,border-color .4s;}
+.nav-in{height:100%;max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;align-items:center;justify-content:space-between;}
+.nav-logo{display:flex;align-items:center;gap:10px;}
+.bolt-icon{width:32px;height:32px;border-radius:8px;background:var(--bolt);display:inline-flex;align-items:center;justify-content:center;animation:breathe 3.5s ease-in-out infinite;flex-shrink:0;}
+.nav-name{font-family:'DM Serif Display',serif;font-size:19px;letter-spacing:-.2px;color:var(--white);}
+.nav-name em{color:rgba(200,90,30,.9);font-style:normal;}
+.nav-r{display:flex;align-items:center;gap:2rem;}
+.nav-link{font-size:13px;color:rgba(255,255,255,.6);transition:color .2s;font-weight:400;}
+.nav-link:hover{color:var(--white);}
+.nav-cta{font-size:13px;font-weight:600;color:var(--white);background:var(--bolt);padding:8px 20px;border-radius:var(--r-sm);transition:background .2s,box-shadow .2s;white-space:nowrap;box-shadow:0 2px 12px var(--bolt-glow);}
+.nav-cta:hover{background:var(--red);box-shadow:0 4px 20px rgba(200,90,30,.35);}
+/* Light nav state — applied via JS when scrolled past hero */
+nav.light{background:rgba(247,246,243,.96);border-bottom-color:var(--border);}
+nav.light .nav-name{color:var(--text);}
+nav.light .nav-name em{color:var(--bolt);}
+nav.light .nav-link{color:var(--text2);}
+nav.light .nav-link:hover{color:var(--text);}
+
+/* ─── HERO — dark section ──────────────────────────────────── */
+.hero{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 2rem 80px;position:relative;overflow:hidden;background:var(--ink);}
+.hero-bg{position:absolute;inset:0;pointer-events:none;}
+.hero-glow-outer{position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1100px;height:700px;background:radial-gradient(ellipse at 50% 35%,rgba(200,90,30,.1) 0%,transparent 65%);}
+.hero-glow-inner{position:absolute;top:-60px;left:50%;transform:translateX(-50%);width:500px;height:380px;background:radial-gradient(ellipse at 50% 40%,rgba(200,90,30,.07) 0%,transparent 60%);}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:radial-gradient(ellipse 75% 65% at 50% 38%,#000 10%,transparent 75%);mask-image:radial-gradient(ellipse 75% 65% at 50% 38%,#000 10%,transparent 75%);}
+.hero-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(200,90,30,.1);border:1px solid rgba(200,90,30,.22);border-radius:30px;padding:5px 16px;font-size:11px;font-weight:500;letter-spacing:.3px;color:rgba(200,90,30,.9);margin-bottom:2.5rem;position:relative;z-index:1;}
+.chip-dot{width:5px;height:5px;border-radius:50%;background:var(--bolt);animation:blink 2.2s ease-in-out infinite;flex-shrink:0;}
+.hero-icon-wrap{margin:0 auto 2.25rem;position:relative;z-index:1;}
+.hero-icon{width:88px;height:88px;border-radius:22px;background:var(--bolt);display:inline-flex;align-items:center;justify-content:center;animation:pulse 3s ease-in-out infinite;}
+.hero-h1{font-family:'DM Serif Display',serif;font-size:clamp(48px,8vw,92px);line-height:1.05;letter-spacing:-3px;color:var(--white);margin-bottom:1.25rem;position:relative;z-index:1;max-width:860px;}
+.hero-h1 em{color:rgba(200,90,30,.85);font-style:normal;}
+.hero-clarify{font-size:clamp(15px,1.7vw,17px);color:var(--w70);line-height:1.7;margin-bottom:.875rem;position:relative;z-index:1;max-width:600px;}
+.hero-clarify strong{color:var(--white);}
+.hero-sub{font-size:clamp(14px,1.5vw,16px);color:var(--w50);line-height:1.8;max-width:520px;margin:0 auto 3rem;position:relative;z-index:1;font-weight:300;}
+.hero-actions{display:flex;flex-direction:column;align-items:center;gap:.75rem;position:relative;z-index:1;}
+.btn-hero{display:inline-block;background:var(--bolt);color:var(--white);font-size:16px;font-weight:600;padding:16px 40px;border-radius:var(--r-sm);transition:all .3s cubic-bezier(.16,1,.3,1);box-shadow:0 4px 24px var(--bolt-glow);letter-spacing:-.1px;}
+.btn-hero:hover{background:var(--red);transform:translateY(-2px);box-shadow:0 8px 36px rgba(200,90,30,.4);}
+.hero-note{font-size:12px;color:var(--w30);font-weight:300;}
+.hero-demo-link{font-size:13px;color:var(--w40);transition:color .2s;}
+.hero-demo-link:hover{color:var(--w70);}
+
+/* ─── BEFORE / AFTER ──────────────────────────────────────── */
+.ba-section{padding:128px 0 0;background:var(--bg);}
+.ba-intro{text-align:center;margin-bottom:3rem;}
+.ba-wrap{display:grid;grid-template-columns:1fr 1fr;gap:2rem;max-width:900px;margin:0 auto;}
+.ba-col{
+  background:var(--surface);
+  border:1px solid var(--border-dark);
+  border-radius:var(--r-lg);
+  overflow:hidden;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.06),
+    0 4px 10px rgba(0,0,0,.07),
+    0 10px 24px rgba(0,0,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.95);
+}
+.ba-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:.875rem 1.5rem;border-bottom:1px solid var(--border);}
+.ba-label.before{color:rgba(180,60,10,.7);background:rgba(200,90,30,.04);}
+.ba-label.after{color:var(--green);background:rgba(26,122,74,.04);}
+.ba-item{display:flex;align-items:flex-start;gap:.875rem;padding:.875rem 1.5rem;border-bottom:1px solid rgba(0,0,0,.04);}
+.ba-ico{font-size:12px;flex-shrink:0;margin-top:2px;}
+.ba-ico.x{color:rgba(180,60,10,.5);}
+.ba-ico.ck{color:var(--green);}
+.ba-txt{font-size:14px;line-height:1.55;font-weight:300;}
+.ba-txt.dim{color:var(--text3);}
+.ba-txt.lit{color:var(--text2);}
+.ba-foot{padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;background:rgba(0,0,0,.02);}
+.ba-foot.before{border-top:2px solid rgba(200,90,30,.12);}
+.ba-foot.after{border-top:2px solid rgba(26,122,74,.15);}
+.ba-foot-label{font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.5px;font-weight:500;}
+.ba-foot-num{font-family:'DM Serif Display',serif;font-size:36px;letter-spacing:-1px;line-height:1;}
+.ba-foot-num.red{color:rgba(180,60,10,.7);}
+.ba-foot-num.green{color:var(--green);}
+
+/* ─── SHOW RATE STRIP ─────────────────────────────────────── */
+.sr-strip{background:var(--bg2);border-top:1px solid var(--border);padding:2.5rem 0;}
+.sr-inner{display:flex;align-items:center;justify-content:center;gap:2.5rem;max-width:var(--max);margin:0 auto;padding:0 2rem;}
+.sr-num{text-align:center;}
+.sr-val{font-family:'DM Serif Display',serif;font-size:48px;letter-spacing:-2px;line-height:1;margin-bottom:4px;}
+.sr-lbl{font-size:11px;color:var(--text4);letter-spacing:.5px;font-weight:400;}
+.sr-arrow{font-size:24px;color:var(--text4);}
+.sr-copy{max-width:280px;}
+.sr-main{font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;letter-spacing:-.2px;}
+.sr-sub{font-size:13px;color:var(--text3);line-height:1.6;font-weight:300;}
+
+/* ─── MORNING / SAVINGS ───────────────────────────────────── */
+.morning-section{padding:96px 0;background:var(--bg);}
+.morning-grid{display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center;}
+.savings-section{padding:96px 0;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.savings-grid{display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center;}
+
+/* ─── CARD DEPTH SYSTEM ───────────────────────────────────── */
+/* Subtle lift — every surface card on the page uses this */
+.card-lift{
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.06),
+    0 4px 10px rgba(0,0,0,.07),
+    0 10px 24px rgba(0,0,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.95);
+  border:1px solid var(--border-dark);
+  background:var(--surface);
+  border-radius:var(--r-lg);
+}
+
+/* ─── ONBOARDING ──────────────────────────────────────────── */
+.onboard-section{padding:96px 0;background:var(--bg2);border-top:1px solid var(--border);text-align:center;}
+.ob-steps{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:start;gap:1.5rem;margin:3rem auto 0;max-width:900px;}
+.ob-step{
+  background:var(--surface);
+  border:1px solid var(--border-dark);
+  border-radius:var(--r-lg);
+  padding:2rem 1.5rem;
+  text-align:center;
+  box-shadow:
+    0 2px 4px rgba(0,0,0,.07),
+    0 8px 20px rgba(0,0,0,.08),
+    0 20px 40px rgba(0,0,0,.07),
+    inset 0 1px 0 rgba(255,255,255,.95);
+}
+.ob-n{width:40px;height:40px;border-radius:50%;background:var(--ink);color:var(--white);font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+.ob-t{font-size:15px;font-weight:600;color:var(--text);margin-bottom:.5rem;}
+.ob-d{font-size:13px;color:var(--text3);line-height:1.6;font-weight:300;}
+.ob-arr{color:var(--bolt);font-size:20px;padding-top:3rem;opacity:.5;}
+.ob-note{font-size:12px;color:var(--text4);margin-top:2rem;font-style:italic;font-weight:300;}
+
+/* ─── GUARANTEE ───────────────────────────────────────────── */
+.guarantee{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:2rem 0;}
+.guarantee-inner{max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;align-items:center;gap:1.5rem;}
+.g-icon{font-size:28px;flex-shrink:0;}
+.g-text{font-size:15px;color:var(--text2);line-height:1.75;font-weight:300;}
+.g-text strong{color:var(--text);font-weight:600;}
+
+/* ─── PRICING — dark section ──────────────────────────────── */
+.pricing-section{padding:96px 0;background:var(--ink);text-align:center;}
+.price-card{max-width:520px;margin:3rem auto 0;background:var(--ink2);border:1px solid rgba(255,255,255,.1);border-radius:var(--r-lg);padding:2.5rem 2rem;box-shadow:0 0 80px rgba(0,0,0,.1),0 40px 80px rgba(0,0,0,.4);position:relative;overflow:hidden;text-align:center;}
+.price-card::before{content:'';position:absolute;top:-80px;left:50%;transform:translateX(-50%);width:400px;height:260px;background:radial-gradient(ellipse,rgba(200,90,30,.06) 0%,transparent 70%);pointer-events:none;}
+.price-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(200,90,30,.8);margin-bottom:1.5rem;font-weight:500;}
+.price-amt{font-family:'DM Serif Display',serif;font-size:72px;color:var(--white);line-height:1;letter-spacing:-3px;}
+.price-amt span{font-size:28px;color:var(--w50);vertical-align:top;margin-top:12px;display:inline-block;}
+.price-cycle{font-size:13px;color:var(--w50);margin-top:.5rem;margin-bottom:1.75rem;font-weight:300;}
+.price-divider{height:1px;background:var(--w08);margin-bottom:1.75rem;}
+.price-feats{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.75rem;text-align:left;}
+.pf{display:flex;align-items:flex-start;gap:.5rem;font-size:13px;color:var(--w70);line-height:1.5;font-weight:300;}
+.pf-ck{color:rgba(26,200,100,.8);flex-shrink:0;font-weight:700;}
+.price-divider2{height:1px;background:var(--w08);margin-bottom:1.5rem;}
+.price-anchor{font-size:14px;color:var(--w70);margin-bottom:1.5rem;line-height:1.7;font-weight:300;}
+.price-anchor strong{color:var(--white);font-weight:500;}
+.btn-trial{display:block;background:var(--bolt);color:var(--white);font-size:15px;font-weight:600;padding:16px;border-radius:var(--r-sm);margin-bottom:.75rem;transition:all .3s cubic-bezier(.16,1,.3,1);box-shadow:0 4px 24px var(--bolt-glow);}
+.btn-trial:hover{background:var(--red);transform:translateY(-2px);}
+.btn-demo{display:block;background:transparent;color:var(--w50);font-size:13px;padding:10px;border-radius:var(--r-sm);border:1px solid var(--w08);transition:color .2s,border-color .2s;font-weight:300;}
+.btn-demo:hover{color:var(--white);border-color:var(--w30);}
+.price-note{font-size:11px;color:var(--w30);margin-top:.875rem;line-height:1.6;font-weight:300;}
+
+/* ─── URGENCY STRIP ───────────────────────────────────────── */
+.urgency-strip{background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);border-radius:var(--r);padding:.875rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:center;gap:.75rem;max-width:520px;margin-left:auto;margin-right:auto;}
+.urgency-dot{width:7px;height:7px;border-radius:50%;background:var(--bolt);flex-shrink:0;animation:blink 2s ease-in-out infinite;}
+.urgency-text{font-size:13px;color:var(--w70);font-weight:300;line-height:1.5;}
+.urgency-text strong{color:var(--white);font-weight:600;}
+
+/* ─── FAQ — light section ─────────────────────────────────── */
+.faq-section{padding:96px 0;background:var(--bg);}
+.faq-wrap{max-width:680px;margin:0 auto;padding:0 1.25rem;}
+.faq-header{text-align:center;margin-bottom:3rem;}
+.faq-list{display:flex;flex-direction:column;gap:2px;}
+.faq-item{
+  background:var(--surface);
+  border:1px solid var(--border-dark);
+  border-radius:var(--r);
+  overflow:hidden;
+  transition:border-color .25s, box-shadow .25s;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.06),
+    0 4px 10px rgba(0,0,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.95);
+}
+.faq-item:hover{border-color:var(--border-dark);}
+.faq-item.open{border-color:rgba(200,90,30,.3);}
+.faq-q{padding:1.25rem 1.5rem;font-size:14px;font-weight:500;color:var(--text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;user-select:none;line-height:1.4;}
+.faq-q:hover{background:var(--bg);}
+.faq-arrow{font-size:11px;color:var(--bolt);flex-shrink:0;transition:transform .3s cubic-bezier(.16,1,.3,1);}
+.faq-item.open .faq-arrow{transform:rotate(180deg);}
+.faq-a{font-size:14px;color:var(--text2);line-height:1.8;padding:0 1.5rem;max-height:0;overflow:hidden;transition:max-height .5s cubic-bezier(.16,1,.3,1),padding .4s ease;font-weight:300;}
+.faq-item.open .faq-a{max-height:600px;padding:.5rem 1.5rem 1.5rem;}
+.faq-a strong{color:var(--text);font-weight:500;}
+
+/* ─── FOUNDER ─────────────────────────────────────────────── */
+.testimonial{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:2.5rem 0;}
+.t-inner{max-width:720px;margin:0 auto;padding:0 2rem;}
+.t-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:2rem 2.25rem;display:flex;align-items:flex-start;gap:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+.t-icon{width:44px;height:44px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.t-text{font-size:15px;color:var(--text2);line-height:1.75;font-weight:300;}
+.t-text strong{color:var(--text);font-weight:500;}
+.t-sub{font-size:11px;color:var(--text4);margin-top:.375rem;font-weight:300;}
+
+/* ─── FOOTER ──────────────────────────────────────────────── */
+footer{background:var(--ink);padding:3rem 0;border-top:1px solid rgba(255,255,255,.06);}
+.ft-in{max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;flex-direction:column;align-items:center;gap:1.25rem;text-align:center;}
+.ft-logo{display:flex;align-items:center;gap:9px;}
+.ft-name{font-family:'DM Serif Display',serif;font-size:20px;color:var(--w70);}
+.ft-name em{color:rgba(200,90,30,.85);font-style:normal;}
+.ft-tag{font-size:13px;color:var(--w50);font-style:italic;font-weight:300;letter-spacing:.2px;}
+.ft-links{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;justify-content:center;}
+.ft-link{font-size:12px;color:var(--w50);transition:color .2s;font-weight:300;}
+.ft-link:hover{color:var(--white);}
+.ft-copy{font-size:10px;color:var(--w30);font-weight:300;}
+
+/* ─── TRACKER CTA ─────────────────────────────────────────── */
+.tracker-cta{padding:96px 2rem;background:var(--ink);text-align:center;position:relative;overflow:hidden;}
+.tracker-cta::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 65% at 50% 55%,rgba(200,90,30,.06) 0%,transparent 70%);pointer-events:none;}
+.tracker-cta-label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(200,90,30,.7);font-weight:600;display:block;margin-bottom:1rem;position:relative;z-index:1;}
+.tracker-cta-headline{font-family:'DM Serif Display',serif;font-size:clamp(28px,4vw,52px);color:var(--white);line-height:1.1;letter-spacing:-1.5px;margin-bottom:.75rem;position:relative;z-index:1;}
+.tracker-cta-headline em{color:rgba(200,90,30,.85);font-style:normal;}
+.tracker-cta-sub{font-size:16px;color:var(--w50);font-weight:300;line-height:1.7;max-width:380px;margin:0 auto 3rem;position:relative;z-index:1;}
+.tracker-cta-card{max-width:680px;margin:0 auto 3rem;position:relative;z-index:1;pointer-events:none;opacity:.95;}
+.tracker-cta-actions{display:flex;flex-direction:column;align-items:center;gap:.75rem;position:relative;z-index:1;}
+.btn-cta-final{background:var(--bolt);color:var(--white);font-size:16px;font-weight:600;padding:18px 48px;border-radius:var(--r-sm);transition:all .3s cubic-bezier(.16,1,.3,1);box-shadow:0 4px 24px var(--bolt-glow);letter-spacing:-.1px;}
+.btn-cta-final:hover{background:var(--red);transform:translateY(-2px);}
+.cta-final-note{font-size:12px;color:var(--w30);font-weight:300;}
+.cta-final-demo{font-size:13px;color:var(--w30);transition:color .2s;}
+.cta-final-demo:hover{color:var(--w70);}
+
+/* ─── MOBILE SHOW / HIDE ─────────────────────────────────── */
+.mobile-only{display:none;}
+.desktop-only{display:block;}
+@media(max-width:640px){
+  .mobile-only{display:block;}
+  .desktop-only{display:none;}
+}
+
+/* ─── FUNNEL SECTION ─────────────────────────────────────── */
+.funnel-desktop{display:block;}
+.funnel-mobile{display:none;}
+@media(max-width:640px){
+  .funnel-desktop{display:none;}
+  .funnel-mobile{display:block;}
+}
+
+/* ─── COMPARISON (legacy — unused but keep for safety) ──────── */
+.comp-section{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.comp-grid{display:grid;grid-template-columns:1fr 1fr;max-width:var(--max);margin:0 auto;}
+.comp-col{padding:4rem 3rem;}
+.comp-col.left{border-right:1px solid var(--border);}
+.comp-col-head{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:2rem;}
+.comp-col-head.dim{color:var(--text4);}
+.comp-col-head.lit{color:var(--bolt);}
+.comp-row{display:flex;align-items:center;gap:1rem;margin-bottom:1.125rem;}
+.comp-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.comp-dot.no{background:rgba(0,0,0,.06);color:var(--text4);}
+.comp-dot.yes{background:rgba(26,122,74,.1);color:var(--green);}
+.comp-txt{font-size:14px;line-height:1.5;}
+.comp-txt.dim{color:var(--text3);}
+.comp-txt.lit{color:var(--text2);}
+
+/* ─── RESPONSIVE ──────────────────────────────────────────── */
+
+/* ── 900px tablet breakpoint ── */
+@media(max-width:900px){
+  .savings-grid,.morning-grid{grid-template-columns:1fr;gap:2.5rem;}
+  .morning-grid .iphone,.founder-grid   .ba-wrap{grid-template-columns:1fr;}
+  .comp-grid{grid-template-columns:1fr;}
+  .comp-col.left{border-right:none;border-bottom:1px solid var(--border);}
+  .ob-steps{grid-template-columns:1fr;gap:.75rem;}
+  .ob-arr{display:none;}
+  .guarantee-inner{flex-direction:column;text-align:center;}
+  .t-card{flex-direction:column;gap:1rem;}
+  .sr-inner{flex-wrap:wrap;gap:1.25rem;text-align:center;}
+  .sr-copy{text-align:center;max-width:100%;}
+  .dashboard-full{display:none;}
+  .dashboard-mobile{display:block;}
+  .founder-grid{grid-template-columns:1fr !important;gap:2.5rem !important;}
+}
+@media(min-width:901px){
+  .dashboard-mobile{display:none;}
+  .dashboard-full{display:block;}
+  .dashboard-scale-wrap{overflow:visible;width:auto;border-radius:0;}
+  .dashboard-scale-inner{transform:none;width:auto;}
+}
+
+/* ── 640px mobile breakpoint — primary mobile target ── */
+@media(max-width:640px){
+
+  /* ── Global spacing ── */
+  .wrap{padding:0 1.125rem;}
+
+  /* ── Nav ── */
+  .nav-r .nav-link{display:none;}
+  .nav-r .nav-dashboard{display:inline-flex;align-items:center;font-size:12px;font-weight:600;color:rgba(255,255,255,.8);padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;}
+  .nav-cta{font-size:12px;padding:7px 14px;}
+  .nav-in{padding:0 1.125rem;}
+
+  /* ── Hero ── */
+  .hero{padding:88px 1.25rem 56px;min-height:auto;}
+  .hero-h1{font-size:clamp(38px,10vw,56px);letter-spacing:-1.5px;line-height:1.08;}
+  .hero-clarify{font-size:15px;line-height:1.65;}
+  .btn-hero{width:100%;text-align:center;padding:16px 20px;font-size:15px;}
+
+  /* ── Value statement ── */
+  .value-section{padding:56px 1.25rem;min-height:auto;}
+  .value-statement{font-size:clamp(28px,8vw,42px);letter-spacing:-1px;}
+
+  /* ── Scroll hook ── */
+  .scroll-hook-inner{padding:2rem 1.125rem !important;}
+
+  /* ── Pipeline comparison card ── */
+  .ba-section{padding:56px 0 0;}
+  .ba-intro{padding:0 1.125rem;margin-bottom:2rem;}
+  .pipeline-card-grid{
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:0 !important;
+  }
+  .pipeline-vs-col{
+    writing-mode:horizontal-tb !important;
+    transform:none !important;
+    padding:.5rem 1rem !important;
+    border-left:none !important;
+    border-right:none !important;
+    border-top:1px solid var(--border) !important;
+    border-bottom:1px solid var(--border) !important;
+    text-align:center;
+    min-height:auto !important;
+  }
+  .pipeline-vs-col > div {
+    writing-mode:horizontal-tb !important;
+    transform:none !important;
+    white-space:normal !important;
+    font-size:11px !important;
+  }
+  .pipeline-num{font-size:48px !important;letter-spacing:-2px !important;}
+
+  /* ── Show rate strip ── */
+  .sr-inner{padding:0 1.125rem;flex-direction:column;gap:1.25rem;align-items:center;}
+  .sr-arrow{display:none;}
+  .sr-val{font-size:38px;}
+
+  /* ── Crisis chain ── */
+  .crisis-section{padding:64px 0 !important;}
+  /* ── Founder section ── */
+  .founder-section{padding:56px 0 !important;}
+
+  /* ── Morning/savings sections ── */
+  .savings-section,.morning-section{padding:56px 0;}
+  .savings-grid{gap:2rem;}
+  .morning-grid{gap:2rem;}
+
+  /* ── iPhone mockup — full width on mobile ── */
+  
+  /* ── Value table ── */
+  .value-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -1.125rem;padding:0 1.125rem;}
+
+  /* ── Onboarding ── */
+  .onboard-section{padding:56px 0;}
+  .ob-step{padding:1.375rem 1.125rem;}
+  .ob-n{width:36px;height:36px;font-size:14px;}
+  .ob-t{font-size:14px;}
+  .ob-d{font-size:12.5px;}
+
+  /* ── Guarantee strip ── */
+  .guarantee{padding:1.5rem 0;}
+  .guarantee-inner{padding:0 1.125rem;gap:1rem;}
+  .g-text{font-size:14px;}
+
+  /* ── Pricing ── */
+  .pricing-section{padding:56px 0;}
+  .price-card{padding:1.75rem 1.125rem;margin:2rem 1.125rem 0;}
+  .price-amt{font-size:56px;letter-spacing:-2.5px;}
+  .price-feats{grid-template-columns:1fr;gap:.5rem;}
+  .pf{font-size:13px;}
+  .btn-trial{font-size:15px;padding:15px;}
+  .price-anchor{font-size:13px;}
+  .urgency-strip{padding:.75rem 1rem;margin:0 1.125rem 1.25rem;}
+
+  /* ── Section headings global ── */
+  .section-h,.section-h-light{font-size:clamp(24px,7.5vw,36px);letter-spacing:-.75px;}
+
+  /* ── FAQ ── */
+  .faq-section{padding:56px 0;}
+  .faq-wrap{padding:0 1.125rem;}
+  .faq-q{padding:1rem 1.125rem;font-size:13.5px;}
+  .faq-a{font-size:13.5px;}
+  .faq-item.open .faq-a{padding:.5rem 1.125rem 1.125rem;}
+
+  /* ── Founder testimonial ── */
+  .t-card{padding:1.5rem 1.125rem;gap:1rem;}
+  .t-text{font-size:14px;}
+  .t-inner{padding:0 1.125rem;}
+
+  /* ── Tracker CTA section ── */
+  .tracker-cta{padding:64px 1.25rem;}
+  .tracker-cta-sub{font-size:15px;}
+  .btn-cta-final{width:100%;text-align:center;padding:16px 20px;font-size:15px;}
+
+  /* ── Footer ── */
+  footer{padding:2.5rem 0;}
+  .ft-in{padding:0 1.125rem;gap:1rem;}
+  .ft-links{gap:.375rem 1.25rem;}
+}
+
+/* ── 400px small phone ── */
+@media(max-width:400px){
+  .hero-h1{font-size:36px;letter-spacing:-1px;}
+  .price-amt{font-size:48px;}
+  .value-statement{font-size:28px;}
+  }
+
+/* ─── VALUE STATEMENT ─────────────────────────────────────── */
+.value-section{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 2rem;background:var(--bg);position:relative;overflow:hidden;}
+.value-section::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(200,90,30,.04) 0%,transparent 70%);pointer-events:none;}
+.value-inner{position:relative;z-index:1;max-width:900px;margin:0 auto;display:flex;flex-direction:column;align-items:center;}
+.value-statement{font-family:'DM Serif Display',serif;font-size:clamp(32px,5.5vw,64px);line-height:1.14;letter-spacing:-1.5px;color:var(--text);margin-bottom:3rem;}
+.value-statement em{color:var(--bolt);font-style:normal;}
+.value-statement .dim{color:var(--text4);}
+.value-verdict{font-size:clamp(13px,1.3vw,15px);color:var(--text3);font-weight:300;letter-spacing:.2px;border-top:1px solid var(--border);padding-top:1.5rem;line-height:1.7;max-width:640px;}
+.value-verdict strong{color:var(--text);font-weight:500;}
+
+/* ─── COUNT UP ────────────────────────────────────────────── */
+.count-up{display:inline-block;}
+
+/* ─── DARK SECTION TEXT LEGIBILITY ───────────────────────── */
+/* Used in crisis cycle, dashboard section, tracker section */
+.dark-section-body{font-size:15px;color:rgba(255,255,255,.75);line-height:1.8;font-weight:300;}
+.dark-section-body strong{color:#fff;font-weight:500;}
+
+
+/* ─── iPHONE MOCKUP ───────────────────────────────────────── */
+.iphone{
+  width:320px;margin:0 auto;
+  position:relative;
+  animation:drift 7s ease-in-out infinite;
+  filter:
+    drop-shadow(0 60px 80px rgba(0,0,0,.40))
+    drop-shadow(0 20px 30px rgba(0,0,0,.22))
+    drop-shadow(0 4px 8px rgba(0,0,0,.16));
+}
+
+/* Titanium frame */
+.iphone-frame{
+  background:linear-gradient(
+    135deg,
+    #4E4E50 0%,#3C3C3E 8%,#2E2E30 22%,
+    #222224 42%,#1A1A1C 58%,
+    #222224 72%,#3C3C3E 88%,#4E4E50 100%
+  );
+  border-radius:56px;
+  padding:16px;
+  position:relative;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.20),
+    inset 0 1px 0 rgba(255,255,255,.24),
+    inset 0 -1px 0 rgba(0,0,0,.5),
+    0 0 0 1px rgba(0,0,0,.7),
+    0 2px 6px rgba(0,0,0,.4);
+}
+/* Specular highlight — key to real metal look */
+.iphone-frame::before{
+  content:'';position:absolute;inset:0;border-radius:56px;
+  background:linear-gradient(
+    155deg,
+    rgba(255,255,255,.24) 0%,
+    rgba(255,255,255,.10) 12%,
+    transparent 32%,
+    transparent 68%,
+    rgba(255,255,255,.05) 84%,
+    rgba(255,255,255,.12) 100%
+  );
+  pointer-events:none;z-index:4;
+}
+
+/* Buttons — right power */
+.iphone-power{
+  position:absolute;right:-3px;top:134px;
+  width:3px;height:72px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:0 2px 2px 0;z-index:2;
+  box-shadow:inset -1px 0 0 rgba(255,255,255,.10),1px 0 2px rgba(0,0,0,.4);
+}
+/* Left: mute, vol up, vol down */
+.iphone-mute{
+  position:absolute;left:-3px;top:110px;
+  width:3px;height:36px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:2px 0 0 2px;z-index:2;
+  box-shadow:inset 1px 0 0 rgba(255,255,255,.10),-1px 0 2px rgba(0,0,0,.4);
+}
+.iphone-vol-up{
+  position:absolute;left:-3px;top:162px;
+  width:3px;height:56px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:2px 0 0 2px;z-index:2;
+  box-shadow:inset 1px 0 0 rgba(255,255,255,.10),-1px 0 2px rgba(0,0,0,.4);
+}
+.iphone-vol-down{
+  position:absolute;left:-3px;top:228px;
+  width:3px;height:56px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:2px 0 0 2px;z-index:2;
+  box-shadow:inset 1px 0 0 rgba(255,255,255,.10),-1px 0 2px rgba(0,0,0,.4);
+}
+
+/* Screen */
+.iphone-screen{
+  background:#000;
+  border-radius:42px;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  position:relative;
+  min-height:630px;
+}
+/* Glass glare */
+.iphone-screen::before{
+  content:'';position:absolute;inset:0;z-index:100;pointer-events:none;
+  border-radius:42px;
+  background:linear-gradient(
+    150deg,
+    rgba(255,255,255,.08) 0%,
+    rgba(255,255,255,.03) 20%,
+    transparent 45%
+  );
+}
+
+/* Dynamic Island */
+.dynamic-island{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  width:128px;height:36px;
+  background:#000;border-radius:20px;
+  z-index:10;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.04);
+}
+.di-sensor{
+  width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%,#2C2C30,#0E0E12);
+  border:1px solid rgba(255,255,255,.05);
+}
+.di-camera{
+  width:11px;height:11px;border-radius:50%;
+  background:radial-gradient(circle at 32% 30%,#1C1C3E,#040416);
+  border:1.5px solid #0A84FF;
+  box-shadow:0 0 0 2px rgba(10,132,255,.12),0 0 12px rgba(10,132,255,.35);
+}
+
+/* Status bar */
+.iphone-status{
+  padding:22px 24px 4px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:#000;position:relative;z-index:5;
+  margin-top:36px;
+}
+.iphone-status-time{font-size:15px;font-weight:600;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:-.3px;}
+.iphone-status-icons{display:flex;align-items:center;gap:6px;}
+
+/* iMessage nav chrome */
+.imessage-chrome{
+  background:#1C1C1E;
+  padding:8px 16px 10px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.im-back{font-size:15px;color:#0A84FF;font-family:-apple-system,sans-serif;flex-shrink:0;}
+.im-avatar{
+  width:38px;height:38px;border-radius:50%;
+  background:linear-gradient(145deg,#C85A1E,#E07030);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+  box-shadow:0 2px 8px rgba(200,90,30,.35);
+  font-size:14px;font-weight:700;color:#fff;font-family:-apple-system,sans-serif;
+}
+.im-contact-info{flex:1;text-align:center;}
+.im-name{font-size:13px;font-weight:600;color:#fff;font-family:-apple-system,sans-serif;line-height:1.2;}
+.im-subtitle{font-size:10px;color:rgba(255,255,255,.42);font-family:-apple-system,sans-serif;margin-top:1px;}
+.im-video{color:#0A84FF;font-size:17px;flex-shrink:0;}
+
+/* Thread */
+.imessage-thread{
+  flex:1;background:#000;
+  padding:14px 14px 6px;
+  display:flex;flex-direction:column;gap:4px;
+  position:relative;z-index:1;
+}
+.im-timestamp{
+  text-align:center;font-size:11px;
+  color:rgba(255,255,255,.32);
+  font-family:-apple-system,sans-serif;
+  margin-bottom:10px;font-weight:400;
+}
+.im-bubble-wrap{display:flex;}
+.im-bubble-wrap.in{justify-content:flex-start;}
+.im-bubble-wrap.out{justify-content:flex-end;}
+.im-bubble{
+  max-width:82%;padding:10px 14px;
+  border-radius:18px;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:13px;line-height:1.5;color:#fff;
+}
+.im-bubble.in{background:#1C1C1E;border-bottom-left-radius:4px;}
+.im-bubble.out{background:linear-gradient(170deg,#1E90EE,#0A78D4);border-bottom-right-radius:4px;}
+.im-bubble strong{font-weight:700;}
+.im-bubble .on-track{color:#30D158;font-weight:700;}
+.im-delivered{
+  font-size:10px;color:rgba(255,255,255,.28);
+  text-align:right;font-family:-apple-system,sans-serif;
+  margin-top:3px;padding-right:2px;
+}
+
+/* Input */
+.im-input-bar{
+  background:#1C1C1E;padding:8px 12px 10px;
+  display:flex;align-items:center;gap:8px;
+  border-top:1px solid rgba(255,255,255,.06);
+  position:relative;z-index:5;
+}
+.im-input-field{
+  flex:1;background:#2C2C2E;border-radius:20px;
+  padding:7px 12px;font-size:13px;
+  color:rgba(255,255,255,.28);font-family:-apple-system,sans-serif;
+}
+.im-send{
+  width:28px;height:28px;border-radius:50%;
+  background:linear-gradient(170deg,#1E90EE,#0A78D4);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;color:#fff;flex-shrink:0;font-weight:700;
+  box-shadow:0 2px 8px rgba(10,120,200,.35);
+}
+
+  /* ── DEMO DASHBOARD ── */
+  .rr-demo-wrap{max-width:860px;margin:0 auto;position:relative;}
+  .rr-demo-overlay{position:absolute;inset:0;z-index:50;cursor:default;}
+  .rr-browser{border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.10),0 40px 100px rgba(0,0,0,.75),0 16px 40px rgba(0,0,0,.5);}
+  .rr-chrome{background:#2C2C2E;border-bottom:1px solid rgba(0,0,0,.5);}
+  .rr-tabs{padding:10px 14px 0;display:flex;align-items:center;gap:8px;}
+  .rr-dots{display:flex;gap:6px;padding-bottom:10px;}
+  .rr-dot{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2);}
+  .rr-tab{background:#F8F9FA;border-radius:8px 8px 0 0;padding:7px 16px;display:flex;align-items:center;gap:8px;margin-left:8px;}
+  .rr-tab-icon{width:14px;height:14px;background:#C85A1E;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .rr-tab-title{font-size:11px;color:#374151;font-family:-apple-system,sans-serif;font-weight:500;white-space:nowrap;}
+  .rr-urlbar{padding:0 14px 10px;display:flex;align-items:center;gap:8px;}
+  .rr-url{flex:1;background:#1C1C1E;border-radius:7px;padding:5px 12px;display:flex;align-items:center;gap:6px;max-width:420px;margin:0 auto;}
+  .rr-url-text{font-size:11px;color:rgba(255,255,255,.45);font-family:-apple-system,sans-serif;}
+  /* Dashboard internals */
+  .rrd{background:#FAFAF9;font-family:'DM Sans',sans-serif;}
+  .rrd-nav{height:44px;background:rgba(27,34,53,.92);padding:0 16px;display:flex;align-items:center;justify-content:space-between;}
+  .rrd-nav-l{display:flex;align-items:center;gap:7px;}
+  .rrd-bolt{width:22px;height:22px;background:#C85A1E;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .rrd-brand{font-family:'DM Serif Display',serif;font-size:13px;color:rgba(255,255,255,.9);}
+  .rrd-brand em{color:rgba(200,90,30,.9);font-style:normal;}
+  .rrd-dsp{font-size:10px;color:rgba(255,255,255,.35);margin-left:6px;}
+  .rrd-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:9px;font-weight:500;background:rgba(200,90,30,.15);color:rgba(200,90,30,.9);border:1px solid rgba(200,90,30,.25);}
+  .rrd-chip-dot{width:4px;height:4px;border-radius:50%;background:#C85A1E;}
+  .rrd-body{padding:12px 14px;}
+  .rrd-dsp-name{font-family:'DM Serif Display',serif;font-size:18px;color:#1B2235;letter-spacing:-.3px;margin-bottom:2px;}
+  .rrd-dsp-sub{font-size:8px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:10px;}
+  .rrd-7am{background:#fff;border:1px solid #C2BFB8;border-left:3px solid #C85A1E;border-radius:8px;padding:10px 14px;margin-bottom:8px;}
+  .rrd-7am-top{display:flex;align-items:center;gap:5px;margin-bottom:5px;}
+  .rrd-pip{width:4px;height:4px;border-radius:50%;background:#C85A1E;}
+  .rrd-7am-label{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C85A1E;}
+  .rrd-7am-time{font-size:8px;color:#9A9A9A;margin-left:auto;}
+  .rrd-7am-body{font-size:10px;color:#4A4A4A;line-height:1.6;font-weight:300;}
+  .rrd-7am-body strong{color:#1A1A1A;font-weight:600;}
+  .rrd-hero{background:#fff;border:1px solid #C2BFB8;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
+  .rrd-hero-l{}
+  .rrd-hero-ey{font-size:8px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:5px;}
+  .rrd-hero-main{display:flex;align-items:flex-end;gap:6px;margin-bottom:4px;}
+  .rrd-hero-num{font-family:'DM Serif Display',serif;font-size:48px;line-height:1;letter-spacing:-2px;color:#1B2235;}
+  .rrd-hero-den{font-size:16px;font-weight:300;color:#9A9A9A;padding-bottom:8px;}
+  .rrd-hero-sub{font-size:9px;color:#6B6B6B;font-weight:300;}
+  .rrd-hero-sub strong{color:#1A7A4A;font-weight:600;}
+  .rrd-prog{margin-top:8px;width:180px;}
+  .rrd-prog-head{display:flex;justify-content:space-between;font-size:8px;color:#9A9A9A;margin-bottom:4px;}
+  .rrd-prog-track{height:3px;background:#ECEAE6;border-radius:2px;overflow:hidden;}
+  .rrd-prog-fill{height:100%;border-radius:2px;background:#C85A1E;}
+  .rrd-hero-r{display:flex;align-items:center;}
+  .rrd-hs{text-align:right;padding:0 10px;}
+  .rrd-hs:last-child{padding-right:0;}
+  .rrd-hs-val{font-family:'DM Serif Display',serif;font-size:16px;color:#1B2235;letter-spacing:-.3px;}
+  .rrd-hs-val.g{color:#1A7A4A;}
+  .rrd-hs-label{font-size:7px;color:#9A9A9A;margin-top:1px;letter-spacing:.5px;text-transform:uppercase;}
+  .rrd-hs-div{width:1px;height:20px;background:#E8E6E1;}
+  .rrd-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#C2BFB8;border:1px solid #C2BFB8;border-radius:8px;overflow:hidden;margin-bottom:8px;}
+  .rrd-sg{background:#fff;padding:10px 12px;}
+  .rrd-sg.good{background:#ECFDF5;}
+  .rrd-sg-label{font-size:7px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:4px;}
+  .rrd-sg-val{font-family:'DM Serif Display',serif;font-size:20px;color:#1B2235;letter-spacing:-.3px;line-height:1;margin-bottom:2px;}
+  .rrd-sg-val.g{color:#1A7A4A;}
+  .rrd-sg-sub{font-size:8px;color:#9A9A9A;font-weight:300;}
+  .rrd-sg-sub.g{color:#1A7A4A;font-weight:500;}
+  .rrd-three{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
+  .rrd-panel{background:#fff;border:1px solid #C2BFB8;border-radius:8px;padding:10px 12px;}
+  .rrd-plabel{font-size:7px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:8px;}
+  .rrd-ts-row{display:flex;gap:4px;margin-bottom:6px;}
+  .rrd-ts{flex:1;padding:5px 4px;border-radius:4px;border:1px solid #E8E6E1;text-align:center;background:#F3F2EF;}
+  .rrd-ts.act{border-color:#1B2235;background:#fff;}
+  .rrd-ts-ind{width:4px;height:4px;border-radius:50%;background:#C2BFB8;margin:0 auto 3px;}
+  .rrd-ts-ind.act{background:#1B2235;}
+  .rrd-ts-n{font-size:7px;font-weight:600;color:#9A9A9A;}
+  .rrd-ts-n.act{color:#1B2235;}
+  .rrd-wl{display:flex;align-items:center;background:#F3F2EF;border:1px solid #E8E6E1;border-radius:4px;padding:4px 7px;font-size:8px;color:#6B6B6B;}
+  .rrd-wl-n{background:#1B2235;color:#fff;border-radius:20px;padding:1px 5px;font-size:7px;font-weight:600;margin-right:5px;}
+  .rrd-ok{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:600;color:#1A7A4A;margin-bottom:4px;}
+  .rrd-indeed-body{font-size:9px;color:#6B6B6B;line-height:1.5;font-weight:300;}
+  .rrd-indeed-body strong{color:#1A1A1A;font-weight:500;}
+  .rrd-funnel{display:flex;flex-direction:column;gap:3px;}
+  .rrd-f-row{display:flex;align-items:center;gap:4px;}
+  .rrd-f-lbl{font-size:7px;color:#9A9A9A;width:40px;text-align:right;flex-shrink:0;}
+  .rrd-f-track{flex:1;height:13px;background:#ECEAE6;border-radius:2px;overflow:hidden;}
+  .rrd-f-fill{height:100%;border-radius:2px;display:flex;align-items:center;padding-left:5px;}
+  .rrd-f-n{font-size:7px;font-weight:600;color:rgba(255,255,255,.9);}
+  .rrd-f-pct{width:22px;font-size:7px;color:#9A9A9A;text-align:right;flex-shrink:0;}
+  .rrd-tbl{background:#fff;border:1px solid #C2BFB8;border-radius:8px;overflow:hidden;}
+  .rrd-tbl-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid #E8E6E1;background:#F3F2EF;}
+  .rrd-tbl-title{font-size:7px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6B6B6B;}
+  /* Mobile — show only 7AM + hero + stats */
+  @media(max-width:640px){
+    .rr-demo-wrap{margin:0 -8px;}
+    .rr-browser{border-radius:10px;}
+    .rr-tabs{display:none;}
+    .rrd-hero{flex-direction:column;gap:10px;}
+    .rrd-prog{width:100%;}
+    .rrd-hero-r{width:100%;justify-content:space-between;}
+    .rrd-hs{text-align:left;padding:0;}
+    .rrd-stats{grid-template-columns:repeat(2,1fr);}
+    .rrd-dsp{display:none;}
+    .desktop-only{display:none!important;}
+  }
+
+/* ── INTERVIEW DAY SECTION MOBILE ── */
+@media(max-width:900px){
+  .interview-day-mob .morning-grid{grid-template-columns:1fr !important;gap:2.5rem !important;}
+}
+@media(max-width:640px){
+  .interview-day-mob .morning-grid{display:flex !important;flex-direction:column-reverse !important;gap:1.5rem !important;}
+  body{overflow-x:hidden !important;}
+  *{max-width:100%;box-sizing:border-box;}
+  .btn-hero,.btn-trial,.btn-cta-final,.nav-cta,.faq-q{min-height:44px;}
+  .faq-q{display:flex;align-items:center;justify-content:space-between;}
+}
+@media(max-width:400px){}
+
+
+
+
+
+
+
+
+
+.mobile-link{display:flex;align-items:center;font-size:17px;font-weight:500;color:rgba(255,255,255,.7);padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07);min-height:54px;}
+.mobile-cta{display:flex;align-items:center;justify-content:center;background:var(--bolt);color:#fff!important;font-size:16px;font-weight:700;padding:16px;border-radius:var(--r-sm);text-align:center;margin-top:1.5rem;min-height:54px;}
+@media(max-width:640px){
+  
+  .nav-r .nav-link,.nav-r .nav-dashboard,.nav-r .nav-cta{display:none!important;}
+  
+  .nav{height:56px;}
+}
+
+
+/* ─── HAMBURGER + MOBILE MENU ────────────────────────────── */
+
+
+
+
+
+
+
+
+
+
+@media(max-width:640px){.nav-r .nav-link,.nav-r .nav-cta{display:none !important;}.nav{height:56px;}}
+
+/* ─── HAMBURGER + MOBILE MENU ─────────────────────────────── */
+.hamburger{
+  display:none;flex-direction:column;justify-content:center;align-items:center;
+  gap:5px;padding:8px;background:none;border:none;cursor:pointer;
+  min-width:44px;min-height:44px;flex-shrink:0;z-index:500;position:relative;
+}
+.hamburger span{
+  display:block;width:22px;height:2px;
+  background:rgba(255,255,255,.85);border-radius:2px;
+  transition:transform .28s ease,opacity .28s ease;
+}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0);}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+.mobile-menu{
+  display:none;
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(14,18,30,.97);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  padding:88px 2rem 2rem;
+  z-index:400;
+  flex-direction:column;
+  transform:translateX(100%);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+}
+.mobile-menu.open{transform:translateX(0);}
+.mobile-menu-link{
+  display:flex;align-items:center;
+  font-size:22px;font-weight:500;
+  color:rgba(255,255,255,.75);
+  padding:18px 0;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  min-height:60px;
+}
+.mobile-menu-link:active{color:#fff;}
+.mobile-menu-cta{
+  display:flex;align-items:center;justify-content:center;
+  background:var(--bolt);color:#fff !important;
+  font-size:17px;font-weight:700;
+  padding:18px;border-radius:var(--r-sm);
+  margin-top:2rem;min-height:56px;
+  box-shadow:0 4px 20px var(--bolt-glow);
+}
+@media(max-width:900px){
+  .hamburger{display:flex;}
+  .mobile-menu{display:flex;}
+  .nav-r .nav-link,.nav-r .nav-cta{display:none !important;}
+  .nav{height:56px;}
+}
+
+
+/* ─── UNIVERSAL MOBILE FIX ──────────────────────────────── */
+/* Hamburger always visible — dark on white nav */
+nav.light .hamburger span{background:var(--text) !important;}
+nav.light .nav-cta{background:var(--bolt);color:#fff;}
+
+/* Phone — scale preserves proportions */
+@media(max-width:640px){
+  .iphone{
+    transform:scale(0.62) !important;
+    transform-origin:top center !important;
+    animation:none !important;
+    margin-bottom:calc(-320px * 0.38) !important;
+  }
+  .phone-hide-mobile{display:none !important;}
+}
+@media(max-width:400px){
+  .iphone{transform:scale(0.50) !important;margin-bottom:calc(-320px * 0.50) !important;}
+}
+
+/* Dashboard HTML mockup — scroll on mobile */
+@media(max-width:860px){
+  .dashboard-html-wrap{
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    border-radius:var(--r-lg) !important;
+  }
+  .dashboard-html-inner{
+    min-width:760px !important;
+  }
+}
+
+/* DSP preferences card — stack on mobile */
+@media(max-width:640px){
+  .pref-grid{grid-template-columns:1fr !important;gap:2rem !important;}
+}
+
+/* Throttle grid — stack on mobile */
+@media(max-width:640px){
+  .throttle-grid{grid-template-columns:1fr !important;}
+}
+
+/* About grid — stack on mobile */
+@media(max-width:640px){
+  .about-grid{grid-template-columns:1fr !important;}
+}
+
+/* Morning grid — stack on mobile everywhere */
+@media(max-width:640px){
+  .morning-grid{grid-template-columns:1fr !important;gap:2rem !important;}
+}
+
+/* Panels grid */
+@media(max-width:640px){
+  .panels-grid{grid-template-columns:1fr !important;}
+}
+
+/* Section text tightening */
+@media(max-width:640px){
+  .section-h,.section-h-light{font-size:clamp(24px,7.5vw,32px) !important;letter-spacing:-.75px !important;}
+  .section-label,.section-label-light{font-size:10px !important;}
+}
+
+
+/* ── How It Works — mobile ── */
+@media(max-width:640px){
+  .hero{padding:76px 1.25rem 48px;min-height:auto;}
+  .hero-h1{font-size:clamp(38px,11vw,52px) !important;letter-spacing:-2px;line-height:1.05;}
+  .hero-clarify{font-size:14px;line-height:1.6;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .btn-hero{width:100%;padding:17px;font-size:16px;font-weight:700;min-height:54px;}
+  /* Three steps */
+  .ob-step{padding:1.25rem 1.125rem;}
+  .ob-t{font-size:14px;}
+  .ob-d{font-size:13px;}
+  /* Full funnel cards */
+  .wrap{padding:0 1.25rem !important;}
+  /* Throttle section */
+  .throttle-grid{grid-template-columns:1fr !important;}
+  /* Human touch bullets */
+  /* CTA */
+  .tracker-cta{padding:52px 1.25rem !important;}
+  .tracker-cta-headline{font-size:clamp(26px,7.5vw,34px) !important;letter-spacing:-.75px !important;}
+  .tracker-cta-sub{font-size:14px !important;}
+  .btn-cta-final{width:100%;padding:17px;font-size:16px;font-weight:700;min-height:54px;}
+}
+
+</style>
+</head>
+<body>
+<!-- NAV -->
+<nav id="nav">
+  <div class="nav-in">
+    <a href="/" class="nav-logo">
+      <div class="bolt-icon"><svg viewBox="0 0 96 96" width="18" height="18" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#0A0E14"/></svg></div>
+      <span class="nav-name">Route<em>Ready</em></span>
+    </a>
+    <div class="nav-r">
+      <a href="/how-it-works.html" class="nav-link" style="color:rgba(200,90,30,.9);font-weight:700;">How It Works</a>
+      <a href="/the-dashboard.html" class="nav-link">The Dashboard</a>
+      <a href="/about.html" class="nav-link">About</a>
+      <a href="/dashboard.html" class="nav-link nav-dashboard" style="font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.2);padding:6px 14px;border-radius:6px;">DSP Login</a>
+      <a href="https://cal.com/routeready/routeready-consultation" class="nav-cta" target="_blank">Book a call →</a>
+    </div>
+    <button class="hamburger" id="hamburger" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobile-menu">
+  <a href="/how-it-works.html" class="mobile-menu-link">How It Works</a>
+  <a href="/the-dashboard.html" class="mobile-menu-link">The Dashboard</a>
+  <a href="/about.html" class="mobile-menu-link">About</a>
+  <a href="/#pricing" class="mobile-menu-link">Pricing</a>
+  <a href="/dashboard.html" class="mobile-menu-link" style="font-weight:600;color:#fff;">DSP Login</a>
+  <a href="https://cal.com/routeready/routeready-consultation" class="mobile-menu-cta" target="_blank">Book a call →</a>
+</div>
+
+<div id="main-content">
+
+<!-- HERO — tight -->
+
+<!-- Human oversight callout -->
+<section style="padding:3rem 0;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div style="max-width:640px;margin:0 auto;padding:0 2rem;text-align:center;">
+    <span style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--bolt);display:block;margin-bottom:.75rem;">The human layer</span>
+    <h2 style="font-family:'DM Serif Display',serif;font-size:clamp(22px,3vw,30px);letter-spacing:-.5px;line-height:1.3;margin-bottom:1rem;">The automation runs the pipeline.<br><em>We watch it every day.</em></h2>
+    <p style="font-size:15px;color:var(--text3);font-weight:300;line-height:1.8;max-width:520px;margin:0 auto;">A real person on the RouteReady team reviews your pipeline every morning alongside the 7AM. If something looks off — conversion dropping, orientation coming up short, Indeed budget needs a change — we reach out to you directly before it becomes a problem. Not a notification. A conversation.</p>
+  </div>
+</section>
+<section class="hero" style="min-height:40vh;padding:100px 2rem 60px;">
+  <div class="hero-bg"><div class="hero-glow-outer"></div><div class="hero-glow-inner"></div><div class="hero-grid"></div></div>
+  <div style="position:relative;z-index:1;text-align:center;">
+    <span class="section-label-light fu d1" style="display:block;margin-bottom:1rem;">How it works</span>
+    <h1 class="hero-h1 fu d2" style="font-size:clamp(38px,6vw,68px);">Three steps.<br><em>Then RouteReady runs.</em></h1>
+    <p class="hero-clarify fu d3" style="margin:1rem auto 2rem;max-width:520px;">No software to install. No technical integration required. RouteReady handles the entire hiring funnel — from first contact to interview day.</p>
+    <a href="https://cal.com/routeready/routeready-consultation" class="btn-hero fu d4" target="_blank" style="font-size:15px;padding:14px 32px;">Book a 30-minute consultation →</a>
+  </div>
+</section>
+
+<!-- THREE STEPS -->
+<section style="padding:64px 0;background:var(--bg);">
+  <div class="wrap" style="max-width:820px;">
+    <div class="ob-steps desktop-only sr">
+      <div class="ob-step sr r1"><div class="ob-n">1</div><div class="ob-t">Complete onboarding form</div><div class="ob-d">Tell us about your DSP, interview schedule, weekly driver goal, and what matters most to you in a candidate. Takes 10 minutes.</div></div>
+      <div class="ob-arr">→</div>
+      <div class="ob-step sr r2"><div class="ob-n">2</div><div class="ob-t">30-minute consultation</div><div class="ob-d">We configure your screening questions, walk through how the pipeline works, and confirm everything before anything goes live.</div></div>
+      <div class="ob-arr">→</div>
+      <div class="ob-step sr r3" style="background:rgba(200,90,30,.04);border:1px solid rgba(200,90,30,.2);"><div class="ob-n" style="background:var(--bolt);color:#fff;">3</div><div class="ob-t" style="color:var(--bolt);">Your Hiring. Handled.</div><div class="ob-d">Your posting is live. RouteReady is on it. Applicants are reached, screened, scored, and booked. The 7AM briefing lands the next morning. And a real person on our team is watching your pipeline every day.</div></div>
+    </div>
+    <div class="mobile-only sr" style="max-width:360px;margin:0 auto;">
+      <div style="position:relative;padding-left:48px;">
+        <div style="position:absolute;left:17px;top:32px;bottom:32px;width:2px;background:linear-gradient(180deg,var(--bolt) 0%,var(--border-dark) 100%);border-radius:1px;"></div>
+        <div style="position:relative;margin-bottom:1.5rem;"><div style="position:absolute;left:-48px;top:0;width:34px;height:34px;border-radius:50%;background:var(--ink);border:2px solid var(--bolt);display:flex;align-items:center;justify-content:center;"><span style="font-size:14px;font-weight:700;color:#fff;">1</span></div><div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r);padding:1rem;"><div style="font-size:14px;font-weight:600;margin-bottom:.3rem;">Complete onboarding form</div><div style="font-size:13px;color:var(--text3);line-height:1.6;font-weight:300;">DSP details, interview schedule, weekly goal, and what matters most in a candidate. 10 minutes.</div></div></div>
+        <div style="position:relative;margin-bottom:1.5rem;"><div style="position:absolute;left:-48px;top:0;width:34px;height:34px;border-radius:50%;background:var(--ink);border:2px solid var(--bolt);display:flex;align-items:center;justify-content:center;"><span style="font-size:14px;font-weight:700;color:#fff;">2</span></div><div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r);padding:1rem;"><div style="font-size:14px;font-weight:600;margin-bottom:.3rem;">30-minute consultation</div><div style="font-size:13px;color:var(--text3);line-height:1.6;font-weight:300;">Screening configured. Everything confirmed before the funnel goes live.</div></div></div>
+        <div style="position:relative;"><div style="position:absolute;left:-48px;top:0;width:34px;height:34px;border-radius:50%;background:var(--bolt);border:2px solid var(--bolt);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(200,90,30,.15);"><span style="font-size:14px;font-weight:700;color:#fff;">3</span></div><div style="background:rgba(200,90,30,.04);border:1px solid rgba(200,90,30,.2);border-radius:var(--r);padding:1rem;"><div style="font-size:14px;font-weight:600;color:var(--bolt);margin-bottom:.3rem;">Your Hiring. Handled.</div><div style="font-size:13px;color:var(--text2);line-height:1.6;font-weight:300;">Posting live. The 7AM briefing lands the next morning. A real person on our team is watching your pipeline every day. You're covered.</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE FULL FUNNEL -->
+<section style="padding:64px 0;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap">
+    <div class="sr" style="text-align:center;margin-bottom:2.5rem;">
+      <span class="section-label">The full funnel</span>
+      <h2 class="section-h">A driver applies.<br><em>RouteReady takes it from there.</em></h2>
+    </div>
+    <div style="max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:1px;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--border-dark);">
+      <div style="background:var(--surface);padding:1rem 1.375rem;display:flex;align-items:flex-start;gap:1rem;"><div style="font-size:10px;font-weight:700;color:var(--bolt);background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:2px;">Contact</div><div><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">Every applicant reached before the moment passes</div><div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.55;">While they're still available and no one else has gotten to them. Fast contact is the single biggest driver of show rate improvement.</div></div></div>
+      <div style="background:var(--bg);padding:1rem 1.375rem;display:flex;align-items:flex-start;gap:1rem;"><div style="font-size:10px;font-weight:700;color:var(--bolt);background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:2px;">Screen</div><div><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">SMS screening based on your qualification requirements</div><div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.55;">Work authorization, license, availability, background consent. Applicants who don't qualify are screened out automatically. No wasted interview seats.</div></div></div>
+      <div style="background:var(--surface);padding:1rem 1.375rem;display:flex;align-items:flex-start;gap:1rem;"><div style="font-size:10px;font-weight:700;color:var(--bolt);background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:2px;">Score</div><div><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">Every applicant scored 1–9 based on what you value</div><div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.55;">Availability, start date, response time — weighted by the priorities you told us matter most. Top scorers get booked first. Everyone else joins the waitlist.</div></div></div>
+      <div style="background:var(--bg);padding:1rem 1.375rem;display:flex;align-items:flex-start;gap:1rem;"><div style="font-size:10px;font-weight:700;color:var(--bolt);background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:2px;">Book</div><div><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">Qualified candidates book their own interview slot</div><div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.55;">A booking link is sent automatically. Interview slots fill in real time. RouteReady Logic watches the pipeline and adjusts the throttle to match your pace.</div></div></div>
+      <div style="background:var(--surface);padding:1rem 1.375rem;display:flex;align-items:flex-start;gap:1rem;"><div style="font-size:10px;font-weight:700;color:var(--bolt);background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:2px;">Confirm</div><div><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">3-touch confirmation before interview day</div><div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.55;">48hr, 24hr, morning-of. No-shows are replaced from the waitlist automatically. You walk in with a full room — or as close to it as the market allows.</div></div></div>
+      <div style="background:rgba(200,90,30,.03);padding:1rem 1.375rem;display:flex;align-items:flex-start;gap:1rem;border-top:1px solid rgba(200,90,30,.12);"><div style="font-size:10px;font-weight:700;color:var(--bolt);background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:2px;">The 7AM</div><div><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">Every morning — plain English on exactly where you stand</div><div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.55;">Confirmed count, waitlist status, interview day notice, what needs attention. No guesswork. Just the information you need before your day starts.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- DSP PREFERENCES -->
+<section style="padding:64px 0;background:var(--bg);">
+  <div class="wrap" style="max-width:820px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center;" class="morning-grid pref-grid sr">
+      <div>
+        <span class="section-label">Your priorities. Your pipeline.</span>
+        <h2 class="section-h">You tell RouteReady<br>what matters.<br><em>In plain English.</em></h2>
+        <p style="font-size:15px;color:var(--text3);font-weight:300;line-height:1.8;margin-bottom:1.5rem;">Every DSP operation is different. Some need weekend availability above everything. Some need drivers who can start within a week. Some have specific route requirements or geographic considerations.</p>
+        <p style="font-size:15px;color:var(--text3);font-weight:300;line-height:1.8;">The preferences chat on your dashboard lets you tell RouteReady exactly what you're looking for — in plain English, any time. RouteReady adjusts how applicants are scored and prioritized automatically. Your pipeline reflects what matters to your operation, not a generic template.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);" class="sr r2">
+        <div style="background:var(--ink);padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.07);">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--bolt);"></div>
+          <span style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.5);">DSP Preferences</span>
+        </div>
+        <div style="padding:1.25rem;">
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;">
+            <div style="font-size:12px;color:var(--text3);font-weight:300;line-height:1.7;font-style:italic;">"We need drivers available weekends and willing to start within 2 weeks. Experience preferred but not required. No more than 2 violations in the last 3 years."</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(200,90,30,.05);border:1px solid rgba(200,90,30,.15);border-radius:8px;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#1A7A4A" stroke-width="1.5"/><path d="M5 8l2.5 2.5L11 5.5" stroke="#1A7A4A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font-size:12px;color:var(--text2);font-weight:400;">Pipeline updated — scoring priorities adjusted</span>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:var(--text4);font-weight:300;line-height:1.6;">Weekend availability now weighted highest. Start-date filter active. Background threshold set. Priority candidates will reflect your requirements immediately.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PIPELINE THROTTLE -->
+<section style="padding:64px 0;background:var(--ink);">
+  <div class="wrap" style="max-width:820px;">
+    <div class="sr" style="text-align:center;margin-bottom:2.5rem;">
+      <span class="section-label-light">RouteReady Logic — Pipeline Throttle</span>
+      <h2 class="section-h-light">Your pipeline knows<br>when to push and<br><em>when to pull back.</em></h2>
+      <p style="font-size:16px;color:rgba(255,255,255,.65);font-weight:300;line-height:1.8;max-width:520px;margin:0 auto;">Most DSP operators either flood their pipeline with unqualified applicants or let it go dry. RouteReady Logic watches your pipeline data every day and adjusts the throttle automatically — so you always have the right number of candidates at the right stage.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:rgba(255,255,255,.08);border-radius:var(--r-lg);overflow:hidden;border:1px solid rgba(255,255,255,.08);margin-bottom:2rem;" class="sr r2 throttle-grid">
+      <div style="background:rgba(255,255,255,.04);padding:1.75rem 1.5rem;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;">
+          <div style="width:10px;height:10px;border-radius:50%;background:rgba(200,90,30,.5);"></div>
+          <span style="font-family:'DM Serif Display',serif;font-size:20px;color:#fff;">Open</span>
+        </div>
+        <div style="font-size:13px;color:rgba(255,255,255,.55);font-weight:300;line-height:1.7;margin-bottom:1rem;">Pipeline needs volume. All qualified applicants receive a booking link immediately. RouteReady is actively filling the funnel.</div>
+        <div style="font-size:11px;color:rgba(200,90,30,.6);font-weight:500;">Triggered when → confirmed seats are below pace for interview day</div>
+      </div>
+      <div style="background:rgba(200,90,30,.1);padding:1.75rem 1.5rem;border-left:1px solid rgba(200,90,30,.2);border-right:1px solid rgba(200,90,30,.2);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;">
+          <div style="width:10px;height:10px;border-radius:50%;background:rgba(200,90,30,.9);"></div>
+          <span style="font-family:'DM Serif Display',serif;font-size:20px;color:rgba(200,90,30,.9);">Selective</span>
+        </div>
+        <div style="font-size:13px;color:rgba(255,255,255,.55);font-weight:300;line-height:1.7;margin-bottom:1rem;">Pipeline is close to target. Only applicants scoring 7 or above receive a booking link. Everyone else goes to the waitlist.</div>
+        <div style="font-size:11px;color:rgba(200,90,30,.6);font-weight:500;">Triggered when → pipeline is on pace, quality over volume needed</div>
+      </div>
+      <div style="background:rgba(255,255,255,.04);padding:1.75rem 1.5rem;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;">
+          <div style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.25);"></div>
+          <span style="font-family:'DM Serif Display',serif;font-size:20px;color:#fff;">Paused</span>
+        </div>
+        <div style="font-size:13px;color:rgba(255,255,255,.55);font-weight:300;line-height:1.7;margin-bottom:1rem;">Interview day is full. All new applicants go to the waitlist. No booking links sent until capacity opens up again.</div>
+        <div style="font-size:11px;color:rgba(200,90,30,.6);font-weight:500;">Triggered when → confirmed seats meet or exceed weekly goal</div>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:var(--r-lg);padding:1.5rem 1.75rem;text-align:center;" class="sr r3">
+      <div style="font-size:14px;color:rgba(255,255,255,.6);font-weight:300;line-height:1.7;">The throttle adjusts automatically based on pipeline data — confirmed seats, waitlist depth, days to interview, and weekly hiring goal. The 7AM tells you which mode you're in and why every morning. You can override it manually from the dashboard at any time.</div>
+    </div>
+  </div>
+</section>
+<style>@media(max-width:640px){.throttle-grid{grid-template-columns:1fr !important;}}</style>
+
+<!-- HUMAN TOUCH -->
+<section style="padding:64px 0;background:var(--bg2);border-top:1px solid var(--border);">
+  <div class="wrap" style="max-width:700px;text-align:center;">
+    <div class="sr">
+      <span class="section-label">The human layer</span>
+      <h2 class="section-h">RouteReady isn't just<br>running automatically.<br><em>Someone is watching.</em></h2>
+      <p style="font-size:16px;color:var(--text3);font-weight:300;line-height:1.8;margin-bottom:2.5rem;max-width:560px;margin-left:auto;margin-right:auto;">The automation handles the repetitive work. A hiring specialist handles everything the automation can't.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.875rem;text-align:left;max-width:580px;margin:0 auto;" class="sr r2">
+      <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);padding:1.25rem 1.5rem;display:flex;align-items:flex-start;gap:1rem;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--bolt);flex-shrink:0;margin-top:6px;"></div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:.375rem;">Daily pipeline review</div>
+          <div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.65;">A hiring specialist reviews your pipeline every day — not just the numbers, but what they mean. If something looks off, we're on it before The 7AM flags it to you.</div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);padding:1.25rem 1.5rem;display:flex;align-items:flex-start;gap:1rem;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--bolt);flex-shrink:0;margin-top:6px;"></div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:.375rem;">Proactive outreach when it matters</div>
+          <div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.65;">If your pipeline slows, your Indeed spend needs adjustment, or something in the funnel needs attention — we reach out to you directly. You don't discover problems. We tell you before they become problems.</div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);padding:1.25rem 1.5rem;display:flex;align-items:flex-start;gap:1rem;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--bolt);flex-shrink:0;margin-top:6px;"></div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:.375rem;">Direct line, same-day response</div>
+          <div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.65;">You're not submitting a ticket. RouteReady is operated by people who understand the DSP model — Capacity Reliability, scorecard tiers, the pressure of a short orientation room. When you call, you talk to someone who gets it.</div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);padding:1.25rem 1.5rem;display:flex;align-items:flex-start;gap:1rem;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--bolt);flex-shrink:0;margin-top:6px;"></div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:.375rem;">Indeed spend guidance</div>
+          <div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.65;">RouteReady Logic monitors your throughput and tells you when to boost and when to stop. A hiring specialist reviews those recommendations before they reach you — so you're getting informed advice, not just automated output.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="tracker-cta" style="padding:72px 2rem;">
+  <div class="tracker-cta-actions">
+    <span class="tracker-cta-label">Get started</span>
+    <h2 class="tracker-cta-headline sr">Ready to see how it<br><em>works for your operation?</em></h2>
+    <p class="tracker-cta-sub sr r2">30-minute consultation. We walk through your operation, configure your pipeline, and have you live before your next interview day.</p>
+    <a href="https://cal.com/routeready/routeready-consultation" class="btn-cta-final sr r3" target="_blank">Book your consultation →</a>
+    <div style="font-size:12px;color:rgba(255,255,255,.3);font-weight:300;margin-top:.5rem;" class="sr r4">Month-to-month · Cancel anytime · No contracts</div>
+  </div>
+</section>
+
+</div>
+<!-- FOOTER -->
+<footer>
+  <div class="ft-in">
+    <div class="ft-logo">
+      <div class="bolt-icon" style="width:28px;height:28px;border-radius:7px;animation:none;">
+        <svg viewBox="0 0 96 96" width="14" height="14" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#0A0E14"/></svg>
+      </div>
+      <span class="ft-name">Route<em>Ready</em></span>
+    </div>
+    <div class="ft-tag">Your Hiring. Handled.</div>
+    <div class="ft-links">
+      <a href="/cdn-cgi/l/email-protection#45363035352a373105222a372a303120372024213c6b262a28" class="ft-link"><span class="__cf_email__" data-cfemail="1a696f6a6a75686e5a7d7568756f6e7f687f7b7e6334797577">[email&#160;protected]</span></a>
+      <a href="mailto:support@gorouteready.com" class="ft-link">📞 support@gorouteready.com — answered personally</a>
+      <a href="#pricing" class="ft-link">Pricing</a>
+      <a href="#faq" class="ft-link">FAQ</a>
+      <a href="privacy.html" class="ft-link">Privacy Policy</a>
+      <a href="terms.html" class="ft-link">Terms of Service</a>
+    </div>
+    <div class="ft-copy">© 2026 RouteReady LLC · GoRouteReady.com · Serving DSP operators across all 50 states</div>
+  </div>
+</footer>
+</div><!-- end main-content -->
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* ══════════════════════════════════════════════════════
+   SCROLL REVEAL
+══════════════════════════════════════════════════════ */
+const srEls = document.querySelectorAll('.sr');
+const io = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.classList.add('on');
+      io.unobserve(e.target);
+    }
+  });
+},{threshold:.07,rootMargin:'0px 0px -40px 0px'});
+srEls.forEach(el=>io.observe(el));
+
+/* ══════════════════════════════════════════════════════
+   COUNT-UP ANIMATION
+══════════════════════════════════════════════════════ */
+function animateCount(el){
+  const target  = parseInt(el.dataset.target)||0;
+  const suffix  = el.dataset.suffix || '';
+  const duration = 1200;
+  const start   = performance.now();
+  function step(now){
+    const elapsed = Math.min((now - start) / duration, 1);
+    const eased   = 1 - Math.pow(1 - elapsed, 3);
+    const val     = Math.round(eased * target);
+    el.textContent = val + suffix;
+    if(elapsed < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+const countEls = document.querySelectorAll('.count-up');
+const countObs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      animateCount(e.target);
+      countObs.unobserve(e.target);
+    }
+  });
+},{threshold:.5});
+countEls.forEach(el=>countObs.observe(el));
+
+/* ══════════════════════════════════════════════════════
+   NAV SCROLL — dark over hero, light over content
+══════════════════════════════════════════════════════ */
+(function(){
+  const nav = document.getElementById('nav');
+  const hero = document.querySelector('.hero');
+  function updateNav(){
+    const heroBottom = hero ? hero.getBoundingClientRect().bottom : 0;
+    if(heroBottom <= 64){
+      nav.classList.add('light');
+    } else {
+      nav.classList.remove('light');
+    }
+  }
+  window.addEventListener('scroll', updateNav, {passive:true});
+  updateNav();
+})();
+
+/* ══════════════════════════════════════════════════════
+   FAQ ACCORDION
+══════════════════════════════════════════════════════ */
+document.querySelectorAll('.faq-q').forEach(q=>{
+  q.addEventListener('click',()=>{
+    const item = q.parentElement;
+    const was  = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i=>i.classList.remove('open'));
+    if(!was) item.classList.add('open');
+  });
+});
+
+
+/* ══ HAMBURGER ═══════════════════════════════════════════════ */
+(function(){
+  var btn=document.getElementById('hamburger');
+  var menu=document.getElementById('mobile-menu');
+  if(!btn||!menu)return;
+  btn.addEventListener('click',function(){
+    var o=menu.classList.toggle('open');
+    btn.classList.toggle('open',o);
+    document.body.style.overflow=o?'hidden':'';
+  });
+  menu.querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click',function(){
+      menu.classList.remove('open');
+      btn.classList.remove('open');
+      document.body.style.overflow='';
+    });
+  });
+})();
+</script>
+</body>
+</html>

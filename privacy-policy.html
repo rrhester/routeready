@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — RouteReady</title>
+<meta name="description" content="RouteReady LLC Privacy Policy — how we collect, use, and protect your information.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='20' fill='%23C85A1E'/><polygon points='58,8 24,54 46,54 38,88 72,42 50,42' fill='%23ffffff'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:'DM Sans',sans-serif;background:#F7F6F3;color:#1A1A1A;line-height:1.6;}
+a{text-decoration:none;color:inherit;}
+
+/* ─── TOKENS ─────────────────────────────────────────────── */
+:root{
+  --bg:#F7F6F3;
+  --bg2:#EEECEA;
+  --surface:#FFFFFF;
+  --border:#DDDBD6;
+  --border-dark:#C8C5BF;
+  --ink:#1B2235;
+  --bolt:#C85A1E;
+  --text:#1A1A1A;
+  --text2:#4A4A4A;
+  --text3:#6B6B6B;
+  --text4:#9A9A9A;
+  --max:720px;
+  --r:12px;
+}
+
+/* ─── NAV ─────────────────────────────────────────────────── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:300;
+  height:64px;
+  background:rgba(247,246,243,.94);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+.nav-in{
+  height:100%;max-width:var(--max);margin:0 auto;
+  padding:0 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.nav-logo{display:flex;align-items:center;gap:10px;}
+.bolt-icon{
+  width:32px;height:32px;border-radius:8px;
+  background:var(--bolt);
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.nav-name{font-family:'DM Serif Display',serif;font-size:19px;color:var(--text);}
+.nav-name em{color:var(--bolt);font-style:normal;}
+.nav-back{
+  font-size:13px;color:var(--text3);
+  display:flex;align-items:center;gap:6px;
+  transition:color .2s;
+}
+.nav-back:hover{color:var(--text);}
+
+/* ─── HERO ─────────────────────────────────────────────────── */
+.page-hero{
+  background:var(--ink);
+  padding:120px 2rem 64px;
+  text-align:center;
+}
+.page-hero-label{
+  font-size:11px;letter-spacing:3px;text-transform:uppercase;
+  color:rgba(200,90,30,.8);font-weight:600;
+  display:block;margin-bottom:1rem;
+}
+.page-hero-h{
+  font-family:'DM Serif Display',serif;
+  font-size:clamp(32px,5vw,52px);
+  color:#fff;line-height:1.1;letter-spacing:-1.5px;
+  margin-bottom:.75rem;
+}
+.page-hero-sub{
+  font-size:14px;color:rgba(255,255,255,.45);
+  font-weight:300;
+}
+
+/* ─── CONTENT ─────────────────────────────────────────────── */
+.content{
+  max-width:var(--max);margin:0 auto;
+  padding:4rem 2rem 6rem;
+}
+
+.section{
+  background:var(--surface);
+  border:1px solid var(--border-dark);
+  border-radius:var(--r);
+  overflow:hidden;
+  margin-bottom:1.5rem;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.04),
+    0 3px 8px rgba(0,0,0,.05),
+    0 8px 20px rgba(0,0,0,.04),
+    inset 0 1px 0 rgba(255,255,255,.9);
+}
+
+.section-head{
+  background:var(--bg2);
+  padding:.875rem 1.5rem;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:.75rem;
+}
+.section-icon{
+  width:28px;height:28px;border-radius:7px;
+  background:var(--bolt);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.section-title{
+  font-size:13px;font-weight:600;color:var(--text);
+  letter-spacing:-.1px;
+}
+
+.section-body{
+  padding:1.5rem;
+}
+.section-body p{
+  font-size:14px;color:var(--text2);
+  font-weight:300;line-height:1.8;
+  margin-bottom:1rem;
+}
+.section-body p:last-child{margin-bottom:0;}
+.section-body strong{color:var(--text);font-weight:500;}
+
+/* SMS highlight box */
+.sms-box{
+  background:rgba(200,90,30,.05);
+  border:1px solid rgba(200,90,30,.15);
+  border-radius:8px;
+  padding:1.125rem 1.25rem;
+  margin-top:1rem;
+}
+.sms-box p{
+  font-size:13px;color:var(--text2);
+  margin-bottom:.5rem;line-height:1.7;
+}
+.sms-box p:last-child{margin-bottom:0;}
+.sms-box strong{color:var(--bolt);font-weight:600;}
+
+/* Opt-out badge */
+.opt-out{
+  display:inline-flex;align-items:center;gap:.5rem;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:20px;padding:4px 12px;
+  font-size:12px;font-weight:600;color:var(--text3);
+  margin-top:.75rem;
+}
+
+/* Contact */
+.contact-card{
+  background:var(--bg);
+  border-radius:8px;
+  padding:1.125rem 1.25rem;
+  display:flex;align-items:center;gap:.875rem;
+  margin-top:.5rem;
+}
+.contact-card a{
+  font-size:14px;font-weight:500;color:var(--bolt);
+  transition:opacity .2s;
+}
+.contact-card a:hover{opacity:.75;}
+
+/* ─── FOOTER ──────────────────────────────────────────────── */
+footer{
+  background:var(--ink);
+  padding:2.5rem 0;
+  border-top:1px solid rgba(255,255,255,.06);
+  text-align:center;
+}
+.ft-in{
+  max-width:var(--max);margin:0 auto;
+  padding:0 2rem;
+  display:flex;flex-direction:column;
+  align-items:center;gap:1rem;
+}
+.ft-logo{display:flex;align-items:center;gap:9px;}
+.ft-name{font-family:'DM Serif Display',serif;font-size:17px;color:rgba(255,255,255,.5);}
+.ft-name em{color:rgba(200,90,30,.8);font-style:normal;}
+.ft-copy{font-size:11px;color:rgba(255,255,255,.2);font-weight:300;}
+.ft-back{
+  font-size:12px;color:rgba(200,90,30,.7);
+  font-weight:500;transition:color .2s;
+}
+.ft-back:hover{color:rgba(200,90,30,1);}
+
+@media(max-width:640px){
+  .page-hero{padding:100px 1.5rem 48px;}
+  .content{padding:2.5rem 1.25rem 4rem;}
+  .section-body{padding:1.25rem;}
+}
+
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-in">
+    <a href="index.html" class="nav-logo">
+      <div class="bolt-icon">
+        <svg viewBox="0 0 96 96" width="16" height="16" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#fff"/></svg>
+      </div>
+      <span class="nav-name">Route<em>Ready</em></span>
+    </a>
+    <a href="index.html" class="nav-back">
+      ← Back to site
+    </a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="page-hero">
+  <span class="page-hero-label">Legal</span>
+  <h1 class="page-hero-h">Privacy Policy</h1>
+  <p class="page-hero-sub">RouteReady LLC · Effective April 2026</p>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- What we collect -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-icon">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="#fff" stroke-width="2"/></svg>
+      </div>
+      <span class="section-title">Information We Collect</span>
+    </div>
+    <div class="section-body">
+      <p>RouteReady collects personal information when individuals apply for driver positions or interact with our services on behalf of Amazon Delivery Service Partner (DSP) operators. This includes:</p>
+      <p><strong>Name</strong> — provided through the Indeed job application or screener questions.</p>
+      <p><strong>Phone number</strong> — collected via a mandatory screener question on the Indeed job posting, used to initiate and manage SMS communication.</p>
+      <p><strong>Email address</strong> — collected through the Indeed application process.</p>
+      <p><strong>Application details</strong> — responses to screening questions including availability, license status, and geographic proximity to the delivery station.</p>
+      <p><strong>Scheduling information</strong> — orientation date and time selected through our scheduling system.</p>
+    </div>
+  </div>
+
+  <!-- How we use it -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-icon">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="section-title">How We Use Your Information</span>
+    </div>
+    <div class="section-body">
+      <p>Information collected through RouteReady is used solely to manage the driver hiring funnel on behalf of the DSP operator. Specifically:</p>
+      <p><strong>Applicant communication</strong> — sending SMS messages related to your application status, qualification screening, and orientation scheduling.</p>
+      <p><strong>Orientation scheduling</strong> — providing a scheduling link and confirming your orientation date and time.</p>
+      <p><strong>Confirmation and reminders</strong> — sending automated confirmation messages before your scheduled orientation.</p>
+      <p><strong>No-show recovery</strong> — following up if you were unable to attend a scheduled orientation, to offer a future date.</p>
+      <p><strong>Hiring process updates</strong> — any communication directly related to your application with the DSP operator.</p>
+      <p>We do not use your information for any purpose beyond the hiring process described above.</p>
+    </div>
+  </div>
+
+  <!-- SMS -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-icon">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="section-title">SMS Communication</span>
+    </div>
+    <div class="section-body">
+      <p>RouteReady communicates with applicants via SMS text message. By providing your phone number through the Indeed job application screener question, you consent to receive text messages related to your application and the hiring process.</p>
+      <div class="sms-box">
+        <p><strong>Message frequency:</strong> Message frequency varies depending on your stage in the hiring process. You may receive messages related to screening, scheduling, confirmation, and reminders.</p>
+        <p><strong>Message and data rates:</strong> Standard message and data rates may apply depending on your mobile carrier and plan.</p>
+        <p><strong>Opt-out:</strong> You may opt out of SMS communication at any time by replying <strong>STOP</strong> to any message you receive from RouteReady. After opting out, you will receive a single confirmation message and no further SMS will be sent.</p>
+        <p><strong>Help:</strong> Reply <strong>HELP</strong> to any message for assistance or contact us at the address below.</p>
+      </div>
+      <div class="opt-out">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Reply STOP at any time to unsubscribe
+      </div>
+    </div>
+  </div>
+
+  <!-- Sharing -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-icon">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><circle cx="18" cy="5" r="3" stroke="#fff" stroke-width="2"/><circle cx="6" cy="12" r="3" stroke="#fff" stroke-width="2"/><circle cx="18" cy="19" r="3" stroke="#fff" stroke-width="2"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="#fff" stroke-width="2"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="#fff" stroke-width="2"/></svg>
+      </div>
+      <span class="section-title">Information Sharing</span>
+    </div>
+    <div class="section-body">
+      <p>RouteReady does not sell, rent, or share your personal information with third parties for marketing purposes.</p>
+      <p>Your information is shared only with the DSP operator on whose behalf RouteReady is managing your application. This sharing is necessary to complete the hiring process and schedule your orientation.</p>
+      <p>RouteReady uses third-party service providers — including SMS delivery, scheduling, and database platforms — to operate the hiring funnel. These providers access applicant data only as necessary to perform their functions and are not permitted to use it for any other purpose.</p>
+    </div>
+  </div>
+
+  <!-- Security -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-icon">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="section-title">Data Security</span>
+    </div>
+    <div class="section-body">
+      <p>RouteReady takes reasonable technical and organizational steps to protect your personal information from unauthorized access, use, or disclosure.</p>
+      <p>Access to applicant data is limited to authorized personnel and systems required to operate the hiring funnel. Data is stored in secured cloud-based platforms and is not retained beyond the period necessary to complete the hiring process.</p>
+      <p>No method of transmission or storage is completely secure. While we take reasonable precautions, we cannot guarantee absolute security of your information.</p>
+    </div>
+  </div>
+
+  <!-- Retention -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-icon">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="2"/><polyline points="12 6 12 12 16 14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <span class="section-title">Data Retention</span>
+    </div>
+    <div class="section-body">
+      <p>Applicant data is retained for the duration of the hiring cycle for which it was collected. Data associated with applicants who did not advance through the hiring process is removed following the completion of the orientation cycle.</p>
+      <p>If you would like your information removed at any time, contact us at the address below and we will process your request promptly.</p>
+    </div>
+  </div>
+
+  <!-- Contact -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-icon">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="22,6 12,13 2,6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="section-title">Contact</span>
+    </div>
+    <div class="section-body">
+      <p>If you have questions about this privacy policy, want to request removal of your information, or need assistance with SMS opt-out, contact RouteReady at:</p>
+      <div class="contact-card">
+        <svg viewBox="0 0 96 96" width="20" height="20" fill="none"><rect width="96" height="96" rx="18" fill="#C85A1E"/><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#fff"/></svg>
+        <div>
+          <div style="font-size:12px;color:#9A9A9A;margin-bottom:2px;">RouteReady LLC</div>
+          <a href="mailto:ryan@gorouteready.com">ryan@gorouteready.com</a>
+        </div>
+      </div>
+      <p style="margin-top:1rem;">This policy was last updated April 2026. RouteReady reserves the right to update this policy as the service evolves. Material changes will be reflected with an updated effective date.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="ft-in">
+    <div class="ft-logo">
+      <div class="bolt-icon" style="width:26px;height:26px;border-radius:6px;">
+        <svg viewBox="0 0 96 96" width="12" height="12" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#fff"/></svg>
+      </div>
+      <span class="ft-name">Route<em>Ready</em></span>
+    </div>
+    <a href="index.html" class="ft-back">← Back to GoRouteReady.com</a>
+    <div class="ft-copy">© 2026 RouteReady LLC · GoRouteReady.com · Springfield, Missouri</div>
+  </div>
+</footer>
+
+</body>
+</html>

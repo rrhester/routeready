@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>RouteReady — Your Hiring. Handled.</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%23C85A1E'/%3E%3Cpolygon points='58,8 24,54 46,54 38,88 72,42 50,42' fill='%230A0E14'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+
+/* ─── RESET ─────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{font-family:'DM Sans',sans-serif;background:#F7F6F3;color:#1A1A1A;overflow-x:hidden;line-height:1.6;-webkit-text-size-adjust:100%;}
+a{text-decoration:none;color:inherit;}
+svg{display:block;}
+
+/* ─── TOKENS ─────────────────────────────────────────────── */
+:root{
+  /* Light surface tokens */
+  --bg:#FAFAF9;
+  --bg2:#F3F2EF;
+  --bg3:#ECEAE6;
+  --surface:#FFFFFF;
+  --border:#E8E6E1;
+  --border-dark:#C2BFB8;
+
+  /* Dark section tokens */
+  --ink:#1B2235;
+  --ink2:#222C42;
+  --ink3:#2A3550;
+
+  /* Brand */
+  --bolt:#C85A1E;
+  --bolt-dim:rgba(200,90,30,.1);
+  --bolt-glow:rgba(200,90,30,.2);
+  --green:#1A7A4A;
+  --green-light:#ECFDF5;
+  --red:#B33300;
+
+  /* Light text */
+  --text:#1A1A1A;
+  --text2:#4A4A4A;
+  --text3:#6B6B6B;
+  --text4:#9A9A9A;
+
+  /* Dark section text (on ink backgrounds) */
+  --white:#FFFFFF;
+  --w90:rgba(255,255,255,.9);
+  --w70:rgba(255,255,255,.7);
+  --w50:rgba(255,255,255,.5);
+  --w30:rgba(255,255,255,.3);
+  --w15:rgba(255,255,255,.15);
+  --w08:rgba(255,255,255,.08);
+  --w04:rgba(255,255,255,.04);
+
+  --r:12px;
+  --r-sm:8px;
+  --r-lg:18px;
+  --max:1080px;
+}
+
+/* ─── KEYFRAMES ──────────────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:translateY(0);}}
+@keyframes breathe{0%,100%{opacity:.7;transform:scale(1);}50%{opacity:1;transform:scale(1.06);}}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+@keyframes pulse{0%,100%{box-shadow:0 0 32px rgba(200,90,30,.15);}50%{box-shadow:0 0 64px rgba(200,90,30,.3);}}
+@keyframes drift{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+
+/* Hero entry */
+.fu{animation:fadeUp .9s cubic-bezier(.16,1,.3,1) both;}
+.d1{animation-delay:.1s;}.d2{animation-delay:.22s;}
+.d3{animation-delay:.36s;}.d4{animation-delay:.52s;}.d5{animation-delay:.68s;}
+
+/* Scroll reveal */
+.sr{opacity:0;transform:translateY(24px);transition:opacity .85s cubic-bezier(.16,1,.3,1),transform .85s cubic-bezier(.16,1,.3,1);}
+.sr.on{opacity:1;transform:none;}
+.sr.r2{transition-delay:.12s;}.sr.r3{transition-delay:.24s;}.sr.r4{transition-delay:.36s;}
+
+/* ─── LAYOUT ──────────────────────────────────────────────── */
+.wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 2rem;}
+.hr{height:1px;background:var(--border);}
+
+/* Section labels — two modes */
+.section-label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text4);font-weight:600;display:block;margin-bottom:1.25rem;}
+.section-label-light{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.4);font-weight:600;display:block;margin-bottom:1.25rem;}
+
+/* Headings — two modes */
+.section-h{font-family:'DM Serif Display',serif;font-size:clamp(30px,4vw,48px);line-height:1.1;letter-spacing:-1px;color:var(--text);margin-bottom:1.5rem;}
+.section-h em{color:var(--bolt);font-style:normal;}
+.section-h-light{font-family:'DM Serif Display',serif;font-size:clamp(30px,4vw,48px);line-height:1.1;letter-spacing:-1px;color:var(--white);margin-bottom:1.5rem;}
+.section-h-light em{color:rgba(200,90,30,.85);font-style:normal;}
+
+.section-body{font-size:16px;color:var(--text2);line-height:1.85;max-width:480px;font-weight:300;}
+.section-body strong{color:var(--text);font-weight:500;}
+
+/* ─── NAV ─────────────────────────────────────────────────── */
+nav{position:fixed;top:0;left:0;right:0;z-index:300;height:64px;background:rgba(27,34,53,.88);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid rgba(255,255,255,.08);transition:background .4s,border-color .4s;}
+.nav-in{height:100%;max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;align-items:center;justify-content:space-between;}
+.nav-logo{display:flex;align-items:center;gap:10px;}
+.bolt-icon{width:32px;height:32px;border-radius:8px;background:var(--bolt);display:inline-flex;align-items:center;justify-content:center;animation:breathe 3.5s ease-in-out infinite;flex-shrink:0;}
+.nav-name{font-family:'DM Serif Display',serif;font-size:19px;letter-spacing:-.2px;color:var(--white);}
+.nav-name em{color:rgba(200,90,30,.9);font-style:normal;}
+.nav-r{display:flex;align-items:center;gap:2rem;}
+.nav-link{font-size:13px;color:rgba(255,255,255,.6);transition:color .2s;font-weight:400;}
+.nav-link:hover{color:var(--white);}
+.nav-cta{font-size:13px;font-weight:600;color:var(--white);background:var(--bolt);padding:8px 20px;border-radius:var(--r-sm);transition:background .2s,box-shadow .2s;white-space:nowrap;box-shadow:0 2px 12px var(--bolt-glow);min-height:44px;display:inline-flex;align-items:center;}
+.nav-cta:hover{background:var(--red);box-shadow:0 4px 20px rgba(200,90,30,.35);}
+/* Light nav state — applied via JS when scrolled past hero */
+nav.light{background:rgba(247,246,243,.96);border-bottom-color:var(--border);}
+nav.light .nav-name{color:var(--text);}
+nav.light .nav-name em{color:var(--bolt);}
+nav.light .nav-link{color:var(--text2);}
+nav.light .nav-link:hover{color:var(--text);}
+
+/* ─── HERO — dark section ──────────────────────────────────── */
+.hero{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 2rem 80px;position:relative;overflow:hidden;background:var(--ink);}
+.hero-bg{position:absolute;inset:0;pointer-events:none;}
+.hero-glow-outer{position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1100px;height:700px;background:radial-gradient(ellipse at 50% 35%,rgba(200,90,30,.1) 0%,transparent 65%);}
+.hero-glow-inner{position:absolute;top:-60px;left:50%;transform:translateX(-50%);width:500px;height:380px;background:radial-gradient(ellipse at 50% 40%,rgba(200,90,30,.07) 0%,transparent 60%);}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:radial-gradient(ellipse 75% 65% at 50% 38%,#000 10%,transparent 75%);mask-image:radial-gradient(ellipse 75% 65% at 50% 38%,#000 10%,transparent 75%);}
+.hero-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(200,90,30,.1);border:1px solid rgba(200,90,30,.22);border-radius:30px;padding:5px 16px;font-size:11px;font-weight:500;letter-spacing:.3px;color:rgba(200,90,30,.9);margin-bottom:2.5rem;position:relative;z-index:1;}
+.chip-dot{width:5px;height:5px;border-radius:50%;background:var(--bolt);animation:blink 2.2s ease-in-out infinite;flex-shrink:0;}
+.hero-icon-wrap{margin:0 auto 2.25rem;position:relative;z-index:1;}
+.hero-icon{width:88px;height:88px;border-radius:22px;background:var(--bolt);display:inline-flex;align-items:center;justify-content:center;animation:pulse 3s ease-in-out infinite;}
+.hero-h1{font-family:'DM Serif Display',serif;font-size:clamp(48px,8vw,92px);line-height:1.05;letter-spacing:-3px;color:var(--white);margin-bottom:1.25rem;position:relative;z-index:1;max-width:860px;}
+.hero-h1 em{color:rgba(200,90,30,.85);font-style:normal;}
+.hero-clarify{font-size:clamp(15px,1.7vw,17px);color:var(--w70);line-height:1.7;margin-bottom:.875rem;position:relative;z-index:1;max-width:600px;width:100%;}
+.hero-clarify strong{color:var(--white);}
+.hero-sub{font-size:clamp(14px,1.5vw,16px);color:var(--w50);line-height:1.8;max-width:520px;width:100%;margin:0 auto 3rem;position:relative;z-index:1;font-weight:300;}
+.hero-actions{display:flex;flex-direction:column;align-items:center;gap:.75rem;position:relative;z-index:1;}
+.btn-hero{display:inline-block;background:var(--bolt);color:var(--white);font-size:16px;font-weight:600;padding:16px 40px;border-radius:var(--r-sm);transition:all .3s cubic-bezier(.16,1,.3,1);box-shadow:0 4px 24px var(--bolt-glow);letter-spacing:-.1px;}
+.btn-hero:hover{background:var(--red);transform:translateY(-2px);box-shadow:0 8px 36px rgba(200,90,30,.4);}
+.hero-note{font-size:12px;color:var(--w30);font-weight:300;}
+.hero-demo-link{font-size:13px;color:var(--w40);transition:color .2s;}
+.hero-demo-link:hover{color:var(--w70);}
+
+/* ─── BEFORE / AFTER ──────────────────────────────────────── */
+.ba-section{padding:128px 0 0;background:var(--bg);}
+.ba-intro{text-align:center;margin-bottom:3rem;}
+.ba-wrap{display:grid;grid-template-columns:1fr 1fr;gap:2rem;max-width:900px;margin:0 auto;}
+.ba-col{
+  background:var(--surface);
+  border:1px solid var(--border-dark);
+  border-radius:var(--r-lg);
+  overflow:hidden;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.06),
+    0 4px 10px rgba(0,0,0,.07),
+    0 10px 24px rgba(0,0,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.95);
+}
+.ba-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:.875rem 1.5rem;border-bottom:1px solid var(--border);}
+.ba-label.before{color:rgba(180,60,10,.7);background:rgba(200,90,30,.04);}
+.ba-label.after{color:var(--green);background:rgba(26,122,74,.04);}
+.ba-item{display:flex;align-items:flex-start;gap:.875rem;padding:.875rem 1.5rem;border-bottom:1px solid rgba(0,0,0,.04);}
+.ba-ico{font-size:12px;flex-shrink:0;margin-top:2px;}
+.ba-ico.x{color:rgba(180,60,10,.5);}
+.ba-ico.ck{color:var(--green);}
+.ba-txt{font-size:14px;line-height:1.55;font-weight:300;}
+.ba-txt.dim{color:var(--text3);}
+.ba-txt.lit{color:var(--text2);}
+.ba-foot{padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;background:rgba(0,0,0,.02);}
+.ba-foot.before{border-top:2px solid rgba(200,90,30,.12);}
+.ba-foot.after{border-top:2px solid rgba(26,122,74,.15);}
+.ba-foot-label{font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.5px;font-weight:500;}
+.ba-foot-num{font-family:'DM Serif Display',serif;font-size:36px;letter-spacing:-1px;line-height:1;}
+.ba-foot-num.red{color:rgba(180,60,10,.7);}
+.ba-foot-num.green{color:var(--green);}
+
+/* ─── SHOW RATE STRIP ─────────────────────────────────────── */
+.sr-strip{background:var(--bg2);border-top:1px solid var(--border);padding:2.5rem 0;}
+.sr-inner{display:flex;align-items:center;justify-content:center;gap:2.5rem;max-width:var(--max);margin:0 auto;padding:0 2rem;}
+.sr-num{text-align:center;}
+.sr-val{font-family:'DM Serif Display',serif;font-size:48px;letter-spacing:-2px;line-height:1;margin-bottom:4px;}
+.sr-lbl{font-size:11px;color:var(--text4);letter-spacing:.5px;font-weight:400;}
+.sr-arrow{font-size:24px;color:var(--text4);}
+.sr-copy{max-width:280px;}
+.sr-main{font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;letter-spacing:-.2px;}
+.sr-sub{font-size:13px;color:var(--text3);line-height:1.6;font-weight:300;}
+
+/* ─── MORNING / SAVINGS ───────────────────────────────────── */
+.morning-section{padding:96px 0;background:var(--bg);}
+.morning-grid{display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center;}
+.savings-section{padding:96px 0;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.savings-grid{display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center;}
+
+/* ─── CARD DEPTH SYSTEM ───────────────────────────────────── */
+/* Subtle lift — every surface card on the page uses this */
+.card-lift{
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.06),
+    0 4px 10px rgba(0,0,0,.07),
+    0 10px 24px rgba(0,0,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.95);
+  border:1px solid var(--border-dark);
+  background:var(--surface);
+  border-radius:var(--r-lg);
+}
+
+/* ─── ONBOARDING ──────────────────────────────────────────── */
+.onboard-section{padding:96px 0;background:var(--bg2);border-top:1px solid var(--border);text-align:center;}
+.ob-steps{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:start;gap:1.5rem;margin:3rem auto 0;max-width:900px;}
+.ob-step{
+  background:var(--surface);
+  border:1px solid var(--border-dark);
+  border-radius:var(--r-lg);
+  padding:2rem 1.5rem;
+  text-align:center;
+  box-shadow:
+    0 2px 4px rgba(0,0,0,.07),
+    0 8px 20px rgba(0,0,0,.08),
+    0 20px 40px rgba(0,0,0,.07),
+    inset 0 1px 0 rgba(255,255,255,.95);
+}
+.ob-n{width:40px;height:40px;border-radius:50%;background:var(--ink);color:var(--white);font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+.ob-t{font-size:15px;font-weight:600;color:var(--text);margin-bottom:.5rem;}
+.ob-d{font-size:13px;color:var(--text3);line-height:1.6;font-weight:300;}
+.ob-arr{color:var(--bolt);font-size:20px;padding-top:3rem;opacity:.5;}
+.ob-note{font-size:12px;color:var(--text4);margin-top:2rem;font-style:italic;font-weight:300;}
+
+/* ─── GUARANTEE ───────────────────────────────────────────── */
+.guarantee{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:2rem 0;}
+.guarantee-inner{max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;align-items:center;gap:1.5rem;}
+.g-icon{font-size:28px;flex-shrink:0;}
+.g-text{font-size:15px;color:var(--text2);line-height:1.75;font-weight:300;}
+.g-text strong{color:var(--text);font-weight:600;}
+
+/* ─── PRICING — dark section ──────────────────────────────── */
+.pricing-section{padding:96px 0;background:var(--ink);text-align:center;}
+.price-card{max-width:520px;margin:3rem auto 0;background:var(--ink2);border:1px solid rgba(255,255,255,.1);border-radius:var(--r-lg);padding:2.5rem 2rem;box-shadow:0 0 80px rgba(0,0,0,.1),0 40px 80px rgba(0,0,0,.4);position:relative;overflow:hidden;text-align:center;}
+.price-card::before{content:'';position:absolute;top:-80px;left:50%;transform:translateX(-50%);width:400px;height:260px;background:radial-gradient(ellipse,rgba(200,90,30,.06) 0%,transparent 70%);pointer-events:none;}
+.price-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(200,90,30,.8);margin-bottom:1.5rem;font-weight:500;}
+.price-amt{font-family:'DM Serif Display',serif;font-size:72px;color:var(--white);line-height:1;letter-spacing:-3px;}
+.price-amt span{font-size:28px;color:var(--w50);vertical-align:top;margin-top:12px;display:inline-block;}
+.price-cycle{font-size:13px;color:var(--w50);margin-top:.5rem;margin-bottom:1.75rem;font-weight:300;}
+.price-divider{height:1px;background:var(--w08);margin-bottom:1.75rem;}
+.price-feats{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.75rem;text-align:left;}
+.pf{display:flex;align-items:flex-start;gap:.5rem;font-size:13px;color:var(--w70);line-height:1.5;font-weight:300;}
+.pf-ck{color:rgba(26,200,100,.8);flex-shrink:0;font-weight:700;}
+.price-divider2{height:1px;background:var(--w08);margin-bottom:1.5rem;}
+.price-anchor{font-size:14px;color:var(--w70);margin-bottom:1.5rem;line-height:1.7;font-weight:300;}
+.price-anchor strong{color:var(--white);font-weight:500;}
+.btn-trial{display:block;background:var(--bolt);color:var(--white);font-size:15px;font-weight:600;padding:16px;border-radius:var(--r-sm);margin-bottom:.75rem;transition:all .3s cubic-bezier(.16,1,.3,1);box-shadow:0 4px 24px var(--bolt-glow);}
+.btn-trial:hover{background:var(--red);transform:translateY(-2px);}
+.btn-demo{display:block;background:transparent;color:var(--w50);font-size:13px;padding:10px;border-radius:var(--r-sm);border:1px solid var(--w08);transition:color .2s,border-color .2s;font-weight:300;}
+.btn-demo:hover{color:var(--white);border-color:var(--w30);}
+.price-note{font-size:11px;color:var(--w30);margin-top:.875rem;line-height:1.6;font-weight:300;}
+
+/* ─── URGENCY STRIP ───────────────────────────────────────── */
+.urgency-strip{background:rgba(200,90,30,.08);border:1px solid rgba(200,90,30,.15);border-radius:var(--r);padding:.875rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:center;gap:.75rem;max-width:520px;margin-left:auto;margin-right:auto;}
+.urgency-dot{width:7px;height:7px;border-radius:50%;background:var(--bolt);flex-shrink:0;animation:blink 2s ease-in-out infinite;}
+.urgency-text{font-size:13px;color:var(--w70);font-weight:300;line-height:1.5;}
+.urgency-text strong{color:var(--white);font-weight:600;}
+
+/* ─── FAQ — light section ─────────────────────────────────── */
+.faq-section{padding:96px 0;background:var(--bg);}
+.faq-wrap{max-width:680px;margin:0 auto;padding:0 1.25rem;}
+.faq-header{text-align:center;margin-bottom:3rem;}
+.faq-list{display:flex;flex-direction:column;gap:2px;}
+.faq-item{
+  background:var(--surface);
+  border:1px solid var(--border-dark);
+  border-radius:var(--r);
+  overflow:hidden;
+  transition:border-color .25s, box-shadow .25s;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.06),
+    0 4px 10px rgba(0,0,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.95);
+}
+.faq-item:hover{border-color:var(--border-dark);}
+.faq-item.open{border-color:rgba(200,90,30,.3);}
+.faq-q{padding:1.25rem 1.5rem;font-size:14px;font-weight:500;color:var(--text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;user-select:none;line-height:1.4;}
+.faq-q:hover{background:var(--bg);}
+.faq-arrow{font-size:11px;color:var(--bolt);flex-shrink:0;transition:transform .3s cubic-bezier(.16,1,.3,1);}
+.faq-item.open .faq-arrow{transform:rotate(180deg);}
+.faq-a{font-size:14px;color:var(--text2);line-height:1.8;padding:0 1.5rem;max-height:0;overflow:hidden;transition:max-height .5s cubic-bezier(.16,1,.3,1),padding .4s ease;font-weight:300;}
+.faq-item.open .faq-a{max-height:600px;padding:.5rem 1.5rem 1.5rem;}
+.faq-a strong{color:var(--text);font-weight:500;}
+
+/* ─── FOUNDER ─────────────────────────────────────────────── */
+.testimonial{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:2.5rem 0;}
+.t-inner{max-width:720px;margin:0 auto;padding:0 2rem;}
+.t-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:2rem 2.25rem;display:flex;align-items:flex-start;gap:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+.t-icon{width:44px;height:44px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.t-text{font-size:15px;color:var(--text2);line-height:1.75;font-weight:300;}
+.t-text strong{color:var(--text);font-weight:500;}
+.t-sub{font-size:11px;color:var(--text4);margin-top:.375rem;font-weight:300;}
+
+/* ─── FOOTER ──────────────────────────────────────────────── */
+footer{background:var(--ink);padding:3rem 0;border-top:1px solid rgba(255,255,255,.06);}
+.ft-in{max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;flex-direction:column;align-items:center;gap:1.25rem;text-align:center;}
+.ft-logo{display:flex;align-items:center;gap:9px;}
+.ft-name{font-family:'DM Serif Display',serif;font-size:20px;color:var(--w70);}
+.ft-name em{color:rgba(200,90,30,.85);font-style:normal;}
+.ft-tag{font-size:13px;color:var(--w50);font-style:italic;font-weight:300;letter-spacing:.2px;}
+.ft-links{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;justify-content:center;}
+.ft-link{font-size:12px;color:var(--w50);transition:color .2s;font-weight:300;}
+.ft-link:hover{color:var(--white);}
+.ft-copy{font-size:10px;color:var(--w30);font-weight:300;}
+
+/* ─── TRACKER CTA ─────────────────────────────────────────── */
+.tracker-cta{padding:96px 2rem;background:var(--ink);text-align:center;position:relative;overflow:hidden;}
+.tracker-cta::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 65% at 50% 55%,rgba(200,90,30,.06) 0%,transparent 70%);pointer-events:none;}
+.tracker-cta-label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(200,90,30,.7);font-weight:600;display:block;margin-bottom:1rem;position:relative;z-index:1;}
+.tracker-cta-headline{font-family:'DM Serif Display',serif;font-size:clamp(28px,4vw,52px);color:var(--white);line-height:1.1;letter-spacing:-1.5px;margin-bottom:.75rem;position:relative;z-index:1;}
+.tracker-cta-headline em{color:rgba(200,90,30,.85);font-style:normal;}
+.tracker-cta-sub{font-size:16px;color:var(--w50);font-weight:300;line-height:1.7;max-width:380px;margin:0 auto 3rem;position:relative;z-index:1;}
+.tracker-cta-card{max-width:680px;margin:0 auto 3rem;position:relative;z-index:1;pointer-events:none;opacity:.95;}
+.tracker-cta-actions{display:flex;flex-direction:column;align-items:center;gap:.75rem;position:relative;z-index:1;}
+.btn-cta-final{background:var(--bolt);color:var(--white);font-size:16px;font-weight:600;padding:18px 48px;border-radius:var(--r-sm);transition:all .3s cubic-bezier(.16,1,.3,1);box-shadow:0 4px 24px var(--bolt-glow);letter-spacing:-.1px;}
+.btn-cta-final:hover{background:var(--red);transform:translateY(-2px);}
+.cta-final-note{font-size:12px;color:var(--w30);font-weight:300;}
+.cta-final-demo{font-size:13px;color:var(--w30);transition:color .2s;}
+.cta-final-demo:hover{color:var(--w70);}
+
+/* ─── MOBILE SHOW / HIDE ─────────────────────────────────── */
+.mobile-only{display:none;}
+.desktop-only{display:block;}
+@media(max-width:640px){
+  .mobile-only{display:block;}
+  .desktop-only{display:none;}
+}
+
+/* ─── FUNNEL SECTION ─────────────────────────────────────── */
+.funnel-desktop{display:block;}
+.funnel-mobile{display:none;}
+@media(max-width:640px){
+  .funnel-desktop{display:none;}
+  .funnel-mobile{display:block;}
+}
+
+/* ─── COMPARISON (legacy — unused but keep for safety) ──────── */
+.comp-section{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.comp-grid{display:grid;grid-template-columns:1fr 1fr;max-width:var(--max);margin:0 auto;}
+.comp-col{padding:4rem 3rem;}
+.comp-col.left{border-right:1px solid var(--border);}
+.comp-col-head{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:2rem;}
+.comp-col-head.dim{color:var(--text4);}
+.comp-col-head.lit{color:var(--bolt);}
+.comp-row{display:flex;align-items:center;gap:1rem;margin-bottom:1.125rem;}
+.comp-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.comp-dot.no{background:rgba(0,0,0,.06);color:var(--text4);}
+.comp-dot.yes{background:rgba(26,122,74,.1);color:var(--green);}
+.comp-txt{font-size:14px;line-height:1.5;}
+.comp-txt.dim{color:var(--text3);}
+.comp-txt.lit{color:var(--text2);}
+
+/* ─── RESPONSIVE ──────────────────────────────────────────── */
+
+/* ── 900px tablet breakpoint ── */
+@media(max-width:900px){
+  .savings-grid,.morning-grid{grid-template-columns:1fr;gap:2.5rem;}
+  .morning-grid .iphone,.founder-grid .iphone{margin:0 auto;}
+  .ba-wrap{grid-template-columns:1fr;}
+  .comp-grid{grid-template-columns:1fr;}
+  .comp-col.left{border-right:none;border-bottom:1px solid var(--border);}
+  .ob-steps{grid-template-columns:1fr;gap:.75rem;}
+  .ob-arr{display:none;}
+  .guarantee-inner{flex-direction:column;text-align:center;}
+  .t-card{flex-direction:column;gap:1rem;}
+  .sr-inner{flex-wrap:wrap;gap:1.25rem;text-align:center;}
+  .sr-copy{text-align:center;max-width:100%;}
+  .dashboard-full{display:none;}
+  .dashboard-mobile{display:block;}
+  .founder-grid{grid-template-columns:1fr !important;gap:2.5rem !important;}
+}
+@media(min-width:901px){
+  .dashboard-mobile{display:none;}
+  .dashboard-full{display:block;}
+  .dashboard-scale-wrap{overflow:hidden;width:100%;border-radius:0;}
+  .dashboard-scale-inner{transform:none;width:auto;}
+}
+
+/* ── 640px mobile breakpoint — primary mobile target ── */
+@media(max-width:640px){
+
+  /* ── Global spacing ── */
+  .wrap{padding:0 1.125rem;}
+
+  /* ── Nav ── */
+  .nav-r .nav-link{display:none;}
+  .nav-r .nav-dashboard{display:inline-flex;align-items:center;font-size:12px;font-weight:600;color:rgba(255,255,255,.8);padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;}
+  .nav-cta{font-size:12px;padding:7px 14px;}
+  .nav-in{padding:0 1.125rem;}
+
+  /* ── Hero ── */
+  .hero{padding:88px 1.25rem 56px;min-height:auto;}
+  .hero-h1{font-size:clamp(38px,10vw,56px);letter-spacing:-1.5px;line-height:1.08;}
+  .hero-clarify{font-size:15px;line-height:1.65;}
+  .btn-hero{width:100%;text-align:center;padding:16px 20px;font-size:15px;}
+
+  /* ── Value statement ── */
+  .value-section{padding:56px 1.25rem;min-height:auto;}
+  .value-statement{font-size:clamp(28px,8vw,42px);letter-spacing:-1px;}
+
+  /* ── Scroll hook ── */
+  .scroll-hook-inner{padding:2rem 1.125rem !important;}
+
+  /* ── Pipeline comparison card ── */
+  .ba-section{padding:56px 0 0;}
+  .ba-intro{padding:0 1.125rem;margin-bottom:2rem;}
+  .pipeline-card-grid{
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:0 !important;
+  }
+  .pipeline-vs-col{
+    writing-mode:horizontal-tb !important;
+    transform:none !important;
+    padding:.5rem 1rem !important;
+    border-left:none !important;
+    border-right:none !important;
+    border-top:1px solid var(--border) !important;
+    border-bottom:1px solid var(--border) !important;
+    text-align:center;
+    min-height:auto !important;
+  }
+  .pipeline-vs-col > div {
+    writing-mode:horizontal-tb !important;
+    transform:none !important;
+    white-space:normal !important;
+    font-size:11px !important;
+  }
+  .pipeline-num{font-size:48px !important;letter-spacing:-2px !important;}
+
+  /* ── Show rate strip ── */
+  .sr-inner{padding:0 1.125rem;flex-direction:column;gap:1.25rem;align-items:center;}
+  .sr-arrow{display:none;}
+  .sr-val{font-size:38px;}
+
+  /* ── Crisis chain ── */
+  .crisis-section{padding:64px 0 !important;}
+  /* ── Founder section ── */
+  .founder-section{padding:56px 0 !important;}
+
+  /* ── Morning/savings sections ── */
+  .savings-section,.morning-section{padding:56px 0;}
+  .savings-grid{gap:2rem;}
+  .morning-grid{gap:2rem;}
+
+  /* ── iPhone mockup — full width on mobile ── */
+  .iphone{width:min(300px,86vw);}
+
+  /* ── Value table ── */
+  .value-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -1.125rem;padding:0 1.125rem;}
+
+  /* ── Onboarding ── */
+  .onboard-section{padding:56px 0;}
+  .ob-step{padding:1.375rem 1.125rem;}
+  .ob-n{width:36px;height:36px;font-size:14px;}
+  .ob-t{font-size:14px;}
+  .ob-d{font-size:12.5px;}
+
+  /* ── Guarantee strip ── */
+  .guarantee{padding:1.5rem 0;}
+  .guarantee-inner{padding:0 1.125rem;gap:1rem;}
+  .g-text{font-size:14px;}
+
+  /* ── Pricing ── */
+  .pricing-section{padding:56px 0;}
+  .price-card{padding:1.75rem 1.125rem;margin:2rem 1.125rem 0;}
+  .price-amt{font-size:56px;letter-spacing:-2.5px;}
+  .price-feats{grid-template-columns:1fr;gap:.625rem;}
+  .pf{font-size:13px;}
+  .btn-trial{font-size:15px;padding:15px;}
+  .price-anchor{font-size:13px;}
+  .urgency-strip{padding:.75rem 1rem;margin:0 1.125rem 1.25rem;}
+
+  /* ── Section headings global ── */
+  .section-h,.section-h-light{font-size:clamp(24px,7.5vw,36px);letter-spacing:-.75px;}
+
+  /* ── FAQ ── */
+  .faq-section{padding:56px 0;}
+  .faq-wrap{padding:0 1.125rem;}
+  .faq-q{padding:1rem 1.125rem;font-size:13.5px;}
+  .faq-a{font-size:13.5px;}
+  .faq-item.open .faq-a{padding:.5rem 1.125rem 1.125rem;}
+
+  /* ── Founder testimonial ── */
+  .t-card{padding:1.5rem 1.125rem;gap:1rem;}
+  .t-text{font-size:14px;}
+  .t-inner{padding:0 1.125rem;}
+
+  /* ── Tracker CTA section ── */
+  .tracker-cta{padding:64px 1.25rem;}
+  .tracker-cta-sub{font-size:15px;}
+  .btn-cta-final{width:100%;text-align:center;padding:16px 20px;font-size:15px;}
+
+  /* ── Tap target sizes ── */
+  .btn-hero,.btn-trial,.btn-cta-final,.nav-cta,.faq-q{min-height:44px;}
+  .faq-q{display:flex;align-items:center;justify-content:space-between;}
+  /* ── Footer ── */
+  footer{padding:2.5rem 0;}
+  .ft-in{padding:0 1.125rem;gap:1rem;}
+  .ft-links{gap:.375rem 1.25rem;}
+}
+
+/* ── 400px small phone ── */
+@media(max-width:400px){
+  .hero-h1{font-size:36px;letter-spacing:-1px;}
+  .price-amt{font-size:48px;}
+  .value-statement{font-size:28px;}
+  .iphone{width:90vw;}
+}
+
+/* ─── VALUE STATEMENT ─────────────────────────────────────── */
+.value-section{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 2rem;background:var(--bg);position:relative;overflow:hidden;}
+.value-section::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(200,90,30,.04) 0%,transparent 70%);pointer-events:none;}
+.value-inner{position:relative;z-index:1;max-width:900px;margin:0 auto;display:flex;flex-direction:column;align-items:center;}
+.value-statement{font-family:'DM Serif Display',serif;font-size:clamp(32px,5.5vw,64px);line-height:1.14;letter-spacing:-1.5px;color:var(--text);margin-bottom:3rem;}
+.value-statement em{color:var(--bolt);font-style:normal;}
+.value-statement .dim{color:var(--text4);}
+.value-verdict{font-size:clamp(13px,1.3vw,15px);color:var(--text3);font-weight:300;letter-spacing:.2px;border-top:1px solid var(--border);padding-top:1.5rem;line-height:1.7;max-width:640px;}
+.value-verdict strong{color:var(--text);font-weight:500;}
+
+/* ─── COUNT UP ────────────────────────────────────────────── */
+.count-up{display:inline-block;}
+
+/* ─── DARK SECTION TEXT LEGIBILITY ───────────────────────── */
+/* Used in crisis cycle, dashboard section, tracker section */
+.dark-section-body{font-size:15px;color:rgba(255,255,255,.75);line-height:1.8;font-weight:300;}
+.dark-section-body strong{color:#fff;font-weight:500;}
+
+
+/* ─── iPHONE MOCKUP ───────────────────────────────────────── */
+.iphone{
+  width:320px;margin:0 auto;
+  position:relative;
+  animation:drift 7s ease-in-out infinite;
+  filter:
+    drop-shadow(0 60px 80px rgba(0,0,0,.40))
+    drop-shadow(0 20px 30px rgba(0,0,0,.22))
+    drop-shadow(0 4px 8px rgba(0,0,0,.16));
+}
+
+/* Titanium frame */
+.iphone-frame{
+  background:linear-gradient(
+    135deg,
+    #4E4E50 0%,#3C3C3E 8%,#2E2E30 22%,
+    #222224 42%,#1A1A1C 58%,
+    #222224 72%,#3C3C3E 88%,#4E4E50 100%
+  );
+  border-radius:56px;
+  padding:16px;
+  position:relative;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.20),
+    inset 0 1px 0 rgba(255,255,255,.24),
+    inset 0 -1px 0 rgba(0,0,0,.5),
+    0 0 0 1px rgba(0,0,0,.7),
+    0 2px 6px rgba(0,0,0,.4);
+}
+/* Specular highlight — key to real metal look */
+.iphone-frame::before{
+  content:'';position:absolute;inset:0;border-radius:56px;
+  background:linear-gradient(
+    155deg,
+    rgba(255,255,255,.24) 0%,
+    rgba(255,255,255,.10) 12%,
+    transparent 32%,
+    transparent 68%,
+    rgba(255,255,255,.05) 84%,
+    rgba(255,255,255,.12) 100%
+  );
+  pointer-events:none;z-index:4;
+}
+
+/* Buttons — right power */
+.iphone-power{
+  position:absolute;right:-3px;top:134px;
+  width:3px;height:72px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:0 2px 2px 0;z-index:2;
+  box-shadow:inset -1px 0 0 rgba(255,255,255,.10),1px 0 2px rgba(0,0,0,.4);
+}
+/* Left: mute, vol up, vol down */
+.iphone-mute{
+  position:absolute;left:-3px;top:110px;
+  width:3px;height:36px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:2px 0 0 2px;z-index:2;
+  box-shadow:inset 1px 0 0 rgba(255,255,255,.10),-1px 0 2px rgba(0,0,0,.4);
+}
+.iphone-vol-up{
+  position:absolute;left:-3px;top:162px;
+  width:3px;height:56px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:2px 0 0 2px;z-index:2;
+  box-shadow:inset 1px 0 0 rgba(255,255,255,.10),-1px 0 2px rgba(0,0,0,.4);
+}
+.iphone-vol-down{
+  position:absolute;left:-3px;top:228px;
+  width:3px;height:56px;
+  background:linear-gradient(180deg,#4E4E50 0%,#3A3A3C 25%,#2A2A2C 50%,#3A3A3C 75%,#4E4E50 100%);
+  border-radius:2px 0 0 2px;z-index:2;
+  box-shadow:inset 1px 0 0 rgba(255,255,255,.10),-1px 0 2px rgba(0,0,0,.4);
+}
+
+/* Screen */
+.iphone-screen{
+  background:#000;
+  border-radius:42px;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  position:relative;
+  min-height:630px;
+}
+/* Glass glare */
+.iphone-screen::before{
+  content:'';position:absolute;inset:0;z-index:100;pointer-events:none;
+  border-radius:42px;
+  background:linear-gradient(
+    150deg,
+    rgba(255,255,255,.08) 0%,
+    rgba(255,255,255,.03) 20%,
+    transparent 45%
+  );
+}
+
+/* Dynamic Island */
+.dynamic-island{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  width:128px;height:36px;
+  background:#000;border-radius:20px;
+  z-index:10;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.04);
+}
+.di-sensor{
+  width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%,#2C2C30,#0E0E12);
+  border:1px solid rgba(255,255,255,.05);
+}
+.di-camera{
+  width:11px;height:11px;border-radius:50%;
+  background:radial-gradient(circle at 32% 30%,#1C1C3E,#040416);
+  border:1.5px solid #0A84FF;
+  box-shadow:0 0 0 2px rgba(10,132,255,.12),0 0 12px rgba(10,132,255,.35);
+}
+
+/* Status bar */
+.iphone-status{
+  padding:22px 24px 4px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:#000;position:relative;z-index:5;
+  margin-top:36px;
+}
+.iphone-status-time{font-size:15px;font-weight:600;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:-.3px;}
+.iphone-status-icons{display:flex;align-items:center;gap:6px;}
+
+/* iMessage nav chrome */
+.imessage-chrome{
+  background:#1C1C1E;
+  padding:8px 16px 10px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.im-back{font-size:15px;color:#0A84FF;font-family:-apple-system,sans-serif;flex-shrink:0;}
+.im-avatar{
+  width:38px;height:38px;border-radius:50%;
+  background:linear-gradient(145deg,#C85A1E,#E07030);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+  box-shadow:0 2px 8px rgba(200,90,30,.35);
+  font-size:14px;font-weight:700;color:#fff;font-family:-apple-system,sans-serif;
+}
+.im-contact-info{flex:1;text-align:center;}
+.im-name{font-size:13px;font-weight:600;color:#fff;font-family:-apple-system,sans-serif;line-height:1.2;}
+.im-subtitle{font-size:10px;color:rgba(255,255,255,.42);font-family:-apple-system,sans-serif;margin-top:1px;}
+.im-video{color:#0A84FF;font-size:17px;flex-shrink:0;}
+
+/* Thread */
+.imessage-thread{
+  flex:1;background:#000;
+  padding:14px 14px 6px;
+  display:flex;flex-direction:column;gap:4px;
+  position:relative;z-index:1;
+}
+.im-timestamp{
+  text-align:center;font-size:11px;
+  color:rgba(255,255,255,.32);
+  font-family:-apple-system,sans-serif;
+  margin-bottom:10px;font-weight:400;
+}
+.im-bubble-wrap{display:flex;}
+.im-bubble-wrap.in{justify-content:flex-start;}
+.im-bubble-wrap.out{justify-content:flex-end;}
+.im-bubble{
+  max-width:82%;padding:10px 14px;
+  border-radius:18px;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:13px;line-height:1.5;color:#fff;
+}
+.im-bubble.in{background:#1C1C1E;border-bottom-left-radius:4px;}
+.im-bubble.out{background:linear-gradient(170deg,#1E90EE,#0A78D4);border-bottom-right-radius:4px;}
+.im-bubble strong{font-weight:700;}
+.im-bubble .on-track{color:#30D158;font-weight:700;}
+.im-delivered{
+  font-size:10px;color:rgba(255,255,255,.28);
+  text-align:right;font-family:-apple-system,sans-serif;
+  margin-top:3px;padding-right:2px;
+}
+
+/* Input */
+.im-input-bar{
+  background:#1C1C1E;padding:8px 12px 10px;
+  display:flex;align-items:center;gap:8px;
+  border-top:1px solid rgba(255,255,255,.06);
+  position:relative;z-index:5;
+}
+.im-input-field{
+  flex:1;background:#2C2C2E;border-radius:20px;
+  padding:7px 12px;font-size:13px;
+  color:rgba(255,255,255,.28);font-family:-apple-system,sans-serif;
+}
+.im-send{
+  width:28px;height:28px;border-radius:50%;
+  background:linear-gradient(170deg,#1E90EE,#0A78D4);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;color:#fff;flex-shrink:0;font-weight:700;
+  box-shadow:0 2px 8px rgba(10,120,200,.35);
+}
+
+  /* ── DEMO DASHBOARD ── */
+  .rr-demo-wrap{max-width:860px;margin:0 auto;position:relative;}
+  .rr-demo-overlay{position:absolute;inset:0;z-index:50;cursor:default;}
+  .rr-browser{border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.10),0 40px 100px rgba(0,0,0,.75),0 16px 40px rgba(0,0,0,.5);}
+  .rr-chrome{background:#2C2C2E;border-bottom:1px solid rgba(0,0,0,.5);}
+  .rr-tabs{padding:10px 14px 0;display:flex;align-items:center;gap:8px;}
+  .rr-dots{display:flex;gap:6px;padding-bottom:10px;}
+  .rr-dot{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2);}
+  .rr-tab{background:#F8F9FA;border-radius:8px 8px 0 0;padding:7px 16px;display:flex;align-items:center;gap:8px;margin-left:8px;}
+  .rr-tab-icon{width:14px;height:14px;background:#C85A1E;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .rr-tab-title{font-size:11px;color:#374151;font-family:-apple-system,sans-serif;font-weight:500;white-space:nowrap;}
+  .rr-urlbar{padding:0 14px 10px;display:flex;align-items:center;gap:8px;}
+  .rr-url{flex:1;background:#1C1C1E;border-radius:7px;padding:5px 12px;display:flex;align-items:center;gap:6px;max-width:420px;margin:0 auto;}
+  .rr-url-text{font-size:11px;color:rgba(255,255,255,.45);font-family:-apple-system,sans-serif;}
+  /* Dashboard internals */
+  .rrd{background:#FAFAF9;font-family:'DM Sans',sans-serif;}
+  .rrd-nav{height:44px;background:rgba(27,34,53,.92);padding:0 16px;display:flex;align-items:center;justify-content:space-between;}
+  .rrd-nav-l{display:flex;align-items:center;gap:7px;}
+  .rrd-bolt{width:22px;height:22px;background:#C85A1E;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .rrd-brand{font-family:'DM Serif Display',serif;font-size:13px;color:rgba(255,255,255,.9);}
+  .rrd-brand em{color:rgba(200,90,30,.9);font-style:normal;}
+  .rrd-dsp{font-size:10px;color:rgba(255,255,255,.35);margin-left:6px;}
+  .rrd-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:9px;font-weight:500;background:rgba(200,90,30,.15);color:rgba(200,90,30,.9);border:1px solid rgba(200,90,30,.25);}
+  .rrd-chip-dot{width:4px;height:4px;border-radius:50%;background:#C85A1E;}
+  .rrd-body{padding:12px 14px;}
+  .rrd-dsp-name{font-family:'DM Serif Display',serif;font-size:18px;color:#1B2235;letter-spacing:-.3px;margin-bottom:2px;}
+  .rrd-dsp-sub{font-size:8px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:10px;}
+  .rrd-7am{background:#fff;border:1px solid #C2BFB8;border-left:3px solid #C85A1E;border-radius:8px;padding:10px 14px;margin-bottom:8px;}
+  .rrd-7am-top{display:flex;align-items:center;gap:5px;margin-bottom:5px;}
+  .rrd-pip{width:4px;height:4px;border-radius:50%;background:#C85A1E;}
+  .rrd-7am-label{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C85A1E;}
+  .rrd-7am-time{font-size:8px;color:#9A9A9A;margin-left:auto;}
+  .rrd-7am-body{font-size:10px;color:#4A4A4A;line-height:1.6;font-weight:300;}
+  .rrd-7am-body strong{color:#1A1A1A;font-weight:600;}
+  .rrd-hero{background:#fff;border:1px solid #C2BFB8;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
+  .rrd-hero-l{}
+  .rrd-hero-ey{font-size:8px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:5px;}
+  .rrd-hero-main{display:flex;align-items:flex-end;gap:6px;margin-bottom:4px;}
+  .rrd-hero-num{font-family:'DM Serif Display',serif;font-size:48px;line-height:1;letter-spacing:-2px;color:#1B2235;}
+  .rrd-hero-den{font-size:16px;font-weight:300;color:#9A9A9A;padding-bottom:8px;}
+  .rrd-hero-sub{font-size:9px;color:#6B6B6B;font-weight:300;}
+  .rrd-hero-sub strong{color:#1A7A4A;font-weight:600;}
+  .rrd-prog{margin-top:8px;width:180px;}
+  .rrd-prog-head{display:flex;justify-content:space-between;font-size:8px;color:#9A9A9A;margin-bottom:4px;}
+  .rrd-prog-track{height:3px;background:#ECEAE6;border-radius:2px;overflow:hidden;}
+  .rrd-prog-fill{height:100%;border-radius:2px;background:#C85A1E;}
+  .rrd-hero-r{display:flex;align-items:center;}
+  .rrd-hs{text-align:right;padding:0 10px;}
+  .rrd-hs:last-child{padding-right:0;}
+  .rrd-hs-val{font-family:'DM Serif Display',serif;font-size:16px;color:#1B2235;letter-spacing:-.3px;}
+  .rrd-hs-val.g{color:#1A7A4A;}
+  .rrd-hs-label{font-size:7px;color:#9A9A9A;margin-top:1px;letter-spacing:.5px;text-transform:uppercase;}
+  .rrd-hs-div{width:1px;height:20px;background:#E8E6E1;}
+  .rrd-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#C2BFB8;border:1px solid #C2BFB8;border-radius:8px;overflow:hidden;margin-bottom:8px;}
+  .rrd-sg{background:#fff;padding:10px 12px;}
+  .rrd-sg.good{background:#ECFDF5;}
+  .rrd-sg-label{font-size:7px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:4px;}
+  .rrd-sg-val{font-family:'DM Serif Display',serif;font-size:20px;color:#1B2235;letter-spacing:-.3px;line-height:1;margin-bottom:2px;}
+  .rrd-sg-val.g{color:#1A7A4A;}
+  .rrd-sg-sub{font-size:8px;color:#9A9A9A;font-weight:300;}
+  .rrd-sg-sub.g{color:#1A7A4A;font-weight:500;}
+  .rrd-three{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
+  .rrd-panel{background:#fff;border:1px solid #C2BFB8;border-radius:8px;padding:10px 12px;}
+  .rrd-plabel{font-size:7px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-bottom:8px;}
+  .rrd-ts-row{display:flex;gap:4px;margin-bottom:6px;}
+  .rrd-ts{flex:1;padding:5px 4px;border-radius:4px;border:1px solid #E8E6E1;text-align:center;background:#F3F2EF;}
+  .rrd-ts.act{border-color:#1B2235;background:#fff;}
+  .rrd-ts-ind{width:4px;height:4px;border-radius:50%;background:#C2BFB8;margin:0 auto 3px;}
+  .rrd-ts-ind.act{background:#1B2235;}
+  .rrd-ts-n{font-size:7px;font-weight:600;color:#9A9A9A;}
+  .rrd-ts-n.act{color:#1B2235;}
+  .rrd-wl{display:flex;align-items:center;background:#F3F2EF;border:1px solid #E8E6E1;border-radius:4px;padding:4px 7px;font-size:8px;color:#6B6B6B;}
+  .rrd-wl-n{background:#1B2235;color:#fff;border-radius:20px;padding:1px 5px;font-size:7px;font-weight:600;margin-right:5px;}
+  .rrd-ok{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:600;color:#1A7A4A;margin-bottom:4px;}
+  .rrd-indeed-body{font-size:9px;color:#6B6B6B;line-height:1.5;font-weight:300;}
+  .rrd-indeed-body strong{color:#1A1A1A;font-weight:500;}
+  .rrd-funnel{display:flex;flex-direction:column;gap:3px;}
+  .rrd-f-row{display:flex;align-items:center;gap:4px;}
+  .rrd-f-lbl{font-size:7px;color:#9A9A9A;width:40px;text-align:right;flex-shrink:0;}
+  .rrd-f-track{flex:1;height:13px;background:#ECEAE6;border-radius:2px;overflow:hidden;}
+  .rrd-f-fill{height:100%;border-radius:2px;display:flex;align-items:center;padding-left:5px;}
+  .rrd-f-n{font-size:7px;font-weight:600;color:rgba(255,255,255,.9);}
+  .rrd-f-pct{width:22px;font-size:7px;color:#9A9A9A;text-align:right;flex-shrink:0;}
+  .rrd-tbl{background:#fff;border:1px solid #C2BFB8;border-radius:8px;overflow:hidden;}
+  .rrd-tbl-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid #E8E6E1;background:#F3F2EF;}
+  .rrd-tbl-title{font-size:7px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6B6B6B;}
+  /* Mobile — show only 7AM + hero + stats */
+  @media(max-width:640px){
+    .rr-demo-wrap{margin:0 -8px;}
+    .rr-browser{border-radius:10px;}
+    .rr-tabs{display:none;}
+    .rrd-hero{flex-direction:column;gap:10px;}
+    .rrd-prog{width:100%;}
+    .rrd-hero-r{width:100%;justify-content:space-between;}
+    .rrd-hs{text-align:left;padding:0;}
+    .rrd-stats{grid-template-columns:repeat(2,1fr);}
+    .rrd-dsp{display:none;}
+    .desktop-only{display:none!important;}
+  }
+
+/* ─── INTERVIEW DAY SECTION — MOBILE ─────────────────────── */
+@media(max-width:900px){
+  .interview-day-section{padding:56px 0 64px !important;}
+  .interview-day-section .morning-grid{
+    grid-template-columns:1fr !important;
+    gap:2.5rem !important;
+  }
+  .interview-day-section .iphone{
+    margin:0 auto;
+  }
+}
+@media(max-width:640px){
+  /* Interview day section — phone first on mobile */
+  .interview-day-section{padding:48px 0 56px !important;}
+  .interview-day-section .morning-grid{
+    display:flex !important;
+    flex-direction:column-reverse !important;
+    gap:2rem !important;
+  }
+  /* Nav — hide everything except logo and CTA */
+  .nav-logo-text{display:none;}
+  /* Hero section improvements */
+  .hero-icon-wrap{margin-bottom:1.5rem !important;}
+  .hero-chip{margin-bottom:1.75rem !important;}
+  /* Scroll hook padding */
+  .scroll-hook-inner p{font-size:15px !important;line-height:1.75 !important;}
+  /* Crisis/problem section */
+  .crisis-section .wrap{padding:0 1.125rem;}
+  /* Dashboard mockup section — hide on mobile, show simple message */
+  .dashboard-section-mobile-msg{display:block;}
+  /* Pricing card improvements */
+  .price-card{border-radius:14px !important;}
+  /* Tracker CTA */
+  .tracker-cta-headline{font-size:clamp(24px,7vw,36px) !important;letter-spacing:-.75px !important;}
+  /* Interview day section copy */
+  .interview-day-copy .section-h{font-size:clamp(24px,7.5vw,34px) !important;}
+  .interview-day-copy p{font-size:14px !important;}
+  /* Overflow prevention */
+  body{overflow-x:hidden !important;}
+  *{max-width:100%;box-sizing:border-box;}
+  /* Morning section */
+  .morning-section{overflow:hidden;}
+  /* FAQ improvements for mobile */
+  .faq-q{line-height:1.4 !important;}
+  /* Footer */
+  .ft-tag{font-size:12px !important;}
+  .ft-in{flex-direction:column;align-items:center;gap:1.25rem;}
+  .ft-logo-wrap{text-align:center;}
+}
+@media(max-width:400px){
+  .interview-day-section .iphone{width:92vw !important;}
+}
+
+.nav-link-active{color:rgba(200,90,30,.9)!important;font-weight:600!important;}
+.hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:10px;margin-left:4px;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
+.hamburger span{display:block;width:22px;height:2px;background:rgba(255,255,255,.8);border-radius:2px;transition:all .3s ease;}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0);}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+.mobile-menu{display:none;position:fixed;top:56px;left:0;right:0;bottom:0;background:rgba(16,20,34,.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:1.25rem 1.5rem 2rem;z-index:400;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);flex-direction:column;}
+.mobile-menu.open{display:flex !important;flex-direction:column;transform:translateX(0);}
+.mobile-link{display:flex;align-items:center;font-size:17px;font-weight:500;color:rgba(255,255,255,.7);padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07);min-height:54px;}
+.mobile-link:active{color:#fff;}
+.mobile-cta{display:flex;align-items:center;justify-content:center;background:var(--bolt);color:#fff!important;font-size:16px;font-weight:700;padding:16px;border-radius:var(--r-sm);text-align:center;margin-top:1.5rem;min-height:54px;box-shadow:0 4px 16px var(--bolt-glow);}
+@media(max-width:640px){
+  .hamburger{display:flex;}
+  .nav-r .nav-link,.nav-r .nav-dashboard,.nav-r .nav-cta{display:none!important;}
+  .mobile-menu{display:block;}
+  .nav{height:56px;}
+}
+
+/* ── Interview Day Bubble ───────────────────────────────────── */
+.id-bubble-wrap{
+  border-radius:28px;
+  overflow:hidden;
+  box-shadow:0 2px 4px rgba(0,0,0,.05),0 8px 28px rgba(0,0,0,.1),0 24px 56px rgba(0,0,0,.09),inset 0 1px 0 rgba(255,255,255,.9);
+  background:#F2F2F7;
+  max-width:340px;
+  margin:0 auto;
+}
+.id-bub-header{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 18px;background:#fff;
+  border-bottom:1px solid rgba(0,0,0,.06);
+}
+.id-bub-avatar-lg{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--ink);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.id-bub-thread{
+  padding:14px 14px 18px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.id-bub-time{text-align:center;font-size:10px;color:#8E8E93;margin:3px 0;}
+.id-bub-row{display:flex;align-items:flex-end;gap:6px;}
+.id-bub-right{justify-content:flex-end;}
+.id-bub-sm-avatar{
+  width:22px;height:22px;border-radius:50%;
+  background:var(--ink);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-bottom:2px;
+}
+.id-bub{font-size:13px;line-height:1.5;padding:9px 13px;max-width:215px;}
+.id-bub-rr{background:#fff;color:#1B2235;border-radius:16px 16px 16px 4px;box-shadow:0 1px 2px rgba(0,0,0,.08);}
+.id-bub-dsp{background:var(--ink);color:#fff;border-radius:16px 16px 4px 16px;}
+
+/* Mobile — stack, full width */
+@media(max-width:640px){
+  .id-grid{grid-template-columns:1fr !important;gap:2.5rem !important;}
+  .id-bubble-col{width:100% !important;}
+  .id-bubble-wrap{max-width:100% !important;border-radius:20px !important;}
+  .id-bub{font-size:14px !important;}
+}
+
+
+/* ── Interview Day Dashboard Mockup ─────────────────────────── */
+.id-dash-wrap{
+  filter:
+    drop-shadow(0 2px 4px rgba(0,0,0,.05))
+    drop-shadow(0 12px 32px rgba(0,0,0,.1))
+    drop-shadow(0 32px 64px rgba(0,0,0,.08));
+}
+@media(max-width:640px){
+  .id-grid{grid-template-columns:1fr !important;gap:2.5rem !important;}
+  .id-bubble-col{width:100% !important;}
+  .id-dash-wrap{max-width:100% !important;}
+}
+
+
+/* Pipeline comparison — smaller cards on mobile only */
+@media(max-width:640px){
+  .pipeline-card-grid > div:first-child,
+  .pipeline-card-grid > div:last-child{
+    padding:1.25rem 1rem !important;
+  }
+  .pipeline-num{
+    font-size:38px !important;
+    letter-spacing:-1.5px !important;
+  }
+}
+
+</style>
+
+<style>
+/* ── Additional session CSS ─────────────────────────────── */
+
+/* Scroll reveal */
+.sr{opacity:0;transform:translateY(20px);transition:opacity .6s ease,transform .6s ease;}
+.sr.on{opacity:1;transform:none;}
+.sr.r2{transition-delay:.12s;}
+.sr.r3{transition-delay:.24s;}
+
+/* Fade up */
+.fu{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease;}
+.fu.d1{transition-delay:.1s;}
+.fu.d2{transition-delay:.22s;}
+.fu.d3{transition-delay:.34s;}
+.fu.d4{transition-delay:.46s;}
+.fu.on{opacity:1;transform:none;}
+
+/* What We Do horizontal scroll */
+.what-grid-scroll-wrap{width:100%;}
+@media(max-width:640px){
+  .what-grid-scroll-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:.5rem;margin:0 -1.25rem;padding-left:1.25rem;scrollbar-width:none;-ms-overflow-style:none;}
+  .what-grid-scroll-wrap::-webkit-scrollbar{display:none;}
+  .scroll-hint-mobile{display:flex !important;}
+  .what-grid::after{content:'';display:block;min-width:1.25rem;flex-shrink:0;}
+}
+
+/* 7AM card desktop/mobile split */
+.sevenam-mobile{display:none;}
+.sevenam-desktop{display:block;}
+@media(max-width:640px){
+  .sevenam-mobile{display:block;}
+  .sevenam-desktop{display:none;}
+}
+
+/* Pipeline comparison mobile */
+@media(max-width:640px){
+  .pipeline-card-grid{display:flex !important;flex-direction:column !important;}
+  .pipeline-card-grid > div:last-child{border-top:3px solid var(--green) !important;}
+}
+
+/* Interview day — mobile */
+@media(max-width:640px){
+  .id-grid{grid-template-columns:1fr !important;gap:3rem !important;}
+  .id-bubble-col > div{max-width:100% !important;}
+}
+
+/* What we do grid mobile */
+@media(max-width:640px){
+  .what-grid{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;gap:1rem !important;width:max-content !important;}
+  .what-grid > div{width:72vw !important;min-width:260px !important;flex-shrink:0 !important;}
+}
+.scroll-hint-mobile{display:none;justify-content:center;gap:5px;margin-top:1rem;}
+
+/* Section label */
+.section-label{font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--bolt);display:block;margin-bottom:.875rem;}
+.section-label-light{font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(200,90,30,.7);display:block;margin-bottom:.875rem;}
+.section-h{font-family:'DM Serif Display',serif;font-size:clamp(28px,4vw,46px);line-height:1.12;letter-spacing:-1px;color:var(--text);margin-bottom:1.25rem;}
+.section-h-light{font-family:'DM Serif Display',serif;font-size:clamp(28px,4vw,46px);line-height:1.12;letter-spacing:-1px;color:#fff;margin-bottom:1.25rem;}
+.section-h em,.section-h-light em{font-style:italic;color:var(--bolt);}
+
+/* Nav */
+@media(max-width:900px){
+  .hamburger{display:flex;}
+  .mobile-menu{display:flex;}
+  .nav-r .nav-link,.nav-r .nav-cta,.nav-r .nav-dashboard{display:none !important;}
+}
+@media(max-width:640px){
+  .wrap{padding:0 1.25rem !important;}
+  .hero{padding:80px 1.5rem 56px;min-height:auto;}
+  .hero-h1{font-size:clamp(46px,13vw,60px);letter-spacing:-2.5px;line-height:1.03;margin-bottom:1rem;}
+  .hero-clarify{font-size:15px;line-height:1.72;margin-bottom:1rem;}
+  .btn-hero{width:100%;padding:17px 20px;font-size:16px;font-weight:700;text-align:center;}
+  .section-h,.section-h-light{font-size:clamp(25px,7vw,34px) !important;letter-spacing:-.75px !important;}
+  .faq-q{padding:.875rem 1.25rem !important;font-size:14px !important;}
+  .what-grid-wrap-outer{overflow:visible;}
+  .pricing-section{padding:56px 0 !important;}
+  .price-card{padding:1.625rem 1.25rem !important;margin:1.25rem 1.25rem 0 !important;}
+  .price-amt{font-size:56px !important;letter-spacing:-2.5px !important;}
+}
+@media(max-width:400px){
+  .hero-h1{font-size:42px !important;letter-spacing:-2px !important;}
+}
+
+/* Modal */
+@keyframes pt-in{from{opacity:0;transform:translateY(24px) scale(.94)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="nav-in">
+    <a href="/index.html" class="nav-logo">
+      <div class="bolt-icon"><svg viewBox="0 0 96 96" width="18" height="18" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#0A0E14"/></svg></div>
+      <span class="nav-name">Route<em>Ready</em></span>
+    </a>
+    <div class="nav-r"><a href="/how-it-works.html" class="nav-link" style="font-weight:500;">How It Works</a><a href="/the-dashboard.html" class="nav-link" style="font-weight:500;">The Dashboard</a><a href="/about.html" class="nav-link" style="font-weight:500;">About</a><a href="/index.html#pricing" class="nav-link" style="font-weight:500;">Pricing</a><a href="https://cal.com/routeready/routeready-consultation" class="nav-cta" target="_blank">Start filling seats →</a></div>
+    <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+  </nav>
+<div class="mobile-menu" id="mobile-menu">
+  <a href="/how-it-works.html" class="mobile-link">How It Works</a>
+  <a href="/the-dashboard.html" class="mobile-link">The Dashboard</a>
+  <a href="/about.html" class="mobile-link">About</a>
+  <a href="/#pricing" class="mobile-link">Pricing</a>
+  <a href="/dashboard.html" class="mobile-link">DSP Login</a>
+  <a href="https://cal.com/routeready/routeready-consultation" class="mobile-cta" target="_blank">Book a call →</a>
+</div>
+
+<div id="main-content">
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"><div class="hero-glow-outer"></div><div class="hero-glow-inner"></div><div class="hero-grid"></div></div>
+  <div class="fu d1" style="margin-bottom:2rem;position:relative;z-index:1;">
+    <div style="width:72px;height:72px;border-radius:20px;background:var(--bolt);display:inline-flex;align-items:center;justify-content:center;animation:pulse 3s ease-in-out infinite;box-shadow:0 8px 36px rgba(200,90,30,.6),0 2px 8px rgba(200,90,30,.4);">
+      <svg viewBox="0 0 96 96" width="42" height="42" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#0A0E14"/></svg>
+    </div>
+  </div>
+  <h1 class="hero-h1 fu d2">Your Hiring.<br><em>Handled.</em></h1>
+  <p class="hero-clarify fu d3">Your driver pipeline — filled, screened, and interview-ready. Every day.</p>
+  <div class="hero-actions fu d4">
+    <a href="https://cal.com/routeready/routeready-consultation" class="btn-hero" target="_blank">Start filling seats →</a>
+  </div>
+</section>
+
+<!-- PIPELINE OUTPUT COMPARISON -->
+<section class="ba-section" style="padding-bottom:3rem;">
+  <div class="wrap">
+    <div class="ba-intro sr">
+      <span class="section-label">The problem</span>
+      <h2 class="section-h">Same 100 applicants.<br>Completely different<br><em>orientation morning.</em></h2>
+      <p style="font-size:16px;color:var(--text3);max-width:500px;margin:0 auto;font-weight:300;line-height:1.75;">DSPs don't lose drivers on Indeed. They lose them in the gap between application and follow-up.</p>
+      <p style="font-size:14px;color:var(--text4);max-width:440px;margin:.625rem auto 0;font-weight:300;line-height:1.7;">Manual follow-up is slow. Qualified applicants take the first offer they get.</p>
+    </div>
+
+    <div class="sr r2" style="max-width:680px;margin:0 auto;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+
+        <!-- Without RouteReady -->
+        <div style="background:var(--surface);border:1px solid var(--border-dark);border-top:3px solid rgba(180,60,10,.5);border-radius:var(--r-lg);padding:2rem 1.75rem;box-shadow:0 2px 8px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.07);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(180,60,10,.6);margin-bottom:1.5rem;">Without RouteReady</div>
+
+          <div style="display:flex;flex-direction:column;gap:.625rem;margin-bottom:1.75rem;">
+            <div style="display:flex;align-items:center;gap:.625rem;font-size:13px;color:var(--text3);font-weight:300;">
+              <div style="width:4px;height:4px;border-radius:50%;background:rgba(180,60,10,.5);flex-shrink:0;"></div>
+              100 applicants
+            </div>
+            <div style="display:flex;align-items:center;gap:.625rem;font-size:13px;color:var(--text3);font-weight:300;">
+              <div style="width:4px;height:4px;border-radius:50%;background:rgba(180,60,10,.5);flex-shrink:0;"></div>
+              Manual follow-up
+            </div>
+            <div style="display:flex;align-items:center;gap:.625rem;font-size:13px;color:var(--text3);font-weight:300;">
+              <div style="width:4px;height:4px;border-radius:50%;background:rgba(180,60,10,.5);flex-shrink:0;"></div>
+              Hours to respond
+            </div>
+          </div>
+
+          <div style="border-top:1px solid var(--border);padding-top:1.5rem;">
+            <div class="pipeline-num" style="font-family:'DM Serif Display',serif;font-size:64px;color:rgba(180,60,10,.7);line-height:1;letter-spacing:-3px;margin-bottom:.375rem;">8</div>
+            <div style="font-size:13px;font-weight:600;color:rgba(180,60,10,.75);margin-bottom:.5rem;">drivers show up</div>
+            <div style="font-size:12px;color:var(--text4);font-weight:300;line-height:1.6;">Routes uncovered.<br>You scramble.</div>
+          </div>
+        </div>
+
+        <!-- With RouteReady -->
+        <div style="background:var(--surface);border:1px solid var(--border-dark);border-top:3px solid var(--green);border-radius:var(--r-lg);padding:2rem 1.75rem;box-shadow:0 2px 8px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.07);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin-bottom:1.5rem;">With RouteReady</div>
+
+          <div style="display:flex;flex-direction:column;gap:.625rem;margin-bottom:1.75rem;">
+            <div style="display:flex;align-items:center;gap:.625rem;font-size:13px;color:var(--text2);font-weight:300;">
+              <div style="width:4px;height:4px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+              Same 100 applicants
+            </div>
+            <div style="display:flex;align-items:center;gap:.625rem;font-size:13px;color:var(--text2);font-weight:300;">
+              <div style="width:4px;height:4px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+              Immediate contact
+            </div>
+            <div style="display:flex;align-items:center;gap:.625rem;font-size:13px;color:var(--text2);font-weight:300;">
+              <div style="width:4px;height:4px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+              Structured follow-up
+            </div>
+          </div>
+
+          <div style="border-top:1px solid var(--border);padding-top:1.5rem;">
+            <div class="pipeline-num" style="font-family:'DM Serif Display',serif;font-size:64px;color:var(--green);line-height:1;letter-spacing:-3px;margin-bottom:.375rem;">15+</div>
+            <div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:.5rem;">drivers show up</div>
+            <div style="font-size:12px;color:var(--text4);font-weight:300;line-height:1.6;">Routes covered.<br>Capacity Reliability protected.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="text-align:center;padding:.875rem 1rem 0;font-size:11px;color:var(--text4);font-weight:300;line-height:1.6;">Based on industry average show rates and documented impact of same-day applicant contact. Results depend on market conditions, applicant pool, and ad spend.</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- MICRO RESET -->
+<div style="padding:2.5rem 2rem;text-align:center;background:var(--bg);border-bottom:1px solid var(--border);">
+  <p style="font-family:'DM Serif Display',serif;font-size:clamp(18px,2.5vw,24px);color:var(--text2);letter-spacing:-.3px;font-style:italic;margin:0;">Same applicants. Different outcome.</p>
+</div>
+
+<!-- WHAT WE DO -->
+<section style="padding:72px 0;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap">
+    <div class="sr" style="text-align:center;margin-bottom:2.5rem;">
+      <span class="section-label">What we do</span>
+      <h2 class="section-h" style="max-width:460px;margin:0 auto;">A driver applies on Indeed.<br><em>RouteReady takes it from there.</em></h2>
+    </div>
+    <div class="what-grid-wrap-outer sr r2">
+      <div class="what-grid-scroll-wrap">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;max-width:860px;margin:0 auto;" class="what-grid">
+
+          <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);padding:1.75rem;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.08),0 16px 40px rgba(0,0,0,.07),inset 0 1px 0 rgba(255,255,255,.95);">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--bolt) 0%,rgba(200,90,30,.3) 100%);"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(200,90,30,.07);border:1px solid rgba(200,90,30,.14);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M13 2L4.5 12.5H11L10 22L20.5 10.5H14L13 2Z" stroke="#C85A1E" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+            <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.625rem;"><span style="font-size:11px;font-weight:700;color:rgba(200,90,30,.35);letter-spacing:1px;">01</span><div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--bolt);">Contact · Screen · Score</div></div>
+            <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:.625rem;letter-spacing:-.2px;">Every applicant. Instantly.</div>
+            <div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.75;">Reached in seconds. Screened via SMS. Scored to your standards. Priority candidates get booked first.</div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);padding:1.75rem;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.08),0 16px 40px rgba(0,0,0,.07),inset 0 1px 0 rgba(255,255,255,.95);">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--bolt) 0%,rgba(200,90,30,.3) 100%);"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(200,90,30,.07);border:1px solid rgba(200,90,30,.14);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="#C85A1E" stroke-width="1.5"/><path d="M8 2v4M16 2v4M3 10h18" stroke="#C85A1E" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="15" r="1" fill="#C85A1E"/><circle cx="12" cy="15" r="1" fill="#C85A1E"/><circle cx="16" cy="15" r="1" fill="#C85A1E"/></svg></div>
+            <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.625rem;"><span style="font-size:11px;font-weight:700;color:rgba(200,90,30,.35);letter-spacing:1px;">02</span><div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--bolt);">Book · Confirm · Fill</div></div>
+            <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:.625rem;letter-spacing:-.2px;">Your interview day fills itself.</div>
+            <div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.75;">Automatically confirmed. No-shows replaced from the waitlist. Your room fills without you chasing anyone.</div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border-dark);border-radius:var(--r-lg);padding:1.75rem;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.08),0 16px 40px rgba(0,0,0,.07),inset 0 1px 0 rgba(255,255,255,.95);">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--bolt) 0%,rgba(200,90,30,.3) 100%);"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(200,90,30,.07);border:1px solid rgba(200,90,30,.14);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><circle cx="12" cy="12" r="9" stroke="#C85A1E" stroke-width="1.5"/><path d="M12 7v5l3 3" stroke="#C85A1E" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.625rem;"><span style="font-size:11px;font-weight:700;color:rgba(200,90,30,.35);letter-spacing:1px;">03</span><div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--bolt);">The 7AM · Daily watch</div></div>
+            <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:.625rem;letter-spacing:-.2px;">You always know where you stand.</div>
+            <div style="font-size:13px;color:var(--text3);font-weight:300;line-height:1.75;">A real person reviews your pipeline every morning alongside the 7AM. If something needs attention before you do, we reach out directly. The 7AM lands every morning so you always know exactly where you stand.</div>
+          </div>
+
+        </div><!-- end what-grid -->
+        <div class="scroll-hint-mobile" style="justify-content:center;gap:5px;margin-top:1rem;padding-bottom:.25rem;">
+          <span style="width:20px;height:3px;border-radius:2px;background:var(--bolt);display:inline-block;"></span>
+          <span style="width:6px;height:3px;border-radius:2px;background:var(--border-dark);display:inline-block;"></span>
+          <span style="width:6px;height:3px;border-radius:2px;background:var(--border-dark);display:inline-block;"></span>
+        </div>
+      </div><!-- end scroll-wrap -->
+    </div><!-- end wrap-outer -->
+  </div><!-- end wrap -->
+</section>
+
+<!-- THE 7AM -->
+<section class="sevenam-section" style="padding:72px 0;background:var(--ink);position:relative;overflow:hidden;">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 50% 60%,rgba(200,90,30,.06) 0%,transparent 70%);pointer-events:none;"></div>
+  <div class="wrap" style="max-width:620px;position:relative;z-index:1;">
+    <div class="sr" style="text-align:center;margin-bottom:2.25rem;">
+      <span class="section-label-light">The 7AM</span>
+      <h2 class="section-h-light">Know your hiring is handled —<br><em>before your day even starts.</em></h2>
+      <p style="font-size:15px;color:rgba(255,255,255,.6);font-weight:300;line-height:1.75;max-width:440px;margin:0 auto;">No dashboards. No guesswork. Just a clear morning briefing on your pipeline.</p>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border-dark);border-left:4px solid var(--bolt);border-radius:var(--r-lg);padding:22px 26px;box-shadow:0 4px 32px rgba(0,0,0,.25);" class="sr r2">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:var(--bolt);flex-shrink:0;"></div>
+        <span style="font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--bolt);">The 7AM</span>
+        <span style="font-size:10px;color:var(--text4);margin-left:auto;font-weight:300;">Delivered every day at 7AM</span>
+      </div>
+      <div class="sevenam-card-body">
+        <div class="sevenam-desktop" style="font-size:14px;color:var(--text2);line-height:1.8;font-weight:300;">Good morning Summit Delivery Co. You have <strong style="color:var(--text);font-weight:600;">11 confirmed drivers</strong> for Thursday's orientation — 4 more needed to hit your weekly goal of 15. Pipeline throughput is strong. <strong style="color:var(--text);font-weight:600;">RouteReady Logic: Selective mode.</strong> Close to target — holding back lower-scored applicants. No action needed today. We're watching.</div>
+        <div class="sevenam-mobile" style="font-size:14px;color:var(--text2);line-height:1.8;font-weight:300;">Good morning Summit Delivery Co. You have <strong style="color:var(--text);font-weight:600;">11 confirmed drivers</strong> for Thursday's orientation — 4 more needed to hit your weekly goal of 15. Pipeline throughput is strong. <strong style="color:var(--text);font-weight:600;">RouteReady Logic: Selective mode.</strong> Close to target — holding back lower-scored applicants. No action needed today. We're watching.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HUMAN SERVICE CALLOUT -->
+<div style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:2.5rem 2rem;text-align:center;">
+  <div style="max-width:600px;margin:0 auto;" class="sr">
+    <p style="font-size:16px;color:var(--text2);font-weight:400;line-height:1.8;">RouteReady is not software you manage. It's a <strong style="color:var(--text);font-weight:600;">managed hiring service</strong> — a real person reviews your pipeline every morning, watches for problems before they cost you, and calls you when something needs attention. The automation handles the speed. We handle the judgment.</p>
+  </div>
+</div>
+
+<!-- URGENCY LINE -->
+<div style="padding:1.75rem 2rem;text-align:center;background:var(--bg);">
+  <p style="font-size:14px;color:var(--text3);font-weight:300;margin:0;line-height:1.7;">Every week you wait, qualified drivers are taking offers from someone else.</p>
+</div>
+
+<!-- INTERVIEW DAY -->
+<section class="interview-day-mob" style="padding:80px 0 96px;background:var(--bg);">
+  <div style="max-width:1060px;margin:0 auto;padding:0 2rem;display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center;" class="id-grid sr">
+
+    <!-- Copy -->
+    <div>
+      <span class="section-label">Interview day</span>
+      <h2 class="section-h">On interview day,<br><em>you're in control.</em></h2>
+      <p style="font-size:15px;color:var(--text3);font-weight:300;line-height:1.8;margin-bottom:1.25rem;">One toggle turns your dashboard into a live hiring command center. Track every candidate. Make decisions instantly. Keep your roster full.</p>
+      <div style="display:flex;flex-direction:column;gap:.625rem;margin-bottom:1.75rem;">
+        <div style="display:flex;align-items:flex-start;gap:.75rem;"><div style="width:6px;height:6px;border-radius:50%;background:var(--bolt);flex-shrink:0;margin-top:6px;"></div><div style="font-size:13px;color:var(--text2);font-weight:300;line-height:1.6;">Live hire count updates instantly</div></div>
+        <div style="display:flex;align-items:flex-start;gap:.75rem;"><div style="width:6px;height:6px;border-radius:50%;background:var(--bolt);flex-shrink:0;margin-top:6px;"></div><div style="font-size:13px;color:var(--text2);font-weight:300;line-height:1.6;">No-shows replaced from the waitlist automatically</div></div>
+        <div style="display:flex;align-items:flex-start;gap:.75rem;"><div style="width:6px;height:6px;border-radius:50%;background:var(--bolt);flex-shrink:0;margin-top:6px;"></div><div style="font-size:13px;color:var(--text2);font-weight:300;line-height:1.6;">New hires receive onboarding instructions immediately</div></div>
+      </div>
+      <p style="font-size:15px;font-weight:600;color:var(--text);">Tap &#8220;Hired.&#8221; We handle the rest.</p>
+    </div>
+
+    <!-- Actual dashboard mockup -->
+    <div class="id-bubble-col">
+      <div class="id-dash-wrap">
+
+        <!-- Dark green header — matches real dashboard -->
+        <div style="background:#0D2318;border-radius:16px;padding:18px 20px;margin-bottom:12px;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(52,211,153,.7);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#34D399;animation:pulse 2.5s ease-in-out infinite;"></div>
+            Interview Day Mode · Live
+          </div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;">
+            <div>
+              <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#fff;line-height:1.2;letter-spacing:-.3px;margin-bottom:4px;">Summit Delivery Co.</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.4);font-weight:300;">Interview day · Friday, April 17</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#34D399;line-height:1;letter-spacing:-1px;">8 <span style="font-size:14px;color:rgba(255,255,255,.35);font-weight:300;">/ 10 hired</span></div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-top:4px;">Drivers hired today</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stat row — 4 boxes -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+          <div style="background:#fff;border:1px solid #E8E6E1;border-radius:10px;padding:12px 8px;text-align:center;">
+            <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#C85A1E;line-height:1;">2</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-top:4px;">Pending</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E6E1;border-radius:10px;padding:12px 8px;text-align:center;">
+            <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#1A7A4A;line-height:1;">8</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-top:4px;">Hired</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E6E1;border-radius:10px;padding:12px 8px;text-align:center;">
+            <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#1B2235;line-height:1;">1</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-top:4px;">No-show</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E6E1;border-radius:10px;padding:12px 8px;text-align:center;">
+            <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#1B2235;line-height:1;">0</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9A9A9A;margin-top:4px;">Not hired</div>
+          </div>
+        </div>
+
+        <!-- Interview roster card -->
+        <div style="background:#fff;border:1px solid #E8E6E1;border-radius:12px;overflow:hidden;">
+          <div style="background:#F5F3EF;padding:10px 16px;border-bottom:1px solid #E8E6E1;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6B6B6B;">Interview Roster</span>
+          </div>
+
+          <!-- Candidate row 1 — Hired -->
+          <div style="padding:10px 14px;border-bottom:1px solid #F3F2EF;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:26px;height:26px;border-radius:50%;background:#ECFDF5;color:#1A7A4A;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;">MT</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:600;color:#1B2235;">Marcus T.</div>
+                <div style="font-size:10px;color:#9A9A9A;font-weight:300;">9:00 AM · Score 9/9</div>
+              </div>
+              <span style="font-size:10px;font-weight:700;color:#1A7A4A;background:#ECFDF5;padding:3px 9px;border-radius:20px;white-space:nowrap;">✓ Hired</span>
+            </div>
+            <div style="display:flex;gap:5px;">
+              <div style="flex:1;padding:6px 4px;font-size:9px;font-weight:700;text-align:center;background:#ECFDF5;color:#1A7A4A;border-radius:7px;border:1.5px solid #1A7A4A;">✓ Hired</div>
+              <div style="flex:1;padding:6px 4px;font-size:9px;text-align:center;background:#F3F2EF;color:#C2BFB8;border-radius:7px;border:1.5px solid #E8E6E1;">No-show</div>
+              <div style="flex:1;padding:6px 4px;font-size:9px;text-align:center;background:#F3F2EF;color:#C2BFB8;border-radius:7px;border:1.5px solid #E8E6E1;">Not hired</div>
+            </div>
+          </div>
+
+          <!-- Candidate row 2 — Pending -->
+          <div style="padding:10px 14px;border-bottom:1px solid #F3F2EF;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:26px;height:26px;border-radius:50%;background:#EBF4FF;color:#1857A4;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;">DR</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:600;color:#1B2235;">Danielle R.</div>
+                <div style="font-size:10px;color:#9A9A9A;font-weight:300;">9:30 AM · Score 8/9</div>
+              </div>
+              <span style="font-size:10px;font-weight:600;color:#C85A1E;background:#FEF3E8;padding:3px 9px;border-radius:20px;white-space:nowrap;">Pending</span>
+            </div>
+            <div style="display:flex;gap:5px;">
+              <div style="flex:1;padding:6px 4px;font-size:9px;font-weight:600;text-align:center;background:#F3F2EF;color:#6B6B6B;border-radius:7px;border:1.5px solid #E8E6E1;">✓ Hired</div>
+              <div style="flex:1;padding:6px 4px;font-size:9px;text-align:center;background:#F3F2EF;color:#6B6B6B;border-radius:7px;border:1.5px solid #E8E6E1;">No-show</div>
+              <div style="flex:1;padding:6px 4px;font-size:9px;text-align:center;background:#F3F2EF;color:#6B6B6B;border-radius:7px;border:1.5px solid #E8E6E1;">Not hired</div>
+            </div>
+          </div>
+
+          <!-- Candidate row 3 — Waitlist promoted -->
+          <div style="padding:10px 14px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:26px;height:26px;border-radius:50%;background:#F3F2EF;color:#6B6B6B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;">AK</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:600;color:#1B2235;">Andre K. <span style="font-size:9px;font-weight:400;color:#C85A1E;">↑ Waitlist</span></div>
+                <div style="font-size:10px;color:#9A9A9A;font-weight:300;">Promoted · 9:30 AM</div>
+              </div>
+              <span style="font-size:10px;font-weight:600;color:#C85A1E;background:#FEF3E8;padding:3px 9px;border-radius:20px;white-space:nowrap;">Pending</span>
+            </div>
+            <div style="display:flex;gap:5px;">
+              <div style="flex:1;padding:6px 4px;font-size:9px;font-weight:600;text-align:center;background:#F3F2EF;color:#6B6B6B;border-radius:7px;border:1.5px solid #E8E6E1;">✓ Hired</div>
+              <div style="flex:1;padding:6px 4px;font-size:9px;text-align:center;background:#F3F2EF;color:#6B6B6B;border-radius:7px;border:1.5px solid #E8E6E1;">No-show</div>
+              <div style="flex:1;padding:6px 4px;font-size:9px;text-align:center;background:#F3F2EF;color:#6B6B6B;border-radius:7px;border:1.5px solid #E8E6E1;">Not hired</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer line -->
+        <div style="text-align:center;padding:10px 0 2px;">
+          <span style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C2BFB8;">Powered by RouteReady</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- PRICING -->
+<div style="padding:1.75rem 2rem;text-align:center;background:var(--bg);">
+  <p style="font-size:14px;color:var(--text3);font-weight:300;margin:0;line-height:1.7;">Every week you wait, qualified drivers are taking offers from someone else.</p>
+</div>
+<section id="pricing" class="pricing-section">
+  <div class="wrap">
+    <div class="sr">
+      <span class="section-label" style="color:rgba(255,255,255,.4);">Pricing</span>
+      <h2 style="font-family:'DM Serif Display',serif;font-size:clamp(22px,4vw,46px);line-height:1.12;letter-spacing:-1px;color:#fff;max-width:520px;margin:0 auto 1rem;">Your next orientation cycle either has a pipeline behind it<br><em style="color:rgba(200,90,30,.85);font-style:normal;">or&nbsp;it doesn't.</em></h2>
+      <p style="font-size:16px;color:rgba(255,255,255,.82);max-width:400px;margin:0 auto;font-weight:300;line-height:1.75;">Everything from application to confirmed interview — handled. $2,300/month. Month-to-month. Cancel anytime.</p>
+    </div>
+    <div style="height:.5rem;"></div>
+    <div class="price-card sr r3" id="start">
+      <div class="price-eyebrow">RouteReady — full service</div>
+      <div class="price-amt" style="text-shadow:0 0 60px rgba(200,90,30,.45),0 0 20px rgba(200,90,30,.25);"><span>$</span>2,300</div>
+      <div class="price-cycle">per month · month-to-month · cancel anytime</div>
+      <div class="price-divider"></div>
+      <div style="display:flex;flex-direction:column;gap:.625rem;margin-bottom:1rem;text-align:left;">
+        <div class="pf"><span class="pf-ck">✓</span>More applicants reached — before they take another offer</div>
+        <div class="pf"><span class="pf-ck">✓</span>More confirmed interviews — fewer empty seats</div>
+        <div class="pf"><span class="pf-ck">✓</span>A full pipeline — without manual follow-up</div>
+        <div class="pf"><span class="pf-ck">✓</span>Real-time control on interview day</div>
+        <div class="pf"><span class="pf-ck">✓</span>Daily visibility — without logging into anything</div>
+      </div>
+      <div style="padding:.875rem 1.125rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:var(--r-sm);margin-bottom:1.75rem;">
+        <div style="font-size:13px;color:rgba(255,255,255,.75);font-weight:300;line-height:1.65;">Most DSPs see a fuller room by their second orientation.</div>
+      </div>
+      <div class="price-divider2"></div>
+      <p style="font-size:13px;color:rgba(255,255,255,.55);font-weight:300;line-height:1.7;margin-bottom:1.25rem;">If your pipeline isn't improving, we'll show you exactly why — and tell you what we're adjusting.</p>
+      <a href="https://cal.com/routeready/routeready-consultation" class="btn-trial" id="trial" target="_blank">Start filling your next orientation →</a>
+      <a href="mailto:support@gorouteready.com" class="btn-demo" style="border-color:rgba(255,255,255,.1);color:var(--w50);">📞 support@gorouteready.com</a>
+      <p class="price-note">Month-to-month · Cancel anytime · You manage your own Indeed spend</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="faq-section">
+  <div class="faq-wrap">
+    <div class="faq-header sr">
+      <span class="section-label">Common questions</span>
+      <h2 class="section-h" style="max-width:360px;margin:0 auto;">Still on the fence?<br><em>Let's kill the doubt.</em></h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item sr"><div class="faq-q">How fast will I see results?<span class="faq-arrow">▼</span></div><div class="faq-a">Most DSPs see a fuller orientation room within their first 1–2 cycles. The system starts working immediately — applicants are contacted within minutes and your pipeline is building the same day. You'll see the difference before your second orientation.</div></div>
+      <div class="faq-item sr r2"><div class="faq-q">How does this work operationally?<span class="faq-arrow">▼</span></div><div class="faq-a"><strong>You don't have to change how you operate.</strong><br><br>We plug into your Indeed account as an admin — same as any agency or HR partner. You control budget and access at all times. Applicants are contacted within minutes, screened via SMS, and scheduled automatically. You can remove our access in under 60 seconds from your Indeed settings. We walk through everything in your 30-minute consultation before anything goes live.</div></div>
+      <div class="faq-item sr r3"><div class="faq-q">What exactly does RouteReady manage?<span class="faq-arrow">▼</span></div><div class="faq-a"><strong>Everything between application and orientation.</strong><br><br>We contact every applicant within minutes, screen via SMS, schedule interviews, confirm attendance three times, and send your daily 7AM briefing. You show up and run interview day. Everything else is handled.</div></div>
+      <div class="faq-item sr"><div class="faq-q">My Amazon contract is at risk. Can RouteReady help fast enough?<span class="faq-arrow">▼</span></div><div class="faq-a"><strong>We can have your pipeline running in days.</strong><br><br>RouteReady is built for DSP hiring — speed and confirmation discipline are what fix empty rooms. If Amazon is already watching your numbers, call us directly at support@gorouteready.com. Don't fill out a form.</div></div>
+      <div class="faq-item sr r2"><div class="faq-q">How does billing work? Can I cancel?<span class="faq-arrow">▼</span></div><div class="faq-a"><strong>Month-to-month. Cancel anytime. No lock-in.</strong><br><br>If it's not working, you cancel — no penalties, no friction. Email <a href="mailto:support@gorouteready.com">support@gorouteready.com</a> or call us. We remove access to your Indeed account immediately.</div></div>
+    </div>
+  </div>
+</section>
+
+</div><!-- end main-content -->
+
+<!-- FOOTER -->
+<footer>
+  <div style="max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.625rem;" class="ft-in-row">
+    <div style="display:flex;align-items:center;gap:7px;">
+      <div class="bolt-icon" style="width:20px;height:20px;border-radius:5px;animation:none;flex-shrink:0;"><svg viewBox="0 0 96 96" width="10" height="10" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#0A0E14"/></svg></div>
+      <span style="font-family:'DM Serif Display',serif;font-size:13px;color:var(--w70);">Route<em style="color:rgba(200,90,30,.8);font-style:normal;">Ready</em></span>
+      <span style="font-size:11px;color:var(--w30);">· © 2026</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1.125rem;">
+      <a href="mailto:support@gorouteready.com" class="ft-link">support@gorouteready.com</a>
+      <a href="mailto:support@gorouteready.com" class="ft-link">support@gorouteready.com</a>
+      <a href="privacy.html" class="ft-link">Privacy</a>
+      <a href="terms.html" class="ft-link">Terms</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   SCROLL REVEAL
+══════════════════════════════════════════════════════ */
+const srEls = document.querySelectorAll('.sr');
+const io = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target);}});
+},{threshold:0.08,rootMargin:'0px 0px -32px 0px'});
+srEls.forEach(el=>io.observe(el));
+
+/* Fade-up hero elements */
+document.querySelectorAll('.fu').forEach(el=>setTimeout(()=>el.classList.add('on'),100));
+
+/* Hamburger */
+const ham=document.getElementById('hamburger');
+const menu=document.getElementById('mobile-menu');
+if(ham&&menu){
+  ham.addEventListener('click',function(){
+    var o=menu.classList.toggle('open');
+    ham.classList.toggle('open');
+    document.body.style.overflow=o?'hidden':'';
+  });
+  menu.querySelectorAll('a').forEach(function(l){l.addEventListener('click',function(){
+    ham.classList.remove('open');menu.classList.remove('open');document.body.style.overflow='';
+  });});
+}
+
+/* Nav light mode on scroll */
+var nav=document.getElementById('nav');
+if(nav)window.addEventListener('scroll',function(){nav.classList.toggle('light',scrollY>80);},{passive:true});
+
+/* FAQ accordion */
+document.querySelectorAll('.faq-item').forEach(function(item){
+  var q=item.querySelector('.faq-q');
+  if(q)q.addEventListener('click',function(){item.classList.toggle('open');});
+});
+
+/* Footer mobile stacking */
+var ftRow=document.querySelector('.ft-in-row');
+function ftCheck(){if(ftRow)ftRow.style.flexDirection=window.innerWidth<640?'column':'row';}
+ftCheck();window.addEventListener('resize',ftCheck);
+</script>
+</body>
+</html>
