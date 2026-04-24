@@ -8110,7 +8110,6 @@ function showPerfTab(name, el) {
   // Get all applicants who have a video awaiting review
   function getVideosToReview() {
     if (typeof data === 'undefined' || !data || !Array.isArray(data.applicants)) return [];
-    var sessionApproved = getSessionApprovedEmails();
     return data.applicants.filter(function(a) {
       if (!a || !a.email) return false;
       var vs = (a.videoStatus || '').trim();
@@ -8121,11 +8120,8 @@ function showPerfTab(name, el) {
       if (st === 'failed' || st === 'hired' || st === 'not hired') return false;
       // Exclude already-booked (they've past the review gate)
       if (a.booked) return false;
-      // Exclude already-reviewed videos (server-side flag, when it exists)
+      // Exclude already-reviewed videos — server-side flag
       if (vs === 'Approved' || vs === 'Passed') return false;
-      // Exclude applicants approved in this session (client-side tracking
-      // until a videoApprove Apps Script endpoint exists)
-      if (sessionApproved.indexOf(a.email) !== -1) return false;
       // Include if we have ANY signal they've submitted:
       //  - Video URLs saved (the most reliable signal)
       //  - Form answers stored in MessageLog (they at least completed the form)
@@ -8136,25 +8132,11 @@ function showPerfTab(name, el) {
       return false;
     });
   }
-
-  // Client-side persistence for approves (no backend videoApprove endpoint yet).
-  // Stores emails of applicants the user has swiped-right on so they don't
-  // re-appear in the review queue after a page refresh.
-  function getSessionApprovedEmails() {
-    try {
-      var raw = localStorage.getItem('rr-session-approved');
-      return raw ? JSON.parse(raw) : [];
-    } catch(e) { return []; }
-  }
-  function markSessionApproved(email) {
-    try {
-      var list = getSessionApprovedEmails();
-      if (list.indexOf(email) === -1) {
-        list.push(email);
-        localStorage.setItem('rr-session-approved', JSON.stringify(list));
-      }
-    } catch(e) {}
-  }
+  // Approval state is tracked server-side via VideoStatus column.
+  // The videoApprove endpoint sets VideoStatus="Approved", which the
+  // filter below already excludes. No client-side state needed.
+  // One-time cleanup: purge any legacy localStorage entries from older versions.
+  try { localStorage.removeItem('rr-session-approved'); } catch(e) {}
 
   // Update the "N videos to review" CTA on mobile
   function updateMobileCTA() {
@@ -8407,18 +8389,15 @@ function showPerfTab(name, el) {
         }
       }
     }
-    // Persist approved emails (backend has no videoApprove endpoint yet)
-    if (action === 'approve' && current.email) {
-      markSessionApproved(current.email);
-    }
-
-    // Fire backend call
-    //   pass    → markNotHired   (decline — status becomes Failed, applicant drops out of pipeline)
-    //   approve → resendCalLink  (send the Cal.com booking link)
+    // Fire backend calls
+    //   pass    → markNotHired   (decline — status becomes Failed, drops from pipeline)
+    //   approve → videoApprove (marks VideoStatus=Approved) + resendCalLink (Cal.com link)
     if (current.email) {
+      if (action === 'approve') {
+        sendBackendDecision(current.email, 'videoApprove');
+      }
       sendBackendDecision(current.email, action);
     }
-
     setTimeout(function() {
       swipeState.currentIdx++;
       if (swipeState.currentIdx >= swipeState.queue.length) {
@@ -8430,7 +8409,6 @@ function showPerfTab(name, el) {
       if (typeof updateMobileCTA === 'function') updateMobileCTA();
     }, 280);
   }
-
   function undoSwipe() {
     if (swipeState.history.length === 0) return;
     var last = swipeState.history.pop();
@@ -8446,14 +8424,16 @@ function showPerfTab(name, el) {
   }
 
   // Send decision to Apps Script
-  //   "pass"    → markNotHired   (decline the applicant)
-  //   "approve" → resendCalLink  (send Cal.com booking link)
+  //   "pass"         → markNotHired   (decline the applicant)
+  //   "approve"      → resendCalLink  (send Cal.com booking link)
+  //   "videoApprove" → videoApprove   (mark VideoStatus=Approved on server)
   function sendBackendDecision(email, action) {
     var url = (typeof API !== 'undefined' && API) ? API : '';
     if (!url) return;
     var actionName = null;
     if (action === 'pass') actionName = 'markNotHired';
     else if (action === 'approve') actionName = 'resendCalLink';
+    else if (action === 'videoApprove') actionName = 'videoApprove';
     else return;
     var u = url + (url.indexOf('?') === -1 ? '?' : '&') +
             'action=' + actionName +
