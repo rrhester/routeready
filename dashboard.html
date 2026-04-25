@@ -9094,6 +9094,18 @@ async function rrMsgToggleVideo() {
     if (hubSub) hubSub.textContent = 'Could not save. Try again.';
   }
 }
+
+async function rrMsgSaveVideoPrompt() {
+  var btn = document.getElementById('rr-msg-save-prompt-btn');
+  var statusEl = document.getElementById('rr-msg-save-status');
+  if (!btn || !statusEl) return;
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+  statusEl.textContent = '';
+  try {
+    var hubP1 = document.getElementById('rr-msg-vs-prompt1');
+    var setP1 = document.getElementById('set-vs-prompt1');
+    if (hubP1 && setP1) setP1.value = hubP1.value || '';
     if (typeof saveSettings === 'function') {
       await saveSettings();
       btn.textContent = 'Save prompt';
@@ -9114,6 +9126,7 @@ async function rrMsgToggleVideo() {
     setTimeout(function(){ statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
   }
 }
+
 function rrMsgUpdatePromptCount() {
   var hubP1 = document.getElementById('rr-msg-vs-prompt1');
   var cnt = document.getElementById('rr-msg-p1-count');
