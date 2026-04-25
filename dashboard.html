@@ -9027,13 +9027,15 @@ function rrMsgSyncVideoFromSettings() {
   rrMsgUpdatePromptCount();
 }
 
-function rrMsgToggleVideo() {
+async function rrMsgToggleVideo() {
   var hubToggle = document.getElementById('rr-msg-video-toggle');
   var hubSub = document.getElementById('rr-msg-video-sub');
   var hubPromptBox = document.getElementById('rr-msg-video-prompts-box');
   var hiddenToggle = document.getElementById('vs-toggle');
   if (!hubToggle) return;
   var isOn = !hubToggle.classList.contains('on');
+
+  // Update visual state immediately for snappy UX
   hubToggle.classList.toggle('on', isOn);
   if (hubPromptBox) hubPromptBox.style.display = isOn ? '' : 'none';
   if (hubSub) {
@@ -9045,8 +9047,32 @@ function rrMsgToggleVideo() {
     hiddenToggle.classList.toggle('on', isOn);
     hiddenToggle.dataset.state = isOn ? 'on' : 'off';
   }
-}
 
+  // Persist to backend immediately — otherwise the toggle reverts on reload
+  try {
+    await apiCall({
+      action: 'saveSettings',
+      videoScreeningEnabled: isOn ? 'true' : 'false'
+    });
+    if (typeof loadData === 'function') await loadData();
+    if (hubSub) {
+      var savedNote = hubSub.textContent;
+      hubSub.textContent = '✓ ' + (isOn ? 'Video screening turned on.' : 'Video screening turned off.');
+      setTimeout(function(){
+        if (hubSub) hubSub.textContent = savedNote;
+      }, 1500);
+    }
+  } catch(err) {
+    console.error('rrMsgToggleVideo save failed:', err);
+    hubToggle.classList.toggle('on', !isOn);
+    if (hiddenToggle) {
+      hiddenToggle.classList.toggle('on', !isOn);
+      hiddenToggle.dataset.state = !isOn ? 'on' : 'off';
+    }
+    if (hubPromptBox) hubPromptBox.style.display = !isOn ? '' : 'none';
+    if (hubSub) hubSub.textContent = 'Could not save. Try again.';
+  }
+}
 async function rrMsgSaveVideoPrompt() {
   var btn = document.getElementById('rr-msg-video-save-btn');
   var statusEl = document.getElementById('rr-msg-video-save-status');
