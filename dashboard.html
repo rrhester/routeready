@@ -9035,7 +9035,7 @@ async function rrMsgToggleVideo() {
   if (!hubToggle) return;
   var isOn = !hubToggle.classList.contains('on');
 
-  // Update visual state immediately for snappy UX
+  // Snappy UI update
   hubToggle.classList.toggle('on', isOn);
   if (hubPromptBox) hubPromptBox.style.display = isOn ? '' : 'none';
   if (hubSub) {
@@ -9048,12 +9048,33 @@ async function rrMsgToggleVideo() {
     hiddenToggle.dataset.state = isOn ? 'on' : 'off';
   }
 
-  // Persist to backend immediately — otherwise the toggle reverts on reload
+  // Build full settings payload — must stay in sync with saveSettings() ~line 6620
+  // Sending the full payload avoids any backend partial-update issues
+  var getVal = function(id) { var el = document.getElementById(id); return el ? (el.value || '') : ''; };
+  var hourInt = function(v) { if (!v) return ''; var m = v.match(/^(\d{1,2})/); return m ? String(parseInt(m[1])) : ''; };
+
+  var payload = {
+    action: 'saveSettings',
+    dspName:            getVal('set-dsp-name'),
+    dspEmail:           getVal('set-primary-email'),
+    primaryPhone:       getVal('set-primary-phone'),
+    sevenamRecipients:  getVal('set-sevenam'),
+    backupName:         getVal('set-backup-name'),
+    backupEmail:        getVal('set-backup-email'),
+    calComURL:          getVal('set-calcom-url'),
+    hiredMessage:       getVal('set-hired-msg'),
+    messageWindowStart: hourInt(getVal('set-sms-start')),
+    messageWindowEnd:   hourInt(getVal('set-sms-end')),
+    driverPreferences:  getVal('set-driver-prefs'),
+    notesToRouteReady:  getVal('set-notes'),
+    videoScreeningEnabled: isOn ? 'true' : 'false',
+    videoPrompt1:       getVal('set-vs-prompt1'),
+    videoMaxSeconds:    getVal('set-vs-max-sec'),
+    videoLinkExpiryHrs: getVal('set-vs-expiry')
+  };
+
   try {
-    await apiCall({
-      action: 'saveSettings',
-      videoScreeningEnabled: isOn ? 'true' : 'false'
-    });
+    await apiCall(payload);
     if (typeof loadData === 'function') await loadData();
     if (hubSub) {
       var savedNote = hubSub.textContent;
@@ -9073,17 +9094,6 @@ async function rrMsgToggleVideo() {
     if (hubSub) hubSub.textContent = 'Could not save. Try again.';
   }
 }
-async function rrMsgSaveVideoPrompt() {
-  var btn = document.getElementById('rr-msg-video-save-btn');
-  var statusEl = document.getElementById('rr-msg-video-save-status');
-  var hubP1 = document.getElementById('rr-msg-vs-prompt1');
-  var hiddenP1 = document.getElementById('set-vs-prompt1');
-  if (!hubP1) return;
-  if (hiddenP1) hiddenP1.value = hubP1.value;
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  statusEl.textContent = '';
-  try {
     if (typeof saveSettings === 'function') {
       await saveSettings();
       btn.textContent = 'Save prompt';
