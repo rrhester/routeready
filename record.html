@@ -1064,24 +1064,43 @@ function startRecording() {
   mediaRecorder.ondataavailable = function(e) {
     if (e.data && e.data.size > 0) recordedChunks.push(e.data);
   };
-  mediaRecorder.onstop = function() {
+ mediaRecorder.onstop = function() {
     const blob = new Blob(recordedChunks, { type: mimeType || "video/webm" });
+    console.log("Recording finished — blob size:", blob.size, "bytes from", recordedChunks.length, "chunks");
+    if (blob.size === 0) {
+      if (requestDataInterval) { clearInterval(requestDataInterval); requestDataInterval = null; }
+      clearInterval(recordingTimer);
+      document.getElementById("rec-indicator").classList.remove("active");
+      document.getElementById("timer-wrap").style.display = "none";
+      const btnE = document.getElementById("btn-record");
+      if (btnE) { btnE.classList.remove("recording"); btnE.textContent = "REC"; }
+      alert("Recording came through empty (0 chunks). Please record for at least 5 seconds before tapping stop, and try again.");
+      return;
+    }
+    if (requestDataInterval) { clearInterval(requestDataInterval); requestDataInterval = null; }
     recordedBlobs[currentPromptIndex] = blob;
     clearInterval(recordingTimer);
     document.getElementById("rec-indicator").classList.remove("active");
     document.getElementById("timer-wrap").style.display = "none";
-    const btn = document.getElementById("btn-record");
-    if (btn) { btn.classList.remove("recording"); btn.textContent = "REC"; }
+    const btnS = document.getElementById("btn-record");
+    if (btnS) { btnS.classList.remove("recording"); btnS.textContent = "REC"; }
     afterClipRecorded();
   };
   mediaRecorder.start(1000);  // emit chunks every second — fixes iOS Safari truncation
+  // iOS Safari belt-and-suspenders: also force-flush every second via requestData()
+  var requestDataInterval = setInterval(function() {
+    try {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.requestData();
+      }
+    } catch(e) {}
+  }, 1000);
   recordingStartTime = Date.now();
   document.getElementById("rec-indicator").classList.add("active");
   document.getElementById("timer-wrap").style.display = "block";
   const btn = document.getElementById("btn-record");
   if (btn) { btn.classList.add("recording"); btn.textContent = "STOP"; }
   document.getElementById("record-hint").textContent = "Recording... tap to stop";
-
   const maxSec = (config && config.prompts[currentPromptIndex] && config.prompts[currentPromptIndex].seconds) || 30;
   recordingTimer = setInterval(function() {
     const elapsed = (Date.now() - recordingStartTime) / 1000;
