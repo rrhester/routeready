@@ -9030,7 +9030,6 @@ function rrMsgToggleVideo() {
   var hubPromptBox = document.getElementById('rr-msg-video-prompts-box');
   var hiddenToggle = document.getElementById('vs-toggle');
   if (!hubToggle) return;
-
   var isOn = !hubToggle.classList.contains('on');
   hubToggle.classList.toggle('on', isOn);
   if (hubPromptBox) hubPromptBox.style.display = isOn ? '' : 'none';
@@ -9039,24 +9038,22 @@ function rrMsgToggleVideo() {
       ? 'On — applicants record a short video after booking, and you review by swiping.'
       : 'Off — applicants skip video and go straight from booking to orientation.';
   }
-
   if (hiddenToggle) {
     hiddenToggle.classList.toggle('on', isOn);
     hiddenToggle.dataset.state = isOn ? 'on' : 'off';
   }
 }
+
+async function rrMsgSaveVideoPrompt() {
   var btn = document.getElementById('rr-msg-video-save-btn');
   var statusEl = document.getElementById('rr-msg-video-save-status');
   var hubP1 = document.getElementById('rr-msg-vs-prompt1');
   var hiddenP1 = document.getElementById('set-vs-prompt1');
   if (!hubP1) return;
-
   if (hiddenP1) hiddenP1.value = hubP1.value;
-
   btn.disabled = true;
   btn.textContent = 'Saving…';
   statusEl.textContent = '';
-
   try {
     if (typeof saveSettings === 'function') {
       await saveSettings();
@@ -9078,7 +9075,6 @@ function rrMsgToggleVideo() {
     setTimeout(function(){ statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
   }
 }
-
 function rrMsgUpdatePromptCount() {
   var hubP1 = document.getElementById('rr-msg-vs-prompt1');
   var cnt = document.getElementById('rr-msg-p1-count');
