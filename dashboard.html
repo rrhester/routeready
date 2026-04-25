@@ -3854,7 +3854,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
       </div>
     </div>
 
-    <!-- Hiring -->
+  <!-- Hiring -->
     <div class="rr-side-section">
       <div class="rr-side-head">Hiring</div>
       <button class="rr-side-item rr-side-pipeline" data-mode="pipeline" onclick="rrSideNav('pipeline')">
@@ -3867,8 +3867,12 @@ input[type="time"]::-webkit-calendar-picker-indicator {
         <span class="rr-side-label">Interview Day</span>
         <span class="rr-side-count" id="rr-side-iday-count" style="display:none">0</span>
       </button>
+      <button class="rr-side-item" onclick="rrSideScreening()">
+        <svg class="rr-side-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span class="rr-side-label">Screening Questions</span>
+        <span class="rr-side-badge-new">NEW</span>
+      </button>
     </div>
-
     <!-- Analytics -->
     <div class="rr-side-section">
       <div class="rr-side-head">Analytics</div>
@@ -3877,7 +3881,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
         <span class="rr-side-label">Performance</span>
       </button>
     </div>
-
     <!-- Messaging -->
     <div class="rr-side-section">
       <div class="rr-side-head">Messaging</div>
@@ -9274,5 +9277,688 @@ window.closeSwitcherMenu = closeSwitcherMenu;
 window.switcherGo = switcherGo;
 </script>
 
+.rr-sq-tag { font-size: 9px; font-weight: 700; letter-spacing: .4px; padding: 3px 8px; border-radius: 100px; border: 1px solid;
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREENING QUESTIONS — full-page editor + library/custom modals
+     Added in v3.9
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+.rr-sq-hub { display: none; padding: 32px 28px 60px; max-width: 1100px; margin: 0 auto; }
+.rr-sq-hub.show { display: block }
+.rr-sq-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 20px; }
+.rr-sq-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--bolt2, #00A8E1); margin-bottom: 6px; }
+.rr-sq-title { font-family: 'DM Serif Display', serif; font-size: 30px; font-weight: 400; letter-spacing: -.5px; line-height: 1.1; color: var(--white, #fff); }
+.rr-sq-sub { font-size: 13px; color: var(--w50, rgba(255,255,255,.5)); margin-top: 4px; max-width: 600px; }
+.rr-sq-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.rr-sq-btn-ghost { padding: 9px 16px; background: transparent; color: var(--white, #fff); border: 1px solid var(--border, rgba(255,255,255,.1)); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; }
+.rr-sq-btn-ghost:hover { background: rgba(255,255,255,.05); }
+.rr-sq-btn-primary { padding: 9px 18px; background: var(--bolt2, #00A8E1); color: #fff; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+.rr-sq-btn-primary:hover { filter: brightness(1.1); }
+.rr-sq-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.rr-sq-meter { display: flex; align-items: center; gap: 16px; padding: 14px 18px; background: rgba(255,255,255,.04); border: 1px solid var(--border, rgba(255,255,255,.1)); border-radius: 12px; margin-bottom: 18px; }
+.rr-sq-meter-count { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--white, #fff); letter-spacing: -.5px; min-width: 60px; }
+.rr-sq-meter-count b { color: var(--bolt2, #00A8E1); }
+.rr-sq-meter-bar { flex: 1; height: 8px; background: rgba(255,255,255,.08); border-radius: 100px; overflow: hidden; }
+.rr-sq-meter-fill { height: 100%; background: linear-gradient(90deg, #00A8E1, #146EB4); border-radius: 100px; transition: width .25s; }
+.rr-sq-meter-info { font-size: 12px; color: var(--w50, rgba(255,255,255,.5)); text-align: right; }
+.rr-sq-meter-info b { color: var(--white, #fff); }
+.rr-sq-section-label { font-size: 11px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--w50, rgba(255,255,255,.5)); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.rr-sq-section-label .rr-sq-hint { color: var(--w35, rgba(255,255,255,.35)); text-transform: none; letter-spacing: 0; font-weight: 500; }
+.rr-sq-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.rr-sq-empty { padding: 28px; text-align: center; background: rgba(255,255,255,.03); border: 1px dashed var(--border, rgba(255,255,255,.1)); border-radius: 12px; color: var(--w50); font-size: 13px; }
+.rr-sq-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; background: rgba(255,255,255,.04); border: 1px solid var(--border, rgba(255,255,255,.1)); border-radius: 10px; transition: border-color .12s, background .12s; }
+.rr-sq-row:hover { border-color: rgba(255,255,255,.18); }
+.rr-sq-row.dragging { opacity: .4; }
+.rr-sq-row.drag-over { border-color: var(--bolt2, #00A8E1); background: rgba(0,168,225,.08); }
+.rr-sq-drag { display: flex; flex-direction: column; gap: 2px; color: var(--w35, rgba(255,255,255,.3)); cursor: grab; padding: 2px; flex-shrink: 0; user-select: none; }
+.rr-sq-drag:active { cursor: grabbing; }
+.rr-sq-drag-dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
+.rr-sq-num { width: 22px; height: 22px; background: var(--bolt2, #146EB4); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.rr-sq-text { flex: 1; font-size: 13px; line-height: 1.4; color: var(--white, #fff); min-width: 0; }
+.rr-sq-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.rr-sq-tag { font-size: 9px; font-weight: 700; letter-spacing: .4px; padding: 3px 8px; border-radius: 100px; border: 1px solid; cursor: default; }
+.rr-sq-tag-library { background: rgba(0,168,225,.1); color: #6BC5E8; border-color: rgba(0,168,225,.3); }
+.rr-sq-tag-custom { background: rgba(168,85,247,.1); color: #C77FF5; border-color: rgba(168,85,247,.3); }
+.rr-sq-filter-pill { font-size: 9px; font-weight: 700; letter-spacing: .4px; padding: 3px 8px; border-radius: 100px; cursor: pointer; transition: all .12s; user-select: none; background: rgba(255,255,255,.05); color: var(--w50); border: 1px solid var(--border); }
+.rr-sq-filter-pill:hover { background: rgba(255,255,255,.08); }
+.rr-sq-filter-pill.on { background: rgba(220,38,38,.15); color: #F87171; border-color: rgba(220,38,38,.35); }
+.rr-sq-warn-dot { width: 7px; height: 7px; border-radius: 50%; background: #F59E0B; flex-shrink: 0; cursor: help; }
+.rr-sq-x { width: 24px; height: 24px; border-radius: 50%; background: transparent; color: var(--w50); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; flex-shrink: 0; }
+.rr-sq-x:hover { color: #F87171; background: rgba(220,38,38,.1); }
+.rr-sq-add-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+.rr-sq-add-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; background: rgba(255,255,255,.03); border: 1.5px dashed var(--border, rgba(255,255,255,.15)); border-radius: 10px; color: var(--w70); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .12s; }
+.rr-sq-add-btn:hover { border-color: var(--bolt2, #00A8E1); color: var(--bolt2, #00A8E1); background: rgba(0,168,225,.05); }
+.rr-sq-add-btn.custom:hover { border-color: #C77FF5; color: #C77FF5; background: rgba(168,85,247,.05); }
+.rr-sq-add-btn:disabled { opacity: .4; cursor: not-allowed; }
+.rr-sq-add-btn:disabled:hover { border-color: var(--border); color: var(--w70); background: rgba(255,255,255,.03); }
+.rr-sq-add-btn svg { width: 14px; height: 14px; }
+.rr-sq-coach { background: linear-gradient(135deg, rgba(0,168,225,.06), rgba(168,85,247,.06)); border: 1px solid rgba(0,168,225,.15); border-radius: 12px; padding: 16px 18px; margin-top: 8px; display: flex; gap: 12px; align-items: flex-start; }
+.rr-sq-coach-ic { width: 32px; height: 32px; background: linear-gradient(135deg, #146EB4, #A21CAF); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rr-sq-coach-head { font-size: 12px; font-weight: 700; color: var(--white); margin-bottom: 4px; }
+.rr-sq-coach-body { font-size: 12px; line-height: 1.5; color: var(--w70); }
+.rr-sq-coach-body b { color: var(--white); }
+.rr-sq-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 500; align-items: center; justify-content: center; padding: 20px; }
+.rr-sq-modal-overlay.show { display: flex; }
+.rr-sq-modal { background: #2A3450; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; max-width: 560px; width: 100%; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
+.rr-sq-modal-head { padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.rr-sq-modal-title { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--white); }
+.rr-sq-modal-close { background: transparent; border: none; color: var(--w50); font-size: 24px; cursor: pointer; line-height: 1; padding: 0 8px; }
+.rr-sq-modal-close:hover { color: var(--white); }
+.rr-sq-modal-body { padding: 18px 24px; overflow-y: auto; flex: 1; }
+.rr-sq-modal-foot { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,.08); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+.rr-sq-lib-cat { font-size: 10px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--w50); margin: 14px 0 8px; }
+.rr-sq-lib-cat:first-child { margin-top: 0; }
+.rr-sq-lib-q { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; cursor: pointer; transition: all .12s; }
+.rr-sq-lib-q:hover { border-color: var(--bolt2, #00A8E1); background: rgba(0,168,225,.06); }
+.rr-sq-lib-q.in-use { opacity: .4; cursor: not-allowed; }
+.rr-sq-lib-q.in-use:hover { border-color: var(--border); background: rgba(255,255,255,.04); }
+.rr-sq-lib-q-text { flex: 1; font-size: 13px; color: var(--white); line-height: 1.4; }
+.rr-sq-lib-q-warn { font-size: 10px; color: #F59E0B; margin-top: 3px; }
+.rr-sq-lib-q-used { font-size: 10px; color: var(--w50); flex-shrink: 0; }
+.rr-sq-custom-textarea { width: 100%; min-height: 90px; padding: 12px 14px; background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 10px; color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.5; resize: vertical; }
+.rr-sq-custom-textarea:focus { outline: none; border-color: var(--bolt2, #00A8E1); }
+.rr-sq-custom-counter { font-size: 11px; color: var(--w50); text-align: right; margin-top: 4px; }
+.rr-sq-review-result { margin-top: 14px; padding: 14px; border-radius: 10px; display: none; }
+.rr-sq-review-result.show { display: block; }
+.rr-sq-review-result.green { background: rgba(22,163,74,.1); border: 1px solid rgba(22,163,74,.3); }
+.rr-sq-review-result.yellow { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); }
+.rr-sq-review-result.red { background: rgba(220,38,38,.1); border: 1px solid rgba(220,38,38,.3); }
+.rr-sq-review-head { font-size: 12px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.rr-sq-review-result.green .rr-sq-review-head { color: #4ADE80; }
+.rr-sq-review-result.yellow .rr-sq-review-head { color: #FBBF24; }
+.rr-sq-review-result.red .rr-sq-review-head { color: #F87171; }
+.rr-sq-review-issue { font-size: 12px; line-height: 1.5; color: var(--w70); margin-bottom: 10px; }
+.rr-sq-review-suggestion { background: rgba(255,255,255,.05); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--white); }
+.rr-sq-review-suggestion-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--w50); margin-bottom: 4px; }
+.rr-sq-disclaimer { font-size: 11px; color: var(--w50); line-height: 1.5; padding: 10px 14px; background: rgba(255,255,255,.03); border-radius: 8px; margin-top: 14px; }
+.rr-sq-filter-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 12px 14px; background: rgba(255,255,255,.03); border-radius: 8px; cursor: pointer; user-select: none; }
+.rr-sq-filter-row:hover { background: rgba(255,255,255,.06); }
+.rr-sq-filter-toggle { width: 36px; height: 22px; background: rgba(255,255,255,.15); border-radius: 100px; position: relative; flex-shrink: 0; transition: background .15s; }
+.rr-sq-filter-toggle.on { background: #DC2626; }
+.rr-sq-filter-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left .15s; }
+.rr-sq-filter-toggle.on .rr-sq-filter-knob { left: 16px; }
+.rr-sq-filter-label { font-size: 13px; color: var(--white); flex: 1; }
+.rr-sq-filter-label-sub { font-size: 11px; color: var(--w50); margin-top: 2px; }
+.rr-sq-load-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: rrSqSpin .8s linear infinite; vertical-align: middle; margin-right: 6px; }
+@keyframes rrSqSpin { to { transform: rotate(360deg); } }
+@media (max-width: 700px) {
+  .rr-sq-hub { padding: 20px 16px 60px; }
+  .rr-sq-title { font-size: 24px; }
+  .rr-sq-add-row { grid-template-columns: 1fr; }
+  .rr-sq-meter { flex-direction: column; align-items: stretch; gap: 10px; }
+  .rr-sq-meter-info { text-align: left; }
+}
+</style>
+
+<!-- ═══ SCREENING QUESTIONS HUB ═══ -->
+<div class="rr-sq-hub" id="rr-sq-hub">
+  <div class="rr-sq-header">
+    <div>
+      <div class="rr-sq-eyebrow">HIRING</div>
+      <h1 class="rr-sq-title">Screening questions</h1>
+      <p class="rr-sq-sub">Pick from the library or write your own. Keep it tight — shorter screens convert better.</p>
+    </div>
+    <div class="rr-sq-actions">
+      <button class="rr-sq-btn-ghost" onclick="rrSqPreview()">Preview</button>
+      <button class="rr-sq-btn-primary" onclick="rrSqSave()" id="rr-sq-save-btn">Save</button>
+    </div>
+  </div>
+
+  <div class="rr-sq-meter">
+    <div class="rr-sq-meter-count" id="rr-sq-meter-count"><b>0</b> / 8</div>
+    <div class="rr-sq-meter-bar"><div class="rr-sq-meter-fill" id="rr-sq-meter-fill" style="width:0%"></div></div>
+    <div class="rr-sq-meter-info"><b id="rr-sq-meter-time">~0 seconds</b> to complete</div>
+  </div>
+
+  <div class="rr-sq-section-label">
+    <span>Your screening questions</span>
+    <span class="rr-sq-hint">Drag to reorder</span>
+  </div>
+
+  <div class="rr-sq-list" id="rr-sq-list">
+    <div class="rr-sq-empty" id="rr-sq-empty">Loading…</div>
+  </div>
+
+  <div class="rr-sq-add-row">
+    <button class="rr-sq-add-btn" id="rr-sq-add-library-btn" onclick="rrSqOpenLibrary()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add from library
+    </button>
+    <button class="rr-sq-add-btn custom" id="rr-sq-add-custom-btn" onclick="rrSqOpenCustom()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Write custom question
+    </button>
+  </div>
+
+  <div class="rr-sq-coach">
+    <div class="rr-sq-coach-ic">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L14 8 20 10 14 12 12 18 10 12 4 10 10 8Z"/></svg>
+    </div>
+    <div>
+      <div class="rr-sq-coach-head">AI compliance coach</div>
+      <div class="rr-sq-coach-body">Custom questions get reviewed for common state-law issues — Ban-the-Box, protected class, pre-offer disclosure restrictions. <b>Coaching, not legal advice.</b> Consult an employment attorney for your state.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LIBRARY PICKER MODAL ═══ -->
+<div class="rr-sq-modal-overlay" id="rr-sq-lib-overlay">
+  <div class="rr-sq-modal">
+    <div class="rr-sq-modal-head">
+      <div class="rr-sq-modal-title">Add from library</div>
+      <button class="rr-sq-modal-close" onclick="rrSqCloseLibrary()">&times;</button>
+    </div>
+    <div class="rr-sq-modal-body" id="rr-sq-lib-body">
+      <div class="rr-sq-empty">Loading library…</div>
+    </div>
+    <div class="rr-sq-modal-foot">
+      <button class="rr-sq-btn-ghost" onclick="rrSqCloseLibrary()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CUSTOM QUESTION MODAL ═══ -->
+<div class="rr-sq-modal-overlay" id="rr-sq-custom-overlay">
+  <div class="rr-sq-modal">
+    <div class="rr-sq-modal-head">
+      <div class="rr-sq-modal-title">Write a custom question</div>
+      <button class="rr-sq-modal-close" onclick="rrSqCloseCustom()">&times;</button>
+    </div>
+    <div class="rr-sq-modal-body">
+      <div style="font-size:12px;color:var(--w70);margin-bottom:8px;">Yes/No question. Keep it short and clear.</div>
+      <textarea class="rr-sq-custom-textarea" id="rr-sq-custom-text" placeholder="Example: Have you worked in a warehouse or delivery role in the past 2 years?" maxlength="300" oninput="rrSqCustomCount()"></textarea>
+      <div class="rr-sq-custom-counter" id="rr-sq-custom-counter">0 / 300</div>
+
+      <div class="rr-sq-filter-row" onclick="rrSqToggleCustomFilter()" id="rr-sq-custom-filter-row">
+        <div class="rr-sq-filter-toggle" id="rr-sq-custom-filter-toggle"><div class="rr-sq-filter-knob"></div></div>
+        <div>
+          <div class="rr-sq-filter-label">Auto-decline on wrong answer</div>
+          <div class="rr-sq-filter-label-sub">Applicants who answer "No" are filtered out automatically</div>
+        </div>
+      </div>
+
+      <div class="rr-sq-review-result" id="rr-sq-review-result">
+        <div class="rr-sq-review-head" id="rr-sq-review-head"></div>
+        <div class="rr-sq-review-issue" id="rr-sq-review-issue"></div>
+        <div class="rr-sq-review-suggestion" id="rr-sq-review-suggestion-wrap" style="display:none">
+          <div class="rr-sq-review-suggestion-label">Suggested rewrite</div>
+          <div id="rr-sq-review-suggestion"></div>
+          <button class="rr-sq-btn-ghost" style="margin-top:10px;font-size:11px;padding:6px 12px" onclick="rrSqAcceptSuggestion()">Use this rewrite</button>
+        </div>
+      </div>
+
+      <div class="rr-sq-disclaimer">
+        <b style="color:var(--white)">Coaching, not legal advice.</b> The AI flags common employment-law issues but doesn't replace counsel. State and local rules vary.
+      </div>
+    </div>
+    <div class="rr-sq-modal-foot">
+      <button class="rr-sq-btn-ghost" onclick="rrSqCloseCustom()">Cancel</button>
+      <button class="rr-sq-btn-ghost" onclick="rrSqAiReview()" id="rr-sq-review-btn">Review with AI</button>
+      <button class="rr-sq-btn-primary" onclick="rrSqSaveCustom()" id="rr-sq-save-custom-btn">Add question</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// SCREENING QUESTIONS — Dashboard UI
+// ═══════════════════════════════════════════════════════════════
+
+const rrSqState = {
+  questions: [],
+  library: [],
+  totalSlots: 8,
+  loaded: false,
+  saving: false,
+  customFilterOn: false,
+  customAcceptedSuggestion: null,
+  draggingIdx: null
+};
+
+function rrSideScreening() {
+  var main = document.getElementById('main');
+  var schedScreen = document.getElementById('schedule-screen');
+  var setEl = document.getElementById('settings-screen');
+  var perfScreen = document.getElementById('perf-screen');
+  var msgHub = document.getElementById('rr-msg-hub');
+  if (main) main.style.display = 'none';
+  if (schedScreen) schedScreen.style.display = 'none';
+  if (setEl) setEl.style.display = 'none';
+  if (perfScreen) perfScreen.style.display = 'none';
+  if (msgHub) msgHub.classList.remove('show');
+
+  var hub = document.getElementById('rr-sq-hub');
+  if (hub) {
+    hub.classList.add('show');
+    try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch(_) { window.scrollTo(0, 0); }
+  }
+  document.querySelectorAll('.rr-side-item').forEach(function(el){ el.classList.remove('active'); });
+
+  if (!rrSqState.loaded) {
+    rrSqLoad();
+  } else {
+    rrSqRender();
+  }
+}
+window.rrSideScreening = rrSideScreening;
+
+function rrSqClose() {
+  var hub = document.getElementById('rr-sq-hub');
+  if (hub) hub.classList.remove('show');
+}
+
+async function rrSqLoad() {
+  var listEl = document.getElementById('rr-sq-list');
+  if (listEl) listEl.innerHTML = '<div class="rr-sq-empty">Loading…</div>';
+  try {
+    var dspEmail = (typeof data === 'object' && data && data.dspEmail) ? data.dspEmail : '';
+    var url = API + '?action=getScreeningQuestions&dspEmail=' + encodeURIComponent(dspEmail) + '&t=' + Date.now();
+    var res = await fetch(url);
+    var json = await res.json();
+    if (json.status === 'ok') {
+      rrSqState.questions = (json.questions || []).map(function(q) {
+        return {
+          questionId: q.questionId,
+          source:     q.source,
+          label:      q.label,
+          filter:     !!q.filter,
+          amberWarn:  q.amberWarn || '',
+          category:   q.category || ''
+        };
+      });
+      rrSqState.library = json.library || [];
+      rrSqState.totalSlots = json.totalSlots || 8;
+      rrSqState.loaded = true;
+      rrSqRender();
+    } else {
+      if (listEl) listEl.innerHTML = '<div class="rr-sq-empty">Could not load questions: ' + (json.message || 'unknown error') + '</div>';
+    }
+  } catch(err) {
+    console.error('rrSqLoad error:', err);
+    if (listEl) listEl.innerHTML = '<div class="rr-sq-empty">Could not load questions. Check your connection.</div>';
+  }
+}
+
+function rrSqRender() {
+  var listEl = document.getElementById('rr-sq-list');
+  if (!listEl) return;
+  if (rrSqState.questions.length === 0) {
+    listEl.innerHTML = '<div class="rr-sq-empty">No questions yet — add some from the library or write your own below.</div>';
+  } else {
+    listEl.innerHTML = '';
+    rrSqState.questions.forEach(function(q, idx) {
+      var row = document.createElement('div');
+      row.className = 'rr-sq-row';
+      row.draggable = true;
+      row.dataset.idx = idx;
+      row.addEventListener('dragstart', rrSqDragStart);
+      row.addEventListener('dragover', rrSqDragOver);
+      row.addEventListener('dragleave', rrSqDragLeave);
+      row.addEventListener('drop', rrSqDrop);
+      row.addEventListener('dragend', rrSqDragEnd);
+
+      var dragH = '<div class="rr-sq-drag" title="Drag to reorder">' +
+        '<div class="rr-sq-drag-dot"></div><div class="rr-sq-drag-dot"></div>' +
+        '<div class="rr-sq-drag-dot"></div><div class="rr-sq-drag-dot"></div>' +
+        '<div class="rr-sq-drag-dot"></div><div class="rr-sq-drag-dot"></div>' +
+        '</div>';
+
+      var warnDot = q.amberWarn ? '<div class="rr-sq-warn-dot" title="' + rrSqEscape(q.amberWarn) + '"></div>' : '';
+      var sourceTag = q.source === 'custom'
+        ? '<span class="rr-sq-tag rr-sq-tag-custom">CUSTOM</span>'
+        : '<span class="rr-sq-tag rr-sq-tag-library">LIBRARY</span>';
+      var filterPill = '<span class="rr-sq-filter-pill ' + (q.filter ? 'on' : '') + '" onclick="rrSqToggleFilter(' + idx + ')" title="Click to toggle auto-decline">AUTO-DECLINE</span>';
+
+      row.innerHTML = dragH +
+        '<div class="rr-sq-num">' + (idx + 1) + '</div>' +
+        '<div class="rr-sq-text">' + rrSqEscape(q.label) + '</div>' +
+        '<div class="rr-sq-meta">' + warnDot + sourceTag + filterPill + '</div>' +
+        '<button class="rr-sq-x" onclick="rrSqRemove(' + idx + ')" title="Remove">×</button>';
+      listEl.appendChild(row);
+    });
+  }
+  rrSqUpdateMeter();
+  rrSqUpdateAddButtons();
+}
+
+function rrSqUpdateMeter() {
+  var n = rrSqState.questions.length;
+  var max = rrSqState.totalSlots;
+  var pct = Math.min(100, (n / max) * 100);
+  var seconds = n * 5;
+  var countEl = document.getElementById('rr-sq-meter-count');
+  var fillEl = document.getElementById('rr-sq-meter-fill');
+  var timeEl = document.getElementById('rr-sq-meter-time');
+  if (countEl) countEl.innerHTML = '<b>' + n + '</b> / ' + max;
+  if (fillEl) fillEl.style.width = pct + '%';
+  if (timeEl) timeEl.textContent = '~' + seconds + ' second' + (seconds === 1 ? '' : 's');
+}
+
+function rrSqUpdateAddButtons() {
+  var atMax = rrSqState.questions.length >= rrSqState.totalSlots;
+  var libBtn = document.getElementById('rr-sq-add-library-btn');
+  var custBtn = document.getElementById('rr-sq-add-custom-btn');
+  if (libBtn) libBtn.disabled = atMax;
+  if (custBtn) custBtn.disabled = atMax;
+}
+
+function rrSqRemove(idx) {
+  rrSqState.questions.splice(idx, 1);
+  rrSqRender();
+}
+window.rrSqRemove = rrSqRemove;
+
+function rrSqToggleFilter(idx) {
+  if (rrSqState.questions[idx]) {
+    rrSqState.questions[idx].filter = !rrSqState.questions[idx].filter;
+    rrSqRender();
+  }
+}
+window.rrSqToggleFilter = rrSqToggleFilter;
+
+function rrSqDragStart(e) {
+  rrSqState.draggingIdx = parseInt(this.dataset.idx);
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function rrSqDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (parseInt(this.dataset.idx) !== rrSqState.draggingIdx) {
+    this.classList.add('drag-over');
+  }
+}
+function rrSqDragLeave() { this.classList.remove('drag-over'); }
+function rrSqDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  var fromIdx = rrSqState.draggingIdx;
+  var toIdx = parseInt(this.dataset.idx);
+  if (fromIdx == null || fromIdx === toIdx) return;
+  var moved = rrSqState.questions.splice(fromIdx, 1)[0];
+  rrSqState.questions.splice(toIdx, 0, moved);
+  rrSqRender();
+}
+function rrSqDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.rr-sq-row').forEach(function(r){ r.classList.remove('drag-over'); });
+  rrSqState.draggingIdx = null;
+}
+
+function rrSqOpenLibrary() {
+  if (rrSqState.questions.length >= rrSqState.totalSlots) return;
+  var overlay = document.getElementById('rr-sq-lib-overlay');
+  var body = document.getElementById('rr-sq-lib-body');
+  if (!overlay || !body) return;
+  rrSqRenderLibrary();
+  overlay.classList.add('show');
+}
+window.rrSqOpenLibrary = rrSqOpenLibrary;
+
+function rrSqCloseLibrary() {
+  var overlay = document.getElementById('rr-sq-lib-overlay');
+  if (overlay) overlay.classList.remove('show');
+}
+window.rrSqCloseLibrary = rrSqCloseLibrary;
+
+function rrSqRenderLibrary() {
+  var body = document.getElementById('rr-sq-lib-body');
+  if (!body) return;
+  var inUse = {};
+  rrSqState.questions.forEach(function(q){ if (q.source === 'library') inUse[q.questionId] = true; });
+
+  var byCategory = {};
+  rrSqState.library.forEach(function(q) {
+    if (!byCategory[q.category]) byCategory[q.category] = [];
+    byCategory[q.category].push(q);
+  });
+
+  var html = '';
+  Object.keys(byCategory).forEach(function(cat) {
+    html += '<div class="rr-sq-lib-cat">' + rrSqEscape(cat) + '</div>';
+    byCategory[cat].forEach(function(q) {
+      var used = !!inUse[q.id];
+      var warn = q.amberWarn ? '<div class="rr-sq-lib-q-warn">⚠ ' + rrSqEscape(q.amberWarn) + '</div>' : '';
+      var rightSide = used
+        ? '<div class="rr-sq-lib-q-used">In use</div>'
+        : '<div class="rr-sq-lib-q-used" style="color:var(--bolt2,#00A8E1)">Add →</div>';
+      html += '<div class="rr-sq-lib-q ' + (used ? 'in-use' : '') + '" ' +
+              (used ? '' : 'onclick="rrSqAddFromLibrary(\'' + q.id + '\')"') + '>' +
+                '<div style="flex:1">' +
+                  '<div class="rr-sq-lib-q-text">' + rrSqEscape(q.label) + '</div>' +
+                  warn +
+                '</div>' +
+                rightSide +
+              '</div>';
+    });
+  });
+  body.innerHTML = html || '<div class="rr-sq-empty">Library is empty.</div>';
+}
+
+function rrSqAddFromLibrary(qid) {
+  var libQ = rrSqState.library.find(function(q){ return q.id === qid; });
+  if (!libQ) return;
+  if (rrSqState.questions.length >= rrSqState.totalSlots) return;
+  rrSqState.questions.push({
+    questionId: libQ.id,
+    source:     'library',
+    label:      libQ.label,
+    filter:     !!libQ.defaultFilter,
+    amberWarn:  libQ.amberWarn || '',
+    category:   libQ.category || ''
+  });
+  rrSqCloseLibrary();
+  rrSqRender();
+}
+window.rrSqAddFromLibrary = rrSqAddFromLibrary;
+
+function rrSqOpenCustom() {
+  if (rrSqState.questions.length >= rrSqState.totalSlots) return;
+  var overlay = document.getElementById('rr-sq-custom-overlay');
+  var ta = document.getElementById('rr-sq-custom-text');
+  var result = document.getElementById('rr-sq-review-result');
+  var toggle = document.getElementById('rr-sq-custom-filter-toggle');
+  if (!overlay) return;
+  if (ta) ta.value = '';
+  if (result) result.classList.remove('show', 'green', 'yellow', 'red');
+  rrSqState.customFilterOn = false;
+  rrSqState.customAcceptedSuggestion = null;
+  if (toggle) toggle.classList.remove('on');
+  rrSqCustomCount();
+  overlay.classList.add('show');
+  setTimeout(function(){ if (ta) ta.focus(); }, 50);
+}
+window.rrSqOpenCustom = rrSqOpenCustom;
+
+function rrSqCloseCustom() {
+  var overlay = document.getElementById('rr-sq-custom-overlay');
+  if (overlay) overlay.classList.remove('show');
+}
+window.rrSqCloseCustom = rrSqCloseCustom;
+
+function rrSqCustomCount() {
+  var ta = document.getElementById('rr-sq-custom-text');
+  var ctr = document.getElementById('rr-sq-custom-counter');
+  if (!ta || !ctr) return;
+  ctr.textContent = ta.value.length + ' / 300';
+}
+window.rrSqCustomCount = rrSqCustomCount;
+
+function rrSqToggleCustomFilter() {
+  rrSqState.customFilterOn = !rrSqState.customFilterOn;
+  var toggle = document.getElementById('rr-sq-custom-filter-toggle');
+  if (toggle) toggle.classList.toggle('on', rrSqState.customFilterOn);
+}
+window.rrSqToggleCustomFilter = rrSqToggleCustomFilter;
+
+async function rrSqAiReview() {
+  var ta = document.getElementById('rr-sq-custom-text');
+  var btn = document.getElementById('rr-sq-review-btn');
+  var result = document.getElementById('rr-sq-review-result');
+  var head = document.getElementById('rr-sq-review-head');
+  var issue = document.getElementById('rr-sq-review-issue');
+  var sugWrap = document.getElementById('rr-sq-review-suggestion-wrap');
+  var sug = document.getElementById('rr-sq-review-suggestion');
+  if (!ta || !btn) return;
+  var text = ta.value.trim();
+  if (!text) { alert('Type a question first.'); return; }
+
+  var origLabel = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="rr-sq-load-spinner"></span>Reviewing…';
+  if (result) result.classList.remove('show', 'green', 'yellow', 'red');
+
+  try {
+    var url = API + '?action=aiReviewScreeningQuestion&text=' + encodeURIComponent(text) + '&t=' + Date.now();
+    var res = await fetch(url);
+    var json = await res.json();
+    if (json.status === 'ok') {
+      var level = json.level || 'green';
+      result.classList.add('show', level);
+      if (level === 'green') {
+        head.innerHTML = '✓ Looks good';
+        issue.textContent = 'No common compliance issues flagged.';
+        sugWrap.style.display = 'none';
+      } else if (level === 'yellow') {
+        head.innerHTML = '⚠ Check your state';
+        issue.textContent = json.issue || 'May be restricted in some states.';
+        if (json.suggestion) {
+          sug.textContent = json.suggestion;
+          sugWrap.style.display = 'block';
+        } else {
+          sugWrap.style.display = 'none';
+        }
+      } else {
+        head.innerHTML = '✕ Generally prohibited';
+        issue.textContent = json.issue || 'This question is generally not allowed on initial applications.';
+        if (json.suggestion) {
+          sug.textContent = json.suggestion;
+          sugWrap.style.display = 'block';
+        } else {
+          sugWrap.style.display = 'none';
+        }
+      }
+      rrSqState.customAcceptedSuggestion = json.suggestion || null;
+    } else {
+      head.innerHTML = '⚠ Review unavailable';
+      issue.textContent = json.message || 'Could not run review. You can save anyway.';
+      result.classList.add('show', 'yellow');
+      sugWrap.style.display = 'none';
+    }
+  } catch(err) {
+    console.error('rrSqAiReview error:', err);
+    head.innerHTML = '⚠ Review failed';
+    issue.textContent = 'Network error. You can save the question anyway.';
+    result.classList.add('show', 'yellow');
+    if (sugWrap) sugWrap.style.display = 'none';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  }
+}
+window.rrSqAiReview = rrSqAiReview;
+
+function rrSqAcceptSuggestion() {
+  var ta = document.getElementById('rr-sq-custom-text');
+  if (!ta || !rrSqState.customAcceptedSuggestion) return;
+  ta.value = rrSqState.customAcceptedSuggestion;
+  rrSqCustomCount();
+  var result = document.getElementById('rr-sq-review-result');
+  if (result) result.classList.remove('show', 'green', 'yellow', 'red');
+  rrSqState.customAcceptedSuggestion = null;
+}
+window.rrSqAcceptSuggestion = rrSqAcceptSuggestion;
+
+function rrSqSaveCustom() {
+  var ta = document.getElementById('rr-sq-custom-text');
+  if (!ta) return;
+  var text = ta.value.trim();
+  if (!text) { alert('Type a question first.'); return; }
+  if (text.length > 300) { alert('Question too long (max 300 chars).'); return; }
+  if (rrSqState.questions.length >= rrSqState.totalSlots) {
+    alert('You have hit the ' + rrSqState.totalSlots + ' question limit. Remove one first.');
+    return;
+  }
+
+  var result = document.getElementById('rr-sq-review-result');
+  if (result && result.classList.contains('red')) {
+    var ok = confirm('The AI flagged this question as generally prohibited under federal law. Save anyway?\n\nYou are responsible for compliance in your state.');
+    if (!ok) return;
+  }
+
+  rrSqState.questions.push({
+    questionId: 'c_' + Date.now(),
+    source:     'custom',
+    label:      text,
+    filter:     rrSqState.customFilterOn,
+    amberWarn:  '',
+    category:   'Custom'
+  });
+  rrSqCloseCustom();
+  rrSqRender();
+}
+window.rrSqSaveCustom = rrSqSaveCustom;
+
+async function rrSqSave() {
+  if (rrSqState.saving) return;
+  var btn = document.getElementById('rr-sq-save-btn');
+  if (!btn) return;
+  rrSqState.saving = true;
+  var origLabel = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="rr-sq-load-spinner"></span>Saving…';
+  try {
+    var dspEmail = (typeof data === 'object' && data && data.dspEmail) ? data.dspEmail : '';
+    var payload = rrSqState.questions.map(function(q) {
+      if (q.source === 'custom') {
+        return { source: 'custom', customText: q.label, filter: q.filter };
+      }
+      return { source: 'library', questionId: q.questionId, filter: q.filter };
+    });
+    var url = API + '?action=saveScreeningQuestions&dspEmail=' + encodeURIComponent(dspEmail) +
+              '&questions=' + encodeURIComponent(JSON.stringify(payload)) + '&t=' + Date.now();
+    var res = await fetch(url);
+    var json = await res.json();
+    if (json.status === 'ok') {
+      btn.innerHTML = '✓ Saved';
+      setTimeout(function(){
+        btn.disabled = false;
+        btn.textContent = origLabel;
+      }, 1400);
+    } else {
+      alert('Save failed: ' + (json.message || 'unknown error'));
+      btn.disabled = false;
+      btn.textContent = origLabel;
+    }
+  } catch(err) {
+    console.error('rrSqSave error:', err);
+    alert('Save failed. Check your connection and try again.');
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  } finally {
+    rrSqState.saving = false;
+  }
+}
+window.rrSqSave = rrSqSave;
+
+function rrSqPreview() {
+  if (rrSqState.questions.length === 0) {
+    alert('Add at least one question to preview.');
+    return;
+  }
+  var lines = rrSqState.questions.map(function(q, i) {
+    var tag = q.filter ? ' (auto-decline)' : '';
+    return (i + 1) + '. ' + q.label + tag;
+  });
+  alert('What applicants will see:\n\n' + lines.join('\n\n'));
+}
+window.rrSqPreview = rrSqPreview;
+
+function rrSqEscape(s) {
+  return String(s || '').replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+</script>
 </body>
 </html>
