@@ -215,16 +215,16 @@ main{max-width:1140px;margin:0 auto;padding:1.5rem;display:none;gap:1rem;flex-di
 .ws-mode-tag.iday{background:rgba(52,211,153,.08);color:var(--green2);border-color:rgba(52,211,153,.2)}
 
 /* Interview day stat bar */
-#interview-day-header{display:none;background:#0D2318;padding:1.125rem 1.5rem;border-bottom:1px solid rgba(52,211,153,.15)}
+#interview-day-header{display:none;background:#FFFFFF;padding:1.125rem 1.5rem;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 #interview-day-header.visible{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
 .interview-stats{display:flex;gap:1rem;flex-wrap:wrap}
 .interview-stat{text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px}
-.interview-stat-num{font-family:'DM Serif Display',serif;font-size:28px;line-height:1;letter-spacing:-1px}
-.interview-stat-num.hired{color:var(--green2)}
-.interview-stat-num.noshow{color:var(--bolt2)}
-.interview-stat-num.nothired{color:var(--w40)}
-.interview-stat-num.pending{color:var(--w60)}
-.interview-stat-lbl{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.4);display:block}
+.interview-stat-num{font-family:'DM Serif Display',serif;font-size:28px;line-height:1;letter-spacing:-1px;color:var(--white)}
+.interview-stat-num.hired{color:var(--white)}
+.interview-stat-num.noshow{color:var(--white)}
+.interview-stat-num.nothired{color:var(--white)}
+.interview-stat-num.pending{color:var(--white)}
+.interview-stat-lbl{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#94A3B8;display:block}
 
 /* Roster */
 .roster-row{display:flex;align-items:center;gap:.5rem;padding:.875rem 1rem;border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer}
@@ -4245,11 +4245,10 @@ input[type="time"]::-webkit-calendar-picker-indicator {
         </div>
       </div>
       <div style="text-align:right">
-        <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--green2);line-height:1;letter-spacing:-1px" id="id-total-hired">0</div>
-        <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--w30);margin-top:4px" id="id-target-label">of target</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--white);line-height:1;letter-spacing:-1px" id="id-total-hired">0</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#94A3B8;margin-top:4px" id="id-target-label">of target</div>
       </div>
     </div>
-
     <!-- Stale bookings banner (shown when data.staleCount > 0) -->
     <div id="stale-banner" class="stale-banner" style="display:none" onclick="openStaleModal()">
       <div class="stale-banner-icon">
@@ -9046,8 +9045,6 @@ function rrMsgToggleVideo() {
     hiddenToggle.dataset.state = isOn ? 'on' : 'off';
   }
 }
-
-async function rrMsgSaveVideoPrompt() {
   var btn = document.getElementById('rr-msg-video-save-btn');
   var statusEl = document.getElementById('rr-msg-video-save-status');
   var hubP1 = document.getElementById('rr-msg-vs-prompt1');
