@@ -9276,8 +9276,7 @@ window.toggleSwitcherMenu = toggleSwitcherMenu;
 window.closeSwitcherMenu = closeSwitcherMenu;
 window.switcherGo = switcherGo;
 </script>
-
-.rr-sq-tag { font-size: 9px; font-weight: 700; letter-spacing: .4px; padding: 3px 8px; border-radius: 100px; border: 1px solid;
+  
 <!-- ═══════════════════════════════════════════════════════════════
      SCREENING QUESTIONS — full-page editor + library/custom modals
      Added in v3.9
@@ -9285,6 +9284,22 @@ window.switcherGo = switcherGo;
 <style>
 .rr-sq-hub { display: none; padding: 32px 28px 60px; max-width: 1100px; margin: 0 auto; }
 .rr-sq-hub.show { display: block }
+@media (min-width: 900px) {
+  .rr-sq-hub.show {
+    position: fixed !important;
+    top: 0 !important;
+    left: 248px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    overflow-y: auto !important;
+    z-index: 50 !important;
+    background: var(--bg) !important;
+    padding: 28px 32px 60px !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  .rr-shell.collapsed .rr-sq-hub.show { left: 72px !important; }
+}
 .rr-sq-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 20px; }
 .rr-sq-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--bolt2, #00A8E1); margin-bottom: 6px; }
 .rr-sq-title { font-family: 'DM Serif Display', serif; font-size: 30px; font-weight: 400; letter-spacing: -.5px; line-height: 1.1; color: var(--white, #fff); }
