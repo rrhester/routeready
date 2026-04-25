@@ -1074,7 +1074,7 @@ function startRecording() {
     if (btn) { btn.classList.remove("recording"); btn.textContent = "REC"; }
     afterClipRecorded();
   };
-  mediaRecorder.start();
+  mediaRecorder.start(1000);  // emit chunks every second — fixes iOS Safari truncation
   recordingStartTime = Date.now();
   document.getElementById("rec-indicator").classList.add("active");
   document.getElementById("timer-wrap").style.display = "block";
@@ -1093,7 +1093,10 @@ function startRecording() {
 }
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    try { mediaRecorder.requestData(); } catch(e) {}  // flush buffer before stop
+    mediaRecorder.stop();
+  }
 }
 
 function getSupportedMimeType() {
