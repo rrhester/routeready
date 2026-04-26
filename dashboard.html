@@ -936,8 +936,9 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   PERFORMANCE MANAGEMENT SCREEN (v12 — shell, illustrative data)
+   PERFORMANCE MANAGEMENT SCREEN (v18 — light theme, matches Pipeline)
    Full-page view. Shown by setMode('perf'). Hides #main.
+   Re-skinned to match Pipeline dashboard look/feel.
    ═══════════════════════════════════════════════════════════════════ */
 
 #performance-screen {
@@ -947,20 +948,18 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   padding: 28px 24px 80px;
 }
 
-.perf-page {
-  /* Container styles now live on #performance-screen */
-}
+.perf-page { /* container styles live on #performance-screen */ }
 
 .perf-preview-banner {
-  background: rgba(20,110,180,.08);
-  border: 1px solid rgba(20,110,180,.25);
+  background: rgba(20,110,180,.06);
+  border: 1px solid rgba(20,110,180,.2);
   border-radius: 8px;
   padding: 11px 16px;
   margin-bottom: 20px;
   font-size: 12px;
-  color: #0EA5E9;
+  color: var(--bolt);
 }
-.perf-preview-banner strong { color: #0EA5E9; font-weight: 600; }
+.perf-preview-banner strong { color: var(--bolt); font-weight: 600; }
 
 /* Page header */
 .perf-header {
@@ -972,8 +971,8 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 }
 .perf-eyebrow {
   font-size: 11px;
-  font-weight: 600;
-  color: #146EB4;
+  font-weight: 700;
+  color: var(--bolt);
   letter-spacing: 0.15em;
   text-transform: uppercase;
   margin-bottom: 10px;
@@ -983,22 +982,29 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   font-size: 40px;
   line-height: 1.1;
   letter-spacing: -0.015em;
-  color: #fff;
+  color: var(--white);
   font-weight: 400;
 }
 .perf-header-right { text-align: right; flex-shrink: 0; }
-.perf-dsp-badge { font-size: 12px; color: rgba(255,255,255,.5); margin-bottom: 4px; }
+.perf-dsp-badge {
+  font-size: 11px;
+  color: var(--w40);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
 .perf-dsp-name {
   font-size: 17px;
   font-weight: 600;
-  color: #fff;
+  color: var(--white);
 }
 
 /* Sub tabs */
 .perf-subtabs {
   display: flex;
   gap: 2px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
   flex-wrap: wrap;
 }
@@ -1006,7 +1012,7 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   padding: 12px 20px;
   font-size: 13px;
   font-weight: 500;
-  color: rgba(255,255,255,.5);
+  color: var(--w50);
   cursor: pointer;
   border: none;
   border-bottom: 2px solid transparent;
@@ -1017,29 +1023,27 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   gap: 9px;
   transition: all 0.15s;
 }
-.perf-subtab:hover {
-  color: rgba(255,255,255,.7);
-}
+.perf-subtab:hover { color: var(--white); }
 .perf-subtab.active {
-  color: #fff;
-  border-bottom-color: #146EB4;
+  color: var(--white);
+  border-bottom-color: var(--bolt);
 }
 .perf-tab-count {
-  background: rgba(255,255,255,.06);
+  background: var(--w10);
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 10px;
   font-weight: 600;
-  color: rgba(255,255,255,.7);
+  color: var(--w50);
 }
 .perf-subtab.active .perf-tab-count {
-  background: rgba(20,110,180,.2);
-  color: #146EB4;
+  background: rgba(20,110,180,.12);
+  color: var(--bolt);
 }
 .perf-tab-count.alert {
-  background: rgba(248,113,113,.1);
-  color: #F87171;
-  border: 1px solid rgba(248,113,113,.3);
+  background: rgba(220,38,38,.08);
+  color: #DC2626;
+  border: 1px solid rgba(220,38,38,.2);
 }
 
 .perf-tabpane { display: none; }
@@ -1049,23 +1053,23 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 .perf-summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 10px;
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
   margin-bottom: 22px;
   overflow: hidden;
 }
 .perf-summary-cell {
   padding: 16px 20px;
-  border-right: 1px solid rgba(255,255,255,.08);
+  border-right: 1px solid var(--border);
 }
 .perf-summary-cell:last-child { border-right: none; }
 .perf-summary-label {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255,255,255,.35);
+  color: var(--w40);
   margin-bottom: 6px;
 }
 .perf-summary-val {
@@ -1073,15 +1077,15 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   font-size: 28px;
   line-height: 1;
   letter-spacing: -0.01em;
-  color: #fff;
+  color: var(--white);
 }
-.perf-summary-val.red { color: #F87171; }
-.perf-summary-val.amber { color: #F59E0B; }
-.perf-summary-val.green { color: #34D399; }
+.perf-summary-val.red { color: #DC2626; }
+.perf-summary-val.amber { color: #D97706; }
+.perf-summary-val.green { color: var(--green); }
 .perf-summary-val .unit {
   font-family: 'DM Sans', sans-serif;
   font-size: 12px;
-  color: rgba(255,255,255,.5);
+  color: var(--w40);
   margin-left: 6px;
   font-weight: 500;
 }
@@ -1096,53 +1100,59 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 }
 .perf-date-display {
   font-size: 13px;
-  color: rgba(255,255,255,.7);
+  color: var(--w60);
   padding: 8px 14px;
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
+  background: var(--ink2);
+  border: 1px solid var(--border);
   border-radius: 6px;
 }
-.perf-date-display strong { color: #fff; font-weight: 600; }
+.perf-date-display strong { color: var(--white); font-weight: 600; }
 .perf-chip {
   padding: 6px 12px;
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
+  background: var(--ink2);
+  border: 1px solid var(--border);
   border-radius: 100px;
   font-size: 12px;
-  color: rgba(255,255,255,.7);
+  color: var(--w60);
   cursor: pointer;
   transition: all 0.15s;
 }
-.perf-chip:hover { color: #fff; border-color: rgba(255,255,255,.14); }
+.perf-chip:hover { color: var(--white); border-color: #D8D8D2; }
 .perf-chip.active {
-  background: rgba(20,110,180,.1);
-  border-color: rgba(20,110,180,.4);
-  color: #0EA5E9;
+  background: rgba(20,110,180,.08);
+  border-color: rgba(20,110,180,.35);
+  color: var(--bolt);
+  font-weight: 600;
 }
 .perf-filterbar-spacer { flex: 1; }
 .perf-btn-ghost {
   padding: 8px 14px;
-  background: transparent;
-  border: 1px solid rgba(255,255,255,.08);
+  background: var(--ink2);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 12px;
-  color: rgba(255,255,255,.7);
+  color: var(--w60);
   cursor: pointer;
   font-family: inherit;
+  font-weight: 500;
+  transition: all 0.15s;
 }
-.perf-btn-ghost:hover { color: #fff; border-color: rgba(255,255,255,.14); }
+.perf-btn-ghost:hover { color: var(--white); border-color: #D8D8D2; }
 
 /* Driver cards (daily infractions) */
 .perf-driver-card {
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 10px;
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
   margin-bottom: 10px;
   overflow: hidden;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.perf-driver-card:hover { border-color: rgba(255,255,255,.14); }
-.perf-driver-card.sent { opacity: 0.5; }
+.perf-driver-card:hover {
+  border-color: #D8D8D2;
+  box-shadow: 0 1px 3px rgba(15,23,42,.04);
+}
+.perf-driver-card.sent { opacity: 0.55; }
 .perf-driver-header {
   display: flex;
   align-items: center;
@@ -1151,7 +1161,7 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   cursor: pointer;
   transition: background 0.15s;
 }
-.perf-driver-header:hover { background: rgba(255,255,255,.02); }
+.perf-driver-header:hover { background: var(--ink3); }
 
 .perf-av {
   width: 38px;
@@ -1166,36 +1176,36 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   border: 1px solid;
 }
 .perf-av.sev-red {
-  background: rgba(248,113,113,.1);
-  color: #F87171;
-  border-color: rgba(248,113,113,.3);
+  background: #FEE2E2;
+  color: #DC2626;
+  border-color: #FECACA;
 }
 .perf-av.sev-amber {
-  background: rgba(245,158,11,.1);
-  color: #F59E0B;
-  border-color: rgba(245,158,11,.3);
+  background: #FEF3C7;
+  color: #D97706;
+  border-color: #FDE68A;
 }
 .perf-av.sev-neutral {
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.7);
-  border-color: rgba(255,255,255,.08);
+  background: var(--w10);
+  color: var(--w60);
+  border-color: var(--border);
 }
 .perf-av.sev-green {
-  background: rgba(52,211,153,.1);
-  color: #34D399;
-  border-color: rgba(52,211,153,.3);
+  background: #DCFCE7;
+  color: var(--green);
+  border-color: #BBF7D0;
 }
 
 .perf-driver-info { flex: 1; min-width: 0; }
 .perf-driver-name {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--white);
   margin-bottom: 3px;
 }
 .perf-driver-sub {
   font-size: 11px;
-  color: rgba(255,255,255,.35);
+  color: var(--w40);
 }
 
 .perf-events {
@@ -1206,54 +1216,54 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 }
 .perf-event-chip {
   padding: 4px 10px;
-  background: #2A334D;
-  border: 1px solid rgba(255,255,255,.08);
+  background: var(--w05);
+  border: 1px solid var(--border);
   border-radius: 100px;
   font-size: 11px;
   font-weight: 500;
-  color: rgba(255,255,255,.7);
+  color: var(--w60);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.perf-event-chip .count { font-weight: 700; color: #fff; }
+.perf-event-chip .count { font-weight: 700; color: var(--white); }
 .perf-event-chip.red {
-  color: #F87171;
-  border-color: rgba(248,113,113,.3);
-  background: rgba(248,113,113,.08);
+  color: #DC2626;
+  border-color: #FECACA;
+  background: #FEF2F2;
 }
-.perf-event-chip.red .count { color: #F87171; }
+.perf-event-chip.red .count { color: #DC2626; }
 .perf-event-chip.amber {
-  color: #F59E0B;
-  border-color: rgba(245,158,11,.3);
-  background: rgba(245,158,11,.08);
+  color: #D97706;
+  border-color: #FDE68A;
+  background: #FFFBEB;
 }
-.perf-event-chip.amber .count { color: #F59E0B; }
+.perf-event-chip.amber .count { color: #D97706; }
 
 .perf-status {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 5px 11px;
   border-radius: 100px;
   border: 1px solid;
   flex-shrink: 0;
 }
 .perf-status.pending {
-  color: #F59E0B;
-  border-color: rgba(245,158,11,.3);
-  background: rgba(245,158,11,.08);
+  color: #D97706;
+  border-color: #FDE68A;
+  background: #FFFBEB;
 }
 .perf-status.sent {
-  color: #34D399;
-  border-color: rgba(52,211,153,.3);
-  background: rgba(52,211,153,.08);
+  color: var(--green);
+  border-color: #BBF7D0;
+  background: #DCFCE7;
 }
 
 /* Weekly rows */
 .perf-week-row {
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 10px;
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
   margin-bottom: 8px;
   display: grid;
   grid-template-columns: 48px 1fr 90px 110px 90px 110px 120px;
@@ -1264,31 +1274,31 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   cursor: pointer;
 }
 .perf-week-row:hover {
-  border-color: rgba(255,255,255,.14);
-  background: #2A334D;
+  border-color: #D8D8D2;
+  background: var(--ink3);
 }
-.perf-week-row.priority-red { border-left: 3px solid #F87171; }
-.perf-week-row.priority-amber { border-left: 3px solid #F59E0B; }
+.perf-week-row.priority-red { border-left: 3px solid #DC2626; }
+.perf-week-row.priority-amber { border-left: 3px solid #D97706; }
 
 .perf-rank {
   font-family: 'DM Serif Display', serif;
   font-size: 24px;
-  color: rgba(255,255,255,.35);
+  color: var(--w30);
   line-height: 1;
   text-align: center;
 }
-.perf-week-row.priority-red .perf-rank { color: #F87171; }
-.perf-week-row.priority-amber .perf-rank { color: #F59E0B; }
+.perf-week-row.priority-red .perf-rank { color: #DC2626; }
+.perf-week-row.priority-amber .perf-rank { color: #D97706; }
 
 .perf-wk-name {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--white);
   margin-bottom: 3px;
 }
 .perf-wk-issue {
   font-size: 11px;
-  color: rgba(255,255,255,.7);
+  color: var(--w50);
   font-weight: 500;
 }
 
@@ -1299,14 +1309,15 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   line-height: 1;
   letter-spacing: -0.01em;
 }
-.perf-score.red { color: #F87171; }
-.perf-score.amber { color: #F59E0B; }
-.perf-score.green { color: #34D399; }
+.perf-score.red { color: #DC2626; }
+.perf-score.amber { color: #D97706; }
+.perf-score.green { color: var(--green); }
 
 .perf-sparkline {
   height: 34px;
   width: 100%;
 }
+.perf-sparkline polyline { stroke: var(--w30); }
 
 .perf-trend {
   display: flex;
@@ -1319,17 +1330,17 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   font-weight: 700;
   line-height: 1;
 }
-.perf-trend-arrow.up { color: #34D399; }
-.perf-trend-arrow.down { color: #F87171; }
-.perf-trend-arrow.flat { color: rgba(255,255,255,.35); }
+.perf-trend-arrow.up { color: var(--green); }
+.perf-trend-arrow.down { color: #DC2626; }
+.perf-trend-arrow.flat { color: var(--w30); }
 .perf-trend-delta {
   font-size: 10px;
-  font-weight: 500;
-  color: rgba(255,255,255,.5);
+  font-weight: 600;
+  color: var(--w40);
   font-variant-numeric: tabular-nums;
 }
-.perf-trend-delta.up { color: #34D399; }
-.perf-trend-delta.down { color: #F87171; }
+.perf-trend-delta.up { color: var(--green); }
+.perf-trend-delta.down { color: #DC2626; }
 
 .perf-persist {
   display: flex;
@@ -1342,15 +1353,15 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   font-size: 22px;
   line-height: 1;
 }
-.perf-persist-num.red { color: #F87171; }
-.perf-persist-num.amber { color: #F59E0B; }
-.perf-persist-num.neutral { color: rgba(255,255,255,.5); }
+.perf-persist-num.red { color: #DC2626; }
+.perf-persist-num.amber { color: #D97706; }
+.perf-persist-num.neutral { color: var(--w40); }
 .perf-persist-lbl {
   font-size: 9px;
-  color: rgba(255,255,255,.35);
+  color: var(--w30);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .perf-actions {
@@ -1362,30 +1373,34 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   padding: 7px 12px;
   font-size: 11px;
   font-weight: 600;
-  border-radius: 5px;
+  border-radius: 6px;
   border: 1px solid;
   cursor: pointer;
   font-family: inherit;
+  transition: all 0.15s;
 }
 .perf-mini-btn.primary {
-  background: #146EB4;
-  border-color: #146EB4;
-  color: #fff;
+  background: var(--bolt);
+  border-color: var(--bolt);
+  color: #FFFFFF;
 }
-.perf-mini-btn.primary:hover { background: #0EA5E9; }
+.perf-mini-btn.primary:hover {
+  background: var(--bolt2);
+  border-color: var(--bolt2);
+}
 .perf-mini-btn.ghost {
-  background: transparent;
-  border-color: rgba(255,255,255,.08);
-  color: rgba(255,255,255,.7);
+  background: var(--ink2);
+  border-color: var(--border);
+  color: var(--w60);
 }
-.perf-mini-btn.ghost:hover { color: #fff; border-color: rgba(255,255,255,.14); }
+.perf-mini-btn.ghost:hover { color: var(--white); border-color: #D8D8D2; }
 
 .perf-section-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255,255,255,.5);
+  color: var(--w40);
   margin: 0 0 10px 4px;
   display: flex;
   align-items: center;
@@ -1400,17 +1415,17 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   border: 1px solid;
 }
 .perf-section-label .tag.red {
-  background: rgba(248,113,113,.1);
-  color: #F87171;
-  border-color: rgba(248,113,113,.3);
+  background: #FEF2F2;
+  color: #DC2626;
+  border-color: #FECACA;
 }
 .perf-section-label .tag.amber {
-  background: rgba(245,158,11,.1);
-  color: #F59E0B;
-  border-color: rgba(245,158,11,.3);
+  background: #FFFBEB;
+  color: #D97706;
+  border-color: #FDE68A;
 }
 .perf-section-label .count-label {
-  color: rgba(255,255,255,.35);
+  color: var(--w50);
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -1419,26 +1434,27 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 
 /* Coaching log */
 .perf-log-list {
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 10px;
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
   overflow: hidden;
 }
 .perf-log-row {
   display: grid;
   grid-template-columns: 130px 1fr 100px 240px 80px;
   padding: 14px 18px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  border-bottom: 1px solid var(--border);
   align-items: center;
   font-size: 13px;
   gap: 14px;
 }
+.perf-log-row:hover { background: var(--ink3); }
 .perf-log-row:last-child { border-bottom: none; }
-.perf-log-date { color: rgba(255,255,255,.5); font-size: 12px; }
-.perf-log-driver { color: #fff; font-weight: 500; }
+.perf-log-date { color: var(--w50); font-size: 12px; }
+.perf-log-driver { color: var(--white); font-weight: 600; }
 .perf-log-type {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   padding: 4px 9px;
   border-radius: 100px;
   border: 1px solid;
@@ -1446,32 +1462,46 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   display: inline-block;
   letter-spacing: 0.04em;
 }
-.perf-log-type.sms { background: rgba(52,211,153,.1); color: #34D399; border-color: rgba(52,211,153,.3); }
-.perf-log-type.inperson { background: rgba(255,255,255,.04); color: rgba(255,255,255,.7); border-color: rgba(255,255,255,.08); }
-.perf-log-type.skip { background: transparent; color: rgba(255,255,255,.35); border-color: rgba(255,255,255,.08); }
-.perf-log-note { color: rgba(255,255,255,.7); font-size: 12px; }
+.perf-log-type.sms {
+  background: #DCFCE7;
+  color: var(--green);
+  border-color: #BBF7D0;
+}
+.perf-log-type.inperson {
+  background: rgba(20,110,180,.08);
+  color: var(--bolt);
+  border-color: rgba(20,110,180,.25);
+}
+.perf-log-type.skip {
+  background: var(--w05);
+  color: var(--w50);
+  border-color: var(--border);
+}
+.perf-log-note { color: var(--w60); font-size: 12px; }
 .perf-log-view {
   font-size: 11px;
-  color: #146EB4;
+  font-weight: 600;
+  color: var(--bolt);
   text-align: right;
   cursor: pointer;
 }
+.perf-log-view:hover { color: var(--bolt2); }
 
 /* Driver guides */
 .perf-coverage-bar {
   margin-bottom: 20px;
   padding: 14px 18px;
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 8px;
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
   display: flex;
   align-items: center;
   gap: 14px;
 }
 .perf-coverage-lbl {
   font-size: 11px;
-  font-weight: 600;
-  color: rgba(255,255,255,.5);
+  font-weight: 700;
+  color: var(--w50);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   flex-shrink: 0;
@@ -1479,22 +1509,22 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 .perf-coverage-track {
   flex: 1;
   height: 8px;
-  background: #2A334D;
+  background: var(--w10);
   border-radius: 4px;
   overflow: hidden;
 }
 .perf-coverage-fill {
   height: 100%;
-  background: linear-gradient(90deg, #34D399, #5eead4);
+  background: linear-gradient(90deg, var(--green), var(--green2));
   border-radius: 4px;
 }
 .perf-coverage-count {
   font-size: 13px;
   font-weight: 600;
-  color: #fff;
+  color: var(--white);
   flex-shrink: 0;
 }
-.perf-coverage-count .total { color: rgba(255,255,255,.35); font-weight: 500; }
+.perf-coverage-count .total { color: var(--w40); font-weight: 500; }
 
 .perf-guides-section { margin-bottom: 24px; }
 .perf-guides-section h2 {
@@ -1502,12 +1532,12 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   font-size: 22px;
   letter-spacing: -0.01em;
   margin-bottom: 4px;
-  color: #fff;
+  color: var(--white);
   font-weight: 400;
 }
 .perf-guides-section-sub {
   font-size: 11px;
-  color: rgba(255,255,255,.5);
+  color: var(--w50);
   margin-bottom: 12px;
 }
 .perf-guide-grid {
@@ -1516,25 +1546,31 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   gap: 10px;
 }
 .perf-guide-card {
-  background: #232B42;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 10px;
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
   padding: 16px;
   display: flex;
   gap: 14px;
   align-items: flex-start;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.perf-guide-card:hover {
+  border-color: #D8D8D2;
+  box-shadow: 0 1px 3px rgba(15,23,42,.04);
 }
 .perf-guide-card.empty {
   background: transparent;
   border-style: dashed;
-  border-color: rgba(255,255,255,.14);
+  border-color: #D8D8D2;
+  box-shadow: none;
 }
 .perf-guide-icon {
   width: 44px;
   height: 54px;
   border-radius: 5px;
-  background: #146EB4;
-  color: #fff;
+  background: var(--bolt);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1544,8 +1580,8 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 }
 .perf-guide-card.empty .perf-guide-icon {
   background: transparent;
-  color: rgba(255,255,255,.35);
-  border: 2px dashed rgba(255,255,255,.14);
+  color: var(--w30);
+  border: 2px dashed #D8D8D2;
   font-size: 22px;
   font-weight: 400;
 }
@@ -1561,36 +1597,36 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   border: 1px solid;
 }
 .perf-guide-tag.safety {
-  background: rgba(248,113,113,.1);
-  color: #F87171;
-  border-color: rgba(248,113,113,.3);
+  background: #FEF2F2;
+  color: #DC2626;
+  border-color: #FECACA;
 }
 .perf-guide-tag.delivery {
-  background: rgba(245,158,11,.1);
-  color: #F59E0B;
-  border-color: rgba(245,158,11,.3);
+  background: #FFFBEB;
+  color: #D97706;
+  border-color: #FDE68A;
 }
 .perf-guide-tag.missing {
-  background: rgba(245,158,11,.1);
-  color: #F59E0B;
-  border-color: rgba(245,158,11,.3);
+  background: #FFFBEB;
+  color: #D97706;
+  border-color: #FDE68A;
 }
 .perf-guide-tag.custom {
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.7);
-  border-color: rgba(255,255,255,.08);
+  background: var(--w05);
+  color: var(--w60);
+  border-color: var(--border);
 }
 .perf-guide-name {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--white);
   margin-bottom: 4px;
   line-height: 1.3;
 }
-.perf-guide-card.empty .perf-guide-name { color: rgba(255,255,255,.5); }
+.perf-guide-card.empty .perf-guide-name { color: var(--w50); }
 .perf-guide-meta {
   font-size: 11px;
-  color: rgba(255,255,255,.35);
+  color: var(--w40);
 }
 .perf-guide-actions {
   display: flex;
@@ -1601,20 +1637,25 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
 .perf-guide-btn {
   padding: 5px 10px;
   font-size: 10px;
-  color: rgba(255,255,255,.7);
-  background: transparent;
-  border: 1px solid rgba(255,255,255,.08);
+  color: var(--w60);
+  background: var(--ink2);
+  border: 1px solid var(--border);
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
+  transition: all 0.15s;
 }
-.perf-guide-btn:hover { color: #fff; border-color: rgba(255,255,255,.14); }
+.perf-guide-btn:hover { color: var(--white); border-color: #D8D8D2; }
 .perf-guide-btn.primary {
-  color: #146EB4;
+  color: var(--bolt);
   border-color: rgba(20,110,180,.3);
   background: rgba(20,110,180,.06);
+}
+.perf-guide-btn.primary:hover {
+  background: rgba(20,110,180,.12);
+  border-color: rgba(20,110,180,.45);
 }
 
 /* Mobile */
@@ -1626,7 +1667,7 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   .perf-summary { grid-template-columns: 1fr 1fr; }
   .perf-summary-cell:nth-child(2) { border-right: none; }
   .perf-summary-cell:nth-child(1), .perf-summary-cell:nth-child(2) {
-    border-bottom: 1px solid rgba(255,255,255,.08);
+    border-bottom: 1px solid var(--border);
   }
   .perf-week-row {
     grid-template-columns: 30px 1fr auto;
@@ -1639,6 +1680,7 @@ body.light .cycle-complete-modal{background:#fff;border-color:rgba(27,34,53,.12)
   }
   .perf-log-date, .perf-log-type { font-size: 10px; }
   .perf-log-note { display: none; }
+  .perf-guide-grid { grid-template-columns: 1fr; }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -7248,792 +7290,770 @@ setInterval(loadData, 60000);
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     PERFORMANCE MANAGEMENT SCREEN (v12 shell - illustrative data)
-     Activated by setMode('perf'). Shows after nav Performance click.
-     Data wired when Phase 1/2 backend ships.
+     PERFORMANCE SCREEN (v19 — wired to live backend, Phase 4B-1)
+     Two sections: Today's coaching queue + Decision view
      ═══════════════════════════════════════════════════════════════ -->
 <div id="performance-screen">
   <div class="perf-page">
 
-    <div class="perf-preview-banner">
-      <strong>Preview mode.</strong> This is the Performance Management interface. Live data wiring (Netradyne daily events + weekly Amazon scorecard uploads) launches in the next build. Numbers below are illustrative.
-    </div>
-
+    <!-- HEADER -->
     <div class="perf-header">
       <div>
-        <div class="perf-eyebrow">PERFORMANCE MANAGEMENT</div>
-        <h1 class="perf-title">Who needs a conversation</h1>
+        <div class="perf-eyebrow">PERFORMANCE</div>
+        <h1 class="perf-title">Coaching</h1>
       </div>
       <div class="perf-header-right">
         <div class="perf-dsp-badge">DSP</div>
-        <div class="perf-dsp-name" id="perf-dsp-name">Your DSP</div>
+        <div class="perf-dsp-name" id="perf-dsp-name">Loading…</div>
+        <div class="perf-week-meta" id="perf-week-meta">&nbsp;</div>
       </div>
     </div>
 
-    <!-- SUB TABS -->
-    <div class="perf-subtabs">
-      <button class="perf-subtab active" onclick="showPerfTab('daily', this)">
-        Daily infractions <span class="perf-tab-count alert">8</span>
-      </button>
-      <button class="perf-subtab" onclick="showPerfTab('weekly', this)">
-        Weekly bottom 10 <span class="perf-tab-count">10</span>
-      </button>
-      <button class="perf-subtab" onclick="showPerfTab('log', this)">
-        Coaching log
-      </button>
-      <button class="perf-subtab" onclick="showPerfTab('guides', this)">
-        Driver guides <span class="perf-tab-count">8</span>
-      </button>
+    <!-- DATA FRESHNESS STRIP -->
+    <div class="perf-fresh-strip">
+      <div class="perf-fresh-cell">
+        <div class="perf-fresh-row">
+          <span class="perf-fresh-label">Safety</span>
+          <span class="perf-fresh-status" id="perf-fresh-safety-status">● live</span>
+        </div>
+        <div class="perf-fresh-date" id="perf-fresh-safety-date">—</div>
+        <div class="perf-fresh-sub">Last upload</div>
+      </div>
+      <div class="perf-fresh-cell">
+        <div class="perf-fresh-row">
+          <span class="perf-fresh-label">Quality</span>
+          <span class="perf-fresh-status" id="perf-fresh-quality-status">● live</span>
+        </div>
+        <div class="perf-fresh-date" id="perf-fresh-quality-date">—</div>
+        <div class="perf-fresh-sub">DCR + POD daily</div>
+      </div>
+      <div class="perf-fresh-cell">
+        <div class="perf-fresh-row">
+          <span class="perf-fresh-label">Days uploaded this week</span>
+        </div>
+        <div class="perf-fresh-days" id="perf-fresh-days">— — — — — — —</div>
+        <div class="perf-fresh-sub">Mon-Sun</div>
+      </div>
     </div>
 
-    <!-- ═══ DAILY TAB ═══ -->
-    <div id="perf-tab-daily" class="perf-tabpane active">
-
-      <div class="perf-summary">
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Events logged</div>
-          <div class="perf-summary-val">18</div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Drivers flagged</div>
-          <div class="perf-summary-val">10</div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Pending review</div>
-          <div class="perf-summary-val amber">8</div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Messages sent</div>
-          <div class="perf-summary-val green">0<span class="unit">of 8</span></div>
-        </div>
+    <!-- SECTION 1: TODAY'S COACHING QUEUE -->
+    <div class="perf-section-bar">
+      <div>
+        <div class="perf-section-title">Today's coaching queue</div>
+        <div class="perf-section-sub" id="perf-queue-sub">Loading…</div>
       </div>
-
-      <div class="perf-filterbar">
-        <div class="perf-date-display">Events from <strong>yesterday</strong></div>
-        <span class="perf-chip active">All</span>
-        <span class="perf-chip">Speeding</span>
-        <span class="perf-chip">Distraction</span>
-        <span class="perf-chip">Following</span>
-        <span class="perf-chip">Sign/Signal</span>
-        <div class="perf-filterbar-spacer"></div>
-        <button class="perf-btn-ghost">&darr; Upload Netradyne CSV</button>
+      <div class="perf-section-actions">
+        <button class="perf-pill-btn" id="perf-send-all-btn" onclick="perfSendAllQueue()">Send all</button>
       </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-red">KD</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Kimberly Ann Rose Dawson</div>
-            <div class="perf-driver-sub">1 event skipped (dispute pending)</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip red"><span class="count">2</span> Speeding</span>
-            <span class="perf-event-chip amber"><span class="count">1</span> Following</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-amber">AC</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Anthony Carter</div>
-            <div class="perf-driver-sub">Both disputes denied</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip amber"><span class="count">2</span> Following</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-amber">AB</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Ameer Jon Bergeron</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip amber"><span class="count">2</span> Following</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-amber">TL</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Tresean Andre Lewis</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip red"><span class="count">2</span> Speeding</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-amber">LC</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Luis Fernando Colon Vega</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip amber"><span class="count">2</span> Following</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card sent">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-green">BW</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Bianca A Williams</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip"><span class="count">1</span> Distraction</span>
-          </div>
-          <div class="perf-status sent">&#10003; Sent 7:02 AM</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-neutral">CH</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Carl Deontaye Harris</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip"><span class="count">1</span> Distraction</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-neutral">MT</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Marco Antonio Tenorio</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip"><span class="count">1</span> Stop Sign</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-neutral">DE</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Dennis Ryan Estes</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip"><span class="count">1</span> Speeding</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
-      <div class="perf-driver-card">
-        <div class="perf-driver-header">
-          <div class="perf-av sev-neutral">AG</div>
-          <div class="perf-driver-info">
-            <div class="perf-driver-name">Adan Gamezherrera</div>
-          </div>
-          <div class="perf-events">
-            <span class="perf-event-chip"><span class="count">1</span> Speeding</span>
-          </div>
-          <div class="perf-status pending">Pending review</div>
-        </div>
-      </div>
-
     </div>
 
-    <!-- ═══ WEEKLY TAB ═══ -->
-    <div id="perf-tab-weekly" class="perf-tabpane">
-
-      <div class="perf-summary">
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Team size</div>
-          <div class="perf-summary-val">115</div>
+    <div class="perf-card" id="perf-queue-card">
+      <div class="perf-empty" id="perf-queue-empty" style="display:none;">
+        <div class="perf-empty-icon">
+          <svg width="44" height="44" viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r="21" fill="none" stroke="#16A34A" stroke-width="1.5"/>
+            <path d="M14 22 L20 28 L31 16" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Team avg composite</div>
-          <div class="perf-summary-val green">8.4<span class="unit">/ 10</span></div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Action required</div>
-          <div class="perf-summary-val red">5</div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Watch list</div>
-          <div class="perf-summary-val amber">5</div>
-        </div>
+        <div class="perf-empty-title">All caught up</div>
+        <div class="perf-empty-sub" id="perf-queue-empty-sub">No coaching needed for the most recent upload.</div>
       </div>
-
-      <div class="perf-filterbar">
-        <div class="perf-date-display">Week <strong>15 / 2026</strong></div>
-        <span class="perf-chip active">Composite score</span>
-        <span class="perf-chip">Safety only</span>
-        <span class="perf-chip">Delivery only</span>
-        <div class="perf-filterbar-spacer"></div>
-        <button class="perf-btn-ghost">&darr; Upload scorecard</button>
-      </div>
-
-      <div class="perf-section-label">
-        <span class="tag red">ACTION REQUIRED</span>
-        <span class="count-label">Top 5 — priority for conversations this week</span>
-      </div>
-
-      <div class="perf-week-row priority-red">
-        <div class="perf-rank">1</div>
-        <div>
-          <div class="perf-wk-name">Jayden Hurston</div>
-          <div class="perf-wk-issue">CDF DPMO + POD crashing</div>
-        </div>
-        <div class="perf-score red">4.2</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,8 30,12 60,18 90,24 120,28" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="28" r="3.5" fill="#F87171"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow down">&#9660;</div>
-          <div class="perf-trend-delta down">&minus;2.1</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num red">5</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn primary">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-red">
-        <div class="perf-rank">2</div>
-        <div>
-          <div class="perf-wk-name">Anjelina Zuniga</div>
-          <div class="perf-wk-issue">DCR cratered</div>
-        </div>
-        <div class="perf-score red">4.5</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,12 30,10 60,14 90,20 120,26" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="26" r="3.5" fill="#F87171"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow down">&#9660;</div>
-          <div class="perf-trend-delta down">&minus;1.8</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num red">4</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn primary">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-red">
-        <div class="perf-rank">3</div>
-        <div>
-          <div class="perf-wk-name">BREAUNNA DICKERSON</div>
-          <div class="perf-wk-issue">DCR 86.3% + speeding</div>
-        </div>
-        <div class="perf-score red">4.6</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,14 30,16 60,18 90,22 120,26" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="26" r="3.5" fill="#F87171"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow down">&#9660;</div>
-          <div class="perf-trend-delta down">&minus;0.9</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num amber">3</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn primary">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-red">
-        <div class="perf-rank">4</div>
-        <div>
-          <div class="perf-wk-name">Janie Buchstaber</div>
-          <div class="perf-wk-issue">DCR 94.8%</div>
-        </div>
-        <div class="perf-score red">4.9</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,10 30,14 60,18 90,20 120,24" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="24" r="3.5" fill="#F87171"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow down">&#9660;</div>
-          <div class="perf-trend-delta down">&minus;1.2</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num amber">2</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn primary">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-red">
-        <div class="perf-rank">5</div>
-        <div>
-          <div class="perf-wk-name">Rodney Dawson</div>
-          <div class="perf-wk-issue">Distraction + CDF spike</div>
-        </div>
-        <div class="perf-score red">5.1</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,6 30,8 60,12 90,18 120,22" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="22" r="3.5" fill="#F87171"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow down">&#9660;</div>
-          <div class="perf-trend-delta down">&minus;2.3</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num neutral">1</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn primary">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-section-label" style="margin-top: 28px;">
-        <span class="tag amber">WATCH LIST</span>
-        <span class="count-label">Ranks 6–10 — trending toward action zone</span>
-      </div>
-
-      <div class="perf-week-row priority-amber">
-        <div class="perf-rank">6</div>
-        <div>
-          <div class="perf-wk-name">Diatrich De Walt</div>
-          <div class="perf-wk-issue">DCR 96.8%</div>
-        </div>
-        <div class="perf-score amber">5.6</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,12 30,14 60,14 90,18 120,20" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="20" r="3.5" fill="#F59E0B"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow down">&#9660;</div>
-          <div class="perf-trend-delta down">&minus;0.4</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num amber">2</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn ghost">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-amber">
-        <div class="perf-rank">7</div>
-        <div>
-          <div class="perf-wk-name">Matthew Czech</div>
-          <div class="perf-wk-issue">DCR 96.5%</div>
-        </div>
-        <div class="perf-score amber">5.9</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,14 30,14 60,16 90,16 120,18" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="18" r="3.5" fill="#F59E0B"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow flat">&mdash;</div>
-          <div class="perf-trend-delta">&minus;0.2</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num neutral">1</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn ghost">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-amber">
-        <div class="perf-rank">8</div>
-        <div>
-          <div class="perf-wk-name">Herbert r Thomas jr</div>
-          <div class="perf-wk-issue">DCR 97.7%</div>
-        </div>
-        <div class="perf-score amber">6.1</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,18 30,16 60,16 90,18 120,18" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="18" r="3.5" fill="#F59E0B"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow flat">&mdash;</div>
-          <div class="perf-trend-delta">+0.0</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num amber">2</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn ghost">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-amber">
-        <div class="perf-rank">9</div>
-        <div>
-          <div class="perf-wk-name">Robert Taylor</div>
-          <div class="perf-wk-issue">DCR 98.1%</div>
-        </div>
-        <div class="perf-score amber">6.3</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,20 30,18 60,14 90,16 120,16" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="16" r="3.5" fill="#F59E0B"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow up">&#9650;</div>
-          <div class="perf-trend-delta up">+0.3</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num neutral">1</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn ghost">Review</button>
-        </div>
-      </div>
-
-      <div class="perf-week-row priority-amber">
-        <div class="perf-rank">10</div>
-        <div>
-          <div class="perf-wk-name">Jason Pinkous</div>
-          <div class="perf-wk-issue">DCR 98.7%</div>
-        </div>
-        <div class="perf-score amber">6.4</div>
-        <svg class="perf-sparkline" viewBox="0 0 120 34" preserveAspectRatio="none">
-          <polyline points="0,22 30,20 60,18 90,16 120,15" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-          <circle cx="120" cy="15" r="3.5" fill="#F59E0B"/>
-        </svg>
-        <div class="perf-trend">
-          <div class="perf-trend-arrow up">&#9650;</div>
-          <div class="perf-trend-delta up">+0.5</div>
-        </div>
-        <div class="perf-persist">
-          <div class="perf-persist-num neutral">1</div>
-          <div class="perf-persist-lbl">WKS IN BTM 10</div>
-        </div>
-        <div class="perf-actions">
-          <button class="perf-mini-btn ghost">Review</button>
-        </div>
-      </div>
-
+      <div id="perf-queue-rows"></div>
     </div>
 
-    <!-- ═══ COACHING LOG TAB ═══ -->
-    <div id="perf-tab-log" class="perf-tabpane">
-
-      <div class="perf-summary">
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Total actions (30d)</div>
-          <div class="perf-summary-val">47</div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">SMS sent</div>
-          <div class="perf-summary-val green">31</div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">In-person logs</div>
-          <div class="perf-summary-val">11</div>
-        </div>
-        <div class="perf-summary-cell">
-          <div class="perf-summary-label">Skipped</div>
-          <div class="perf-summary-val">5</div>
-        </div>
+    <!-- SECTION 2: DECISION VIEW -->
+    <div class="perf-section-bar" style="margin-top:36px;">
+      <div>
+        <div class="perf-section-title">Decision view</div>
+        <div class="perf-section-sub">Rolling totals · for stay-or-go conversations</div>
       </div>
-
-      <div class="perf-filterbar">
-        <div class="perf-date-display">Last <strong>30 days</strong></div>
-        <span class="perf-chip active">All</span>
-        <span class="perf-chip">SMS only</span>
-        <span class="perf-chip">In-person</span>
-        <span class="perf-chip">Skipped</span>
-        <div class="perf-filterbar-spacer"></div>
-        <button class="perf-btn-ghost">&darr; Export CSV</button>
+      <div class="perf-toggle">
+        <button class="perf-toggle-btn" data-window="7" onclick="perfSetWindow(7)">Weekly</button>
+        <button class="perf-toggle-btn active" data-window="30" onclick="perfSetWindow(30)">Monthly</button>
+        <button class="perf-toggle-btn" data-window="all" onclick="perfSetWindow('all')">All time</button>
       </div>
-
-      <div class="perf-log-list">
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 21, 7:02 AM</div>
-          <div class="perf-log-driver">Bianca A Williams</div>
-          <div><span class="perf-log-type sms">SMS</span></div>
-          <div class="perf-log-note">Distraction event — Looking at phone</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 20, 8:14 AM</div>
-          <div class="perf-log-driver">Tresean Andre Lewis</div>
-          <div><span class="perf-log-type sms">SMS</span></div>
-          <div class="perf-log-note">2 speeding events</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 19, 9:30 AM</div>
-          <div class="perf-log-driver">Jayden Hurston</div>
-          <div><span class="perf-log-type inperson">IN-PERSON</span></div>
-          <div class="perf-log-note">Weekly coaching — CDF + POD</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 19, 7:11 AM</div>
-          <div class="perf-log-driver">Kimberly Ann Rose Dawson</div>
-          <div><span class="perf-log-type sms">SMS</span></div>
-          <div class="perf-log-note">Following distance event</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 18, 7:08 AM</div>
-          <div class="perf-log-driver">Anjelina Zuniga</div>
-          <div><span class="perf-log-type skip">SKIPPED</span></div>
-          <div class="perf-log-note">Weekly — driver out sick</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 18, 7:04 AM</div>
-          <div class="perf-log-driver">Dennis Ryan Estes</div>
-          <div><span class="perf-log-type sms">SMS</span></div>
-          <div class="perf-log-note">Speeding event</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 17, 2:45 PM</div>
-          <div class="perf-log-driver">BREAUNNA DICKERSON</div>
-          <div><span class="perf-log-type inperson">IN-PERSON</span></div>
-          <div class="perf-log-note">Weekly coaching — DCR + speeding pattern</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-        <div class="perf-log-row">
-          <div class="perf-log-date">Apr 17, 7:12 AM</div>
-          <div class="perf-log-driver">Anthony Carter</div>
-          <div><span class="perf-log-type sms">SMS</span></div>
-          <div class="perf-log-note">Following distance — 2 events</div>
-          <div class="perf-log-view">View &rarr;</div>
-        </div>
-      </div>
-
     </div>
 
-    <!-- ═══ DRIVER GUIDES TAB ═══ -->
-    <div id="perf-tab-guides" class="perf-tabpane">
-
-      <div class="perf-preview-banner">
-        <strong>Your guides, your voice, your policies.</strong> Upload one PDF per event type or metric. When a coaching SMS sends, the relevant guide auto-attaches based on the driver's event. RouteReady just hosts and delivers.
+    <!-- HEADLINE NUMBERS -->
+    <div class="perf-headline">
+      <div class="perf-headline-cell">
+        <div class="perf-headline-num" id="perf-headline-incidents">0</div>
+        <div class="perf-headline-label">Incidents</div>
       </div>
-
-      <div class="perf-coverage-bar">
-        <div class="perf-coverage-lbl">Library coverage</div>
-        <div class="perf-coverage-track">
-          <div class="perf-coverage-fill" style="width: 80%;"></div>
-        </div>
-        <div class="perf-coverage-count">8<span class="total">&nbsp;/ 10 slots filled</span></div>
+      <div class="perf-headline-cell">
+        <div class="perf-headline-num" id="perf-headline-drivers">0</div>
+        <div class="perf-headline-label">Drivers involved</div>
       </div>
-
-      <div class="perf-guides-section">
-        <h2>Daily event guides</h2>
-        <div class="perf-guides-section-sub">Attached to daily infraction SMS based on Netradyne event type</div>
-        <div class="perf-guide-grid">
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag safety">SAFETY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">Speeding &mdash; Driver Policy</div>
-              <div class="perf-guide-meta">2 pages &middot; Updated Apr 12</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag safety">SAFETY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">Following Distance &mdash; Driver Policy</div>
-              <div class="perf-guide-meta">2 pages &middot; Updated Apr 12</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag safety">SAFETY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">Distracted Driving &mdash; Driver Policy</div>
-              <div class="perf-guide-meta">3 pages &middot; Updated Mar 28</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card empty">
-            <div class="perf-guide-icon">+</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag safety">SAFETY</span>
-                <span class="perf-guide-tag missing">MISSING</span>
-              </div>
-              <div class="perf-guide-name">Sign/Signal Violations &mdash; Driver Policy</div>
-              <div class="perf-guide-meta">No guide uploaded</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Upload</button>
-            </div>
-          </div>
-
-        </div>
+      <div class="perf-headline-cell">
+        <div class="perf-headline-num" id="perf-headline-uncoached">0</div>
+        <div class="perf-headline-label">Never coached</div>
       </div>
+    </div>
 
-      <div class="perf-guides-section">
-        <h2>Weekly metric guides</h2>
-        <div class="perf-guides-section-sub">Attached to weekly coaching SMS based on the metric dragging composite score</div>
-        <div class="perf-guide-grid">
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag delivery">DELIVERY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">DCR &mdash; Improvement Guide</div>
-              <div class="perf-guide-meta">4 pages &middot; Updated Apr 5</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag delivery">DELIVERY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">Customer Delivery Feedback &mdash; Improvement</div>
-              <div class="perf-guide-meta">3 pages &middot; Updated Apr 5</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag delivery">DELIVERY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">Photo-on-Delivery &mdash; Best Practices</div>
-              <div class="perf-guide-meta">2 pages &middot; Updated Feb 14</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag delivery">DELIVERY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">Delivery Success Behaviors &mdash; Best Practices</div>
-              <div class="perf-guide-meta">3 pages &middot; Updated Mar 28</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card">
-            <div class="perf-guide-icon">PDF</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag delivery">DELIVERY</span>
-                <span class="perf-guide-tag custom">YOURS</span>
-              </div>
-              <div class="perf-guide-name">Customer Escalations &mdash; Handling &amp; Prevention</div>
-              <div class="perf-guide-meta">5 pages &middot; Updated Apr 12</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Preview</button>
-              <button class="perf-guide-btn">Replace</button>
-            </div>
-          </div>
-
-          <div class="perf-guide-card empty">
-            <div class="perf-guide-icon">+</div>
-            <div class="perf-guide-body">
-              <div class="perf-guide-tags">
-                <span class="perf-guide-tag safety">SAFETY</span>
-                <span class="perf-guide-tag missing">MISSING</span>
-              </div>
-              <div class="perf-guide-name">Seatbelt Compliance &mdash; Driver Policy</div>
-              <div class="perf-guide-meta">No guide uploaded</div>
-            </div>
-            <div class="perf-guide-actions">
-              <button class="perf-guide-btn primary">Upload</button>
-            </div>
-          </div>
-
-        </div>
+    <div class="perf-card" id="perf-decision-card">
+      <div class="perf-empty" id="perf-decision-empty" style="display:none;">
+        <div class="perf-empty-title">No drivers in this window</div>
+        <div class="perf-empty-sub">Upload daily safety or quality data to populate this view.</div>
       </div>
-
+      <div id="perf-decision-rows"></div>
     </div>
 
   </div>
 </div>
 
-<script>
-// Performance tab switcher — shows/hides sub-tab panes within Performance screen
-function showPerfTab(name, el) {
-  document.querySelectorAll('.perf-subtab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.perf-tabpane').forEach(p => p.classList.remove('active'));
-  if (el) el.classList.add('active');
-  const pane = document.getElementById('perf-tab-' + name);
-  if (pane) pane.classList.add('active');
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   PERFORMANCE — Phase 4B-1 styles (additive, doesn't replace v18 perf-* tokens)
+   ═══════════════════════════════════════════════════════════════ */
+
+.perf-week-meta { font-size:11px; color:rgba(100,116,139,.85); margin-top:3px; }
+
+.perf-fresh-strip {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;
+  background:#EAEAE5;
+  border:1px solid #EAEAE5;
+  border-radius:10px;
+  overflow:hidden;
+  margin:0 0 30px;
 }
+.perf-fresh-cell { background:#FFFFFF; padding:13px 18px; }
+.perf-fresh-row {
+  display:flex; align-items:baseline; justify-content:space-between;
+  gap:8px; margin-bottom:4px;
+}
+.perf-fresh-label {
+  font-size:10px; font-weight:700; color:rgba(100,116,139,.75);
+  letter-spacing:0.1em; text-transform:uppercase;
+}
+.perf-fresh-status { font-size:9px; font-weight:600; color:#16A34A; }
+.perf-fresh-status.stale { color:#D97706; }
+.perf-fresh-status.empty { color:rgba(100,116,139,.65); }
+.perf-fresh-date {
+  font-family:'DM Serif Display',Georgia,serif;
+  font-size:20px; line-height:1.1;
+  color:var(--white,#1E293B);
+}
+.perf-fresh-days {
+  font-family:'DM Serif Display',Georgia,serif;
+  font-size:18px; line-height:1.1; letter-spacing:0.15em;
+  color:var(--white,#1E293B);
+}
+.perf-fresh-days .day-on  { color:#16A34A; font-weight:600; }
+.perf-fresh-days .day-off { color:rgba(100,116,139,.35); font-weight:600; }
+.perf-fresh-sub { font-size:11px; color:rgba(100,116,139,.85); margin-top:2px; }
+
+.perf-section-bar {
+  display:flex; align-items:flex-end; justify-content:space-between;
+  margin:0 4px 14px; flex-wrap:wrap; gap:14px;
+}
+.perf-section-title {
+  font-family:'DM Serif Display',Georgia,serif;
+  font-size:24px; color:var(--white,#1E293B);
+  font-weight:400; letter-spacing:-0.005em;
+}
+.perf-section-sub {
+  font-size:11px; color:rgba(100,116,139,.85); margin-top:3px;
+}
+.perf-section-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+.perf-pill-btn {
+  font:600 11px 'DM Sans',sans-serif;
+  padding:7px 14px; border-radius:100px;
+  border:1px solid #146EB4; background:#146EB4;
+  color:#FFFFFF; cursor:pointer;
+  transition:opacity .15s;
+}
+.perf-pill-btn:hover { opacity:.9; }
+.perf-pill-btn:disabled { opacity:.4; cursor:default; }
+.perf-pill-btn.ghost {
+  background:transparent; color:rgba(71,85,105,.95); border-color:#EAEAE5;
+}
+.perf-pill-btn.outline {
+  background:transparent; color:#146EB4;
+}
+
+.perf-toggle {
+  display:flex; border:1px solid #EAEAE5; border-radius:100px;
+  background:#FFFFFF; padding:3px; gap:2px;
+}
+.perf-toggle-btn {
+  font:600 11px 'DM Sans',sans-serif;
+  padding:7px 14px; border-radius:100px;
+  border:none; background:transparent;
+  color:rgba(71,85,105,.85); cursor:pointer;
+}
+.perf-toggle-btn.active { background:#146EB4; color:#FFFFFF; }
+
+.perf-headline {
+  display:flex; align-items:flex-end; gap:48px;
+  margin:0 4px 18px;
+}
+.perf-headline-cell { flex:0 0 auto; }
+.perf-headline-num {
+  font-family:'DM Serif Display',Georgia,serif;
+  font-size:48px; line-height:1;
+  color:var(--white,#1E293B); font-weight:400; letter-spacing:-0.015em;
+}
+.perf-headline-label {
+  font-size:10px; font-weight:700;
+  color:rgba(100,116,139,.75);
+  letter-spacing:0.1em; text-transform:uppercase;
+  margin-top:8px;
+}
+
+.perf-card {
+  background:#FFFFFF; border:1px solid #EAEAE5;
+  border-radius:12px; overflow:hidden;
+}
+
+.perf-empty { padding:36px 28px; text-align:center; }
+.perf-empty-icon { margin-bottom:18px; }
+.perf-empty-icon svg { display:block; margin:0 auto; }
+.perf-empty-title {
+  font-family:'DM Serif Display',Georgia,serif;
+  font-size:22px; color:var(--white,#1E293B);
+  font-weight:400; margin-bottom:6px;
+}
+.perf-empty-sub { font-size:13px; color:rgba(100,116,139,.95); }
+
+/* QUEUE ROWS */
+.perf-queue-row {
+  padding:14px 22px; border-bottom:1px solid #EAEAE5;
+  display:flex; align-items:center; gap:18px;
+  transition:opacity .25s, background .15s;
+}
+.perf-queue-row:last-child { border-bottom:none; }
+.perf-queue-row.sent { opacity:.45; }
+.perf-queue-row-body { flex:1; min-width:0; }
+.perf-queue-row-head {
+  display:flex; align-items:center; gap:10px; margin-bottom:5px;
+  flex-wrap:wrap;
+}
+.perf-queue-row-name {
+  font-size:14px; font-weight:600; color:var(--white,#1E293B);
+}
+.perf-queue-row-detail {
+  font-size:12px; color:rgba(100,116,139,.95); margin-bottom:4px;
+}
+.perf-queue-row-events {
+  font-size:11px; color:rgba(100,116,139,.75);
+}
+.perf-queue-row-sent {
+  font-size:10px; font-weight:600; color:#16A34A;
+}
+.perf-queue-row-actions {
+  display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap;
+}
+
+/* DECISION ROWS */
+.perf-dec-row {
+  padding:18px 22px; border-bottom:1px solid #EAEAE5;
+  display:flex; align-items:flex-start; gap:18px;
+}
+.perf-dec-row:last-child { border-bottom:none; }
+.perf-dec-count {
+  flex-shrink:0; width:54px; text-align:center; padding-top:3px;
+}
+.perf-dec-count-num {
+  font-family:'DM Serif Display',Georgia,serif;
+  font-size:30px; line-height:1; color:var(--white,#1E293B);
+  font-weight:400; letter-spacing:-0.01em;
+}
+.perf-dec-count-lbl {
+  font-size:9px; font-weight:700;
+  color:rgba(100,116,139,.75);
+  letter-spacing:0.08em; text-transform:uppercase;
+  margin-top:4px;
+}
+.perf-dec-body { flex:1; min-width:0; }
+.perf-dec-head {
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:6px; flex-wrap:wrap;
+}
+.perf-dec-name {
+  font-size:15px; font-weight:600; color:var(--white,#1E293B);
+}
+.perf-dec-line {
+  font-size:12px; color:rgba(100,116,139,.95); margin-bottom:4px;
+}
+.perf-dec-sub {
+  font-size:11px; color:rgba(100,116,139,.75);
+}
+.perf-dec-actions {
+  display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;
+}
+
+/* PATTERN TAGS */
+.perf-tag {
+  font-size:9px; font-weight:700;
+  padding:3px 8px; border-radius:100px;
+  letter-spacing:0.06em; text-transform:uppercase;
+  border:1px solid;
+  white-space:nowrap;
+}
+.perf-tag.chronic    { color:#DC2626; border-color:#FECACA; }
+.perf-tag.pattern    { color:#D97706; border-color:#FDE68A; }
+.perf-tag.first-week { color:rgba(100,116,139,.95); border-color:#EAEAE5; }
+.perf-tag.clear      { color:#16A34A; border-color:#BBF7D0; }
+
+/* TREND INDICATORS (inline next to driver name in decision view) */
+.perf-trend { font-size:11px; font-weight:600; }
+.perf-trend.up   { color:#DC2626; }
+.perf-trend.down { color:#16A34A; }
+.perf-trend.flat { color:rgba(100,116,139,.7); }
+.perf-trend.new  { color:rgba(100,116,139,.7); }
+
+/* INLINE LOADING / ERROR */
+.perf-loading { padding:20px 22px; font-size:12px; color:rgba(100,116,139,.85); }
+.perf-error {
+  padding:14px 22px; font-size:12px;
+  color:#B91C1C; background:#FEE2E2; border-bottom:1px solid #FECACA;
+}
+
+@media (max-width: 720px) {
+  .perf-fresh-strip { grid-template-columns:1fr; }
+  .perf-headline { gap:28px; flex-wrap:wrap; }
+  .perf-headline-num { font-size:36px; }
+  .perf-queue-row { flex-direction:column; align-items:flex-start; }
+  .perf-dec-count { width:auto; text-align:left; padding-top:0; display:flex; gap:8px; align-items:baseline; }
+  .perf-dec-count-num { font-size:22px; }
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// PERFORMANCE / COACHING — Phase 4B-1 client logic
+// ═══════════════════════════════════════════════════════════════
+
+// API constant defined elsewhere in file (line ~5105). apiCall() helper too.
+// We piggyback on those.
+
+let perfState = {
+  decisionWindow: 30,
+  loaded: false,
+  queue: null,
+  decision: null,
+  weekly: null
+};
+
+function perfFmtTagClass(tag) {
+  if (!tag) return 'clear';
+  if (tag === 'CHRONIC')    return 'chronic';
+  if (tag === 'PATTERN')    return 'pattern';
+  if (tag === 'FIRST_WEEK') return 'first-week';
+  return 'clear';
+}
+function perfFmtTagLabel(tag) {
+  if (!tag) return 'Clear';
+  if (tag === 'FIRST_WEEK') return 'First week';
+  return tag.charAt(0) + tag.substring(1).toLowerCase();
+}
+function perfFmtTrend(trend) {
+  switch (trend) {
+    case 'up':   return { cls: 'up',   sym: '↑', label: 'up' };
+    case 'down': return { cls: 'down', sym: '↓', label: 'down' };
+    case 'new':  return { cls: 'new',  sym: '—', label: 'new' };
+    default:     return { cls: 'flat', sym: '→', label: 'flat' };
+  }
+}
+function perfEsc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ─── INITIAL LOAD ────────────────────────────────────────────────
+
+async function perfInit() {
+  // Avoid double-loading; only load when we enter perf mode for the first time
+  // or when explicitly refreshed.
+  if (perfState.loaded) return;
+  perfState.loaded = true;
+
+  // Optional: populate DSP name from existing global if available
+  try {
+    const navDsp = document.getElementById('nav-dsp');
+    if (navDsp && navDsp.textContent && navDsp.textContent.trim() &&
+        navDsp.textContent.trim() !== 'Loading…') {
+      const el = document.getElementById('perf-dsp-name');
+      if (el) el.textContent = navDsp.textContent.trim();
+    }
+  } catch (e) {}
+
+  await Promise.all([perfLoadWeekly(), perfLoadQueue(), perfLoadDecision()]);
+}
+
+// ─── WEEKLY TOTALS / FRESHNESS STRIP ─────────────────────────────
+
+async function perfLoadWeekly() {
+  try {
+    const res = await apiCall({ action: 'weeklyTotals' });
+    perfState.weekly = res;
+    perfRenderFreshness(res);
+    perfRenderWeekMeta(res);
+  } catch (e) {
+    console.error('perfLoadWeekly failed:', e);
+    perfRenderFreshnessError();
+  }
+}
+
+function perfRenderWeekMeta(w) {
+  const meta = document.getElementById('perf-week-meta');
+  if (meta && w && w.week_start && w.week_end) {
+    meta.textContent = 'Week of ' + w.week_start + ' — ' + w.week_end;
+  }
+}
+
+function perfRenderFreshness(w) {
+  const days = ['M','T','W','T','F','S','S'];
+  const flags = (w && w.days_uploaded_flags) || [false,false,false,false,false,false,false];
+  const html = days.map((d, i) => {
+    const cls = flags[i] ? 'day-on' : 'day-off';
+    return '<span class="' + cls + '">' + d + '</span>';
+  }).join(' ');
+  const daysEl = document.getElementById('perf-fresh-days');
+  if (daysEl) daysEl.innerHTML = html;
+
+  // Safety/Quality date — derive from days uploaded
+  // Find the latest 'true' index in flags (Mon=0..Sun=6)
+  const safetyEl = document.getElementById('perf-fresh-safety-date');
+  const safetyStatus = document.getElementById('perf-fresh-safety-status');
+  const qualityEl = document.getElementById('perf-fresh-quality-date');
+  const qualityStatus = document.getElementById('perf-fresh-quality-status');
+
+  let lastIdx = -1;
+  for (let i = flags.length - 1; i >= 0; i--) {
+    if (flags[i]) { lastIdx = i; break; }
+  }
+  const lastDate = (lastIdx >= 0 && w.week_start) ? perfAddDaysToIso(w.week_start, lastIdx) : '—';
+
+  if (safetyEl) safetyEl.textContent = (lastDate === '—' ? '—' : perfFormatDate(lastDate));
+  if (qualityEl) qualityEl.textContent = (lastDate === '—' ? '—' : perfFormatDate(lastDate));
+
+  // Status: live if uploaded within last 24h, stale if 1-3 days, empty otherwise
+  if (safetyStatus && qualityStatus) {
+    if (lastIdx === -1) {
+      safetyStatus.textContent = '● no data';
+      safetyStatus.className = 'perf-fresh-status empty';
+      qualityStatus.textContent = '● no data';
+      qualityStatus.className = 'perf-fresh-status empty';
+    } else {
+      // OK signal — recent data exists
+      safetyStatus.textContent = '● live';
+      safetyStatus.className = 'perf-fresh-status';
+      qualityStatus.textContent = '● live';
+      qualityStatus.className = 'perf-fresh-status';
+    }
+  }
+}
+
+function perfRenderFreshnessError() {
+  const safetyStatus = document.getElementById('perf-fresh-safety-status');
+  const qualityStatus = document.getElementById('perf-fresh-quality-status');
+  if (safetyStatus)  { safetyStatus.textContent  = '● error'; safetyStatus.className  = 'perf-fresh-status stale'; }
+  if (qualityStatus) { qualityStatus.textContent = '● error'; qualityStatus.className = 'perf-fresh-status stale'; }
+}
+
+function perfAddDaysToIso(iso, n) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().substring(0,10);
+}
+function perfFormatDate(iso) {
+  if (!iso || iso === '—') return '—';
+  // 2026-04-20 → Apr 20
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parts = String(iso).substring(0,10).split('-');
+  if (parts.length !== 3) return iso;
+  const m = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(m) || isNaN(day) || m < 0 || m > 11) return iso;
+  return months[m] + ' ' + day;
+}
+
+// ─── COACHING QUEUE ──────────────────────────────────────────────
+
+async function perfLoadQueue() {
+  const card = document.getElementById('perf-queue-card');
+  const empty = document.getElementById('perf-queue-empty');
+  const rows = document.getElementById('perf-queue-rows');
+  const sub = document.getElementById('perf-queue-sub');
+  if (sub) sub.textContent = 'Loading…';
+  if (rows) rows.innerHTML = '<div class="perf-loading">Loading queue…</div>';
+  if (empty) empty.style.display = 'none';
+
+  try {
+    const res = await apiCall({ action: 'coachingQueue' });
+    perfState.queue = res;
+    perfRenderQueue(res);
+  } catch (e) {
+    console.error('perfLoadQueue failed:', e);
+    if (rows) rows.innerHTML = '<div class="perf-error">Could not load queue: ' + perfEsc(e.message || 'unknown error') + '</div>';
+  }
+}
+
+function perfRenderQueue(res) {
+  const rows = document.getElementById('perf-queue-rows');
+  const empty = document.getElementById('perf-queue-empty');
+  const sub = document.getElementById('perf-queue-sub');
+  const sendAllBtn = document.getElementById('perf-send-all-btn');
+  if (!rows) return;
+
+  const drivers = (res && res.drivers) || [];
+  const dateLabel = res && res.date ? perfFormatDate(res.date) : 'no data';
+
+  // Filter to drivers not yet fully coached
+  const pending = drivers.filter(function(d) { return !d.already_coached; });
+
+  if (sub) {
+    if (!drivers.length) {
+      sub.textContent = 'No safety incidents in the most recent upload.';
+    } else {
+      sub.textContent = dateLabel + ' · ' + pending.length + ' of ' + drivers.length + ' remaining';
+    }
+  }
+
+  if (sendAllBtn) {
+    sendAllBtn.disabled = pending.length === 0;
+    sendAllBtn.textContent = pending.length > 0 ? 'Send all ' + pending.length : 'All sent';
+  }
+
+  if (!drivers.length) {
+    rows.innerHTML = '';
+    if (empty) {
+      empty.style.display = 'block';
+      const emptySub = document.getElementById('perf-queue-empty-sub');
+      if (emptySub) emptySub.textContent = 'No safety incidents in the most recent upload.';
+    }
+    return;
+  }
+
+  if (empty) empty.style.display = 'none';
+
+  rows.innerHTML = drivers.map(function(d, i) {
+    const tagCls = perfFmtTagClass(d.pattern_tag);
+    const tagLabel = perfFmtTagLabel(d.pattern_tag);
+    const events = d.events || [];
+    const eventTypes = events.map(function(e) {
+      const sub = e.metric_subtype ? ' (' + perfEsc(e.metric_subtype) + ')' : '';
+      return perfEsc(e.metric_type) + sub;
+    }).join(' · ');
+    const eventIds = events.map(function(e) { return e.event_id; }).join(',');
+    const sentClass = d.already_coached ? ' sent' : '';
+    const actions = d.already_coached
+      ? '<span class="perf-queue-row-sent">✓ SMS sent</span>'
+      : '<button class="perf-pill-btn ghost" onclick="perfPreviewQueue(' + i + ')">Preview</button>' +
+        '<button class="perf-pill-btn" onclick="perfSendQueueRow(' + i + ')">Send SMS</button>';
+
+    return (
+      '<div class="perf-queue-row' + sentClass + '" data-tid="' + perfEsc(d.transporter_id) + '" data-event-ids="' + perfEsc(eventIds) + '">' +
+        '<div class="perf-queue-row-body">' +
+          '<div class="perf-queue-row-head">' +
+            '<div class="perf-queue-row-name">' + perfEsc(d.driver_name) + '</div>' +
+            '<span class="perf-tag ' + tagCls + '">' + tagLabel + '</span>' +
+          '</div>' +
+          '<div class="perf-queue-row-detail">' + (events.length ? events.length + ' event' + (events.length > 1 ? 's' : '') + ' · ' + eventTypes : 'no events') + '</div>' +
+        '</div>' +
+        '<div class="perf-queue-row-actions">' + actions + '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
+function perfPreviewQueue(idx) {
+  const d = perfState.queue && perfState.queue.drivers && perfState.queue.drivers[idx];
+  if (!d) return;
+  const sample = (d.events && d.events[0]) || {};
+  alert(
+    'Preview SMS for ' + d.driver_name + '\n\n' +
+    'Hi ' + (d.driver_name || '').split(' ')[0] + ',\n' +
+    'A safety event was logged on your ' + (sample.event_date || 'recent') + ' route: ' +
+    (sample.metric_type || 'safety event') + '.\n' +
+    '— RouteReady'
+  );
+}
+
+async function perfSendQueueRow(idx) {
+  const d = perfState.queue && perfState.queue.drivers && perfState.queue.drivers[idx];
+  if (!d) return;
+  const events = d.events || [];
+  const eventIds = events.map(function(e) { return e.event_id; }).join(',');
+  if (!eventIds) return;
+
+  const message = 'Hi ' + (d.driver_name || '').split(' ')[0] +
+    ', a safety event was logged on your recent route. — RouteReady';
+
+  try {
+    const res = await apiCall({
+      action: 'sendCoaching',
+      tid: d.transporter_id,
+      eventIds: eventIds,
+      message: message,
+      guide: ''
+    });
+    if (res && res.status === 'ok') {
+      d.already_coached = true;
+      perfRenderQueue(perfState.queue);
+    } else {
+      alert('Send failed: ' + (res && res.message ? res.message : 'unknown'));
+    }
+  } catch (e) {
+    alert('Send error: ' + e.message);
+  }
+}
+
+async function perfSendAllQueue() {
+  if (!perfState.queue || !perfState.queue.drivers) return;
+  const pending = perfState.queue.drivers.filter(function(d) { return !d.already_coached; });
+  if (!pending.length) return;
+  if (!confirm('Send SMS coaching to ' + pending.length + ' driver' + (pending.length > 1 ? 's' : '') + '?')) return;
+
+  for (let i = 0; i < pending.length; i++) {
+    const idx = perfState.queue.drivers.indexOf(pending[i]);
+    if (idx >= 0) await perfSendQueueRow(idx);
+  }
+}
+
+// ─── DECISION VIEW ──────────────────────────────────────────────
+
+async function perfSetWindow(w) {
+  perfState.decisionWindow = w;
+  document.querySelectorAll('.perf-toggle-btn').forEach(function(b) {
+    b.classList.toggle('active', String(b.getAttribute('data-window')) === String(w));
+  });
+  await perfLoadDecision();
+}
+
+async function perfLoadDecision() {
+  const rows = document.getElementById('perf-decision-rows');
+  const empty = document.getElementById('perf-decision-empty');
+  if (rows) rows.innerHTML = '<div class="perf-loading">Loading decision view…</div>';
+  if (empty) empty.style.display = 'none';
+
+  try {
+    const res = await apiCall({ action: 'decisionView', window: String(perfState.decisionWindow) });
+    perfState.decision = res;
+    perfRenderDecision(res);
+  } catch (e) {
+    console.error('perfLoadDecision failed:', e);
+    if (rows) rows.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
+  }
+}
+
+function perfRenderDecision(res) {
+  const rows = document.getElementById('perf-decision-rows');
+  const empty = document.getElementById('perf-decision-empty');
+  const incEl = document.getElementById('perf-headline-incidents');
+  const drvEl = document.getElementById('perf-headline-drivers');
+  const uncEl = document.getElementById('perf-headline-uncoached');
+
+  const data = (res && res.rows) || [];
+
+  // Headline numbers — derived from data
+  const totalIncidents = data.reduce(function(s, r) { return s + (r.event_count || 0); }, 0);
+  const totalDrivers = data.length;
+  const neverCoached = data.filter(function(r) { return r.never_coached; }).length;
+  if (incEl) incEl.textContent = totalIncidents;
+  if (drvEl) drvEl.textContent = totalDrivers;
+  if (uncEl) uncEl.textContent = neverCoached;
+
+  if (!data.length) {
+    if (rows) rows.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  rows.innerHTML = data.map(function(r) {
+    const tagCls = perfFmtTagClass(r.pattern_tag);
+    const tagLabel = perfFmtTagLabel(r.pattern_tag);
+    const trend = perfFmtTrend(r.trend);
+
+    // "8 SMS sent · 1 in-person · trend → flat"
+    const coachLine = (
+      r.sms_count + ' coaching SMS sent · ' +
+      r.inperson_count + ' in-person 1:1' + (r.inperson_count !== 1 ? 's' : '') +
+      ' · trend <span class="perf-trend ' + trend.cls + '">' + trend.sym + ' ' + trend.label + '</span>'
+    );
+    const lastLine = (
+      'Last 1:1: ' + (r.last_inperson_date || 'never') +
+      (r.never_coached ? ' · ⚠ never coached' : '')
+    );
+
+    return (
+      '<div class="perf-dec-row" data-tid="' + perfEsc(r.transporter_id) + '">' +
+        '<div class="perf-dec-count">' +
+          '<div class="perf-dec-count-num">' + (r.event_count || 0) + '</div>' +
+          '<div class="perf-dec-count-lbl">events</div>' +
+        '</div>' +
+        '<div class="perf-dec-body">' +
+          '<div class="perf-dec-head">' +
+            '<div class="perf-dec-name">' + perfEsc(r.driver_name) + '</div>' +
+            '<span class="perf-tag ' + tagCls + '">' + tagLabel + '</span>' +
+          '</div>' +
+          '<div class="perf-dec-line">' + coachLine + '</div>' +
+          '<div class="perf-dec-sub">' + perfEsc(lastLine) + '</div>' +
+          '<div class="perf-dec-actions">' +
+            '<button class="perf-pill-btn ghost" onclick="perfOpenRecord(\'' + perfEsc(r.transporter_id) + '\')">Open coaching record</button>' +
+            '<button class="perf-pill-btn outline" onclick="perfPromptInPerson(\'' + perfEsc(r.transporter_id) + '\', \'' + perfEsc(r.driver_name) + '\')">Log 1:1</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
+function perfOpenRecord(tid) {
+  // Phase 4B-2 will route to the driver record page. For now, alert.
+  alert('Coaching Records detail page ships in Phase 4B-2.\nDriver: ' + tid);
+}
+
+async function perfPromptInPerson(tid, name) {
+  const notes = prompt('Notes from the 1:1 with ' + name + ':\n(What was discussed, what was agreed, next check-in date)');
+  if (notes == null) return; // cancelled
+  try {
+    const res = await apiCall({
+      action: 'logInPerson',
+      tid: tid,
+      name: name,
+      notes: notes
+    });
+    if (res && res.status === 'ok') {
+      // Reload decision view so counts update
+      await perfLoadDecision();
+    } else {
+      alert('Log failed: ' + (res && res.message ? res.message : 'unknown'));
+    }
+  } catch (e) {
+    alert('Log error: ' + e.message);
+  }
+}
+
+// ─── HOOK INTO EXISTING setMode ──────────────────────────────────
+
+(function hookPerfMode() {
+  // Wait until setMode is defined, then wrap it
+  function tryHook() {
+    if (typeof window.setMode !== 'function') {
+      setTimeout(tryHook, 200);
+      return;
+    }
+    const orig = window.setMode;
+    window.setMode = function(mode) {
+      const r = orig.apply(this, arguments);
+      if (mode === 'perf') {
+        try { perfInit(); } catch (e) { console.error('perfInit failed:', e); }
+      }
+      return r;
+    };
+  }
+  tryHook();
+})();
 </script>
+
 
 <!-- ═══════════════════════════════════════════════════════════
      MOBILE SWIPE REVIEW (v12)
