@@ -5128,9 +5128,15 @@ async function loadData() {
     render();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('nav').style.display     = 'flex';
-    // Only show main if not in schedule mode
+    // Only show main if no full-page screen is currently open
     const schedEl = document.getElementById('schedule-screen');
-    if (!schedEl || schedEl.style.display === 'none') {
+    const setEl   = document.getElementById('settings-screen');
+    const perfEl  = document.getElementById('performance-screen');
+    const anyFullPageOpen =
+      (schedEl && schedEl.style.display && schedEl.style.display !== 'none') ||
+      (setEl   && setEl.style.display   && setEl.style.display   !== 'none') ||
+      (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none');
+    if (!anyFullPageOpen) {
       document.getElementById('main').style.display = 'flex';
     }
   } catch(e) {
@@ -5200,7 +5206,13 @@ async function loadData() {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('nav').style.display     = 'flex';
     const schedEl = document.getElementById('schedule-screen');
-    if (!schedEl || schedEl.style.display === 'none') {
+    const setEl   = document.getElementById('settings-screen');
+    const perfEl  = document.getElementById('performance-screen');
+    const anyFullPageOpen =
+      (schedEl && schedEl.style.display && schedEl.style.display !== 'none') ||
+      (setEl   && setEl.style.display   && setEl.style.display   !== 'none') ||
+      (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none');
+    if (!anyFullPageOpen) {
       document.getElementById('main').style.display = 'flex';
     }
   }
