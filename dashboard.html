@@ -3010,7 +3010,9 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   #schedule-screen[style*="block"],
   #schedule-screen[style*="flex"],
   #performance-screen[style*="block"],
-  #performance-screen[style*="flex"] {
+  #performance-screen[style*="flex"],
+  #driver-record-screen[style*="block"],
+  #driver-record-screen[style*="flex"] {
     position: fixed !important;
     top: 0 !important;
     left: 248px !important;
@@ -3026,7 +3028,9 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   .rr-shell.collapsed #schedule-screen[style*="block"],
   .rr-shell.collapsed #schedule-screen[style*="flex"],
   .rr-shell.collapsed #performance-screen[style*="block"],
-  .rr-shell.collapsed #performance-screen[style*="flex"] {
+  .rr-shell.collapsed #performance-screen[style*="flex"],
+  .rr-shell.collapsed #driver-record-screen[style*="block"],
+  .rr-shell.collapsed #driver-record-screen[style*="flex"] {
     left: 72px !important;
   }
 }
@@ -8199,8 +8203,7 @@ async function perfPromptInPerson(tid, name) {
   display: none;
   max-width: 980px;
   margin: 0 auto;
-  padding: 28px 24px 80px;
-  background: #F1F1EE;
+  background: transparent;
   min-height: 100vh;
 }
 
