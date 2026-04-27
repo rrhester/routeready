@@ -5132,10 +5132,12 @@ async function loadData() {
     const schedEl = document.getElementById('schedule-screen');
     const setEl   = document.getElementById('settings-screen');
     const perfEl  = document.getElementById('performance-screen');
+    const drEl    = document.getElementById('driver-record-screen');
     const anyFullPageOpen =
       (schedEl && schedEl.style.display && schedEl.style.display !== 'none') ||
       (setEl   && setEl.style.display   && setEl.style.display   !== 'none') ||
-      (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none');
+      (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none') ||
+      (drEl    && drEl.style.display    && drEl.style.display    !== 'none');
     if (!anyFullPageOpen) {
       document.getElementById('main').style.display = 'flex';
     }
@@ -5208,10 +5210,12 @@ async function loadData() {
     const schedEl = document.getElementById('schedule-screen');
     const setEl   = document.getElementById('settings-screen');
     const perfEl  = document.getElementById('performance-screen');
+    const drEl    = document.getElementById('driver-record-screen');
     const anyFullPageOpen =
       (schedEl && schedEl.style.display && schedEl.style.display !== 'none') ||
       (setEl   && setEl.style.display   && setEl.style.display   !== 'none') ||
-      (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none');
+      (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none') ||
+      (drEl    && drEl.style.display    && drEl.style.display    !== 'none');
     if (!anyFullPageOpen) {
       document.getElementById('main').style.display = 'flex';
     }
@@ -5493,11 +5497,13 @@ function setMode(mode) {
   const schedEl  = document.getElementById('schedule-screen');
   const setEl    = document.getElementById('settings-screen');
   const perfEl   = document.getElementById('performance-screen');
+  const drEl     = document.getElementById('driver-record-screen');
 
   // Hide all full-page screens first
   if (schedEl) schedEl.style.display = 'none';
   if (setEl)   setEl.style.display   = 'none';
   if (perfEl)  perfEl.style.display  = 'none';
+  if (drEl)    drEl.style.display    = 'none';
 
   if (schedMode) {
     if (mainEl) mainEl.style.display = 'none';
@@ -8059,8 +8065,11 @@ function perfRenderDecision(res) {
 }
 
 function perfOpenRecord(tid) {
-  // Phase 4B-2 will route to the driver record page. For now, alert.
-  alert('Coaching Records detail page ships in Phase 4B-2.\nDriver: ' + tid);
+  if (typeof openDriverRecord === 'function') {
+    openDriverRecord(tid);
+  } else {
+    alert('Driver record page not loaded yet. Refresh the page.');
+  }
 }
 
 async function perfPromptInPerson(tid, name) {
@@ -8105,6 +8114,671 @@ async function perfPromptInPerson(tid, name) {
   tryHook();
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DRIVER RECORD SCREEN (Phase 4B-2)
+     Activated by openDriverRecord(tid). Hides #main and other screens.
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="driver-record-screen">
+  <div class="dr-page">
+
+    <div class="dr-back" onclick="closeDriverRecord()">← Back to Coaching</div>
+
+    <div class="dr-header">
+      <div class="dr-header-text">
+        <div class="dr-name-row">
+          <h1 class="dr-name" id="dr-name">Loading…</h1>
+          <span class="perf-tag clear" id="dr-pattern-tag">CLEAR</span>
+        </div>
+        <div class="dr-meta" id="dr-meta">&nbsp;</div>
+        <div class="dr-phone-row" id="dr-phone-row" style="display:none;">
+          <a class="dr-phone" id="dr-phone-link" href="tel:">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+            <span id="dr-phone-text">—</span>
+          </a>
+          <button class="dr-phone-edit" onclick="drEditPhone()">edit</button>
+        </div>
+      </div>
+      <div class="dr-actions">
+        <button class="perf-pill-btn" id="dr-send-sms-btn" onclick="drSendSMS()">Send SMS coaching</button>
+        <button class="perf-pill-btn ghost" onclick="drLogInPerson()">Log 1:1</button>
+        <button class="perf-pill-btn ghost dr-danger" onclick="drMarkTerminated()">Mark terminated</button>
+      </div>
+    </div>
+
+    <div class="dr-metrics">
+      <div class="dr-metric-card">
+        <div class="dr-metric-label">Lifetime events</div>
+        <div class="dr-metric-num" id="dr-lifetime">0</div>
+      </div>
+      <div class="dr-metric-card">
+        <div class="dr-metric-label">Last 30 days</div>
+        <div class="dr-metric-num" id="dr-30day">0</div>
+        <div class="dr-metric-sub" id="dr-30day-sub">&nbsp;</div>
+      </div>
+      <div class="dr-metric-card">
+        <div class="dr-metric-label">SMS sent</div>
+        <div class="dr-metric-num" id="dr-sms-count">0</div>
+        <div class="dr-metric-sub" id="dr-sms-sub">&nbsp;</div>
+      </div>
+      <div class="dr-metric-card">
+        <div class="dr-metric-label">In-person 1:1</div>
+        <div class="dr-metric-num" id="dr-inperson-count">0</div>
+        <div class="dr-metric-sub" id="dr-inperson-sub">&nbsp;</div>
+      </div>
+    </div>
+
+    <div class="dr-section-label">Last 30 days · by metric</div>
+    <div class="dr-by-metric" id="dr-by-metric">&nbsp;</div>
+
+    <div class="dr-section-label">13-week event history</div>
+    <div class="dr-chart-wrap">
+      <div class="dr-chart" id="dr-chart"></div>
+      <div class="dr-chart-axis">
+        <span>13 weeks ago</span>
+        <span>This week</span>
+      </div>
+    </div>
+
+    <div class="dr-section-label">Timeline</div>
+    <div class="dr-timeline" id="dr-timeline">
+      <div class="dr-loading">Loading timeline…</div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   DRIVER RECORD — Phase 4B-2
+   ═══════════════════════════════════════════════════════════════ */
+
+#driver-record-screen {
+  display: none;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 24px 80px;
+  background: #F1F1EE;
+  min-height: 100vh;
+}
+
+.dr-page {}
+
+.dr-back {
+  font-size: 11px;
+  color: rgba(100,116,139,.85);
+  cursor: pointer;
+  margin-bottom: 14px;
+  display: inline-block;
+}
+.dr-back:hover { color: var(--white,#1E293B); }
+
+.dr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.dr-header-text { flex: 1; min-width: 0; }
+
+.dr-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.dr-name {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 28px;
+  line-height: 1.05;
+  color: var(--white,#1E293B);
+  font-weight: 400;
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+.dr-meta {
+  font-size: 11px;
+  color: rgba(100,116,139,.95);
+  margin-bottom: 4px;
+}
+.dr-phone-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.dr-phone {
+  font-size: 12px;
+  color: #146EB4;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  background: rgba(20,110,180,.06);
+  border: 1px solid rgba(20,110,180,.18);
+  border-radius: 100px;
+}
+.dr-phone:hover { background: rgba(20,110,180,.12); }
+.dr-phone-edit {
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+  color: rgba(100,116,139,.85);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.dr-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.dr-danger {
+  color: #DC2626;
+}
+
+.dr-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.dr-metric-card {
+  background: #FFFFFF;
+  border: 1px solid #EAEAE5;
+  padding: 14px 16px;
+  border-radius: 10px;
+}
+.dr-metric-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(100,116,139,.75);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.dr-metric-num {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--white,#1E293B);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.dr-metric-num.high { color: #DC2626; }
+.dr-metric-sub {
+  font-size: 10px;
+  color: rgba(100,116,139,.85);
+  margin-top: 4px;
+}
+
+.dr-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(100,116,139,.75);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 4px 10px;
+}
+
+.dr-by-metric {
+  background: #FFFFFF;
+  border: 1px solid #EAEAE5;
+  border-radius: 10px;
+  padding: 6px 18px;
+  margin-bottom: 24px;
+}
+.dr-by-metric-row {
+  display: grid;
+  grid-template-columns: 1fr 50px;
+  gap: 10px;
+  font-size: 13px;
+  padding: 10px 0;
+  border-top: 1px solid #EAEAE5;
+}
+.dr-by-metric-row:first-child { border-top: 0; }
+.dr-by-metric-name { color: var(--white,#1E293B); }
+.dr-by-metric-count { text-align: right; font-weight: 600; color: rgba(100,116,139,.85); }
+.dr-by-metric-count.high { color: #DC2626; }
+.dr-by-metric-count.med { color: #D97706; }
+
+.dr-chart-wrap {
+  background: #FFFFFF;
+  border: 1px solid #EAEAE5;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 24px;
+}
+.dr-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 80px;
+  padding: 0 4px;
+  margin-bottom: 4px;
+}
+.dr-chart-bar {
+  flex: 1;
+  background: #146EB4;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+}
+.dr-chart-bar.high { background: #DC2626; }
+.dr-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(100,116,139,.75);
+  padding: 0 4px;
+}
+
+.dr-timeline {
+  background: #FFFFFF;
+  border: 1px solid #EAEAE5;
+  border-radius: 10px;
+  padding: 18px 22px 8px;
+}
+.dr-loading {
+  font-size: 12px;
+  color: rgba(100,116,139,.85);
+  padding: 4px 0;
+}
+.dr-tl-list {
+  border-left: 2px solid #EAEAE5;
+  padding-left: 18px;
+}
+.dr-tl-item {
+  position: relative;
+  margin-bottom: 16px;
+}
+.dr-tl-item:last-child { margin-bottom: 0; }
+.dr-tl-dot {
+  position: absolute;
+  left: -23px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(100,116,139,.6);
+}
+.dr-tl-dot.incident { background: #DC2626; }
+.dr-tl-dot.sms { background: #146EB4; }
+.dr-tl-dot.inperson { background: #16A34A; }
+.dr-tl-dot.skipped { background: rgba(100,116,139,.6); }
+.dr-tl-dot.quality { background: #D97706; }
+.dr-tl-dot.statuschange { background: rgba(100,116,139,.85); }
+.dr-tl-date {
+  font-size: 10px;
+  color: rgba(100,116,139,.85);
+  margin-bottom: 2px;
+}
+.dr-tl-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white,#1E293B);
+  margin-bottom: 2px;
+}
+.dr-tl-detail {
+  font-size: 11px;
+  color: rgba(100,116,139,.95);
+}
+.dr-tl-detail.italic { font-style: italic; }
+.dr-tl-detail a { color: #146EB4; }
+
+@media (max-width: 720px) {
+  #driver-record-screen { padding: 18px 14px 60px; }
+  .dr-name { font-size: 22px; }
+  .dr-metrics { grid-template-columns: repeat(2, 1fr); }
+  .dr-actions { width: 100%; }
+  .dr-actions button { flex: 1; }
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DRIVER RECORD PAGE — Phase 4B-2
+// ═══════════════════════════════════════════════════════════════
+
+let drState = {
+  tid: null,
+  record: null
+};
+
+async function openDriverRecord(tid) {
+  if (!tid) return;
+  drState.tid = tid;
+  drState.record = null;
+
+  // Hide all other screens, show driver record
+  const mainEl  = document.getElementById('main');
+  const schedEl = document.getElementById('schedule-screen');
+  const setEl   = document.getElementById('settings-screen');
+  const perfEl  = document.getElementById('performance-screen');
+  const drEl    = document.getElementById('driver-record-screen');
+  if (mainEl)  mainEl.style.display  = 'none';
+  if (schedEl) schedEl.style.display = 'none';
+  if (setEl)   setEl.style.display   = 'none';
+  if (perfEl)  perfEl.style.display  = 'none';
+  if (drEl)    drEl.style.display    = 'block';
+
+  try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch(_) { window.scrollTo(0, 0); }
+
+  // Show loading state
+  document.getElementById('dr-name').textContent = 'Loading…';
+  document.getElementById('dr-meta').textContent = '';
+  document.getElementById('dr-timeline').innerHTML = '<div class="dr-loading">Loading record…</div>';
+
+  try {
+    const res = await apiCall({ action: 'driverRecord', tid: tid });
+    if (!res || res.status !== 'ok') {
+      document.getElementById('dr-name').textContent = 'Driver not found';
+      document.getElementById('dr-meta').textContent = res && res.message ? res.message : tid;
+      return;
+    }
+    drState.record = res;
+    drRender(res);
+  } catch (e) {
+    document.getElementById('dr-name').textContent = 'Error loading record';
+    document.getElementById('dr-meta').textContent = e.message;
+  }
+}
+
+function closeDriverRecord() {
+  // Go back to performance screen
+  const drEl = document.getElementById('driver-record-screen');
+  if (drEl) drEl.style.display = 'none';
+  if (typeof setMode === 'function') {
+    setMode('perf');
+  }
+}
+
+function drEsc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function drFmtDate(iso) {
+  if (!iso) return '—';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parts = String(iso).substring(0,10).split('-');
+  if (parts.length !== 3) return iso;
+  const m = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(m) || isNaN(day) || m < 0 || m > 11) return iso;
+  return months[m] + ' ' + day;
+}
+
+function drFmtTime(datetime) {
+  if (!datetime) return '';
+  try {
+    const d = new Date(datetime);
+    if (isNaN(d.getTime())) return '';
+    let h = d.getHours();
+    const mm = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return ', ' + h + ':' + (mm < 10 ? '0' + mm : mm) + ' ' + ampm;
+  } catch (e) { return ''; }
+}
+
+function drFmtTagClass(tag) {
+  if (!tag) return 'clear';
+  if (tag === 'CHRONIC')    return 'chronic';
+  if (tag === 'PATTERN')    return 'pattern';
+  if (tag === 'FIRST_WEEK') return 'first-week';
+  return 'clear';
+}
+function drFmtTagLabel(tag) {
+  if (!tag) return 'Clear';
+  if (tag === 'FIRST_WEEK') return 'First week';
+  return tag.charAt(0) + tag.substring(1).toLowerCase();
+}
+
+function drRender(rec) {
+  const driver = rec.driver || {};
+  const summary = rec.summary || {};
+  const byMetric = rec.by_metric_30d || [];
+  const chart = rec.weekly_chart || [];
+  const timeline = rec.timeline || [];
+
+  // Header
+  const name = driver.driver_name || 'Unknown';
+  const tenureDays = summary.tenure_days || 0;
+  const status = summary.status || 'Active';
+  document.getElementById('dr-name').textContent = name;
+
+  const tagEl = document.getElementById('dr-pattern-tag');
+  tagEl.className = 'perf-tag ' + drFmtTagClass(summary.pattern_tag);
+  tagEl.textContent = drFmtTagLabel(summary.pattern_tag);
+
+  const meta = (driver.transporter_id || '—') + ' · ' +
+               tenureDays + ' day' + (tenureDays !== 1 ? 's' : '') + ' tenure · ' +
+               status;
+  document.getElementById('dr-meta').textContent = meta;
+
+  // Phone
+  const phoneRow = document.getElementById('dr-phone-row');
+  const phoneLink = document.getElementById('dr-phone-link');
+  const phoneText = document.getElementById('dr-phone-text');
+  if (driver.phone_number) {
+    phoneRow.style.display = 'flex';
+    phoneLink.href = 'tel:' + driver.phone_number;
+    phoneText.textContent = driver.phone_number;
+  } else {
+    phoneRow.style.display = 'flex';
+    phoneLink.href = '#';
+    phoneLink.onclick = function(e) { e.preventDefault(); drEditPhone(); };
+    phoneText.textContent = 'No phone on file — add';
+  }
+
+  // Metrics
+  document.getElementById('dr-lifetime').textContent = summary.lifetime_events || 0;
+  const e30 = document.getElementById('dr-30day');
+  e30.textContent = summary.events_30d || 0;
+  e30.className = 'dr-metric-num' + ((summary.events_30d || 0) >= 5 ? ' high' : '');
+  const trend = summary.trend || 'flat';
+  const trendStr = trend === 'up' ? '↑ trending up' :
+                   trend === 'down' ? '↓ trending down' :
+                   trend === 'new' ? '— new driver' : '→ flat';
+  document.getElementById('dr-30day-sub').textContent = trendStr;
+
+  document.getElementById('dr-sms-count').textContent = summary.sms_count || 0;
+  document.getElementById('dr-inperson-count').textContent = summary.inperson_count || 0;
+
+  // Find most recent SMS / inperson dates from timeline
+  let lastSMS = null, lastIP = null;
+  timeline.forEach(function(t) {
+    if (t.kind === 'sms' && !lastSMS) lastSMS = t.date;
+    if (t.kind === 'inperson' && !lastIP) lastIP = t.date;
+  });
+  document.getElementById('dr-sms-sub').textContent = lastSMS ? 'last ' + drFmtDate(lastSMS) : 'never';
+  document.getElementById('dr-inperson-sub').textContent = lastIP ? 'last ' + drFmtDate(lastIP) : 'never';
+
+  // By-metric breakdown
+  const byMetricEl = document.getElementById('dr-by-metric');
+  if (byMetric.length === 0) {
+    byMetricEl.innerHTML = '<div class="dr-by-metric-row"><div class="dr-by-metric-name">No safety events in last 30 days</div><div class="dr-by-metric-count">—</div></div>';
+  } else {
+    byMetricEl.innerHTML = byMetric.map(function(m) {
+      const cls = m.count >= 5 ? ' high' : (m.count >= 3 ? ' med' : '');
+      return '<div class="dr-by-metric-row">' +
+        '<div class="dr-by-metric-name">' + drEsc(m.metric_type) + '</div>' +
+        '<div class="dr-by-metric-count' + cls + '">' + m.count + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // 13-week chart
+  const chartEl = document.getElementById('dr-chart');
+  if (chart.length === 0) {
+    chartEl.innerHTML = '<div style="font-size:11px; color:rgba(100,116,139,.6); align-self:center; width:100%; text-align:center;">No history</div>';
+  } else {
+    const maxCount = Math.max.apply(null, chart.map(function(w) { return w.count || 0; }).concat([1]));
+    chartEl.innerHTML = chart.map(function(w) {
+      const pct = maxCount > 0 ? Math.max(2, (w.count / maxCount) * 100) : 2;
+      const cls = (w.count >= 5) ? ' high' : '';
+      return '<div class="dr-chart-bar' + cls + '" style="height:' + pct + '%;" title="' + (w.count || 0) + ' events"></div>';
+    }).join('');
+  }
+
+  // Timeline
+  const timelineEl = document.getElementById('dr-timeline');
+  if (timeline.length === 0) {
+    timelineEl.innerHTML = '<div class="dr-loading">No events or coachings logged yet.</div>';
+  } else {
+    const items = timeline.slice(0, 30).map(function(t) {
+      const dotCls = t.kind || 'incident';
+      const dateStr = drFmtDate(t.date) + drFmtTime(t.datetime);
+      let title = drEsc(t.title || '');
+      let detail = '';
+      let detailClass = 'dr-tl-detail';
+
+      if (t.kind === 'incident') {
+        const parts = [];
+        if (t.detail) parts.push(drEsc(t.detail));
+        if (t.review_status && t.review_status !== 'None') parts.push(drEsc(t.review_status));
+        detail = parts.join(' · ');
+      } else if (t.kind === 'sms' || t.kind === 'inperson' || t.kind === 'skipped') {
+        if (t.detail) {
+          detail = '"' + drEsc(t.detail) + '"';
+          detailClass += ' italic';
+        }
+      } else if (t.kind === 'quality') {
+        detail = drEsc(t.detail);
+      } else if (t.kind === 'statuschange') {
+        detail = drEsc(t.detail);
+      }
+
+      return '<div class="dr-tl-item">' +
+        '<div class="dr-tl-dot ' + dotCls + '"></div>' +
+        '<div class="dr-tl-date">' + dateStr + '</div>' +
+        '<div class="dr-tl-title">' + title + '</div>' +
+        (detail ? '<div class="' + detailClass + '">' + detail + '</div>' : '') +
+      '</div>';
+    }).join('');
+    const moreCount = timeline.length - 30;
+    const moreLine = moreCount > 0
+      ? '<div class="dr-loading" style="padding-top:14px; padding-left:16px;">+ ' + moreCount + ' older events</div>'
+      : '';
+    timelineEl.innerHTML = '<div class="dr-tl-list">' + items + '</div>' + moreLine;
+  }
+}
+
+async function drSendSMS() {
+  if (!drState.record) return;
+  const driver = drState.record.driver || {};
+  const tid = driver.transporter_id;
+  const name = driver.driver_name || '';
+
+  // For now, use the queue's send-coaching endpoint. We need an event ID though,
+  // so this is a "log a generic coaching" rather than tied to a specific event.
+  const message = 'Hi ' + (name || '').split(' ')[0] +
+    ', a follow-up on your recent safety performance. — RouteReady';
+
+  if (!confirm('Send a coaching SMS to ' + name + '?')) return;
+
+  try {
+    // logCoaching with no triggered_by_event_id — standalone coaching message
+    const res = await apiCall({
+      action: 'sendCoaching',
+      tid: tid,
+      eventIds: 'manual',
+      message: message,
+      guide: ''
+    });
+    if (res && res.status === 'ok') {
+      alert('Coaching SMS logged.');
+      // Reload the record
+      await openDriverRecord(tid);
+    } else {
+      alert('Send failed: ' + (res && res.message ? res.message : 'unknown'));
+    }
+  } catch (e) {
+    alert('Send error: ' + e.message);
+  }
+}
+
+async function drLogInPerson() {
+  if (!drState.record) return;
+  const driver = drState.record.driver || {};
+  const notes = prompt('Notes from the 1:1 with ' + driver.driver_name + ':\n(What was discussed, what was agreed, next check-in date)');
+  if (notes == null) return;
+  try {
+    const res = await apiCall({
+      action: 'logInPerson',
+      tid: driver.transporter_id,
+      name: driver.driver_name,
+      notes: notes
+    });
+    if (res && res.status === 'ok') {
+      await openDriverRecord(driver.transporter_id);
+    } else {
+      alert('Log failed: ' + (res && res.message ? res.message : 'unknown'));
+    }
+  } catch (e) {
+    alert('Log error: ' + e.message);
+  }
+}
+
+async function drMarkTerminated() {
+  if (!drState.record) return;
+  const driver = drState.record.driver || {};
+  const reason = prompt('Reason for termination (will be logged):');
+  if (reason == null) return;
+  if (!confirm('Mark ' + driver.driver_name + ' as Terminated? This removes them from active queues.')) return;
+
+  try {
+    const res = await apiCall({
+      action: 'setDriverStatus',
+      tid: driver.transporter_id,
+      status: 'Terminated',
+      reason: reason
+    });
+    if (res && res.status === 'ok') {
+      alert('Driver marked terminated.');
+      await openDriverRecord(driver.transporter_id);
+    } else {
+      alert('Status update failed: ' + (res && res.message ? res.message : 'unknown'));
+    }
+  } catch (e) {
+    alert('Status update error: ' + e.message);
+  }
+}
+
+async function drEditPhone() {
+  if (!drState.record) return;
+  const driver = drState.record.driver || {};
+  const current = driver.phone_number || '';
+  const newPhone = prompt('Phone number (any format, will be normalized):', current);
+  if (newPhone == null) return;
+  try {
+    const res = await apiCall({
+      action: 'updateDriverPhone',
+      tid: driver.transporter_id,
+      phone: newPhone
+    });
+    if (res && res.status === 'ok') {
+      await openDriverRecord(driver.transporter_id);
+    } else {
+      alert('Phone update failed: ' + (res && res.message ? res.message : 'unknown'));
+    }
+  } catch (e) {
+    alert('Phone update error: ' + e.message);
+  }
+}
+
+window.openDriverRecord = openDriverRecord;
+window.closeDriverRecord = closeDriverRecord;
+</script>
+
 
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -9026,10 +9700,12 @@ function rrSideMsg(tab) {
   var schedScreen = document.getElementById('schedule-screen');
   var setEl = document.getElementById('settings-screen');
   var perfScreen = document.getElementById('performance-screen');
+  var drScreen = document.getElementById('driver-record-screen');
   if (main) main.style.display = 'none';
   if (schedScreen) schedScreen.style.display = 'none';
   if (setEl) setEl.style.display = 'none';
   if (perfScreen) perfScreen.style.display = 'none';
+  if (drScreen) drScreen.style.display = 'none';
 
   var hub = document.getElementById('rr-msg-hub');
   if (hub) {
@@ -9656,11 +10332,13 @@ function rrSideScreening() {
   var schedScreen = document.getElementById('schedule-screen');
   var setEl = document.getElementById('settings-screen');
   var perfScreen = document.getElementById('performance-screen');
+  var drScreen = document.getElementById('driver-record-screen');
   var msgHub = document.getElementById('rr-msg-hub');
   if (main) main.style.display = 'none';
   if (schedScreen) schedScreen.style.display = 'none';
   if (setEl) setEl.style.display = 'none';
   if (perfScreen) perfScreen.style.display = 'none';
+  if (drScreen) drScreen.style.display = 'none';
   if (msgHub) msgHub.classList.remove('show');
   var hub = document.getElementById('rr-sq-hub');
   if (hub) {
