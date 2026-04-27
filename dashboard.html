@@ -3012,7 +3012,9 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   #performance-screen[style*="block"],
   #performance-screen[style*="flex"],
   #driver-record-screen[style*="block"],
-  #driver-record-screen[style*="flex"] {
+  #driver-record-screen[style*="flex"],
+  #drivers-list-screen[style*="block"],
+  #drivers-list-screen[style*="flex"] {
     position: fixed !important;
     top: 0 !important;
     left: 248px !important;
@@ -3030,7 +3032,9 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   .rr-shell.collapsed #performance-screen[style*="block"],
   .rr-shell.collapsed #performance-screen[style*="flex"],
   .rr-shell.collapsed #driver-record-screen[style*="block"],
-  .rr-shell.collapsed #driver-record-screen[style*="flex"] {
+  .rr-shell.collapsed #driver-record-screen[style*="flex"],
+  .rr-shell.collapsed #drivers-list-screen[style*="block"],
+  .rr-shell.collapsed #drivers-list-screen[style*="flex"] {
     left: 72px !important;
   }
 }
@@ -3925,6 +3929,10 @@ input[type="time"]::-webkit-calendar-picker-indicator {
       <button class="rr-side-item rr-side-perf" data-mode="perf" onclick="rrSideNav('perf')">
         <svg class="rr-side-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
         <span class="rr-side-label">Performance</span>
+      </button>
+      <button class="rr-side-item rr-side-drivers" onclick="openDriversList()">
+        <svg class="rr-side-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="rr-side-label">Drivers</span>
       </button>
     </div>
     <!-- Messaging -->
@@ -5137,11 +5145,13 @@ async function loadData() {
     const setEl   = document.getElementById('settings-screen');
     const perfEl  = document.getElementById('performance-screen');
     const drEl    = document.getElementById('driver-record-screen');
+    const dlEl    = document.getElementById('drivers-list-screen');
     const anyFullPageOpen =
       (schedEl && schedEl.style.display && schedEl.style.display !== 'none') ||
       (setEl   && setEl.style.display   && setEl.style.display   !== 'none') ||
       (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none') ||
-      (drEl    && drEl.style.display    && drEl.style.display    !== 'none');
+      (drEl    && drEl.style.display    && drEl.style.display    !== 'none') ||
+      (dlEl    && dlEl.style.display    && dlEl.style.display    !== 'none');
     if (!anyFullPageOpen) {
       document.getElementById('main').style.display = 'flex';
     }
@@ -5215,11 +5225,13 @@ async function loadData() {
     const setEl   = document.getElementById('settings-screen');
     const perfEl  = document.getElementById('performance-screen');
     const drEl    = document.getElementById('driver-record-screen');
+    const dlEl    = document.getElementById('drivers-list-screen');
     const anyFullPageOpen =
       (schedEl && schedEl.style.display && schedEl.style.display !== 'none') ||
       (setEl   && setEl.style.display   && setEl.style.display   !== 'none') ||
       (perfEl  && perfEl.style.display  && perfEl.style.display  !== 'none') ||
-      (drEl    && drEl.style.display    && drEl.style.display    !== 'none');
+      (drEl    && drEl.style.display    && drEl.style.display    !== 'none') ||
+      (dlEl    && dlEl.style.display    && dlEl.style.display    !== 'none');
     if (!anyFullPageOpen) {
       document.getElementById('main').style.display = 'flex';
     }
@@ -5502,12 +5514,14 @@ function setMode(mode) {
   const setEl    = document.getElementById('settings-screen');
   const perfEl   = document.getElementById('performance-screen');
   const drEl     = document.getElementById('driver-record-screen');
+  const dlEl     = document.getElementById('drivers-list-screen');
 
   // Hide all full-page screens first
   if (schedEl) schedEl.style.display = 'none';
   if (setEl)   setEl.style.display   = 'none';
   if (perfEl)  perfEl.style.display  = 'none';
   if (drEl)    drEl.style.display    = 'none';
+  if (dlEl)    dlEl.style.display    = 'none';
 
   if (schedMode) {
     if (mainEl) mainEl.style.display = 'none';
@@ -8464,10 +8478,12 @@ async function openDriverRecord(tid) {
   const setEl   = document.getElementById('settings-screen');
   const perfEl  = document.getElementById('performance-screen');
   const drEl    = document.getElementById('driver-record-screen');
+  const dlEl    = document.getElementById('drivers-list-screen');
   if (mainEl)  mainEl.style.display  = 'none';
   if (schedEl) schedEl.style.display = 'none';
   if (setEl)   setEl.style.display   = 'none';
   if (perfEl)  perfEl.style.display  = 'none';
+  if (dlEl)    dlEl.style.display    = 'none';
   if (drEl)    drEl.style.display    = 'block';
 
   try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch(_) { window.scrollTo(0, 0); }
@@ -8781,6 +8797,477 @@ async function drEditPhone() {
 window.openDriverRecord = openDriverRecord;
 window.closeDriverRecord = closeDriverRecord;
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DRIVERS LIST SCREEN (Phase 4B-3)
+     Activated by openDriversList(). Hides #main and other screens.
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="drivers-list-screen">
+  <div class="dl-page">
+
+    <div class="dl-header">
+      <div class="dl-eyebrow">ANALYTICS · DRIVERS</div>
+      <div class="dl-title-row">
+        <h1 class="dl-title">All drivers</h1>
+      </div>
+      <div class="dl-summary" id="dl-summary">Loading…</div>
+    </div>
+
+    <div class="dl-controls">
+      <div class="dl-search-wrap">
+        <svg class="dl-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+        <input type="text" class="dl-search" id="dl-search" placeholder="Search by name or Transporter ID..." oninput="dlApplyFilters()" />
+      </div>
+      <select class="dl-filter" id="dl-filter-status" onchange="dlApplyFilters()">
+        <option value="all">All status</option>
+        <option value="Active">Active</option>
+        <option value="Pre-onboarding">Pre-onboarding</option>
+        <option value="Onboarding">Onboarding</option>
+        <option value="Inactive">Inactive</option>
+        <option value="Terminated">Terminated</option>
+      </select>
+      <select class="dl-filter" id="dl-filter-pattern" onchange="dlApplyFilters()">
+        <option value="all">All patterns</option>
+        <option value="CHRONIC">Chronic</option>
+        <option value="PATTERN">Pattern</option>
+        <option value="FIRST_WEEK">First week</option>
+        <option value="CLEAR">Clear</option>
+      </select>
+      <select class="dl-filter" id="dl-sort" onchange="dlApplyFilters()">
+        <option value="worst">Sort: Worst first</option>
+        <option value="name_asc">Sort: Name A–Z</option>
+        <option value="tenure_desc">Sort: Tenure (longest first)</option>
+        <option value="last_coached_asc">Sort: Last coached (oldest first)</option>
+      </select>
+    </div>
+
+    <div class="dl-table-wrap">
+      <div class="dl-thead">
+        <div>Driver</div>
+        <div>Pattern</div>
+        <div class="dl-num">30d</div>
+        <div class="dl-num">Lifetime</div>
+        <div>Last coached</div>
+        <div>Trend</div>
+      </div>
+      <div id="dl-rows">
+        <div class="dl-loading">Loading drivers…</div>
+      </div>
+    </div>
+
+    <div class="dl-footer" id="dl-footer">&nbsp;</div>
+
+  </div>
+</div>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   DRIVERS LIST — Phase 4B-3
+   ═══════════════════════════════════════════════════════════════ */
+
+#drivers-list-screen {
+  display: none;
+  max-width: 1100px;
+  margin: 0 auto;
+  background: transparent;
+  min-height: 100vh;
+}
+.dl-page {}
+
+.dl-header {
+  margin-bottom: 22px;
+}
+.dl-eyebrow {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(100,116,139,.75);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.dl-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.dl-title {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 30px;
+  line-height: 1.05;
+  color: var(--white,#1E293B);
+  font-weight: 400;
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+.dl-summary {
+  font-size: 11px;
+  color: rgba(100,116,139,.95);
+}
+
+.dl-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.dl-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+.dl-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(100,116,139,.7);
+  pointer-events: none;
+}
+.dl-search {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  font-size: 12px;
+  border: 1px solid #EAEAE5;
+  border-radius: 100px;
+  background: white;
+  color: var(--white,#1E293B);
+  outline: none;
+  font-family: inherit;
+}
+.dl-search:focus {
+  border-color: rgba(20,110,180,.4);
+  box-shadow: 0 0 0 3px rgba(20,110,180,.08);
+}
+.dl-filter {
+  font-size: 11px;
+  padding: 7px 14px;
+  border: 1px solid #EAEAE5;
+  background: white;
+  border-radius: 100px;
+  color: var(--white,#1E293B);
+  cursor: pointer;
+  font-family: inherit;
+  outline: none;
+}
+.dl-filter:hover { border-color: rgba(100,116,139,.4); }
+
+.dl-table-wrap {
+  background: white;
+  border: 1px solid #EAEAE5;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dl-thead {
+  display: grid;
+  grid-template-columns: 2fr 110px 70px 80px 130px 110px;
+  gap: 12px;
+  padding: 10px 18px;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(100,116,139,.75);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  background: #FAF9F4;
+  border-bottom: 0.5px solid #EAEAE5;
+}
+.dl-thead .dl-num { text-align: right; }
+.dl-row {
+  display: grid;
+  grid-template-columns: 2fr 110px 70px 80px 130px 110px;
+  gap: 12px;
+  padding: 14px 18px;
+  font-size: 13px;
+  align-items: center;
+  cursor: pointer;
+  border-bottom: 0.5px solid #EAEAE5;
+}
+.dl-row:hover { background: #FAF9F4; }
+.dl-row:last-child { border-bottom: 0; }
+.dl-row-name { font-weight: 600; color: var(--white,#1E293B); }
+.dl-row-meta { font-size: 10px; color: rgba(100,116,139,.85); margin-top: 2px; }
+.dl-row .dl-num { text-align: right; color: rgba(100,116,139,.85); }
+.dl-row .dl-num.high { color: #DC2626; font-weight: 600; }
+.dl-row .dl-num.med { color: #D97706; font-weight: 600; }
+.dl-row-trend {
+  font-size: 11px;
+  color: rgba(100,116,139,.85);
+}
+.dl-row-trend.up { color: #DC2626; }
+.dl-row-trend.down { color: #16A34A; }
+.dl-row-coached {
+  font-size: 11px;
+  color: rgba(100,116,139,.85);
+}
+
+.dl-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 100px;
+  letter-spacing: .06em;
+}
+.dl-tag.chronic { border: 0.5px solid #FECACA; color: #DC2626; }
+.dl-tag.pattern { background: #FEF3C7; color: #92400E; }
+.dl-tag.first-week { background: #DBEAFE; color: #1E40AF; }
+.dl-tag.clear { border: 0.5px solid #BBF7D0; color: #16A34A; }
+
+.dl-loading {
+  font-size: 12px;
+  color: rgba(100,116,139,.85);
+  padding: 24px 18px;
+  text-align: center;
+}
+.dl-empty {
+  font-size: 13px;
+  color: rgba(100,116,139,.85);
+  padding: 36px 18px;
+  text-align: center;
+}
+
+.dl-footer {
+  font-size: 11px;
+  color: rgba(100,116,139,.6);
+  margin-top: 12px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  #drivers-list-screen { padding: 0; }
+  .dl-title { font-size: 22px; }
+  .dl-controls { flex-direction: column; align-items: stretch; }
+  .dl-search-wrap { width: 100%; }
+  .dl-filter { width: 100%; }
+  .dl-thead { display: none; }
+  .dl-row {
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    padding: 14px 16px;
+  }
+  .dl-row > div:nth-child(3),
+  .dl-row > div:nth-child(4),
+  .dl-row > div:nth-child(5) {
+    display: none;
+  }
+  .dl-row-mobile-meta {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    color: rgba(100,116,139,.85);
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DRIVERS LIST PAGE — Phase 4B-3
+// ═══════════════════════════════════════════════════════════════
+
+let dlState = {
+  rows: [],
+  loaded: false
+};
+
+async function openDriversList() {
+  // Hide all other screens
+  const mainEl  = document.getElementById('main');
+  const schedEl = document.getElementById('schedule-screen');
+  const setEl   = document.getElementById('settings-screen');
+  const perfEl  = document.getElementById('performance-screen');
+  const drEl    = document.getElementById('driver-record-screen');
+  const dlEl    = document.getElementById('drivers-list-screen');
+  if (mainEl)  mainEl.style.display  = 'none';
+  if (schedEl) schedEl.style.display = 'none';
+  if (setEl)   setEl.style.display   = 'none';
+  if (perfEl)  perfEl.style.display  = 'none';
+  if (drEl)    drEl.style.display    = 'none';
+  if (dlEl)    dlEl.style.display    = 'block';
+
+  try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch(_) { window.scrollTo(0, 0); }
+
+  // Fetch fresh every time — drivers list changes daily as new drivers appear
+  document.getElementById('dl-rows').innerHTML = '<div class="dl-loading">Loading drivers…</div>';
+  document.getElementById('dl-summary').textContent = 'Loading…';
+
+  try {
+    const res = await apiCall({ action: 'driversList' });
+    if (!res || res.status !== 'ok' || !Array.isArray(res.rows)) {
+      document.getElementById('dl-rows').innerHTML = '<div class="dl-empty">Could not load drivers.</div>';
+      document.getElementById('dl-summary').textContent = res && res.message ? res.message : 'Error loading drivers';
+      return;
+    }
+    dlState.rows = res.rows;
+    dlState.loaded = true;
+    dlApplyFilters();
+  } catch (e) {
+    document.getElementById('dl-rows').innerHTML = '<div class="dl-empty">Error: ' + dlEsc(e.message) + '</div>';
+  }
+}
+
+function closeDriversList() {
+  const dlEl = document.getElementById('drivers-list-screen');
+  if (dlEl) dlEl.style.display = 'none';
+}
+
+function dlEsc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function dlFmtDate(iso) {
+  if (!iso) return '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parts = String(iso).substring(0,10).split('-');
+  if (parts.length !== 3) return iso;
+  const m = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(m) || isNaN(day) || m < 0 || m > 11) return iso;
+  return months[m] + ' ' + day;
+}
+
+function dlFmtTagClass(tag) {
+  if (!tag) return 'clear';
+  if (tag === 'CHRONIC')    return 'chronic';
+  if (tag === 'PATTERN')    return 'pattern';
+  if (tag === 'FIRST_WEEK') return 'first-week';
+  return 'clear';
+}
+function dlFmtTagLabel(tag) {
+  if (!tag) return 'Clear';
+  if (tag === 'FIRST_WEEK') return 'First week';
+  return tag.charAt(0) + tag.substring(1).toLowerCase();
+}
+
+function dlFmtTrend(trend) {
+  if (trend === 'up')   return { cls: 'up',   text: '↑ trending up' };
+  if (trend === 'down') return { cls: 'down', text: '↓ improving' };
+  if (trend === 'new')  return { cls: '',     text: '— new' };
+  return { cls: '', text: '→ flat' };
+}
+
+function dlApplyFilters() {
+  if (!dlState.loaded) return;
+
+  const q       = (document.getElementById('dl-search').value || '').toLowerCase().trim();
+  const status  = document.getElementById('dl-filter-status').value;
+  const pattern = document.getElementById('dl-filter-pattern').value;
+  const sort    = document.getElementById('dl-sort').value;
+
+  // Filter
+  let filtered = dlState.rows.slice();
+  if (q) {
+    filtered = filtered.filter(function(r) {
+      const name = String(r.driver_name || '').toLowerCase();
+      const tid  = String(r.transporter_id || '').toLowerCase();
+      return name.indexOf(q) !== -1 || tid.indexOf(q) !== -1;
+    });
+  }
+  if (status !== 'all') {
+    filtered = filtered.filter(function(r) { return (r.status || 'Active') === status; });
+  }
+  if (pattern !== 'all') {
+    filtered = filtered.filter(function(r) { return r.pattern_tag === pattern; });
+  }
+
+  // Sort
+  filtered.sort(function(a, b) {
+    if (sort === 'name_asc') {
+      return String(a.driver_name || '').localeCompare(String(b.driver_name || ''));
+    }
+    if (sort === 'tenure_desc') {
+      return (b.tenure_days || 0) - (a.tenure_days || 0);
+    }
+    if (sort === 'last_coached_asc') {
+      // never-coached first (treated as "oldest"), then oldest dates first
+      const aDate = a.last_coached_date || '';
+      const bDate = b.last_coached_date || '';
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return -1;
+      if (!bDate) return 1;
+      return aDate.localeCompare(bDate);
+    }
+    // default: worst first by 30d events
+    return (b.event_count_30d || 0) - (a.event_count_30d || 0);
+  });
+
+  // Update summary line
+  const total = dlState.rows.length;
+  const statusCounts = { Active: 0, 'Pre-onboarding': 0, Terminated: 0 };
+  dlState.rows.forEach(function(r) {
+    const s = r.status || 'Active';
+    if (statusCounts[s] != null) statusCounts[s]++;
+  });
+  let summary = statusCounts.Active + ' active';
+  if (statusCounts['Pre-onboarding']) summary += ' · ' + statusCounts['Pre-onboarding'] + ' pre-onboarding';
+  if (statusCounts.Terminated) summary += ' · ' + statusCounts.Terminated + ' terminated';
+  if (filtered.length !== total) {
+    summary += ' · showing ' + filtered.length + ' of ' + total;
+  }
+  document.getElementById('dl-summary').textContent = summary;
+
+  // Render rows
+  const rowsEl = document.getElementById('dl-rows');
+  if (filtered.length === 0) {
+    rowsEl.innerHTML = '<div class="dl-empty">No drivers match your filters.</div>';
+    document.getElementById('dl-footer').innerHTML = '';
+    return;
+  }
+
+  rowsEl.innerHTML = filtered.map(function(r) {
+    const tagCls   = dlFmtTagClass(r.pattern_tag);
+    const tagLabel = dlFmtTagLabel(r.pattern_tag);
+    const e30      = r.event_count_30d || 0;
+    const eLife    = (r.event_count_30d != null && r.lifetime_events != null)
+                     ? r.lifetime_events
+                     : (r.event_count_30d || 0);
+    const e30Cls   = e30 >= 10 ? 'high' : (e30 >= 5 ? 'med' : '');
+    const trend    = dlFmtTrend(r.trend);
+
+    let lastCoached = 'never';
+    if (r.last_coached_date) {
+      lastCoached = dlFmtDate(r.last_coached_date);
+      if (r.last_coached_type) {
+        const t = r.last_coached_type === 'InPerson' ? '1:1' :
+                  r.last_coached_type === 'Skipped' ? 'skipped' : 'SMS';
+        lastCoached += ' · ' + t;
+      }
+    }
+
+    const tenure = r.tenure_days != null ? r.tenure_days : 0;
+    const tid    = r.transporter_id || '—';
+    const tidShort = String(tid).length > 14 ? String(tid).substring(0, 14) + '…' : tid;
+
+    return '<div class="dl-row" onclick="openDriverRecord(\'' + dlEsc(r.transporter_id) + '\')">' +
+      '<div>' +
+        '<div class="dl-row-name">' + dlEsc(r.driver_name) + '</div>' +
+        '<div class="dl-row-meta">' + dlEsc(tidShort) + ' · ' + tenure + 'd tenure</div>' +
+      '</div>' +
+      '<div><span class="dl-tag ' + tagCls + '">' + tagLabel + '</span></div>' +
+      '<div class="dl-num ' + e30Cls + '">' + e30 + '</div>' +
+      '<div class="dl-num">' + eLife + '</div>' +
+      '<div class="dl-row-coached">' + lastCoached + '</div>' +
+      '<div class="dl-row-trend ' + trend.cls + '">' + trend.text + '</div>' +
+    '</div>';
+  }).join('');
+
+  document.getElementById('dl-footer').innerHTML = filtered.length === 1
+    ? '1 driver shown'
+    : filtered.length + ' drivers shown';
+}
+
+window.openDriversList = openDriversList;
+window.closeDriversList = closeDriversList;
+</script>
+
 
 
 
@@ -9704,11 +10191,13 @@ function rrSideMsg(tab) {
   var setEl = document.getElementById('settings-screen');
   var perfScreen = document.getElementById('performance-screen');
   var drScreen = document.getElementById('driver-record-screen');
+  var dlScreen = document.getElementById('drivers-list-screen');
   if (main) main.style.display = 'none';
   if (schedScreen) schedScreen.style.display = 'none';
   if (setEl) setEl.style.display = 'none';
   if (perfScreen) perfScreen.style.display = 'none';
   if (drScreen) drScreen.style.display = 'none';
+  if (dlScreen) dlScreen.style.display = 'none';
 
   var hub = document.getElementById('rr-msg-hub');
   if (hub) {
@@ -10336,12 +10825,14 @@ function rrSideScreening() {
   var setEl = document.getElementById('settings-screen');
   var perfScreen = document.getElementById('performance-screen');
   var drScreen = document.getElementById('driver-record-screen');
+  var dlScreen = document.getElementById('drivers-list-screen');
   var msgHub = document.getElementById('rr-msg-hub');
   if (main) main.style.display = 'none';
   if (schedScreen) schedScreen.style.display = 'none';
   if (setEl) setEl.style.display = 'none';
   if (perfScreen) perfScreen.style.display = 'none';
   if (drScreen) drScreen.style.display = 'none';
+  if (dlScreen) dlScreen.style.display = 'none';
   if (msgHub) msgHub.classList.remove('show');
   var hub = document.getElementById('rr-sq-hub');
   if (hub) {
