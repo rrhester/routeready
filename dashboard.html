@@ -7869,6 +7869,17 @@ function perfRenderQueue(res) {
     return;
   }
 
+  // Also show "all caught up" when every driver in queue has been coached
+  if (pending.length === 0) {
+    rows.innerHTML = '';
+    if (empty) {
+      empty.style.display = 'block';
+      const emptySub = document.getElementById('perf-queue-empty-sub');
+      if (emptySub) emptySub.textContent = 'You\'ve coached everyone in today\'s queue.';
+    }
+    return;
+  }
+
   if (empty) empty.style.display = 'none';
 
   rows.innerHTML = drivers.map(function(d, i) {
