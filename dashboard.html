@@ -7520,6 +7520,32 @@ setInterval(loadData, 60000);
   border-radius:12px; overflow:hidden;
 }
 
+#perf-queue-rows,
+#perf-decision-rows {
+  max-height: 60vh;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#perf-queue-rows::-webkit-scrollbar,
+#perf-decision-rows::-webkit-scrollbar {
+  width: 8px;
+}
+#perf-queue-rows::-webkit-scrollbar-track,
+#perf-decision-rows::-webkit-scrollbar-track {
+  background: transparent;
+}
+#perf-queue-rows::-webkit-scrollbar-thumb,
+#perf-decision-rows::-webkit-scrollbar-thumb {
+  background: rgba(100,116,139,.3);
+  border-radius: 100px;
+}
+#perf-queue-rows::-webkit-scrollbar-thumb:hover,
+#perf-decision-rows::-webkit-scrollbar-thumb:hover {
+  background: rgba(100,116,139,.5);
+}
+
 .perf-empty { padding:36px 28px; text-align:center; }
 .perf-empty-icon { margin-bottom:18px; }
 .perf-empty-icon svg { display:block; margin:0 auto; }
@@ -7936,6 +7962,9 @@ async function perfSetWindow(w) {
   document.querySelectorAll('.perf-toggle-btn').forEach(function(b) {
     b.classList.toggle('active', String(b.getAttribute('data-window')) === String(w));
   });
+  // Reset scroll to top when toggle changes — otherwise feels disorienting
+  const rows = document.getElementById('perf-decision-rows');
+  if (rows) rows.scrollTop = 0;
   await perfLoadDecision();
 }
 
