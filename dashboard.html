@@ -5548,8 +5548,15 @@ function setMode(mode) {
     return;
   }
 
-  // Default: pipeline / iday — show main dashboard
+ // Default: pipeline / iday — show main dashboard
   if (mainEl) mainEl.style.display = 'flex';
+
+  // Hide messaging hub and screening questions hub if either is open
+  // (fixes Video panel bleeding through onto Pipeline page)
+  var msgHub = document.getElementById('rr-msg-hub');
+  if (msgHub) msgHub.classList.remove('show');
+  var sqHub = document.getElementById('rr-sq-hub');
+  if (sqHub) sqHub.classList.remove('show');
 
   // Interview day logic
   mainEl.classList.toggle('iday-active', interviewMode);
