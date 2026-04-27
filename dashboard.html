@@ -2889,7 +2889,8 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* Default (mobile): no shell grid — everything renders as before,
    old top-nav visible, sidebar hidden. */
-.rr-shell { display: block }
+.rr-shell { display: block; visibility: hidden }
+.rr-shell.ready { visibility: visible }
 .rr-shell-main { display: block }
 
 /* ══════════════════════════════════════════════════════════════
@@ -5138,6 +5139,7 @@ async function loadData() {
     });
     data = await res.json();
     render();
+    document.getElementById('rr-shell').classList.add('ready');
     document.getElementById('loading').style.display = 'none';
     document.getElementById('nav').style.display     = 'flex';
     // Only show main if no full-page screen is currently open
