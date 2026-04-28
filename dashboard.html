@@ -7406,41 +7406,63 @@ setInterval(loadData, 60000);
       <div id="perf-queue-rows"></div>
     </div>
 
-    <!-- SECTION 2: DECISION VIEW -->
+    <!-- SECTION 2: DECISION VIEW (V2 — composite scoring + action cards) -->
     <div class="perf-section-bar" style="margin-top:36px;">
       <div>
         <div class="perf-section-title">Decision view</div>
-        <div class="perf-section-sub">Rolling totals · for stay-or-go conversations</div>
+        <div class="perf-section-sub">Stay-or-go conversations · ranked by risk</div>
       </div>
       <div class="perf-toggle">
-        <button class="perf-toggle-btn" data-window="7" onclick="perfSetWindow(7)">Weekly</button>
-        <button class="perf-toggle-btn active" data-window="30" onclick="perfSetWindow(30)">Monthly</button>
+        <button class="perf-toggle-btn active" data-window="7" onclick="perfSetWindow(7)">Weekly</button>
+        <button class="perf-toggle-btn" data-window="30" onclick="perfSetWindow(30)">Monthly</button>
         <button class="perf-toggle-btn" data-window="all" onclick="perfSetWindow('all')">All time</button>
       </div>
     </div>
 
-    <!-- HEADLINE NUMBERS -->
-    <div class="perf-headline">
-      <div class="perf-headline-cell">
-        <div class="perf-headline-num" id="perf-headline-incidents">0</div>
-        <div class="perf-headline-label">Incidents</div>
+    <!-- KPI STRIP (4 cards) -->
+    <div class="perf-kpi-strip">
+      <div class="perf-kpi-card">
+        <div class="perf-kpi-label">Team average</div>
+        <div class="perf-kpi-num" id="perf-kpi-avg">—</div>
+        <div class="perf-kpi-sub" id="perf-kpi-avg-sub">—</div>
       </div>
-      <div class="perf-headline-cell">
-        <div class="perf-headline-num" id="perf-headline-drivers">0</div>
-        <div class="perf-headline-label">Drivers involved</div>
+      <div class="perf-kpi-card">
+        <div class="perf-kpi-label">Top performer</div>
+        <div class="perf-kpi-num green" id="perf-kpi-top">—</div>
+        <div class="perf-kpi-sub" id="perf-kpi-top-sub">—</div>
       </div>
-      <div class="perf-headline-cell">
-        <div class="perf-headline-num" id="perf-headline-uncoached">0</div>
-        <div class="perf-headline-label">Never coached</div>
+      <div class="perf-kpi-card">
+        <div class="perf-kpi-label">Bottom performer</div>
+        <div class="perf-kpi-num red" id="perf-kpi-bottom">—</div>
+        <div class="perf-kpi-sub" id="perf-kpi-bottom-sub">—</div>
+      </div>
+      <div class="perf-kpi-card">
+        <div class="perf-kpi-label">Below average</div>
+        <div class="perf-kpi-num amber" id="perf-kpi-below">—</div>
+        <div class="perf-kpi-sub" id="perf-kpi-below-sub">—</div>
       </div>
     </div>
 
-    <div class="perf-card" id="perf-decision-card">
-      <div class="perf-empty" id="perf-decision-empty" style="display:none;">
-        <div class="perf-empty-title">No drivers in this window</div>
-        <div class="perf-empty-sub">Upload daily safety or quality data to populate this view.</div>
-      </div>
-      <div id="perf-decision-rows"></div>
+    <!-- ATTENTION SECTION HEADER -->
+    <div class="perf-attention-header" id="perf-attention-header" style="display:none;">
+      <span class="perf-attention-dot"></span>
+      <span class="perf-attention-label" id="perf-attention-label">drivers · attention</span>
+    </div>
+
+    <!-- ACTION CARDS -->
+    <div id="perf-action-cards">
+      <div class="perf-loading" id="perf-action-loading">Loading decision view…</div>
+    </div>
+
+    <div class="perf-empty" id="perf-decision-empty" style="display:none;">
+      <div class="perf-empty-title">No drivers in this window</div>
+      <div class="perf-empty-sub">Upload daily safety or quality data to populate this view.</div>
+    </div>
+
+    <!-- VIEW ALL FOOTER -->
+    <div class="perf-action-footer" id="perf-action-footer" style="display:none;">
+      <span id="perf-action-footer-text">— more drivers in the queue</span>
+      <a href="#" id="perf-action-footer-link" onclick="perfShowAllDecision(event)">view all</a>
     </div>
 
   </div>
@@ -7683,6 +7705,434 @@ setInterval(loadData, 60000);
   color:#B91C1C; background:#FEE2E2; border-bottom:1px solid #FECACA;
 }
 
+/* ═══ DECISION VIEW V2 ═══ */
+
+/* KPI STRIP */
+.perf-kpi-strip {
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:10px;
+  margin:0 0 20px;
+}
+.perf-kpi-card {
+  background:#FAF9F4;
+  border-radius:8px;
+  padding:14px 16px;
+}
+.perf-kpi-label {
+  font-size:10px;
+  color:rgba(100,116,139,.85);
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  margin:0 0 4px;
+}
+.perf-kpi-num {
+  font-family:'Tiempos Headline', Georgia, serif;
+  font-size:28px;
+  font-weight:500;
+  line-height:1.1;
+  color:#0F172A;
+}
+.perf-kpi-num.green { color:#0F6E56; }
+.perf-kpi-num.red   { color:#A32D2D; }
+.perf-kpi-num.amber { color:#BA7517; }
+.perf-kpi-sub {
+  font-size:11px;
+  color:rgba(100,116,139,.85);
+  margin-top:3px;
+}
+
+/* ATTENTION SECTION HEADER */
+.perf-attention-header {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:24px 0 10px;
+}
+.perf-attention-dot {
+  width:6px; height:6px;
+  border-radius:50%;
+  background:#A32D2D;
+}
+.perf-attention-label {
+  font-size:11px;
+  font-weight:600;
+  color:#A32D2D;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+
+/* ACTION CARDS */
+.perf-action-card {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  padding:14px 18px;
+  border-radius:0 8px 8px 0;
+  border-left:3px solid;
+  margin-bottom:8px;
+}
+.perf-action-card.sev-chronic   { background:#FCEBEB; border-left-color:#A32D2D; }
+.perf-action-card.sev-pattern   { background:#FAEEDA; border-left-color:#BA7517; }
+.perf-action-card.sev-improving { background:#EAF3DE; border-left-color:#639922; }
+
+.perf-action-body {
+  flex:1;
+  min-width:0;
+}
+.perf-action-head {
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  margin-bottom:4px;
+  flex-wrap:wrap;
+}
+.perf-action-name {
+  font-size:14px;
+  font-weight:500;
+}
+.perf-action-card.sev-chronic   .perf-action-name { color:#501313; }
+.perf-action-card.sev-pattern   .perf-action-name { color:#412402; }
+.perf-action-card.sev-improving .perf-action-name { color:#173404; }
+
+.perf-action-tag {
+  font-size:10px;
+  padding:2px 6px;
+  border-radius:3px;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  font-weight:600;
+  color:#FFFFFF;
+}
+.perf-action-tag.sev-chronic   { background:#A32D2D; }
+.perf-action-tag.sev-pattern   { background:#BA7517; }
+.perf-action-tag.sev-improving { background:#639922; }
+
+.perf-action-sub {
+  font-size:11px;
+}
+.perf-action-card.sev-chronic   .perf-action-sub { color:#791F1F; }
+.perf-action-card.sev-pattern   .perf-action-sub { color:#633806; }
+.perf-action-card.sev-improving .perf-action-sub { color:#27500A; }
+
+.perf-action-headline {
+  font-size:12px;
+  margin:0 0 6px;
+  line-height:1.4;
+}
+.perf-action-card.sev-chronic   .perf-action-headline { color:#501313; }
+.perf-action-card.sev-pattern   .perf-action-headline { color:#412402; }
+.perf-action-card.sev-improving .perf-action-headline { color:#173404; }
+
+.perf-action-detail {
+  font-size:11px;
+  line-height:1.45;
+}
+.perf-action-card.sev-chronic   .perf-action-detail { color:#791F1F; }
+.perf-action-card.sev-pattern   .perf-action-detail { color:#633806; }
+.perf-action-card.sev-improving .perf-action-detail { color:#27500A; }
+
+/* ACTION CARD BUTTONS */
+.perf-action-buttons {
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  min-width:130px;
+  flex-shrink:0;
+}
+.perf-action-btn {
+  padding:7px 11px;
+  font-size:11px;
+  font-weight:500;
+  border-radius:8px;
+  cursor:pointer;
+  font-family:inherit;
+  transition:opacity 0.15s;
+}
+.perf-action-btn:hover { opacity:0.85; }
+
+.perf-action-btn.primary {
+  color:#FFFFFF;
+  border:none;
+}
+.perf-action-btn.primary.sev-chronic   { background:#A32D2D; }
+.perf-action-btn.primary.sev-pattern   { background:#BA7517; }
+.perf-action-btn.primary.sev-improving { background:#639922; }
+
+.perf-action-btn.secondary {
+  background:transparent;
+  border:1px solid;
+  padding:6px 11px;
+}
+.perf-action-btn.secondary.sev-chronic   { color:#791F1F; border-color:#A32D2D; }
+.perf-action-btn.secondary.sev-pattern   { color:#633806; border-color:#BA7517; }
+.perf-action-btn.secondary.sev-improving { color:#27500A; border-color:#639922; }
+
+/* VIEW ALL FOOTER */
+.perf-action-footer {
+  text-align:center;
+  margin-top:16px;
+  font-size:12px;
+  color:rgba(100,116,139,.85);
+}
+.perf-action-footer a {
+  color:#146EB4;
+  text-decoration:none;
+}
+.perf-action-footer a:hover { text-decoration:underline; }
+
+/* ═══ DOCUMENT 1:1 MODAL ═══ */
+
+.perf-modal-overlay {
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.45);
+  z-index:9000;
+  display:none;
+  align-items:flex-start;
+  justify-content:center;
+  padding:32px 16px;
+  overflow-y:auto;
+}
+.perf-modal-overlay.active { display:flex; }
+.perf-modal {
+  background:#FFFFFF;
+  border-radius:12px;
+  width:100%;
+  max-width:560px;
+  padding:24px 28px;
+  box-shadow:0 20px 50px rgba(0,0,0,0.25);
+  margin:auto;
+}
+.perf-modal-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  margin-bottom:4px;
+}
+.perf-modal-title {
+  font-size:20px;
+  font-weight:500;
+  margin:0;
+}
+.perf-modal-close {
+  background:transparent;
+  border:none;
+  font-size:22px;
+  color:rgba(100,116,139,.85);
+  cursor:pointer;
+  line-height:1;
+  padding:0 4px;
+}
+.perf-modal-subtitle {
+  margin:0 0 18px;
+  font-size:13px;
+  color:rgba(100,116,139,.85);
+}
+
+.perf-modal-context {
+  background:#FCEBEB;
+  border-radius:8px;
+  padding:12px 14px;
+  margin-bottom:16px;
+}
+.perf-modal-context-name {
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  margin-bottom:6px;
+}
+.perf-modal-context-name p {
+  margin:0;
+  font-size:15px;
+  font-weight:500;
+  color:#501313;
+}
+.perf-modal-context-stats {
+  display:flex;
+  gap:14px;
+  font-size:12px;
+  color:#791F1F;
+  flex-wrap:wrap;
+}
+
+.perf-modal-activity {
+  background:#FAF9F4;
+  border-radius:8px;
+  padding:12px 14px;
+  margin-bottom:18px;
+}
+.perf-modal-activity-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
+}
+.perf-modal-activity-label {
+  font-size:11px;
+  color:rgba(100,116,139,.85);
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  margin:0;
+}
+.perf-modal-activity-link {
+  font-size:12px;
+  color:#146EB4;
+  text-decoration:none;
+}
+.perf-modal-activity-list {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  font-size:12px;
+}
+.perf-modal-activity-item {
+  display:flex;
+  justify-content:space-between;
+  padding:4px 0;
+  gap:10px;
+}
+.perf-modal-activity-item .left { flex:1; min-width:0; }
+.perf-modal-activity-item .date {
+  color:rgba(100,116,139,.85);
+  font-variant-numeric:tabular-nums;
+  flex-shrink:0;
+  font-size:11px;
+}
+.perf-modal-activity-item .kind-event    { color:#A32D2D; font-weight:600; }
+.perf-modal-activity-item .kind-sms      { color:#185FA5; font-weight:600; }
+.perf-modal-activity-item .kind-inperson { color:#534AB7; font-weight:600; }
+.perf-modal-activity-item .kind-skipped  { color:rgba(100,116,139,.85); font-weight:600; }
+
+.perf-modal-grid2 {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin-bottom:14px;
+}
+.perf-modal-field { margin-bottom:14px; }
+.perf-modal-label {
+  display:block;
+  font-size:12px;
+  color:rgba(100,116,139,.85);
+  margin-bottom:4px;
+}
+.perf-modal-input {
+  width:100%;
+  padding:8px 10px;
+  font-size:13px;
+  border:1px solid #E5E5DD;
+  border-radius:8px;
+  font-family:inherit;
+  color:#0F172A;
+  background:#FFFFFF;
+  box-sizing:border-box;
+}
+.perf-modal-input:focus { outline:2px solid #146EB4; outline-offset:-1px; }
+.perf-modal-textarea {
+  width:100%;
+  padding:8px 10px;
+  font-size:13px;
+  border:1px solid #E5E5DD;
+  border-radius:8px;
+  font-family:inherit;
+  color:#0F172A;
+  background:#FFFFFF;
+  resize:vertical;
+  box-sizing:border-box;
+}
+
+.perf-modal-toggle {
+  display:flex;
+  background:#FAF9F4;
+  border-radius:8px;
+  padding:3px;
+}
+.perf-modal-toggle button {
+  flex:1;
+  padding:6px 10px;
+  font-size:12px;
+  border-radius:6px;
+  background:transparent;
+  border:1px solid transparent;
+  cursor:pointer;
+  font-family:inherit;
+  color:#475569;
+}
+.perf-modal-toggle button.active {
+  background:#FFFFFF;
+  border:1px solid #E5E5DD;
+  font-weight:500;
+  color:#0F172A;
+}
+
+.perf-modal-buttons {
+  display:flex;
+  gap:6px;
+}
+.perf-modal-buttons button {
+  flex:1;
+  padding:8px;
+  font-size:12px;
+  background:transparent;
+  border:1px solid #E5E5DD;
+  border-radius:8px;
+  cursor:pointer;
+  font-family:inherit;
+  color:#475569;
+}
+.perf-modal-buttons button.active {
+  background:#0F172A;
+  color:#FFFFFF;
+  border-color:#0F172A;
+  font-weight:500;
+}
+
+.perf-modal-hint {
+  margin:4px 0 0;
+  font-size:11px;
+  color:rgba(100,116,139,.7);
+}
+
+.perf-modal-actions {
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  margin-top:18px;
+}
+.perf-modal-cancel {
+  padding:8px 16px;
+  font-size:13px;
+  background:transparent;
+  border:1px solid #CBD5E1;
+  border-radius:8px;
+  cursor:pointer;
+  font-family:inherit;
+}
+.perf-modal-save {
+  padding:8px 16px;
+  font-size:13px;
+  background:#0F172A;
+  color:#FFFFFF;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:500;
+  font-family:inherit;
+}
+.perf-modal-save:disabled {
+  background:#94A3B8;
+  cursor:not-allowed;
+}
+
+@media (max-width: 720px) {
+  .perf-kpi-strip { grid-template-columns:repeat(2, 1fr); }
+  .perf-action-card { flex-direction:column; }
+  .perf-action-buttons { flex-direction:row; min-width:0; width:100%; }
+  .perf-action-buttons .perf-action-btn { flex:1; }
+}
+
 @media (max-width: 720px) {
   .perf-fresh-strip { grid-template-columns:1fr; }
   .perf-headline { gap:28px; flex-wrap:wrap; }
@@ -7702,7 +8152,7 @@ setInterval(loadData, 60000);
 // We piggyback on those.
 
 let perfState = {
-  decisionWindow: 30,
+  decisionWindow: 7,
   loaded: false,
   queue: null,
   decision: null,
@@ -8013,82 +8463,169 @@ async function perfSetWindow(w) {
 }
 
 async function perfLoadDecision() {
-  const rows = document.getElementById('perf-decision-rows');
+  const cards = document.getElementById('perf-action-cards');
   const empty = document.getElementById('perf-decision-empty');
-  if (rows) rows.innerHTML = '<div class="perf-loading">Loading decision view…</div>';
+  const footer = document.getElementById('perf-action-footer');
+  const attHeader = document.getElementById('perf-attention-header');
+  if (cards) cards.innerHTML = '<div class="perf-loading">Loading decision view…</div>';
   if (empty) empty.style.display = 'none';
+  if (footer) footer.style.display = 'none';
+  if (attHeader) attHeader.style.display = 'none';
 
   try {
-    const res = await apiCall({ action: 'decisionView', window: String(perfState.decisionWindow) });
-    perfState.decision = res;
-    perfRenderDecision(res);
+    const res = await apiCall({ action: 'decisionViewV2', window: String(perfState.decisionWindow) });
+    if (res.status !== 'ok') {
+      throw new Error(res.message || 'unknown error');
+    }
+    perfState.decision = res.result;
+    perfRenderDecision(res.result);
   } catch (e) {
     console.error('perfLoadDecision failed:', e);
-    if (rows) rows.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
+    if (cards) cards.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
   }
 }
 
-function perfRenderDecision(res) {
-  const rows = document.getElementById('perf-decision-rows');
+function perfRenderDecision(payload) {
+  const cards = document.getElementById('perf-action-cards');
   const empty = document.getElementById('perf-decision-empty');
-  const incEl = document.getElementById('perf-headline-incidents');
-  const drvEl = document.getElementById('perf-headline-drivers');
-  const uncEl = document.getElementById('perf-headline-uncoached');
+  const footer = document.getElementById('perf-action-footer');
+  const footerText = document.getElementById('perf-action-footer-text');
+  const attHeader = document.getElementById('perf-attention-header');
+  const attLabel = document.getElementById('perf-attention-label');
 
-  const data = (res && res.rows) || [];
+  const kpis = (payload && payload.kpis) || {};
+  const actionCards = (payload && payload.action_cards) || [];
+  const queueTotal = (payload && payload.queue_total) || 0;
 
-  // Headline numbers — derived from data
-  const totalIncidents = data.reduce(function(s, r) { return s + (r.event_count || 0); }, 0);
-  const totalDrivers = data.length;
-  const neverCoached = data.filter(function(r) { return r.never_coached; }).length;
-  if (incEl) incEl.textContent = totalIncidents;
-  if (drvEl) drvEl.textContent = totalDrivers;
-  if (uncEl) uncEl.textContent = neverCoached;
+  // KPI strip
+  const avg = (kpis.team_average != null) ? kpis.team_average : 0;
+  document.getElementById('perf-kpi-avg').textContent = perfFmtScore(avg);
+  document.getElementById('perf-kpi-avg-sub').textContent = (kpis.total_das || 0) + ' DAs scored';
 
-  if (!data.length) {
-    if (rows) rows.innerHTML = '';
+  if (kpis.top_performer) {
+    document.getElementById('perf-kpi-top').textContent = perfFmtScore(kpis.top_performer.score);
+    document.getElementById('perf-kpi-top-sub').textContent = kpis.top_performer.name;
+  } else {
+    document.getElementById('perf-kpi-top').textContent = '—';
+    document.getElementById('perf-kpi-top-sub').textContent = '—';
+  }
+  if (kpis.bottom_performer) {
+    document.getElementById('perf-kpi-bottom').textContent = perfFmtScore(kpis.bottom_performer.score);
+    document.getElementById('perf-kpi-bottom-sub').textContent = kpis.bottom_performer.name;
+  } else {
+    document.getElementById('perf-kpi-bottom').textContent = '—';
+    document.getElementById('perf-kpi-bottom-sub').textContent = '—';
+  }
+  document.getElementById('perf-kpi-below').textContent = String(kpis.below_average_count || 0);
+  const totalDas = kpis.total_das || 0;
+  const pct = totalDas > 0 ? Math.round((kpis.below_average_count || 0) / totalDas * 100) : 0;
+  document.getElementById('perf-kpi-below-sub').textContent = pct + '% of DAs';
+
+  // Action cards
+  if (!actionCards.length) {
+    if (cards) cards.innerHTML = '';
     if (empty) empty.style.display = 'block';
+    if (attHeader) attHeader.style.display = 'none';
+    if (footer) footer.style.display = 'none';
     return;
   }
   if (empty) empty.style.display = 'none';
 
-  rows.innerHTML = data.map(function(r) {
-    const tagCls = perfFmtTagClass(r.pattern_tag);
-    const tagLabel = perfFmtTagLabel(r.pattern_tag);
-    const trend = perfFmtTrend(r.trend);
+  if (attHeader && attLabel) {
+    attHeader.style.display = 'flex';
+    attLabel.textContent = actionCards.length + ' DAs · attention';
+  }
 
-    // "8 SMS sent · 1 in-person · trend → flat"
-    const coachLine = (
-      r.sms_count + ' coaching SMS sent · ' +
-      r.inperson_count + ' in-person 1:1' + (r.inperson_count !== 1 ? 's' : '') +
-      ' · trend <span class="perf-trend ' + trend.cls + '">' + trend.sym + ' ' + trend.label + '</span>'
-    );
-    const lastLine = (
-      'Last 1:1: ' + (r.last_inperson_date || 'never') +
-      (r.never_coached ? ' · ⚠ never coached' : '')
-    );
+  cards.innerHTML = actionCards.map(perfRenderActionCard).join('');
 
-    return (
-      '<div class="perf-dec-row" data-tid="' + perfEsc(r.transporter_id) + '">' +
-        '<div class="perf-dec-count">' +
-          '<div class="perf-dec-count-num">' + (r.event_count || 0) + '</div>' +
-          '<div class="perf-dec-count-lbl">events</div>' +
+  // Footer
+  const more = queueTotal - actionCards.length;
+  if (more > 0 && footer && footerText) {
+    footer.style.display = 'block';
+    footerText.textContent = more + ' more DAs in the queue · ';
+    document.getElementById('perf-action-footer-link').textContent = 'view all ' + queueTotal;
+  } else if (footer) {
+    footer.style.display = 'none';
+  }
+}
+
+function perfRenderActionCard(c) {
+  const sev = c.severity || 'pattern';
+  const tagLabel = perfFmtTagLabel(c.pattern_tag);
+  const trend = perfFmtTrend(c.trend);
+  const trendArrow = trend.sym === '—' ? '' : ' ' + trend.sym;
+
+  // Improving has its own tag display
+  let displayTag = tagLabel + trendArrow;
+  if (c.is_improving) {
+    displayTag = 'Improving ↓';
+  }
+
+  // Headline diagnosis line
+  let headline = c.event_count + ' events in ' + (perfState.decisionWindow === 'all' ? 'all time' : perfState.decisionWindow + ' days');
+  headline += ' · ' + c.days_with_flags + ' days with safety flags';
+  if (c.trend === 'up') headline += ' · trend rising';
+  else if (c.trend === 'down') headline += ' · trend falling';
+  else if (c.trend === 'flat') headline += ' · trend flat';
+
+  // Detail line: event mix
+  const mixText = (c.event_mix || []).map(function(m) {
+    return m.type + ' (' + m.count + ')';
+  }).join(', ');
+
+  // Quality + dispute line
+  const detailParts = [];
+  if (mixText) detailParts.push(mixText);
+  if (c.avg_dcr != null) detailParts.push('DCR ' + c.avg_dcr.toFixed(1) + '%');
+  if (c.avg_pod != null) detailParts.push('POD ' + c.avg_pod.toFixed(1) + '%');
+  if (c.disputes_denied > 0) detailParts.push(c.disputes_denied + ' dispute' + (c.disputes_denied > 1 ? 's' : '') + ' denied');
+  if (c.last_sms_date) detailParts.push('Last SMS ' + c.last_sms_date);
+  const detailLine = detailParts.join('. ') + (detailParts.length ? '.' : '');
+
+  // Sub-header coaching counts
+  const subParts = [];
+  subParts.push(c.sms_count + ' SMS');
+  subParts.push(c.inperson_count + ' documented 1:1' + (c.inperson_count !== 1 ? 's' : ''));
+  const subText = subParts.join(' · ');
+
+  const tidEsc = perfEsc(c.transporter_id);
+  const nameEsc = perfEsc(c.driver_name);
+
+  return (
+    '<div class="perf-action-card sev-' + sev + '" data-tid="' + tidEsc + '">' +
+      '<div class="perf-action-body">' +
+        '<div class="perf-action-head">' +
+          '<div class="perf-action-name">' + nameEsc + '</div>' +
+          '<span class="perf-action-tag sev-' + sev + '">' + perfEsc(displayTag) + '</span>' +
+          '<span class="perf-action-sub">' + perfEsc(subText) + '</span>' +
         '</div>' +
-        '<div class="perf-dec-body">' +
-          '<div class="perf-dec-head">' +
-            '<div class="perf-dec-name">' + perfEsc(r.driver_name) + '</div>' +
-            '<span class="perf-tag ' + tagCls + '">' + tagLabel + '</span>' +
-          '</div>' +
-          '<div class="perf-dec-line">' + coachLine + '</div>' +
-          '<div class="perf-dec-sub">' + perfEsc(lastLine) + '</div>' +
-          '<div class="perf-dec-actions">' +
-            '<button class="perf-pill-btn ghost" onclick="perfOpenRecord(\'' + perfEsc(r.transporter_id) + '\')">Open coaching record</button>' +
-            '<button class="perf-pill-btn outline" onclick="perfPromptInPerson(\'' + perfEsc(r.transporter_id) + '\', \'' + perfEsc(r.driver_name) + '\')">Log 1:1</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>'
-    );
-  }).join('');
+        '<div class="perf-action-headline">' + perfEsc(headline) + '</div>' +
+        '<div class="perf-action-detail">' + perfEsc(detailLine) + '</div>' +
+      '</div>' +
+      '<div class="perf-action-buttons">' +
+        '<button class="perf-action-btn primary sev-' + sev + '" onclick="perfOpenOneOnOneModal(\'' + tidEsc + '\', \'' + nameEsc + '\')">Document 1:1</button>' +
+        '<button class="perf-action-btn secondary sev-' + sev + '" onclick="perfOpenRecord(\'' + tidEsc + '\')">Open record</button>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function perfFmtScore(score) {
+  if (score == null) return '—';
+  const n = Number(score);
+  if (isNaN(n)) return '—';
+  return n.toFixed(1);
+}
+
+function perfShowAllDecision(evt) {
+  if (evt) evt.preventDefault();
+  // Future: scroll to full driver list, or open a panel with the full ranked list
+  // For now, navigate to drivers page
+  if (typeof showScreen === 'function') {
+    showScreen('drivers');
+  } else {
+    alert('Driver list view coming soon.');
+  }
 }
 
 function perfOpenRecord(tid) {
@@ -11295,5 +11832,333 @@ function rrSqEscape(s) {
   });
 }
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DOCUMENT 1:1 MODAL (V2 Decision View)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="perf-modal-overlay" id="perf-1on1-overlay" onclick="perfHandleModalBackdrop(event)">
+  <div class="perf-modal" onclick="event.stopPropagation()">
+    <div class="perf-modal-head">
+      <p class="perf-modal-title" id="perf-1on1-title">Document 1:1</p>
+      <button class="perf-modal-close" onclick="perfClose1on1Modal()">×</button>
+    </div>
+    <p class="perf-modal-subtitle">Saves to driver record as a bridge entry</p>
+
+    <div class="perf-modal-context">
+      <div class="perf-modal-context-name">
+        <p id="perf-1on1-driver-name">—</p>
+        <span class="perf-action-tag sev-chronic" id="perf-1on1-driver-tag">—</span>
+      </div>
+      <div class="perf-modal-context-stats" id="perf-1on1-driver-stats">
+        Loading…
+      </div>
+    </div>
+
+    <div class="perf-modal-activity">
+      <div class="perf-modal-activity-head">
+        <p class="perf-modal-activity-label">Recent activity</p>
+        <a href="#" class="perf-modal-activity-link" id="perf-1on1-record-link">Open full record ↗</a>
+      </div>
+      <div class="perf-modal-activity-list" id="perf-1on1-activity-list">
+        <div style="font-size:12px; color:rgba(100,116,139,.85);">Loading…</div>
+      </div>
+    </div>
+
+    <div class="perf-modal-grid2">
+      <div>
+        <label class="perf-modal-label">Date</label>
+        <input type="date" class="perf-modal-input" id="perf-1on1-date" />
+      </div>
+      <div>
+        <label class="perf-modal-label">Conversation type</label>
+        <div class="perf-modal-toggle" id="perf-1on1-type">
+          <button type="button" class="active" data-value="in-person" onclick="perfSetToggle('perf-1on1-type', this)">In-person</button>
+          <button type="button" data-value="phone" onclick="perfSetToggle('perf-1on1-type', this)">Phone</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="perf-modal-field">
+      <label class="perf-modal-label">Outcome</label>
+      <div class="perf-modal-buttons" id="perf-1on1-outcome">
+        <button type="button" class="active" data-value="delivered" onclick="perfSetButtons('perf-1on1-outcome', this)">Coaching delivered</button>
+        <button type="button" data-value="attempted" onclick="perfSetButtons('perf-1on1-outcome', this)">Attempted</button>
+        <button type="button" data-value="disputed" onclick="perfSetButtons('perf-1on1-outcome', this)">Disputed</button>
+      </div>
+    </div>
+
+    <div class="perf-modal-field">
+      <label class="perf-modal-label">What was discussed</label>
+      <textarea class="perf-modal-textarea" id="perf-1on1-discussed" rows="3"></textarea>
+      <p class="perf-modal-hint">Pre-filled with this week's events. Edit as needed.</p>
+    </div>
+
+    <div class="perf-modal-field">
+      <label class="perf-modal-label">Driver acknowledgment</label>
+      <div class="perf-modal-buttons" id="perf-1on1-ack">
+        <button type="button" data-value="yes" onclick="perfSetButtons('perf-1on1-ack', this)">Yes</button>
+        <button type="button" data-value="no" onclick="perfSetButtons('perf-1on1-ack', this)">No</button>
+      </div>
+    </div>
+
+    <div class="perf-modal-field">
+      <label class="perf-modal-label">Driver commitment</label>
+      <input type="text" class="perf-modal-input" id="perf-1on1-commitment" placeholder="What did the driver agree to do differently?" />
+    </div>
+
+    <div class="perf-modal-actions">
+      <button class="perf-modal-cancel" onclick="perfClose1on1Modal()">Cancel</button>
+      <button class="perf-modal-save" id="perf-1on1-save-btn" onclick="perfSave1on1()">Save to record</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DOCUMENT 1:1 MODAL LOGIC ──────────────────────────────────
+
+let perf1on1State = {
+  transporter_id: null,
+  driver_name: null,
+  card: null,
+  conversation_type: 'in-person',
+  outcome: 'delivered',
+  acknowledgment: '',
+  next_number: 1
+};
+
+async function perfOpenOneOnOneModal(tid, name) {
+  // Find the matching action card from current decision state
+  let card = null;
+  if (perfState.decision && perfState.decision.action_cards) {
+    card = perfState.decision.action_cards.find(function(c) {
+      return c.transporter_id === tid;
+    });
+  }
+  perf1on1State.transporter_id = tid;
+  perf1on1State.driver_name = name;
+  perf1on1State.card = card;
+  perf1on1State.conversation_type = 'in-person';
+  perf1on1State.outcome = 'delivered';
+  perf1on1State.acknowledgment = '';
+
+  // Reset toggles
+  resetToggle('perf-1on1-type', 'in-person');
+  resetToggle('perf-1on1-outcome', 'delivered');
+  resetToggle('perf-1on1-ack', null);
+
+  // Date defaults to today
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById('perf-1on1-date').value = yyyy + '-' + mm + '-' + dd;
+
+  // Driver header
+  document.getElementById('perf-1on1-driver-name').textContent = name;
+
+  // Tag + severity color
+  const tagEl = document.getElementById('perf-1on1-driver-tag');
+  if (card) {
+    let tagText = perfFmtTagLabel(card.pattern_tag);
+    if (card.is_improving) tagText = 'Improving ↓';
+    else if (card.trend === 'up') tagText += ' ↑';
+    else if (card.trend === 'down') tagText += ' ↓';
+    tagEl.textContent = tagText;
+    tagEl.className = 'perf-action-tag sev-' + (card.severity || 'pattern');
+
+    // Recolor the context block
+    const ctxEl = document.querySelector('.perf-modal-context');
+    if (ctxEl) {
+      if (card.severity === 'chronic') {
+        ctxEl.style.background = '#FCEBEB';
+        ctxEl.querySelector('p').style.color = '#501313';
+        ctxEl.querySelector('.perf-modal-context-stats').style.color = '#791F1F';
+      } else if (card.severity === 'pattern') {
+        ctxEl.style.background = '#FAEEDA';
+        ctxEl.querySelector('p').style.color = '#412402';
+        ctxEl.querySelector('.perf-modal-context-stats').style.color = '#633806';
+      } else if (card.severity === 'improving') {
+        ctxEl.style.background = '#EAF3DE';
+        ctxEl.querySelector('p').style.color = '#173404';
+        ctxEl.querySelector('.perf-modal-context-stats').style.color = '#27500A';
+      }
+    }
+  } else {
+    tagEl.textContent = '—';
+  }
+
+  // Stats
+  const stats = document.getElementById('perf-1on1-driver-stats');
+  if (card) {
+    const parts = [];
+    parts.push(card.event_count + ' events / ' + (perfState.decisionWindow === 'all' ? 'all time' : perfState.decisionWindow + ' days'));
+    parts.push(card.sms_count + ' SMS sent');
+    parts.push(card.inperson_count + ' documented 1:1s');
+    if (card.tenure_days != null) parts.push('tenure ' + card.tenure_days + 'd');
+    stats.innerHTML = parts.map(function(p) { return '<span>' + perfEsc(p) + '</span>'; }).join('<span style="opacity:.4;">·</span>');
+  } else {
+    stats.textContent = 'Loading driver context…';
+  }
+
+  // Pre-populate discussed field with event mix
+  if (card && card.event_mix && card.event_mix.length) {
+    const mixText = card.event_mix.map(function(m) { return m.type + ' (' + m.count + ')'; }).join(', ');
+    document.getElementById('perf-1on1-discussed').value =
+      'Reviewed events: ' + mixText + '. ' +
+      card.sms_count + ' prior SMS coachings on file. ';
+  } else {
+    document.getElementById('perf-1on1-discussed').value = '';
+  }
+
+  document.getElementById('perf-1on1-commitment').value = '';
+
+  // Open record link
+  const recordLink = document.getElementById('perf-1on1-record-link');
+  recordLink.onclick = function(e) {
+    e.preventDefault();
+    perfOpenRecord(tid);
+  };
+
+  // Open the modal
+  document.getElementById('perf-1on1-overlay').classList.add('active');
+
+  // Load recent activity in background
+  perfLoadRecentActivity(tid);
+}
+
+async function perfLoadRecentActivity(tid) {
+  const listEl = document.getElementById('perf-1on1-activity-list');
+  try {
+    const res = await apiCall({ action: 'driverRecentActivity', transporter_id: tid, limit: 5 });
+    if (res.status !== 'ok') throw new Error(res.message || 'failed');
+    const items = (res.result && res.result.items) || [];
+    const nextNum = (res.result && res.result.next_inperson_number) || 1;
+    perf1on1State.next_number = nextNum;
+    document.getElementById('perf-1on1-title').textContent = 'Document 1:1 #' + nextNum;
+
+    if (!items.length) {
+      listEl.innerHTML = '<div style="font-size:12px; color:rgba(100,116,139,.7);">No recent activity yet.</div>';
+      return;
+    }
+
+    listEl.innerHTML = items.map(function(item) {
+      let kindLabel = '';
+      let detail = '';
+      if (item.kind === 'event') {
+        kindLabel = '<span class="kind-event">Event</span>';
+        detail = item.title + (item.detail ? ' · ' + item.detail : '');
+      } else if (item.kind === 'sms') {
+        kindLabel = '<span class="kind-sms">SMS coaching</span>';
+        detail = item.detail || 'Sent';
+        if (detail.length > 60) detail = detail.slice(0, 57) + '…';
+      } else if (item.kind === 'inperson') {
+        kindLabel = '<span class="kind-inperson">' + item.title + '</span>';
+        detail = item.detail || 'Documented';
+        if (detail.length > 60) detail = detail.slice(0, 57) + '…';
+      } else if (item.kind === 'skipped') {
+        kindLabel = '<span class="kind-skipped">Skipped</span>';
+        detail = item.detail || '';
+      }
+      return (
+        '<div class="perf-modal-activity-item">' +
+          '<div class="left">' + kindLabel + ' · ' + perfEsc(detail) + '</div>' +
+          '<div class="date">' + perfEsc(item.date || '—') + '</div>' +
+        '</div>'
+      );
+    }).join('');
+  } catch (e) {
+    console.error('Recent activity load failed:', e);
+    listEl.innerHTML = '<div style="font-size:12px; color:#B91C1C;">Could not load activity.</div>';
+  }
+}
+
+function perfClose1on1Modal() {
+  document.getElementById('perf-1on1-overlay').classList.remove('active');
+}
+
+function perfHandleModalBackdrop(evt) {
+  // Only close if click was on the overlay itself (not bubbling from inside modal)
+  if (evt.target.id === 'perf-1on1-overlay') {
+    perfClose1on1Modal();
+  }
+}
+
+function perfSetToggle(groupId, btn) {
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  group.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  const value = btn.getAttribute('data-value');
+  if (groupId === 'perf-1on1-type') perf1on1State.conversation_type = value;
+}
+
+function perfSetButtons(groupId, btn) {
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  group.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  const value = btn.getAttribute('data-value');
+  if (groupId === 'perf-1on1-outcome') perf1on1State.outcome = value;
+  else if (groupId === 'perf-1on1-ack') perf1on1State.acknowledgment = value;
+}
+
+function resetToggle(groupId, defaultValue) {
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  group.querySelectorAll('button').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-value') === defaultValue);
+  });
+}
+
+async function perfSave1on1() {
+  const tid = perf1on1State.transporter_id;
+  if (!tid) {
+    alert('No driver selected');
+    return;
+  }
+
+  const date = document.getElementById('perf-1on1-date').value || '';
+  const discussed = document.getElementById('perf-1on1-discussed').value || '';
+  const commitment = document.getElementById('perf-1on1-commitment').value || '';
+
+  const params = {
+    action: 'logFormalOneOnOne',
+    transporter_id: tid,
+    driver_name: perf1on1State.driver_name || '',
+    conversation_type: perf1on1State.conversation_type || 'in-person',
+    outcome: perf1on1State.outcome || 'delivered',
+    acknowledgment: perf1on1State.acknowledgment || '',
+    discussed: discussed,
+    commitment: commitment,
+    date: date
+  };
+
+  const btn = document.getElementById('perf-1on1-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await apiCall(params);
+    if (res.status !== 'ok') throw new Error(res.message || 'save failed');
+
+    // Refresh decision view to reflect new 1:1 count
+    perfClose1on1Modal();
+    await perfLoadDecision();
+  } catch (e) {
+    console.error('1:1 save failed:', e);
+    alert('Could not save 1:1: ' + (e.message || 'unknown error'));
+    btn.disabled = false;
+    btn.textContent = 'Save to record';
+  }
+}
+
+window.perfOpenOneOnOneModal = perfOpenOneOnOneModal;
+window.perfClose1on1Modal = perfClose1on1Modal;
+window.perfSave1on1 = perfSave1on1;
+window.perfHandleModalBackdrop = perfHandleModalBackdrop;
+window.perfSetToggle = perfSetToggle;
+window.perfSetButtons = perfSetButtons;
+</script>
+
 </body>
 </html>
