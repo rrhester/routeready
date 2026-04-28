@@ -7406,7 +7406,7 @@ setInterval(loadData, 60000);
       <div id="perf-queue-rows"></div>
     </div>
 
-    <!-- SECTION 2: DECISION VIEW (V2 — composite scoring + action cards) -->
+    <!-- SECTION 2: DECISION VIEW (V2 — composite scoring + restrained design) -->
     <div class="perf-section-bar" style="margin-top:36px;">
       <div>
         <div class="perf-section-title">Decision view</div>
@@ -7419,50 +7419,60 @@ setInterval(loadData, 60000);
       </div>
     </div>
 
-    <!-- KPI STRIP (4 cards) -->
-    <div class="perf-kpi-strip">
-      <div class="perf-kpi-card">
-        <div class="perf-kpi-label">Team average</div>
-        <div class="perf-kpi-num" id="perf-kpi-avg">—</div>
-        <div class="perf-kpi-sub" id="perf-kpi-avg-sub">—</div>
-      </div>
-      <div class="perf-kpi-card">
-        <div class="perf-kpi-label">Top performer</div>
-        <div class="perf-kpi-num green" id="perf-kpi-top">—</div>
-        <div class="perf-kpi-sub" id="perf-kpi-top-sub">—</div>
-      </div>
-      <div class="perf-kpi-card">
-        <div class="perf-kpi-label">Bottom performer</div>
-        <div class="perf-kpi-num red" id="perf-kpi-bottom">—</div>
-        <div class="perf-kpi-sub" id="perf-kpi-bottom-sub">—</div>
-      </div>
-      <div class="perf-kpi-card">
-        <div class="perf-kpi-label">Below average</div>
-        <div class="perf-kpi-num amber" id="perf-kpi-below">—</div>
-        <div class="perf-kpi-sub" id="perf-kpi-below-sub">—</div>
-      </div>
-    </div>
+    <div class="perf-card" id="perf-decision-card">
 
-    <!-- ATTENTION SECTION HEADER -->
-    <div class="perf-attention-header" id="perf-attention-header" style="display:none;">
-      <span class="perf-attention-dot"></span>
-      <span class="perf-attention-label" id="perf-attention-label">drivers · attention</span>
-    </div>
+      <!-- KPI ROW (Pipeline-style: large serif numbers, hairline dividers, no inset cards) -->
+      <div class="perf-kpi-row">
+        <div class="perf-kpi-cell">
+          <div class="perf-kpi-num" id="perf-kpi-avg">—</div>
+          <div class="perf-kpi-label">Team average</div>
+          <div class="perf-kpi-sub" id="perf-kpi-avg-sub">—</div>
+        </div>
+        <div class="perf-kpi-cell">
+          <div class="perf-kpi-num" id="perf-kpi-top">—</div>
+          <div class="perf-kpi-label">Top performer</div>
+          <div class="perf-kpi-sub" id="perf-kpi-top-sub">—</div>
+        </div>
+        <div class="perf-kpi-cell">
+          <div class="perf-kpi-num" id="perf-kpi-bottom">—</div>
+          <div class="perf-kpi-label">Bottom performer</div>
+          <div class="perf-kpi-sub" id="perf-kpi-bottom-sub">—</div>
+        </div>
+        <div class="perf-kpi-cell">
+          <div class="perf-kpi-num" id="perf-kpi-below">—</div>
+          <div class="perf-kpi-label">Below average</div>
+          <div class="perf-kpi-sub" id="perf-kpi-below-sub">—</div>
+        </div>
+      </div>
 
-    <!-- ACTION CARDS -->
-    <div id="perf-action-cards">
-      <div class="perf-loading" id="perf-action-loading">Loading decision view…</div>
-    </div>
+      <!-- LIST TOGGLE: Needs attention / Improving -->
+      <div class="perf-list-toggle-row">
+        <div class="perf-list-toggle">
+          <button class="perf-list-toggle-btn active" data-list="attention" onclick="perfSetList('attention')">
+            Needs attention <span class="perf-list-count" id="perf-list-count-attention">—</span>
+          </button>
+          <button class="perf-list-toggle-btn" data-list="improving" onclick="perfSetList('improving')">
+            Improving <span class="perf-list-count" id="perf-list-count-improving">—</span>
+          </button>
+        </div>
+      </div>
 
-    <div class="perf-empty" id="perf-decision-empty" style="display:none;">
-      <div class="perf-empty-title">No drivers in this window</div>
-      <div class="perf-empty-sub">Upload daily safety or quality data to populate this view.</div>
-    </div>
+      <!-- ACTION CARDS / IMPROVING LIST -->
+      <div id="perf-action-rows">
+        <div class="perf-loading">Loading decision view…</div>
+      </div>
 
-    <!-- VIEW ALL FOOTER -->
-    <div class="perf-action-footer" id="perf-action-footer" style="display:none;">
-      <span id="perf-action-footer-text">— more drivers in the queue</span>
-      <a href="#" id="perf-action-footer-link" onclick="perfShowAllDecision(event)">view all</a>
+      <div class="perf-empty" id="perf-decision-empty" style="display:none;">
+        <div class="perf-empty-title">No drivers in this view</div>
+        <div class="perf-empty-sub">Upload daily safety or quality data to populate this list.</div>
+      </div>
+
+      <!-- VIEW ALL FOOTER -->
+      <div class="perf-action-footer" id="perf-action-footer" style="display:none;">
+        <span id="perf-action-footer-text">— more DAs in the queue</span>
+        <a href="#" id="perf-action-footer-link" onclick="perfShowAllDecision(event)">view all</a>
+      </div>
+
     </div>
 
   </div>
@@ -7705,169 +7715,159 @@ setInterval(loadData, 60000);
   color:#B91C1C; background:#FEE2E2; border-bottom:1px solid #FECACA;
 }
 
-/* ═══ DECISION VIEW V2 ═══ */
+/* ═══ DECISION VIEW V2 (RESTRAINED PALETTE) ═══ */
 
-/* KPI STRIP */
-.perf-kpi-strip {
+/* KPI ROW — Pipeline-style: serif numbers, hairline dividers, no inset cards */
+.perf-kpi-row {
   display:grid;
   grid-template-columns:repeat(4, 1fr);
-  gap:10px;
-  margin:0 0 20px;
+  padding:12px 0 24px;
+  border-bottom:1px solid #EAEAE5;
 }
-.perf-kpi-card {
-  background:#FAF9F4;
-  border-radius:8px;
-  padding:14px 16px;
+.perf-kpi-cell {
+  text-align:center;
+  padding:8px 8px;
+  border-right:1px solid #EAEAE5;
 }
-.perf-kpi-label {
-  font-size:10px;
-  color:rgba(100,116,139,.85);
-  text-transform:uppercase;
-  letter-spacing:0.04em;
-  margin:0 0 4px;
-}
+.perf-kpi-cell:last-child { border-right:none; }
 .perf-kpi-num {
   font-family:'Tiempos Headline', Georgia, serif;
-  font-size:28px;
-  font-weight:500;
-  line-height:1.1;
-  color:#0F172A;
+  font-size:48px;
+  font-weight:400;
+  line-height:1;
+  color:#146EB4;
+  margin-bottom:6px;
 }
-.perf-kpi-num.green { color:#0F6E56; }
-.perf-kpi-num.red   { color:#A32D2D; }
-.perf-kpi-num.amber { color:#BA7517; }
+.perf-kpi-label {
+  font-size:11px;
+  color:rgba(100,116,139,.95);
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  margin-bottom:2px;
+}
 .perf-kpi-sub {
   font-size:11px;
-  color:rgba(100,116,139,.85);
-  margin-top:3px;
+  color:rgba(100,116,139,.65);
 }
 
-/* ATTENTION SECTION HEADER */
-.perf-attention-header {
+/* LIST TOGGLE (Needs attention / Improving) */
+.perf-list-toggle-row {
   display:flex;
+  justify-content:flex-start;
   align-items:center;
-  gap:8px;
-  margin:24px 0 10px;
+  margin:18px 0 8px;
 }
-.perf-attention-dot {
-  width:6px; height:6px;
-  border-radius:50%;
-  background:#A32D2D;
+.perf-list-toggle {
+  display:inline-flex;
+  background:#FAF9F4;
+  border-radius:8px;
+  padding:3px;
 }
-.perf-attention-label {
-  font-size:11px;
-  font-weight:600;
-  color:#A32D2D;
-  text-transform:uppercase;
-  letter-spacing:0.05em;
+.perf-list-toggle-btn {
+  padding:6px 14px;
+  font-size:12px;
+  border-radius:6px;
+  background:transparent;
+  border:1px solid transparent;
+  cursor:pointer;
+  color:#475569;
+  font-family:inherit;
 }
+.perf-list-toggle-btn.active {
+  background:#FFFFFF;
+  border:1px solid #EAEAE5;
+  font-weight:500;
+  color:#0F172A;
+}
+.perf-list-count {
+  color:rgba(100,116,139,.6);
+  font-weight:400;
+  margin-left:4px;
+}
+.perf-list-toggle-btn.active .perf-list-count { color:rgba(100,116,139,.7); }
 
-/* ACTION CARDS */
-.perf-action-card {
+/* DECISION ROWS (V2) */
+.perf-decv2-row {
   display:flex;
   justify-content:space-between;
-  align-items:flex-start;
-  gap:14px;
-  padding:14px 18px;
-  border-radius:0 8px 8px 0;
+  align-items:center;
+  padding:16px 0 16px 14px;
+  border-top:1px solid #EAEAE5;
   border-left:3px solid;
-  margin-bottom:8px;
+  gap:14px;
 }
-.perf-action-card.sev-chronic   { background:#FCEBEB; border-left-color:#A32D2D; }
-.perf-action-card.sev-pattern   { background:#FAEEDA; border-left-color:#BA7517; }
-.perf-action-card.sev-improving { background:#EAF3DE; border-left-color:#639922; }
+.perf-decv2-row:last-child { border-bottom:1px solid #EAEAE5; }
+.perf-decv2-row.bar-chronic { border-left-color:#DC2626; }
+.perf-decv2-row.bar-neutral { border-left-color:rgba(100,116,139,.3); }
 
-.perf-action-body {
+.perf-decv2-body {
   flex:1;
   min-width:0;
 }
-.perf-action-head {
+.perf-decv2-head {
   display:flex;
-  align-items:baseline;
+  align-items:center;
   gap:8px;
   margin-bottom:4px;
   flex-wrap:wrap;
 }
-.perf-action-name {
+.perf-decv2-name {
   font-size:14px;
-  font-weight:500;
-}
-.perf-action-card.sev-chronic   .perf-action-name { color:#501313; }
-.perf-action-card.sev-pattern   .perf-action-name { color:#412402; }
-.perf-action-card.sev-improving .perf-action-name { color:#173404; }
-
-.perf-action-tag {
-  font-size:10px;
-  padding:2px 6px;
-  border-radius:3px;
-  text-transform:uppercase;
-  letter-spacing:0.04em;
   font-weight:600;
-  color:#FFFFFF;
+  color:#0F172A;
 }
-.perf-action-tag.sev-chronic   { background:#A32D2D; }
-.perf-action-tag.sev-pattern   { background:#BA7517; }
-.perf-action-tag.sev-improving { background:#639922; }
-
-.perf-action-sub {
+.perf-decv2-tag {
+  font-size:9px;
+  font-weight:700;
+  padding:3px 8px;
+  border-radius:100px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  border:1px solid #EAEAE5;
+  color:rgba(71,85,105,.95);
+  white-space:nowrap;
+}
+.perf-decv2-sub {
   font-size:11px;
+  color:rgba(100,116,139,.85);
 }
-.perf-action-card.sev-chronic   .perf-action-sub { color:#791F1F; }
-.perf-action-card.sev-pattern   .perf-action-sub { color:#633806; }
-.perf-action-card.sev-improving .perf-action-sub { color:#27500A; }
-
-.perf-action-headline {
+.perf-decv2-headline {
   font-size:12px;
-  margin:0 0 6px;
-  line-height:1.4;
+  color:rgba(71,85,105,.95);
+  margin-bottom:3px;
 }
-.perf-action-card.sev-chronic   .perf-action-headline { color:#501313; }
-.perf-action-card.sev-pattern   .perf-action-headline { color:#412402; }
-.perf-action-card.sev-improving .perf-action-headline { color:#173404; }
-
-.perf-action-detail {
+.perf-decv2-detail {
   font-size:11px;
-  line-height:1.45;
+  color:rgba(100,116,139,.7);
 }
-.perf-action-card.sev-chronic   .perf-action-detail { color:#791F1F; }
-.perf-action-card.sev-pattern   .perf-action-detail { color:#633806; }
-.perf-action-card.sev-improving .perf-action-detail { color:#27500A; }
 
-/* ACTION CARD BUTTONS */
-.perf-action-buttons {
+/* DECISION ROW BUTTONS — same pill style as Daily Coaching */
+.perf-decv2-buttons {
   display:flex;
-  flex-direction:column;
-  gap:5px;
-  min-width:130px;
+  gap:6px;
   flex-shrink:0;
+  margin-left:16px;
 }
-.perf-action-btn {
-  padding:7px 11px;
-  font-size:11px;
+.perf-decv2-btn {
+  padding:7px 14px;
+  font-size:12px;
   font-weight:500;
-  border-radius:8px;
+  border-radius:100px;
   cursor:pointer;
   font-family:inherit;
   transition:opacity 0.15s;
 }
-.perf-action-btn:hover { opacity:0.85; }
-
-.perf-action-btn.primary {
+.perf-decv2-btn:hover { opacity:0.85; }
+.perf-decv2-btn.primary {
+  background:#146EB4;
   color:#FFFFFF;
   border:none;
 }
-.perf-action-btn.primary.sev-chronic   { background:#A32D2D; }
-.perf-action-btn.primary.sev-pattern   { background:#BA7517; }
-.perf-action-btn.primary.sev-improving { background:#639922; }
-
-.perf-action-btn.secondary {
+.perf-decv2-btn.ghost {
   background:transparent;
-  border:1px solid;
-  padding:6px 11px;
+  border:1px solid rgba(100,116,139,.3);
+  color:#475569;
 }
-.perf-action-btn.secondary.sev-chronic   { color:#791F1F; border-color:#A32D2D; }
-.perf-action-btn.secondary.sev-pattern   { color:#633806; border-color:#BA7517; }
-.perf-action-btn.secondary.sev-improving { color:#27500A; border-color:#639922; }
 
 /* VIEW ALL FOOTER */
 .perf-action-footer {
@@ -7912,9 +7912,11 @@ setInterval(loadData, 60000);
   margin-bottom:4px;
 }
 .perf-modal-title {
-  font-size:20px;
+  font-family:'Tiempos Headline', Georgia, serif;
+  font-size:22px;
   font-weight:500;
   margin:0;
+  color:#0F172A;
 }
 .perf-modal-close {
   background:transparent;
@@ -7932,28 +7934,28 @@ setInterval(loadData, 60000);
 }
 
 .perf-modal-context {
-  background:#FCEBEB;
+  background:#FAF9F4;
   border-radius:8px;
   padding:12px 14px;
   margin-bottom:16px;
 }
 .perf-modal-context-name {
   display:flex;
-  align-items:baseline;
+  align-items:center;
   gap:8px;
   margin-bottom:6px;
 }
 .perf-modal-context-name p {
   margin:0;
   font-size:15px;
-  font-weight:500;
-  color:#501313;
+  font-weight:600;
+  color:#0F172A;
 }
 .perf-modal-context-stats {
   display:flex;
   gap:14px;
   font-size:12px;
-  color:#791F1F;
+  color:rgba(100,116,139,.85);
   flex-wrap:wrap;
 }
 
@@ -7973,7 +7975,7 @@ setInterval(loadData, 60000);
   font-size:11px;
   color:rgba(100,116,139,.85);
   text-transform:uppercase;
-  letter-spacing:0.04em;
+  letter-spacing:0.06em;
   margin:0;
 }
 .perf-modal-activity-link {
@@ -8000,9 +8002,9 @@ setInterval(loadData, 60000);
   flex-shrink:0;
   font-size:11px;
 }
-.perf-modal-activity-item .kind-event    { color:#A32D2D; font-weight:600; }
-.perf-modal-activity-item .kind-sms      { color:#185FA5; font-weight:600; }
-.perf-modal-activity-item .kind-inperson { color:#534AB7; font-weight:600; }
+.perf-modal-activity-item .kind-event    { color:#DC2626; font-weight:600; }
+.perf-modal-activity-item .kind-sms      { color:#146EB4; font-weight:600; }
+.perf-modal-activity-item .kind-inperson { color:#475569; font-weight:600; }
 .perf-modal-activity-item .kind-skipped  { color:rgba(100,116,139,.85); font-weight:600; }
 
 .perf-modal-grid2 {
@@ -8062,7 +8064,7 @@ setInterval(loadData, 60000);
 }
 .perf-modal-toggle button.active {
   background:#FFFFFF;
-  border:1px solid #E5E5DD;
+  border:1px solid #EAEAE5;
   font-weight:500;
   color:#0F172A;
 }
@@ -8113,7 +8115,7 @@ setInterval(loadData, 60000);
 .perf-modal-save {
   padding:8px 16px;
   font-size:13px;
-  background:#0F172A;
+  background:#146EB4;
   color:#FFFFFF;
   border:none;
   border-radius:8px;
@@ -8127,10 +8129,12 @@ setInterval(loadData, 60000);
 }
 
 @media (max-width: 720px) {
-  .perf-kpi-strip { grid-template-columns:repeat(2, 1fr); }
-  .perf-action-card { flex-direction:column; }
-  .perf-action-buttons { flex-direction:row; min-width:0; width:100%; }
-  .perf-action-buttons .perf-action-btn { flex:1; }
+  .perf-kpi-row { grid-template-columns:repeat(2, 1fr); }
+  .perf-kpi-cell:nth-child(2) { border-right:none; }
+  .perf-decv2-row { flex-direction:column; align-items:flex-start; }
+  .perf-decv2-buttons { flex-direction:row; margin-left:0; width:100%; }
+  .perf-decv2-buttons .perf-decv2-btn { flex:1; }
+  .perf-kpi-num { font-size:36px; }
 }
 
 @media (max-width: 720px) {
@@ -8156,7 +8160,10 @@ let perfState = {
   loaded: false,
   queue: null,
   decision: null,
-  weekly: null
+  weekly: null,
+  activeList: 'attention',
+  attentionList: [],
+  improvingList: []
 };
 
 function perfFmtTagClass(tag) {
@@ -8463,14 +8470,12 @@ async function perfSetWindow(w) {
 }
 
 async function perfLoadDecision() {
-  const cards = document.getElementById('perf-action-cards');
+  const rows = document.getElementById('perf-action-rows');
   const empty = document.getElementById('perf-decision-empty');
   const footer = document.getElementById('perf-action-footer');
-  const attHeader = document.getElementById('perf-attention-header');
-  if (cards) cards.innerHTML = '<div class="perf-loading">Loading decision view…</div>';
+  if (rows) rows.innerHTML = '<div class="perf-loading">Loading decision view…</div>';
   if (empty) empty.style.display = 'none';
   if (footer) footer.style.display = 'none';
-  if (attHeader) attHeader.style.display = 'none';
 
   try {
     const res = await apiCall({ action: 'decisionViewV2', window: String(perfState.decisionWindow) });
@@ -8481,37 +8486,28 @@ async function perfLoadDecision() {
     perfRenderDecision(res.result);
   } catch (e) {
     console.error('perfLoadDecision failed:', e);
-    if (cards) cards.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
+    if (rows) rows.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
   }
 }
 
 function perfRenderDecision(payload) {
-  const cards = document.getElementById('perf-action-cards');
-  const empty = document.getElementById('perf-decision-empty');
-  const footer = document.getElementById('perf-action-footer');
-  const footerText = document.getElementById('perf-action-footer-text');
-  const attHeader = document.getElementById('perf-attention-header');
-  const attLabel = document.getElementById('perf-attention-label');
-
   const kpis = (payload && payload.kpis) || {};
   const actionCards = (payload && payload.action_cards) || [];
-  const queueTotal = (payload && payload.queue_total) || 0;
 
   // KPI strip
-  const avg = (kpis.team_average != null) ? kpis.team_average : 0;
-  document.getElementById('perf-kpi-avg').textContent = perfFmtScore(avg);
+  document.getElementById('perf-kpi-avg').textContent = perfFmtScore(kpis.team_average);
   document.getElementById('perf-kpi-avg-sub').textContent = (kpis.total_das || 0) + ' DAs scored';
 
   if (kpis.top_performer) {
     document.getElementById('perf-kpi-top').textContent = perfFmtScore(kpis.top_performer.score);
-    document.getElementById('perf-kpi-top-sub').textContent = kpis.top_performer.name;
+    document.getElementById('perf-kpi-top-sub').textContent = perfShortName(kpis.top_performer.name);
   } else {
     document.getElementById('perf-kpi-top').textContent = '—';
     document.getElementById('perf-kpi-top-sub').textContent = '—';
   }
   if (kpis.bottom_performer) {
     document.getElementById('perf-kpi-bottom').textContent = perfFmtScore(kpis.bottom_performer.score);
-    document.getElementById('perf-kpi-bottom-sub').textContent = kpis.bottom_performer.name;
+    document.getElementById('perf-kpi-bottom-sub').textContent = perfShortName(kpis.bottom_performer.name);
   } else {
     document.getElementById('perf-kpi-bottom').textContent = '—';
     document.getElementById('perf-kpi-bottom-sub').textContent = '—';
@@ -8521,59 +8517,90 @@ function perfRenderDecision(payload) {
   const pct = totalDas > 0 ? Math.round((kpis.below_average_count || 0) / totalDas * 100) : 0;
   document.getElementById('perf-kpi-below-sub').textContent = pct + '% of DAs';
 
-  // Action cards
-  if (!actionCards.length) {
-    if (cards) cards.innerHTML = '';
-    if (empty) empty.style.display = 'block';
-    if (attHeader) attHeader.style.display = 'none';
+  // Split into attention vs improving lists
+  const attentionList = actionCards.filter(function(c) { return !c.is_improving; });
+  const improvingList = actionCards.filter(function(c) { return c.is_improving; });
+
+  // Update toggle counts
+  document.getElementById('perf-list-count-attention').textContent = String(attentionList.length);
+  document.getElementById('perf-list-count-improving').textContent = String(improvingList.length);
+
+  // Stash on state for switching
+  perfState.attentionList = attentionList;
+  perfState.improvingList = improvingList;
+
+  // Render whichever list is currently selected (default attention)
+  if (!perfState.activeList) perfState.activeList = 'attention';
+  perfRenderList(perfState.activeList);
+}
+
+function perfRenderList(which) {
+  const rows = document.getElementById('perf-action-rows');
+  const empty = document.getElementById('perf-decision-empty');
+  const footer = document.getElementById('perf-action-footer');
+  const footerText = document.getElementById('perf-action-footer-text');
+
+  perfState.activeList = which;
+  const list = (which === 'improving') ? (perfState.improvingList || []) : (perfState.attentionList || []);
+  const queueTotal = (perfState.decision && perfState.decision.queue_total) || 0;
+
+  if (!list.length) {
+    if (rows) rows.innerHTML = '';
+    if (empty) {
+      empty.style.display = 'block';
+      const title = empty.querySelector('.perf-empty-title');
+      const sub = empty.querySelector('.perf-empty-sub');
+      if (which === 'improving') {
+        if (title) title.textContent = 'No improving DAs this period';
+        if (sub) sub.textContent = 'When DAs reverse a negative trend, they\'ll appear here.';
+      } else {
+        if (title) title.textContent = 'No DAs need attention';
+        if (sub) sub.textContent = 'Your fleet is clean for this period.';
+      }
+    }
     if (footer) footer.style.display = 'none';
     return;
   }
   if (empty) empty.style.display = 'none';
 
-  if (attHeader && attLabel) {
-    attHeader.style.display = 'flex';
-    attLabel.textContent = actionCards.length + ' DAs · attention';
-  }
-
-  cards.innerHTML = actionCards.map(perfRenderActionCard).join('');
+  rows.innerHTML = list.map(function(c) {
+    return perfRenderActionRow(c, which);
+  }).join('');
 
   // Footer
-  const more = queueTotal - actionCards.length;
-  if (more > 0 && footer && footerText) {
-    footer.style.display = 'block';
-    footerText.textContent = more + ' more DAs in the queue · ';
-    document.getElementById('perf-action-footer-link').textContent = 'view all ' + queueTotal;
-  } else if (footer) {
-    footer.style.display = 'none';
+  if (which === 'attention') {
+    const more = queueTotal - list.length;
+    if (more > 0 && footer && footerText) {
+      footer.style.display = 'block';
+      footerText.textContent = more + ' more DAs in the queue · ';
+      const link = document.getElementById('perf-action-footer-link');
+      if (link) link.textContent = 'view all ' + queueTotal;
+    } else if (footer) {
+      footer.style.display = 'none';
+    }
+  } else {
+    if (footer) footer.style.display = 'none';
   }
 }
 
-function perfRenderActionCard(c) {
-  const sev = c.severity || 'pattern';
-  const tagLabel = perfFmtTagLabel(c.pattern_tag);
-  const trend = perfFmtTrend(c.trend);
-  const trendArrow = trend.sym === '—' ? '' : ' ' + trend.sym;
+function perfRenderActionRow(c, listType) {
+  const isChronic = (c.pattern_tag === 'CHRONIC' && !c.is_improving);
+  const tagText = perfFmtTagLabel(c.pattern_tag) + perfTrendArrow(c.trend, c.is_improving);
+  const tidEsc = perfEsc(c.transporter_id);
+  const nameEsc = perfEsc(c.driver_name);
 
-  // Improving has its own tag display
-  let displayTag = tagLabel + trendArrow;
-  if (c.is_improving) {
-    displayTag = 'Improving ↓';
-  }
-
-  // Headline diagnosis line
+  // Headline
   let headline = c.event_count + ' events in ' + (perfState.decisionWindow === 'all' ? 'all time' : perfState.decisionWindow + ' days');
-  headline += ' · ' + c.days_with_flags + ' days with safety flags';
+  headline += ' · ' + c.days_with_flags + ' day' + (c.days_with_flags !== 1 ? 's' : '') + ' with safety flags';
   if (c.trend === 'up') headline += ' · trend rising';
   else if (c.trend === 'down') headline += ' · trend falling';
   else if (c.trend === 'flat') headline += ' · trend flat';
 
-  // Detail line: event mix
+  // Detail line
   const mixText = (c.event_mix || []).map(function(m) {
     return m.type + ' (' + m.count + ')';
   }).join(', ');
 
-  // Quality + dispute line
   const detailParts = [];
   if (mixText) detailParts.push(mixText);
   if (c.avg_dcr != null) detailParts.push('DCR ' + c.avg_dcr.toFixed(1) + '%');
@@ -8582,32 +8609,44 @@ function perfRenderActionCard(c) {
   if (c.last_sms_date) detailParts.push('Last SMS ' + c.last_sms_date);
   const detailLine = detailParts.join('. ') + (detailParts.length ? '.' : '');
 
-  // Sub-header coaching counts
-  const subParts = [];
-  subParts.push(c.sms_count + ' SMS');
-  subParts.push(c.inperson_count + ' documented 1:1' + (c.inperson_count !== 1 ? 's' : ''));
-  const subText = subParts.join(' · ');
+  // Sub
+  const subText = c.sms_count + ' SMS · ' + c.inperson_count + ' documented 1:1' + (c.inperson_count !== 1 ? 's' : '');
 
-  const tidEsc = perfEsc(c.transporter_id);
-  const nameEsc = perfEsc(c.driver_name);
+  // Buttons differ by list
+  let primaryBtnLabel = 'Document 1:1';
+  let primaryBtnAction = 'perfOpenOneOnOneModal(\'' + tidEsc + '\', \'' + nameEsc + '\')';
+  if (listType === 'improving') {
+    primaryBtnLabel = 'Send recognition';
+    primaryBtnAction = 'perfSendRecognition(\'' + tidEsc + '\', \'' + nameEsc + '\')';
+  }
+
+  const barClass = isChronic ? 'bar-chronic' : 'bar-neutral';
 
   return (
-    '<div class="perf-action-card sev-' + sev + '" data-tid="' + tidEsc + '">' +
-      '<div class="perf-action-body">' +
-        '<div class="perf-action-head">' +
-          '<div class="perf-action-name">' + nameEsc + '</div>' +
-          '<span class="perf-action-tag sev-' + sev + '">' + perfEsc(displayTag) + '</span>' +
-          '<span class="perf-action-sub">' + perfEsc(subText) + '</span>' +
+    '<div class="perf-decv2-row ' + barClass + '" data-tid="' + tidEsc + '">' +
+      '<div class="perf-decv2-body">' +
+        '<div class="perf-decv2-head">' +
+          '<span class="perf-decv2-name">' + nameEsc + '</span>' +
+          '<span class="perf-decv2-tag">' + perfEsc(tagText) + '</span>' +
+          '<span class="perf-decv2-sub">' + perfEsc(subText) + '</span>' +
         '</div>' +
-        '<div class="perf-action-headline">' + perfEsc(headline) + '</div>' +
-        '<div class="perf-action-detail">' + perfEsc(detailLine) + '</div>' +
+        '<div class="perf-decv2-headline">' + perfEsc(headline) + '</div>' +
+        '<div class="perf-decv2-detail">' + perfEsc(detailLine) + '</div>' +
       '</div>' +
-      '<div class="perf-action-buttons">' +
-        '<button class="perf-action-btn primary sev-' + sev + '" onclick="perfOpenOneOnOneModal(\'' + tidEsc + '\', \'' + nameEsc + '\')">Document 1:1</button>' +
-        '<button class="perf-action-btn secondary sev-' + sev + '" onclick="perfOpenRecord(\'' + tidEsc + '\')">Open record</button>' +
+      '<div class="perf-decv2-buttons">' +
+        '<button class="perf-decv2-btn ghost" onclick="perfOpenRecord(\'' + tidEsc + '\')">Open record</button>' +
+        '<button class="perf-decv2-btn primary" onclick="' + primaryBtnAction + '">' + primaryBtnLabel + '</button>' +
       '</div>' +
     '</div>'
   );
+}
+
+function perfSetList(which) {
+  perfState.activeList = which;
+  document.querySelectorAll('.perf-list-toggle-btn').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-list') === which);
+  });
+  perfRenderList(which);
 }
 
 function perfFmtScore(score) {
@@ -8617,16 +8656,37 @@ function perfFmtScore(score) {
   return n.toFixed(1);
 }
 
+function perfShortName(name) {
+  if (!name) return '—';
+  const parts = String(name).trim().split(/\s+/);
+  if (parts.length <= 2) return name;
+  return parts[0] + ' ' + parts[parts.length - 1];
+}
+
+function perfTrendArrow(trend, isImproving) {
+  if (isImproving) return ' ↓';
+  if (trend === 'up') return ' ↑';
+  if (trend === 'down') return ' ↓';
+  if (trend === 'flat') return ' →';
+  return '';
+}
+
 function perfShowAllDecision(evt) {
   if (evt) evt.preventDefault();
-  // Future: scroll to full driver list, or open a panel with the full ranked list
-  // For now, navigate to drivers page
   if (typeof showScreen === 'function') {
     showScreen('drivers');
   } else {
     alert('Driver list view coming soon.');
   }
 }
+
+function perfSendRecognition(tid, name) {
+  // Stub for now — wire to a recognition flow / thank-you-card flow later
+  if (confirm('Send recognition to ' + name + '?\n\n(In a future build, this will offer SMS recognition or a mailed thank-you card.)')) {
+    alert('Recognition flow coming soon.');
+  }
+}
+window.perfSendRecognition = perfSendRecognition;
 
 function perfOpenRecord(tid) {
   if (typeof openDriverRecord === 'function') {
@@ -11847,7 +11907,7 @@ function rrSqEscape(s) {
     <div class="perf-modal-context">
       <div class="perf-modal-context-name">
         <p id="perf-1on1-driver-name">—</p>
-        <span class="perf-action-tag sev-chronic" id="perf-1on1-driver-tag">—</span>
+        <span class="perf-decv2-tag" id="perf-1on1-driver-tag">—</span>
       </div>
       <div class="perf-modal-context-stats" id="perf-1on1-driver-stats">
         Loading…
@@ -11890,7 +11950,7 @@ function rrSqEscape(s) {
     <div class="perf-modal-field">
       <label class="perf-modal-label">What was discussed</label>
       <textarea class="perf-modal-textarea" id="perf-1on1-discussed" rows="3"></textarea>
-      <p class="perf-modal-hint">Pre-filled with this week's events. Edit as needed.</p>
+      <p class="perf-modal-hint">Pre-filled with this period's events. Edit as needed.</p>
     </div>
 
     <div class="perf-modal-field">
@@ -11914,8 +11974,6 @@ function rrSqEscape(s) {
 </div>
 
 <script>
-// ─── DOCUMENT 1:1 MODAL LOGIC ──────────────────────────────────
-
 let perf1on1State = {
   transporter_id: null,
   driver_name: null,
@@ -11927,12 +11985,9 @@ let perf1on1State = {
 };
 
 async function perfOpenOneOnOneModal(tid, name) {
-  // Find the matching action card from current decision state
   let card = null;
   if (perfState.decision && perfState.decision.action_cards) {
-    card = perfState.decision.action_cards.find(function(c) {
-      return c.transporter_id === tid;
-    });
+    card = perfState.decision.action_cards.find(function(c) { return c.transporter_id === tid; });
   }
   perf1on1State.transporter_id = tid;
   perf1on1State.driver_name = name;
@@ -11941,53 +11996,26 @@ async function perfOpenOneOnOneModal(tid, name) {
   perf1on1State.outcome = 'delivered';
   perf1on1State.acknowledgment = '';
 
-  // Reset toggles
   resetToggle('perf-1on1-type', 'in-person');
   resetToggle('perf-1on1-outcome', 'delivered');
   resetToggle('perf-1on1-ack', null);
 
-  // Date defaults to today
   const today = new Date();
   const yyyy = today.getFullYear();
   const mm = String(today.getMonth() + 1).padStart(2, '0');
   const dd = String(today.getDate()).padStart(2, '0');
   document.getElementById('perf-1on1-date').value = yyyy + '-' + mm + '-' + dd;
 
-  // Driver header
   document.getElementById('perf-1on1-driver-name').textContent = name;
 
-  // Tag + severity color
   const tagEl = document.getElementById('perf-1on1-driver-tag');
   if (card) {
-    let tagText = perfFmtTagLabel(card.pattern_tag);
-    if (card.is_improving) tagText = 'Improving ↓';
-    else if (card.trend === 'up') tagText += ' ↑';
-    else if (card.trend === 'down') tagText += ' ↓';
+    let tagText = perfFmtTagLabel(card.pattern_tag) + perfTrendArrow(card.trend, card.is_improving);
     tagEl.textContent = tagText;
-    tagEl.className = 'perf-action-tag sev-' + (card.severity || 'pattern');
-
-    // Recolor the context block
-    const ctxEl = document.querySelector('.perf-modal-context');
-    if (ctxEl) {
-      if (card.severity === 'chronic') {
-        ctxEl.style.background = '#FCEBEB';
-        ctxEl.querySelector('p').style.color = '#501313';
-        ctxEl.querySelector('.perf-modal-context-stats').style.color = '#791F1F';
-      } else if (card.severity === 'pattern') {
-        ctxEl.style.background = '#FAEEDA';
-        ctxEl.querySelector('p').style.color = '#412402';
-        ctxEl.querySelector('.perf-modal-context-stats').style.color = '#633806';
-      } else if (card.severity === 'improving') {
-        ctxEl.style.background = '#EAF3DE';
-        ctxEl.querySelector('p').style.color = '#173404';
-        ctxEl.querySelector('.perf-modal-context-stats').style.color = '#27500A';
-      }
-    }
   } else {
     tagEl.textContent = '—';
   }
 
-  // Stats
   const stats = document.getElementById('perf-1on1-driver-stats');
   if (card) {
     const parts = [];
@@ -12000,7 +12028,6 @@ async function perfOpenOneOnOneModal(tid, name) {
     stats.textContent = 'Loading driver context…';
   }
 
-  // Pre-populate discussed field with event mix
   if (card && card.event_mix && card.event_mix.length) {
     const mixText = card.event_mix.map(function(m) { return m.type + ' (' + m.count + ')'; }).join(', ');
     document.getElementById('perf-1on1-discussed').value =
@@ -12012,17 +12039,13 @@ async function perfOpenOneOnOneModal(tid, name) {
 
   document.getElementById('perf-1on1-commitment').value = '';
 
-  // Open record link
   const recordLink = document.getElementById('perf-1on1-record-link');
   recordLink.onclick = function(e) {
     e.preventDefault();
     perfOpenRecord(tid);
   };
 
-  // Open the modal
   document.getElementById('perf-1on1-overlay').classList.add('active');
-
-  // Load recent activity in background
   perfLoadRecentActivity(tid);
 }
 
@@ -12077,10 +12100,7 @@ function perfClose1on1Modal() {
 }
 
 function perfHandleModalBackdrop(evt) {
-  // Only close if click was on the overlay itself (not bubbling from inside modal)
-  if (evt.target.id === 'perf-1on1-overlay') {
-    perfClose1on1Modal();
-  }
+  if (evt.target.id === 'perf-1on1-overlay') perfClose1on1Modal();
 }
 
 function perfSetToggle(groupId, btn) {
@@ -12112,10 +12132,7 @@ function resetToggle(groupId, defaultValue) {
 
 async function perfSave1on1() {
   const tid = perf1on1State.transporter_id;
-  if (!tid) {
-    alert('No driver selected');
-    return;
-  }
+  if (!tid) { alert('No driver selected'); return; }
 
   const date = document.getElementById('perf-1on1-date').value || '';
   const discussed = document.getElementById('perf-1on1-discussed').value || '';
@@ -12140,8 +12157,6 @@ async function perfSave1on1() {
   try {
     const res = await apiCall(params);
     if (res.status !== 'ok') throw new Error(res.message || 'save failed');
-
-    // Refresh decision view to reflect new 1:1 count
     perfClose1on1Modal();
     await perfLoadDecision();
   } catch (e) {
@@ -12158,6 +12173,7 @@ window.perfSave1on1 = perfSave1on1;
 window.perfHandleModalBackdrop = perfHandleModalBackdrop;
 window.perfSetToggle = perfSetToggle;
 window.perfSetButtons = perfSetButtons;
+window.perfSetList = perfSetList;
 </script>
 
 </body>
