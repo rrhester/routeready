@@ -8103,8 +8103,8 @@ setInterval(loadData, 60000);
 .perf-tier-badge.t2 { background: #FEF3C7; color: #92400E; }
 .perf-tier-badge.t3 { background: #DBEAFE; color: #1E40AF; }
 
-.perf-action-row.bar-pattern { border-left-color:#D97706; }
-.perf-action-row.bar-quality { border-left-color:#3B82F6; }
+.perf-decv2-row.bar-pattern { border-left-color:#D97706; }
+.perf-decv2-row.bar-quality { border-left-color:#3B82F6; }
 
 .perf-mini-tag {
   font-size: 10px;
@@ -8834,10 +8834,10 @@ function perfRenderDecisionTiered(payload) {
   const tier3 = (payload && payload.tier_3) || [];
 
   // Repurpose the KPI strip with tier counts (label rewrites happen via DOM)
-  perfSetKpi_('perf-kpi-avg', String(counts.tier_1 || 0), 'Stay/go', 'Tier 1');
-  perfSetKpi_('perf-kpi-top', String(counts.tier_2 || 0), 'Safety only', 'Tier 2');
-  perfSetKpi_('perf-kpi-bottom', String(counts.tier_3 || 0), 'Quality only', 'Tier 3');
-  perfSetKpi_('perf-kpi-below', String(counts.clean || 0), 'Clean', 'of ' + (counts.fleet_size || 0) + ' active');
+  perfSetKpi_('perf-kpi-avg', String(counts.tier_1 || 0), 'Stay/go conversations', 'Tier 1');
+  perfSetKpi_('perf-kpi-top', String(counts.tier_2 || 0), 'Capping the scorecard', 'Tier 2');
+  perfSetKpi_('perf-kpi-bottom', String(counts.tier_3 || 0), 'Quality issues', 'Tier 3');
+  perfSetKpi_('perf-kpi-below', String(counts.clean || 0), 'of ' + (counts.fleet_size || 0) + ' drivers', 'Clean');
 
   // Stash on state for filter switching
   perfState.tierData = { tier_1: tier1, tier_2: tier2, tier_3: tier3 };
@@ -8990,16 +8990,15 @@ function perfRenderTierRow_(c) {
   else if (c.tier === 2) badge = '<span class="perf-tier-badge t2">Tier 2</span>';
   else badge = '<span class="perf-tier-badge t3">Tier 3</span>';
 
-  // Build issue summary
+  // Build issue summary (headline)
   const issueParts = [];
   if (c.safety_event_count > 0) {
-    const eventLabel = c.safety_event_count + ' safety event' + (c.safety_event_count !== 1 ? 's' : '');
-    issueParts.push(eventLabel);
+    issueParts.push(c.safety_event_count + ' safety event' + (c.safety_event_count !== 1 ? 's' : ''));
   }
   (c.quality_issues || []).forEach(function(qi) { issueParts.push(qi); });
-  const issueLine = issueParts.join(' · ');
+  const headline = issueParts.join(' · ');
 
-  // Detail line: event mix + coaching history
+  // Detail line: event mix + last event + disputes
   const detailParts = [];
   const mixText = (c.event_mix || []).map(function(m) { return m.type + ' (' + m.count + ')'; }).join(', ');
   if (mixText) detailParts.push(mixText);
@@ -9007,6 +9006,7 @@ function perfRenderTierRow_(c) {
   if (c.last_event_date) detailParts.push('Last event ' + c.last_event_date);
   const detailLine = detailParts.join(' · ');
 
+  // Sub line: coaching history
   const subText = (c.sms_count || 0) + ' SMS · ' + (c.inperson_count || 0) + ' documented 1:1' +
                   ((c.inperson_count !== 1) ? 's' : '') +
                   (c.last_sms_date ? ' · last SMS ' + c.last_sms_date : '');
@@ -9014,23 +9014,24 @@ function perfRenderTierRow_(c) {
   // Border color by tier
   const barClass = c.tier === 1 ? 'bar-chronic' : (c.tier === 2 ? 'bar-pattern' : 'bar-quality');
 
+  // Use existing perf-decv2-* classes for consistent styling
   let html = '';
-  html += '<div class="perf-action-row ' + barClass + '">';
-  html += '<div class="perf-action-content">';
-  html += '<div class="perf-action-row-head">';
-  html += '<span class="perf-driver-name">' + nameEsc + '</span>';
+  html += '<div class="perf-decv2-row ' + barClass + '" data-tid="' + tidEsc + '">';
+  html += '<div class="perf-decv2-body">';
+  html += '<div class="perf-decv2-head">';
+  html += '<span class="perf-decv2-name">' + nameEsc + '</span>';
   html += badge;
   if (c.safety_event_count > 0) {
-    html += '<span class="perf-mini-tag" onclick="openDriverMath(\'' + tidEsc + '\', \'' + nameEsc + '\')">Show math</span>';
+    html += '<span class="perf-decv2-tag perf-decv2-tag-clickable" onclick="openDriverMath(\'' + tidEsc + '\', \'' + nameEsc + '\', ' + (perfState.decisionWindow === 'all' ? 365 : perfState.decisionWindow) + ')" title="Show the math behind this classification">Show math</span>';
   }
+  html += '<span class="perf-decv2-sub">' + perfEsc(subText) + '</span>';
   html += '</div>';
-  html += '<div class="perf-action-headline">' + perfEsc(issueLine) + '</div>';
-  if (detailLine) html += '<div class="perf-action-detail">' + perfEsc(detailLine) + '</div>';
-  html += '<div class="perf-action-sub">' + perfEsc(subText) + '</div>';
+  html += '<div class="perf-decv2-headline">' + perfEsc(headline) + '</div>';
+  if (detailLine) html += '<div class="perf-decv2-detail">' + perfEsc(detailLine) + '</div>';
   html += '</div>';
-  html += '<div class="perf-action-buttons">';
-  html += '<button class="perf-btn-secondary" onclick="openDriverRecord(\'' + tidEsc + '\')">Open record</button>';
-  html += '<button class="perf-btn-primary" onclick="perfOpenOneOnOneModal(\'' + tidEsc + '\', \'' + nameEsc + '\')">Decide</button>';
+  html += '<div class="perf-decv2-buttons">';
+  html += '<button class="perf-decv2-btn ghost" onclick="perfOpenRecord(\'' + tidEsc + '\')">Open record</button>';
+  html += '<button class="perf-decv2-btn primary" onclick="perfOpenOneOnOneModal(\'' + tidEsc + '\', \'' + nameEsc + '\')">Decide</button>';
   html += '</div>';
   html += '</div>';
   return html;
