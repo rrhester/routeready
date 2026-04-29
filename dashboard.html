@@ -12387,6 +12387,116 @@ window.perfSetList = perfSetList;
 .coach-action-radio-list label span { font-size: 12px; color: rgba(71,85,105,.95); }
 .coach-action-radio-list label input:checked ~ span { color: #0F172A; }
 .coach-action-radio-list label input:checked ~ span strong { color: #0F172A; }
+
+/* Attachments */
+.coach-attach-block {
+  margin-top: 14px;
+}
+.coach-attach-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.coach-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px dashed rgba(20,110,180,.4);
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #146EB4;
+  cursor: pointer;
+  font-family: inherit;
+}
+.coach-attach-btn:hover { background: rgba(20,110,180,.05); border-color: #146EB4; }
+.coach-attach-hint { font-size: 11.5px; color: rgba(100,116,139,.85); }
+.coach-attach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.coach-attach-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #F7F7F4;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+.coach-attach-chip .name { flex: 1; color: #0F172A; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coach-attach-chip .size { color: rgba(100,116,139,.85); font-size: 11px; }
+.coach-attach-chip .remove {
+  background: none; border: none; color: rgba(100,116,139,.7);
+  cursor: pointer; padding: 2px 6px; font-size: 16px; line-height: 1;
+}
+.coach-attach-chip .remove:hover { color: #B91C1C; }
+.coach-attach-chip.uploading .name { color: rgba(100,116,139,.85); }
+.coach-attach-chip.uploading::after {
+  content: '';
+  width: 12px; height: 12px;
+  border: 2px solid rgba(20,110,180,.2);
+  border-top-color: #146EB4;
+  border-radius: 50%;
+  animation: coach-spin 0.7s linear infinite;
+}
+@keyframes coach-spin { to { transform: rotate(360deg); } }
+
+/* Two-button action bar */
+.coach-actions-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+@media (min-width: 540px) {
+  .coach-actions-bar { flex-direction: row; justify-content: flex-end; }
+}
+.coach-btn-send {
+  padding: 11px 22px;
+  background: #146EB4;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.coach-btn-send:hover:not(:disabled) { background: #0F5A95; }
+.coach-btn-send:disabled { opacity: 0.6; cursor: wait; }
+.coach-btn-save {
+  padding: 11px 18px;
+  background: #FFFFFF;
+  color: #475569;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+.coach-btn-save:hover:not(:disabled) { background: #FAF9F4; color: #0F172A; }
+.coach-btn-save:disabled { opacity: 0.6; cursor: wait; }
+.coach-btn-cancel {
+  padding: 11px 18px;
+  background: transparent;
+  color: rgba(100,116,139,.85);
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.coach-btn-cancel:hover { color: #0F172A; }
 </style>
 
 <!-- Coach a driver button moved to sidebar nav (Analytics section) -->
@@ -12449,27 +12559,26 @@ window.perfSetList = perfSetList;
       </div>
     </div>
 
-    <div class="coach-action-block">
-      <p class="coach-action-block-label">What to do</p>
-      <div class="coach-action-radio-list">
-        <label>
-          <input type="radio" name="coach-action" value="send_and_log" checked />
-          <span><strong>Send SMS + log to record</strong> — driver gets the message, action documented</span>
-        </label>
-        <label>
-          <input type="radio" name="coach-action" value="send_only" />
-          <span>Send SMS only — no record entry (rare)</span>
-        </label>
-        <label>
-          <input type="radio" name="coach-action" value="log_only" />
-          <span>Log only — for in-person conversations already had</span>
-        </label>
+    <div class="coach-attach-block">
+      <p class="coach-action-block-label">Attach coaching documents (optional)</p>
+      <div class="coach-attach-row">
+        <button type="button" class="coach-attach-btn" onclick="document.getElementById('coach-file-input').click()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          Attach file
+        </button>
+        <span class="coach-attach-hint">PDF, image, doc — up to 30MB. Saved on driver record.</span>
       </div>
+      <input type="file" id="coach-file-input" style="display:none" onchange="coachAttachFile(event)" />
+      <div class="coach-attach-list" id="coach-attach-list"></div>
     </div>
 
-    <div class="perf-modal-actions">
-      <button class="perf-modal-cancel" onclick="coachCloseModal()">Cancel</button>
-      <button class="perf-modal-save" id="coach-save-btn" onclick="coachSave()">Send · Save to record</button>
+    <div class="coach-actions-bar">
+      <button type="button" class="coach-btn-cancel" onclick="coachCloseModal()">Cancel</button>
+      <button type="button" class="coach-btn-save" id="coach-save-btn" onclick="coachSubmit('log_only')">Save to record only</button>
+      <button type="button" class="coach-btn-send" id="coach-send-btn" onclick="coachSubmit('send_and_log')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Send SMS
+      </button>
     </div>
   </div>
 </div>
@@ -12481,7 +12590,8 @@ let coachState = {
   category: 'safety',
   severity: 'coach',
   regenerateRemaining: 3,
-  hasAiDraft: false
+  hasAiDraft: false,
+  attachments: []  // [{name, url, file_id, size_bytes, mime_type}]
 };
 
 async function coachOpenModal(prefillTid, prefillName) {
@@ -12490,6 +12600,7 @@ async function coachOpenModal(prefillTid, prefillName) {
   coachState.severity = 'coach';
   coachState.regenerateRemaining = 3;
   coachState.hasAiDraft = false;
+  coachState.attachments = [];
 
   // Reset UI
   document.getElementById('coach-message').value = '';
@@ -12498,6 +12609,8 @@ async function coachOpenModal(prefillTid, prefillName) {
   document.getElementById('coach-driver-wrap').classList.remove('selected');
   document.getElementById('coach-driver-input').classList.remove('has-driver');
   document.getElementById('coach-regen-link').style.display = 'none';
+  document.getElementById('coach-attach-list').innerHTML = '';
+  document.getElementById('coach-file-input').value = '';
   coachUpdateCharCount();
   coachResetPills('coach-category-row', 'safety');
   coachResetPills('coach-severity-row', 'coach');
@@ -12688,21 +12801,118 @@ async function coachAiAssist() {
   }
 }
 
-async function coachSave() {
+async function coachAttachFile(evt) {
+  const file = evt.target.files && evt.target.files[0];
+  evt.target.value = ''; // allow re-selecting same file later
+  if (!file) return;
+  if (file.size > 30 * 1024 * 1024) {
+    alert('File is too large (max 30MB).');
+    return;
+  }
+
+  // Add chip in uploading state
+  const tempId = 'tmp_' + Date.now();
+  coachState.attachments.push({ tempId: tempId, name: file.name, size_bytes: file.size, uploading: true });
+  coachRenderAttachments();
+
+  try {
+    // Read as base64
+    const base64 = await new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        const result = reader.result || '';
+        const idx = String(result).indexOf(',');
+        resolve(idx >= 0 ? String(result).substring(idx + 1) : String(result));
+      };
+      reader.onerror = function() { reject(new Error('Read failed')); };
+      reader.readAsDataURL(file);
+    });
+
+    const res = await apiCall({
+      action: 'uploadCoachingAttachment',
+      data: base64,
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream'
+    });
+
+    const result = (res && res.result) ? res.result : res;
+    if (result && result.ok) {
+      // Replace temp chip with real chip
+      const idx = coachState.attachments.findIndex(function(a) { return a.tempId === tempId; });
+      if (idx >= 0) {
+        coachState.attachments[idx] = {
+          name: result.name,
+          url: result.url,
+          file_id: result.file_id,
+          size_bytes: result.size_bytes,
+          mime_type: result.mime_type
+        };
+      }
+    } else {
+      coachState.attachments = coachState.attachments.filter(function(a) { return a.tempId !== tempId; });
+      alert('Upload failed: ' + (result && result.error ? result.error : 'unknown'));
+    }
+  } catch (e) {
+    coachState.attachments = coachState.attachments.filter(function(a) { return a.tempId !== tempId; });
+    alert('Upload error: ' + e.message);
+  }
+  coachRenderAttachments();
+}
+
+function coachRemoveAttachment(idx) {
+  coachState.attachments.splice(idx, 1);
+  coachRenderAttachments();
+}
+
+function coachRenderAttachments() {
+  const list = document.getElementById('coach-attach-list');
+  if (!list) return;
+  if (!coachState.attachments.length) { list.innerHTML = ''; return; }
+  list.innerHTML = coachState.attachments.map(function(a, i) {
+    const sizeKb = a.size_bytes ? (a.size_bytes / 1024).toFixed(0) + ' KB' : '';
+    if (a.uploading) {
+      return '<div class="coach-attach-chip uploading"><span class="name">' + escapeHtml(a.name) + '</span><span class="size">uploading…</span></div>';
+    }
+    return '<div class="coach-attach-chip">' +
+      '<span class="name">' + escapeHtml(a.name) + '</span>' +
+      '<span class="size">' + sizeKb + '</span>' +
+      '<button type="button" class="remove" onclick="coachRemoveAttachment(' + i + ')" title="Remove">×</button>' +
+      '</div>';
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+async function coachSubmit(sendAction) {
   if (!coachState.driver) {
     alert('Please select a driver.');
     return;
   }
   const message = document.getElementById('coach-message').value.trim();
-  if (!message) {
+  if (sendAction !== 'log_only' && !message) {
     alert('Please type a message or use Help me write this.');
     return;
   }
 
-  const action = document.querySelector('input[name="coach-action"]:checked').value;
-  const btn = document.getElementById('coach-save-btn');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
+  // Wait if anything is still uploading
+  if (coachState.attachments.some(function(a) { return a.uploading; })) {
+    alert('Please wait for the document upload to finish.');
+    return;
+  }
+
+  // Strip any temp/uploading entries before send
+  const finalAttachments = coachState.attachments.filter(function(a) { return !a.uploading && a.url; });
+
+  const sendBtn = document.getElementById('coach-send-btn');
+  const saveBtn = document.getElementById('coach-save-btn');
+  sendBtn.disabled = true; saveBtn.disabled = true;
+  const isSend = (sendAction === 'send_and_log');
+  if (isSend) sendBtn.textContent = 'Sending…';
+  else saveBtn.textContent = 'Saving…';
 
   try {
     const res = await apiCall({
@@ -12712,28 +12922,35 @@ async function coachSave() {
       category: coachState.category,
       severity: coachState.severity,
       message: message,
-      send_action: action
+      send_action: sendAction,
+      attachments: JSON.stringify(finalAttachments)
     });
 
-    if (res && res.status === 'ok') {
+    const result = (res && res.result) ? res.result : res;
+    if (res && res.status === 'ok' && result && result.ok) {
+      // Show outcome briefly if SMS failed but log succeeded
+      if (isSend && !result.sms_sent && result.sms_error) {
+        alert('Saved to record. SMS not sent: ' + result.sms_error);
+      }
       coachCloseModal();
-      // If on driver record page, refresh it
+      // Refresh driver record if open
       if (typeof openDriverRecord === 'function' && coachState.driver) {
         try { await openDriverRecord(coachState.driver.transporter_id); } catch (e) {}
       }
-      // If decision view is open, refresh
       if (typeof perfLoadDecision === 'function') {
         try { await perfLoadDecision(); } catch (e) {}
       }
     } else {
-      alert('Save failed: ' + (res && res.message ? res.message : 'unknown error'));
+      const msg = (res && res.message) || (result && result.error) || 'unknown error';
+      alert((isSend ? 'Send' : 'Save') + ' failed: ' + msg);
     }
   } catch (e) {
-    console.error('Coach save failed:', e);
-    alert('Save error: ' + e.message);
+    console.error('Coach submit failed:', e);
+    alert('Error: ' + e.message);
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Send · Save to record';
+    sendBtn.disabled = false; saveBtn.disabled = false;
+    sendBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send SMS';
+    saveBtn.textContent = 'Save to record only';
   }
 }
 
@@ -12747,7 +12964,9 @@ window.coachSelectDriverByTid = coachSelectDriverByTid;
 window.coachSetPill = coachSetPill;
 window.coachUpdateCharCount = coachUpdateCharCount;
 window.coachAiAssist = coachAiAssist;
-window.coachSave = coachSave;
+window.coachSubmit = coachSubmit;
+window.coachAttachFile = coachAttachFile;
+window.coachRemoveAttachment = coachRemoveAttachment;
 </script>
 
 </body>
