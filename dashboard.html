@@ -12828,7 +12828,8 @@ async function coachAttachFile(evt) {
       reader.readAsDataURL(file);
     });
 
-    const res = await apiCall({
+    // Use POST — base64 file data is too big for GET query string
+    const res = await coachApiPost({
       action: 'uploadCoachingAttachment',
       data: base64,
       fileName: file.name,
@@ -12857,6 +12858,21 @@ async function coachAttachFile(evt) {
     alert('Upload error: ' + e.message);
   }
   coachRenderAttachments();
+}
+
+// POST helper — used for upload + send (form-encoded, big payloads OK)
+async function coachApiPost(params) {
+  const url = (typeof API !== 'undefined' && API) ? API : '';
+  if (!url) throw new Error('No API URL');
+  const body = Object.keys(params).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }).join('&');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body
+  });
+  return res.json();
 }
 
 function coachRemoveAttachment(idx) {
@@ -12915,7 +12931,7 @@ async function coachSubmit(sendAction) {
   else saveBtn.textContent = 'Saving…';
 
   try {
-    const res = await apiCall({
+    const res = await coachApiPost({
       action: 'coachDriver',
       transporter_id: coachState.driver.transporter_id,
       driver_name: coachState.driver.driver_name,
