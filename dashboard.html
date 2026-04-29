@@ -12176,5 +12176,573 @@ window.perfSetButtons = perfSetButtons;
 window.perfSetList = perfSetList;
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     COACH A DRIVER — floating button + modal + AI assist
+     Sprint 1A · in-the-moment coaching tool
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+.coach-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 8500;
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 100px;
+  background: #146EB4;
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(20,110,180,.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.coach-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(20,110,180,.4);
+}
+.coach-fab .plus { font-size: 16px; line-height: 1; font-weight: 400; }
+
+.coach-modal-driver {
+  position: relative;
+}
+.coach-modal-driver input {
+  width: 100%;
+  padding: 10px 36px 10px 12px;
+  font-size: 13px;
+  border: 1px solid #E5E5DD;
+  border-radius: 8px;
+  font-family: inherit;
+  color: #0F172A;
+  box-sizing: border-box;
+  background: #FFFFFF;
+}
+.coach-modal-driver input:focus {
+  outline: 2px solid #146EB4;
+  outline-offset: -1px;
+}
+.coach-modal-driver input.has-driver {
+  border-color: #146EB4;
+  background: #F0F7FE;
+}
+.coach-modal-driver .check {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #146EB4;
+  display: none;
+}
+.coach-modal-driver.selected .check { display: block; }
+
+.coach-modal-driver-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #FFFFFF;
+  border: 1px solid #E5E5DD;
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+  display: none;
+}
+.coach-modal-driver-results.show { display: block; }
+.coach-modal-driver-result {
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #F5F4EE;
+}
+.coach-modal-driver-result:last-child { border-bottom: none; }
+.coach-modal-driver-result:hover { background: #FAF9F4; }
+.coach-modal-driver-result .name { font-weight: 600; color: #0F172A; }
+.coach-modal-driver-result .meta { color: rgba(100,116,139,.85); font-size: 11px; margin-top: 1px; }
+
+.coach-modal-context {
+  font-size: 11px;
+  color: rgba(100,116,139,.7);
+  margin-top: 4px;
+}
+
+.coach-pill-row {
+  display: flex;
+  gap: 3px;
+}
+.coach-pill {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid #E5E5DD;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #475569;
+  font-family: inherit;
+}
+.coach-pill.active {
+  background: #146EB4;
+  color: #FFFFFF;
+  border-color: #146EB4;
+  font-weight: 500;
+}
+
+.coach-msg-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.coach-ai-button {
+  background: transparent;
+  border: 1px solid #146EB4;
+  color: #146EB4;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 100px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+}
+.coach-ai-button:hover { background: #F0F7FE; }
+.coach-ai-button:disabled { opacity: 0.5; cursor: wait; }
+.coach-ai-button .spark { font-size: 10px; }
+
+.coach-msg-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13px;
+  border: 1px solid #E5E5DD;
+  border-radius: 8px;
+  font-family: inherit;
+  color: #0F172A;
+  box-sizing: border-box;
+  resize: vertical;
+  line-height: 1.5;
+}
+.coach-msg-textarea:focus { outline: 2px solid #146EB4; outline-offset: -1px; }
+
+.coach-msg-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(100,116,139,.7);
+}
+.coach-msg-meta .regen-link {
+  color: #146EB4;
+  text-decoration: none;
+  cursor: pointer;
+}
+.coach-msg-meta .regen-link:hover { text-decoration: underline; }
+.coach-msg-meta .regen-link.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+.coach-action-block {
+  background: #FAF9F4;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.coach-action-block-label {
+  font-size: 12px;
+  color: rgba(100,116,139,.85);
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.coach-action-radio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.coach-action-radio-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+.coach-action-radio-list label input[type="radio"] {
+  margin: 2px 0 0;
+}
+.coach-action-radio-list label span { font-size: 12px; color: rgba(71,85,105,.95); }
+.coach-action-radio-list label input:checked ~ span { color: #0F172A; }
+.coach-action-radio-list label input:checked ~ span strong { color: #0F172A; }
+</style>
+
+<button class="coach-fab" onclick="coachOpenModal()" title="Coach a driver">
+  <span class="plus">+</span>
+  <span>Coach a driver</span>
+</button>
+
+<div class="perf-modal-overlay" id="coach-modal-overlay" onclick="coachHandleBackdrop(event)">
+  <div class="perf-modal" onclick="event.stopPropagation()">
+    <div class="perf-modal-head">
+      <p class="perf-modal-title">Coach a driver</p>
+      <button class="perf-modal-close" onclick="coachCloseModal()">×</button>
+    </div>
+    <p class="perf-modal-subtitle">Send a coaching SMS, log a conversation, or both. Saves to driver record.</p>
+
+    <div class="perf-modal-field">
+      <label class="perf-modal-label">Driver</label>
+      <div class="coach-modal-driver" id="coach-driver-wrap">
+        <input type="text" id="coach-driver-input" placeholder="Search by name…"
+               oninput="coachOnDriverInput()"
+               onfocus="coachOnDriverFocus()"
+               onblur="coachOnDriverBlur()" autocomplete="off" />
+        <span class="check">✓</span>
+        <div class="coach-modal-driver-results" id="coach-driver-results"></div>
+      </div>
+      <p class="coach-modal-context" id="coach-driver-context"></p>
+    </div>
+
+    <div class="perf-modal-grid2">
+      <div>
+        <label class="perf-modal-label">Category</label>
+        <div class="coach-pill-row" id="coach-category-row">
+          <button type="button" class="coach-pill active" data-value="safety" onclick="coachSetPill('coach-category-row', this, 'category')">Safety</button>
+          <button type="button" class="coach-pill" data-value="quality" onclick="coachSetPill('coach-category-row', this, 'category')">Quality</button>
+          <button type="button" class="coach-pill" data-value="behavior" onclick="coachSetPill('coach-category-row', this, 'category')">Behavior</button>
+          <button type="button" class="coach-pill" data-value="other" onclick="coachSetPill('coach-category-row', this, 'category')">Other</button>
+        </div>
+      </div>
+      <div>
+        <label class="perf-modal-label">Severity</label>
+        <div class="coach-pill-row" id="coach-severity-row">
+          <button type="button" class="coach-pill active" data-value="coach" onclick="coachSetPill('coach-severity-row', this, 'severity')">Coach</button>
+          <button type="button" class="coach-pill" data-value="pull" onclick="coachSetPill('coach-severity-row', this, 'severity')">Pull from route</button>
+          <button type="button" class="coach-pill" data-value="suspend" onclick="coachSetPill('coach-severity-row', this, 'severity')">Suspend</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="perf-modal-field">
+      <div class="coach-msg-label-row">
+        <label class="perf-modal-label" style="margin-bottom:0;">Message to driver</label>
+        <button class="coach-ai-button" id="coach-ai-button" onclick="coachAiAssist()">
+          <span class="spark">✦</span>
+          Help me write this
+        </button>
+      </div>
+      <textarea class="coach-msg-textarea" id="coach-message" rows="6"
+                placeholder="Type the message here, or click Help me write this for an AI-generated draft based on the driver's recent data."
+                oninput="coachUpdateCharCount()"></textarea>
+      <div class="coach-msg-meta">
+        <span id="coach-char-count">0 chars</span>
+        <a class="regen-link" id="coach-regen-link" onclick="coachAiAssist()" style="display:none;">Regenerate</a>
+      </div>
+    </div>
+
+    <div class="coach-action-block">
+      <p class="coach-action-block-label">What to do</p>
+      <div class="coach-action-radio-list">
+        <label>
+          <input type="radio" name="coach-action" value="send_and_log" checked />
+          <span><strong>Send SMS + log to record</strong> — driver gets the message, action documented</span>
+        </label>
+        <label>
+          <input type="radio" name="coach-action" value="send_only" />
+          <span>Send SMS only — no record entry (rare)</span>
+        </label>
+        <label>
+          <input type="radio" name="coach-action" value="log_only" />
+          <span>Log only — for in-person conversations already had</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="perf-modal-actions">
+      <button class="perf-modal-cancel" onclick="coachCloseModal()">Cancel</button>
+      <button class="perf-modal-save" id="coach-save-btn" onclick="coachSave()">Send · Save to record</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let coachState = {
+  driver: null,
+  driverList: [],
+  category: 'safety',
+  severity: 'coach',
+  regenerateRemaining: 3,
+  hasAiDraft: false
+};
+
+async function coachOpenModal(prefillTid, prefillName) {
+  // Reset state
+  coachState.category = 'safety';
+  coachState.severity = 'coach';
+  coachState.regenerateRemaining = 3;
+  coachState.hasAiDraft = false;
+
+  // Reset UI
+  document.getElementById('coach-message').value = '';
+  document.getElementById('coach-driver-input').value = '';
+  document.getElementById('coach-driver-context').textContent = '';
+  document.getElementById('coach-driver-wrap').classList.remove('selected');
+  document.getElementById('coach-driver-input').classList.remove('has-driver');
+  document.getElementById('coach-regen-link').style.display = 'none';
+  coachUpdateCharCount();
+  coachResetPills('coach-category-row', 'safety');
+  coachResetPills('coach-severity-row', 'coach');
+
+  // Load driver list (cached)
+  if (!coachState.driverList.length) {
+    try {
+      const res = await apiCall({ action: 'getDriverRoster' });
+      if (res && res.status === 'ok' && res.result && res.result.drivers) {
+        coachState.driverList = res.result.drivers;
+      } else if (Array.isArray(res)) {
+        coachState.driverList = res;
+      }
+    } catch (e) {
+      console.error('Could not load driver roster:', e);
+    }
+  }
+
+  // Pre-fill if called with a driver
+  coachState.driver = null;
+  if (prefillTid) {
+    const match = coachState.driverList.find(function(d) { return d.transporter_id === prefillTid; });
+    if (match) {
+      coachSelectDriver(match);
+    } else if (prefillName) {
+      document.getElementById('coach-driver-input').value = prefillName;
+    }
+  }
+
+  document.getElementById('coach-modal-overlay').classList.add('active');
+  setTimeout(function() {
+    if (!prefillTid) document.getElementById('coach-driver-input').focus();
+  }, 50);
+}
+
+function coachCloseModal() {
+  document.getElementById('coach-modal-overlay').classList.remove('active');
+  document.getElementById('coach-driver-results').classList.remove('show');
+}
+
+function coachHandleBackdrop(evt) {
+  if (evt.target.id === 'coach-modal-overlay') coachCloseModal();
+}
+
+function coachOnDriverInput() {
+  const input = document.getElementById('coach-driver-input');
+  const q = input.value.toLowerCase().trim();
+
+  // Reset selection if user is typing again
+  if (coachState.driver && coachState.driver.driver_name !== input.value) {
+    coachState.driver = null;
+    document.getElementById('coach-driver-wrap').classList.remove('selected');
+    input.classList.remove('has-driver');
+    document.getElementById('coach-driver-context').textContent = '';
+  }
+
+  if (!q) {
+    document.getElementById('coach-driver-results').classList.remove('show');
+    return;
+  }
+
+  const matches = coachState.driverList
+    .filter(function(d) {
+      return d.driver_name && d.driver_name.toLowerCase().indexOf(q) !== -1;
+    })
+    .slice(0, 8);
+
+  const results = document.getElementById('coach-driver-results');
+  if (!matches.length) {
+    results.classList.remove('show');
+    return;
+  }
+
+  results.innerHTML = matches.map(function(d) {
+    const phone = d.phone_number || '';
+    const tenure = d.first_seen_date ? ' · since ' + d.first_seen_date : '';
+    return '<div class="coach-modal-driver-result" onmousedown="coachSelectDriverByTid(\'' +
+      perfEsc(d.transporter_id) + '\')">' +
+      '<div class="name">' + perfEsc(d.driver_name) + '</div>' +
+      '<div class="meta">' + perfEsc(phone) + perfEsc(tenure) + '</div>' +
+      '</div>';
+  }).join('');
+  results.classList.add('show');
+}
+
+function coachOnDriverFocus() {
+  if (document.getElementById('coach-driver-input').value) coachOnDriverInput();
+}
+
+function coachOnDriverBlur() {
+  // Delay to allow mousedown on result to fire first
+  setTimeout(function() {
+    document.getElementById('coach-driver-results').classList.remove('show');
+  }, 200);
+}
+
+function coachSelectDriverByTid(tid) {
+  const d = coachState.driverList.find(function(x) { return x.transporter_id === tid; });
+  if (d) coachSelectDriver(d);
+}
+
+function coachSelectDriver(d) {
+  coachState.driver = d;
+  const input = document.getElementById('coach-driver-input');
+  input.value = d.driver_name;
+  input.classList.add('has-driver');
+  document.getElementById('coach-driver-wrap').classList.add('selected');
+  document.getElementById('coach-driver-results').classList.remove('show');
+
+  const ctx = [];
+  if (d.phone_number) ctx.push(d.phone_number);
+  if (d.status) ctx.push(d.status);
+  document.getElementById('coach-driver-context').textContent = ctx.join(' · ');
+}
+
+function coachSetPill(rowId, btn, stateKey) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  row.querySelectorAll('.coach-pill').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  coachState[stateKey] = btn.getAttribute('data-value');
+}
+
+function coachResetPills(rowId, defaultValue) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  row.querySelectorAll('.coach-pill').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-value') === defaultValue);
+  });
+}
+
+function coachUpdateCharCount() {
+  const txt = document.getElementById('coach-message').value;
+  document.getElementById('coach-char-count').textContent = txt.length + ' chars';
+}
+
+async function coachAiAssist() {
+  if (!coachState.driver) {
+    alert('Please select a driver first.');
+    return;
+  }
+  if (coachState.regenerateRemaining <= 0) {
+    alert('Regenerate limit reached for this session. Edit the message manually or close and reopen.');
+    return;
+  }
+
+  const btn = document.getElementById('coach-ai-button');
+  const regen = document.getElementById('coach-regen-link');
+  const textarea = document.getElementById('coach-message');
+
+  btn.disabled = true;
+  const prevHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="spark">✦</span> Generating…';
+
+  try {
+    const res = await apiCall({
+      action: 'generateCoachingMessage',
+      transporter_id: coachState.driver.transporter_id,
+      driver_name: coachState.driver.driver_name,
+      category: coachState.category,
+      severity: coachState.severity
+    });
+
+    if (res && res.status === 'ok' && res.result && res.result.message) {
+      textarea.value = res.result.message;
+      coachState.hasAiDraft = true;
+      coachState.regenerateRemaining -= 1;
+      coachUpdateCharCount();
+
+      // Show regen link
+      if (coachState.regenerateRemaining > 0) {
+        regen.style.display = 'inline';
+        regen.textContent = 'Regenerate (' + coachState.regenerateRemaining + ' left)';
+      } else {
+        regen.style.display = 'inline';
+        regen.classList.add('disabled');
+        regen.textContent = 'No regenerates left';
+      }
+    } else {
+      alert('AI assist failed: ' + (res && res.message ? res.message : 'unknown error'));
+    }
+  } catch (e) {
+    console.error('AI assist failed:', e);
+    alert('AI assist error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = prevHtml;
+  }
+}
+
+async function coachSave() {
+  if (!coachState.driver) {
+    alert('Please select a driver.');
+    return;
+  }
+  const message = document.getElementById('coach-message').value.trim();
+  if (!message) {
+    alert('Please type a message or use Help me write this.');
+    return;
+  }
+
+  const action = document.querySelector('input[name="coach-action"]:checked').value;
+  const btn = document.getElementById('coach-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await apiCall({
+      action: 'coachDriver',
+      transporter_id: coachState.driver.transporter_id,
+      driver_name: coachState.driver.driver_name,
+      category: coachState.category,
+      severity: coachState.severity,
+      message: message,
+      send_action: action
+    });
+
+    if (res && res.status === 'ok') {
+      coachCloseModal();
+      // If on driver record page, refresh it
+      if (typeof openDriverRecord === 'function' && coachState.driver) {
+        try { await openDriverRecord(coachState.driver.transporter_id); } catch (e) {}
+      }
+      // If decision view is open, refresh
+      if (typeof perfLoadDecision === 'function') {
+        try { await perfLoadDecision(); } catch (e) {}
+      }
+    } else {
+      alert('Save failed: ' + (res && res.message ? res.message : 'unknown error'));
+    }
+  } catch (e) {
+    console.error('Coach save failed:', e);
+    alert('Save error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send · Save to record';
+  }
+}
+
+window.coachOpenModal = coachOpenModal;
+window.coachCloseModal = coachCloseModal;
+window.coachHandleBackdrop = coachHandleBackdrop;
+window.coachOnDriverInput = coachOnDriverInput;
+window.coachOnDriverFocus = coachOnDriverFocus;
+window.coachOnDriverBlur = coachOnDriverBlur;
+window.coachSelectDriverByTid = coachSelectDriverByTid;
+window.coachSetPill = coachSetPill;
+window.coachUpdateCharCount = coachUpdateCharCount;
+window.coachAiAssist = coachAiAssist;
+window.coachSave = coachSave;
+</script>
+
 </body>
 </html>
