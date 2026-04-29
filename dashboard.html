@@ -8036,6 +8036,88 @@ setInterval(loadData, 60000);
 .perf-decv2-row.bar-chronic { border-left-color:#DC2626; }
 .perf-decv2-row.bar-neutral { border-left-color:rgba(100,116,139,.3); }
 
+/* ═══ TIER VIEW ═══ */
+.perf-tier-group { margin-bottom: 16px; }
+.perf-tier-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #F7F7F5;
+  border: 0.5px solid #EAEAE5;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #1E293B;
+  margin-bottom: 4px;
+}
+.perf-tier-head:hover { background: #EFEFEC; }
+.perf-tier-arrow { font-size: 10px; color: #64748B; width: 10px; }
+.perf-tier-label { flex: 1; text-align: left; }
+.perf-tier-count {
+  background: #FFFFFF;
+  color: #475569;
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border: 0.5px solid #EAEAE5;
+}
+.perf-tier-group.tier-1 .perf-tier-head {
+  background: #FEE2E2;
+  border-color: #FECACA;
+  color: #991B1B;
+}
+.perf-tier-group.tier-1 .perf-tier-count {
+  background: #DC2626;
+  color: #FFFFFF;
+  border-color: #DC2626;
+}
+.perf-tier-group.tier-2 .perf-tier-head {
+  background: #FEF3C7;
+  border-color: #FDE68A;
+  color: #92400E;
+}
+.perf-tier-group.tier-2 .perf-tier-count {
+  background: #D97706;
+  color: #FFFFFF;
+  border-color: #D97706;
+}
+.perf-tier-body { padding-top: 4px; }
+
+.perf-tier-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 100px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.perf-tier-badge.t1 { background: #FEE2E2; color: #991B1B; }
+.perf-tier-badge.t2 { background: #FEF3C7; color: #92400E; }
+.perf-tier-badge.t3 { background: #DBEAFE; color: #1E40AF; }
+
+.perf-action-row.bar-pattern { border-left-color:#D97706; }
+.perf-action-row.bar-quality { border-left-color:#3B82F6; }
+
+.perf-mini-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748B;
+  padding: 2px 8px;
+  border-radius: 100px;
+  border: 0.5px solid #CBD5E1;
+  cursor: pointer;
+  background: transparent;
+}
+.perf-mini-tag:hover { background: #F7F7F5; color: #1E293B; }
+
 .perf-decv2-body {
   flex:1;
   min-width:0;
@@ -8714,7 +8796,26 @@ async function perfLoadDecision() {
   if (footer) footer.style.display = 'none';
 
   try {
-    const res = await apiCall({ action: 'decisionViewV2', window: String(perfState.decisionWindow) });
+    // Try tiered view first; if it 404s or errors, fall back to V2
+    let res;
+    try {
+      const winParam = (perfState.decisionWindow === 'all') ? 'all' : String(perfState.decisionWindow);
+      res = await apiCall({ action: 'decisionViewTiered', window_days: winParam });
+    } catch (tierErr) {
+      console.warn('Tiered view unavailable, falling back to V2:', tierErr && tierErr.message);
+      res = null;
+    }
+
+    if (res && res.status === 'ok' && res.result && res.result.counts) {
+      perfState.decision = res.result;
+      perfState.useTiered = true;
+      perfRenderDecisionTiered(res.result);
+      return;
+    }
+
+    // Fallback: legacy V2 view
+    perfState.useTiered = false;
+    res = await apiCall({ action: 'decisionViewV2', window: String(perfState.decisionWindow) });
     if (res.status !== 'ok') {
       throw new Error(res.message || 'unknown error');
     }
@@ -8725,6 +8826,217 @@ async function perfLoadDecision() {
     if (rows) rows.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
   }
 }
+
+function perfRenderDecisionTiered(payload) {
+  const counts = (payload && payload.counts) || {};
+  const tier1 = (payload && payload.tier_1) || [];
+  const tier2 = (payload && payload.tier_2) || [];
+  const tier3 = (payload && payload.tier_3) || [];
+
+  // Repurpose the KPI strip with tier counts (label rewrites happen via DOM)
+  perfSetKpi_('perf-kpi-avg', String(counts.tier_1 || 0), 'Stay/go', 'Tier 1');
+  perfSetKpi_('perf-kpi-top', String(counts.tier_2 || 0), 'Safety only', 'Tier 2');
+  perfSetKpi_('perf-kpi-bottom', String(counts.tier_3 || 0), 'Quality only', 'Tier 3');
+  perfSetKpi_('perf-kpi-below', String(counts.clean || 0), 'Clean', 'of ' + (counts.fleet_size || 0) + ' active');
+
+  // Stash on state for filter switching
+  perfState.tierData = { tier_1: tier1, tier_2: tier2, tier_3: tier3 };
+  if (!perfState.tierFilter) perfState.tierFilter = 'all';
+
+  // Update toggle counts (reuse existing pills as tier filter)
+  const attentionEl = document.getElementById('perf-list-count-attention');
+  const improvingEl = document.getElementById('perf-list-count-improving');
+  if (attentionEl) attentionEl.textContent = String(counts.total_flagged || 0);
+  if (improvingEl) improvingEl.textContent = String(counts.clean || 0);
+
+  // Override pill labels in place
+  perfRelabelPill_('attention', 'All flagged');
+  perfRelabelPill_('improving', 'Clean roster');
+
+  // Render the active filter
+  perfRenderTierList(perfState.activeList || 'attention');
+}
+
+function perfRelabelPill_(which, label) {
+  const btn = document.getElementById('perf-list-pill-' + which);
+  if (!btn) return;
+  const labelNode = btn.querySelector('.perf-pill-label');
+  if (labelNode) {
+    labelNode.textContent = label;
+  } else {
+    // Fallback: replace first text node
+    for (let i = 0; i < btn.childNodes.length; i++) {
+      if (btn.childNodes[i].nodeType === 3 && btn.childNodes[i].textContent.trim()) {
+        btn.childNodes[i].textContent = label + ' ';
+        break;
+      }
+    }
+  }
+}
+
+function perfSetKpi_(id, value, sub, header) {
+  const valEl = document.getElementById(id);
+  const subEl = document.getElementById(id + '-sub');
+  if (valEl) valEl.textContent = value;
+  if (subEl) subEl.textContent = sub;
+  // Optionally re-label the header above each KPI
+  const card = valEl ? valEl.closest('.perf-kpi') : null;
+  if (card && header) {
+    const hdr = card.querySelector('.perf-kpi-label');
+    if (hdr) hdr.textContent = header;
+  }
+}
+
+function perfRenderTierList(which) {
+  const rows = document.getElementById('perf-action-rows');
+  const empty = document.getElementById('perf-decision-empty');
+  const footer = document.getElementById('perf-action-footer');
+  if (!rows) return;
+
+  perfState.activeList = which;
+
+  const data = perfState.tierData || { tier_1: [], tier_2: [], tier_3: [] };
+  const flagged = (which === 'attention');
+
+  if (flagged) {
+    const total = data.tier_1.length + data.tier_2.length + data.tier_3.length;
+    if (total === 0) {
+      rows.innerHTML = '';
+      if (empty) {
+        empty.style.display = 'block';
+        const t = empty.querySelector('.perf-empty-title');
+        const s = empty.querySelector('.perf-empty-sub');
+        if (t) t.textContent = 'Fleet is clean';
+        if (s) s.textContent = 'No drivers have safety or quality issues in this window.';
+      }
+      if (footer) footer.style.display = 'none';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    let html = '';
+    if (data.tier_1.length > 0) {
+      html += perfRenderTierGroup_('TIER 1 · Stay/go conversations', 'tier-1', data.tier_1, false);
+    }
+    if (data.tier_2.length > 0) {
+      const collapsed = data.tier_2.length > 8;
+      html += perfRenderTierGroup_('TIER 2 · Safety only · capping the scorecard', 'tier-2', data.tier_2, collapsed);
+    }
+    if (data.tier_3.length > 0) {
+      const collapsed = data.tier_3.length > 8;
+      html += perfRenderTierGroup_('TIER 3 · Quality only', 'tier-3', data.tier_3, collapsed);
+    }
+    rows.innerHTML = html;
+    if (footer) footer.style.display = 'none';
+  } else {
+    // "Clean" view — just message, no list
+    rows.innerHTML = '';
+    if (empty) {
+      empty.style.display = 'block';
+      const t = empty.querySelector('.perf-empty-title');
+      const s = empty.querySelector('.perf-empty-sub');
+      if (t) t.textContent = 'Clean roster';
+      if (s) {
+        const counts = (perfState.decision && perfState.decision.counts) || {};
+        s.textContent = (counts.clean || 0) + ' of ' + (counts.fleet_size || 0) + ' drivers had no safety or quality issues this window.';
+      }
+    }
+    if (footer) footer.style.display = 'none';
+  }
+}
+
+function perfRenderTierGroup_(label, klass, list, collapsed) {
+  const headerId = 'tg-' + klass;
+  const bodyId = 'tg-body-' + klass;
+  const arrow = collapsed ? '▸' : '▾';
+  const display = collapsed ? 'none' : 'block';
+
+  let html = '';
+  html += '<div class="perf-tier-group ' + klass + '">';
+  html += '<button type="button" class="perf-tier-head" id="' + headerId + '" onclick="perfToggleTierGroup(\'' + bodyId + '\', this)">';
+  html += '<span class="perf-tier-arrow">' + arrow + '</span>';
+  html += '<span class="perf-tier-label">' + label + '</span>';
+  html += '<span class="perf-tier-count">' + list.length + '</span>';
+  html += '</button>';
+  html += '<div class="perf-tier-body" id="' + bodyId + '" style="display:' + display + '">';
+  list.forEach(function(c) {
+    html += perfRenderTierRow_(c);
+  });
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+function perfToggleTierGroup(bodyId, btn) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const arrow = btn.querySelector('.perf-tier-arrow');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    if (arrow) arrow.textContent = '▾';
+  } else {
+    body.style.display = 'none';
+    if (arrow) arrow.textContent = '▸';
+  }
+}
+
+function perfRenderTierRow_(c) {
+  const tidEsc = perfEsc(c.transporter_id);
+  const nameEsc = perfEsc(c.driver_name);
+
+  // Tier badge
+  let badge = '';
+  if (c.tier === 1) badge = '<span class="perf-tier-badge t1">Tier 1</span>';
+  else if (c.tier === 2) badge = '<span class="perf-tier-badge t2">Tier 2</span>';
+  else badge = '<span class="perf-tier-badge t3">Tier 3</span>';
+
+  // Build issue summary
+  const issueParts = [];
+  if (c.safety_event_count > 0) {
+    const eventLabel = c.safety_event_count + ' safety event' + (c.safety_event_count !== 1 ? 's' : '');
+    issueParts.push(eventLabel);
+  }
+  (c.quality_issues || []).forEach(function(qi) { issueParts.push(qi); });
+  const issueLine = issueParts.join(' · ');
+
+  // Detail line: event mix + coaching history
+  const detailParts = [];
+  const mixText = (c.event_mix || []).map(function(m) { return m.type + ' (' + m.count + ')'; }).join(', ');
+  if (mixText) detailParts.push(mixText);
+  if (c.disputes_denied > 0) detailParts.push(c.disputes_denied + ' dispute' + (c.disputes_denied > 1 ? 's' : '') + ' denied');
+  if (c.last_event_date) detailParts.push('Last event ' + c.last_event_date);
+  const detailLine = detailParts.join(' · ');
+
+  const subText = (c.sms_count || 0) + ' SMS · ' + (c.inperson_count || 0) + ' documented 1:1' +
+                  ((c.inperson_count !== 1) ? 's' : '') +
+                  (c.last_sms_date ? ' · last SMS ' + c.last_sms_date : '');
+
+  // Border color by tier
+  const barClass = c.tier === 1 ? 'bar-chronic' : (c.tier === 2 ? 'bar-pattern' : 'bar-quality');
+
+  let html = '';
+  html += '<div class="perf-action-row ' + barClass + '">';
+  html += '<div class="perf-action-content">';
+  html += '<div class="perf-action-row-head">';
+  html += '<span class="perf-driver-name">' + nameEsc + '</span>';
+  html += badge;
+  if (c.safety_event_count > 0) {
+    html += '<span class="perf-mini-tag" onclick="openDriverMath(\'' + tidEsc + '\', \'' + nameEsc + '\')">Show math</span>';
+  }
+  html += '</div>';
+  html += '<div class="perf-action-headline">' + perfEsc(issueLine) + '</div>';
+  if (detailLine) html += '<div class="perf-action-detail">' + perfEsc(detailLine) + '</div>';
+  html += '<div class="perf-action-sub">' + perfEsc(subText) + '</div>';
+  html += '</div>';
+  html += '<div class="perf-action-buttons">';
+  html += '<button class="perf-btn-secondary" onclick="openDriverRecord(\'' + tidEsc + '\')">Open record</button>';
+  html += '<button class="perf-btn-primary" onclick="perfOpenOneOnOneModal(\'' + tidEsc + '\', \'' + nameEsc + '\')">Decide</button>';
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+window.perfToggleTierGroup = perfToggleTierGroup;
 
 function perfRenderDecision(payload) {
   const kpis = (payload && payload.kpis) || {};
@@ -8771,6 +9083,12 @@ function perfRenderDecision(payload) {
 }
 
 function perfRenderList(which) {
+  // Delegate to tier renderer if tiered mode is active
+  if (perfState.useTiered && perfState.tierData) {
+    perfRenderTierList(which);
+    return;
+  }
+
   const rows = document.getElementById('perf-action-rows');
   const empty = document.getElementById('perf-decision-empty');
   const footer = document.getElementById('perf-action-footer');
