@@ -9057,6 +9057,17 @@ async function perfPromptInPerson(tid, name) {
 }
 .dr-tl-detail.italic { font-style: italic; }
 .dr-tl-detail a { color: #146EB4; }
+.dr-tl-attach-row {
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 11px;
+}
+.dr-tl-attach {
+  color: #146EB4;
+  text-decoration: none;
+  font-weight: 500;
+}
+.dr-tl-attach:hover { text-decoration: underline; }
 
 @media (max-width: 720px) {
   #driver-record-screen { padding: 18px 14px 60px; }
@@ -9279,6 +9290,21 @@ function drRender(rec) {
         if (t.detail) {
           detail = '"' + drEsc(t.detail) + '"';
           detailClass += ' italic';
+        }
+        // Attached docs (if any)
+        if (t.guide_attached) {
+          try {
+            const atts = JSON.parse(t.guide_attached);
+            if (Array.isArray(atts) && atts.length) {
+              const links = atts.filter(function(a){return a && a.url;}).map(function(a) {
+                return '<a href="' + drEsc(a.url) + '" target="_blank" rel="noopener" class="dr-tl-attach">📎 ' + drEsc(a.name || 'document') + '</a>';
+              }).join(' · ');
+              if (links) {
+                if (detail) detail += '<div class="dr-tl-attach-row">' + links + '</div>';
+                else detail = '<div class="dr-tl-attach-row">' + links + '</div>';
+              }
+            }
+          } catch (e) { /* not JSON, skip */ }
         }
       } else if (t.kind === 'quality') {
         detail = drEsc(t.detail);
