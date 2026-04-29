@@ -8631,7 +8631,7 @@ function perfRenderActionRow(c, listType) {
       '<div class="perf-decv2-body">' +
         '<div class="perf-decv2-head">' +
           '<span class="perf-decv2-name">' + nameEsc + '</span>' +
-          '<span class="perf-decv2-tag">' + perfEsc(tagText) + '</span>' +
+          '<span class="perf-decv2-tag perf-decv2-tag-clickable" onclick="openDriverMath(\'' + tidEsc + '\',\'' + nameEsc + '\', ' + (perfState.decisionWindow === 'all' ? 365 : perfState.decisionWindow) + ')" title="Show the math behind this classification">' + perfEsc(tagText) + '</span>' +
           '<span class="perf-decv2-sub">' + perfEsc(subText) + '</span>' +
         '</div>' +
         '<div class="perf-decv2-headline">' + perfEsc(headline) + '</div>' +
@@ -13009,6 +13009,363 @@ window.coachAiAssist = coachAiAssist;
 window.coachSubmit = coachSubmit;
 window.coachAttachFile = coachAttachFile;
 window.coachRemoveAttachment = coachRemoveAttachment;
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DRIVER MATH — show your work panel
+     Click any tier badge → dark monospace panel slides in
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+.dmath-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 9100;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+.dmath-overlay.active { display: block; opacity: 1; }
+.dmath-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 100%;
+  max-width: 560px;
+  background: #0B1220;
+  color: #E2E8F0;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  z-index: 9101;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0.18, 1);
+  overflow-y: auto;
+  padding: 22px 24px 60px;
+  box-shadow: -20px 0 40px rgba(0,0,0,0.4);
+  box-sizing: border-box;
+}
+.dmath-panel.active { transform: translateX(0); }
+.dmath-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+.dmath-head-text { flex: 1; }
+.dmath-eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: rgba(148, 163, 184, 0.85);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.dmath-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #F1F5F9;
+  margin: 0;
+}
+.dmath-subtitle {
+  font-size: 11.5px;
+  color: rgba(148, 163, 184, 0.85);
+  margin-top: 4px;
+}
+.dmath-close {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: rgba(226, 232, 240, 0.85);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dmath-close:hover { background: rgba(148, 163, 184, 0.12); color: #FFFFFF; }
+.dmath-section {
+  margin-bottom: 22px;
+}
+.dmath-section-head {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #93C5FD;
+  margin-bottom: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(147, 197, 253, 0.25);
+}
+.dmath-row {
+  display: flex;
+  gap: 12px;
+  padding: 2px 0;
+}
+.dmath-row .date {
+  width: 60px;
+  color: rgba(148, 163, 184, 0.85);
+  flex-shrink: 0;
+}
+.dmath-row .type {
+  width: 180px;
+  color: #FCD34D;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dmath-row .meta {
+  color: rgba(226, 232, 240, 0.7);
+  flex: 1;
+}
+.dmath-summary-line {
+  margin-top: 10px;
+  color: #93C5FD;
+  font-weight: 500;
+}
+.dmath-arrow { color: #93C5FD; }
+.dmath-formula {
+  background: rgba(15, 118, 110, 0.12);
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 6px 0;
+  color: #5EEAD4;
+  font-size: 13.5px;
+}
+.dmath-formula .equals { color: #FCD34D; }
+.dmath-formula .result { color: #FFFFFF; font-weight: 600; }
+.dmath-tier-box {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-top: 8px;
+}
+.dmath-tier-box .check {
+  color: rgba(226, 232, 240, 0.7);
+  margin-bottom: 2px;
+}
+.dmath-tier-result {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.dmath-tier-result.chronic { color: #F87171; }
+.dmath-tier-result.pattern { color: #FBBF24; }
+.dmath-tier-result.clear { color: #34D399; }
+.dmath-tier-result.improving { color: #34D399; }
+.dmath-tier-result.new { color: #93C5FD; }
+.dmath-fleet-grid {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 4px 14px;
+}
+.dmath-fleet-grid .label { color: rgba(148, 163, 184, 0.85); }
+.dmath-fleet-grid .value { color: #E2E8F0; }
+.dmath-loading {
+  text-align: center;
+  padding: 60px 0;
+  color: rgba(148, 163, 184, 0.85);
+}
+.dmath-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #FCA5A5;
+  padding: 14px;
+  border-radius: 6px;
+}
+
+/* Click hint on the tier badge */
+.perf-decv2-tag-clickable {
+  cursor: pointer;
+  position: relative;
+  transition: opacity 0.15s;
+}
+.perf-decv2-tag-clickable:hover { opacity: 0.7; }
+.perf-decv2-tag-clickable::after {
+  content: ' ⓘ';
+  font-size: 10px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+</style>
+
+<div class="dmath-overlay" id="dmath-overlay" onclick="closeDriverMath()"></div>
+<div class="dmath-panel" id="dmath-panel">
+  <div id="dmath-content"></div>
+</div>
+
+<script>
+let dmathState = { tid: null, name: null, windowDays: 30 };
+
+async function openDriverMath(tid, name, windowDays) {
+  dmathState.tid = tid;
+  dmathState.name = name || '';
+  dmathState.windowDays = windowDays || 30;
+
+  // Show panel with loading state
+  document.getElementById('dmath-content').innerHTML = '<div class="dmath-loading">Loading the math…</div>';
+  document.getElementById('dmath-overlay').classList.add('active');
+  document.getElementById('dmath-panel').classList.add('active');
+
+  try {
+    const res = await apiCall({
+      action: 'getDriverMath',
+      transporter_id: tid,
+      window_days: dmathState.windowDays
+    });
+    if (!res || res.status !== 'ok') {
+      const msg = (res && res.message) || 'Could not load math.';
+      document.getElementById('dmath-content').innerHTML =
+        '<div class="dmath-error">' + dmathEscape(msg) + '</div>';
+      return;
+    }
+    dmathRender(res.result);
+  } catch (e) {
+    document.getElementById('dmath-content').innerHTML =
+      '<div class="dmath-error">Error: ' + dmathEscape(e.message) + '</div>';
+  }
+}
+
+function closeDriverMath() {
+  document.getElementById('dmath-overlay').classList.remove('active');
+  document.getElementById('dmath-panel').classList.remove('active');
+}
+
+function dmathEscape(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+  });
+}
+
+function dmathPad(s, n) {
+  s = String(s == null ? '' : s);
+  while (s.length < n) s += ' ';
+  return s;
+}
+
+function dmathRender(m) {
+  const driver = m.driver || {};
+  const win = m.window || {};
+  const inp = m.inputs || {};
+  const calc = m.calculation || {};
+  const thr = m.thresholds || {};
+  const cls = m.classification || {};
+  const fleet = m.fleet_comparison || {};
+  const hist = m.coaching_history || {};
+
+  let html = '';
+
+  // Header
+  html += '<div class="dmath-head">';
+  html += '<div class="dmath-head-text">';
+  html += '<div class="dmath-eyebrow">Driver math · show your work</div>';
+  html += '<p class="dmath-title">' + dmathEscape(driver.name || 'Unknown') + '</p>';
+  html += '<div class="dmath-subtitle">TID: ' + dmathEscape(driver.transporter_id || '') +
+          '  ·  Window: last ' + dmathEscape(win.days || '?') + ' days  (' +
+          dmathEscape(win.start || '') + ' → ' + dmathEscape(win.end || '') + ')</div>';
+  html += '</div>';
+  html += '<button class="dmath-close" onclick="closeDriverMath()" title="Close">×</button>';
+  html += '</div>';
+
+  // Inputs · Events
+  html += '<div class="dmath-section">';
+  html += '<div class="dmath-section-head">Inputs · Safety events</div>';
+  if (!inp.events || inp.events.length === 0) {
+    html += '<div style="color: rgba(148,163,184,0.7);">No safety events in window.</div>';
+  } else {
+    inp.events.forEach(function(e) {
+      const date = (e.date || '').slice(5); // MM-DD
+      const subtype = e.subtype ? ' · ' + e.subtype : '';
+      html += '<div class="dmath-row">';
+      html += '<span class="date">' + dmathEscape(date) + '</span>';
+      html += '<span class="type">' + dmathEscape(e.type) + '</span>';
+      html += '<span class="meta">' + dmathEscape(subtype) + '</span>';
+      html += '</div>';
+    });
+  }
+  html += '<div class="dmath-summary-line">→ ' + (inp.total_events || 0) + ' total event' +
+          ((inp.total_events === 1) ? '' : 's') + '</div>';
+  html += '</div>';
+
+  // Inputs · Routes
+  html += '<div class="dmath-section">';
+  html += '<div class="dmath-section-head">Inputs · Routes completed</div>';
+  html += '<div style="color: rgba(226,232,240,0.85);">' +
+          (inp.quality_days || 0) + ' delivery day' + ((inp.quality_days === 1) ? '' : 's') +
+          ' in window</div>';
+  html += '<div class="dmath-summary-line">→ ' + (inp.total_routes || 0) + ' total route' +
+          ((inp.total_routes === 1) ? '' : 's') + '</div>';
+  html += '</div>';
+
+  // Calculation
+  html += '<div class="dmath-section">';
+  html += '<div class="dmath-section-head">Calculation</div>';
+  if (calc.fallback_to_count) {
+    html += '<div class="dmath-formula">' + dmathEscape(calc.formula || '') + '</div>';
+    html += '<div style="color: rgba(148,163,184,0.85); font-size: 11.5px;">' +
+            'Need at least ' + (thr.min_routes || 3) + ' routes to compute a rate. Showing raw count.</div>';
+  } else {
+    html += '<div class="dmath-formula">' +
+            (inp.total_events || 0) + ' events / ' + (inp.total_routes || 0) + ' routes × 100' +
+            '  <span class="equals">=</span>  <span class="result">' +
+            (calc.rate_per_100 != null ? calc.rate_per_100 : '?') +
+            '</span>  events per 100 routes' +
+            '</div>';
+  }
+  html += '</div>';
+
+  // Threshold check
+  html += '<div class="dmath-section">';
+  html += '<div class="dmath-section-head">Threshold check</div>';
+  html += '<div class="dmath-tier-box">';
+  html += '<div class="check">Action threshold:&nbsp;&nbsp;' + thr.action + ' / 100</div>';
+  html += '<div class="check">Chronic threshold: ' + thr.chronic + ' / 100</div>';
+  html += '<div class="check" style="margin-top:8px;">Reason: ' + dmathEscape(cls.reason || '') + '</div>';
+  const tierCls = String(cls.tier || '').toLowerCase();
+  html += '<div class="dmath-tier-result ' + dmathEscape(tierCls) + '">' +
+          '<span class="dmath-arrow">►</span> ' + dmathEscape(cls.tier || 'CLEAR') + '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // Fleet comparison
+  html += '<div class="dmath-section">';
+  html += '<div class="dmath-section-head">Fleet comparison</div>';
+  html += '<div class="dmath-fleet-grid">';
+  html += '<div class="label">Team avg rate:</div><div class="value">' +
+          (fleet.fleet_rate != null ? fleet.fleet_rate : '?') + ' / 100</div>';
+  html += '<div class="label">This DA:</div><div class="value">' +
+          (calc.rate_per_100 != null ? calc.rate_per_100 : (inp.total_events + ' events')) +
+          (calc.rate_per_100 != null ? ' / 100' : '') + '</div>';
+  if (fleet.multiplier != null) {
+    html += '<div class="label">Multiplier:</div><div class="value">' +
+            fleet.multiplier + '× team average</div>';
+  }
+  html += '</div>';
+  html += '</div>';
+
+  // Coaching history
+  html += '<div class="dmath-section">';
+  html += '<div class="dmath-section-head">Coaching history (all time)</div>';
+  html += '<div class="dmath-fleet-grid">';
+  html += '<div class="label">SMS coachings:</div><div class="value">' + (hist.sms_count || 0) +
+          (hist.last_sms_date ? '  (last ' + dmathEscape(hist.last_sms_date) + ')' : '') + '</div>';
+  html += '<div class="label">In-person 1:1:</div><div class="value">' + (hist.inperson_count || 0) +
+          (hist.last_inperson_date ? '  (last ' + dmathEscape(hist.last_inperson_date) + ')' : '') + '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  document.getElementById('dmath-content').innerHTML = html;
+}
+
+window.openDriverMath = openDriverMath;
+window.closeDriverMath = closeDriverMath;
 </script>
 
 </body>
