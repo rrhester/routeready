@@ -3935,6 +3935,10 @@ input[type="time"]::-webkit-calendar-picker-indicator {
         <svg class="rr-side-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="rr-side-label">Drivers</span>
       </button>
+      <button class="rr-side-item" onclick="coachOpenModal()">
+        <svg class="rr-side-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 18 0v6a2 2 0 0 1-2 2h-2v-8h4"/><path d="M3 11v6a2 2 0 0 0 2 2h2v-8H3"/></svg>
+        <span class="rr-side-label">Coach a driver</span>
+      </button>
     </div>
     <!-- Messaging -->
     <div class="rr-side-section">
@@ -12181,31 +12185,36 @@ window.perfSetList = perfSetList;
      Sprint 1A · in-the-moment coaching tool
      ═══════════════════════════════════════════════════════════════ -->
 <style>
-.coach-fab {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 8500;
-  padding: 12px 20px;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 100px;
-  background: #146EB4;
-  color: #FFFFFF;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(20,110,180,.3);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: inherit;
-  transition: transform 0.15s, box-shadow 0.15s;
+/* Coach modal — full-page, slides up from below */
+#coach-modal-overlay {
+  align-items: stretch;
+  padding: 0;
 }
-.coach-fab:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(20,110,180,.4);
+#coach-modal-overlay .perf-modal {
+  max-width: none;
+  width: 100%;
+  min-height: 100vh;
+  border-radius: 0;
+  margin: 0;
+  padding: 24px 28px 40px;
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0.18, 1);
+  box-shadow: none;
 }
-.coach-fab .plus { font-size: 16px; line-height: 1; font-weight: 400; }
+@media (min-width: 768px) {
+  #coach-modal-overlay {
+    padding: 24px;
+  }
+  #coach-modal-overlay .perf-modal {
+    max-width: 720px;
+    min-height: calc(100vh - 48px);
+    border-radius: 16px 16px 0 0;
+    margin: 0 auto;
+  }
+}
+#coach-modal-overlay.active .perf-modal {
+  transform: translateY(0);
+}
 
 .coach-modal-driver {
   position: relative;
@@ -12380,10 +12389,7 @@ window.perfSetList = perfSetList;
 .coach-action-radio-list label input:checked ~ span strong { color: #0F172A; }
 </style>
 
-<button class="coach-fab" onclick="coachOpenModal()" title="Coach a driver">
-  <span class="plus">+</span>
-  <span>Coach a driver</span>
-</button>
+<!-- Coach a driver button moved to sidebar nav (Analytics section) -->
 
 <div class="perf-modal-overlay" id="coach-modal-overlay" onclick="coachHandleBackdrop(event)">
   <div class="perf-modal" onclick="event.stopPropagation()">
