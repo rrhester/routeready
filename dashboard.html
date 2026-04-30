@@ -14532,5 +14532,791 @@ To revert: delete this whole block. The old styles take over.
   .perf-decv2-buttons .perf-decv2-btn { flex: 1; }
 }
 </style>
+<!--
+═══════════════════════════════════════════════════════════════════════════════
+DASHBOARD EDITORIAL POLISH (v19) — Pipeline + Interview Day
+Companion to the Performance polish you already shipped.
+
+Same rules as before:
+  Find: </body>
+  Paste this entire <style>...</style> block ABOVE that line.
+  Save, push to GitHub, hard-refresh in incognito.
+
+Scope (intentional):
+  ✓ Pipeline page (the main dashboard view)
+  ✓ Interview Day mode
+  ✓ Workspace header + roster rows + add-applicant button
+  ✓ Stale bookings banner
+
+Out of scope (left untouched on purpose):
+  ✗ Sidebar — its dark gradient is a navigation rail, not editorial content
+  ✗ Settings / Schedule — functional editors; polish risks breaking the forms
+  ✗ Messaging Hub — already has its own clean design
+  ✗ Performance page — covered by 01_PASTE_THIS_BEFORE_BODY_TAG.html
+  ✗ Driver Record / Drivers List — already editorial
+
+To revert: delete this whole block. The v12 white+blue polish layer takes back over.
+═══════════════════════════════════════════════════════════════════════════════
+-->
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   DASHBOARD EDITORIAL POLISH (v19) — Pipeline + Interview Day
+   Companion to the Performance page polish.
+   Same visual language: hairline dividers, no card chrome on data
+   zones, big serif numbers, unified pill buttons, tighter density.
+
+   Scope:
+   - Pipeline page (the main /dashboard view)
+   - Interview Day mode
+   - Workspace header + roster rows
+
+   Out of scope (intentionally left as-is):
+   - Sidebar (its dark gradient is a navigation rail, not editorial content)
+   - Settings / Schedule full-page editors (functional forms)
+   - Messaging Hub (already polished)
+   - Performance (handled by its own v19 polish layer)
+   - Driver Record / Drivers List (already editorial)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── PAGE GRID — wider, more editorial spacing ──────────────── */
+main#main {
+  max-width: 1100px !important;
+  padding: 32px 28px 80px !important;
+  gap: 32px !important;
+}
+
+/* ─── 7AM CARD — strip card chrome, larger serif body ────────── */
+.sevenam-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 0 0 28px 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+.sevenam-tag {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.8px !important;
+  margin-bottom: 16px !important;
+  color: var(--bolt) !important;
+}
+.sevenam-time {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.5px !important;
+  color: #94A3B8 !important;
+  font-weight: 500 !important;
+}
+.sevenam-text {
+  font-family: 'DM Serif Display', serif !important;
+  font-size: clamp(20px, 2.3vw, 26px) !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.45 !important;
+  color: var(--white) !important;
+}
+.sevenam-text em {
+  color: var(--bolt) !important;
+  font-style: italic !important;
+}
+
+/* ─── CONFIRMATION CARD — strip card, hairline rate cells ────── */
+.conf-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 0 0 28px 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+/* DSP sub-label */
+.conf-dsp,
+#conf-dsp-sub {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 1.6px !important;
+  text-transform: uppercase !important;
+  color: var(--bolt) !important;
+  margin-bottom: 16px !important;
+}
+
+/* Big confirmed → book → hire numbers */
+.conf-num {
+  font-size: 64px !important;
+}
+.conf-book-num {
+  font-size: 42px !important;
+  opacity: 0.6 !important;
+}
+.conf-hire-num {
+  font-size: 32px !important;
+  opacity: 0.45 !important;
+  border-bottom-color: rgba(20, 110, 180, 0.3) !important;
+}
+.conf-days-num {
+  font-size: 52px !important;
+  opacity: 0.55 !important;
+}
+
+/* Number labels - smaller, tighter */
+.conf-num-lbl,
+.conf-days-lbl {
+  font-size: 10px !important;
+  letter-spacing: 1.5px !important;
+  color: #94A3B8 !important;
+  font-weight: 700 !important;
+  margin-top: 6px !important;
+}
+
+/* Progress track — thinner, more refined */
+.prog-track {
+  height: 4px !important;
+  background: #F1F1EE !important;
+  border-radius: 100px !important;
+  margin: 14px 0 8px !important;
+}
+.prog-fill {
+  border-radius: 100px !important;
+}
+.prog-fill.risk-low { background: var(--bolt) !important; }
+
+.prog-pct {
+  font-size: 11px !important;
+  color: #64748B !important;
+  font-weight: 500 !important;
+}
+
+/* Risk pill — softer */
+.risk-pill {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  padding: 3px 10px !important;
+  border-radius: 100px !important;
+  letter-spacing: 0.3px !important;
+  border: 1px solid !important;
+}
+
+/* Rate row — hairline cells instead of inset boxes */
+.conf-rates {
+  border-top: 1px solid var(--border) !important;
+  padding-top: 20px !important;
+  margin-top: 20px !important;
+  gap: 0 !important;
+}
+.rate-tile {
+  background: transparent !important;
+  border: 0 !important;
+  border-right: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 4px 20px 4px 0 !important;
+  text-align: left !important;
+}
+.rate-tile + .rate-tile {
+  padding-left: 20px !important;
+}
+.rate-tile:last-of-type {
+  border-right: 0 !important;
+  padding-right: 0 !important;
+}
+.rate-val {
+  font-family: 'DM Serif Display', serif !important;
+  font-size: 30px !important;
+  font-weight: 400 !important;
+  color: var(--bolt) !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1 !important;
+}
+.rate-lbl {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.4px !important;
+  color: #94A3B8 !important;
+  margin-top: 8px !important;
+}
+.rate-note {
+  font-size: 11px !important;
+  color: #94A3B8 !important;
+  font-style: normal !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  margin-top: 4px !important;
+  font-weight: 400 !important;
+}
+.cycle-tag {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: #64748B !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  padding: 4px 12px !important;
+  border-radius: 100px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* Edit-target row — cleaner save button */
+.conf-save-btn {
+  background: var(--bolt) !important;
+  border: 0 !important;
+  color: #FFFFFF !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 6px 14px !important;
+  border-radius: 100px !important;
+  letter-spacing: 0.3px !important;
+}
+.conf-save-btn:hover {
+  background: var(--blue-deep) !important;
+}
+
+/* ─── KPI STRIP — hairline cells, no card ──────────────────── */
+.kpi-strip {
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 24px 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+.kpi-strip::before {
+  display: none !important;
+}
+.kpi {
+  padding: 4px 0 !important;
+}
+.kpi-val {
+  font-family: 'DM Serif Display', serif !important;
+  font-size: 44px !important;
+  font-weight: 400 !important;
+  color: var(--white) !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1 !important;
+}
+.kpi-val.hi {
+  color: var(--bolt) !important;
+}
+.kpi-lbl {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  color: #94A3B8 !important;
+  margin-top: 8px !important;
+}
+.kpi-sub {
+  font-size: 11px !important;
+  color: #94A3B8 !important;
+  font-weight: 400 !important;
+  margin-top: 4px !important;
+}
+.kpi-div {
+  background: var(--border) !important;
+  height: 60px !important;
+}
+
+/* ─── INSIGHT ROW — strip cards, single hairline-divided strip ── */
+.insight-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr !important;
+  gap: 0 !important;
+  background: transparent !important;
+  border-top: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+  margin: 0 !important;
+}
+.insight-row > div {
+  background: transparent !important;
+  border: 0 !important;
+  border-right: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 24px 28px !important;
+  box-shadow: none !important;
+}
+.insight-row > div:first-child {
+  padding-left: 0 !important;
+}
+.insight-row > div:last-child {
+  border-right: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Panel labels — eyebrow style */
+.panel-label {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.6px !important;
+  color: var(--bolt) !important;
+  margin-bottom: 18px !important;
+  text-transform: uppercase !important;
+}
+
+/* Stat rows inside panels */
+.stat-row {
+  border-bottom: 1px solid var(--border) !important;
+  padding: 10px 0 !important;
+  font-size: 13px !important;
+}
+.stat-row:last-child { border-bottom: 0 !important; }
+.stat-name {
+  color: #64748B !important;
+  font-weight: 400 !important;
+}
+.stat-val {
+  color: var(--white) !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+}
+
+/* Indeed panel — cleaner */
+.indeed-status {
+  margin-bottom: 12px !important;
+}
+.indeed-headline {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--white) !important;
+  line-height: 1.4 !important;
+}
+.indeed-body {
+  font-size: 12px !important;
+  color: #475569 !important;
+  font-weight: 400 !important;
+  line-height: 1.6 !important;
+}
+
+/* Throttle panel — cleaner toggle and buttons */
+.rr-logic-row {
+  margin-bottom: 14px !important;
+}
+.rr-logic-label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #475569 !important;
+}
+.throttle-modes {
+  gap: 6px !important;
+  margin-bottom: 12px !important;
+}
+.throttle-btn {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: #64748B !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.3px !important;
+  border-radius: 8px !important;
+  padding: 8px 4px !important;
+}
+.throttle-btn.active.open,
+.throttle-btn.active.selective {
+  background: rgba(20, 110, 180, 0.08) !important;
+  border-color: rgba(20, 110, 180, 0.4) !important;
+  color: var(--bolt) !important;
+}
+.throttle-btn.active.paused {
+  background: #F7F7F5 !important;
+  border-color: #CBD5E1 !important;
+  color: #475569 !important;
+}
+.throttle-sub {
+  color: #94A3B8 !important;
+  font-size: 9px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.3px !important;
+}
+.throttle-btn.active .throttle-sub {
+  color: currentColor !important;
+  opacity: 0.7 !important;
+}
+.throttle-reasoning {
+  font-size: 12px !important;
+  color: #64748B !important;
+  border-top: 1px solid var(--border) !important;
+  padding-top: 12px !important;
+  margin-top: 12px !important;
+  line-height: 1.6 !important;
+  font-weight: 400 !important;
+}
+
+/* ─── WORKSPACE (applicants list) ────────────────────────────── */
+.workspace {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  margin: 0 !important;
+}
+.workspace-header {
+  background: transparent !important;
+  padding: 0 0 18px 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  margin-bottom: 0 !important;
+}
+.ws-title {
+  font-family: 'DM Serif Display', serif !important;
+  font-size: 28px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--white) !important;
+}
+.ws-sub {
+  font-size: 12px !important;
+  color: #64748B !important;
+  font-weight: 400 !important;
+  margin-top: 4px !important;
+}
+
+/* Add Applicant pill button */
+#add-applicant-btn {
+  background: var(--bolt) !important;
+  color: #FFFFFF !important;
+  border: 0 !important;
+  border-radius: 100px !important;
+  padding: 9px 18px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.2px !important;
+  transition: background 0.15s !important;
+}
+#add-applicant-btn:hover {
+  background: var(--blue-deep) !important;
+}
+
+/* Mode tag (Pipeline View / Interview Day) */
+.ws-mode-tag {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.3px !important;
+  padding: 4px 12px !important;
+  border-radius: 100px !important;
+  border: 1px solid var(--border) !important;
+  background: transparent !important;
+  color: #64748B !important;
+}
+.ws-mode-tag.iday {
+  background: rgba(34, 197, 94, 0.08) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  color: var(--green) !important;
+}
+
+/* Close Interview Day button */
+#close-iday-btn {
+  background: rgba(20, 110, 180, 0.08) !important;
+  border: 1px solid rgba(20, 110, 180, 0.3) !important;
+  color: var(--bolt) !important;
+  border-radius: 100px !important;
+  padding: 7px 16px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+/* Roster rows — hairline dividers, lighter padding */
+.roster-row {
+  border-bottom: 1px solid var(--border) !important;
+  padding: 14px 0 !important;
+  gap: 12px !important;
+  background: transparent !important;
+}
+.roster-row:hover {
+  background: #FAFAF7 !important;
+}
+.roster-row:first-child {
+  border-top: 0 !important;
+}
+.roster-row:last-child {
+  border-bottom: 0 !important;
+}
+.roster-name {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--white) !important;
+}
+.roster-sub {
+  font-size: 11px !important;
+  color: #64748B !important;
+  font-weight: 400 !important;
+  margin-top: 2px !important;
+}
+
+/* Roster status pills — unified pill style */
+.roster-status {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  border-radius: 100px !important;
+  letter-spacing: 0.3px !important;
+  border: 1px solid !important;
+}
+.roster-status.booked {
+  background: rgba(34, 197, 94, 0.08) !important;
+  color: var(--green) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+.roster-status.passed {
+  background: rgba(20, 110, 180, 0.08) !important;
+  color: var(--bolt) !important;
+  border-color: rgba(20, 110, 180, 0.3) !important;
+}
+.roster-status.screened {
+  background: transparent !important;
+  color: #64748B !important;
+  border-color: var(--border) !important;
+}
+.roster-status.contacted {
+  background: transparent !important;
+  color: #94A3B8 !important;
+  border-color: var(--border) !important;
+}
+.roster-status.hired {
+  background: rgba(34, 197, 94, 0.15) !important;
+  color: var(--green) !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
+}
+.roster-status.noshow {
+  background: rgba(217, 119, 6, 0.08) !important;
+  color: #D97706 !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
+}
+.roster-status.nothired {
+  background: transparent !important;
+  color: #94A3B8 !important;
+  border-color: var(--border) !important;
+}
+
+.roster-score {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: #64748B !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 3px 10px !important;
+  border-radius: 100px !important;
+}
+
+/* ─── INTERVIEW DAY HEADER ───────────────────────────────────── */
+#interview-day-header {
+  background: transparent !important;
+  border-top: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 22px 0 !important;
+  margin-top: 0 !important;
+}
+.interview-stats {
+  gap: 32px !important;
+}
+.interview-stat-num {
+  font-family: 'DM Serif Display', serif !important;
+  font-size: 36px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1 !important;
+}
+.interview-stat-num.hired { color: var(--green) !important; }
+.interview-stat-num.noshow { color: #D97706 !important; }
+.interview-stat-num.nothired { color: #94A3B8 !important; }
+.interview-stat-num.pending { color: var(--bolt) !important; }
+.interview-stat-lbl {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.4px !important;
+  color: #94A3B8 !important;
+  margin-top: 6px !important;
+}
+
+#id-total-hired {
+  font-family: 'DM Serif Display', serif !important;
+  font-size: 44px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--white) !important;
+}
+#id-target-label {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  color: #94A3B8 !important;
+  margin-top: 6px !important;
+}
+
+/* Interview day rows — hairline */
+.iday-row {
+  border-bottom: 1px solid var(--border) !important;
+  padding: 16px 0 !important;
+}
+.iday-row:last-child { border-bottom: 0 !important; }
+.iday-row-top { gap: 12px !important; }
+.iday-name {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--white) !important;
+}
+.iday-time {
+  font-size: 12px !important;
+  color: var(--green) !important;
+  font-weight: 500 !important;
+  margin-top: 2px !important;
+}
+
+/* Interview day badges — unified pill style */
+.iday-badge {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  border-radius: 100px !important;
+  letter-spacing: 0.3px !important;
+  border: 1px solid !important;
+}
+.iday-badge.hired {
+  background: rgba(34, 197, 94, 0.12) !important;
+  color: var(--green) !important;
+  border-color: rgba(34, 197, 94, 0.35) !important;
+}
+.iday-badge.noshow {
+  background: rgba(217, 119, 6, 0.08) !important;
+  color: #D97706 !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
+}
+.iday-badge.nothired {
+  background: transparent !important;
+  color: #94A3B8 !important;
+  border-color: var(--border) !important;
+}
+.iday-badge.pending {
+  background: transparent !important;
+  color: var(--bolt) !important;
+  border-color: rgba(20, 110, 180, 0.3) !important;
+}
+
+/* Interview day action buttons — unified pill style */
+.iday-btn {
+  border-radius: 100px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border: 1px solid !important;
+  letter-spacing: 0.2px !important;
+  padding: 9px 6px !important;
+}
+.iday-btn.hired {
+  background: rgba(34, 197, 94, 0.08) !important;
+  border-color: rgba(34, 197, 94, 0.35) !important;
+  color: var(--green) !important;
+}
+.iday-btn.hired:active:not(:disabled) {
+  background: rgba(34, 197, 94, 0.18) !important;
+}
+.iday-btn.noshow {
+  background: rgba(217, 119, 6, 0.06) !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
+  color: #D97706 !important;
+}
+.iday-btn.nothired {
+  background: transparent !important;
+  border-color: var(--border) !important;
+  color: #64748B !important;
+}
+
+/* ─── STALE BANNER — softer, editorial ───────────────────────── */
+.stale-banner {
+  background: rgba(20, 110, 180, 0.06) !important;
+  border: 1px solid rgba(20, 110, 180, 0.25) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  margin-bottom: 16px !important;
+}
+.stale-banner-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--white) !important;
+}
+.stale-banner-sub {
+  font-size: 11px !important;
+  color: #64748B !important;
+  font-weight: 400 !important;
+}
+.stale-banner-cta {
+  background: var(--bolt) !important;
+  border-radius: 100px !important;
+  padding: 7px 16px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px !important;
+}
+
+/* ─── MOBILE REVIEW CTA — keep gradient, refine ──────────────── */
+.mobile-review-cta {
+  border-radius: 14px !important;
+  padding: 16px 18px !important;
+}
+
+/* ─── MOBILE RESPONSIVE ──────────────────────────────────────── */
+@media (max-width: 720px) {
+  main#main {
+    padding: 20px 16px 60px !important;
+    gap: 24px !important;
+  }
+  .insight-row {
+    grid-template-columns: 1fr !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+  }
+  .insight-row > div {
+    border-right: 0 !important;
+    border-top: 1px solid var(--border) !important;
+    padding: 22px 0 !important;
+  }
+  .insight-row > div:first-child {
+    border-top: 1px solid var(--border) !important;
+  }
+  .insight-row > div:last-child {
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .conf-num { font-size: 52px !important; }
+  .conf-book-num { font-size: 34px !important; }
+  .conf-hire-num { font-size: 26px !important; }
+  .conf-days-num { font-size: 42px !important; }
+  .kpi-val { font-size: 36px !important; }
+  .ws-title { font-size: 22px !important; }
+  .sevenam-text { font-size: 18px !important; }
+  .conf-rates {
+    flex-wrap: wrap !important;
+    gap: 16px !important;
+  }
+  .rate-tile {
+    padding: 0 !important;
+    border-right: 0 !important;
+    flex: 1 1 calc(50% - 8px) !important;
+  }
+  .rate-tile + .rate-tile {
+    padding-left: 0 !important;
+  }
+  .interview-stats {
+    gap: 18px !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+/* ─── REMOVE LEGACY ALTERNATIVE BACKGROUNDS ──────────────────── */
+/* These were defensive overrides in earlier polish layers that
+   would leak through on the editorial version */
+body.light .sevenam-card,
+body.light .conf-card {
+  background: transparent !important;
+}
+
+/* ─── FOCUS STATES — refined for accessibility ───────────────── */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--bolt) !important;
+  outline-offset: 2px !important;
+}
+</style>
 </body>
 </html>
