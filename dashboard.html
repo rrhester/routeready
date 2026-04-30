@@ -2794,138 +2794,6 @@ input::placeholder, textarea::placeholder {
   font-size: 11px !important;
 }
 
-/* ═══ MORNING PERFORMANCE BRIEFING ═══ */
-#sevenam-performance {
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid #EAEAE5;
-}
-.spb-section {
-  margin-top: 14px;
-}
-.spb-section:first-child {
-  margin-top: 0;
-}
-.spb-eyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: #64748B;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.spb-eyebrow.urgent {
-  color: #DC2626;
-}
-.spb-eyebrow.clear {
-  color: #15803D;
-}
-.spb-eyebrow-count {
-  background: #F7F7F5;
-  color: #475569;
-  padding: 1px 8px;
-  border-radius: 100px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-.spb-eyebrow.urgent .spb-eyebrow-count {
-  background: #FEE2E2;
-  color: #DC2626;
-}
-.spb-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 0;
-  border-bottom: 0.5px solid #EAEAE5;
-}
-.spb-row:last-child {
-  border-bottom: none;
-}
-.spb-row-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1E293B;
-  flex: 1;
-  min-width: 0;
-}
-.spb-row-detail {
-  font-size: 12px;
-  color: #475569;
-  flex: 1.5;
-  min-width: 0;
-}
-.spb-row-action {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 6px 12px;
-  background: #146EB4;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 100px;
-  cursor: pointer;
-  font-family: inherit;
-  flex-shrink: 0;
-}
-.spb-row-action:hover {
-  background: #0F5A95;
-}
-.spb-row-action.urgent {
-  background: #DC2626;
-}
-.spb-row-action.urgent:hover {
-  background: #B91C1C;
-}
-.spb-allclear {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 0;
-  font-size: 14px;
-  color: #15803D;
-}
-.spb-allclear-check {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #DCFCE7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #15803D;
-  font-size: 14px;
-  font-weight: 700;
-}
-.spb-allclear-text {
-  color: #1E293B;
-}
-.spb-allclear-text strong {
-  color: #15803D;
-  font-weight: 600;
-}
-@media (max-width: 640px) {
-  .spb-row {
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 12px 0;
-  }
-  .spb-row-name {
-    flex: 1 1 100%;
-  }
-  .spb-row-detail {
-    flex: 1 1 100%;
-    margin-bottom: 4px;
-  }
-  .spb-row-action {
-    width: 100%;
-    padding: 10px;
-  }
-}
 
 /* ─── Schedule time inputs — visible, not clipped ─── */
 .sched-time, .sched-time-input,
@@ -4231,7 +4099,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
       <span class="sevenam-time" id="sevenam-time"></span>
     </div>
     <div class="sevenam-text" id="sevenam-text">Connecting to pipeline...</div>
-    <div id="sevenam-performance" style="display:none"></div>
   </div>
 
   <!-- Mobile-only: Review Videos CTA (shows when videos are pending) -->
@@ -5385,101 +5252,6 @@ function calcBookTarget(hireGoal, showRate, hireRate) {
   return Math.ceil(hireGoal / sr / hr);
 }
 
-// ── MORNING PERFORMANCE BRIEFING ─────────────────────────────
-// Fires after loadData(). Fetches yesterday's safety events + tier crossings
-// and renders the performance side of The 7AM under the existing hiring briefing.
-
-async function loadMorningPerformance() {
-  const wrap = document.getElementById('sevenam-performance');
-  if (!wrap) return;
-  try {
-    const res = await apiCall({ action: 'getMorningPerformance' });
-    if (!res || res.status !== 'ok' || !res.result) {
-      wrap.style.display = 'none';
-      return;
-    }
-    renderMorningPerformance(res.result);
-  } catch (e) {
-    // Don't surface errors here — the briefing is a bonus surface, not critical
-    console.warn('Morning briefing unavailable:', e && e.message);
-    wrap.style.display = 'none';
-  }
-}
-
-function renderMorningPerformance(brief) {
-  const wrap = document.getElementById('sevenam-performance');
-  if (!wrap || !brief) return;
-
-  const coachingList = (brief.todays_coaching && brief.todays_coaching.drivers) || [];
-  const coachingCount = brief.todays_coaching ? brief.todays_coaching.count : 0;
-  const crossings = brief.tier_crossings || [];
-  const allClear = !!brief.all_clear;
-  const fleetSize = brief.fleet_size || 0;
-
-  let html = '';
-
-  // ── Today's coaching list (or all-clear) ──
-  if (allClear) {
-    html += '<div class="spb-section">';
-    html += '<div class="spb-eyebrow clear">Yesterday\'s safety</div>';
-    html += '<div class="spb-allclear">';
-    html += '<div class="spb-allclear-check">✓</div>';
-    html += '<div class="spb-allclear-text">All <strong>' + fleetSize + ' drivers</strong> ran clean yesterday. Nice.</div>';
-    html += '</div>';
-    html += '</div>';
-  } else {
-    html += '<div class="spb-section">';
-    html += '<div class="spb-eyebrow urgent">Coach today <span class="spb-eyebrow-count">' + coachingCount + '</span></div>';
-    coachingList.forEach(function(d) {
-      const name = mpbEscape(d.name || 'Unknown');
-      const tid = mpbEscape(d.transporter_id || '');
-      const eventCount = d.event_count || 0;
-      const types = (d.event_types || []).join(', ');
-      const detail = eventCount + ' event' + (eventCount === 1 ? '' : 's') +
-                     (types ? ' · ' + mpbEscape(types) : '');
-      html += '<div class="spb-row">';
-      html += '<div class="spb-row-name">' + name + '</div>';
-      html += '<div class="spb-row-detail">' + detail + '</div>';
-      html += '<button class="spb-row-action urgent" onclick="coachOpenModal(\'' + tid + '\', \'' + name + '\')">Coach</button>';
-      html += '</div>';
-    });
-    html += '</div>';
-  }
-
-  // ── Tier crossings (always shown if any) ──
-  if (crossings.length > 0) {
-    html += '<div class="spb-section">';
-    html += '<div class="spb-eyebrow">Stay/go forming <span class="spb-eyebrow-count">' + crossings.length + '</span></div>';
-    crossings.forEach(function(c) {
-      const name = mpbEscape(c.name || 'Unknown');
-      const tid = mpbEscape(c.transporter_id || '');
-      const reason = mpbEscape(c.reason || 'Crossed into Tier 1');
-      html += '<div class="spb-row">';
-      html += '<div class="spb-row-name">' + name + '</div>';
-      html += '<div class="spb-row-detail">' + reason + '</div>';
-      html += '<button class="spb-row-action" onclick="openDriverRecord(\'' + tid + '\')">Open record</button>';
-      html += '</div>';
-    });
-    html += '</div>';
-  }
-
-  if (!html) {
-    wrap.style.display = 'none';
-    return;
-  }
-
-  wrap.innerHTML = html;
-  wrap.style.display = 'block';
-}
-
-function mpbEscape(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
-    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
-  });
-}
-
-window.loadMorningPerformance = loadMorningPerformance;
-
 // ── RENDER ───────────────────────────────────────────────────
 function render() {
   if (!data) return;
@@ -5517,8 +5289,6 @@ function render() {
     document.getElementById('sevenam-time').textContent = data.sevenAMTime ? 'Delivered ' + data.sevenAMTime : '';
   }
 
-  // Morning Performance Briefing — fetches separately so it doesn't block render
-  loadMorningPerformance();
 
   // Confirmed card
   const riskClass = riskLevel==='high'?'risk-high':riskLevel==='medium'?'risk-med':'risk-low';
