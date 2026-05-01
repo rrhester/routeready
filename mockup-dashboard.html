@@ -2211,6 +2211,104 @@ a{color:inherit;text-decoration:none}
 .reports-menu{
   position:fixed;top:50px;right:140px;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   ROUTE PLAN — input-driven weekly hiring planner
+   ───────────────────────────────────────────────────────────── */
+.plan-controls{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-4) var(--s-5);margin-bottom:var(--s-4);
+  display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:var(--s-5);align-items:center;
+}
+.plan-control-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.plan-control-value{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.plan-control-value .frac{font-size:12px;font-weight:500;color:var(--text-subtle);margin-left:2px}
+.plan-control-sub{font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.4}
+
+.cushion-slider{width:100%;margin-top:6px}
+.cushion-slider input[type=range]{width:100%;accent-color:var(--accent)}
+.cushion-track{height:4px;background:var(--canvas);border-radius:2px;position:relative;margin-top:8px}
+.cushion-fill{height:100%;background:linear-gradient(90deg,var(--accent),#3B82F6);border-radius:2px}
+.cushion-marks{display:flex;justify-content:space-between;font-size:9px;color:var(--text-subtle);margin-top:4px;font-weight:600}
+
+.plan-table-wrap{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+  margin-bottom:var(--s-4);
+}
+.plan-table{width:100%;border-collapse:collapse}
+.plan-table thead th{
+  text-align:left;font-size:10px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;padding:12px 14px;
+  background:var(--canvas);border-bottom:1px solid var(--border);
+}
+.plan-table thead th.center{text-align:center}
+.plan-table thead th.right{text-align:right}
+.plan-table tbody td{
+  padding:14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);vertical-align:middle;
+}
+.plan-table tbody tr:last-child td{border-bottom:none}
+.plan-table tbody tr.highlight{background:var(--canvas)}
+.plan-table tbody tr.cycle-end{border-bottom:2px solid var(--accent)}
+
+.plan-week-label{font-size:13px;font-weight:600;color:var(--text)}
+.plan-week-dates{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.plan-week-cycle{font-size:9px;color:var(--accent-text);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:3px}
+
+.plan-route-input{
+  width:64px;padding:6px 8px;border:1px solid var(--border-strong);border-radius:6px;
+  font-size:13px;font-weight:600;text-align:center;background:var(--surface);color:var(--text);
+  font-family:inherit;
+}
+.plan-route-input:focus{outline:none;border-color:var(--accent)}
+
+.plan-calc{font-size:13px;font-weight:600;color:var(--text);text-align:center}
+.plan-calc-sub{font-size:10px;color:var(--text-subtle);font-weight:500;margin-top:2px}
+.plan-gap{font-size:14px;font-weight:700;text-align:center;font-family:'SF Mono',Menlo,monospace;letter-spacing:-.02em}
+.plan-gap.ok{color:var(--green)}
+.plan-gap.warn{color:var(--amber)}
+.plan-gap.bad{color:var(--red)}
+
+.plan-status-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;
+}
+.plan-status-pill.ok{background:var(--green-soft);color:var(--green)}
+.plan-status-pill.warn{background:var(--amber-soft);color:var(--amber)}
+.plan-status-pill.bad{background:var(--red-soft);color:var(--red)}
+.plan-status-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.plan-action{font-size:11px;color:var(--text-muted);text-align:center}
+.plan-action strong{color:var(--text);font-weight:600}
+.plan-action.warn{color:var(--amber);font-weight:600}
+.plan-action.bad{color:var(--red);font-weight:700}
+
+.plan-summary{
+  display:grid;grid-template-columns:1.1fr .9fr;gap:var(--s-4);
+}
+.plan-summary-hero{
+  background:linear-gradient(135deg,#0F172A 0%,#1E40AF 100%);
+  color:#fff;border-radius:var(--r-lg);padding:var(--s-5);
+}
+.plan-summary-eyebrow{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:6px}
+.plan-summary-headline{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px}
+.plan-summary-body{font-size:13px;line-height:1.55;color:rgba(255,255,255,.8)}
+.plan-summary-body strong{color:#fff;font-weight:700}
+
+.plan-pipe-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);
+}
+.plan-pipe-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.plan-pipe-row:last-child{border-bottom:none}
+.plan-pipe-label{color:var(--text-muted)}
+.plan-pipe-value{font-weight:600;color:var(--text)}
+.plan-pipe-value.ok{color:var(--green)}
+.plan-pipe-value.warn{color:var(--amber)}
+.plan-pipe-value.bad{color:var(--red)}
+.plan-pipe-formula{
+  font-size:11px;color:var(--text-subtle);background:var(--canvas);
+  border-radius:6px;padding:8px 10px;font-family:'SF Mono',Menlo,monospace;line-height:1.5;
+}
 </style>
 </head>
 <body>
@@ -3749,6 +3847,7 @@ a{color:inherit;text-decoration:none}
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')">Open shifts <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
           <button class="subnav-item" data-sub="availability" onclick="schedSub('availability')">Availability</button>
           <button class="subnav-item" data-sub="forecast" onclick="schedSub('forecast')">Forecast</button>
+          <button class="subnav-item" data-sub="plan" onclick="schedSub('plan')">Route plan</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
           <button class="subnav-item" data-sub="driverapp" onclick="schedSub('driverapp')">Driver app</button>
@@ -4566,6 +4665,183 @@ a{color:inherit;text-decoration:none}
             </div>
 
           </div>
+        </div>
+
+        <!-- ROUTE PLAN — input-driven weekly hiring planner -->
+        <div class="sched-subview" id="sched-sub-plan" style="display:none">
+
+          <div style="margin-bottom:var(--s-4)">
+            <h2 style="font-size:15px;font-weight:600;margin:0">Route plan · 8 weeks</h2>
+            <p class="page-sub" style="margin:4px 0 0 0">Enter Amazon's max routes per week. The planner calculates drivers needed, gap, and hire-by dates.</p>
+          </div>
+
+          <div class="plan-controls">
+            <div>
+              <div class="plan-control-label">Drivers per route (min)</div>
+              <div class="plan-control-value">2.0</div>
+              <div class="plan-control-sub">Industry baseline · 1 primary + 1 backup</div>
+            </div>
+            <div>
+              <div class="plan-control-label">Cushion · attrition + callouts</div>
+              <div class="plan-control-value">12<span class="frac">%</span></div>
+              <input type="range" min="10" max="20" value="12" step="1" oninput="updateCushion(this.value)" id="cushion-range" style="width:100%;margin-top:6px;accent-color:var(--accent)" />
+              <div class="cushion-marks"><span>10%</span><span>15%</span><span>20%</span></div>
+            </div>
+            <div>
+              <div class="plan-control-label">Current roster</div>
+              <div class="plan-control-value">78<span class="frac"> drivers</span></div>
+              <div class="plan-control-sub">5 at risk · effective 73 next 4 weeks</div>
+            </div>
+            <div>
+              <div class="plan-control-label">Pipeline ready</div>
+              <div class="plan-control-value">15</div>
+              <div class="plan-control-sub">7 booked + 8 likely from screening</div>
+            </div>
+          </div>
+
+          <div class="plan-table-wrap">
+            <table class="plan-table">
+              <thead>
+                <tr>
+                  <th>Week</th>
+                  <th class="center">Routes (max)</th>
+                  <th class="center">Drivers needed</th>
+                  <th class="center">Available</th>
+                  <th class="center">Gap</th>
+                  <th class="center">Hire by</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="plan-tbody">
+                <tr>
+                  <td>
+                    <div class="plan-week-label">Week 19</div>
+                    <div class="plan-week-dates">May 1 – May 7</div>
+                    <div class="plan-week-cycle">Cycle 14 · this week</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="0" value="38" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">85</div><div class="plan-calc-sub">76 base + 9 cushion</div></td>
+                  <td class="center"><div class="plan-calc">78</div><div class="plan-calc-sub">on roster</div></td>
+                  <td class="center"><div class="plan-gap warn">−7</div></td>
+                  <td class="center"><div class="plan-calc">Apr 28</div><div class="plan-calc-sub">past · pipeline backfill</div></td>
+                  <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="plan-week-label">Week 20</div>
+                    <div class="plan-week-dates">May 8 – May 14</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="1" value="40" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">90</div><div class="plan-calc-sub">80 base + 10 cushion</div></td>
+                  <td class="center"><div class="plan-calc">81</div><div class="plan-calc-sub">+3 from Friday hires</div></td>
+                  <td class="center"><div class="plan-gap warn">−9</div></td>
+                  <td class="center"><div class="plan-calc">May 5</div><div class="plan-calc-sub">5 days</div></td>
+                  <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="plan-week-label">Week 21</div>
+                    <div class="plan-week-dates">May 15 – May 21</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="2" value="42" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">94</div><div class="plan-calc-sub">84 base + 10 cushion</div></td>
+                  <td class="center"><div class="plan-calc">86</div><div class="plan-calc-sub">+8 expected hires</div></td>
+                  <td class="center"><div class="plan-gap warn">−8</div></td>
+                  <td class="center"><div class="plan-calc">May 12</div><div class="plan-calc-sub">12 days</div></td>
+                  <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
+                </tr>
+                <tr class="cycle-end">
+                  <td>
+                    <div class="plan-week-label">Week 22</div>
+                    <div class="plan-week-dates">May 22 – May 28</div>
+                    <div class="plan-week-cycle">Cycle 14 ends · cycle 15 begins</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="3" value="45" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">101</div><div class="plan-calc-sub">90 base + 11 cushion</div></td>
+                  <td class="center"><div class="plan-calc">90</div><div class="plan-calc-sub">+12 hires by EOC</div></td>
+                  <td class="center"><div class="plan-gap bad">−11</div></td>
+                  <td class="center"><div class="plan-calc">May 19</div><div class="plan-calc-sub">19 days</div></td>
+                  <td><span class="plan-status-pill bad"><span class="dot"></span>Critical</span></td>
+                </tr>
+                <tr class="highlight">
+                  <td>
+                    <div class="plan-week-label">Week 23</div>
+                    <div class="plan-week-dates">May 29 – Jun 4</div>
+                    <div class="plan-week-cycle">Cycle 15 · week 1</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="4" value="48" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">108</div><div class="plan-calc-sub">96 base + 12 cushion</div></td>
+                  <td class="center"><div class="plan-calc">90</div><div class="plan-calc-sub">−2 attrition</div></td>
+                  <td class="center"><div class="plan-gap bad">−18</div></td>
+                  <td class="center"><div class="plan-calc">May 26</div><div class="plan-calc-sub">26 days</div></td>
+                  <td><span class="plan-status-pill bad"><span class="dot"></span>Critical · plan now</span></td>
+                </tr>
+                <tr class="highlight">
+                  <td>
+                    <div class="plan-week-label">Week 24</div>
+                    <div class="plan-week-dates">Jun 5 – Jun 11</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="5" value="50" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">112</div><div class="plan-calc-sub">100 base + 12 cushion</div></td>
+                  <td class="center"><div class="plan-calc">94</div><div class="plan-calc-sub">+4 cycle 15 hires</div></td>
+                  <td class="center"><div class="plan-gap bad">−18</div></td>
+                  <td class="center"><div class="plan-calc">Jun 2</div><div class="plan-calc-sub">33 days</div></td>
+                  <td><span class="plan-status-pill bad"><span class="dot"></span>Critical</span></td>
+                </tr>
+                <tr class="highlight">
+                  <td>
+                    <div class="plan-week-label">Week 25</div>
+                    <div class="plan-week-dates">Jun 12 – Jun 18</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="6" value="50" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">112</div><div class="plan-calc-sub">100 base + 12 cushion</div></td>
+                  <td class="center"><div class="plan-calc">100</div><div class="plan-calc-sub">+6 more hires</div></td>
+                  <td class="center"><div class="plan-gap warn">−12</div></td>
+                  <td class="center"><div class="plan-calc">Jun 9</div><div class="plan-calc-sub">40 days</div></td>
+                  <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
+                </tr>
+                <tr class="highlight">
+                  <td>
+                    <div class="plan-week-label">Week 26</div>
+                    <div class="plan-week-dates">Jun 19 – Jun 25</div>
+                    <div class="plan-week-cycle">Prime Day prep</div>
+                  </td>
+                  <td class="center"><input class="plan-route-input" data-week="7" value="55" oninput="recalcPlan()" /></td>
+                  <td class="center"><div class="plan-calc">123</div><div class="plan-calc-sub">110 base + 13 cushion</div></td>
+                  <td class="center"><div class="plan-calc">108</div><div class="plan-calc-sub">+8 cycle 16 hires</div></td>
+                  <td class="center"><div class="plan-gap bad">−15</div></td>
+                  <td class="center"><div class="plan-calc">Jun 16</div><div class="plan-calc-sub">47 days</div></td>
+                  <td><span class="plan-status-pill bad"><span class="dot"></span>Hire ahead</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- PLAN SUMMARY -->
+          <div class="plan-summary">
+            <div class="plan-summary-hero">
+              <div class="plan-summary-eyebrow">Plan summary · 8 weeks</div>
+              <div class="plan-summary-headline">Hire 28 drivers by Jun 16</div>
+              <div class="plan-summary-body">
+                Your current roster of <strong>78</strong> + pipeline of <strong>15 likely hires</strong> covers Cycle 14 but falls <strong>~13 short</strong> by Cycle 15 mid-point. Front-load hiring before May 26 to stay ahead of Prime Day prep volume in June.
+              </div>
+            </div>
+
+            <div class="plan-pipe-card">
+              <h3 style="font-size:13px;font-weight:600;margin:0 0 var(--s-3) 0">Pipeline status vs plan</h3>
+              <div class="plan-pipe-row"><span class="plan-pipe-label">Total hires needed</span><span class="plan-pipe-value">28</span></div>
+              <div class="plan-pipe-row"><span class="plan-pipe-label">Pipeline can cover</span><span class="plan-pipe-value warn">15 (54%)</span></div>
+              <div class="plan-pipe-row"><span class="plan-pipe-label">Gap to fill via new applicants</span><span class="plan-pipe-value bad">13 hires</span></div>
+              <div class="plan-pipe-row"><span class="plan-pipe-label">At your 21% screen→hire rate</span><span class="plan-pipe-value">≈ 62 new applicants</span></div>
+              <div class="plan-pipe-row"><span class="plan-pipe-label">Recommended bulk import</span><span class="plan-pipe-value ok">Now</span></div>
+              <div class="plan-pipe-formula" style="margin-top:var(--s-3)">need = max_routes × 2.0 × (1 + cushion) − available_drivers</div>
+              <div style="margin-top:var(--s-3);display:flex;gap:6px">
+                <button class="btn btn-sm" onclick="goto('pipeline')">Open pipeline →</button>
+                <button class="btn btn-sm btn-primary" onclick="openBulkIngest()">Bulk import 60 applicants</button>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- TEMPLATES -->
@@ -6794,6 +7070,62 @@ a{color:inherit;text-decoration:none}
 
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
+
+  // ─── ROUTE PLAN — live recalc ──────────────────────────────
+  var planAvailable = [78, 81, 86, 90, 90, 94, 100, 108]; // adjusted by week
+  function recalcPlan(){
+    const cushion = (parseFloat(document.getElementById('cushion-range').value) || 12) / 100;
+    const tbody = document.getElementById('plan-tbody');
+    if (!tbody) return;
+    let totalGap = 0;
+    tbody.querySelectorAll('tr').forEach(function(row, i){
+      const input = row.querySelector('.plan-route-input');
+      if (!input) return;
+      const routes = parseInt(input.value) || 0;
+      const base = routes * 2;
+      const cush = Math.ceil(base * cushion);
+      const needed = base + cush;
+      const available = planAvailable[i] || 78;
+      const gap = available - needed;
+
+      const cells = row.querySelectorAll('td');
+      // Drivers needed
+      cells[2].innerHTML = '<div class="plan-calc">' + needed + '</div><div class="plan-calc-sub">' + base + ' base + ' + cush + ' cushion</div>';
+      // Gap
+      const gapEl = cells[4].querySelector('.plan-gap');
+      if (gapEl) {
+        gapEl.textContent = (gap >= 0 ? '+' : '') + gap;
+        gapEl.classList.remove('ok','warn','bad');
+        gapEl.classList.add(gap >= 0 ? 'ok' : (gap >= -10 ? 'warn' : 'bad'));
+      }
+      // Status pill
+      const pill = cells[6].querySelector('.plan-status-pill');
+      if (pill) {
+        pill.classList.remove('ok','warn','bad');
+        if (gap >= 0) { pill.classList.add('ok'); pill.innerHTML = '<span class="dot"></span>On track'; }
+        else if (gap >= -10) { pill.classList.add('warn'); pill.innerHTML = '<span class="dot"></span>At risk'; }
+        else { pill.classList.add('bad'); pill.innerHTML = '<span class="dot"></span>Critical'; }
+      }
+      if (gap < 0) totalGap += -gap;
+    });
+    // Update summary headline
+    const headline = document.querySelector('.plan-summary-headline');
+    if (headline) {
+      const screenRate = 0.21;
+      const applicantsNeeded = Math.ceil(totalGap / screenRate);
+      headline.textContent = 'Hire ' + totalGap + ' drivers by Jun 16';
+    }
+  }
+  function updateCushion(v){
+    const valEl = document.querySelector('.plan-controls .plan-control-value');
+    // find the cushion control (2nd one)
+    const ctrls = document.querySelectorAll('.plan-controls > div');
+    if (ctrls[1]) {
+      const v2 = ctrls[1].querySelector('.plan-control-value');
+      if (v2) v2.innerHTML = v + '<span class="frac">%</span>';
+    }
+    recalcPlan();
+  }
 
   // ─── FLEET ─────────────────────────────────────────────────
   function fleetSub(sub){
