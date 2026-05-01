@@ -2399,6 +2399,86 @@ a{color:inherit;text-decoration:none}
 .okami-sum-sub{font-size:11px;color:var(--text-subtle);margin-top:4px;line-height:1.4}
 .okami-sum.warn{border-color:#FCD34D;background:#FFFBEB}
 .okami-sum.bad{border-color:#FCA5A5;background:#FEF2F2}
+
+/* ─────────────────────────────────────────────────────────────
+   SCHEDULE BUILDER — click-to-assign, driver pool, auto-fill
+   ───────────────────────────────────────────────────────────── */
+.builder-shell{display:grid;grid-template-columns:1fr 280px;gap:var(--s-3);align-items:start}
+
+/* Make calendar cells feel buildable */
+.cal-cell.empty-slot{
+  background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 6px,#F1F5F9 6px,#F1F5F9 12px);
+  cursor:pointer;
+}
+.cal-cell.empty-slot:hover{background:var(--accent-soft)}
+.shift-chip.add-here{
+  background:transparent;border:1.5px dashed var(--border-strong);color:var(--text-subtle);
+  text-align:center;justify-content:center;align-items:center;font-weight:500;font-size:11px;
+}
+.shift-chip.add-here:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
+
+/* Driver pool sidebar */
+.driver-pool{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-4);position:sticky;top:80px;
+  display:flex;flex-direction:column;gap:var(--s-3);
+  max-height:calc(100vh - 120px);overflow-y:auto;
+}
+.pool-head{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;
+}
+.pool-search{
+  width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:6px;
+  font-size:12px;background:var(--canvas);color:var(--text);font-family:inherit;
+}
+.pool-section-label{font-size:9px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin:8px 0 4px}
+.pool-driver{
+  display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;
+  padding:7px 8px;border-radius:6px;cursor:grab;
+  border:1px solid transparent;transition:background .12s,border-color .12s;
+}
+.pool-driver:hover{background:var(--canvas);border-color:var(--border)}
+.pool-driver:active{cursor:grabbing;background:var(--accent-soft);border-color:var(--accent)}
+.pool-driver-name{font-size:12px;font-weight:600;color:var(--text);line-height:1.3}
+.pool-driver-meta{font-size:10px;color:var(--text-subtle);margin-top:1px}
+.pool-driver-hours{
+  font-size:10px;font-weight:600;color:var(--text-muted);
+  background:var(--canvas);padding:1px 6px;border-radius:8px;white-space:nowrap;
+}
+.pool-driver.maxed .pool-driver-hours{color:var(--amber);background:var(--amber-soft)}
+.pool-driver.off{opacity:.5;cursor:not-allowed}
+.pool-driver.off:hover{background:transparent;border-color:transparent}
+
+/* Builder header — gauge + actions */
+.builder-header{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-3) var(--s-5);margin-bottom:var(--s-3);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-4);
+}
+.builder-gauge{display:flex;align-items:center;gap:var(--s-3);flex:1}
+.builder-gauge-track{
+  flex:1;height:8px;background:var(--canvas);border-radius:4px;overflow:hidden;max-width:240px;
+}
+.builder-gauge-fill{height:100%;background:linear-gradient(90deg,var(--accent),#3B82F6);border-radius:4px;transition:width .25s}
+.builder-gauge-label{font-size:12px;color:var(--text-muted);font-weight:500}
+.builder-gauge-pct{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.builder-actions{display:flex;gap:8px}
+
+/* Driver picker popover (when clicking empty cell) */
+.driver-picker{
+  position:absolute;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);box-shadow:0 12px 32px rgba(15,23,42,.12);
+  min-width:220px;z-index:90;padding:6px;display:none;max-height:320px;overflow-y:auto;
+}
+.driver-picker.open{display:block}
+.driver-picker-item{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;
+  cursor:pointer;font-size:12px;color:var(--text);
+}
+.driver-picker-item:hover{background:var(--canvas)}
+.driver-picker-item.qual-warn{color:var(--amber)}
+.driver-picker-meta{font-size:10px;color:var(--text-subtle);margin-left:auto}
 </style>
 </head>
 <body>
@@ -4008,6 +4088,32 @@ a{color:inherit;text-decoration:none}
             </div>
           </div>
 
+          <!-- Builder header with live coverage gauge + actions -->
+          <div class="builder-header">
+            <div class="builder-gauge">
+              <div class="builder-gauge-pct" id="builder-gauge-pct">82%</div>
+              <div>
+                <div class="builder-gauge-label">Week filled · <strong id="builder-filled">37</strong> of <strong id="builder-total">45</strong> shifts assigned</div>
+                <div class="builder-gauge-track" style="margin-top:4px"><div class="builder-gauge-fill" id="builder-gauge-fill" style="width:82%"></div></div>
+              </div>
+            </div>
+            <div class="builder-actions">
+              <button class="btn btn-sm" onclick="toast('Last week copied · review and publish')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy last week
+              </button>
+              <button class="btn btn-sm" onclick="toast('Apply standard M–F template to all unassigned drivers')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/></svg>
+                Apply template
+              </button>
+              <button class="btn btn-sm btn-primary" onclick="openAiSchedule()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+                Auto-fill week
+              </button>
+            </div>
+          </div>
+
+          <div class="builder-shell">
           <!-- Calendar grid -->
           <div class="cal-wrap">
             <div class="cal-grid head">
@@ -4123,6 +4229,69 @@ a{color:inherit;text-decoration:none}
               <div class="coverage-cell full">38 / 38</div>
             </div>
           </div>
+
+          <!-- DRIVER POOL — drag-to-assign or click to insert -->
+          <aside class="driver-pool">
+            <div class="pool-head">
+              <span>Driver pool</span>
+              <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">12 available</span>
+            </div>
+            <input class="pool-search" placeholder="Search drivers…" />
+
+            <div>
+              <div class="pool-section-label">Available · click to assign</div>
+              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Sasha Underwood')">
+                <div class="avatar-sm tier-c">SU</div>
+                <div><div class="pool-driver-name">Sasha Underwood</div><div class="pool-driver-meta">KMO2 · 0h scheduled</div></div>
+                <span class="pool-driver-hours">0h</span>
+              </div>
+              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Trevor Anders')">
+                <div class="avatar-sm tier-a">TA</div>
+                <div><div class="pool-driver-name">Trevor Anders</div><div class="pool-driver-meta">KMO1 · onboarding · 0h</div></div>
+                <span class="pool-driver-hours">0h</span>
+              </div>
+              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Lena Whitcomb')">
+                <div class="avatar-sm tier-a">LW</div>
+                <div><div class="pool-driver-name">Lena Whitcomb</div><div class="pool-driver-meta">KMO1 · 22h scheduled</div></div>
+                <span class="pool-driver-hours">22h</span>
+              </div>
+              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Asha Thornton')">
+                <div class="avatar-sm tier-b">AT</div>
+                <div><div class="pool-driver-name">Asha Thornton</div><div class="pool-driver-meta">KMO2 · 33h scheduled</div></div>
+                <span class="pool-driver-hours">33h</span>
+              </div>
+              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Marcus Hill')">
+                <div class="avatar-sm tier-b">MH</div>
+                <div><div class="pool-driver-name">Marcus Hill</div><div class="pool-driver-meta">KMO1 · 44h scheduled</div></div>
+                <span class="pool-driver-hours">44h</span>
+              </div>
+              <div class="pool-driver maxed" draggable="false" title="At weekly max">
+                <div class="avatar-sm tier-c">DM</div>
+                <div><div class="pool-driver-name">Devin Mateo</div><div class="pool-driver-meta">KMO3 · max hours</div></div>
+                <span class="pool-driver-hours">55h</span>
+              </div>
+            </div>
+
+            <div>
+              <div class="pool-section-label">Off / time off</div>
+              <div class="pool-driver off">
+                <div class="avatar-sm tier-d">DP</div>
+                <div><div class="pool-driver-name">Devon Patterson</div><div class="pool-driver-meta">PTO May 15–17</div></div>
+                <span class="pool-driver-hours">PTO</span>
+              </div>
+              <div class="pool-driver off">
+                <div class="avatar-sm tier-c">JB</div>
+                <div><div class="pool-driver-name">Jordan Beckett</div><div class="pool-driver-meta">Off Mon (school)</div></div>
+                <span class="pool-driver-hours">Off</span>
+              </div>
+            </div>
+
+            <div style="padding-top:var(--s-2);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px;margin-top:4px">
+              <div style="font-size:10px;color:var(--text-subtle);font-weight:500">3 open shifts need a driver</div>
+              <button class="btn btn-sm" onclick="schedSub('open')">Manage open shifts →</button>
+            </div>
+          </aside>
+          </div><!-- /builder-shell -->
 
         </div><!-- /sched-sub-week -->
 
@@ -7447,6 +7616,68 @@ a{color:inherit;text-decoration:none}
 
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
+
+  // ─── SCHEDULE BUILDER — click-to-assign + drag-drop sim ───
+  function wireBuilder(){
+    // Click any open shift placeholder → assign from pool
+    document.querySelectorAll('#sched-sub-week .shift-chip.open').forEach(function(chip){
+      if (chip.dataset.builderWired) return;
+      chip.dataset.builderWired = '1';
+      chip.addEventListener('click', function(e){
+        e.stopPropagation();
+        const txt = chip.textContent.trim();
+        toast('Pick a driver from the pool to assign to ' + txt);
+      });
+    });
+    // Click a filled shift → reassign
+    document.querySelectorAll('#sched-sub-week .shift-chip:not(.open):not(.off):not(.timeoff)').forEach(function(chip){
+      if (chip.dataset.builderWired) return;
+      chip.dataset.builderWired = '1';
+      chip.addEventListener('click', function(e){
+        e.stopPropagation();
+        const route = chip.querySelector('.shift-chip-route');
+        toast('Reassign · move · or remove ' + (route ? route.textContent : 'shift'));
+      });
+    });
+    // Pool drag start → set ghost
+    document.querySelectorAll('.pool-driver[draggable="true"]').forEach(function(d){
+      if (d.dataset.dndWired) return;
+      d.dataset.dndWired = '1';
+      d.addEventListener('dragstart', function(e){
+        const name = d.querySelector('.pool-driver-name');
+        e.dataTransfer.setData('text/plain', name ? name.textContent : 'driver');
+      });
+    });
+    document.querySelectorAll('#sched-sub-week .cal-cell').forEach(function(cell){
+      if (cell.dataset.dndWired) return;
+      cell.dataset.dndWired = '1';
+      cell.addEventListener('dragover', function(e){ e.preventDefault(); cell.style.background = 'var(--accent-soft)'; });
+      cell.addEventListener('dragleave', function(){ cell.style.background = ''; });
+      cell.addEventListener('drop', function(e){
+        e.preventDefault();
+        cell.style.background = '';
+        const name = e.dataTransfer.getData('text/plain') || 'Driver';
+        toast(name + ' assigned to this shift');
+        // bump gauge
+        const fill = document.getElementById('builder-gauge-fill');
+        const pct = document.getElementById('builder-gauge-pct');
+        const filled = document.getElementById('builder-filled');
+        if (fill && pct && filled) {
+          const newCount = Math.min(45, parseInt(filled.textContent) + 1);
+          filled.textContent = newCount;
+          const newPct = Math.round(newCount / 45 * 100);
+          fill.style.width = newPct + '%';
+          pct.textContent = newPct + '%';
+        }
+      });
+    });
+  }
+  setTimeout(wireBuilder, 250);
+  // Re-wire after sub-view switch
+  const _origSchedSubB = (typeof schedSub === 'function') ? schedSub : null;
+  if (_origSchedSubB) {
+    schedSub = function(s){ _origSchedSubB(s); setTimeout(wireBuilder, 80); };
+  }
 
   // ─── OKAMI ────────────────────────────────────────────────
   var okamiAvail = [78,81,86,90,90,94,96,100,104,108,112,112,115];
