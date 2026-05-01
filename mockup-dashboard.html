@@ -3040,6 +3040,148 @@ a{color:inherit;text-decoration:none}
 .dr-milestone-date{font-size:11px;color:var(--text-subtle);margin-top:1px}
 
 .dr-section-title{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 8px 0}
+
+/* ─────────────────────────────────────────────────────────────
+   FINANCES — INVOICE FORENSICS + AUTO-DISPUTE
+   ───────────────────────────────────────────────────────────── */
+.fin-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+
+.invoice-row{
+  display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:var(--s-3);align-items:center;
+  padding:14px 18px;border-bottom:1px solid var(--border);cursor:pointer;
+}
+.invoice-row:hover{background:var(--canvas)}
+.invoice-row:last-child{border-bottom:none}
+.invoice-row.flagged{border-left:3px solid var(--red);background:#FEF2F2}
+.invoice-row.disputed{border-left:3px solid var(--accent)}
+.invoice-row.recovered{border-left:3px solid var(--green)}
+.invoice-icon{
+  width:36px;height:36px;border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;
+}
+.invoice-icon.fleet{background:linear-gradient(135deg,#0F172A,#1E40AF)}
+.invoice-icon.variable{background:linear-gradient(135deg,#7C3AED,#A855F7)}
+.invoice-icon.lmr{background:linear-gradient(135deg,#D97706,#F59E0B)}
+.invoice-icon.rental{background:linear-gradient(135deg,#16A34A,#22C55E)}
+.invoice-icon.damage{background:linear-gradient(135deg,#DC2626,#F87171)}
+.invoice-icon svg{width:16px;height:16px;stroke-width:2}
+.invoice-name{font-size:13px;font-weight:600;color:var(--text)}
+.invoice-meta{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.invoice-amount{font-size:14px;font-weight:700;color:var(--text);text-align:right}
+.invoice-amount-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.invoice-discrepancy{
+  font-size:11px;font-weight:600;text-align:right;
+}
+.invoice-discrepancy.bad{color:var(--red)}
+.invoice-discrepancy.warn{color:var(--amber)}
+.invoice-discrepancy.ok{color:var(--green)}
+.invoice-status{
+  font-size:10px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;
+}
+.invoice-status.review{background:var(--red-soft);color:var(--red)}
+.invoice-status.parsing{background:var(--canvas);color:var(--text-muted)}
+.invoice-status.draft{background:var(--amber-soft);color:var(--amber)}
+.invoice-status.submitted{background:var(--accent-soft);color:var(--accent-text)}
+.invoice-status.recovered{background:var(--green-soft);color:var(--green)}
+.invoice-status.accepted{background:var(--canvas);color:var(--text-muted)}
+
+/* Invoice reconciliation drawer */
+.recon-section{margin-bottom:var(--s-4)}
+.recon-line{
+  display:grid;grid-template-columns:1fr auto auto auto;gap:var(--s-3);align-items:center;
+  padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  margin-bottom:6px;font-size:12px;
+}
+.recon-line.flagged{background:var(--red-soft);border-color:#FCA5A5}
+.recon-line.flagged-amber{background:var(--amber-soft);border-color:#FCD34D}
+.recon-line-name{font-weight:600;color:var(--text)}
+.recon-line-meta{font-size:10px;color:var(--text-subtle);margin-top:2px}
+.recon-line-amazon{font-weight:600;color:var(--text);text-align:right;font-family:'SF Mono',Menlo,monospace}
+.recon-line-truth{font-weight:600;color:var(--text);text-align:right;font-family:'SF Mono',Menlo,monospace}
+.recon-line-delta{font-weight:700;text-align:right;font-family:'SF Mono',Menlo,monospace;font-size:13px}
+.recon-line-delta.bad{color:var(--red)}
+.recon-line-delta.ok{color:var(--green)}
+
+.recon-evidence{
+  background:#FFFBEB;border:1px solid #FCD34D;border-radius:6px;padding:10px 12px;
+  margin-top:6px;font-size:11px;color:#78350F;line-height:1.5;
+}
+.recon-evidence strong{color:#78350F;font-weight:700}
+
+.dispute-letter{
+  background:var(--canvas);border:1px solid var(--border);border-radius:8px;
+  padding:14px 16px;font-family:'SF Mono',Menlo,monospace;font-size:11px;
+  line-height:1.6;color:var(--text);max-height:240px;overflow-y:auto;white-space:pre-wrap;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RETENTION PROPENSITY ENGINE
+   ───────────────────────────────────────────────────────────── */
+.rp-section{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);margin-bottom:var(--s-3);
+}
+.rp-summary{
+  background:linear-gradient(135deg,#FEE2E2,#FEF3C7);border:1px solid #FCA5A5;
+  border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--s-3);
+  font-size:13px;color:#7F1D1D;line-height:1.55;
+}
+.rp-summary strong{font-weight:700}
+
+.rp-row{
+  display:grid;grid-template-columns:auto 1fr auto 200px auto;gap:var(--s-3);align-items:center;
+  padding:14px 0;border-bottom:1px solid var(--border);
+}
+.rp-row:last-child{border-bottom:none}
+.rp-name{font-size:13px;font-weight:600;color:var(--text)}
+.rp-factors{font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.5}
+.rp-prob-num{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.rp-prob-num.bad{color:var(--red)}
+.rp-prob-num.warn{color:var(--amber)}
+.rp-prob-num.ok{color:var(--green)}
+.rp-prob-label{font-size:10px;color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
+.rp-prob-bar{
+  height:6px;background:var(--canvas);border-radius:3px;overflow:hidden;margin-top:6px;
+}
+.rp-prob-fill{height:100%;border-radius:3px}
+.rp-prob-fill.bad{background:var(--red)}
+.rp-prob-fill.warn{background:var(--amber)}
+.rp-prob-fill.ok{background:var(--green)}
+.rp-rec{
+  background:var(--accent-soft);border:1px solid #146EB433;border-radius:var(--r-md);
+  padding:8px 10px;font-size:11px;color:var(--accent-text);line-height:1.45;
+}
+.rp-rec strong{font-weight:700}
+
+/* ─────────────────────────────────────────────────────────────
+   TIME INTEGRITY upgrades — drill-in detail + variance chart
+   ───────────────────────────────────────────────────────────── */
+.ti-detail{
+  display:none;padding:14px 16px;background:var(--canvas);
+  border-top:1px solid var(--border);
+}
+.ti-detail.open{display:block}
+.ti-mini-chart{
+  height:80px;background:var(--surface);border-radius:6px;padding:8px;
+  display:flex;align-items:flex-end;gap:3px;border:1px solid var(--border);
+}
+.ti-bar{flex:1;background:var(--amber);border-radius:2px 2px 0 0;min-height:4px;position:relative}
+.ti-bar.ok{background:var(--green)}
+.ti-bar.bad{background:var(--red)}
+.ti-bar-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace;white-space:nowrap}
+.ti-cluster-alert{
+  background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;padding:10px 12px;
+  display:flex;gap:10px;align-items:flex-start;font-size:12px;color:#7F1D1D;line-height:1.5;
+  margin-bottom:var(--s-3);
+}
+.ti-cluster-alert svg{width:14px;height:14px;flex-shrink:0;margin-top:1px;color:#DC2626}
+.ti-cluster-alert strong{font-weight:700}
+.ti-row.expandable{cursor:pointer}
+.ti-row.expandable:hover{background:var(--canvas)}
+.ti-trend-pill{
+  display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;
+  padding:1px 6px;border-radius:6px;background:var(--red-soft);color:var(--red);
+}
 </style>
 </head>
 <body>
@@ -3107,6 +3249,11 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Checklists
         <span class="nav-badge" style="background:var(--amber)">4</span>
+      </button>
+      <button class="nav-item" data-view="finances" onclick="goto('finances')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Finances
+        <span class="nav-badge" style="background:var(--green)">$2.4k</span>
       </button>
       <button class="nav-item" data-view="settings" onclick="goto('settings')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -3843,6 +3990,115 @@ a{color:inherit;text-decoration:none}
             </div>
           </div>
 
+          <!-- RETENTION PROPENSITY ENGINE -->
+          <div class="rp-section">
+            <div class="ti-head">
+              <h3 class="ti-title">
+                <span class="ti-title-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg></span>
+                Retention propensity · 30-day forecast
+              </h3>
+              <div style="display:flex;gap:6px"><button class="btn btn-sm">View model details</button></div>
+            </div>
+
+            <div class="rp-summary">
+              <strong>5 drivers above 50% probability of leaving in next 30 days · estimated replacement cost <strong>$22,500</strong></strong> ($4,500/hire incl. recruiting + onboarding + ramp loss). Behavioral fingerprint detects callout patterns, scorecard slope, coaching response, tenure curve, and peer cluster behavior. Highest-impact intervention recommended per driver.
+            </div>
+
+            <div class="rp-row">
+              <div class="avatar-sm tier-d">MD</div>
+              <div>
+                <div class="rp-name">Marcus Davidson</div>
+                <div class="rp-factors">⚠ Mon callout pattern (3 of last 4) · scorecard −6 over 2 cycles · skipped last 1:1 · peer cluster (Cole) recently quit</div>
+              </div>
+              <div style="text-align:right">
+                <div class="rp-prob-num bad">73%</div>
+                <div class="rp-prob-label">30-day risk</div>
+                <div class="rp-prob-bar"><div class="rp-prob-fill bad" style="width:73%"></div></div>
+              </div>
+              <div class="rp-rec">
+                <strong>Best intervention:</strong> in-person 1:1 + temporary KMO1-22A swap (lighter route).<br/>
+                <strong>Historical efficacy on his profile: 68%.</strong>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Marcus Davidson','attendance','Retention risk 73% · in-person 1:1 + route swap recommended')">Intervene</button>
+            </div>
+
+            <div class="rp-row">
+              <div class="avatar-sm tier-d">TR</div>
+              <div>
+                <div class="rp-name">Tasha Reyes</div>
+                <div class="rp-factors">⚠ Wed unavailability (childcare) · 2 callouts in 30d · pay-rate inquiry filed last week · low coaching response</div>
+              </div>
+              <div style="text-align:right">
+                <div class="rp-prob-num bad">62%</div>
+                <div class="rp-prob-label">30-day risk</div>
+                <div class="rp-prob-bar"><div class="rp-prob-fill bad" style="width:62%"></div></div>
+              </div>
+              <div class="rp-rec">
+                <strong>Best intervention:</strong> address pay-rate concern · approve flexible Wed schedule.<br/>
+                <strong>Efficacy: 71%.</strong>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Tasha Reyes','behavior','Retention risk 62% · pay + schedule concern')">Intervene</button>
+            </div>
+
+            <div class="rp-row">
+              <div class="avatar-sm tier-c">KW</div>
+              <div>
+                <div class="rp-name">Kerwin Whitfield</div>
+                <div class="rp-factors">⚠ Scorecard slipping (−4 pts) · long tenure but flat compensation · safety event flagged · normal attendance</div>
+              </div>
+              <div style="text-align:right">
+                <div class="rp-prob-num warn">54%</div>
+                <div class="rp-prob-label">30-day risk</div>
+                <div class="rp-prob-bar"><div class="rp-prob-fill warn" style="width:54%"></div></div>
+              </div>
+              <div class="rp-rec">
+                <strong>Best intervention:</strong> tenure-based pay raise + recognition.<br/>
+                <strong>Efficacy: 82% on profile.</strong>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="toast('Pay raise modal — opens with $0.50/hr suggested based on tenure curve')">Intervene</button>
+            </div>
+
+            <div class="rp-row">
+              <div class="avatar-sm tier-c">JB</div>
+              <div>
+                <div class="rp-name">Jordan Beckett</div>
+                <div class="rp-factors">⚠ Late-route returns trend up · 6mo tenure (cliff zone) · positive coaching response · peer relationships strong</div>
+              </div>
+              <div style="text-align:right">
+                <div class="rp-prob-num warn">51%</div>
+                <div class="rp-prob-label">30-day risk</div>
+                <div class="rp-prob-bar"><div class="rp-prob-fill warn" style="width:51%"></div></div>
+              </div>
+              <div class="rp-rec">
+                <strong>Best intervention:</strong> route optimization + 90-day milestone recognition.<br/>
+                <strong>Efficacy: 64%.</strong>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Jordan Beckett','quality','Retention risk 51% · 6mo cliff zone · route optimization')">Intervene</button>
+            </div>
+
+            <div class="rp-row">
+              <div class="avatar-sm tier-d">AT</div>
+              <div>
+                <div class="rp-name">Asha Thornton</div>
+                <div class="rp-factors">⚠ 1 callout · 14mo tenure · peer Cole recently left · LinkedIn activity uptick</div>
+              </div>
+              <div style="text-align:right">
+                <div class="rp-prob-num warn">50%</div>
+                <div class="rp-prob-label">30-day risk</div>
+                <div class="rp-prob-bar"><div class="rp-prob-fill warn" style="width:50%"></div></div>
+              </div>
+              <div class="rp-rec">
+                <strong>Best intervention:</strong> proactive 1:1 · ask about goals · flexible hours offer.<br/>
+                <strong>Efficacy: 58%.</strong>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Asha Thornton','behavior','Retention risk 50% · proactive check-in recommended')">Intervene</button>
+            </div>
+
+            <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5">
+              <strong style="color:var(--text)">Model insight:</strong> Davidson's profile (Mon callouts + scorecard slope + peer cluster departure) matched 14 prior drivers in your DSP. <strong>11 of 14 (79%) left within 60 days.</strong> Three of those 11 had successful interventions — all involved in-person 1:1 + temporary route change. Replicating that pattern recommended.
+            </div>
+          </div>
+
           <!-- TIME INTEGRITY — pattern detection from payroll/clock data -->
           <div class="ti-section" style="margin-top:var(--s-3)">
             <div class="ti-head">
@@ -3860,18 +4116,54 @@ a{color:inherit;text-decoration:none}
             </div>
 
             <div class="ti-summary">
-              <strong>4 drivers with consistent clock-out variance &gt; 20 min · estimated overpayment <strong>$1,240</strong> this cycle ($14,880 annualized).</strong> Auto-flagged from imported payroll data and matched against scheduled times. Click any driver to coach the pattern or contest in payroll.
+              <strong>4 drivers with consistent clock-out variance &gt; 20 min · estimated overpayment <strong>$1,240</strong> this cycle ($14,880 annualized).</strong> Auto-flagged from imported payroll data and matched against scheduled times. Variance trending <span class="ti-trend-pill">▲ 15% vs last 4 weeks</span>. Click any driver for full timeline.
             </div>
 
-            <div class="ti-row">
+            <div class="ti-cluster-alert">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+              <div><strong>Cluster pattern detected · KMO1 station, Fridays.</strong> Davidson, Beckett, and 1 other KMO1 driver clock out within 4 minutes of each other every Friday with avg +35m variance. Possible coordinated behavior. <a style="color:#7F1D1D;font-weight:700;text-decoration:underline" onclick="toast('Investigation opened · 4-week clock log pulled')">Investigate →</a></div>
+            </div>
+
+            <div class="ti-row expandable" onclick="toggleTiDetail(this)">
               <div class="avatar-sm tier-d">MD</div>
               <div>
-                <div class="ti-row-name">Marcus Davidson</div>
+                <div class="ti-row-name">Marcus Davidson <span style="font-size:10px;color:var(--text-subtle);font-weight:500;margin-left:6px">▼ click for detail</span></div>
                 <div class="ti-row-meta">+32 min avg · clock-out late on 11 of last 12 shifts · pattern: Mondays + Fridays</div>
               </div>
               <div><div class="ti-row-stat-label">Variance</div><div class="ti-row-stat" style="color:var(--red)">+32m</div></div>
               <div><div class="ti-row-stat-label">Est. overpaid</div><div class="ti-row-cost">$486</div></div>
-              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Marcus Davidson','attendance','Time integrity flag · +32m clock-out variance avg')">Coach</button>
+              <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openCoachDrawer('Marcus Davidson','attendance','Time integrity flag · +32m clock-out variance avg')">Coach</button>
+            </div>
+            <div class="ti-detail">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Clock-out variance · last 14 shifts (minutes over scheduled)</div>
+              <div class="ti-mini-chart">
+                <div class="ti-bar" style="height:12%"><span class="ti-bar-label">+8</span></div>
+                <div class="ti-bar" style="height:8%"><span class="ti-bar-label">+5</span></div>
+                <div class="ti-bar" style="height:48%"><span class="ti-bar-label">+30</span></div>
+                <div class="ti-bar bad" style="height:78%"><span class="ti-bar-label">+45</span></div>
+                <div class="ti-bar" style="height:38%"><span class="ti-bar-label">+22</span></div>
+                <div class="ti-bar" style="height:32%"><span class="ti-bar-label">+18</span></div>
+                <div class="ti-bar bad" style="height:72%"><span class="ti-bar-label">+42</span></div>
+                <div class="ti-bar" style="height:42%"><span class="ti-bar-label">+25</span></div>
+                <div class="ti-bar" style="height:35%"><span class="ti-bar-label">+20</span></div>
+                <div class="ti-bar bad" style="height:68%"><span class="ti-bar-label">+38</span></div>
+                <div class="ti-bar bad" style="height:62%"><span class="ti-bar-label">+35</span></div>
+                <div class="ti-bar" style="height:45%"><span class="ti-bar-label">+27</span></div>
+                <div class="ti-bar" style="height:30%"><span class="ti-bar-label">+18</span></div>
+                <div class="ti-bar bad" style="height:75%"><span class="ti-bar-label">+42</span></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-subtle);margin-top:24px;font-family:'SF Mono',Menlo,monospace"><span>3 wks ago</span><span>last shift</span></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-top:var(--s-3)">
+                <div><div style="font-size:10px;color:var(--text-subtle);text-transform:uppercase;font-weight:600;letter-spacing:.04em">Mondays</div><div style="font-size:14px;font-weight:700;color:var(--red);margin-top:2px">+38m avg</div></div>
+                <div><div style="font-size:10px;color:var(--text-subtle);text-transform:uppercase;font-weight:600;letter-spacing:.04em">Fridays</div><div style="font-size:14px;font-weight:700;color:var(--red);margin-top:2px">+42m avg</div></div>
+                <div><div style="font-size:10px;color:var(--text-subtle);text-transform:uppercase;font-weight:600;letter-spacing:.04em">Other days</div><div style="font-size:14px;font-weight:700;color:var(--amber);margin-top:2px">+18m avg</div></div>
+                <div><div style="font-size:10px;color:var(--text-subtle);text-transform:uppercase;font-weight:600;letter-spacing:.04em">Trend</div><div style="font-size:14px;font-weight:700;color:var(--red);margin-top:2px">▲ worsening</div></div>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:var(--s-3)">
+                <button class="btn btn-sm" onclick="event.stopPropagation();toast('Auto-dispute filed with payroll · $486 contest pending')">Auto-dispute with payroll</button>
+                <button class="btn btn-sm" onclick="event.stopPropagation();toast('Telematics review opened · last-stop GPS data pulled')">Review GPS data</button>
+                <button class="btn btn-sm" onclick="event.stopPropagation();toast('Pattern report generated · ready to share with Davidson in 1:1')">Generate pattern report</button>
+              </div>
             </div>
 
             <div class="ti-row">
@@ -7459,6 +7751,423 @@ a{color:inherit;text-decoration:none}
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
+         FINANCES — Invoice Forensics + Auto-Dispute
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-finances">
+      <div class="page">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Finances</h1>
+            <p class="page-sub">Amazon invoice forensics · auto-disputes · billing recovery · $14,420 recovered YTD</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
+              Export
+            </button>
+            <button class="btn btn-primary" onclick="openSmartDrop()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+              Drop new invoice
+            </button>
+          </div>
+        </div>
+
+        <div class="subnav">
+          <button class="subnav-item active" data-sub="inbox" onclick="finSub('inbox')">Inbox <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
+          <button class="subnav-item" data-sub="disputes" onclick="finSub('disputes')">Disputes <span style="background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">5</span></button>
+          <button class="subnav-item" data-sub="recovery" onclick="finSub('recovery')">Recovery</button>
+          <button class="subnav-item" data-sub="rules" onclick="finSub('rules')">Reconciliation rules</button>
+        </div>
+
+        <!-- INBOX -->
+        <div class="finances-tab" id="finances-tab-inbox">
+          <div class="fin-stat-grid">
+            <div class="kpi-card"><div class="kpi-label">Pending review</div><div class="kpi-value" style="color:var(--red)">3</div><div class="kpi-sub"><span class="kpi-pip red"></span>$1,847 in flagged discrepancies</div></div>
+            <div class="kpi-card"><div class="kpi-label">In dispute</div><div class="kpi-value">5</div><div class="kpi-sub"><span class="kpi-pip amber"></span>awaiting Amazon response</div></div>
+            <div class="kpi-card"><div class="kpi-label">Recovered this cycle</div><div class="kpi-value" style="color:var(--green)">$1,847</div><div class="kpi-sub"><span class="kpi-pip green"></span>3 disputes won</div></div>
+            <div class="kpi-card"><div class="kpi-label">Recovered YTD</div><div class="kpi-value" style="color:var(--green)">$14,420</div><div class="kpi-sub">73% win rate · 18 of 24 disputes</div></div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:var(--s-4)">
+            <div style="padding:14px 18px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Inbox · 8 invoices · 3 flagged</div>
+
+            <div class="invoice-row flagged" onclick="openReconciliation('variable-w17')">
+              <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div>
+                <div class="invoice-name">Amazon Variable Invoice · Week 17</div>
+                <div class="invoice-meta">Cycle 14 · received Apr 30 · 47 line items · 4 discrepancies detected</div>
+              </div>
+              <div>
+                <div class="invoice-amount">$24,418.20</div>
+                <div class="invoice-amount-sub">Amazon billed</div>
+              </div>
+              <div>
+                <div class="invoice-discrepancy bad">−$847.50</div>
+                <div class="invoice-amount-sub">vs your data</div>
+              </div>
+              <span class="invoice-status review">Review now</span>
+              <button class="btn btn-sm btn-primary">Reconcile →</button>
+            </div>
+
+            <div class="invoice-row flagged" onclick="openReconciliation('lmr-cycle14')">
+              <div class="invoice-icon lmr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="2" y2="12"/></svg></div>
+              <div>
+                <div class="invoice-name">LMR Adjustment · Cycle 14</div>
+                <div class="invoice-meta">Linehaul Monitoring Report · received Apr 29 · 12 deductions</div>
+              </div>
+              <div>
+                <div class="invoice-amount">−$612.40</div>
+                <div class="invoice-amount-sub">Amazon deducted</div>
+              </div>
+              <div>
+                <div class="invoice-discrepancy bad">$487.20 disputable</div>
+                <div class="invoice-amount-sub">3 invalid lines</div>
+              </div>
+              <span class="invoice-status review">Review now</span>
+              <button class="btn btn-sm btn-primary">Reconcile →</button>
+            </div>
+
+            <div class="invoice-row flagged" onclick="openReconciliation('damage-VAN08')">
+              <div class="invoice-icon damage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+              <div>
+                <div class="invoice-name">Damage Charge · VAN-08 accident</div>
+                <div class="invoice-meta">Apr 18 incident · received Apr 28 · disputed at-fault classification</div>
+              </div>
+              <div>
+                <div class="invoice-amount">$2,840.00</div>
+                <div class="invoice-amount-sub">Amazon billed</div>
+              </div>
+              <div>
+                <div class="invoice-discrepancy bad">$2,840.00</div>
+                <div class="invoice-amount-sub">full dispute</div>
+              </div>
+              <span class="invoice-status review">Review now</span>
+              <button class="btn btn-sm btn-primary">Reconcile →</button>
+            </div>
+
+            <div class="invoice-row" onclick="toast('Fleet invoice — verified clean')">
+              <div class="invoice-icon fleet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
+              <div>
+                <div class="invoice-name">Amazon Fleet Fixed Monthly</div>
+                <div class="invoice-meta">April 2025 · received Apr 28 · 24 vehicles · auto-reconciled</div>
+              </div>
+              <div>
+                <div class="invoice-amount">$18,720.00</div>
+                <div class="invoice-amount-sub">Amazon billed</div>
+              </div>
+              <div>
+                <div class="invoice-discrepancy ok">$0</div>
+                <div class="invoice-amount-sub">matches</div>
+              </div>
+              <span class="invoice-status accepted">Verified</span>
+              <button class="btn btn-sm">View</button>
+            </div>
+
+            <div class="invoice-row disputed" onclick="toast('Variable W16 dispute — submitted Apr 25, awaiting response')">
+              <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div>
+                <div class="invoice-name">Amazon Variable Invoice · Week 16</div>
+                <div class="invoice-meta">Cycle 13 · received Apr 23 · disputed Apr 25</div>
+              </div>
+              <div>
+                <div class="invoice-amount">$23,184.60</div>
+                <div class="invoice-amount-sub">Amazon billed</div>
+              </div>
+              <div>
+                <div class="invoice-discrepancy warn">−$412.80</div>
+                <div class="invoice-amount-sub">in dispute</div>
+              </div>
+              <span class="invoice-status submitted">Submitted</span>
+              <button class="btn btn-sm">Track</button>
+            </div>
+
+            <div class="invoice-row recovered" onclick="toast('Variable W15 recovery — $1,180 credited Apr 21')">
+              <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div>
+                <div class="invoice-name">Amazon Variable Invoice · Week 15</div>
+                <div class="invoice-meta">Cycle 13 · disputed Apr 12 · won Apr 21</div>
+              </div>
+              <div>
+                <div class="invoice-amount">$22,890.40</div>
+                <div class="invoice-amount-sub">Amazon billed</div>
+              </div>
+              <div>
+                <div class="invoice-discrepancy ok">+$1,180</div>
+                <div class="invoice-amount-sub">recovered</div>
+              </div>
+              <span class="invoice-status recovered">Won · $1,180</span>
+              <button class="btn btn-sm">View</button>
+            </div>
+
+            <div class="invoice-row" onclick="toast('3P Rental — auto-reconciled clean')">
+              <div class="invoice-icon rental"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>
+              <div>
+                <div class="invoice-name">Enterprise 3P Rental · April</div>
+                <div class="invoice-meta">2 vehicles · received Apr 27 · auto-verified against contract</div>
+              </div>
+              <div>
+                <div class="invoice-amount">$2,840.00</div>
+                <div class="invoice-amount-sub">vendor billed</div>
+              </div>
+              <div>
+                <div class="invoice-discrepancy ok">$0</div>
+                <div class="invoice-amount-sub">matches</div>
+              </div>
+              <span class="invoice-status accepted">Verified</span>
+              <button class="btn btn-sm">View</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DISPUTES -->
+        <div class="finances-tab" id="finances-tab-disputes" style="display:none">
+          <div class="fin-stat-grid">
+            <div class="kpi-card"><div class="kpi-label">Open disputes</div><div class="kpi-value">5</div><div class="kpi-sub">Avg time to resolution: 6 days</div></div>
+            <div class="kpi-card"><div class="kpi-label">In dispute $</div><div class="kpi-value" style="color:var(--accent)">$3,847</div><div class="kpi-sub">across 5 invoices</div></div>
+            <div class="kpi-card"><div class="kpi-label">Win rate · 90d</div><div class="kpi-value" style="color:var(--green)">73%</div><div class="kpi-sub">18 of 24 won</div></div>
+            <div class="kpi-card"><div class="kpi-label">Avg recovery</div><div class="kpi-value">$801</div><div class="kpi-sub">per won dispute</div></div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+            <div style="padding:14px 18px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Active disputes · 5</div>
+
+            <div class="invoice-row disputed" onclick="toast('Dispute thread — Amazon last response Apr 28')">
+              <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div><div class="invoice-name">Variable W16 · scan compliance dispute</div><div class="invoice-meta">3 incorrect deductions for KMO1-14B · operational evidence attached</div></div>
+              <div><div class="invoice-amount">$412.80</div><div class="invoice-amount-sub">disputing</div></div>
+              <div><div class="invoice-discrepancy warn">5 days open</div><div class="invoice-amount-sub">avg: 6 days</div></div>
+              <span class="invoice-status submitted">Awaiting Amazon</span>
+              <button class="btn btn-sm">Open thread</button>
+            </div>
+
+            <div class="invoice-row disputed" onclick="toast('Dispute thread — escalated Apr 30')">
+              <div class="invoice-icon damage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+              <div><div class="invoice-name">VAN-08 damage charge · at-fault dispute</div><div class="invoice-meta">Photos + GPS + driver statement contradict at-fault claim · escalated</div></div>
+              <div><div class="invoice-amount">$2,840.00</div><div class="invoice-amount-sub">disputing</div></div>
+              <div><div class="invoice-discrepancy warn">2 days open</div><div class="invoice-amount-sub">escalated</div></div>
+              <span class="invoice-status submitted">Escalated</span>
+              <button class="btn btn-sm">Open thread</button>
+            </div>
+
+            <div class="invoice-row disputed" onclick="toast('Dispute thread — Amazon requested more info')">
+              <div class="invoice-icon lmr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="12" x2="2" y2="12"/></svg></div>
+              <div><div class="invoice-name">LMR Apr 22 · 3 invalid deductions</div><div class="invoice-meta">Routes flagged late but actually closed on time per RR data</div></div>
+              <div><div class="invoice-amount">$364.20</div><div class="invoice-amount-sub">disputing</div></div>
+              <div><div class="invoice-discrepancy warn">1 day open</div><div class="invoice-amount-sub">info requested</div></div>
+              <span class="invoice-status draft">Reply needed</span>
+              <button class="btn btn-sm btn-primary">Send evidence</button>
+            </div>
+
+            <div class="invoice-row disputed">
+              <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div><div class="invoice-name">Variable W14 · DCR-tier discrepancy</div><div class="invoice-meta">Amazon paid Fantastic tier; we earned Fantastic+</div></div>
+              <div><div class="invoice-amount">$890.00</div><div class="invoice-amount-sub">disputing</div></div>
+              <div><div class="invoice-discrepancy warn">8 days open</div><div class="invoice-amount-sub">past avg</div></div>
+              <span class="invoice-status submitted">Awaiting Amazon</span>
+              <button class="btn btn-sm">Nudge</button>
+            </div>
+
+            <div class="invoice-row disputed">
+              <div class="invoice-icon lmr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="12" x2="2" y2="12"/></svg></div>
+              <div><div class="invoice-name">LMR Apr 8 · safety event misclassification</div><div class="invoice-meta">Hard brake event flagged on Davidson; telematics shows it was emergency stop for pedestrian</div></div>
+              <div><div class="invoice-amount">$340.00</div><div class="invoice-amount-sub">disputing</div></div>
+              <div><div class="invoice-discrepancy warn">4 days open</div><div class="invoice-amount-sub"></div></div>
+              <span class="invoice-status submitted">Awaiting Amazon</span>
+              <button class="btn btn-sm">Open thread</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECOVERY -->
+        <div class="finances-tab" id="finances-tab-recovery" style="display:none">
+          <div style="background:linear-gradient(135deg,#0F172A,#16A34A);color:#fff;border-radius:var(--r-lg);padding:24px;margin-bottom:var(--s-4);display:grid;grid-template-columns:1fr auto;gap:var(--s-4);align-items:center">
+            <div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.75;margin-bottom:6px">Recovered for you, year to date</div>
+              <div style="font-size:42px;font-weight:700;letter-spacing:-.03em;line-height:1">$14,420.00</div>
+              <div style="font-size:13px;opacity:.85;margin-top:6px">across 18 won disputes · 73% win rate · estimated $35K annualized</div>
+            </div>
+            <button class="btn" style="background:#fff;color:#0F172A;border-color:transparent;font-weight:600">Download report</button>
+          </div>
+
+          <div class="fin-stat-grid">
+            <div class="kpi-card"><div class="kpi-label">By category · Variable</div><div class="kpi-value">$8,420</div><div class="kpi-sub">12 disputes · scan compliance + DCR</div></div>
+            <div class="kpi-card"><div class="kpi-label">By category · LMR</div><div class="kpi-value">$3,180</div><div class="kpi-sub">4 disputes · misclassified deductions</div></div>
+            <div class="kpi-card"><div class="kpi-label">By category · Damage</div><div class="kpi-value">$2,820</div><div class="kpi-sub">2 disputes · at-fault reversed</div></div>
+            <div class="kpi-card"><div class="kpi-label">Avg time to recovery</div><div class="kpi-value">6.2d</div><div class="kpi-sub">from dispute submission</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3 class="card-title">Recovery timeline · last 90 days</h3></div>
+            <div class="report-event-list">
+              <div class="report-event">
+                <div class="report-event-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div><div class="report-event-name">Variable W15 · scan compliance reversal</div><div class="report-event-meta">3 incorrect deductions reversed · evidence: scan logs from RouteReady</div></div>
+                <span class="tag" style="background:var(--green-soft);color:var(--green)">+$1,180</span>
+                <div class="cell-time">Apr 21</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div><div class="report-event-name">VAN-15 damage at-fault reversed</div><div class="report-event-meta">Dashcam + telematics showed third-party fault</div></div>
+                <span class="tag" style="background:var(--green-soft);color:var(--green)">+$1,420</span>
+                <div class="cell-time">Apr 14</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div><div class="report-event-name">LMR Mar 25 · 4 invalid deductions</div><div class="report-event-meta">Late-route flags reversed with GPS evidence</div></div>
+                <span class="tag" style="background:var(--green-soft);color:var(--green)">+$487</span>
+                <div class="cell-time">Apr 2</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+                <div><div class="report-event-name">Variable W11 · DCR tier dispute lost</div><div class="report-event-meta">Amazon held position · insufficient evidence trail (pre-RouteReady)</div></div>
+                <span class="tag" style="background:var(--red-soft);color:var(--red)">−$0</span>
+                <div class="cell-time">Mar 18</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RULES -->
+        <div class="finances-tab" id="finances-tab-rules" style="display:none">
+          <div style="margin-bottom:var(--s-4);font-size:13px;color:var(--text-muted)">Reconciliation engine · how RouteReady cross-checks every Amazon line item against your operational truth.</div>
+
+          <div class="card" style="margin-bottom:var(--s-3)">
+            <div class="card-head"><h3 class="card-title">Active rules · 18 reconcilers</h3></div>
+            <div style="display:flex;flex-direction:column;font-size:12px">
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);padding:10px 0;border-bottom:1px solid var(--border)"><div><strong>Scan compliance match</strong><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Compare Amazon scan log to RR's per-package scan record</div></div><span class="tag" style="background:var(--green-soft);color:var(--green)">Active</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);padding:10px 0;border-bottom:1px solid var(--border)"><div><strong>Route count match</strong><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Compare Amazon's billed route count to RR's executed routes</div></div><span class="tag" style="background:var(--green-soft);color:var(--green)">Active</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);padding:10px 0;border-bottom:1px solid var(--border)"><div><strong>Late-return validation</strong><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Cross-check Amazon "late return" flags against GPS return time</div></div><span class="tag" style="background:var(--green-soft);color:var(--green)">Active</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);padding:10px 0;border-bottom:1px solid var(--border)"><div><strong>Safety event misclassification</strong><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Compare Amazon flagged events to telematics ground truth</div></div><span class="tag" style="background:var(--green-soft);color:var(--green)">Active</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);padding:10px 0;border-bottom:1px solid var(--border)"><div><strong>DCR tier verification</strong><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Recompute DCR from delivery records to verify Amazon-billed tier</div></div><span class="tag" style="background:var(--green-soft);color:var(--green)">Active</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);padding:10px 0"><div><strong>Damage at-fault correlator</strong><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">When damage is billed, automatically pull dashcam + telematics + driver statement</div></div><span class="tag" style="background:var(--green-soft);color:var(--green)">Active</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+            </div>
+            <button class="btn btn-sm" style="margin-top:var(--s-3)">View all 18 rules · Add custom rule</button>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3 class="card-title">Auto-dispute settings</h3></div>
+            <div class="form-row"><div><div class="form-label">Auto-draft disputes when discrepancy &gt;</div><div class="form-help">Below this threshold, alert me only.</div></div><div><input class="form-input" value="$50" style="max-width:120px" /></div></div>
+            <div class="form-row"><div><div class="form-label">Auto-submit disputes</div><div class="form-help">Send drafts automatically without owner review (only for high-confidence rules).</div></div><div><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></div></div>
+            <div class="form-row"><div><div class="form-label">Notify on Amazon response</div><div class="form-help">SMS + email when Amazon replies to a dispute.</div></div><div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- INVOICE RECONCILIATION DRAWER -->
+    <aside class="detail-drawer xwide" id="recon-drawer" aria-label="Invoice reconciliation">
+      <div class="detail-head">
+        <div>
+          <h2 class="detail-name">Variable Invoice · Week 17</h2>
+          <div class="detail-meta">Cycle 14 · received Apr 30 · 47 line items · <strong style="color:var(--red)">4 discrepancies totaling $847.50</strong></div>
+        </div>
+        <button class="cd-close" onclick="closeReconciliation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="detail-body">
+        <div class="recon-section">
+          <h3 class="dr-section-title">Line-by-line reconciliation</h3>
+
+          <div class="recon-line">
+            <div><div class="recon-line-name">Routes delivered</div><div class="recon-line-meta">Base route compensation</div></div>
+            <div><div class="recon-line-amazon">$22,800</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
+            <div><div class="recon-line-truth">$22,800</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div class="recon-line-delta ok">$0</div>
+          </div>
+
+          <div class="recon-line flagged">
+            <div><div class="recon-line-name">Scan compliance deduction</div><div class="recon-line-meta">3 packages flagged not-scanned · KMO1-14B · Apr 24</div></div>
+            <div><div class="recon-line-amazon">−$487.20</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
+            <div><div class="recon-line-truth">−$0</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div class="recon-line-delta bad">+$487.20</div>
+          </div>
+          <div class="recon-evidence">
+            <strong>Evidence: dispute warranted.</strong> RouteReady's scan log shows all 3 packages WERE scanned by Davidson at 14:32 (#14823), 14:38 (#14824), 14:51 (#14825) on Apr 24. Amazon's scan log appears to be missing these entries — likely sync issue. Attaching scan logs + GPS proximity to delivery addresses to dispute draft.
+          </div>
+
+          <div class="recon-line flagged">
+            <div><div class="recon-line-name">Late-return penalty</div><div class="recon-line-meta">Routes flagged returned after 7:00 PM on Apr 26</div></div>
+            <div><div class="recon-line-amazon">−$240.00</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
+            <div><div class="recon-line-truth">−$120.00</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div class="recon-line-delta bad">+$120.00</div>
+          </div>
+          <div class="recon-evidence">
+            <strong>Partial dispute.</strong> 2 of 4 late-return flags valid (Reyes 7:14 PM, Beckett 7:08 PM). 2 INVALID — Davidson clocked yard return at 6:58 PM (per GPS), Whitfield at 6:54 PM. Amazon penalty for those 2 should be reversed.
+          </div>
+
+          <div class="recon-line flagged-amber">
+            <div><div class="recon-line-name">DCR tier · billed at Fantastic</div><div class="recon-line-meta">Tier bonus paid: Fantastic</div></div>
+            <div><div class="recon-line-amazon">+$1,890</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
+            <div><div class="recon-line-truth">+$2,130</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div class="recon-line-delta bad">+$240</div>
+          </div>
+          <div class="recon-evidence">
+            <strong>DCR recompute: 99.4% · qualifies for Fantastic+.</strong> Amazon billed Fantastic tier ($1,890) but RouteReady's recomputed DCR from delivery records is 99.4%, which qualifies for Fantastic+ tier ($2,130). Difference: $240 underpaid.
+          </div>
+
+          <div class="recon-line">
+            <div><div class="recon-line-name">Fuel surcharge</div><div class="recon-line-meta">Index-linked variable</div></div>
+            <div><div class="recon-line-amazon">$316.00</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
+            <div><div class="recon-line-truth">$316.00</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div class="recon-line-delta ok">$0</div>
+          </div>
+
+          <button class="btn btn-sm" style="margin-top:var(--s-3)">Show all 47 line items</button>
+        </div>
+
+        <div class="recon-section">
+          <h3 class="dr-section-title">Auto-drafted dispute letter</h3>
+          <div class="dispute-letter">RouteReady Dispute Submission
+DSP: Cardinal Logistics · KMO1
+Invoice: Variable Week 17 · Cycle 14
+Amazon Reference: VAR-W17-CL-0429
+
+Total disputed: $847.50
+
+Line 1 — Scan compliance deduction · −$487.20
+Amazon's invoice shows a deduction for 3 packages flagged as
+not-scanned on KMO1-14B (Apr 24). Our scan log records all 3
+packages scanned by driver M. Davidson:
+  - Package 14823 scanned 14:32:08 at 1402 Cherry St
+  - Package 14824 scanned 14:38:21 at 1418 Cherry St
+  - Package 14825 scanned 14:51:44 at 1442 Cherry St
+GPS records confirm driver was at delivery address ±15 ft
+at each scan timestamp. We request reversal of $487.20.
+
+Line 2 — Late-return penalty · partial reversal $120.00
+Amazon flagged 4 routes as returning after 7:00 PM on Apr 26.
+Our yard GPS records show:
+  - Reyes returned 7:14 PM ✓ (penalty valid)
+  - Beckett returned 7:08 PM ✓ (penalty valid)
+  - Davidson returned 6:58 PM ✗ (within window)
+  - Whitfield returned 6:54 PM ✗ (within window)
+We request reversal of $120.00 for the 2 invalid flags.
+
+Line 3 — DCR tier underpayment · +$240.00
+Amazon billed Fantastic tier ($1,890). Our DCR recompute from
+delivery records totals 99.4%, qualifying for Fantastic+ tier
+($2,130). We request the additional $240.00 tier difference.
+
+Total recovery requested: $847.50
+
+Evidence attached:
+- Scan log export (CSV, 3 packages, GPS-correlated)
+- Yard GPS log Apr 26, 6:30 PM – 7:30 PM
+- DCR recompute spreadsheet
+- Driver records: Davidson, Whitfield, Reyes, Beckett</div>
+        </div>
+      </div>
+      <div class="detail-foot">
+        <button class="btn" onclick="closeReconciliation()">Close</button>
+        <button class="btn" onclick="toast('Edit dispute letter — would open editor')">Edit letter</button>
+        <button class="btn btn-primary" onclick="closeReconciliation();toast('Dispute submitted to Amazon · evidence attached · tracking thread created')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Submit dispute · $847.50
+        </button>
+      </div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════════════════════════
          TODAY'S CHECK-IN VIEW (attendance)
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-checkin">
@@ -9609,6 +10318,7 @@ a{color:inherit;text-decoration:none}
       messages: 'Messages',
       forms: 'Forms',
       checklists: 'Checklists',
+      finances: 'Finances',
       alerts: 'Alerts',
       reports: 'Reports',
       settings: 'Settings',
@@ -9624,6 +10334,7 @@ a{color:inherit;text-decoration:none}
       messages: '7 unread · 12 active drivers',
       forms: '12 published · 47 submissions this week',
       checklists: '14 active · 4 due now',
+      finances: '$14,420 recovered YTD · 3 invoices pending review',
       alerts: '8 open · 3 require action',
       reports: 'Auto-generated nightly',
       settings: 'Cardinal Logistics · KMO1',
@@ -10286,12 +10997,38 @@ a{color:inherit;text-decoration:none}
     document.body.style.overflow = 'hidden';
   }
   function closeApplicantDetail(){
-    ['applicant-drawer','driver-drawer','coverage-drawer','vehicle-drawer','sched-edit-drawer','checklist-drawer','form-edit-drawer','submission-drawer'].forEach(function(id){
+    ['applicant-drawer','driver-drawer','coverage-drawer','vehicle-drawer','sched-edit-drawer','checklist-drawer','form-edit-drawer','submission-drawer','recon-drawer'].forEach(function(id){
       const el = document.getElementById(id);
       if (el) el.classList.remove('open');
     });
     document.getElementById('ap-backdrop').classList.remove('open');
     document.body.style.overflow = '';
+  }
+
+  // ─── FINANCES sub-nav + reconciliation drawer ───────────
+  function finSub(sub){
+    document.querySelectorAll('#view-finances .subnav-item').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('#view-finances .subnav-item[data-sub="' + sub + '"]').classList.add('active');
+    document.querySelectorAll('.finances-tab').forEach(function(v){ v.style.display = 'none'; });
+    document.getElementById('finances-tab-' + sub).style.display = 'block';
+  }
+  function openReconciliation(id){
+    document.getElementById('recon-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeReconciliation(){
+    document.getElementById('recon-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── TIME INTEGRITY drill-down toggle ────────────────────
+  function toggleTiDetail(row){
+    const detail = row.nextElementSibling;
+    if (detail && detail.classList.contains('ti-detail')) {
+      detail.classList.toggle('open');
+    }
   }
 
   // ─── DRIVER RECORD TABS ───────────────────────────────────
