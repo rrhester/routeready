@@ -3241,7 +3241,21 @@ a{color:inherit;text-decoration:none}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 Availability options
               </h3>
-              <p class="page-sub" style="margin:0 0 var(--s-3) 0">Control what drivers can declare as availability in the driver app.</p>
+
+              <!-- MASTER TOGGLE — Driver self-management on/off -->
+              <div style="background:var(--accent-soft);border:1px solid #146EB433;border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--s-4)">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-4)">
+                  <div>
+                    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">Allow drivers to manage their own availability</div>
+                    <div style="font-size:12px;color:var(--text-muted);line-height:1.5">When ON, drivers see and edit availability in their app (subject to rules below). When OFF, only you set each driver's availability — drivers see their schedule but can't change what days they work.</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="rule-driver-managed" checked onchange="toggleDriverManaged(this)" /><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+
+              <p class="page-sub" id="rules-availability-sub" style="margin:0 0 var(--s-3) 0">Driver-managed mode is ON. Rules below apply to what drivers can declare in their app.</p>
+
+              <div id="rules-availability-body">
 
               <div class="rule-row">
                 <div>
@@ -3342,6 +3356,8 @@ a{color:inherit;text-decoration:none}
                 </div>
                 <input class="rule-input" value="14" />
               </div>
+
+              </div><!-- /rules-availability-body -->
             </div>
 
             <div class="rules-section">
@@ -4361,6 +4377,23 @@ a{color:inherit;text-decoration:none}
 
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
+
+  // ─── DRIVER-MANAGED AVAILABILITY MASTER TOGGLE ─────────────
+  function toggleDriverManaged(input){
+    const body = document.getElementById('rules-availability-body');
+    const sub = document.getElementById('rules-availability-sub');
+    if (input.checked) {
+      body.style.opacity = '1';
+      body.style.pointerEvents = 'auto';
+      sub.textContent = 'Driver-managed mode is ON. Rules below apply to what drivers can declare in their app.';
+      toast('Driver-managed availability ON');
+    } else {
+      body.style.opacity = '.4';
+      body.style.pointerEvents = 'none';
+      sub.textContent = 'Driver-managed mode is OFF. You set each driver\'s availability manually from the Availability tab — drivers cannot edit it themselves. Rules below are inactive.';
+      toast('Driver-managed availability OFF · you set per-driver from the Availability tab', 'warn');
+    }
+  }
 
   // ─── PIPELINE STAGE FILTER ─────────────────────────────────
   function filterPipelineStage(btn){
