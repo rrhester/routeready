@@ -3236,6 +3236,114 @@ a{color:inherit;text-decoration:none}
 
           <div class="rules-grid">
 
+            <div class="rules-section" style="grid-column:1/-1">
+              <h3 class="rules-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Availability options
+              </h3>
+              <p class="page-sub" style="margin:0 0 var(--s-3) 0">Control what drivers can declare as availability in the driver app.</p>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Operating days</div>
+                  <div class="rule-help">Drivers can only declare availability for days you operate. Off days are hidden from the driver app.</div>
+                </div>
+                <div style="display:flex;gap:4px">
+                  <button class="day-toggle on" onclick="sgToggle(this)" title="Mon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+                  <button class="day-toggle on" onclick="sgToggle(this)" title="Tue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+                  <button class="day-toggle on" onclick="sgToggle(this)" title="Wed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+                  <button class="day-toggle on" onclick="sgToggle(this)" title="Thu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+                  <button class="day-toggle on" onclick="sgToggle(this)" title="Fri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+                  <button class="day-toggle on" onclick="sgToggle(this)" title="Sat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+                  <button class="day-toggle" onclick="sgToggle(this)" title="Sun"></button>
+                </div>
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Required days · all drivers must be available</div>
+                  <div class="rule-help">Drivers cannot mark these days unavailable. Use sparingly — typically high-volume days.</div>
+                </div>
+                <div style="display:flex;gap:4px">
+                  <button class="day-toggle" onclick="sgToggle(this)" title="Mon"></button>
+                  <button class="day-toggle" onclick="sgToggle(this)" title="Tue"></button>
+                  <button class="day-toggle" onclick="sgToggle(this)" title="Wed"></button>
+                  <button class="day-toggle" onclick="sgToggle(this)" title="Thu"></button>
+                  <button class="day-toggle on" onclick="sgToggle(this)" title="Fri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+                  <button class="day-toggle" onclick="sgToggle(this)" title="Sat"></button>
+                  <button class="day-toggle" onclick="sgToggle(this)" title="Sun"></button>
+                </div>
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Minimum days available per driver</div>
+                  <div class="rule-help">Drivers must declare at least this many days as available (across operating days).</div>
+                </div>
+                <input class="rule-input" value="4" />
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Maximum days unavailable per driver</div>
+                  <div class="rule-help">Drivers can't mark more than this many operating days as unavailable.</div>
+                </div>
+                <input class="rule-input" value="2" />
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Hours-per-week range allowed</div>
+                  <div class="rule-help">Drivers can set their min/max hours within this range only.</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input class="rule-input" value="30" style="width:60px" />
+                  <span style="color:var(--text-subtle);font-size:11px">to</span>
+                  <input class="rule-input" value="60" style="width:60px" />
+                </div>
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Allow drivers to set "preferred" days</div>
+                  <div class="rule-help">If off, drivers can only mark days as available or unavailable — no preference distinction.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Allow drivers to opt into backup pool</div>
+                  <div class="rule-help">If off, you assign backup status manually. If on, drivers self-select.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Allow drivers to opt into swap marketplace</div>
+                  <div class="rule-help">If off, drivers can't post or claim swaps — manager only.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Availability changes require owner approval</div>
+                  <div class="rule-help">Driver edits stay pending until you approve. Useful for tighter control.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
+              </div>
+
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Availability change cutoff</div>
+                  <div class="rule-help">Drivers cannot change availability within this many days of an unpublished week.</div>
+                </div>
+                <input class="rule-input" value="14" />
+              </div>
+            </div>
+
             <div class="rules-section">
               <h3 class="rules-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
