@@ -5183,8 +5183,72 @@ async function rrSignOut(){ await sb.auth.signOut(); location.reload(); }
 // ── apiCall shim — Supabase first, GAS fallback ──────────────────────
 const API = 'https://script.google.com/macros/s/AKfycbwiWxrTv5ulBLP0sYT9kAhoPMW4KEO4agLn2Jk8e1wW4l8689ttOxOywKGQG1USittn/exec';
 
-// Phase B will populate this map: action name -> async (params) => responseShape
-const SUPABASE_HANDLERS = {};
+// Phase B handlers — each returns the EXACT shape the existing Apps Script
+// endpoint returns, so dashboard consumers don't need to change.
+const SUPABASE_HANDLERS = {
+
+  // weeklyTotals — Apps Script returns: {status:'ok', week_start, week_end,
+  // incidents, drivers_involved, quality_list_count, by_type, days_uploaded_flags}
+  weeklyTotals: async () => {
+    const { data, error } = await sb.rpc('weekly_totals');
+    if (error) throw error;
+    const row = (data && data[0]) || {};
+    return {
+      status: 'ok',
+      week_start: row.week_start || null,
+      week_end:   row.week_end   || null,
+      incidents:           row.incidents           || 0,
+      drivers_involved:    row.drivers_involved    || 0,
+      quality_list_count:  row.quality_list_count  || 0,
+      by_type:             row.by_type             || {},
+      days_uploaded_flags: row.days_uploaded_flags || [false,false,false,false,false,false,false]
+    };
+  },
+
+  // getDriverRoster — Apps Script returns {status:'ok', result: {drivers:[...]}}
+  // where each driver is {transporter_id, driver_name, phone_number, first_seen_date, status}
+  // Note: Apps Script status values are title-case ("Active", "Pre-onboarding", etc.)
+  // Supabase enum is lower-case. Map back to title-case for compatibility.
+  getDriverRoster: async () => {
+    const { data, error } = await sb
+      .from('driver_roster')
+      .select('transporter_id, driver_name, phone_number, first_seen_date, status')
+      .order('driver_name', { ascending: true });
+    if (error) throw error;
+    const STATUS_MAP = {
+      pre_onboarding: 'Pre-onboarding',
+      onboarding:    'Onboarding',
+      active:        'Active',
+      inactive:      'Inactive',
+      terminated:    'Terminated'
+    };
+    const drivers = (data || []).map(d => ({
+      transporter_id:  d.transporter_id,
+      driver_name:     d.driver_name,
+      phone_number:    d.phone_number || '',
+      first_seen_date: d.first_seen_date || '',
+      status:          STATUS_MAP[d.status] || d.status || 'Active'
+    }));
+    return { status: 'ok', result: { drivers } };
+  },
+
+  // getReferralSettings — Apps Script returns {on, outreachDay, bonusAmount, payableDay}
+  getReferralSettings: async () => {
+    const { data, error } = await sb
+      .from('settings')
+      .select('key, value')
+      .in('key', ['ReferralProgramOn','ReferralOutreachDay','ReferralBonusAmount','ReferralBonusPayableDay']);
+    if (error) throw error;
+    const m = {};
+    (data || []).forEach(r => { m[r.key] = r.value; });
+    return {
+      on:          String(m.ReferralProgramOn || 'false').toLowerCase() === 'true',
+      outreachDay: parseInt(m.ReferralOutreachDay || '7', 10) || 7,
+      bonusAmount: parseFloat(m.ReferralBonusAmount || '300') || 300,
+      payableDay:  parseInt(m.ReferralBonusPayableDay || '30', 10) || 30
+    };
+  }
+};
 
 async function apiCall(params) {
   const action = params && params.action;
