@@ -940,6 +940,98 @@ a{color:inherit;text-decoration:none}
 .att-pill.warn .att-pill-dot{background:var(--amber)}
 .att-pill.bad .att-pill-dot{background:var(--red)}
 .att-pill strong{color:var(--text);font-weight:600}
+
+/* ─────────────────────────────────────────────────────────────
+   DRIVERS PAGE — sub-nav (Roster / Schedules / Time off)
+   ───────────────────────────────────────────────────────────── */
+.subnav{
+  display:flex;gap:2px;background:var(--canvas);
+  border:1px solid var(--border);border-radius:var(--r-md);padding:3px;
+  margin-bottom:var(--s-5);width:fit-content;
+}
+.subnav-item{
+  padding:7px 14px;font-size:12px;font-weight:500;color:var(--text-muted);
+  background:transparent;border:none;border-radius:5px;cursor:pointer;
+}
+.subnav-item:hover{color:var(--text)}
+.subnav-item.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
+
+.dr-subview{display:none}
+.dr-subview.active{display:block}
+
+/* Schedule grid */
+.schedule-grid-wrap{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+}
+.sg-toolbar{
+  padding:var(--s-3) var(--s-5);display:flex;justify-content:space-between;align-items:center;
+  background:var(--canvas);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted);
+}
+.sg-toolbar-actions{display:flex;gap:var(--s-2)}
+.schedule-table{width:100%;border-collapse:collapse}
+.schedule-table thead th{
+  text-align:left;font-size:10px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;
+  padding:10px 8px;border-bottom:1px solid var(--border);background:var(--surface);
+}
+.schedule-table thead th.day{text-align:center;width:54px}
+.schedule-table tbody td{
+  padding:10px 8px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;
+}
+.schedule-table tbody tr:last-child td{border-bottom:none}
+.schedule-table tbody tr:hover{background:var(--canvas)}
+.schedule-table .driver-cell{padding-left:16px;display:flex;align-items:center;gap:10px;min-width:240px}
+.schedule-table .day-cell{text-align:center}
+.day-toggle{
+  width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface);display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text-subtle);transition:all .12s;
+}
+.day-toggle:hover{background:var(--canvas);border-color:var(--border-strong)}
+.day-toggle.on{
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+.day-toggle svg{width:13px;height:13px;stroke-width:2.5}
+
+.schedule-table .timeoff-cell{
+  font-size:11px;color:var(--text-muted);min-width:120px;
+}
+.schedule-table .timeoff-cell .has-off{
+  color:var(--amber);font-weight:600;
+}
+.schedule-table .actions-cell{padding-right:16px;text-align:right}
+
+/* Time-off page */
+.timeoff-section{margin-bottom:var(--s-6)}
+.timeoff-section-head{
+  font-size:11px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;margin-bottom:var(--s-2);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.timeoff-section-head-count{color:var(--text-subtle);font-weight:500;letter-spacing:0;text-transform:none;font-size:11px}
+.timeoff-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--s-3) var(--s-5);display:grid;grid-template-columns:1fr 200px 120px auto;gap:var(--s-3);align-items:center;margin-bottom:8px;
+}
+.timeoff-card-driver{display:flex;align-items:center;gap:10px}
+.timeoff-card-name{font-size:13px;font-weight:600;color:var(--text)}
+.timeoff-card-meta{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.timeoff-card-dates{font-size:13px;color:var(--text);font-weight:500}
+.timeoff-card-dates-sub{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.timeoff-card-reason{font-size:12px;color:var(--text-muted)}
+
+/* Schedule drawer (per-driver edit) */
+.sched-draw-day-row{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:6px;
+}
+.sched-draw-day{
+  padding:10px 0;border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);text-align:center;cursor:pointer;
+  font-size:11px;font-weight:500;color:var(--text-muted);
+}
+.sched-draw-day:hover{background:var(--canvas)}
+.sched-draw-day.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.sched-draw-day-letter{display:block;font-size:14px;font-weight:600}
 </style>
 </head>
 <body>
@@ -977,6 +1069,10 @@ a{color:inherit;text-decoration:none}
       <button class="nav-item" data-view="drivers" onclick="goto('drivers')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Drivers
+      </button>
+      <button class="nav-item" onclick="gotoSchedules()" style="margin-left:18px;font-size:12px;color:rgba(255,255,255,.55)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Schedules
       </button>
       <button class="nav-item" data-view="alerts" onclick="goto('alerts')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -1446,6 +1542,16 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
+        <!-- Drivers sub-nav: Roster · Schedules · Time off -->
+        <div class="subnav">
+          <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
+          <button class="subnav-item" data-sub="schedules" onclick="drSub('schedules')">Schedules</button>
+          <button class="subnav-item" data-sub="timeoff" onclick="drSub('timeoff')">Time off</button>
+        </div>
+
+        <!-- ROSTER SUB-VIEW -->
+        <div class="dr-subview active" id="dr-sub-roster">
+
         <div class="driver-stat-row">
           <div class="stat-mini"><div class="stat-mini-label">Active</div><div class="stat-mini-value">78</div><div class="stat-mini-sub">2 onboarding · 4 inactive</div></div>
           <div class="stat-mini"><div class="stat-mini-label">Avg score</div><div class="stat-mini-value">81</div><div class="stat-mini-sub">Fleet 30-day</div></div>
@@ -1549,6 +1655,195 @@ a{color:inherit;text-decoration:none}
             </tbody>
           </table>
         </div>
+
+        </div><!-- /dr-sub-roster -->
+
+        <!-- SCHEDULES SUB-VIEW -->
+        <div class="dr-subview" id="dr-sub-schedules">
+
+          <div class="schedule-grid-wrap">
+            <div class="sg-toolbar">
+              <div>78 active drivers · default <strong style="color:var(--text)">Mon–Fri</strong></div>
+              <div class="sg-toolbar-actions">
+                <button class="btn btn-sm">Apply M–F to all</button>
+                <button class="btn btn-sm">Filter: All stations</button>
+              </div>
+            </div>
+            <table class="schedule-table">
+              <thead>
+                <tr>
+                  <th>Driver</th>
+                  <th class="day">Mon</th>
+                  <th class="day">Tue</th>
+                  <th class="day">Wed</th>
+                  <th class="day">Thu</th>
+                  <th class="day">Fri</th>
+                  <th class="day">Sat</th>
+                  <th class="day">Sun</th>
+                  <th>Time off</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="driver-cell"><div class="avatar-sm tier-d">MD</div><div><div class="cell-name">Marcus Davidson</div><div class="cell-name-sub">KMO1 · 18 mo</div></div></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="timeoff-cell">—</td>
+                  <td class="actions-cell"><button class="btn btn-sm" onclick="openSchedDrawer('Marcus Davidson')">Edit</button></td>
+                </tr>
+                <tr>
+                  <td class="driver-cell"><div class="avatar-sm tier-d">TR</div><div><div class="cell-name">Tasha Reyes</div><div class="cell-name-sub">KMO2 · 9 mo</div></div></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="timeoff-cell"><span class="has-off">May 10–12</span><br><span style="font-size:10px">Vacation</span></td>
+                  <td class="actions-cell"><button class="btn btn-sm" onclick="openSchedDrawer('Tasha Reyes')">Edit</button></td>
+                </tr>
+                <tr>
+                  <td class="driver-cell"><div class="avatar-sm tier-c">KW</div><div><div class="cell-name">Kerwin Whitfield</div><div class="cell-name-sub">KMO1 · 24 mo</div></div></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="timeoff-cell">—</td>
+                  <td class="actions-cell"><button class="btn btn-sm" onclick="openSchedDrawer('Kerwin Whitfield')">Edit</button></td>
+                </tr>
+                <tr>
+                  <td class="driver-cell"><div class="avatar-sm tier-c">JB</div><div><div class="cell-name">Jordan Beckett</div><div class="cell-name-sub">KMO3 · 6 mo</div></div></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="timeoff-cell">—</td>
+                  <td class="actions-cell"><button class="btn btn-sm" onclick="openSchedDrawer('Jordan Beckett')">Edit</button></td>
+                </tr>
+                <tr>
+                  <td class="driver-cell"><div class="avatar-sm tier-b">DP</div><div><div class="cell-name">Devon Patterson</div><div class="cell-name-sub">KMO3 · 11 mo</div></div></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="timeoff-cell"><span class="has-off">May 15–17</span><br><span style="font-size:10px">Personal</span></td>
+                  <td class="actions-cell"><button class="btn btn-sm" onclick="openSchedDrawer('Devon Patterson')">Edit</button></td>
+                </tr>
+                <tr>
+                  <td class="driver-cell"><div class="avatar-sm tier-a">CF</div><div><div class="cell-name">Camille Foster</div><div class="cell-name-sub">KMO1 · 22 mo</div></div></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
+                  <td class="timeoff-cell">—</td>
+                  <td class="actions-cell"><button class="btn btn-sm" onclick="openSchedDrawer('Camille Foster')">Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div><!-- /dr-sub-schedules -->
+
+        <!-- TIME OFF SUB-VIEW -->
+        <div class="dr-subview" id="dr-sub-timeoff">
+
+          <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s-4)">
+            <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add time off</button>
+          </div>
+
+          <div class="timeoff-section">
+            <div class="timeoff-section-head">This week<span class="timeoff-section-head-count">1 driver off</span></div>
+            <div class="timeoff-card">
+              <div class="timeoff-card-driver">
+                <div class="avatar-sm tier-d">TR</div>
+                <div>
+                  <div class="timeoff-card-name">Tasha Reyes</div>
+                  <div class="timeoff-card-meta">KMO2 · 9 mo tenure</div>
+                </div>
+              </div>
+              <div>
+                <div class="timeoff-card-dates">May 10 → May 12</div>
+                <div class="timeoff-card-dates-sub">3 scheduled days</div>
+              </div>
+              <div class="timeoff-card-reason">Vacation</div>
+              <div style="display:flex;gap:6px"><button class="btn btn-sm">Edit</button><button class="btn btn-sm">Cancel</button></div>
+            </div>
+          </div>
+
+          <div class="timeoff-section">
+            <div class="timeoff-section-head">Upcoming<span class="timeoff-section-head-count">2 drivers</span></div>
+            <div class="timeoff-card">
+              <div class="timeoff-card-driver">
+                <div class="avatar-sm tier-b">DP</div>
+                <div>
+                  <div class="timeoff-card-name">Devon Patterson</div>
+                  <div class="timeoff-card-meta">KMO3 · 11 mo tenure</div>
+                </div>
+              </div>
+              <div>
+                <div class="timeoff-card-dates">May 15 → May 17</div>
+                <div class="timeoff-card-dates-sub">3 scheduled days</div>
+              </div>
+              <div class="timeoff-card-reason">Personal</div>
+              <div style="display:flex;gap:6px"><button class="btn btn-sm">Edit</button><button class="btn btn-sm">Cancel</button></div>
+            </div>
+            <div class="timeoff-card">
+              <div class="timeoff-card-driver">
+                <div class="avatar-sm tier-a">CF</div>
+                <div>
+                  <div class="timeoff-card-name">Camille Foster</div>
+                  <div class="timeoff-card-meta">KMO1 · 22 mo tenure</div>
+                </div>
+              </div>
+              <div>
+                <div class="timeoff-card-dates">May 22 → May 24</div>
+                <div class="timeoff-card-dates-sub">3 scheduled days</div>
+              </div>
+              <div class="timeoff-card-reason">Vacation</div>
+              <div style="display:flex;gap:6px"><button class="btn btn-sm">Edit</button><button class="btn btn-sm">Cancel</button></div>
+            </div>
+          </div>
+
+          <div class="timeoff-section">
+            <div class="timeoff-section-head">Past 30 days<span class="timeoff-section-head-count">3 entries</span></div>
+            <div class="timeoff-card" style="opacity:.7">
+              <div class="timeoff-card-driver">
+                <div class="avatar-sm tier-c">KW</div>
+                <div>
+                  <div class="timeoff-card-name">Kerwin Whitfield</div>
+                  <div class="timeoff-card-meta">KMO1 · 24 mo tenure</div>
+                </div>
+              </div>
+              <div>
+                <div class="timeoff-card-dates">Apr 23 → Apr 25</div>
+                <div class="timeoff-card-dates-sub">3 scheduled days</div>
+              </div>
+              <div class="timeoff-card-reason">Sick</div>
+              <div></div>
+            </div>
+          </div>
+
+        </div><!-- /dr-sub-timeoff -->
+
       </div>
     </div>
 
@@ -2349,6 +2644,29 @@ a{color:inherit;text-decoration:none}
       openCoachDrawer();
     }
   });
+
+  // ─── DRIVERS SUB-NAV ───────────────────────────────────────
+  function drSub(sub){
+    document.querySelectorAll('.subnav-item').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('.subnav-item[data-sub="' + sub + '"]').classList.add('active');
+    document.querySelectorAll('.dr-subview').forEach(function(v){ v.classList.remove('active'); });
+    document.getElementById('dr-sub-' + sub).classList.add('active');
+  }
+  function sgToggle(btn){
+    btn.classList.toggle('on');
+    if (btn.classList.contains('on')) {
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    } else {
+      btn.innerHTML = '';
+    }
+  }
+  function openSchedDrawer(name){
+    alert('Per-driver schedule editor for ' + name + '\n\n(Drawer with 7 day toggles + time-off button — would open here)');
+  }
+  function gotoSchedules(){
+    goto('drivers');
+    setTimeout(function(){ drSub('schedules'); }, 50);
+  }
 
   // ─── ATTENDANCE CHECK-IN ───────────────────────────────────
   function ciMark(btn){
