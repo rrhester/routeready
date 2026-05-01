@@ -388,6 +388,8 @@ a{color:inherit;text-decoration:none}
 .stage-pill.passed .dot{background:var(--green)}
 .stage-pill.booked{background:#EDE9FE;color:#6D28D9}
 .stage-pill.booked .dot{background:#7C3AED}
+.stage-pill.hired{background:var(--green-soft);color:var(--green)}
+.stage-pill.hired .dot{background:var(--green)}
 .cell-source{font-size:12px;color:var(--text-muted)}
 .cell-time{font-size:12px;color:var(--text-subtle)}
 .row-action{
@@ -1671,13 +1673,13 @@ a{color:inherit;text-decoration:none}
         </div>
 
         <!-- Stage tabs -->
-        <div class="stage-tabs">
-          <button class="stage-tab active">All <span class="stage-tab-count">48</span></button>
-          <button class="stage-tab">New <span class="stage-tab-count">12</span></button>
-          <button class="stage-tab">Screening <span class="stage-tab-count">14</span></button>
-          <button class="stage-tab">Passed <span class="stage-tab-count">8</span></button>
-          <button class="stage-tab">Booked <span class="stage-tab-count">7</span></button>
-          <button class="stage-tab">Hired <span class="stage-tab-count">7</span></button>
+        <div class="stage-tabs" id="pipeline-stage-tabs">
+          <button class="stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="stage-tab-count">48</span></button>
+          <button class="stage-tab" data-stage="new" onclick="filterPipelineStage(this)">New <span class="stage-tab-count">12</span></button>
+          <button class="stage-tab" data-stage="screening" onclick="filterPipelineStage(this)">Screening <span class="stage-tab-count">14</span></button>
+          <button class="stage-tab" data-stage="passed" onclick="filterPipelineStage(this)">Passed <span class="stage-tab-count">8</span></button>
+          <button class="stage-tab" data-stage="booked" onclick="filterPipelineStage(this)">Booked <span class="stage-tab-count">7</span></button>
+          <button class="stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="stage-tab-count">7</span></button>
         </div>
 
         <!-- Toolbar -->
@@ -1786,6 +1788,36 @@ a{color:inherit;text-decoration:none}
                 <td class="cell-time">2 days ago</td>
                 <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
               </tr>
+              <tr>
+                <td>
+                  <div class="cell-name">Trevor Anders</div>
+                  <div class="cell-name-sub">Springfield, MO</div>
+                </td>
+                <td class="cell-contact">trevor.a@email.com<br>+1 417 555 0512</td>
+                <td><span class="cell-score tier-priority">8</span></td>
+                <td><span class="stage-pill hired"><span class="dot"></span>Hired</span></td>
+                <td class="cell-source">Referral</td>
+                <td class="cell-time">3 days ago</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cell-name">Lena Whitcomb</div>
+                  <div class="cell-name-sub">Joplin, MO</div>
+                </td>
+                <td class="cell-contact">lena.w@email.com<br>+1 417 555 0633</td>
+                <td><span class="cell-score tier-priority">9</span></td>
+                <td><span class="stage-pill hired"><span class="dot"></span>Hired</span></td>
+                <td class="cell-source">Indeed</td>
+                <td class="cell-time">4 days ago</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr id="pipeline-empty-row" style="display:none">
+                <td colspan="7" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">
+                  <div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">No applicants in this stage</div>
+                  <div>Try a different stage tab.</div>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -1833,10 +1865,10 @@ a{color:inherit;text-decoration:none}
         </div>
 
         <div class="stage-tabs">
-          <button class="stage-tab active">Active <span class="stage-tab-count">78</span></button>
-          <button class="stage-tab">Onboarding <span class="stage-tab-count">2</span></button>
-          <button class="stage-tab">At risk <span class="stage-tab-count">5</span></button>
-          <button class="stage-tab">Inactive <span class="stage-tab-count">4</span></button>
+          <button class="stage-tab active" data-stage="active" onclick="filterDriversStage(this)">Active <span class="stage-tab-count">78</span></button>
+          <button class="stage-tab" data-stage="onboarding" onclick="filterDriversStage(this)">Onboarding <span class="stage-tab-count">2</span></button>
+          <button class="stage-tab" data-stage="atrisk" onclick="filterDriversStage(this)">At risk <span class="stage-tab-count">5</span></button>
+          <button class="stage-tab" data-stage="inactive" onclick="filterDriversStage(this)">Inactive <span class="stage-tab-count">4</span></button>
         </div>
 
         <div class="toolbar">
@@ -3570,6 +3602,35 @@ a{color:inherit;text-decoration:none}
   function gotoSchedules(){
     goto('drivers');
     setTimeout(function(){ drSub('schedules'); }, 50);
+  }
+
+  // ─── PIPELINE STAGE FILTER ─────────────────────────────────
+  function filterPipelineStage(btn){
+    const stage = btn.getAttribute('data-stage');
+    // active state
+    document.querySelectorAll('#pipeline-stage-tabs .stage-tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    // filter rows by checking their stage-pill class
+    const rows = document.querySelectorAll('#view-pipeline tbody tr');
+    let visible = 0;
+    rows.forEach(function(r){
+      if (r.id === 'pipeline-empty-row') return;
+      if (stage === 'all') { r.style.display = ''; visible++; return; }
+      const pill = r.querySelector('.stage-pill');
+      if (pill && pill.classList.contains(stage)) { r.style.display = ''; visible++; }
+      else { r.style.display = 'none'; }
+    });
+    const empty = document.getElementById('pipeline-empty-row');
+    if (empty) empty.style.display = (visible === 0 ? '' : 'none');
+  }
+
+  // ─── DRIVERS STAGE FILTER (Roster sub-view) ────────────────
+  function filterDriversStage(btn){
+    const stage = btn.getAttribute('data-stage');
+    document.querySelectorAll('#dr-sub-roster .stage-tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    // For now just toast since the roster doesn't have stage classes per row yet
+    toast('Filtered to: ' + btn.textContent.split(/\s+/)[0]);
   }
 
   // ─── TOASTS ────────────────────────────────────────────────
