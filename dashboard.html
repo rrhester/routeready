@@ -6011,6 +6011,82 @@ const SUPABASE_HANDLERS = {
     };
   },
 
+  // ── PHASE E — Edge Function endpoints (require deploy) ───────────────
+
+  // aiWriteMessage — calls the claude-ai Edge Function.
+  // Returns {status:'ok', text:'...'} or {status:'error', message:'...'}
+  aiWriteMessage: async (params) => {
+    const prompt = params && params.prompt;
+    if (!prompt) return { status: 'error', message: 'No prompt provided' };
+    const { data, error } = await sb.functions.invoke('claude-ai', {
+      body: { prompt, max_tokens: 512 }
+    });
+    if (error) {
+      return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    }
+    return data;
+  },
+
+  // aiReviewScreeningQuestion — employment-law compliance check.
+  // Builds the same prompt the Apps Script uses, calls Claude, parses JSON.
+  aiReviewScreeningQuestion: async (params) => {
+    const text = String((params && params.text) || '').trim();
+    if (!text) return { status: 'error', message: 'No question text provided' };
+    if (text.length > 300) return { status: 'error', message: 'Question too long (max 300 chars)' };
+
+    const prompt = [
+      'You are reviewing a screening question that a delivery service company wants to ask job applicants. Your job is to flag common employment-law compliance issues in U.S. hiring.',
+      '',
+      'QUESTION TO REVIEW:',
+      '"' + text + '"',
+      '',
+      'FLAG IF the question:',
+      '- Asks about protected class (age beyond 18+/21+ requirement, race, religion, national origin, citizenship beyond work authorization, marital status, family status, pregnancy, disability, sexual orientation, gender identity)',
+      '- Asks about criminal history (Ban-the-Box laws restrict this on initial applications in many states)',
+      '- Asks about salary/wage history (banned in CA, NY, NJ, MA, CO, WA, IL and many cities)',
+      '- Asks about credit history pre-offer (restricted in CA, NY, IL, CO, WA, MD, OR, VT, NV, CT, HI, DE)',
+      '- Asks for SSN, date of birth, or other identifiers that should be post-offer',
+      '- Asks about disability, medical conditions, or accommodations needed (ADA pre-offer restrictions)',
+      '- Asks about union activity, political affiliation, or protected concerted activity',
+      '',
+      "DO NOT FLAG legitimate job-related questions like: ability to perform physical job requirements, work authorization (general yes/no), driver's license validity, ability to pass DOT screen, schedule availability, ability to lift specified weight, comfort with required equipment.",
+      '',
+      'Respond ONLY with valid JSON, no preamble:',
+      '{',
+      '  "level": "green|yellow|red",',
+      '  "issue": "one-sentence concern, or empty string if green",',
+      '  "suggestion": "safer rewrite of the question, or empty string if green"',
+      '}',
+      '',
+      'LEVEL DEFINITIONS:',
+      '- green: Legitimate job-related question. No issues.',
+      '- yellow: Question may be restricted in some states (Ban-the-Box, salary history bans, etc). Legal in many states but DSP should check their jurisdiction.',
+      '- red: Question asks about a protected class or is broadly prohibited under federal law (Title VII, ADA, ADEA). Should generally not be asked on initial applications anywhere.',
+      '',
+      'Be precise. Do not over-flag legitimate physical requirements or job-fit questions.'
+    ].join('\n');
+
+    const { data, error } = await sb.functions.invoke('claude-ai', {
+      body: { prompt, max_tokens: 400 }
+    });
+    if (error) return { status: 'error', message: 'AI review service unavailable' };
+    if (data.status !== 'ok') return data;
+    try {
+      const cleaned = data.text.replace(/```json|```/g, '').trim();
+      const result = JSON.parse(cleaned);
+      const level = String(result.level || 'green').toLowerCase().trim();
+      const valid = ['green','yellow','red'].indexOf(level) !== -1 ? level : 'green';
+      return {
+        status:     'ok',
+        level:      valid,
+        issue:      String(result.issue || '').trim(),
+        suggestion: String(result.suggestion || '').trim()
+      };
+    } catch (e) {
+      return { status: 'error', message: 'AI review parse failed' };
+    }
+  },
+
   // driverRecord — port of getCoachingRecord from Performance.gs. Returns
   // {driver, summary, by_metric_30d, weekly_chart, timeline}.
   driverRecord: async (params) => {
