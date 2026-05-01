@@ -5183,6 +5183,22 @@ async function rrSignOut(){ await sb.auth.signOut(); location.reload(); }
 // ── apiCall shim — Supabase first, GAS fallback ──────────────────────
 const API = 'https://script.google.com/macros/s/AKfycbwiWxrTv5ulBLP0sYT9kAhoPMW4KEO4agLn2Jk8e1wW4l8689ttOxOywKGQG1USittn/exec';
 
+// Cache the authenticated user's dsp_id so writes can include it.
+let _rrDspId = null;
+async function rrGetDspId() {
+  if (_rrDspId) return _rrDspId;
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await sb
+    .from('profiles')
+    .select('dsp_id')
+    .eq('user_id', user.id)
+    .single();
+  if (error || !data) throw new Error('No profile row for this user');
+  _rrDspId = data.dsp_id;
+  return _rrDspId;
+}
+
 // Phase B handlers — each returns the EXACT shape the existing Apps Script
 // endpoint returns, so dashboard consumers don't need to change.
 const SUPABASE_HANDLERS = {
@@ -5539,6 +5555,161 @@ const SUPABASE_HANDLERS = {
     }
 
     return { status: 'error', message: 'Unknown export type: ' + type };
+  },
+
+  // driversList — Apps Script returns array of {transporter_id, driver_name,
+  // tenure_days, event_count_30d, lifetime_events, pattern_tag, last_coached_date,
+  // last_coached_type, trend, status}. We pull roster + events + coaching, aggregate
+  // client-side, and apply the same pattern_tag/trend logic from Performance.gs.
+  // Wrapped in {status:'ok', rows: [...]} to match the GAS response.
+  driversList: async () => {
+    const today = new Date();
+    const isoToday = today.toISOString().slice(0, 10);
+    const isoAddDays = (n) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    const cutoff30 = isoAddDays(-29);
+    const cutoff14 = isoAddDays(-13);
+
+    const [rosterResp, eventsResp, coachingResp] = await Promise.all([
+      sb.from('driver_roster').select('transporter_id, driver_name, first_seen_date, status'),
+      sb.from('safety_events').select('transporter_id, event_date'),
+      sb.from('coaching_log').select('transporter_id, type, created_at').order('created_at', { ascending: false })
+    ]);
+    if (rosterResp.error)   throw rosterResp.error;
+    if (eventsResp.error)   throw eventsResp.error;
+    if (coachingResp.error) throw coachingResp.error;
+
+    const events   = eventsResp.data   || [];
+    const coaching = coachingResp.data || [];
+
+    // Index events by tid
+    const eventsByTid = {};
+    events.forEach(e => {
+      const t = e.transporter_id;
+      if (!eventsByTid[t]) eventsByTid[t] = [];
+      eventsByTid[t].push(e.event_date);
+    });
+    // First-coaching-per-driver (already sorted desc) → first match is most recent
+    const lastCoachByTid = {};
+    coaching.forEach(c => {
+      if (!lastCoachByTid[c.transporter_id]) lastCoachByTid[c.transporter_id] = c;
+    });
+
+    const STATUS_MAP = {
+      pre_onboarding: 'Pre-onboarding', onboarding: 'Onboarding', active: 'Active',
+      inactive: 'Inactive', terminated: 'Terminated'
+    };
+    const COACHING_TYPE_MAP = {
+      SMS: 'SMS', InPerson: 'InPerson', Skipped: 'Skipped', StatusChange: 'StatusChange'
+    };
+
+    // Pattern tag — port of computePatternTag_ from Performance.gs
+    const patternTag = (dates) => {
+      if (!dates.length) return 'CLEAR';
+      const last14    = dates.filter(d => d >= cutoff14);
+      const olderThan = dates.filter(d => d < cutoff14);
+      if (!last14.length) return 'CLEAR';
+      if (last14.length >= 6) return 'CHRONIC';
+      if (!olderThan.length && last14.length <= 2) return 'FIRST_WEEK';
+      return 'PATTERN';
+    };
+    // Trend — port of computeTrend_ (split-week)
+    const trend = (dates) => {
+      if (!dates.length) return 'flat';
+      const recentStart = isoAddDays(-3);
+      const olderStart  = isoAddDays(-6);
+      const olderEnd    = isoAddDays(-4);
+      const recent = dates.filter(d => d >= recentStart).length;
+      const older  = dates.filter(d => d >= olderStart && d <= olderEnd).length;
+      if (!recent && !older) {
+        const veryOld = dates.filter(d => d < olderStart).length;
+        return veryOld > 0 ? 'down' : 'flat';
+      }
+      if (!recent && older) return 'down';
+      if (recent && !older) {
+        const veryOld = dates.filter(d => d < olderStart).length;
+        return (!veryOld && recent <= 2) ? 'new' : 'up';
+      }
+      const pct = ((recent - older) / older) * 100;
+      if (pct >= 25)  return 'up';
+      if (pct <= -25) return 'down';
+      return 'flat';
+    };
+
+    const rows = (rosterResp.data || []).map(r => {
+      const tid = r.transporter_id;
+      const dates = eventsByTid[tid] || [];
+      const e30 = dates.filter(d => d >= cutoff30).length;
+      const tenureDays = r.first_seen_date
+        ? Math.round((today - new Date(r.first_seen_date + 'T00:00:00')) / 86400000)
+        : 0;
+      const lc = lastCoachByTid[tid];
+      return {
+        transporter_id:   tid,
+        driver_name:      r.driver_name,
+        tenure_days:      tenureDays,
+        event_count_30d:  e30,
+        lifetime_events:  dates.length,
+        pattern_tag:      patternTag(dates),
+        last_coached_date: lc ? new Date(lc.created_at).toISOString().slice(0, 10) : null,
+        last_coached_type: lc ? (COACHING_TYPE_MAP[lc.type] || lc.type) : null,
+        trend:            trend(dates),
+        status:           STATUS_MAP[r.status] || r.status || 'Active'
+      };
+    });
+    rows.sort((a, b) => b.event_count_30d - a.event_count_30d);
+    return { status: 'ok', rows };
+  },
+
+  // ── PHASE C — simple writes (single-table) ──────────────────────────
+
+  // setThrottle — upsert ThrottleMode + RouteReadyLogic in settings
+  setThrottle: async (params) => {
+    const rows = [];
+    const dspId = await rrGetDspId();
+    if (params.mode)    rows.push({ dsp_id: dspId, key: 'ThrottleMode',    value: String(params.mode) });
+    if (params.rrLogic) rows.push({ dsp_id: dspId, key: 'RouteReadyLogic', value: String(params.rrLogic) });
+    if (!rows.length) return { status: 'ok' };
+    const { error } = await sb.from('settings').upsert(rows, { onConflict: 'dsp_id,key' });
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // updateDriverPhone — single update on driver_roster, with E.164 normalization
+  updateDriverPhone: async (params) => {
+    const tid = params.tid;
+    const raw = String(params.phone || '').trim();
+    if (!tid || !raw) return { status: 'error', message: 'tid and phone required' };
+    const digits = raw.replace(/\D/g, '');
+    let normalized = '';
+    if (digits.length === 10) normalized = '+1' + digits;
+    else if (digits.length === 11 && digits.charAt(0) === '1') normalized = '+' + digits;
+    else if (raw.charAt(0) === '+' && digits.length >= 10) normalized = '+' + digits;
+    if (!normalized) return { status: 'error', message: 'invalid phone format' };
+    const dspId = await rrGetDspId();
+    const { error } = await sb.from('driver_roster')
+      .update({ phone_number: normalized, phone_source: 'manual', last_updated: new Date().toISOString() })
+      .eq('dsp_id', dspId)
+      .eq('transporter_id', tid);
+    if (error) throw error;
+    return { status: 'ok', phone: normalized };
+  },
+
+  // markBonusPaid — flip a referrals row to status='paid' with paid_date=now
+  markBonusPaid: async (params) => {
+    if (!params.refId) return { status: 'error', message: 'Missing ref ID' };
+    const dspId = await rrGetDspId();
+    const updates = { status: 'paid', paid_date: new Date().toISOString().slice(0, 10) };
+    if (params.note) updates.note = String(params.note);
+    const { error } = await sb.from('referrals')
+      .update(updates)
+      .eq('dsp_id', dspId)
+      .eq('id', params.refId);
+    if (error) throw error;
+    return { status: 'ok' };
   }
 };
 
