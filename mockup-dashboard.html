@@ -2932,6 +2932,114 @@ a{color:inherit;text-decoration:none}
 .ti-row-stat{font-size:13px;font-weight:600;color:var(--text);text-align:right}
 .ti-row-stat-label{font-size:10px;color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
 .ti-row-cost{font-size:13px;font-weight:700;color:var(--red);text-align:right}
+
+/* ─────────────────────────────────────────────────────────────
+   DRIVER RECORD — full HR file with tabs
+   ───────────────────────────────────────────────────────────── */
+.dr-tabs{
+  display:flex;gap:0;padding:0 var(--s-5);background:var(--surface);
+  border-bottom:1px solid var(--border);overflow-x:auto;
+}
+.dr-tab{
+  padding:10px 14px;font-size:12px;font-weight:500;color:var(--text-muted);
+  background:transparent;border:none;border-bottom:2px solid transparent;
+  cursor:pointer;font-family:inherit;white-space:nowrap;margin-bottom:-1px;
+}
+.dr-tab:hover{color:var(--text)}
+.dr-tab.active{color:var(--text);font-weight:700;border-bottom-color:var(--accent)}
+
+.dr-tabview{display:none}
+.dr-tabview.active{display:block}
+
+.dr-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+.dr-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
+
+.dr-field-row{
+  display:grid;grid-template-columns:140px 1fr;gap:var(--s-3);align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;
+}
+.dr-field-row:last-child{border-bottom:none}
+.dr-field-label{font-size:11px;font-weight:500;color:var(--text-muted);letter-spacing:.02em}
+.dr-field-value{color:var(--text);font-weight:500}
+.dr-field-value.muted{color:var(--text-subtle)}
+.dr-field-value.encrypted{font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--text-subtle)}
+
+.dr-pay-history{display:flex;flex-direction:column}
+.dr-pay-row{
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;
+}
+.dr-pay-row:last-child{border-bottom:none}
+.dr-pay-period{font-weight:600;color:var(--text)}
+.dr-pay-meta{font-size:10px;color:var(--text-subtle);margin-top:1px}
+.dr-pay-amount{font-weight:600;color:var(--text);text-align:right}
+
+.dr-cycle-card{
+  background:var(--canvas);border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px;
+}
+.dr-cycle-head{
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
+  font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;
+}
+.dr-cycle-score{font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1}
+.dr-cycle-score.green{color:var(--green)}
+.dr-cycle-score.amber{color:var(--amber)}
+.dr-cycle-score.red{color:var(--red)}
+.dr-cycle-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:11px}
+.dr-cycle-stat-label{color:var(--text-subtle);font-weight:500}
+.dr-cycle-stat-val{color:var(--text);font-weight:600;font-size:12px;margin-top:1px}
+
+.dr-asset-row{
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;
+}
+.dr-asset-row:last-child{border-bottom:none}
+.dr-asset-icon{
+  width:32px;height:32px;border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.dr-asset-icon svg{width:15px;height:15px;stroke-width:2}
+.dr-asset-name{font-weight:600;color:var(--text)}
+.dr-asset-id{font-family:'SF Mono',Menlo,monospace;font-size:10px;color:var(--text-subtle);margin-top:2px}
+.dr-asset-since{font-size:11px;color:var(--text-subtle)}
+.dr-asset-status{font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px;background:var(--green-soft);color:var(--green)}
+
+.dr-doc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-2)}
+.dr-doc-card{
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:12px;cursor:pointer;
+}
+.dr-doc-card:hover{border-color:var(--border-strong)}
+.dr-doc-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px}
+.dr-doc-meta{font-size:10px;color:var(--text-subtle)}
+.dr-doc-status{font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;display:inline-block;margin-top:6px}
+.dr-doc-status.signed{background:var(--green-soft);color:var(--green)}
+.dr-doc-status.pending{background:var(--amber-soft);color:var(--amber)}
+.dr-doc-status.expired{background:var(--red-soft);color:var(--red)}
+
+.dr-note{
+  background:var(--canvas);border-radius:var(--r-md);padding:10px 12px;margin-bottom:6px;
+  font-size:12px;line-height:1.5;
+}
+.dr-note-head{display:flex;justify-content:space-between;font-size:10px;color:var(--text-subtle);margin-bottom:4px}
+.dr-note-head strong{color:var(--text);font-weight:600}
+
+.dr-milestone{
+  display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;
+}
+.dr-milestone:last-child{border-bottom:none}
+.dr-milestone-icon{
+  width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+}
+.dr-milestone-icon svg{width:12px;height:12px;stroke-width:2}
+.dr-milestone-icon.green{background:var(--green-soft);color:var(--green)}
+.dr-milestone-icon.amber{background:var(--amber-soft);color:var(--amber)}
+.dr-milestone-icon.upcoming{background:var(--canvas);color:var(--text-subtle)}
+.dr-milestone-name{font-weight:600;color:var(--text)}
+.dr-milestone-date{font-size:11px;color:var(--text-subtle);margin-top:1px}
+
+.dr-section-title{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 8px 0}
 </style>
 </head>
 <body>
@@ -8674,52 +8782,411 @@ a{color:inherit;text-decoration:none}
 <!-- ═══════════════════════════════════════════════════════════
      DRIVER RECORD DRAWER
      ═══════════════════════════════════════════════════════════ -->
-<aside class="detail-drawer" id="driver-drawer" aria-label="Driver record">
+<aside class="detail-drawer xwide" id="driver-drawer" aria-label="Driver record">
   <div class="detail-head">
     <div style="display:flex;gap:14px;align-items:flex-start;flex:1;min-width:0">
-      <div class="detail-avatar" id="dr-initials">??</div>
+      <div class="detail-avatar" id="dr-initials" style="width:56px;height:56px;font-size:16px">??</div>
       <div style="min-width:0;flex:1">
         <h2 class="detail-name" id="dr-name">Driver</h2>
         <div class="detail-meta" id="dr-meta">—</div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <span class="role-pill" style="background:var(--green-soft);color:var(--green)">Active</span>
+          <span class="tag">KMO1</span>
+          <span class="tag">18 mo tenure</span>
+          <span class="tag">Top tier · 88</span>
+        </div>
       </div>
     </div>
     <button class="cd-close" onclick="closeDriverDetail()" aria-label="Close">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
+
+  <!-- Tabs -->
+  <div class="dr-tabs">
+    <button class="dr-tab active" data-tab="overview" onclick="drTab(this)">Overview</button>
+    <button class="dr-tab" data-tab="hr" onclick="drTab(this)">Pay &amp; HR</button>
+    <button class="dr-tab" data-tab="performance" onclick="drTab(this)">Performance</button>
+    <button class="dr-tab" data-tab="schedule" onclick="drTab(this)">Schedule</button>
+    <button class="dr-tab" data-tab="assets" onclick="drTab(this)">Assets</button>
+    <button class="dr-tab" data-tab="documents" onclick="drTab(this)">Documents</button>
+    <button class="dr-tab" data-tab="activity" onclick="drTab(this)">Activity</button>
+  </div>
+
   <div class="detail-body">
 
-    <div class="detail-section">
-      <div class="detail-section-label">Performance</div>
-      <div class="detail-stat-grid">
-        <div><div class="detail-stat-label">Score</div><div class="detail-stat-value" id="dr-score">—</div></div>
-        <div><div class="detail-stat-label">Attendance · 30d</div><div class="detail-stat-value" id="dr-att">100%</div></div>
-        <div><div class="detail-stat-label">Tenure</div><div class="detail-stat-value" id="dr-tenure">—</div></div>
-        <div><div class="detail-stat-label">Station</div><div class="detail-stat-value" id="dr-station">—</div></div>
+    <!-- ── OVERVIEW ── -->
+    <div class="dr-tabview active" id="dr-tabview-overview">
+      <div class="detail-section">
+        <div class="detail-section-label">At a glance</div>
+        <div class="dr-grid-3">
+          <div><div class="detail-stat-label">Score</div><div class="detail-stat-value" id="dr-score">88</div></div>
+          <div><div class="detail-stat-label">Attendance · 30d</div><div class="detail-stat-value" id="dr-att" style="color:var(--green)">100%</div></div>
+          <div><div class="detail-stat-label">Hours this cycle</div><div class="detail-stat-value">152h</div></div>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-label">Upcoming milestones</div>
+        <div class="dr-milestone">
+          <div class="dr-milestone-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><div class="dr-milestone-name">2-year work anniversary</div><div class="dr-milestone-date">Nov 12, 2025 · 6 months</div></div>
+          <button class="btn btn-sm">Plan recognition</button>
+        </div>
+        <div class="dr-milestone">
+          <div class="dr-milestone-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div><div class="dr-milestone-name">Driver license renewal</div><div class="dr-milestone-date">Aug 22, 2025 · in 113 days</div></div>
+          <button class="btn btn-sm">Notify</button>
+        </div>
+        <div class="dr-milestone">
+          <div class="dr-milestone-icon upcoming"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></div>
+          <div><div class="dr-milestone-name">Annual performance review</div><div class="dr-milestone-date">Nov 12, 2025</div></div>
+          <button class="btn btn-sm">Schedule</button>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-label">Recent activity</div>
+        <div class="detail-timeline">
+          <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Recognition SMS · "Top safety performer"<small>Sent by Ryan</small></div><div class="detail-timeline-time">3 days ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">Pay raise · $17.50 → $18.00<small>+$0.50/hr · cycle 14 review</small></div><div class="detail-timeline-time">2 weeks ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">In-person 1:1<small>Safe driving topic · 30 min</small></div><div class="detail-timeline-time">1 month ago</div></div>
+        </div>
       </div>
     </div>
 
-    <div class="detail-section">
-      <div class="detail-section-label">Coaching history</div>
-      <div class="detail-timeline">
-        <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Safety coaching SMS<small>"Following distance flagged. Discussed Tuesday 1:1."</small></div><div class="detail-timeline-time">3 days ago</div></div>
-        <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">In-person 1:1<small>Topics: safe driving, attendance</small></div><div class="detail-timeline-time">2 weeks ago</div></div>
-        <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Recognition SMS<small>"Top safety performer last cycle"</small></div><div class="detail-timeline-time">1 month ago</div></div>
+    <!-- ── PAY & HR ── -->
+    <div class="dr-tabview" id="dr-tabview-hr">
+      <div class="detail-section">
+        <h3 class="dr-section-title">Personal information</h3>
+        <div class="dr-field-row"><span class="dr-field-label">Full legal name</span><span class="dr-field-value" id="dr-fullname">Marcus James Davidson</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Date of birth</span><span class="dr-field-value">Mar 14, 1991 · 34 yrs</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Phone</span><span class="dr-field-value">+1 417 555 0100</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Email</span><span class="dr-field-value">marcus.davidson@gmail.com</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Home address</span><span class="dr-field-value">2418 Cherry St · Springfield, MO 65802</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Emergency contact</span><span class="dr-field-value">Sarah Davidson (spouse) · 417-555-0145</span></div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Employment</h3>
+        <div class="dr-field-row"><span class="dr-field-label">Hire date</span><span class="dr-field-value">Nov 12, 2023 · 18 mo tenure</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Status</span><span class="dr-field-value" style="color:var(--green)">Active · full-time</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Position</span><span class="dr-field-value">Delivery Associate</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Station</span><span class="dr-field-value">KMO1 · Springfield</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Driver license</span><span class="dr-field-value">MO · D483-2918-77 · expires Aug 22, 2025</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Background check</span><span class="dr-field-value" style="color:var(--green)">Cleared · Nov 8, 2023</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Drug test</span><span class="dr-field-value" style="color:var(--green)">Cleared · Nov 10, 2023</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">I-9 status</span><span class="dr-field-value" style="color:var(--green)">Verified · Nov 12, 2023</span></div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Pay &amp; tax</h3>
+        <div class="dr-field-row"><span class="dr-field-label">Base pay rate</span><span class="dr-field-value">$18.00 / hr</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">OT rate</span><span class="dr-field-value">$27.00 / hr (1.5×)</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Pay frequency</span><span class="dr-field-value">Weekly · Friday</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">YTD gross earnings</span><span class="dr-field-value">$14,820.00</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">YTD hours</span><span class="dr-field-value">772h regular · 86h OT</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Annualized comp</span><span class="dr-field-value">~$44,800 (incl. OT)</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Federal W-4</span><span class="dr-field-value encrypted">On file · single, 0 allow</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">State W-4 (MO)</span><span class="dr-field-value encrypted">On file</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">SSN</span><span class="dr-field-value encrypted">•••-••-2918 · encrypted</span></div>
+        <div class="dr-field-row"><span class="dr-field-label">Direct deposit</span><span class="dr-field-value encrypted">Bank of America · ••••4521 · encrypted</span></div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Benefits &amp; PTO balance</h3>
+        <div class="dr-grid-3">
+          <div><div class="dr-cycle-stat-label">PTO balance</div><div style="font-size:18px;font-weight:700;color:var(--text)">42 hrs</div><div class="dr-cycle-stat-label">accrual: 1.6h/wk</div></div>
+          <div><div class="dr-cycle-stat-label">Sick balance</div><div style="font-size:18px;font-weight:700;color:var(--text)">24 hrs</div><div class="dr-cycle-stat-label">used 8 of 32 YTD</div></div>
+          <div><div class="dr-cycle-stat-label">Health plan</div><div style="font-size:13px;font-weight:600;color:var(--text);margin-top:4px">Anthem PPO</div><div class="dr-cycle-stat-label">enrolled Dec 1, 2023</div></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Pay history · last 8 weeks</h3>
+        <div class="dr-pay-history">
+          <div class="dr-pay-row">
+            <div><div class="dr-pay-period">Apr 22 – Apr 28</div><div class="dr-pay-meta">47.2h · 7.2h OT · bonus $50</div></div>
+            <div></div>
+            <div><div class="dr-pay-amount">$964.40</div><div class="dr-pay-meta">gross</div></div>
+            <div><div class="dr-pay-amount">$771.07</div><div class="dr-pay-meta">net</div></div>
+          </div>
+          <div class="dr-pay-row">
+            <div><div class="dr-pay-period">Apr 15 – Apr 21</div><div class="dr-pay-meta">42.5h · 2.5h OT</div></div>
+            <div></div>
+            <div><div class="dr-pay-amount">$787.50</div><div class="dr-pay-meta">gross</div></div>
+            <div><div class="dr-pay-amount">$632.18</div><div class="dr-pay-meta">net</div></div>
+          </div>
+          <div class="dr-pay-row">
+            <div><div class="dr-pay-period">Apr 8 – Apr 14</div><div class="dr-pay-meta">40h · 0h OT</div></div>
+            <div></div>
+            <div><div class="dr-pay-amount">$720.00</div><div class="dr-pay-meta">gross</div></div>
+            <div><div class="dr-pay-amount">$580.42</div><div class="dr-pay-meta">net</div></div>
+          </div>
+          <div class="dr-pay-row">
+            <div><div class="dr-pay-period">Apr 1 – Apr 7</div><div class="dr-pay-meta">45h · 5h OT · raise effective</div></div>
+            <div></div>
+            <div><div class="dr-pay-amount">$855.00</div><div class="dr-pay-meta">gross</div></div>
+            <div><div class="dr-pay-amount">$686.18</div><div class="dr-pay-meta">net</div></div>
+          </div>
+        </div>
+        <button class="btn btn-sm" style="margin-top:var(--s-3)">View full pay history</button>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Pay rate history</h3>
+        <div class="dr-pay-history">
+          <div class="dr-pay-row">
+            <div><div class="dr-pay-period">$18.00 / hr</div><div class="dr-pay-meta">Effective Apr 1, 2025 · cycle 14 review · +$0.50</div></div>
+            <div></div>
+            <div></div>
+            <div><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Current</span></div>
+          </div>
+          <div class="dr-pay-row">
+            <div><div class="dr-pay-period">$17.50 / hr</div><div class="dr-pay-meta">Effective Sep 1, 2024 · 90-day raise</div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+          </div>
+          <div class="dr-pay-row">
+            <div><div class="dr-pay-period">$17.00 / hr</div><div class="dr-pay-meta">Hire rate · Nov 12, 2023</div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="detail-section">
-      <div class="detail-section-label">Recent attendance</div>
-      <div class="detail-timeline">
-        <div class="detail-timeline-item"><div class="detail-timeline-dot red"></div><div class="detail-timeline-text">Callout · Friday Apr 25</div><div class="detail-timeline-time">6 days ago</div></div>
-        <div class="detail-timeline-item"><div class="detail-timeline-dot red"></div><div class="detail-timeline-text">Callout · Monday Apr 21</div><div class="detail-timeline-time">10 days ago</div></div>
-        <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Late · Thursday Apr 17</div><div class="detail-timeline-time">2 weeks ago</div></div>
+    <!-- ── PERFORMANCE ── (cycle-by-cycle) -->
+    <div class="dr-tabview" id="dr-tabview-performance">
+      <div class="detail-section">
+        <h3 class="dr-section-title">Cycle history · scorecard breakdown</h3>
+
+        <div class="dr-cycle-card">
+          <div class="dr-cycle-head"><span>Cycle 14 · Apr 30 – May 27</span><span class="dr-cycle-score green">88</span></div>
+          <div class="dr-cycle-stats">
+            <div><div class="dr-cycle-stat-label">DCR</div><div class="dr-cycle-stat-val">99.4%</div></div>
+            <div><div class="dr-cycle-stat-label">Scan compliance</div><div class="dr-cycle-stat-val">98.7%</div></div>
+            <div><div class="dr-cycle-stat-label">Safety events</div><div class="dr-cycle-stat-val" style="color:var(--green)">0</div></div>
+            <div><div class="dr-cycle-stat-label">Hours</div><div class="dr-cycle-stat-val">152h</div></div>
+          </div>
+        </div>
+
+        <div class="dr-cycle-card">
+          <div class="dr-cycle-head"><span>Cycle 13 · Apr 1 – Apr 28</span><span class="dr-cycle-score green">85</span></div>
+          <div class="dr-cycle-stats">
+            <div><div class="dr-cycle-stat-label">DCR</div><div class="dr-cycle-stat-val">99.1%</div></div>
+            <div><div class="dr-cycle-stat-label">Scan compliance</div><div class="dr-cycle-stat-val">98.2%</div></div>
+            <div><div class="dr-cycle-stat-label">Safety events</div><div class="dr-cycle-stat-val" style="color:var(--amber)">1</div></div>
+            <div><div class="dr-cycle-stat-label">Hours</div><div class="dr-cycle-stat-val">168h</div></div>
+          </div>
+        </div>
+
+        <div class="dr-cycle-card">
+          <div class="dr-cycle-head"><span>Cycle 12 · Mar 4 – Mar 31</span><span class="dr-cycle-score amber">76</span></div>
+          <div class="dr-cycle-stats">
+            <div><div class="dr-cycle-stat-label">DCR</div><div class="dr-cycle-stat-val">97.8%</div></div>
+            <div><div class="dr-cycle-stat-label">Scan compliance</div><div class="dr-cycle-stat-val">96.4%</div></div>
+            <div><div class="dr-cycle-stat-label">Safety events</div><div class="dr-cycle-stat-val" style="color:var(--amber)">2</div></div>
+            <div><div class="dr-cycle-stat-label">Hours</div><div class="dr-cycle-stat-val">156h</div></div>
+          </div>
+        </div>
+
+        <div class="dr-cycle-card">
+          <div class="dr-cycle-head"><span>Cycle 11 · Feb 5 – Mar 3</span><span class="dr-cycle-score green">82</span></div>
+          <div class="dr-cycle-stats">
+            <div><div class="dr-cycle-stat-label">DCR</div><div class="dr-cycle-stat-val">98.9%</div></div>
+            <div><div class="dr-cycle-stat-label">Scan compliance</div><div class="dr-cycle-stat-val">97.8%</div></div>
+            <div><div class="dr-cycle-stat-label">Safety events</div><div class="dr-cycle-stat-val">0</div></div>
+            <div><div class="dr-cycle-stat-label">Hours</div><div class="dr-cycle-stat-val">160h</div></div>
+          </div>
+        </div>
+
+        <button class="btn btn-sm" style="margin-top:var(--s-2)">View all 7 cycles</button>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Coaching history · cycle 14</h3>
+        <div class="detail-timeline">
+          <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Recognition · Top safety performer<small>SMS · "Thank you for the great cycle"</small></div><div class="detail-timeline-time">3 days ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">In-person 1:1 · safe driving<small>Topics: following distance · 30 min · scorecard impact discussed</small></div><div class="detail-timeline-time">2 wks ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Safety SMS · hard brake event flagged<small>"Following distance flagged on KMO1-14B"</small></div><div class="detail-timeline-time">3 wks ago</div></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Attendance · last 30 days</h3>
+        <div class="dr-grid-3">
+          <div><div class="dr-cycle-stat-label">Scheduled</div><div style="font-size:18px;font-weight:700">22 days</div></div>
+          <div><div class="dr-cycle-stat-label">Worked</div><div style="font-size:18px;font-weight:700;color:var(--green)">22</div></div>
+          <div><div class="dr-cycle-stat-label">Callouts</div><div style="font-size:18px;font-weight:700;color:var(--green)">0</div></div>
+        </div>
       </div>
     </div>
+
+    <!-- ── SCHEDULE ── -->
+    <div class="dr-tabview" id="dr-tabview-schedule">
+      <div class="detail-section">
+        <h3 class="dr-section-title">Standing weekly pattern</h3>
+        <div class="sched-draw-day-row">
+          <button class="sched-draw-day on"><span class="sched-draw-day-letter">M</span></button>
+          <button class="sched-draw-day on"><span class="sched-draw-day-letter">T</span></button>
+          <button class="sched-draw-day on"><span class="sched-draw-day-letter">W</span></button>
+          <button class="sched-draw-day on"><span class="sched-draw-day-letter">T</span></button>
+          <button class="sched-draw-day on"><span class="sched-draw-day-letter">F</span></button>
+          <button class="sched-draw-day"><span class="sched-draw-day-letter">S</span></button>
+          <button class="sched-draw-day"><span class="sched-draw-day-letter">S</span></button>
+        </div>
+        <div class="dr-grid-2" style="margin-top:var(--s-3)">
+          <div><div class="dr-cycle-stat-label">Min hours/wk</div><div style="font-size:14px;font-weight:600">40</div></div>
+          <div><div class="dr-cycle-stat-label">Max hours/wk</div><div style="font-size:14px;font-weight:600">55</div></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">This week's shifts</h3>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:6px"><span><strong>Tue May 1</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:6px"><span><strong>Wed May 2</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:6px"><span><strong>Thu May 3</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:6px"><span><strong>Fri May 4</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:6px"><span><strong>Sat May 5</strong> · KMO1-22A</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Time off</h3>
+        <div style="font-size:12px;color:var(--text-subtle)">No upcoming time off. Last PTO: Feb 14–18, 2025 (vacation, 5 days)</div>
+        <button class="btn btn-sm" style="margin-top:var(--s-3)">+ Add time off</button>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Vehicle assignment</h3>
+        <div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 0;font-size:12px">
+          <div class="veh-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
+          <div><div style="font-weight:600">VAN-04 · 2023 Mercedes Sprinter</div><div class="dr-cycle-stat-label">87,420 mi · primary since Nov 12, 2023</div></div>
+          <button class="btn btn-sm">View vehicle</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ASSETS ── -->
+    <div class="dr-tabview" id="dr-tabview-assets">
+      <div class="detail-section">
+        <h3 class="dr-section-title">Currently issued</h3>
+        <div class="dr-asset-row">
+          <div class="dr-asset-icon" style="background:linear-gradient(135deg,#146EB4,#2563EB)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/></svg></div>
+          <div><div class="dr-asset-name">iPhone SE</div><div class="dr-asset-id">SN: SE-187-MD · IMEI 49328…</div></div>
+          <div class="dr-asset-since">Issued Nov 12, 2023</div>
+          <span class="dr-asset-status">Active</span>
+        </div>
+        <div class="dr-asset-row">
+          <div class="dr-asset-icon" style="background:linear-gradient(135deg,#16A34A,#22C55E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/></svg></div>
+          <div><div class="dr-asset-name">Fuel card</div><div class="dr-asset-id">•••• 4242 · BP/Shell</div></div>
+          <div class="dr-asset-since">Issued Nov 12, 2023</div>
+          <span class="dr-asset-status">Active</span>
+        </div>
+        <div class="dr-asset-row">
+          <div class="dr-asset-icon" style="background:linear-gradient(135deg,#7C3AED,#A855F7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/></svg></div>
+          <div><div class="dr-asset-name">Key fob</div><div class="dr-asset-id">FOB-04-MD</div></div>
+          <div class="dr-asset-since">Issued Nov 12, 2023</div>
+          <span class="dr-asset-status">Active</span>
+        </div>
+        <div class="dr-asset-row">
+          <div class="dr-asset-icon" style="background:linear-gradient(135deg,#0F172A,#334155)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46L16 2"/></svg></div>
+          <div><div class="dr-asset-name">Uniforms</div><div class="dr-asset-id">2× polos · 2× pants · 1× jacket</div></div>
+          <div class="dr-asset-since">Issued Nov 12, 2023</div>
+          <span class="dr-asset-status">Active</span>
+        </div>
+        <div class="dr-asset-row">
+          <div class="dr-asset-icon" style="background:linear-gradient(135deg,#DC2626,#EF4444)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h20M7 12h2"/></svg></div>
+          <div><div class="dr-asset-name">Scanner</div><div class="dr-asset-id">SCN-12-MD</div></div>
+          <div class="dr-asset-since">Issued Nov 12, 2023</div>
+          <span class="dr-asset-status">Active</span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Asset history</h3>
+        <div class="detail-timeline">
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">Fuel card replaced<small>Old: ••••8174 · New: ••••4242 · reason: card error</small></div><div class="detail-timeline-time">3 mo ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Initial kit issued · 5 items<small>Phone · fuel card · fob · uniforms · scanner</small></div><div class="detail-timeline-time">Nov 12, 2023</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DOCUMENTS ── -->
+    <div class="dr-tabview" id="dr-tabview-documents">
+      <div class="detail-section">
+        <h3 class="dr-section-title">Onboarding documents</h3>
+        <div class="dr-doc-grid">
+          <div class="dr-doc-card" onclick="openDocPreview('I-9 Form · Marcus Davidson')"><div class="dr-doc-name">Form I-9</div><div class="dr-doc-meta">Signed Nov 12, 2023</div><span class="dr-doc-status signed">✓ Signed</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('W-4 Federal · Marcus Davidson')"><div class="dr-doc-name">Form W-4 (Federal)</div><div class="dr-doc-meta">Signed Nov 12, 2023</div><span class="dr-doc-status signed">✓ Signed</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('MO W-4')"><div class="dr-doc-name">Form W-4 (Missouri)</div><div class="dr-doc-meta">Signed Nov 12, 2023</div><span class="dr-doc-status signed">✓ Signed</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('Direct deposit auth')"><div class="dr-doc-name">Direct deposit auth</div><div class="dr-doc-meta">Signed Nov 12, 2023</div><span class="dr-doc-status signed">✓ Signed</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('Employee handbook')"><div class="dr-doc-name">Employee handbook ack</div><div class="dr-doc-meta">Signed Nov 12, 2023</div><span class="dr-doc-status signed">✓ Signed</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('Safety policy ack')"><div class="dr-doc-name">Safety policy ack</div><div class="dr-doc-meta">Signed Nov 12, 2023</div><span class="dr-doc-status signed">✓ Signed</span></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Compliance &amp; verification</h3>
+        <div class="dr-doc-grid">
+          <div class="dr-doc-card" onclick="openDocPreview('Background check report')"><div class="dr-doc-name">Background check</div><div class="dr-doc-meta">Cleared Nov 8, 2023 · Checkr</div><span class="dr-doc-status signed">✓ Cleared</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('Drug test results')"><div class="dr-doc-name">Drug test (pre-employment)</div><div class="dr-doc-meta">Cleared Nov 10, 2023</div><span class="dr-doc-status signed">✓ Cleared</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('Driver license copy')"><div class="dr-doc-name">Driver license</div><div class="dr-doc-meta">Expires Aug 22, 2025</div><span class="dr-doc-status pending">⚠ Renewal in 113d</span></div>
+          <div class="dr-doc-card" onclick="openDocPreview('MVR · Motor Vehicle Record')"><div class="dr-doc-name">MVR (driving record)</div><div class="dr-doc-meta">Pulled Nov 8, 2023</div><span class="dr-doc-status signed">✓ Clean</span></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Photo &amp; emergency</h3>
+        <div class="dr-doc-grid">
+          <div class="dr-doc-card"><div class="dr-doc-name">ID photo</div><div class="dr-doc-meta">For badge / app · uploaded Nov 12</div></div>
+          <div class="dr-doc-card"><div class="dr-doc-name">Emergency contact card</div><div class="dr-doc-meta">Sarah Davidson · 417-555-0145</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ACTIVITY ── -->
+    <div class="dr-tabview" id="dr-tabview-activity">
+      <div class="detail-section">
+        <h3 class="dr-section-title">Manager notes</h3>
+        <div class="dr-note">
+          <div class="dr-note-head"><strong>Ryan Hester</strong><span>3 days ago</span></div>
+          Strong cycle 14 · zero safety events · sent recognition SMS. Considering for top driver bonus pool.
+        </div>
+        <div class="dr-note">
+          <div class="dr-note-head"><strong>Jaime Navarro</strong><span>2 weeks ago</span></div>
+          1:1 covered following-distance feedback from cycle 12. Agreed to focus on KMO1-14B which has narrow stops 22-30.
+        </div>
+        <div class="dr-note">
+          <div class="dr-note-head"><strong>Ryan Hester</strong><span>2 months ago</span></div>
+          90-day review · raise approved $17.00 → $17.50.
+        </div>
+        <button class="btn btn-sm" style="margin-top:var(--s-3)">+ Add note</button>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="dr-section-title">Full timeline</h3>
+        <div class="detail-timeline">
+          <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Recognition SMS<small>"Top safety performer last cycle"</small></div><div class="detail-timeline-time">3 days ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">Pay raise · $17.50 → $18.00<small>+$0.50 · cycle 14 review</small></div><div class="detail-timeline-time">2 wks ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">In-person 1:1<small>Topics: safe driving · 30 min</small></div><div class="detail-timeline-time">2 wks ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Safety SMS · hard brake event<small>KMO1-14B route</small></div><div class="detail-timeline-time">3 wks ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">PTO · vacation Feb 14–18<small>5 days · approved</small></div><div class="detail-timeline-time">2 mo ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">Pay raise · $17.00 → $17.50<small>90-day review</small></div><div class="detail-timeline-time">8 mo ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">90-day review passed<small>Promoted to permanent · benefits enrolled</small></div><div class="detail-timeline-time">8 mo ago</div></div>
+          <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Hired<small>Welcome kit issued · I-9 verified · onboarding day 1 complete</small></div><div class="detail-timeline-time">Nov 12, 2023</div></div>
+        </div>
+      </div>
+    </div>
+
   </div>
+
   <div class="detail-foot">
     <button class="btn" onclick="closeDriverDetail()">Close</button>
-    <button class="btn" onclick="closeDriverDetail();toast('Schedule editor — would open per-driver schedule drawer')">Edit schedule</button>
+    <button class="btn" onclick="closeDriverDetail();openScheduleEdit(document.getElementById('dr-name').textContent.trim())">Edit schedule</button>
+    <button class="btn" onclick="toast('Pay raise modal — would open here')">Pay change</button>
     <button class="btn btn-primary" onclick="closeDriverDetail();openCoachDrawer(document.getElementById('dr-name').textContent.trim())">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       Coach
@@ -9827,15 +10294,32 @@ a{color:inherit;text-decoration:none}
     document.body.style.overflow = '';
   }
 
+  // ─── DRIVER RECORD TABS ───────────────────────────────────
+  function drTab(btn){
+    document.querySelectorAll('.dr-tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    const id = btn.getAttribute('data-tab');
+    document.querySelectorAll('.dr-tabview').forEach(function(v){ v.classList.remove('active'); });
+    const target = document.getElementById('dr-tabview-' + id);
+    if (target) target.classList.add('active');
+  }
+
   // ─── DRIVER DETAIL DRAWER ──────────────────────────────────
   function openDriverDetail(name, station, tenure, score, attendance){
-    document.getElementById('dr-initials').textContent = (name || '').split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase();
-    document.getElementById('dr-name').textContent = name || 'Driver';
-    document.getElementById('dr-meta').textContent = (station ? station + ' · ' : '') + (tenure || '') + ' tenure';
-    document.getElementById('dr-score').textContent = score || '—';
-    document.getElementById('dr-att').textContent = attendance || '100%';
-    document.getElementById('dr-tenure').textContent = tenure || '—';
-    document.getElementById('dr-station').textContent = station || '—';
+    const setText = function(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('dr-initials', (name || '').split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase());
+    setText('dr-name', name || 'Driver');
+    setText('dr-meta', (station ? station + ' · ' : '') + (tenure || '') + ' tenure');
+    setText('dr-score', score || '—');
+    setText('dr-att', attendance || '100%');
+    setText('dr-fullname', name || '—');
+    // Reset to Overview tab
+    document.querySelectorAll('.dr-tab').forEach(function(b){ b.classList.remove('active'); });
+    const overviewTab = document.querySelector('.dr-tab[data-tab="overview"]');
+    if (overviewTab) overviewTab.classList.add('active');
+    document.querySelectorAll('.dr-tabview').forEach(function(v){ v.classList.remove('active'); });
+    const overviewView = document.getElementById('dr-tabview-overview');
+    if (overviewView) overviewView.classList.add('active');
     document.getElementById('driver-drawer').classList.add('open');
     document.getElementById('ap-backdrop').classList.add('open');
     document.body.style.overflow = 'hidden';
