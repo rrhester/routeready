@@ -5724,6 +5724,7 @@ const SUPABASE_HANDLERS = {
       backupName:            'BackupContactName',
       backupEmail:           'BackupContactEmail',
       calComURL:             'CalComURL',
+      calComAPIKey:          'CalComAPIKey',
       hiredMessage:          'HiredMessage',
       messageWindowStart:    'MessageWindowStart',
       messageWindowEnd:      'MessageWindowEnd',
@@ -6277,6 +6278,369 @@ const SUPABASE_HANDLERS = {
       return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
     }
     return data;
+  },
+
+  // getCalSchedule — invokes the cal-schedule Edge Function to load the DSP's
+  // default Cal.com availability schedule. Returns the same shape the Apps
+  // Script version did: { availability:[{days,startTime,endTime}], timeZone,
+  // dateOverrides:[{date,startTime,endTime}] }.
+  getCalSchedule: async () => {
+    const { data, error } = await sb.functions.invoke('cal-schedule', {
+      body: { op: 'get' }
+    });
+    if (error) return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    return data;
+  },
+
+  // updateCalSchedule — pushes availability/overrides back to Cal.com via
+  // the cal-schedule Edge Function. Accepts the same JSON-string params the
+  // Apps Script version took (availability, timeZone, overrides).
+  updateCalSchedule: async (params) => {
+    const { data, error } = await sb.functions.invoke('cal-schedule', {
+      body: {
+        op: 'update',
+        availability: params && params.availability,
+        timeZone:     params && params.timeZone,
+        overrides:    params && params.overrides
+      }
+    });
+    if (error) return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    return data;
+  },
+
+  // closeCycle — archives the current hiring cycle:
+  //   1. counts applicants by funnel stage,
+  //   2. writes one cycle_history row,
+  //   3. increments settings.OrientationCycleNumber.
+  // Returns the shape executeCloseIday() expects:
+  //   {status, cycleNumber, nextCycle, hired, noShow, notHired, stillInPipeline}
+  // If nothing has been decided yet (no Hired / No-Show / Not Hired), returns
+  // {status:'nothing'} so the UI can prompt the user to action results first.
+  closeCycle: async () => {
+    const dspId = await rrGetDspId();
+
+    // Pull applicants for this DSP. Fields: status, attendance, score.
+    const { data: applicants, error: apErr } = await sb
+      .from('applicants')
+      .select('status, attendance, score')
+      .eq('dsp_id', dspId);
+    if (apErr) throw apErr;
+
+    const STATUS_DECIDED  = new Set(['hired','not_hired','no_show']);
+    const STATUS_BOOKED   = new Set(['booked','hired','not_hired','no_show','promoted']);
+    const STATUS_PASSED   = new Set(['passed','waitlist','booked','hired','not_hired','no_show','promoted']);
+    const STATUS_SCREENED = new Set([
+      'screening','passed','failed','waitlist','booked','hired','not_hired','no_show','promoted'
+    ]);
+
+    const isAttended = (a) => a.attendance === 'Attended' || a.status === 'hired';
+    const isNoShow   = (a) => a.attendance === 'No-Show'  || a.status === 'no_show';
+
+    let applied = 0, screened = 0, passed = 0, booked = 0;
+    let attended = 0, noShowed = 0, hired = 0, notHired = 0, decided = 0;
+    let stillInPipeline = 0;
+    let scoreAttSum = 0, scoreAttN = 0;
+    let scoreNsSum = 0, scoreNsN  = 0;
+
+    (applicants || []).forEach(a => {
+      applied++;
+      const s = String(a.status || '').toLowerCase();
+      if (STATUS_SCREENED.has(s)) screened++;
+      if (STATUS_PASSED.has(s))   passed++;
+      if (STATUS_BOOKED.has(s))   booked++;
+      if (STATUS_DECIDED.has(s) || a.attendance) decided++;
+      if (s === 'hired') hired++;
+      if (s === 'not_hired') notHired++;
+      if (isAttended(a)) {
+        attended++;
+        const n = Number(a.score);
+        if (Number.isFinite(n)) { scoreAttSum += n; scoreAttN++; }
+      }
+      if (isNoShow(a)) {
+        noShowed++;
+        const n = Number(a.score);
+        if (Number.isFinite(n)) { scoreNsSum += n; scoreNsN++; }
+      }
+      if (!STATUS_DECIDED.has(s) && !a.attendance && s !== 'failed' && s !== 'filtered') {
+        stillInPipeline++;
+      }
+    });
+
+    if (decided === 0) return { status: 'nothing' };
+
+    // Read current cycle # + target from settings (defaults match Apps Script).
+    const { data: setRows, error: setErr } = await sb
+      .from('settings')
+      .select('key,value')
+      .eq('dsp_id', dspId)
+      .in('key', ['OrientationCycleNumber','HeadcountTarget','OrientationDate','ThrottleMode']);
+    if (setErr) throw setErr;
+    const settingsMap = Object.fromEntries((setRows || []).map(r => [r.key, r.value]));
+    const cycleNumber = parseInt(settingsMap.OrientationCycleNumber, 10) || 1;
+    const target      = parseInt(settingsMap.HeadcountTarget, 10) || 0;
+    const oriDate     = settingsMap.OrientationDate || new Date().toISOString().slice(0,10);
+    const throttle    = settingsMap.ThrottleMode || '';
+
+    const avg = (sum, n) => n > 0 ? Math.round((sum / n) * 10) / 10 : null;
+
+    const { error: histErr } = await sb.from('cycle_history').insert({
+      dsp_id:               dspId,
+      cycle_number:         cycleNumber,
+      orientation_date:     oriDate,
+      target:               target,
+      applied:              applied,
+      screened:             screened,
+      passed:               passed,
+      booked:               booked,
+      attended:             attended,
+      no_showed:            noShowed,
+      avg_score_attended:   avg(scoreAttSum, scoreAttN),
+      avg_score_no_show:    avg(scoreNsSum,  scoreNsN),
+      throttle_modes:       throttle,
+      notes:                ''
+    });
+    if (histErr) throw histErr;
+
+    const nextCycle = cycleNumber + 1;
+    const { error: bumpErr } = await sb.from('settings').upsert(
+      { dsp_id: dspId, key: 'OrientationCycleNumber', value: String(nextCycle) },
+      { onConflict: 'dsp_id,key' }
+    );
+    if (bumpErr) throw bumpErr;
+
+    return {
+      status:          'ok',
+      cycleNumber:     cycleNumber,
+      nextCycle:       nextCycle,
+      hired:           hired,
+      noShow:          noShowed,
+      notHired:        notHired,
+      stillInPipeline: stillInPipeline
+    };
+  },
+
+  // generateCoachingMessage — drafts a 1-2 sentence coaching SMS via the
+  // claude-ai Edge Function. Returns {status:'ok', result:{message}} so
+  // the existing coach-message UI can drop the text straight into the
+  // textarea.
+  generateCoachingMessage: async (params) => {
+    const driverName = (params && params.driver_name) || 'the driver';
+    const category   = (params && params.category)    || 'safety';
+    const severity   = (params && params.severity)    || 'medium';
+    const firstName  = String(driverName).split(' ')[0];
+
+    const prompt =
+      'Write a short, supportive coaching SMS (1-2 sentences, max 240 chars) to a delivery driver. ' +
+      'Driver: ' + firstName + '. Coaching category: ' + category + '. ' +
+      'Severity: ' + severity + '. Plain text only — no greetings beyond the first name, ' +
+      'no sign-off. End with — RouteReady';
+
+    const { data, error } = await sb.functions.invoke('claude-ai', {
+      body: { prompt, max_tokens: 256 }
+    });
+    if (error) return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    if (!data || data.status !== 'ok') return data || { status: 'error', message: 'no response' };
+    return { status: 'ok', result: { message: (data.text || '').trim() } };
+  },
+
+  // logFormalOneOnOne — inserts a coaching_log row of type 'InPerson'
+  // capturing a formal 1:1 meeting. Apps Script returned {status:'ok'}.
+  logFormalOneOnOne: async (params) => {
+    if (!params || !params.transporter_id) return { status: 'error', message: 'transporter_id required' };
+    const dspId = await rrGetDspId();
+    const body = [
+      params.discussed   ? 'Discussed: '   + params.discussed   : '',
+      params.commitment  ? 'Commitment: '  + params.commitment  : '',
+      params.acknowledgment ? 'Acknowledged: ' + params.acknowledgment : '',
+    ].filter(Boolean).join('\n');
+    const row = {
+      dsp_id:         dspId,
+      transporter_id: String(params.transporter_id),
+      driver_name:    params.driver_name || '',
+      type:           'InPerson',
+      message_body:   body,
+      sent_by:        (params.conversation_type || 'in-person') + ' / ' + (params.outcome || 'delivered'),
+      created_at:     params.date ? new Date(params.date).toISOString() : new Date().toISOString(),
+    };
+    const { error } = await sb.from('coaching_log').insert(row);
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // addApplicant — inserts a new applicant row after a duplicate check on
+  // email + phone within the DSP. Returns the same {status} shape Apps
+  // Script's addApplicant did:
+  //   {status:'duplicate', message, existingStage}
+  //   {status:'ok', applicant_id}
+  //   {status:'error', message}
+  addApplicant: async (params) => {
+    if (!params) return { status: 'error', message: 'No params' };
+    const dspId = await rrGetDspId();
+    const email = String(params.email || '').trim();
+    const phone = String(params.phone || '').trim();
+
+    if (email || phone) {
+      const orParts = [];
+      if (email) orParts.push('email.eq.' + email);
+      if (phone) orParts.push('phone.eq.' + phone);
+      const { data: existing, error: dupErr } = await sb
+        .from('applicants')
+        .select('id, status')
+        .eq('dsp_id', dspId)
+        .or(orParts.join(','))
+        .limit(1);
+      if (dupErr) throw dupErr;
+      if (existing && existing.length) {
+        return {
+          status:        'duplicate',
+          message:       'An applicant with that email or phone already exists.',
+          existingStage: existing[0].status || 'unknown'
+        };
+      }
+    }
+
+    const stageMap = {
+      new:        'new',
+      contacted:  'screening',
+      screened:   'screening',
+      passed:     'passed',
+      booked:     'booked',
+      hired:      'hired',
+    };
+    const status = stageMap[String(params.stage || '').toLowerCase()] || 'new';
+
+    const insert = {
+      dsp_id:       dspId,
+      first_name:   params.firstName || '',
+      last_name:    params.lastName  || '',
+      email:        email || null,
+      phone:        phone || null,
+      source:       params.source || 'manual',
+      score:        Number.isFinite(+params.score) ? +params.score : 0,
+      status:       status,
+      ingested_at:  new Date().toISOString(),
+    };
+    if (params.bookingDateTime) insert.booking_time = new Date(params.bookingDateTime).toISOString();
+
+    const { data, error } = await sb.from('applicants').insert(insert).select('id').single();
+    if (error) return { status: 'error', message: error.message };
+    return { status: 'ok', applicant_id: data && data.id };
+  },
+
+  // sendVideoLink — generates the applicant's record.html URL and
+  // optionally texts it to them via the send-sms Edge Function. Returns
+  // the same shape Apps Script returned: {status:'ok', url, sentVia}.
+  // If the applicant has no phone (or Twilio isn't configured yet) we
+  // still return the URL and set sentVia='manual' so the operator can
+  // copy/paste it.
+  sendVideoLink: async (params) => {
+    const email = String((params && params.email) || '').trim();
+    if (!email) return { status: 'error', message: 'email required' };
+    const dspId = await rrGetDspId();
+    const { data: ap, error: apErr } = await sb
+      .from('applicants')
+      .select('id, phone, first_name')
+      .eq('dsp_id', dspId)
+      .eq('email', email)
+      .maybeSingle();
+    if (apErr) throw apErr;
+    if (!ap) return { status: 'error', message: 'No applicant with that email in this DSP' };
+
+    const url = 'https://record.gorouteready.com/?id=' + encodeURIComponent(ap.id);
+
+    let sentVia = 'manual';
+    if (ap.phone) {
+      const message =
+        'Hi' + (ap.first_name ? ' ' + ap.first_name : '') + ', ' +
+        'finish your driver application here: ' + url + ' — RouteReady';
+      const { data: smsRes } = await sb.functions.invoke('send-sms', {
+        body: { email, message }
+      });
+      if (smsRes && smsRes.status === 'ok') sentVia = 'sms';
+    }
+    return { status: 'ok', url, sentVia };
+  },
+
+  // coachDriver — full coaching flow: writes a coaching_log row, optionally
+  // sends an SMS via the send-sms Edge Function (when send_action ===
+  // 'send_and_log'), and stores any attachment metadata. Returns the
+  // shape the coach modal expects: {status:'ok', result:{ok, sms_sent,
+  // sms_error}}.
+  coachDriver: async (params) => {
+    if (!params || !params.transporter_id) return { status: 'error', message: 'transporter_id required' };
+    const dspId = await rrGetDspId();
+
+    // Look up the driver's phone + email so we can route the SMS.
+    const { data: driver, error: dErr } = await sb
+      .from('driver_roster')
+      .select('transporter_id, driver_name, phone_number, email')
+      .eq('dsp_id', dspId)
+      .eq('transporter_id', String(params.transporter_id))
+      .maybeSingle();
+    if (dErr) throw dErr;
+    if (!driver) return { status: 'error', message: 'Driver not found in this DSP' };
+
+    let attachmentsForLog = '';
+    if (params.attachments) {
+      try {
+        const arr = typeof params.attachments === 'string'
+          ? JSON.parse(params.attachments) : params.attachments;
+        if (Array.isArray(arr) && arr.length) {
+          attachmentsForLog = arr.map(a => (a.name || '') + ': ' + (a.url || '')).join('\n');
+        }
+      } catch (_) {}
+    }
+
+    const message = String(params.message || '').trim();
+    const send = (params.send_action || 'log_only') === 'send_and_log';
+
+    let smsSent = false;
+    let smsError = '';
+    if (send) {
+      if (!driver.email) {
+        smsError = 'Driver has no email on file (send-sms looks up by email)';
+      } else {
+        const { data: smsRes } = await sb.functions.invoke('send-sms', {
+          body: { email: driver.email, message }
+        });
+        if (smsRes && smsRes.status === 'ok') smsSent = true;
+        else smsError = (smsRes && smsRes.message) || 'SMS send failed';
+      }
+    }
+
+    const { error: logErr } = await sb.from('coaching_log').insert({
+      dsp_id:         dspId,
+      transporter_id: driver.transporter_id,
+      driver_name:    driver.driver_name || params.driver_name || '',
+      type:           'SMS',
+      message_body:   message + (attachmentsForLog ? '\n\nAttachments:\n' + attachmentsForLog : ''),
+      sent_by:        (params.category || 'general') + ' / ' + (params.severity || 'medium') + (send ? (smsSent ? ' / sms_sent' : ' / sms_failed') : ' / log_only'),
+    });
+    if (logErr) throw logErr;
+
+    return {
+      status: 'ok',
+      result: {
+        ok:        true,
+        sms_sent:  smsSent,
+        sms_error: smsError,
+      }
+    };
+  },
+
+  // sendCoaching — log-then-send variant used by the safety queue + driver
+  // record flows. Wraps coachDriver(send_and_log) under the action name
+  // the older UI buttons use.
+  sendCoaching: async (params) => {
+    return await SUPABASE_HANDLERS.coachDriver({
+      transporter_id: params && params.tid,
+      driver_name:    '',
+      message:        params && params.message,
+      send_action:    'send_and_log',
+      category:       'safety',
+      severity:       'medium',
+      attachments:    null,
+    });
   }
 };
 
@@ -7755,8 +8119,7 @@ async function openVideoTestLink() {
       btn.disabled = false;
       return;
     }
-    const res = await fetch(API + '?action=sendVideoLink&email=' + encodeURIComponent(testEmail));
-    const j = await res.json();
+    const j = await apiCall({ action: 'sendVideoLink', email: testEmail });
     if (j.status === 'ok' && j.url) {
       urlBox.style.display = 'block';
       urlBox.innerHTML = '<strong style="color:#fff">Your test link:</strong><br><a href="' + j.url + '" target="_blank" style="color:var(--bolt2)">' + j.url + '</a><br><span style="color:var(--w50); font-size:10px; margin-top:4px; display:inline-block">We also ' + (j.sentVia === 'sms' ? 'texted' : 'emailed') + ' it to you. Open on your phone to test.</span>';
