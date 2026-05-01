@@ -8,19 +8,15 @@
 // Reads the Anthropic API key from the user's settings row
 // (key='Claude API Key'), falling back to env var ANTHROPIC_API_KEY.
 //
-// Deploy:
-//   npm install -g supabase
-//   supabase login
-//   supabase link --project-ref qkjhkpbnsxiuwmxurcip
-//   supabase functions deploy claude-ai
-//
-// Invoke from dashboard:
-//   const { data } = await sb.functions.invoke('claude-ai', {
-//     body: { prompt, max_tokens: 512, model: 'claude-sonnet-4-20250514' }
-//   });
+// SINGLE FILE — paste into Supabase Studio Edge Functions editor.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });

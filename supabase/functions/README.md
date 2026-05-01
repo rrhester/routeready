@@ -2,30 +2,24 @@
 
 These functions handle the parts of the dashboard that need to run on a server with secrets — currently just the Claude AI integration. More functions (Twilio SMS, Cal.com, R2 uploads) will land here in future phases.
 
-## One-time setup
+## Deploy via Supabase Studio (easiest, no terminal)
+
+1. Open [https://supabase.com/dashboard/project/qkjhkpbnsxiuwmxurcip/functions](https://supabase.com/dashboard/project/qkjhkpbnsxiuwmxurcip/functions)
+2. Click **Deploy a new function**.
+3. Name it exactly: `claude-ai`
+4. Copy the contents of [`claude-ai/index.ts`](./claude-ai/index.ts) and paste into the editor.
+5. Click **Deploy function**.
+
+The function is now live at `https://qkjhkpbnsxiuwmxurcip.supabase.co/functions/v1/claude-ai` and the dashboard knows how to call it via `sb.functions.invoke('claude-ai', ...)`.
+
+## Deploy via CLI (alternative, for power users)
 
 ```bash
-# 1. Install Supabase CLI
 npm install -g supabase
-
-# 2. Log in (opens a browser)
 supabase login
-
-# 3. Link this repo to your Supabase project
-cd /path/to/this/repo
 supabase link --project-ref qkjhkpbnsxiuwmxurcip
-```
-
-## Deploy a function
-
-```bash
 supabase functions deploy claude-ai
 ```
-
-That's it. The function is now live at:
-`https://qkjhkpbnsxiuwmxurcip.supabase.co/functions/v1/claude-ai`
-
-The dashboard already knows how to call it via `sb.functions.invoke('claude-ai', ...)`.
 
 ## How it picks up the API key
 
