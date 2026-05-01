@@ -2638,6 +2638,103 @@ a{color:inherit;text-decoration:none}
 .di-bar-count{font-size:13px;font-weight:600;text-align:right;color:var(--text)}
 
 .di-split{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+
+/* ─────────────────────────────────────────────────────────────
+   CHECKLISTS — recurring task lists (Open / Close / Vehicle)
+   ───────────────────────────────────────────────────────────── */
+.cl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
+.cl-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);cursor:pointer;transition:border-color .12s,box-shadow .12s;
+  display:flex;flex-direction:column;gap:var(--s-3);
+}
+.cl-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+.cl-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.cl-card-icon{
+  width:36px;height:36px;border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.cl-card-icon svg{width:18px;height:18px;stroke-width:2}
+.cl-card-icon.opening{background:linear-gradient(135deg,#F59E0B,#FBBF24)}
+.cl-card-icon.closing{background:linear-gradient(135deg,#0F172A,#1E293B)}
+.cl-card-icon.vehicle{background:linear-gradient(135deg,#146EB4,#2563EB)}
+.cl-card-icon.onboard{background:linear-gradient(135deg,#16A34A,#22C55E)}
+.cl-card-icon.compliance{background:linear-gradient(135deg,#DC2626,#F87171)}
+.cl-card-icon.shift{background:linear-gradient(135deg,#7C3AED,#A855F7)}
+.cl-card-cat{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)}
+.cl-card-name{font-size:14px;font-weight:600;color:var(--text);margin-top:2px}
+.cl-card-meta{font-size:11px;color:var(--text-muted);line-height:1.5;flex:1}
+.cl-card-progress{
+  height:6px;background:var(--canvas);border-radius:3px;overflow:hidden;
+}
+.cl-card-progress-fill{height:100%;background:var(--green);border-radius:3px}
+.cl-card-progress-fill.warn{background:var(--amber)}
+.cl-card-progress-fill.bad{background:var(--red)}
+.cl-card-foot{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:11px;color:var(--text-muted);
+}
+.cl-card-foot strong{color:var(--text);font-weight:600}
+.cl-card-status{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px;
+}
+.cl-card-status.done{background:var(--green-soft);color:var(--green)}
+.cl-card-status.partial{background:var(--amber-soft);color:var(--amber)}
+.cl-card-status.due{background:var(--red-soft);color:var(--red)}
+.cl-card-status.draft{background:var(--canvas);color:var(--text-muted)}
+
+/* Today's status table */
+.cl-status-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.cl-status-table thead th{
+  text-align:left;font-size:10px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;padding:10px 14px;
+  background:var(--canvas);border-bottom:1px solid var(--border);
+}
+.cl-status-table tbody td{padding:14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.cl-status-table tbody tr:last-child td{border-bottom:none}
+.cl-mini-bar{
+  height:8px;background:var(--canvas);border-radius:4px;overflow:hidden;width:120px;display:inline-block;vertical-align:middle;
+}
+.cl-mini-bar-fill{height:100%;background:var(--green);border-radius:4px}
+.cl-mini-bar-fill.warn{background:var(--amber)}
+.cl-mini-bar-fill.bad{background:var(--red)}
+.cl-deadline{font-size:11px;color:var(--text-muted)}
+.cl-deadline.warn{color:var(--amber);font-weight:600}
+.cl-deadline.bad{color:var(--red);font-weight:600}
+
+/* Builder modal */
+.cl-builder{max-width:780px;width:96vw;max-height:92vh}
+.cl-task-row{
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:10px 14px;margin-bottom:6px;
+}
+.cl-task-handle{color:var(--text-subtle);font-size:14px;cursor:grab}
+.cl-task-input{
+  flex:1;border:none;background:transparent;font:inherit;font-size:13px;color:var(--text);outline:none;
+}
+.cl-task-flag{
+  font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;
+  background:var(--canvas);color:var(--text-muted);
+}
+.cl-task-flag.photo{background:var(--accent-soft);color:var(--accent-text)}
+.cl-task-flag.signature{background:#EDE9FE;color:#6D28D9}
+.cl-task-flag.comment{background:var(--amber-soft);color:var(--amber)}
+
+/* Driver app phone — Checklists screen */
+.phone-cl-task{
+  display:grid;grid-template-columns:18px 1fr;gap:8px;align-items:center;padding:6px 0;
+  font-size:11px;border-bottom:1px solid var(--border);
+}
+.phone-cl-task:last-child{border-bottom:none}
+.phone-cl-check{
+  width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border-strong);
+  display:flex;align-items:center;justify-content:center;
+}
+.phone-cl-check.done{background:var(--green);border-color:var(--green);color:#fff}
+.phone-cl-check.done svg{width:11px;height:11px}
+.phone-cl-task.done .phone-cl-text{text-decoration:line-through;color:var(--text-subtle)}
 </style>
 </head>
 <body>
@@ -2700,6 +2797,11 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
         Forms
         <span class="nav-badge" style="background:var(--accent)">3</span>
+      </button>
+      <button class="nav-item" data-view="checklists" onclick="goto('checklists')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Checklists
+        <span class="nav-badge" style="background:var(--amber)">4</span>
       </button>
       <button class="nav-item" data-view="settings" onclick="goto('settings')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -6680,6 +6782,305 @@ a{color:inherit;text-decoration:none}
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
+         CHECKLISTS — recurring task lists (Open / Close / shift)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-checklists">
+      <div class="page">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Checklists</h1>
+            <p class="page-sub">Recurring task lists for opening, closing, vehicle prep, onboarding · 14 active · 4 due now</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
+              Export
+            </button>
+            <button class="btn btn-primary" onclick="openModal('modal-checklist-builder')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Build a checklist
+            </button>
+          </div>
+        </div>
+
+        <div class="subnav">
+          <button class="subnav-item active" data-sub="my" onclick="checklistSub('my')">My checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
+          <button class="subnav-item" data-sub="status" onclick="checklistSub('status')">Today's status <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
+          <button class="subnav-item" data-sub="templates" onclick="checklistSub('templates')">Templates <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">9</span></button>
+        </div>
+
+        <!-- MY CHECKLISTS -->
+        <div class="checklist-tab" id="checklist-tab-my">
+          <div class="cl-grid">
+            <div class="cl-card" onclick="toast('Opens checklist editor with task list + assignee + completion log')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon opening"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/></svg></div>
+                <span class="cl-card-status partial">75% done</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Opening</div>
+                <div class="cl-card-name">Station opening · KMO1</div>
+              </div>
+              <div class="cl-card-meta">12 tasks · daily by 6:30 AM · assigned to opening dispatcher</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:75%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>9 of 12</strong> complete</span><span>Jaime · 6:18 AM</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon closing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
+                <span class="cl-card-status due">Due 7 PM</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Closing</div>
+                <div class="cl-card-name">Station closing · KMO1</div>
+              </div>
+              <div class="cl-card-meta">10 tasks · daily by 7:00 PM · assigned to closing dispatcher</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill warn" style="width:0%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>0 of 10</strong> complete</span><span>Not started yet</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
+                <span class="cl-card-status done">100% today</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Vehicle</div>
+                <div class="cl-card-name">Driver pre-trip walk-around</div>
+              </div>
+              <div class="cl-card-meta">8 tasks · per shift, before route start · all drivers</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:100%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>72 of 72</strong> drivers</span><span>92% on time</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
+                <span class="cl-card-status partial">71 of 78</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Vehicle</div>
+                <div class="cl-card-name">Post-trip vehicle return</div>
+              </div>
+              <div class="cl-card-meta">6 tasks · per shift, on return · all drivers</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:91%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>71 of 78</strong> drivers</span><span>7 still on route</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon onboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                <span class="cl-card-status partial">3 in progress</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Onboarding</div>
+                <div class="cl-card-name">New driver · day 1</div>
+              </div>
+              <div class="cl-card-meta">15 tasks · once per new hire · within 48h of start</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:60%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>Trevor · 12 of 15</strong></span><span>Anders, Davis, Wright</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon shift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/></svg></div>
+                <span class="cl-card-status done">Done</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Shift handoff</div>
+                <div class="cl-card-name">AM → PM dispatcher handoff</div>
+              </div>
+              <div class="cl-card-meta">7 tasks · daily 2:00 PM · between dispatchers</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:100%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>7 of 7</strong> complete</span><span>Jaime → Alex · 2:04 PM</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                <span class="cl-card-status due">Weekly · Fri</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Compliance</div>
+                <div class="cl-card-name">Weekly safety walk</div>
+              </div>
+              <div class="cl-card-meta">11 tasks · weekly Fridays · station manager · photo evidence</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:0%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>0 of 11</strong></span><span>Due in 3 days</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon shift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div>
+                <span class="cl-card-status draft">Draft</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Incident</div>
+                <div class="cl-card-name">Vehicle accident response</div>
+              </div>
+              <div class="cl-card-meta">9 tasks · on incident trigger · driver + dispatch</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:0%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span>Last triggered Apr 18</span><span>by Davidson</span></div>
+              </div>
+            </div>
+
+            <div class="cl-card" onclick="toast('Opens checklist editor')">
+              <div class="cl-card-head">
+                <div class="cl-card-icon compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                <span class="cl-card-status due">Monthly</span>
+              </div>
+              <div>
+                <div class="cl-card-cat">Compliance</div>
+                <div class="cl-card-name">DOT log review · monthly</div>
+              </div>
+              <div class="cl-card-meta">14 tasks · 1st of every month · station manager</div>
+              <div>
+                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:0%"></div></div>
+                <div class="cl-card-foot" style="margin-top:6px"><span><strong>Due May 1</strong></span><span>Today</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TODAY'S STATUS — live monitoring -->
+        <div class="checklist-tab" id="checklist-tab-status" style="display:none">
+          <div style="margin-bottom:var(--s-4);font-size:13px;color:var(--text-muted)">Live view of every checklist due today and who's behind. Auto-flags late submissions to Alerts.</div>
+
+          <table class="cl-status-table">
+            <thead>
+              <tr>
+                <th>Checklist</th>
+                <th>Assignee</th>
+                <th>Progress</th>
+                <th>Deadline</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon opening" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="12" cy="12" r="5"/></svg></div>
+                  <div><div style="font-weight:600">Station opening · KMO1</div><div style="font-size:11px;color:var(--text-subtle)">12 tasks</div></div></div>
+                </td>
+                <td>Jaime Navarro</td>
+                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill" style="width:75%"></div></div> <span style="font-size:11px;color:var(--text-muted)">9/12</span></td>
+                <td><div class="cl-deadline">Done by 6:30 AM</div></td>
+                <td><span class="cl-card-status partial">In progress</span></td>
+                <td><button class="btn btn-sm">View</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon vehicle" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
+                  <div><div style="font-weight:600">Driver pre-trip walk-around</div><div style="font-size:11px;color:var(--text-subtle)">8 tasks</div></div></div>
+                </td>
+                <td>All drivers (78)</td>
+                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill" style="width:92%"></div></div> <span style="font-size:11px;color:var(--text-muted)">72/78</span></td>
+                <td><div class="cl-deadline warn">Before route start</div></td>
+                <td><span class="cl-card-status partial">6 late</span></td>
+                <td><button class="btn btn-sm">View laggards</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon onboard" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="12" cy="7" r="4"/></svg></div>
+                  <div><div style="font-weight:600">New driver · day 1</div><div style="font-size:11px;color:var(--text-subtle)">15 tasks</div></div></div>
+                </td>
+                <td>Trevor Anders</td>
+                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill warn" style="width:80%"></div></div> <span style="font-size:11px;color:var(--text-muted)">12/15</span></td>
+                <td><div class="cl-deadline warn">Within 48h · 4h left</div></td>
+                <td><span class="cl-card-status partial">3 remaining</span></td>
+                <td><button class="btn btn-sm">Nudge</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon closing" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
+                  <div><div style="font-weight:600">Station closing · KMO1</div><div style="font-size:11px;color:var(--text-subtle)">10 tasks</div></div></div>
+                </td>
+                <td>Alex Mendez</td>
+                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill" style="width:0%"></div></div> <span style="font-size:11px;color:var(--text-muted)">0/10</span></td>
+                <td><div class="cl-deadline">Due 7:00 PM</div></td>
+                <td><span class="cl-card-status due">Not started</span></td>
+                <td><button class="btn btn-sm">Remind</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon compliance" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="12" cy="12" r="10"/></svg></div>
+                  <div><div style="font-weight:600">DOT log review · monthly</div><div style="font-size:11px;color:var(--text-subtle)">14 tasks</div></div></div>
+                </td>
+                <td>Ryan Hester</td>
+                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill bad" style="width:0%"></div></div> <span style="font-size:11px;color:var(--text-muted)">0/14</span></td>
+                <td><div class="cl-deadline bad">Due TODAY</div></td>
+                <td><span class="cl-card-status due">Overdue</span></td>
+                <td><button class="btn btn-sm btn-primary">Start now</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TEMPLATES -->
+        <div class="checklist-tab" id="checklist-tab-templates" style="display:none">
+          <div style="margin-bottom:var(--s-4);font-size:13px;color:var(--text-muted)">Pre-built starter checklists for DSPs · click any to copy and edit</div>
+
+          <div class="cl-grid">
+            <div class="cl-card" onclick="toast('Template copied · open in builder to customize')">
+              <div class="cl-card-head"><div class="cl-card-icon opening"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="5"/></svg></div><span class="cl-card-status draft">Template</span></div>
+              <div><div class="cl-card-cat">Opening</div><div class="cl-card-name">Standard Amazon DSP opening</div></div>
+              <div class="cl-card-meta">14 tasks · doors, scanners, vans staged, dispatcher login, route assignments printed</div>
+              <div class="cl-card-foot"><span>Used by <strong>1,800+ DSPs</strong></span></div>
+            </div>
+            <div class="cl-card" onclick="toast('Template copied')">
+              <div class="cl-card-head"><div class="cl-card-icon closing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div><span class="cl-card-status draft">Template</span></div>
+              <div><div class="cl-card-cat">Closing</div><div class="cl-card-name">Standard closing</div></div>
+              <div class="cl-card-meta">10 tasks · all vans returned, scanners docked, fuel checks, dispatcher logout</div>
+              <div class="cl-card-foot"><span>Used by <strong>1,800+ DSPs</strong></span></div>
+            </div>
+            <div class="cl-card" onclick="toast('Template copied')">
+              <div class="cl-card-head"><div class="cl-card-icon vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="3"/></svg></div><span class="cl-card-status draft">Template</span></div>
+              <div><div class="cl-card-cat">Vehicle</div><div class="cl-card-name">DOT pre-trip inspection</div></div>
+              <div class="cl-card-meta">17 tasks · brakes, tires, lights, fluids, mirrors, seat belts. Photo evidence.</div>
+              <div class="cl-card-foot"><span>Used by <strong>2,200+ DSPs</strong></span></div>
+            </div>
+            <div class="cl-card" onclick="toast('Template copied')">
+              <div class="cl-card-head"><div class="cl-card-icon onboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="7" r="4"/></svg></div><span class="cl-card-status draft">Template</span></div>
+              <div><div class="cl-card-cat">Onboarding</div><div class="cl-card-name">New hire day-1</div></div>
+              <div class="cl-card-meta">15 tasks · uniform, scanner, fob, app login, ride-along, paperwork sign-offs</div>
+              <div class="cl-card-foot"><span>Used by <strong>1,500+ DSPs</strong></span></div>
+            </div>
+            <div class="cl-card" onclick="toast('Template copied')">
+              <div class="cl-card-head"><div class="cl-card-icon compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span class="cl-card-status draft">Template</span></div>
+              <div><div class="cl-card-cat">Compliance</div><div class="cl-card-name">Weekly safety walk</div></div>
+              <div class="cl-card-meta">11 tasks · station hazards, first aid, fire ext, lighting, EE protective gear</div>
+              <div class="cl-card-foot"><span>Used by <strong>1,200+ DSPs</strong></span></div>
+            </div>
+            <div class="cl-card" onclick="toast('Template copied')">
+              <div class="cl-card-head"><div class="cl-card-icon shift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="17 1 21 5 17 9"/></svg></div><span class="cl-card-status draft">Template</span></div>
+              <div><div class="cl-card-cat">Shift handoff</div><div class="cl-card-name">Dispatcher shift change</div></div>
+              <div class="cl-card-meta">7 tasks · open issues, callouts, swap requests, route exceptions, alerts handed over</div>
+              <div class="cl-card-foot"><span>Used by <strong>900+ DSPs</strong></span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
          TODAY'S CHECK-IN VIEW (attendance)
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-checkin">
@@ -6852,6 +7253,115 @@ a{color:inherit;text-decoration:none}
 
 <!-- Toast stack -->
 <div class="toast-stack" id="toast-stack"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     CHECKLIST BUILDER MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-checklist-builder" onclick="if(event.target===this)closeModal('modal-checklist-builder')">
+  <div class="modal-card cl-builder">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Build a checklist</p>
+        <p class="modal-sub">Recurring task list · drag tasks to reorder · publish to drivers or staff</p>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-sm">Save draft</button>
+        <button class="btn btn-sm btn-primary" onclick="closeModal('modal-checklist-builder');toast('Checklist published · assignees notified')">Publish</button>
+        <button class="modal-close" onclick="closeModal('modal-checklist-builder')" style="margin-left:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+      <div class="modal-row-2">
+        <div><label class="modal-field-label">Name</label><input class="cd-input" value="Station opening · KMO1" /></div>
+        <div><label class="modal-field-label">Category</label>
+          <select class="cd-input"><option>Opening</option><option>Closing</option><option>Vehicle</option><option>Onboarding</option><option>Compliance</option><option>Shift handoff</option><option>Incident</option></select>
+        </div>
+      </div>
+      <div><label class="modal-field-label">Description (optional)</label><textarea class="cd-textarea" style="min-height:50px">Run through every morning before drivers arrive. All tasks must be complete by 6:30 AM.</textarea></div>
+
+      <div class="modal-row-2">
+        <div>
+          <label class="modal-field-label">Schedule</label>
+          <select class="cd-input"><option>Daily</option><option>Weekly · pick days</option><option>Monthly</option><option>On event (incident, hire)</option><option>On demand</option></select>
+        </div>
+        <div>
+          <label class="modal-field-label">Deadline</label>
+          <input class="cd-input" value="6:30 AM" />
+        </div>
+      </div>
+
+      <div>
+        <label class="modal-field-label">Assigned to</label>
+        <div class="cd-pill-row">
+          <button class="cd-pill active">Opening dispatcher</button>
+          <button class="cd-pill">All drivers</button>
+          <button class="cd-pill">Station manager</button>
+          <button class="cd-pill">All dispatchers</button>
+          <button class="cd-pill">Custom group</button>
+        </div>
+      </div>
+
+      <div>
+        <label class="modal-field-label">Tasks · drag to reorder</label>
+        <div class="cl-task-row">
+          <span class="cl-task-handle">⋮⋮</span>
+          <input class="cl-task-input" value="Unlock station &amp; turn on lights" />
+          <span class="cl-task-flag">Required</span>
+          <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+        </div>
+        <div class="cl-task-row">
+          <span class="cl-task-handle">⋮⋮</span>
+          <input class="cl-task-input" value="Check all 24 vans staged for routes" />
+          <span class="cl-task-flag photo">Photo</span>
+          <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+        </div>
+        <div class="cl-task-row">
+          <span class="cl-task-handle">⋮⋮</span>
+          <input class="cl-task-input" value="Confirm scanners are docked &amp; charged" />
+          <span class="cl-task-flag photo">Photo</span>
+          <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+        </div>
+        <div class="cl-task-row">
+          <span class="cl-task-handle">⋮⋮</span>
+          <input class="cl-task-input" value="Print route sheets &amp; staging map" />
+          <span class="cl-task-flag">Required</span>
+          <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+        </div>
+        <div class="cl-task-row">
+          <span class="cl-task-handle">⋮⋮</span>
+          <input class="cl-task-input" value="Verify driver list against today's schedule" />
+          <span class="cl-task-flag comment">Comment</span>
+          <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+        </div>
+        <div class="cl-task-row">
+          <span class="cl-task-handle">⋮⋮</span>
+          <input class="cl-task-input" value="Pull-out air check on yard" />
+          <span class="cl-task-flag">Required</span>
+          <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+        </div>
+        <div class="cl-task-row">
+          <span class="cl-task-handle">⋮⋮</span>
+          <input class="cl-task-input" value="Sign off on opening checklist" />
+          <span class="cl-task-flag signature">Signature</span>
+          <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+        </div>
+
+        <button class="btn btn-sm" style="margin-top:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add task</button>
+      </div>
+
+      <div>
+        <label class="modal-field-label">Options</label>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" checked />Notify assignee when checklist is due</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" checked />Auto-flag late submissions to Alerts</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" />Require manager review before close-out</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" checked />Save completion log for audit (90 days)</label>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════
      FORM BUILDER MODAL (no-code drag-drop)
@@ -7887,6 +8397,7 @@ a{color:inherit;text-decoration:none}
       okami: 'OKAMI',
       messages: 'Messages',
       forms: 'Forms',
+      checklists: 'Checklists',
       alerts: 'Alerts',
       reports: 'Reports',
       settings: 'Settings',
@@ -7901,6 +8412,7 @@ a{color:inherit;text-decoration:none}
       okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
       forms: '12 published · 47 submissions this week',
+      checklists: '14 active · 4 due now',
       alerts: '8 open · 3 require action',
       reports: 'Auto-generated nightly',
       settings: 'Cardinal Logistics · KMO1',
@@ -8276,6 +8788,14 @@ a{color:inherit;text-decoration:none}
     document.querySelector('#view-fleet .subnav-item[data-sub="' + sub + '"]').classList.add('active');
     document.querySelectorAll('.fleet-tab').forEach(function(v){ v.style.display = 'none'; });
     document.getElementById('fleet-tab-' + sub).style.display = 'block';
+  }
+
+  // ─── CHECKLISTS ───────────────────────────────────────────
+  function checklistSub(sub){
+    document.querySelectorAll('#view-checklists .subnav-item').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('#view-checklists .subnav-item[data-sub="' + sub + '"]').classList.add('active');
+    document.querySelectorAll('.checklist-tab').forEach(function(v){ v.style.display = 'none'; });
+    document.getElementById('checklist-tab-' + sub).style.display = 'block';
   }
 
   // ─── FORMS ─────────────────────────────────────────────────
