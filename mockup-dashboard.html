@@ -1659,6 +1659,99 @@ a{color:inherit;text-decoration:none}
   content:'›';position:absolute;top:14px;right:16px;
   color:var(--text-subtle);font-size:18px;font-weight:300;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   REPORTS DETAIL VIEWS
+   ───────────────────────────────────────────────────────────── */
+.report-back{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);
+  background:transparent;border:none;cursor:pointer;font-family:inherit;padding:0;margin-bottom:10px;
+}
+.report-back:hover{color:var(--text)}
+.report-back svg{width:14px;height:14px;stroke-width:2}
+
+.report-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+.report-event-list{display:flex;flex-direction:column}
+.report-event{
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
+  padding:14px var(--s-5);border-bottom:1px solid var(--border);
+}
+.report-event:last-child{border-bottom:none}
+.report-event-icon{
+  width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.report-event-icon svg{width:14px;height:14px;stroke-width:2}
+.report-event-icon.safety{background:var(--red-soft);color:var(--red)}
+.report-event-icon.coach{background:var(--accent-soft);color:var(--accent-text)}
+.report-event-icon.payout{background:var(--green-soft);color:var(--green)}
+.report-event-name{font-size:13px;font-weight:600;color:var(--text)}
+.report-event-meta{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.report-event-time{font-size:11px;color:var(--text-subtle);white-space:nowrap}
+
+.retention-cohort{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--s-4);
+}
+.retention-cohort-num{font-size:24px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.retention-cohort-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.retention-cohort-detail{font-size:11px;color:var(--text-subtle);margin-top:4px}
+.retention-bar{height:6px;background:var(--canvas);border-radius:3px;margin-top:10px;overflow:hidden}
+.retention-bar-fill{height:100%;background:var(--green);border-radius:3px}
+.retention-bar-fill.warn{background:var(--amber)}
+
+/* Report detail views — show only when active */
+.report-detail-view{display:none}
+.report-detail-view.active{display:block}
+.reports-grid-wrap.hidden{display:none}
+
+/* ─────────────────────────────────────────────────────────────
+   SETTINGS SECTIONS
+   ───────────────────────────────────────────────────────────── */
+.settings-section.hidden{display:none}
+.member-row{
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
+  padding:var(--s-3) 0;
+}
+.member-row + .member-row{border-top:1px solid var(--border)}
+.role-pill{
+  font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;
+  background:var(--canvas);color:var(--text-muted);
+}
+.role-pill.owner{background:var(--accent-soft);color:var(--accent-text)}
+.role-pill.coach{background:#EDE9FE;color:#6D28D9}
+
+.question-row{
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
+  padding:var(--s-3) 0;font-size:13px;
+}
+.question-row + .question-row{border-top:1px solid var(--border)}
+.question-text{color:var(--text)}
+.question-text small{display:block;color:var(--text-subtle);font-size:11px;margin-top:2px}
+
+.crit-band{
+  display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3);align-items:center;
+  padding:14px var(--s-4);border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:8px;
+}
+.crit-band-label{font-size:13px;font-weight:600}
+.crit-band-help{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.crit-band-color{width:8px;height:32px;border-radius:4px}
+.crit-band-color.green{background:var(--green)}
+.crit-band-color.amber{background:var(--amber)}
+.crit-band-color.red{background:var(--red)}
+
+.billing-card{
+  background:linear-gradient(135deg,#0F172A 0%,#1E40AF 100%);
+  color:#fff;padding:var(--s-5);border-radius:var(--r-lg);
+  display:grid;grid-template-columns:1fr auto;gap:var(--s-4);align-items:center;margin-bottom:var(--s-4);
+}
+.billing-plan{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+.billing-name{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:4px 0}
+.billing-price{font-size:13px;color:rgba(255,255,255,.8)}
+.invoice-row{
+  display:grid;grid-template-columns:auto 1fr auto auto auto;gap:var(--s-4);align-items:center;
+  padding:var(--s-3) 0;font-size:13px;
+}
+.invoice-row + .invoice-row{border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -2630,49 +2723,245 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
+        <div class="reports-grid-wrap" id="reports-grid-wrap">
         <div class="reports-grid">
-          <div class="report-card">
+          <div class="report-card" data-report="funnel">
             <div class="report-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
             <div class="report-title">Hiring funnel · Cycle 14</div>
             <div class="report-desc">Conversion rates at each stage, time-to-hire, source breakdown.</div>
             <div class="report-foot"><span>Updated 2h ago</span><a class="card-link">Open →</a></div>
           </div>
 
-          <div class="report-card">
+          <div class="report-card" data-report="coaching">
             <div class="report-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
             <div class="report-title">Coaching log</div>
             <div class="report-desc">All coaching events this cycle by driver, type, and outcome.</div>
             <div class="report-foot"><span>12 entries this week</span><a class="card-link">Open →</a></div>
           </div>
 
-          <div class="report-card">
+          <div class="report-card" data-report="safety">
             <div class="report-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
             <div class="report-title">Safety events</div>
             <div class="report-desc">Incidents, severity, drivers involved, follow-up actions.</div>
             <div class="report-foot"><span>4 events this cycle</span><a class="card-link">Open →</a></div>
           </div>
 
-          <div class="report-card">
+          <div class="report-card" data-report="referrals">
             <div class="report-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
             <div class="report-title">Referral bonuses</div>
             <div class="report-desc">Referrers, owed amounts, payable dates, status.</div>
             <div class="report-foot"><span>$1,200 owed</span><a class="card-link">Open →</a></div>
           </div>
 
-          <div class="report-card">
+          <div class="report-card" data-report="retention">
             <div class="report-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
             <div class="report-title">Driver retention</div>
             <div class="report-desc">30/60/90-day retention rates, attrition reasons.</div>
             <div class="report-foot"><span>87% · 30-day</span><a class="card-link">Open →</a></div>
           </div>
 
-          <div class="report-card">
+          <div class="report-card" data-report="cycles">
             <div class="report-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
             <div class="report-title">Cycle history</div>
             <div class="report-desc">All past cycles with applied/screened/booked/hired counts.</div>
             <div class="report-foot"><span>13 cycles tracked</span><a class="card-link">Open →</a></div>
           </div>
         </div>
+        </div><!-- /reports-grid-wrap -->
+
+        <!-- HIRING FUNNEL DETAIL -->
+        <div class="report-detail-view" id="report-detail-funnel">
+          <button class="report-back" onclick="closeReportDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>All reports</button>
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0">Hiring funnel · Cycle 14</h2>
+          <p class="page-sub" style="margin:0 0 var(--s-5) 0">Conversion rates at each stage · time to hire · source breakdown</p>
+
+          <div class="report-stat-grid">
+            <div class="kpi-card"><div class="kpi-label">Applied</div><div class="kpi-value">48</div><div class="kpi-sub">total this cycle</div></div>
+            <div class="kpi-card"><div class="kpi-label">Screened</div><div class="kpi-value">30<span class="kpi-value-fraction"> · 62%</span></div><div class="kpi-sub">conversion from applied</div></div>
+            <div class="kpi-card"><div class="kpi-label">Booked</div><div class="kpi-value">17<span class="kpi-value-fraction"> · 57%</span></div><div class="kpi-sub">conversion from screened</div></div>
+            <div class="kpi-card"><div class="kpi-label">Hired</div><div class="kpi-value">10<span class="kpi-value-fraction"> · 21%</span></div><div class="kpi-sub">overall conversion</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3 class="card-title">Source breakdown</h3></div>
+            <div class="funnel">
+              <div class="funnel-row s1"><div class="funnel-label">Indeed</div><div class="funnel-bar"><div class="funnel-fill" style="width:75%">36 applicants · 7 hires</div></div><div class="funnel-count">19%</div></div>
+              <div class="funnel-row s2"><div class="funnel-label">Referrals</div><div class="funnel-bar"><div class="funnel-fill" style="width:25%">8 · 2 hires</div></div><div class="funnel-count">25%</div></div>
+              <div class="funnel-row s3"><div class="funnel-label">Walk-in</div><div class="funnel-bar"><div class="funnel-fill" style="width:8%">3 · 1 hire</div></div><div class="funnel-count">33%</div></div>
+              <div class="funnel-row s4"><div class="funnel-label">Job fair</div><div class="funnel-bar"><div class="funnel-fill" style="width:3%">1 · 0</div></div><div class="funnel-count">0%</div></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:var(--s-3)">
+            <div class="card-head"><h3 class="card-title">Time to hire</h3></div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-4)">
+              <div><div class="trend-item-label">Average</div><div class="trend-item-value">9.2 days</div><div class="trend-item-spark"></div></div>
+              <div><div class="trend-item-label">Median</div><div class="trend-item-value">8 days</div><div class="trend-item-spark"></div></div>
+              <div><div class="trend-item-label">Fastest</div><div class="trend-item-value">3 days</div><div class="trend-item-spark"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- COACHING LOG DETAIL -->
+        <div class="report-detail-view" id="report-detail-coaching">
+          <button class="report-back" onclick="closeReportDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>All reports</button>
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0">Coaching log</h2>
+          <p class="page-sub" style="margin:0 0 var(--s-5) 0">12 events this week · 8 SMS, 4 in-person</p>
+
+          <div class="card">
+            <div class="report-event-list">
+              <div class="report-event">
+                <div class="report-event-icon coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                <div><div class="report-event-name">Marcus Davidson · Safety SMS</div><div class="report-event-meta">"Following distance flagged. Discussed Tuesday 1:1." · by Ryan</div></div>
+                <span class="flag safety">Safety</span>
+                <div class="report-event-time">3 days ago</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div>
+                <div><div class="report-event-name">Tasha Reyes · In-person 1:1</div><div class="report-event-meta">Topics: attendance, scan compliance · 30 min · by Ryan</div></div>
+                <span class="flag attendance">Attendance</span>
+                <div class="report-event-time">5 days ago</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                <div><div class="report-event-name">Kerwin Whitfield · Quality SMS</div><div class="report-event-meta">"Scorecard slipping over last 2 weeks." · by Ryan</div></div>
+                <span class="flag scorecard">Quality</span>
+                <div class="report-event-time">1 week ago</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon coach" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div><div class="report-event-name">Camille Foster · Recognition SMS</div><div class="report-event-meta">"Top safety performer last cycle. Thank you." · by Ryan</div></div>
+                <span class="flag" style="background:var(--green-soft);color:var(--green)">Recognition</span>
+                <div class="report-event-time">2 weeks ago</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SAFETY EVENTS DETAIL -->
+        <div class="report-detail-view" id="report-detail-safety">
+          <button class="report-back" onclick="closeReportDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>All reports</button>
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0">Safety events</h2>
+          <p class="page-sub" style="margin:0 0 var(--s-5) 0">4 events this cycle · 1 high severity, 3 medium</p>
+
+          <div class="card">
+            <div class="report-event-list">
+              <div class="report-event">
+                <div class="report-event-icon safety"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+                <div><div class="report-event-name">Marcus Davidson · Hard brake event</div><div class="report-event-meta">KMO1-14B · Following distance &lt; 1.5s · GPS event flagged</div></div>
+                <span class="flag safety">High</span>
+                <div class="report-event-time">3 days ago</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon safety"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+                <div><div class="report-event-name">Tasha Reyes · Speed event</div><div class="report-event-meta">KMO2-08C · 5+ mph over · 2 occurrences this week</div></div>
+                <span class="flag" style="background:var(--amber-soft);color:var(--amber)">Medium</span>
+                <div class="report-event-time">5 days ago</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon safety"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+                <div><div class="report-event-name">Jordan Beckett · Late return</div><div class="report-event-meta">KMO3-04D · 38 min late · Customer complaint logged</div></div>
+                <span class="flag" style="background:var(--amber-soft);color:var(--amber)">Medium</span>
+                <div class="report-event-time">1 week ago</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- REFERRAL BONUSES DETAIL -->
+        <div class="report-detail-view" id="report-detail-referrals">
+          <button class="report-back" onclick="closeReportDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>All reports</button>
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0">Referral bonuses</h2>
+          <p class="page-sub" style="margin:0 0 var(--s-5) 0">$1,200 owed · 4 paid this quarter · $300 per successful referral</p>
+
+          <div class="report-stat-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="kpi-card"><div class="kpi-label">Owed</div><div class="kpi-value">$1,200</div><div class="kpi-sub"><span class="kpi-pip amber"></span>4 referrers awaiting payout</div></div>
+            <div class="kpi-card"><div class="kpi-label">Paid this quarter</div><div class="kpi-value">$1,200</div><div class="kpi-sub"><span class="kpi-pip green"></span>4 payouts</div></div>
+            <div class="kpi-card"><div class="kpi-label">Total program impact</div><div class="kpi-value">8 hires</div><div class="kpi-sub">via referrals this year</div></div>
+          </div>
+
+          <div class="card">
+            <div class="report-event-list">
+              <div class="report-event">
+                <div class="report-event-icon payout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                <div><div class="report-event-name">Camille Foster → Brianna Cole</div><div class="report-event-meta">Brianna hired May 1 · Payable May 31 (30 days)</div></div>
+                <span class="flag" style="background:var(--amber-soft);color:var(--amber)">Owed $300</span>
+                <div class="report-event-time">In 30d</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon payout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                <div><div class="report-event-name">Devon Patterson → Trevor Anders</div><div class="report-event-meta">Trevor hired Apr 27 · Payable May 27</div></div>
+                <span class="flag" style="background:var(--amber-soft);color:var(--amber)">Owed $300</span>
+                <div class="report-event-time">In 26d</div>
+              </div>
+              <div class="report-event">
+                <div class="report-event-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div><div class="report-event-name">Kerwin Whitfield → Lena Whitcomb</div><div class="report-event-meta">Lena hired Apr 24 · Paid May 24</div></div>
+                <span class="flag" style="background:var(--green-soft);color:var(--green)">Paid $300</span>
+                <div class="report-event-time">Paid</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RETENTION DETAIL -->
+        <div class="report-detail-view" id="report-detail-retention">
+          <button class="report-back" onclick="closeReportDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>All reports</button>
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0">Driver retention</h2>
+          <p class="page-sub" style="margin:0 0 var(--s-5) 0">Cohort-based retention · why drivers leave · who stays</p>
+
+          <div class="report-stat-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="retention-cohort">
+              <div class="retention-cohort-label">30-day retention</div>
+              <div class="retention-cohort-num">87%</div>
+              <div class="retention-cohort-detail">26 of 30 last cycle</div>
+              <div class="retention-bar"><div class="retention-bar-fill" style="width:87%"></div></div>
+            </div>
+            <div class="retention-cohort">
+              <div class="retention-cohort-label">60-day retention</div>
+              <div class="retention-cohort-num">74%</div>
+              <div class="retention-cohort-detail">22 of 30 last cycle</div>
+              <div class="retention-bar"><div class="retention-bar-fill warn" style="width:74%"></div></div>
+            </div>
+            <div class="retention-cohort">
+              <div class="retention-cohort-label">90-day retention</div>
+              <div class="retention-cohort-num">68%</div>
+              <div class="retention-cohort-detail">20 of 30 last cycle</div>
+              <div class="retention-bar"><div class="retention-bar-fill warn" style="width:68%"></div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3 class="card-title">Why drivers left (last 90 days)</h3></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:grid;grid-template-columns:140px 1fr 50px;gap:14px;align-items:center"><span style="font-size:12px;color:var(--text-muted)">Quit voluntarily</span><div style="height:18px;background:var(--canvas);border-radius:4px;overflow:hidden"><div style="height:100%;width:60%;background:var(--accent);border-radius:4px"></div></div><span style="font-size:13px;font-weight:600">6</span></div>
+              <div style="display:grid;grid-template-columns:140px 1fr 50px;gap:14px;align-items:center"><span style="font-size:12px;color:var(--text-muted)">Coached out</span><div style="height:18px;background:var(--canvas);border-radius:4px;overflow:hidden"><div style="height:100%;width:30%;background:var(--amber);border-radius:4px"></div></div><span style="font-size:13px;font-weight:600">3</span></div>
+              <div style="display:grid;grid-template-columns:140px 1fr 50px;gap:14px;align-items:center"><span style="font-size:12px;color:var(--text-muted)">No-show / NCNS</span><div style="height:18px;background:var(--canvas);border-radius:4px;overflow:hidden"><div style="height:100%;width:10%;background:var(--red);border-radius:4px"></div></div><span style="font-size:13px;font-weight:600">1</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CYCLE HISTORY DETAIL -->
+        <div class="report-detail-view" id="report-detail-cycles">
+          <button class="report-back" onclick="closeReportDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>All reports</button>
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0">Cycle history</h2>
+          <p class="page-sub" style="margin:0 0 var(--s-5) 0">13 cycles tracked · 4-week orientation cycles</p>
+
+          <div class="card">
+            <table class="table">
+              <thead><tr><th>Cycle</th><th>Dates</th><th>Applied</th><th>Screened</th><th>Booked</th><th>Hired</th><th>Conversion</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Cycle 14</strong></td><td>Apr 30 – May 27</td><td>48</td><td>30</td><td>17</td><td>10*</td><td>21%*</td></tr>
+                <tr><td>Cycle 13</td><td>Apr 1 – Apr 28</td><td>52</td><td>34</td><td>19</td><td>11</td><td>21%</td></tr>
+                <tr><td>Cycle 12</td><td>Mar 4 – Mar 31</td><td>45</td><td>28</td><td>16</td><td>9</td><td>20%</td></tr>
+                <tr><td>Cycle 11</td><td>Feb 5 – Mar 3</td><td>38</td><td>22</td><td>14</td><td>7</td><td>18%</td></tr>
+                <tr><td>Cycle 10</td><td>Jan 8 – Feb 4</td><td>41</td><td>26</td><td>15</td><td>9</td><td>22%</td></tr>
+              </tbody>
+            </table>
+            <div style="font-size:11px;color:var(--text-subtle);padding:10px 16px">* Cycle 14 in progress</div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -2701,7 +2990,7 @@ a{color:inherit;text-decoration:none}
           </nav>
 
           <div>
-            <div class="settings-section">
+            <div class="settings-section" data-set="workspace">
               <div class="settings-section-head">
                 <h2 class="settings-section-title">Workspace</h2>
                 <p class="settings-section-sub">Basic information about your DSP.</p>
@@ -2736,7 +3025,7 @@ a{color:inherit;text-decoration:none}
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section hidden" data-set="integrations">
               <div class="settings-section-head">
                 <h2 class="settings-section-title">Integrations</h2>
                 <p class="settings-section-sub">Connected services that power the dashboard.</p>
@@ -2775,7 +3064,7 @@ a{color:inherit;text-decoration:none}
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section hidden" data-set="sms">
               <div class="settings-section-head">
                 <h2 class="settings-section-title">SMS &amp; messaging</h2>
                 <p class="settings-section-sub">Quiet hours, opt-out handling, default templates.</p>
@@ -2806,6 +3095,146 @@ a{color:inherit;text-decoration:none}
                 <div><input class="form-input" value="— Ryan, Cardinal Logistics" /></div>
               </div>
             </div>
+
+            <!-- TEAM SECTION -->
+            <div class="settings-section hidden" data-set="team">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Team</h2>
+                <p class="settings-section-sub">Manage who has access to RouteReady and what they can do.</p>
+              </div>
+              <div class="member-row">
+                <div class="dsp-avatar" style="width:32px;height:32px;font-size:11px">RH</div>
+                <div><div style="font-size:13px;font-weight:600">Ryan Hester</div><div style="font-size:11px;color:var(--text-subtle)">ryan@cardinallogistics.com · you</div></div>
+                <span class="role-pill owner">Owner</span>
+                <button class="btn btn-sm">Edit</button>
+              </div>
+              <div class="member-row">
+                <div class="dsp-avatar" style="width:32px;height:32px;font-size:11px;background:linear-gradient(135deg,#7C3AED,#A855F7)">JN</div>
+                <div><div style="font-size:13px;font-weight:600">Jaime Navarro</div><div style="font-size:11px;color:var(--text-subtle)">jaime@cardinallogistics.com · added 2 mo ago</div></div>
+                <span class="role-pill coach">Coach</span>
+                <button class="btn btn-sm">Edit</button>
+              </div>
+              <div class="member-row">
+                <div class="dsp-avatar" style="width:32px;height:32px;font-size:11px;background:linear-gradient(135deg,#16A34A,#22C55E)">AM</div>
+                <div><div style="font-size:13px;font-weight:600">Alex Mendez</div><div style="font-size:11px;color:var(--text-subtle)">alex@cardinallogistics.com · invite pending</div></div>
+                <span class="role-pill">Viewer</span>
+                <button class="btn btn-sm">Resend</button>
+              </div>
+              <div style="margin-top:var(--s-3)">
+                <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Invite team member</button>
+              </div>
+            </div>
+
+            <!-- HIRING CRITERIA SECTION -->
+            <div class="settings-section hidden" data-set="hiring">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Hiring criteria</h2>
+                <p class="settings-section-sub">Score thresholds, deal-breakers, and required answers. Drives applicant tier and routing.</p>
+              </div>
+
+              <div style="margin-bottom:var(--s-4)">
+                <h4 style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 8px 0">Score bands</h4>
+                <div class="crit-band">
+                  <div class="crit-band-color green"></div>
+                  <div><div class="crit-band-label">Priority tier · 7–9</div><div class="crit-band-help">Auto-flag for fast-track Cal.com booking.</div></div>
+                  <input class="rule-input" value="7" />
+                </div>
+                <div class="crit-band">
+                  <div class="crit-band-color amber"></div>
+                  <div><div class="crit-band-label">Standard tier · 4–6</div><div class="crit-band-help">Standard screening + booking flow.</div></div>
+                  <input class="rule-input" value="4" />
+                </div>
+                <div class="crit-band">
+                  <div class="crit-band-color red"></div>
+                  <div><div class="crit-band-label">Low tier · 0–3</div><div class="crit-band-help">Hold for waitlist or auto-decline (configurable).</div></div>
+                  <input class="rule-input" value="3" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div><div class="form-label">Auto-fail on</div><div class="form-help">Applicants with these answers are auto-disqualified.</div></div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="cd-pill active">Not authorized to work</span><span class="cd-pill active">No valid driver license</span><span class="cd-pill active">Cannot lift 50 lbs</span><span class="cd-pill">Recent violations</span></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Minimum days available</div><div class="form-help">Drivers must be willing to work this many days/week to qualify.</div></div>
+                <div><input class="form-input" value="4" style="max-width:80px" /></div>
+              </div>
+            </div>
+
+            <!-- SCREENING QUESTIONS SECTION -->
+            <div class="settings-section hidden" data-set="screening">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Screening questions</h2>
+                <p class="settings-section-sub">Library of 14 questions sent via SMS. Drivers answer in 5–10 minutes.</p>
+              </div>
+              <div>
+                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Are you authorized to work in the United States?<small>Yes/No · auto-fail if No</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
+                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Do you have a valid driver license?<small>Yes/No · auto-fail if No</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
+                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Can you safely lift 50 lbs repeatedly?<small>Yes/No · auto-fail if No</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
+                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Which days are you available to work?<small>Multi-select · scoring +0–3</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
+                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">When can you start?<small>Single-select · scoring +0–3</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
+                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Have you had any moving violations in the last 3 years?<small>Yes/No · custom score</small></div><span class="role-pill">Optional</span><button class="btn btn-sm">Edit</button></div>
+              </div>
+              <div style="margin-top:var(--s-3)">
+                <button class="btn">+ Add question</button>
+                <button class="btn">Browse library (28 more)</button>
+              </div>
+            </div>
+
+            <!-- VIDEO SCREENING SECTION -->
+            <div class="settings-section hidden" data-set="video">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Video screening</h2>
+                <p class="settings-section-sub">Optional 60-second video introduction from applicants. Helps you screen demeanor before interview.</p>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Enable video screening</div><div class="form-help">Applicants who pass screening get a Cal.com link AND a video record link.</div></div>
+                <div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Video prompt</div><div class="form-help">Question shown to applicant before they record. Keep it 1–2 sentences.</div></div>
+                <div><textarea class="form-input" style="max-width:380px;min-height:60px">In 60 seconds, tell us why you'd be a good fit for Cardinal Logistics and what makes you reliable.</textarea></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Video duration limit</div><div class="form-help">Maximum recording length, in seconds.</div></div>
+                <div><input class="form-input" value="60" style="max-width:80px" /></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Storage</div><div class="form-help">Where video recordings live. Supabase Storage by default.</div></div>
+                <div style="font-size:12px;color:var(--text-muted)">Supabase Storage · 14 videos stored · ~280 MB used</div>
+              </div>
+            </div>
+
+            <!-- BILLING SECTION -->
+            <div class="settings-section hidden" data-set="billing">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Billing</h2>
+                <p class="settings-section-sub">Subscription, invoices, and payment method.</p>
+              </div>
+
+              <div class="billing-card">
+                <div>
+                  <div class="billing-plan">Premium plan</div>
+                  <div class="billing-name">RouteReady Pro</div>
+                  <div class="billing-price">$249/mo · billed monthly · next charge May 30</div>
+                </div>
+                <button class="btn" style="background:#fff;color:#0F172A;border-color:transparent">Manage subscription</button>
+              </div>
+
+              <h4 style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-4) 0 8px 0">Recent invoices</h4>
+              <div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Apr 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Mar 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Feb 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
+              </div>
+
+              <h4 style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-5) 0 8px 0">Payment method</h4>
+              <div style="background:var(--canvas);border-radius:var(--r-md);padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span style="background:#1A1F2E;color:#fff;padding:4px 8px;border-radius:4px;font-size:10px;font-weight:700">VISA</span>•••• 4242</div>
+                <button class="btn btn-sm">Update</button>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -5002,8 +5431,9 @@ a{color:inherit;text-decoration:none}
     const id = btn.getAttribute('data-set');
     document.querySelectorAll('.settings-nav-item').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
-    const cfg = SETTINGS_SECTIONS[id] || { title:'Settings', sub:'' };
-    toast('Switched to: ' + cfg.title);
+    document.querySelectorAll('.settings-section[data-set]').forEach(function(s){ s.classList.add('hidden'); });
+    const target = document.querySelector('.settings-section[data-set="' + id + '"]');
+    if (target) target.classList.remove('hidden');
   }
 
   // ─── ALERT TABS FILTER ─────────────────────────────────────
@@ -5014,8 +5444,21 @@ a{color:inherit;text-decoration:none}
     toast('Filtered to: ' + text);
   }
 
-  // ─── REPORT CARD ───────────────────────────────────────────
-  function openReport(name){ toast('Opening: ' + name + ' (report detail page would render here)'); }
+  // ─── REPORT DETAIL VIEWS ───────────────────────────────────
+  function openReport(reportId){
+    const wrap = document.getElementById('reports-grid-wrap');
+    if (wrap) wrap.classList.add('hidden');
+    document.querySelectorAll('.report-detail-view').forEach(function(v){ v.classList.remove('active'); });
+    const target = document.getElementById('report-detail-' + reportId);
+    if (target) target.classList.add('active');
+    window.scrollTo({top:0,behavior:'instant'});
+  }
+  function closeReportDetail(){
+    document.querySelectorAll('.report-detail-view').forEach(function(v){ v.classList.remove('active'); });
+    const wrap = document.getElementById('reports-grid-wrap');
+    if (wrap) wrap.classList.remove('hidden');
+    window.scrollTo({top:0,behavior:'instant'});
+  }
 
   // ─── UNIVERSAL ACTION FALLBACK ─────────────────────────────
   // Catches any remaining buttons that don't have explicit handlers,
@@ -5083,8 +5526,12 @@ a{color:inherit;text-decoration:none}
       if (card.dataset.detailWired) return;
       card.dataset.detailWired = '1';
       card.addEventListener('click', function(){
-        const t = card.querySelector('.report-title');
-        openReport(t ? t.textContent : 'Report');
+        const reportId = card.getAttribute('data-report');
+        if (reportId) openReport(reportId);
+        else {
+          const t = card.querySelector('.report-title');
+          toast('Opening: ' + (t ? t.textContent : 'Report'));
+        }
       });
     });
   }
