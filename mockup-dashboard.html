@@ -408,6 +408,161 @@ a{color:inherit;text-decoration:none}
 }
 .mockup-banner strong{color:#FCD34D;font-weight:700}
 .mockup-banner a{color:#93C5FD;text-decoration:underline;text-underline-offset:2px}
+
+/* ─────────────────────────────────────────────────────────────
+   COACH DRAWER (right-side slide-out)
+   ───────────────────────────────────────────────────────────── */
+.coach-trigger{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 10px;border-radius:var(--r-md);
+  background:var(--canvas);border:1px solid var(--border);
+  font-size:12px;font-weight:500;color:var(--text-muted);
+  margin-right:var(--s-2);cursor:pointer;
+}
+.coach-trigger:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
+.coach-trigger svg{width:13px;height:13px;stroke-width:2;color:var(--accent-text)}
+.coach-trigger-kbd{
+  font-size:10px;font-weight:600;background:#fff;border:1px solid var(--border);
+  padding:1px 5px;border-radius:4px;color:var(--text-subtle);margin-left:4px;
+}
+
+.coach-row-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 10px;border-radius:var(--r-md);font-size:12px;font-weight:500;
+  background:var(--accent-soft);color:var(--accent-text);border:1px solid transparent;cursor:pointer;
+}
+.coach-row-btn:hover{background:#146EB422}
+.coach-row-btn svg{width:12px;height:12px;stroke-width:2}
+
+.coach-backdrop{
+  position:fixed;inset:0;background:rgba(15,23,42,.32);
+  opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:50;
+}
+.coach-backdrop.open{opacity:1;pointer-events:auto}
+
+.coach-drawer{
+  position:fixed;top:0;right:0;bottom:0;width:480px;max-width:92vw;
+  background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:-12px 0 32px rgba(15,23,42,.08);
+  z-index:60;transform:translateX(100%);transition:transform .22s cubic-bezier(.32,.72,.4,1);
+  display:flex;flex-direction:column;
+}
+.coach-drawer.open{transform:translateX(0)}
+
+.cd-head{
+  padding:var(--s-4) var(--s-5);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+}
+.cd-head-title{font-size:14px;font-weight:600;color:var(--text)}
+.cd-head-sub{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.cd-close{
+  width:28px;height:28px;border-radius:var(--r-md);background:transparent;border:none;
+  color:var(--text-subtle);display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.cd-close:hover{background:var(--surface-hover);color:var(--text)}
+
+.cd-body{flex:1;overflow-y:auto;padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-5)}
+
+.cd-driver{
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--s-3) var(--s-4);display:flex;align-items:center;gap:var(--s-3);
+}
+.cd-driver-avatar{
+  width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#146EB4,#2563EB);
+  color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+.cd-driver-name{font-size:13px;font-weight:600;color:var(--text)}
+.cd-driver-meta{font-size:11px;color:var(--text-muted);margin-top:1px}
+.cd-driver-change{
+  margin-left:auto;font-size:11px;color:var(--accent-text);font-weight:500;
+  background:transparent;border:none;cursor:pointer;
+}
+
+.cd-driver-search{
+  width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--r-md);
+  font-size:13px;background:var(--surface);color:var(--text);font-family:inherit;
+}
+.cd-driver-search:focus{outline:none;border-color:var(--accent)}
+.cd-driver-search::placeholder{color:var(--text-subtle)}
+
+.cd-segments{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:2px;
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:3px;
+}
+.cd-segment{
+  padding:7px 8px;font-size:12px;font-weight:500;color:var(--text-muted);
+  background:transparent;border:none;border-radius:5px;cursor:pointer;text-align:center;
+  transition:background .12s,color .12s;
+}
+.cd-segment:hover{color:var(--text)}
+.cd-segment.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
+
+.cd-field-label{
+  font-size:11px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;display:block;
+}
+.cd-pill-row{display:flex;flex-wrap:wrap;gap:6px}
+.cd-pill{
+  padding:6px 12px;border-radius:14px;border:1px solid var(--border);background:var(--surface);
+  font-size:12px;font-weight:500;color:var(--text-muted);cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.cd-pill:hover{background:var(--surface-hover);color:var(--text)}
+.cd-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:#146EB433;font-weight:600}
+
+.cd-textarea-wrap{position:relative}
+.cd-textarea{
+  width:100%;min-height:120px;padding:10px 12px;
+  border:1px solid var(--border-strong);border-radius:var(--r-md);
+  font-size:13px;font-family:inherit;color:var(--text);background:var(--surface);
+  resize:vertical;line-height:1.55;
+}
+.cd-textarea:focus{outline:none;border-color:var(--accent)}
+.cd-textarea::placeholder{color:var(--text-subtle)}
+.cd-textarea-meta{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:6px;font-size:11px;color:var(--text-subtle);
+}
+
+.cd-ai-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 10px;border-radius:14px;
+  background:linear-gradient(135deg,#146EB4 0%,#2563EB 100%);
+  color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;
+}
+.cd-ai-btn:hover{filter:brightness(1.05)}
+.cd-ai-btn svg{width:12px;height:12px}
+
+.cd-context{
+  background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r-md);
+  padding:10px 12px;font-size:12px;color:#92400E;line-height:1.5;
+  display:flex;gap:8px;align-items:flex-start;
+}
+.cd-context svg{width:14px;height:14px;flex-shrink:0;margin-top:1px}
+.cd-context strong{font-weight:600;color:#78350F}
+
+.cd-attach{
+  border:1px dashed var(--border-strong);border-radius:var(--r-md);
+  padding:12px;display:flex;align-items:center;gap:10px;
+  color:var(--text-muted);font-size:12px;cursor:pointer;
+}
+.cd-attach:hover{background:var(--canvas);color:var(--text);border-color:var(--accent)}
+.cd-attach svg{width:14px;height:14px;stroke-width:2}
+
+.cd-foot{
+  border-top:1px solid var(--border);padding:var(--s-4) var(--s-5);
+  display:flex;align-items:center;gap:var(--s-2);justify-content:flex-end;background:var(--surface);
+}
+.cd-foot-left{margin-right:auto;font-size:11px;color:var(--text-subtle)}
+
+/* In-person 1:1 specific */
+.cd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+.cd-input{
+  width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--r-sm);
+  font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);
+}
+.cd-input:focus{outline:none;border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -485,6 +640,11 @@ a{color:inherit;text-decoration:none}
         Search drivers, applicants…
         <span class="search-kbd">⌘K</span>
       </div>
+      <button class="coach-trigger" onclick="openCoachDrawer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Coach driver
+        <span class="coach-trigger-kbd">C</span>
+      </button>
       <button class="icon-btn" aria-label="Notifications">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span class="dot"></span>
@@ -624,7 +784,10 @@ a{color:inherit;text-decoration:none}
                   <div class="perf-detail">Score 62 · 2 missed days · KMO1 route</div>
                 </div>
                 <span class="flag safety">Safety</span>
-                <button class="btn btn-sm">Review</button>
+                <button class="coach-row-btn" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags this cycle')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Coach
+                </button>
               </div>
               <div class="perf-row">
                 <div>
@@ -632,7 +795,10 @@ a{color:inherit;text-decoration:none}
                   <div class="perf-detail">Score 68 · 1 incident · KMO2 route</div>
                 </div>
                 <span class="flag attendance">Attendance</span>
-                <button class="btn btn-sm">Review</button>
+                <button class="coach-row-btn" onclick="openCoachDrawer('Tasha Reyes','attendance','1 attendance incident this cycle')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Coach
+                </button>
               </div>
               <div class="perf-row">
                 <div>
@@ -640,7 +806,10 @@ a{color:inherit;text-decoration:none}
                   <div class="perf-detail">Score 71 · Scorecard slipping · KMO1</div>
                 </div>
                 <span class="flag scorecard">Scorecard</span>
-                <button class="btn btn-sm">Review</button>
+                <button class="coach-row-btn" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over last 2 weeks')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Coach
+                </button>
               </div>
               <div class="perf-row">
                 <div>
@@ -648,7 +817,10 @@ a{color:inherit;text-decoration:none}
                   <div class="perf-detail">Score 73 · Late returns · KMO3</div>
                 </div>
                 <span class="flag scorecard">Scorecard</span>
-                <button class="btn btn-sm">Review</button>
+                <button class="coach-row-btn" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns in last 7 days')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Coach
+                </button>
               </div>
               <div class="perf-row">
                 <div>
@@ -656,7 +828,10 @@ a{color:inherit;text-decoration:none}
                   <div class="perf-detail">Score 74 · 1 callout · KMO2</div>
                 </div>
                 <span class="flag attendance">Attendance</span>
-                <button class="btn btn-sm">Review</button>
+                <button class="coach-row-btn" onclick="openCoachDrawer('Asha Thornton','attendance','1 callout this cycle')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Coach
+                </button>
               </div>
             </div>
           </div>
@@ -839,6 +1014,187 @@ a{color:inherit;text-decoration:none}
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     COACH DRIVER DRAWER (single source of truth for all coaching)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="coach-backdrop" id="cd-backdrop" onclick="closeCoachDrawer()"></div>
+<aside class="coach-drawer" id="cd-drawer" aria-label="Coach driver">
+  <div class="cd-head">
+    <div>
+      <div class="cd-head-title">Coach a driver</div>
+      <div class="cd-head-sub">Logged to driver record · sent via SMS if you choose</div>
+    </div>
+    <button class="cd-close" onclick="closeCoachDrawer()" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <div class="cd-body">
+
+    <!-- Driver (selected state) -->
+    <div class="cd-driver" id="cd-driver-selected" style="display:none">
+      <div class="cd-driver-avatar" id="cd-driver-initials">RH</div>
+      <div>
+        <div class="cd-driver-name" id="cd-driver-name">—</div>
+        <div class="cd-driver-meta" id="cd-driver-meta">—</div>
+      </div>
+      <button class="cd-driver-change" onclick="cdShowSearch()">Change</button>
+    </div>
+
+    <!-- Driver search (initial state) -->
+    <div id="cd-driver-search-wrap">
+      <label class="cd-field-label">Driver</label>
+      <input class="cd-driver-search" type="text" placeholder="Search drivers by name…" oninput="cdSearchInput(this.value)" />
+      <div id="cd-search-results" style="display:none;margin-top:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);overflow:hidden;font-size:13px"></div>
+    </div>
+
+    <!-- Action segments -->
+    <div>
+      <label class="cd-field-label">Action</label>
+      <div class="cd-segments">
+        <button class="cd-segment active" data-seg="sms" onclick="cdSetSegment('sms')">SMS coach</button>
+        <button class="cd-segment" data-seg="inperson" onclick="cdSetSegment('inperson')">In-person 1:1</button>
+        <button class="cd-segment" data-seg="pull" onclick="cdSetSegment('pull')">Pull from route</button>
+        <button class="cd-segment" data-seg="suspend" onclick="cdSetSegment('suspend')">Suspend</button>
+      </div>
+    </div>
+
+    <!-- Recent context (auto-shown when driver has issues) -->
+    <div class="cd-context" id="cd-context" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div><strong>Recent context:</strong> <span id="cd-context-text">—</span></div>
+    </div>
+
+    <!-- SMS view -->
+    <div id="cd-view-sms" class="cd-view">
+      <div>
+        <label class="cd-field-label">Category</label>
+        <div class="cd-pill-row">
+          <button class="cd-pill active" data-cat="safety" onclick="cdSetPill(this,'cat')">Safety</button>
+          <button class="cd-pill" data-cat="quality" onclick="cdSetPill(this,'cat')">Quality</button>
+          <button class="cd-pill" data-cat="behavior" onclick="cdSetPill(this,'cat')">Behavior</button>
+          <button class="cd-pill" data-cat="other" onclick="cdSetPill(this,'cat')">Other</button>
+        </div>
+      </div>
+
+      <div style="margin-top:var(--s-5)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label class="cd-field-label" style="margin-bottom:0">Message to driver</label>
+          <button class="cd-ai-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.36 7.36L12 16.71l-6.17 4.51 2.36-7.36L2 9.36h7.61z"/></svg>
+            Help me write this
+          </button>
+        </div>
+        <div class="cd-textarea-wrap">
+          <textarea class="cd-textarea" id="cd-message" placeholder="Type the message, or tap Help me write this for an AI draft based on the driver's recent data."></textarea>
+          <div class="cd-textarea-meta">
+            <span id="cd-charcount">0 chars</span>
+            <span>SMS will send to +1 417 555 0142</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cd-attach">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        Attach a coaching guide or file (optional)
+      </div>
+    </div>
+
+    <!-- In-person view -->
+    <div id="cd-view-inperson" class="cd-view" style="display:none">
+      <div class="cd-grid2">
+        <div>
+          <label class="cd-field-label">When</label>
+          <input type="datetime-local" class="cd-input" />
+        </div>
+        <div>
+          <label class="cd-field-label">Outcome</label>
+          <select class="cd-input">
+            <option>Coaching delivered</option>
+            <option>Driver no-show</option>
+            <option>Refused to sign</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:var(--s-4)">
+        <label class="cd-field-label">Topics covered</label>
+        <div class="cd-pill-row">
+          <button class="cd-pill" onclick="cdTogglePill(this)">Safe driving</button>
+          <button class="cd-pill" onclick="cdTogglePill(this)">DCR</button>
+          <button class="cd-pill" onclick="cdTogglePill(this)">Attendance</button>
+          <button class="cd-pill" onclick="cdTogglePill(this)">Conduct</button>
+          <button class="cd-pill" onclick="cdTogglePill(this)">Scan compliance</button>
+        </div>
+      </div>
+      <div style="margin-top:var(--s-4)">
+        <label class="cd-field-label">Notes</label>
+        <textarea class="cd-textarea" placeholder="What was discussed? What did you agree on?"></textarea>
+      </div>
+    </div>
+
+    <!-- Pull view -->
+    <div id="cd-view-pull" class="cd-view" style="display:none">
+      <div class="cd-grid2">
+        <div>
+          <label class="cd-field-label">Pull date</label>
+          <input type="date" class="cd-input" />
+        </div>
+        <div>
+          <label class="cd-field-label">Reason</label>
+          <select class="cd-input">
+            <option>Safety risk</option>
+            <option>Repeated quality issues</option>
+            <option>Failed coaching follow-up</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:var(--s-4)">
+        <label class="cd-field-label">Driver-facing message (optional SMS)</label>
+        <textarea class="cd-textarea" placeholder="Notify the driver they're being pulled from tomorrow's route…"></textarea>
+      </div>
+    </div>
+
+    <!-- Suspend view -->
+    <div id="cd-view-suspend" class="cd-view" style="display:none">
+      <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:#FECACA;color:#991B1B">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div><strong>Suspending a driver</strong> removes them from all routes, ends their app access, and notifies HR. This is a logged HR event.</div>
+      </div>
+      <div class="cd-grid2" style="margin-top:var(--s-4)">
+        <div>
+          <label class="cd-field-label">Effective</label>
+          <input type="date" class="cd-input" />
+        </div>
+        <div>
+          <label class="cd-field-label">Type</label>
+          <select class="cd-input">
+            <option>Indefinite</option>
+            <option>3 days</option>
+            <option>5 days</option>
+            <option>Pending termination</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:var(--s-4)">
+        <label class="cd-field-label">Reason (required)</label>
+        <textarea class="cd-textarea" placeholder="Document the reason — this is part of the HR record."></textarea>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="cd-foot">
+    <div class="cd-foot-left">⌘ + Enter to send</div>
+    <button class="btn" onclick="closeCoachDrawer()">Cancel</button>
+    <button class="btn" id="cd-save-btn" onclick="closeCoachDrawer()">Save to record</button>
+    <button class="btn btn-primary" id="cd-send-btn" onclick="closeCoachDrawer()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Send SMS
+    </button>
+  </div>
+</aside>
+
 <script>
   function goto(view){
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
@@ -852,6 +1208,97 @@ a{color:inherit;text-decoration:none}
     document.getElementById('tb-context').textContent = contexts[view] || '';
     window.scrollTo({top:0,behavior:'instant'});
   }
+
+  // ─── COACH DRAWER ──────────────────────────────────────────
+  var MOCK_DRIVERS = [
+    {name:'Marcus Davidson', meta:'KMO1 · Score 62 · 18 mo tenure'},
+    {name:'Tasha Reyes',     meta:'KMO2 · Score 68 · 9 mo tenure'},
+    {name:'Kerwin Whitfield',meta:'KMO1 · Score 71 · 24 mo tenure'},
+    {name:'Jordan Beckett',  meta:'KMO3 · Score 73 · 6 mo tenure'},
+    {name:'Asha Thornton',   meta:'KMO2 · Score 74 · 14 mo tenure'},
+    {name:'Devon Patterson', meta:'KMO3 · Score 79 · 11 mo tenure'},
+    {name:'Camille Foster',  meta:'KMO1 · Score 82 · 22 mo tenure'},
+  ];
+
+  function openCoachDrawer(driverName, category, contextText){
+    var drawer = document.getElementById('cd-drawer');
+    var backdrop = document.getElementById('cd-backdrop');
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    if (driverName) {
+      cdSelectDriver(driverName);
+    } else {
+      cdShowSearch();
+    }
+    if (category) cdSetCategoryByValue(category);
+    if (contextText) {
+      document.getElementById('cd-context').style.display = 'flex';
+      document.getElementById('cd-context-text').textContent = contextText;
+    } else {
+      document.getElementById('cd-context').style.display = 'none';
+    }
+  }
+  function closeCoachDrawer(){
+    document.getElementById('cd-drawer').classList.remove('open');
+    document.getElementById('cd-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  function cdSelectDriver(name){
+    var d = MOCK_DRIVERS.find(function(x){ return x.name === name; }) || {name:name, meta:'Driver record'};
+    var initials = d.name.split(' ').map(function(p){ return p[0]; }).join('').slice(0,2).toUpperCase();
+    document.getElementById('cd-driver-initials').textContent = initials;
+    document.getElementById('cd-driver-name').textContent = d.name;
+    document.getElementById('cd-driver-meta').textContent = d.meta;
+    document.getElementById('cd-driver-selected').style.display = 'flex';
+    document.getElementById('cd-driver-search-wrap').style.display = 'none';
+  }
+  function cdShowSearch(){
+    document.getElementById('cd-driver-selected').style.display = 'none';
+    document.getElementById('cd-driver-search-wrap').style.display = 'block';
+    var input = document.querySelector('.cd-driver-search');
+    input.value = '';
+    setTimeout(function(){ input.focus(); }, 50);
+  }
+  function cdSearchInput(q){
+    var results = document.getElementById('cd-search-results');
+    if (!q) { results.style.display = 'none'; return; }
+    var matches = MOCK_DRIVERS.filter(function(d){ return d.name.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+    results.style.display = matches.length ? 'block' : 'none';
+    results.innerHTML = matches.slice(0,5).map(function(d){
+      return '<div style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background=\'var(--canvas)\'" onmouseout="this.style.background=\'\'" onclick="cdSelectDriver(\'' + d.name + '\')"><div style="font-weight:600;color:var(--text)">' + d.name + '</div><div style="font-size:11px;color:var(--text-subtle);margin-top:1px">' + d.meta + '</div></div>';
+    }).join('');
+  }
+  function cdSetSegment(seg){
+    document.querySelectorAll('.cd-segment').forEach(function(s){ s.classList.remove('active'); });
+    document.querySelector('.cd-segment[data-seg="' + seg + '"]').classList.add('active');
+    ['sms','inperson','pull','suspend'].forEach(function(s){
+      document.getElementById('cd-view-' + s).style.display = (s === seg) ? 'block' : 'none';
+    });
+    var sendBtn = document.getElementById('cd-send-btn');
+    if (seg === 'sms') sendBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send SMS';
+    else if (seg === 'inperson') sendBtn.innerHTML = 'Log 1:1';
+    else if (seg === 'pull') sendBtn.innerHTML = 'Pull from route';
+    else if (seg === 'suspend') sendBtn.innerHTML = 'Suspend driver';
+  }
+  function cdSetPill(el, group){
+    el.parentElement.querySelectorAll('.cd-pill').forEach(function(p){ p.classList.remove('active'); });
+    el.classList.add('active');
+  }
+  function cdTogglePill(el){ el.classList.toggle('active'); }
+  function cdSetCategoryByValue(cat){
+    var el = document.querySelector('.cd-pill[data-cat="' + cat + '"]');
+    if (el) cdSetPill(el, 'cat');
+  }
+
+  // Keyboard: 'C' opens drawer, Esc closes
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') closeCoachDrawer();
+    if (e.key === 'c' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      openCoachDrawer();
+    }
+  });
 </script>
 
 </body>
