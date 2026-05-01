@@ -8,6 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <meta name="color-scheme" content="light only">
 <meta name="theme-color" content="#FFFFFF">
+<!-- Supabase JS client (Phase A) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   color-scheme: light only;
@@ -3875,6 +3877,23 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 </head>
 <body class="light">
 
+<!-- ── RouteReady Auth Gate (Phase A) ──────────────────────── -->
+<div id="rr-auth-gate" style="position:fixed;inset:0;z-index:99999;background:#0F1419;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;color:#fff">
+  <div style="background:#1A1F26;border:1px solid #2A3038;border-radius:16px;padding:32px;width:380px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div style="font-family:'DM Serif Display',serif;font-size:28px;margin-bottom:6px">RouteReady</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:24px">Sign in to your dashboard</div>
+    <form id="rr-auth-form" autocomplete="on">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.5);margin-bottom:6px">Email</label>
+      <input type="email" id="rr-auth-email" required autocomplete="username" style="width:100%;padding:11px 14px;background:#10161D;border:1px solid #2A3038;border-radius:8px;color:#fff;font-size:14px;margin-bottom:16px;font-family:inherit;box-sizing:border-box" />
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.5);margin-bottom:6px">Password</label>
+      <input type="password" id="rr-auth-password" required autocomplete="current-password" style="width:100%;padding:11px 14px;background:#10161D;border:1px solid #2A3038;border-radius:8px;color:#fff;font-size:14px;margin-bottom:20px;font-family:inherit;box-sizing:border-box" />
+      <button type="submit" id="rr-auth-submit" style="width:100%;padding:12px;background:#146EB4;border:none;border-radius:8px;color:#fff;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit">Sign in</button>
+      <div id="rr-auth-error" style="margin-top:14px;font-size:12px;color:#F87171;min-height:1em"></div>
+    </form>
+  </div>
+</div>
+<!-- ────────────────────────────────────────────────────────── -->
+
 <div id="confetti-container"></div>
 
 <div id="loading">
@@ -5120,9 +5139,1153 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 <span id="m-screened-sub" style="display:none"></span>
 
 <script>
+// ── Supabase client + auth gate (Phase A) ────────────────────────────
+const SUPABASE_URL = 'https://qkjhkpbnsxiuwmxurcip.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_M4UehtnadYgq2RAGlzTiRw__z6SjIWb';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
+
+(async function rrAuthGate(){
+  const gate = document.getElementById('rr-auth-gate');
+  const form = document.getElementById('rr-auth-form');
+  const emailEl = document.getElementById('rr-auth-email');
+  const pwdEl = document.getElementById('rr-auth-password');
+  const errEl = document.getElementById('rr-auth-error');
+  const btn = document.getElementById('rr-auth-submit');
+
+  function showGate(){ if (gate) gate.style.display = 'flex'; }
+  function hideGate(){ if (gate) gate.style.display = 'none'; }
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { hideGate(); return; }
+  showGate();
+
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    const { error } = await sb.auth.signInWithPassword({
+      email: emailEl.value.trim(),
+      password: pwdEl.value
+    });
+    btn.disabled = false; btn.textContent = 'Sign in';
+    if (error) { errEl.textContent = error.message; return; }
+    hideGate();
+    location.reload();
+  });
+})();
+
+// Sign-out helper — call rrSignOut() from console or wire to a button later
+async function rrSignOut(){ await sb.auth.signOut(); location.reload(); }
+
+// ── apiCall shim — Supabase first, GAS fallback ──────────────────────
 const API = 'https://script.google.com/macros/s/AKfycbwiWxrTv5ulBLP0sYT9kAhoPMW4KEO4agLn2Jk8e1wW4l8689ttOxOywKGQG1USittn/exec';
 
+// Cache the authenticated user's dsp_id so writes can include it.
+let _rrDspId = null;
+async function rrGetDspId() {
+  if (_rrDspId) return _rrDspId;
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await sb
+    .from('profiles')
+    .select('dsp_id')
+    .eq('user_id', user.id)
+    .single();
+  if (error || !data) throw new Error('No profile row for this user');
+  _rrDspId = data.dsp_id;
+  return _rrDspId;
+}
+
+// Phase B handlers — each returns the EXACT shape the existing Apps Script
+// endpoint returns, so dashboard consumers don't need to change.
+const SUPABASE_HANDLERS = {
+
+  // weeklyTotals — Apps Script returns: {status:'ok', week_start, week_end,
+  // incidents, drivers_involved, quality_list_count, by_type, days_uploaded_flags}
+  weeklyTotals: async () => {
+    const { data, error } = await sb.rpc('weekly_totals');
+    if (error) throw error;
+    const row = (data && data[0]) || {};
+    return {
+      status: 'ok',
+      week_start: row.week_start || null,
+      week_end:   row.week_end   || null,
+      incidents:           row.incidents           || 0,
+      drivers_involved:    row.drivers_involved    || 0,
+      quality_list_count:  row.quality_list_count  || 0,
+      by_type:             row.by_type             || {},
+      days_uploaded_flags: row.days_uploaded_flags || [false,false,false,false,false,false,false]
+    };
+  },
+
+  // getDriverRoster — Apps Script returns {status:'ok', result: {drivers:[...]}}
+  // where each driver is {transporter_id, driver_name, phone_number, first_seen_date, status}
+  // Note: Apps Script status values are title-case ("Active", "Pre-onboarding", etc.)
+  // Supabase enum is lower-case. Map back to title-case for compatibility.
+  getDriverRoster: async () => {
+    const { data, error } = await sb
+      .from('driver_roster')
+      .select('transporter_id, driver_name, phone_number, first_seen_date, status')
+      .order('driver_name', { ascending: true });
+    if (error) throw error;
+    const STATUS_MAP = {
+      pre_onboarding: 'Pre-onboarding',
+      onboarding:    'Onboarding',
+      active:        'Active',
+      inactive:      'Inactive',
+      terminated:    'Terminated'
+    };
+    const drivers = (data || []).map(d => ({
+      transporter_id:  d.transporter_id,
+      driver_name:     d.driver_name,
+      phone_number:    d.phone_number || '',
+      first_seen_date: d.first_seen_date || '',
+      status:          STATUS_MAP[d.status] || d.status || 'Active'
+    }));
+    return { status: 'ok', result: { drivers } };
+  },
+
+  // getReferralSettings — Apps Script returns {on, outreachDay, bonusAmount, payableDay}
+  getReferralSettings: async () => {
+    const { data, error } = await sb
+      .from('settings')
+      .select('key, value')
+      .in('key', ['ReferralProgramOn','ReferralOutreachDay','ReferralBonusAmount','ReferralBonusPayableDay']);
+    if (error) throw error;
+    const m = {};
+    (data || []).forEach(r => { m[r.key] = r.value; });
+    return {
+      on:          String(m.ReferralProgramOn || 'false').toLowerCase() === 'true',
+      outreachDay: parseInt(m.ReferralOutreachDay || '7', 10) || 7,
+      bonusAmount: parseFloat(m.ReferralBonusAmount || '300') || 300,
+      payableDay:  parseInt(m.ReferralBonusPayableDay || '30', 10) || 30
+    };
+  },
+
+  // coachingQueue — Apps Script returns {status:'ok', date, drivers:[{transporter_id,
+  // driver_name, events:[{metric_type}], already_coached, pattern_tag}]}
+  // Supabase RPC returns event_count + metric_types[]; we synthesize an events array
+  // of the right length so existing consumers (which read d.events.length) still work.
+  coachingQueue: async (params) => {
+    const date = (params && params.date) || null;
+    const { data, error } = await sb.rpc('coaching_queue_for_date',
+      date ? { p_target_date: date } : {});
+    if (error) throw error;
+    const rows = data || [];
+    const drivers = rows.map(r => {
+      const total = Number(r.event_count) || 0;
+      const types = r.metric_types || [];
+      const events = Array.from({ length: total }, (_, i) => ({
+        metric_type: types.length ? types[i % types.length] : 'Other'
+      }));
+      return {
+        transporter_id: r.transporter_id,
+        driver_name:    r.driver_name,
+        events,
+        already_coached: !!r.already_coached,
+        pattern_tag:    r.pattern_tag || 'CLEAR'
+      };
+    });
+    const targetDate = (rows[0] && rows[0].target_date) || date || null;
+    return { status: 'ok', date: targetDate, drivers };
+  },
+
+  // getMorningPerformance — Apps Script returns {status:'ok', result:<jsonb>}
+  // Supabase morning_performance() returns the same well-formed jsonb directly.
+  getMorningPerformance: async () => {
+    const { data, error } = await sb.rpc('morning_performance');
+    if (error) throw error;
+    return { status: 'ok', result: data };
+  },
+
+  // getScreeningQuestions — Apps Script returns {status:'ok', questions, totalSlots:8, library}
+  // Source: question_bank table (library) + screening_selections per-DSP (questions)
+  getScreeningQuestions: async () => {
+    const [qb, sel] = await Promise.all([
+      sb.from('question_bank')
+        .select('id, category, label, default_filter, amber_warn')
+        .order('id'),
+      sb.from('screening_selections')
+        .select('slot_order, question_id, source, custom_text, filter_override')
+        .order('slot_order')
+    ]);
+    if (qb.error) throw qb.error;
+    if (sel.error) throw sel.error;
+
+    const library = (qb.data || []).map(r => ({
+      id:            r.id,
+      category:      r.category || '',
+      label:         r.label    || '',
+      defaultFilter: !!r.default_filter,
+      amberWarn:     r.amber_warn || ''
+    }));
+    const libraryById = {};
+    library.forEach(q => { libraryById[q.id] = q; });
+
+    const mySelections = (sel.data || []).slice().sort((a, b) =>
+      (a.slot_order || 0) - (b.slot_order || 0));
+
+    let questions;
+    if (mySelections.length === 0) {
+      const starterIds = ['q_age21', 'q_workauth', 'q_license', 'q_10hrshift'];
+      questions = starterIds.map((id, idx) => {
+        const libq = libraryById[id];
+        if (!libq) return null;
+        return {
+          slotOrder:  idx + 1,
+          questionId: id,
+          source:     'library',
+          label:      libq.label,
+          filter:     libq.defaultFilter,
+          amberWarn:  libq.amberWarn,
+          category:   libq.category
+        };
+      }).filter(q => q);
+    } else {
+      questions = mySelections.map(s => {
+        if (s.source === 'custom') {
+          return {
+            slotOrder:  s.slot_order,
+            questionId: s.question_id,
+            source:     'custom',
+            label:      s.custom_text || '',
+            filter:     s.filter_override === true,
+            amberWarn:  '',
+            category:   'Custom'
+          };
+        }
+        const libq = libraryById[s.question_id];
+        if (!libq) return null;
+        const filterFinal = s.filter_override === true ? true
+          : s.filter_override === false ? false
+          : libq.defaultFilter;
+        return {
+          slotOrder:  s.slot_order,
+          questionId: s.question_id,
+          source:     'library',
+          label:      libq.label,
+          filter:     filterFinal,
+          amberWarn:  libq.amberWarn,
+          category:   libq.category
+        };
+      }).filter(q => q);
+    }
+    return { status: 'ok', questions, totalSlots: 8, library };
+  },
+
+  // exportDataCounts — Apps Script returns {applicants, hired, history, bonus}
+  exportDataCounts: async () => {
+    const [a, h, hist, b] = await Promise.all([
+      sb.from('applicants').select('id', { count: 'exact', head: true }),
+      sb.from('applicants').select('id', { count: 'exact', head: true }).eq('status', 'hired'),
+      sb.from('cycle_history').select('id', { count: 'exact', head: true }),
+      sb.from('referrals').select('id', { count: 'exact', head: true })
+    ]);
+    return {
+      applicants: a.count || 0,
+      hired:      h.count || 0,
+      history:    hist.count || 0,
+      bonus:      b.count || 0
+    };
+  },
+
+  // decisionViewTiered — Apps Script returns {status:'ok', result: <output of getDecisionViewTiered>}
+  // Maps to Supabase rpc('decision_view_tiered_counts'): single row of
+  // {tier_1, tier_2, tier_3, total_flagged, clean, fleet_size}
+  decisionViewTiered: async (params) => {
+    const win = parseInt((params && params.window_days) || '30', 10) || 30;
+    const { data, error } = await sb.rpc('decision_view_tiered_counts', { p_window_days: win });
+    if (error) throw error;
+    const row = (data && data[0]) || {};
+    return {
+      status: 'ok',
+      result: {
+        tier_1:        Number(row.tier_1)        || 0,
+        tier_2:        Number(row.tier_2)        || 0,
+        tier_3:        Number(row.tier_3)        || 0,
+        total_flagged: Number(row.total_flagged) || 0,
+        clean:         Number(row.clean)         || 0,
+        fleet_size:    Number(row.fleet_size)    || 0
+      }
+    };
+  },
+
+  // bonusReport — Apps Script returns full bucketed referral payload
+  bonusReport: async () => {
+    const [refsResp, settingsResp, dspResp] = await Promise.all([
+      sb.from('referrals').select('id, referred_name, referred_email, referrer_name, applied_date, hired_date, payable_date, paid_date, amount, status'),
+      sb.from('settings').select('key, value').in('key',
+        ['ReferralProgramOn','ReferralOutreachDay','ReferralBonusAmount','ReferralBonusPayableDay']),
+      sb.from('settings').select('value').eq('key','DSPName').maybeSingle()
+    ]);
+    if (refsResp.error) throw refsResp.error;
+    const rows = refsResp.data || [];
+    const settingsMap = {};
+    (settingsResp.data || []).forEach(r => { settingsMap[r.key] = r.value; });
+    const settings = {
+      on:          String(settingsMap.ReferralProgramOn || 'false').toLowerCase() === 'true',
+      outreachDay: parseInt(settingsMap.ReferralOutreachDay || '7', 10) || 7,
+      bonusAmount: parseFloat(settingsMap.ReferralBonusAmount || '300') || 300,
+      payableDay:  parseInt(settingsMap.ReferralBonusPayableDay || '30', 10) || 30
+    };
+
+    const fmtDate = v => {
+      if (!v) return '';
+      try { return new Date(v).toLocaleDateString(); } catch { return ''; }
+    };
+    const buckets = { owed: [], pending: [], paid: [], voided: [] };
+    let totalOwed = 0;
+    rows.forEach(r => {
+      const item = {
+        id:            r.id,
+        referredName:  r.referred_name  || '',
+        referredEmail: r.referred_email || '',
+        referrerName:  r.referrer_name  || '',
+        appliedDate:   fmtDate(r.applied_date),
+        hiredDate:     fmtDate(r.hired_date),
+        payableDate:   fmtDate(r.payable_date),
+        paidDate:      fmtDate(r.paid_date),
+        amount:        Number(r.amount) || 0,
+        status:        (r.status || '').charAt(0).toUpperCase() + (r.status || '').slice(1)
+      };
+      const status = (r.status || '').toLowerCase();
+      if (status === 'owed')         { buckets.owed.push(item);    totalOwed += item.amount; }
+      else if (status === 'pending') { buckets.pending.push(item); }
+      else if (status === 'paid')    { buckets.paid.push(item);    }
+      else if (status === 'voided')  { buckets.voided.push(item);  }
+    });
+    return {
+      owed:    buckets.owed,
+      pending: buckets.pending,
+      paid:    buckets.paid,
+      voided:  buckets.voided,
+      totals: {
+        owed: buckets.owed.length,
+        pending: buckets.pending.length,
+        paid: buckets.paid.length,
+        voided: buckets.voided.length,
+        totalOwed
+      },
+      settings,
+      generatedAt: new Date().toLocaleString(),
+      dspName: (dspResp.data && dspResp.data.value) || ''
+    };
+  },
+
+  // bonusReportCsv — wraps bonusReport into a CSV download payload
+  bonusReportCsv: async () => {
+    const report = await SUPABASE_HANDLERS.bonusReport();
+    const header = ['Referred Name','Referred Email','Referrer','Applied','Hired','Payable','Paid','Amount','Status'];
+    const all = [...report.owed, ...report.pending, ...report.paid, ...report.voided];
+    const escape = v => {
+      const s = String(v == null ? '' : v).replace(/"/g, '""');
+      return /[",\n]/.test(s) ? '"' + s + '"' : s;
+    };
+    const lines = [header.map(escape).join(',')];
+    all.forEach(r => lines.push([
+      r.referredName, r.referredEmail, r.referrerName,
+      r.appliedDate, r.hiredDate, r.payableDate, r.paidDate,
+      Number(r.amount).toFixed(2), r.status
+    ].map(escape).join(',')));
+    return {
+      status:   'ok',
+      csv:      lines.join('\n'),
+      filename: 'bonus_report_' + new Date().toISOString().slice(0, 10) + '.csv'
+    };
+  },
+
+  // exportData — type=applicants|hired|history|bonus → CSV payload
+  exportData: async (params) => {
+    const type = (params && params.type) || '';
+    const today = new Date().toISOString().slice(0, 10);
+    const csvEsc = v => {
+      if (v == null) return '';
+      if (v instanceof Date) return v.toISOString().slice(0, 16).replace('T', ' ');
+      const s = String(v).replace(/"/g, '""');
+      return /[",\n\r]/.test(s) ? '"' + s + '"' : s;
+    };
+    const toCsv = (header, rows) =>
+      [header.map(csvEsc).join(','), ...rows.map(r => r.map(csvEsc).join(','))].join('\n');
+
+    if (type === 'applicants') {
+      const { data, error } = await sb.from('applicants').select(
+        'first_name, last_name, phone, email, contacted, status, booking_time, score, priority, ingested_at, attendance, source');
+      if (error) throw error;
+      const header = ['First Name','Last Name','Phone','Email','Contacted','Status',
+        'Booking Time','Score','Priority','Ingested','Attendance','Source'];
+      const rows = (data || []).map(r => [
+        r.first_name, r.last_name, r.phone, r.email, r.contacted, r.status,
+        r.booking_time, r.score, r.priority, r.ingested_at, r.attendance, r.source
+      ]);
+      return { status: 'ok', csv: toCsv(header, rows), filename: 'applicants_' + today + '.csv' };
+    }
+
+    if (type === 'hired') {
+      const { data, error } = await sb.from('applicants').select(
+        'first_name, last_name, phone, email, booking_time, score, priority, source')
+        .eq('status', 'hired');
+      if (error) throw error;
+      const header = ['First Name','Last Name','Phone','Email','Hired Date (Booking Time)',
+        'Score','Priority','Source'];
+      const rows = (data || []).map(r => [
+        r.first_name, r.last_name, r.phone, r.email, r.booking_time,
+        r.score, r.priority, r.source
+      ]);
+      return { status: 'ok', csv: toCsv(header, rows), filename: 'hired_drivers_' + today + '.csv' };
+    }
+
+    if (type === 'history') {
+      const { data, error } = await sb.from('cycle_history').select('*').order('cycle_number');
+      if (error) throw error;
+      const header = ['Cycle','OrientationDate','Target','Applied','Screened','Passed',
+        'Booked','Attended','NoShowed','AvgScoreAttended','AvgScoreNoShow','ThrottleModes','Notes'];
+      const rows = (data || []).map(r => [
+        r.cycle_number, r.orientation_date, r.target, r.applied, r.screened, r.passed,
+        r.booked, r.attended, r.no_showed, r.avg_score_attended, r.avg_score_no_show,
+        r.throttle_modes, r.notes
+      ]);
+      return { status: 'ok', csv: toCsv(header, rows), filename: 'cycle_history_' + today + '.csv' };
+    }
+
+    if (type === 'bonus') {
+      return await SUPABASE_HANDLERS.bonusReportCsv();
+    }
+
+    return { status: 'error', message: 'Unknown export type: ' + type };
+  },
+
+  // driversList — Apps Script returns array of {transporter_id, driver_name,
+  // tenure_days, event_count_30d, lifetime_events, pattern_tag, last_coached_date,
+  // last_coached_type, trend, status}. We pull roster + events + coaching, aggregate
+  // client-side, and apply the same pattern_tag/trend logic from Performance.gs.
+  // Wrapped in {status:'ok', rows: [...]} to match the GAS response.
+  driversList: async () => {
+    const today = new Date();
+    const isoToday = today.toISOString().slice(0, 10);
+    const isoAddDays = (n) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    const cutoff30 = isoAddDays(-29);
+    const cutoff14 = isoAddDays(-13);
+
+    const [rosterResp, eventsResp, coachingResp] = await Promise.all([
+      sb.from('driver_roster').select('transporter_id, driver_name, first_seen_date, status'),
+      sb.from('safety_events').select('transporter_id, event_date'),
+      sb.from('coaching_log').select('transporter_id, type, created_at').order('created_at', { ascending: false })
+    ]);
+    if (rosterResp.error)   throw rosterResp.error;
+    if (eventsResp.error)   throw eventsResp.error;
+    if (coachingResp.error) throw coachingResp.error;
+
+    const events   = eventsResp.data   || [];
+    const coaching = coachingResp.data || [];
+
+    // Index events by tid
+    const eventsByTid = {};
+    events.forEach(e => {
+      const t = e.transporter_id;
+      if (!eventsByTid[t]) eventsByTid[t] = [];
+      eventsByTid[t].push(e.event_date);
+    });
+    // First-coaching-per-driver (already sorted desc) → first match is most recent
+    const lastCoachByTid = {};
+    coaching.forEach(c => {
+      if (!lastCoachByTid[c.transporter_id]) lastCoachByTid[c.transporter_id] = c;
+    });
+
+    const STATUS_MAP = {
+      pre_onboarding: 'Pre-onboarding', onboarding: 'Onboarding', active: 'Active',
+      inactive: 'Inactive', terminated: 'Terminated'
+    };
+    const COACHING_TYPE_MAP = {
+      SMS: 'SMS', InPerson: 'InPerson', Skipped: 'Skipped', StatusChange: 'StatusChange'
+    };
+
+    // Pattern tag — port of computePatternTag_ from Performance.gs
+    const patternTag = (dates) => {
+      if (!dates.length) return 'CLEAR';
+      const last14    = dates.filter(d => d >= cutoff14);
+      const olderThan = dates.filter(d => d < cutoff14);
+      if (!last14.length) return 'CLEAR';
+      if (last14.length >= 6) return 'CHRONIC';
+      if (!olderThan.length && last14.length <= 2) return 'FIRST_WEEK';
+      return 'PATTERN';
+    };
+    // Trend — port of computeTrend_ (split-week)
+    const trend = (dates) => {
+      if (!dates.length) return 'flat';
+      const recentStart = isoAddDays(-3);
+      const olderStart  = isoAddDays(-6);
+      const olderEnd    = isoAddDays(-4);
+      const recent = dates.filter(d => d >= recentStart).length;
+      const older  = dates.filter(d => d >= olderStart && d <= olderEnd).length;
+      if (!recent && !older) {
+        const veryOld = dates.filter(d => d < olderStart).length;
+        return veryOld > 0 ? 'down' : 'flat';
+      }
+      if (!recent && older) return 'down';
+      if (recent && !older) {
+        const veryOld = dates.filter(d => d < olderStart).length;
+        return (!veryOld && recent <= 2) ? 'new' : 'up';
+      }
+      const pct = ((recent - older) / older) * 100;
+      if (pct >= 25)  return 'up';
+      if (pct <= -25) return 'down';
+      return 'flat';
+    };
+
+    const rows = (rosterResp.data || []).map(r => {
+      const tid = r.transporter_id;
+      const dates = eventsByTid[tid] || [];
+      const e30 = dates.filter(d => d >= cutoff30).length;
+      const tenureDays = r.first_seen_date
+        ? Math.round((today - new Date(r.first_seen_date + 'T00:00:00')) / 86400000)
+        : 0;
+      const lc = lastCoachByTid[tid];
+      return {
+        transporter_id:   tid,
+        driver_name:      r.driver_name,
+        tenure_days:      tenureDays,
+        event_count_30d:  e30,
+        lifetime_events:  dates.length,
+        pattern_tag:      patternTag(dates),
+        last_coached_date: lc ? new Date(lc.created_at).toISOString().slice(0, 10) : null,
+        last_coached_type: lc ? (COACHING_TYPE_MAP[lc.type] || lc.type) : null,
+        trend:            trend(dates),
+        status:           STATUS_MAP[r.status] || r.status || 'Active'
+      };
+    });
+    rows.sort((a, b) => b.event_count_30d - a.event_count_30d);
+    return { status: 'ok', rows };
+  },
+
+  // ── PHASE C — simple writes (single-table) ──────────────────────────
+
+  // setThrottle — upsert ThrottleMode + RouteReadyLogic in settings
+  setThrottle: async (params) => {
+    const rows = [];
+    const dspId = await rrGetDspId();
+    if (params.mode)    rows.push({ dsp_id: dspId, key: 'ThrottleMode',    value: String(params.mode) });
+    if (params.rrLogic) rows.push({ dsp_id: dspId, key: 'RouteReadyLogic', value: String(params.rrLogic) });
+    if (!rows.length) return { status: 'ok' };
+    const { error } = await sb.from('settings').upsert(rows, { onConflict: 'dsp_id,key' });
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // updateDriverPhone — single update on driver_roster, with E.164 normalization
+  updateDriverPhone: async (params) => {
+    const tid = params.tid;
+    const raw = String(params.phone || '').trim();
+    if (!tid || !raw) return { status: 'error', message: 'tid and phone required' };
+    const digits = raw.replace(/\D/g, '');
+    let normalized = '';
+    if (digits.length === 10) normalized = '+1' + digits;
+    else if (digits.length === 11 && digits.charAt(0) === '1') normalized = '+' + digits;
+    else if (raw.charAt(0) === '+' && digits.length >= 10) normalized = '+' + digits;
+    if (!normalized) return { status: 'error', message: 'invalid phone format' };
+    const dspId = await rrGetDspId();
+    const { error } = await sb.from('driver_roster')
+      .update({ phone_number: normalized, phone_source: 'manual', last_updated: new Date().toISOString() })
+      .eq('dsp_id', dspId)
+      .eq('transporter_id', tid);
+    if (error) throw error;
+    return { status: 'ok', phone: normalized };
+  },
+
+  // markBonusPaid — flip a referrals row to status='paid' with paid_date=now
+  markBonusPaid: async (params) => {
+    if (!params.refId) return { status: 'error', message: 'Missing ref ID' };
+    const dspId = await rrGetDspId();
+    const updates = { status: 'paid', paid_date: new Date().toISOString().slice(0, 10) };
+    if (params.note) updates.note = String(params.note);
+    const { error } = await sb.from('referrals')
+      .update(updates)
+      .eq('dsp_id', dspId)
+      .eq('id', params.refId);
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // saveSettings — bulk upsert into settings using the same paramMap
+  // the Apps Script saveSettings uses. dashboardPassword is intentionally
+  // skipped — Supabase Auth handles passwords now.
+  saveSettings: async (params) => {
+    const PARAM_MAP = {
+      dspName:               'DSPName',
+      dspEmail:              'DSPEmail',
+      primaryPhone:          'PrimaryPhone',
+      sevenamRecipients:     'SevenAMRecipients',
+      backupName:            'BackupContactName',
+      backupEmail:           'BackupContactEmail',
+      calComURL:             'CalComURL',
+      hiredMessage:          'HiredMessage',
+      messageWindowStart:    'MessageWindowStart',
+      messageWindowEnd:      'MessageWindowEnd',
+      driverPreferences:     'DriverPreferences',
+      notesToRouteReady:     'DSPPreferences',
+      target:                'HeadcountTarget',
+      oriDate:               'OrientationDate',
+      preferences:           'DSPPreferences',
+      videoScreeningEnabled: 'VideoScreeningEnabled',
+      videoPrompt1:          'VideoPrompt1',
+      videoPrompt2:          'VideoPrompt2',
+      videoPrompt3:          'VideoPrompt3',
+      videoMaxSeconds:       'VideoMaxSeconds',
+      videoLinkExpiryHrs:    'VideoLinkExpiryHours'
+    };
+    const dspId = await rrGetDspId();
+    const rows = [];
+    Object.keys(PARAM_MAP).forEach(k => {
+      if (params[k] !== undefined && params[k] !== '') {
+        rows.push({ dsp_id: dspId, key: PARAM_MAP[k], value: String(params[k]) });
+      }
+    });
+    if (!rows.length) return { status: 'ok' };
+    const { error } = await sb.from('settings').upsert(rows, { onConflict: 'dsp_id,key' });
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // saveReferralSettings — upsert four referral keys
+  saveReferralSettings: async (params) => {
+    const dspId = await rrGetDspId();
+    const rows = [];
+    if (params.on !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralProgramOn', value: String(params.on) });
+    if (params.outreachDay !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralOutreachDay', value: String(parseInt(params.outreachDay, 10) || 7) });
+    if (params.bonusAmount !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralBonusAmount', value: String(parseFloat(params.bonusAmount) || 300) });
+    if (params.payableDay !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralBonusPayableDay', value: String(parseInt(params.payableDay, 10) || 30) });
+    if (!rows.length) return { status: 'ok' };
+    const { error } = await sb.from('settings').upsert(rows, { onConflict: 'dsp_id,key' });
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // saveMessageTemplates — wipe-and-rewrite for this DSP
+  saveMessageTemplates: async (params) => {
+    let templates;
+    try { templates = JSON.parse(params.templates || '{}'); }
+    catch (e) { return { status: 'error', message: 'invalid JSON' }; }
+    const dspId = await rrGetDspId();
+    const { error: delErr } = await sb.from('message_templates').delete().eq('dsp_id', dspId);
+    if (delErr) throw delErr;
+    const now = new Date().toISOString();
+    const rows = Object.keys(templates).map(k => {
+      const t = templates[k] || {};
+      return {
+        dsp_id:         dspId,
+        touchpoint_key: k,
+        sms:            String(t.sms || ''),
+        email_subject:  String(t.emailSubject || ''),
+        email_body:     String(t.emailBody || ''),
+        updated_at:     now
+      };
+    });
+    if (rows.length) {
+      const { error } = await sb.from('message_templates').insert(rows);
+      if (error) throw error;
+    }
+    return { status: 'ok', count: rows.length };
+  },
+
+  // saveScreeningQuestions — wipe-and-rewrite screening_selections for this DSP
+  saveScreeningQuestions: async (params) => {
+    let questions;
+    try { questions = JSON.parse(params.questions || '[]'); }
+    catch (e) { return { status: 'error', message: 'invalid questions JSON' }; }
+    if (!Array.isArray(questions))
+      return { status: 'error', message: 'questions must be an array' };
+    if (questions.length > 8)
+      return { status: 'error', message: 'Maximum 8 questions allowed' };
+
+    const dspId = await rrGetDspId();
+    const { error: delErr } = await sb.from('screening_selections').delete().eq('dsp_id', dspId);
+    if (delErr) throw delErr;
+
+    const now = new Date().toISOString();
+    const rows = questions.map((q, i) => {
+      const slotOrder = i + 1;
+      const source = String(q.source || 'library').toLowerCase();
+      if (source === 'custom') {
+        const customText = String(q.customText || q.label || '').trim();
+        if (!customText)
+          throw new Error('Custom question at slot ' + slotOrder + ' is missing text');
+        return {
+          dsp_id:          dspId,
+          slot_order:      slotOrder,
+          question_id:     'c_' + Math.random().toString(36).substring(2, 10),
+          source:          'custom',
+          custom_text:     customText,
+          filter_override: q.filter === true,
+          updated_at:      now
+        };
+      }
+      const qid = String(q.questionId || '').trim();
+      if (!qid) throw new Error('Library question at slot ' + slotOrder + ' missing questionId');
+      return {
+        dsp_id:          dspId,
+        slot_order:      slotOrder,
+        question_id:     qid,
+        source:          'library',
+        custom_text:     '',
+        filter_override: q.filter === true,
+        updated_at:      now
+      };
+    });
+    if (rows.length) {
+      const { error } = await sb.from('screening_selections').insert(rows);
+      if (error) throw error;
+    }
+    return {
+      status:  'ok',
+      saved:   rows.length,
+      message: 'Saved ' + rows.length + ' question' + (rows.length === 1 ? '' : 's')
+    };
+  },
+
+  // ── PHASE D — multi-table writes ────────────────────────────────────
+
+  // setDriverStatus — update driver_roster.status + insert StatusChange row
+  // in coaching_log. Two queries; if the second fails the first is left
+  // applied (acceptable: writes are idempotent and the status change is
+  // user-visible even without the log row).
+  setDriverStatus: async (params) => {
+    const STATUS_TO_DB = {
+      'Active': 'active', 'Pre-onboarding': 'pre_onboarding',
+      'Onboarding': 'onboarding', 'Inactive': 'inactive', 'Terminated': 'terminated'
+    };
+    const tid = params.tid;
+    const newStatus = params.status;
+    const reason = params.reason || '';
+    if (!tid || !newStatus) return { status: 'error', message: 'tid and status required' };
+    const dbStatus = STATUS_TO_DB[newStatus];
+    if (!dbStatus) return { status: 'error', message: 'invalid status: ' + newStatus };
+
+    const dspId = await rrGetDspId();
+    const upd = await sb.from('driver_roster')
+      .update({ status: dbStatus, last_updated: new Date().toISOString() })
+      .eq('dsp_id', dspId)
+      .eq('transporter_id', tid)
+      .select('driver_name')
+      .maybeSingle();
+    if (upd.error) return { status: 'error', message: upd.error.message };
+    if (!upd.data)  return { status: 'error', message: 'driver not found' };
+
+    const coachingId = 'CL' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    const ins = await sb.from('coaching_log').insert({
+      id:             coachingId,
+      dsp_id:         dspId,
+      transporter_id: tid,
+      driver_name:    upd.data.driver_name || '',
+      type:           'StatusChange',
+      message_body:   'Status changed to ' + newStatus + (reason ? ' · ' + reason : '')
+    });
+    if (ins.error) console.warn('[setDriverStatus] coaching log insert failed:', ins.error);
+    return { status: 'ok', new_status: newStatus };
+  },
+
+  // logInPerson — append a single coaching_log row of type=InPerson
+  logInPerson: async (params) => {
+    const tid = params.tid;
+    if (!tid) return { status: 'error', message: 'tid required' };
+    const dspId = await rrGetDspId();
+    const coachingId = 'CL' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    const { error } = await sb.from('coaching_log').insert({
+      id:             coachingId,
+      dsp_id:         dspId,
+      transporter_id: tid,
+      driver_name:    params.name || '',
+      type:           'InPerson',
+      message_body:   params.notes || ''
+    });
+    if (error) throw error;
+    return { status: 'ok', coaching_id: coachingId, timestamp: new Date() };
+  },
+
+  // ── PHASE B-medium — complex reads (ported from Performance.gs) ──────
+
+  // getDriverMath — port of driver_math.gs getDriverMath. Returns
+  // {driver, window, inputs, calculation, thresholds, classification,
+  //  fleet_comparison, coaching_history}. Used by the "Show your work" panel.
+  getDriverMath: async (params) => {
+    const tid = params.transporter_id;
+    if (!tid) return { error: 'transporter_id required' };
+    const windowDays = Number(params.window_days || 30);
+    const today = new Date();
+    const isoToday = today.toISOString().slice(0, 10);
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() - windowDays + 1);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    const dspId = await rrGetDspId();
+    const [drvR, evR, qR, cR, allEvR, allQR] = await Promise.all([
+      sb.from('driver_roster').select('driver_name').eq('dsp_id', dspId).eq('transporter_id', tid).maybeSingle(),
+      sb.from('safety_events').select('event_date, metric_type, metric_subtype, review_status').eq('dsp_id', dspId).eq('transporter_id', tid).gte('event_date', cutoffStr).order('event_date'),
+      sb.from('quality_daily').select('event_date, routes_completed').eq('dsp_id', dspId).eq('transporter_id', tid).gte('event_date', cutoffStr),
+      sb.from('coaching_log').select('type, message_body, created_at').eq('dsp_id', dspId).eq('transporter_id', tid).order('created_at'),
+      sb.from('safety_events').select('id', { count: 'exact', head: true }).eq('dsp_id', dspId).gte('event_date', cutoffStr),
+      sb.from('quality_daily').select('routes_completed').eq('dsp_id', dspId).gte('event_date', cutoffStr)
+    ]);
+
+    const driver = drvR.data || { driver_name: 'Unknown' };
+    const events = evR.data || [];
+    const qualityRows = qR.data || [];
+    const coaching = cR.data || [];
+
+    let totalRoutes = 0;
+    qualityRows.forEach(q => { totalRoutes += Number(q.routes_completed) || 0; });
+    const totalEvents = events.length;
+
+    const MIN_ROUTES = 3, ACTION = 5.0, CHRONIC = 10.0;
+    let ratePer100 = null, fallback = false;
+    if (totalRoutes >= MIN_ROUTES) {
+      ratePer100 = totalRoutes > 0 ? (totalEvents / totalRoutes) * 100 : 0;
+    } else { fallback = true; }
+
+    let tier = 'CLEAR', tierReason = '';
+    const round1 = (n) => n == null ? null : Math.round(Number(n) * 10) / 10;
+    if (fallback) {
+      tier = 'NEW';
+      tierReason = 'Fewer than ' + MIN_ROUTES + ' routes — too few to compute a rate. Showing raw count instead.';
+    } else if (ratePer100 >= CHRONIC) {
+      tier = 'CHRONIC'; tierReason = round1(ratePer100) + ' ≥ ' + CHRONIC + ' (chronic threshold)';
+    } else if (ratePer100 >= ACTION) {
+      tier = 'PATTERN'; tierReason = round1(ratePer100) + ' ≥ ' + ACTION + ' (action threshold)';
+    } else {
+      tier = 'CLEAR';   tierReason = round1(ratePer100) + ' < ' + ACTION + ' (action threshold)';
+    }
+
+    const fleetEvents = allEvR.count || 0;
+    let fleetRoutes = 0;
+    (allQR.data || []).forEach(q => { fleetRoutes += Number(q.routes_completed) || 0; });
+    const fleetRate = fleetRoutes > 0 ? (fleetEvents / fleetRoutes) * 100 : 0;
+    const fleetMultiplier = (fleetRate > 0 && ratePer100 != null && ratePer100 > 0)
+      ? ratePer100 / fleetRate : null;
+
+    const sms = coaching.filter(c => c.type === 'SMS');
+    const inper = coaching.filter(c => c.type === 'InPerson');
+    const fmt = ts => ts ? new Date(ts).toISOString().slice(0, 10) : null;
+
+    return {
+      driver: { name: driver.driver_name, transporter_id: tid },
+      window: { days: windowDays, start: cutoffStr, end: isoToday },
+      inputs: {
+        events: events.map(e => ({
+          date: e.event_date, type: e.metric_type || '', subtype: e.metric_subtype || '',
+          review_status: e.review_status || ''
+        })),
+        total_events: totalEvents, total_routes: totalRoutes, quality_days: qualityRows.length
+      },
+      calculation: {
+        rate_per_100: round1(ratePer100),
+        fallback_to_count: fallback,
+        formula: fallback
+          ? totalEvents + ' events (rate not computed — too few routes)'
+          : totalEvents + ' / ' + totalRoutes + ' × 100 = ' + round1(ratePer100)
+      },
+      thresholds: { action: ACTION, chronic: CHRONIC, min_routes: MIN_ROUTES },
+      classification: { tier, reason: tierReason },
+      fleet_comparison: {
+        fleet_rate: round1(fleetRate),
+        fleet_events: fleetEvents,
+        fleet_routes: fleetRoutes,
+        multiplier: round1(fleetMultiplier)
+      },
+      coaching_history: {
+        sms_count: sms.length,
+        inperson_count: inper.length,
+        sms_recent: sms.slice(-5).map(c => ({ date: fmt(c.created_at), preview: (c.message_body || '').slice(0, 80) })),
+        inperson_recent: inper.slice(-5).map(c => ({ date: fmt(c.created_at), preview: (c.message_body || '').slice(0, 80) })),
+        last_sms_date: sms.length ? fmt(sms[sms.length - 1].created_at) : null,
+        last_inperson_date: inper.length ? fmt(inper[inper.length - 1].created_at) : null
+      }
+    };
+  },
+
+  // ── PHASE E — Edge Function endpoints (require deploy) ───────────────
+
+  // aiWriteMessage — calls the claude-ai Edge Function.
+  // Returns {status:'ok', text:'...'} or {status:'error', message:'...'}
+  aiWriteMessage: async (params) => {
+    const prompt = params && params.prompt;
+    if (!prompt) return { status: 'error', message: 'No prompt provided' };
+    const { data, error } = await sb.functions.invoke('claude-ai', {
+      body: { prompt, max_tokens: 512 }
+    });
+    if (error) {
+      return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    }
+    return data;
+  },
+
+  // aiReviewScreeningQuestion — employment-law compliance check.
+  // Builds the same prompt the Apps Script uses, calls Claude, parses JSON.
+  aiReviewScreeningQuestion: async (params) => {
+    const text = String((params && params.text) || '').trim();
+    if (!text) return { status: 'error', message: 'No question text provided' };
+    if (text.length > 300) return { status: 'error', message: 'Question too long (max 300 chars)' };
+
+    const prompt = [
+      'You are reviewing a screening question that a delivery service company wants to ask job applicants. Your job is to flag common employment-law compliance issues in U.S. hiring.',
+      '',
+      'QUESTION TO REVIEW:',
+      '"' + text + '"',
+      '',
+      'FLAG IF the question:',
+      '- Asks about protected class (age beyond 18+/21+ requirement, race, religion, national origin, citizenship beyond work authorization, marital status, family status, pregnancy, disability, sexual orientation, gender identity)',
+      '- Asks about criminal history (Ban-the-Box laws restrict this on initial applications in many states)',
+      '- Asks about salary/wage history (banned in CA, NY, NJ, MA, CO, WA, IL and many cities)',
+      '- Asks about credit history pre-offer (restricted in CA, NY, IL, CO, WA, MD, OR, VT, NV, CT, HI, DE)',
+      '- Asks for SSN, date of birth, or other identifiers that should be post-offer',
+      '- Asks about disability, medical conditions, or accommodations needed (ADA pre-offer restrictions)',
+      '- Asks about union activity, political affiliation, or protected concerted activity',
+      '',
+      "DO NOT FLAG legitimate job-related questions like: ability to perform physical job requirements, work authorization (general yes/no), driver's license validity, ability to pass DOT screen, schedule availability, ability to lift specified weight, comfort with required equipment.",
+      '',
+      'Respond ONLY with valid JSON, no preamble:',
+      '{',
+      '  "level": "green|yellow|red",',
+      '  "issue": "one-sentence concern, or empty string if green",',
+      '  "suggestion": "safer rewrite of the question, or empty string if green"',
+      '}',
+      '',
+      'LEVEL DEFINITIONS:',
+      '- green: Legitimate job-related question. No issues.',
+      '- yellow: Question may be restricted in some states (Ban-the-Box, salary history bans, etc). Legal in many states but DSP should check their jurisdiction.',
+      '- red: Question asks about a protected class or is broadly prohibited under federal law (Title VII, ADA, ADEA). Should generally not be asked on initial applications anywhere.',
+      '',
+      'Be precise. Do not over-flag legitimate physical requirements or job-fit questions.'
+    ].join('\n');
+
+    const { data, error } = await sb.functions.invoke('claude-ai', {
+      body: { prompt, max_tokens: 400 }
+    });
+    if (error) return { status: 'error', message: 'AI review service unavailable' };
+    if (data.status !== 'ok') return data;
+    try {
+      const cleaned = data.text.replace(/```json|```/g, '').trim();
+      const result = JSON.parse(cleaned);
+      const level = String(result.level || 'green').toLowerCase().trim();
+      const valid = ['green','yellow','red'].indexOf(level) !== -1 ? level : 'green';
+      return {
+        status:     'ok',
+        level:      valid,
+        issue:      String(result.issue || '').trim(),
+        suggestion: String(result.suggestion || '').trim()
+      };
+    } catch (e) {
+      return { status: 'error', message: 'AI review parse failed' };
+    }
+  },
+
+  // driverRecord — port of getCoachingRecord from Performance.gs. Returns
+  // {driver, summary, by_metric_30d, weekly_chart, timeline}.
+  driverRecord: async (params) => {
+    const tid = params.tid;
+    if (!tid) return { status: 'error', message: 'tid required' };
+    const dspId = await rrGetDspId();
+    const today = new Date();
+    const isoToday = today.toISOString().slice(0, 10);
+    const cutoff14 = new Date(today); cutoff14.setDate(cutoff14.getDate() - 13);
+    const cutoff14Str = cutoff14.toISOString().slice(0, 10);
+    const cutoff30 = new Date(today); cutoff30.setDate(cutoff30.getDate() - 29);
+    const cutoff30Str = cutoff30.toISOString().slice(0, 10);
+
+    const [drvR, evR, cR, qR] = await Promise.all([
+      sb.from('driver_roster').select('*').eq('dsp_id', dspId).eq('transporter_id', tid).maybeSingle(),
+      sb.from('safety_events').select('*').eq('dsp_id', dspId).eq('transporter_id', tid),
+      sb.from('coaching_log').select('*').eq('dsp_id', dspId).eq('transporter_id', tid),
+      sb.from('quality_daily').select('*').eq('dsp_id', dspId).eq('transporter_id', tid)
+    ]);
+    if (!drvR.data) return { status: 'error', message: 'driver not found' };
+    const driver = drvR.data;
+    const events = evR.data || [];
+    const coachings = cR.data || [];
+    const quality = qR.data || [];
+
+    const events30 = events.filter(e => e.event_date >= cutoff30Str);
+    const sms = coachings.filter(c => c.type === 'SMS').length;
+    const inper = coachings.filter(c => c.type === 'InPerson').length;
+
+    // pattern_tag (port from Performance.gs)
+    const dates = events.map(e => e.event_date);
+    let pattern_tag = 'CLEAR';
+    if (dates.length) {
+      const last14 = dates.filter(d => d >= cutoff14Str);
+      const older = dates.filter(d => d < cutoff14Str);
+      if (last14.length === 0)        pattern_tag = 'CLEAR';
+      else if (last14.length >= 6)    pattern_tag = 'CHRONIC';
+      else if (!older.length && last14.length <= 2) pattern_tag = 'FIRST_WEEK';
+      else                            pattern_tag = 'PATTERN';
+    }
+
+    // by_metric_30d with canonical labels
+    const counts = {};
+    events30.forEach(e => {
+      const m = String(e.metric_type || '').trim();
+      if (!m) return;
+      counts[m] = (counts[m] || 0) + 1;
+    });
+    if (counts['Distraction']) { counts['Distractions'] = (counts['Distractions'] || 0) + counts['Distraction']; delete counts['Distraction']; }
+    if (counts['Sign Signal']) { counts['Sign/Signal'] = (counts['Sign/Signal'] || 0) + counts['Sign Signal']; delete counts['Sign Signal']; }
+    const canonical = ['Speeding','Following Distance','Distractions','Sign/Signal','Seatbelt'];
+    const by_metric_30d = canonical.map(name => ({ metric_type: name, count: counts[name] || 0 }));
+
+    // weekly_chart — 13 weeks back
+    const weekly_chart = [];
+    for (let i = 12; i >= 0; i--) {
+      const wkEnd = new Date(today); wkEnd.setDate(today.getDate() - i * 7);
+      const wkStart = new Date(wkEnd); wkStart.setDate(wkEnd.getDate() - 6);
+      const ws = wkStart.toISOString().slice(0, 10);
+      const we = wkEnd.toISOString().slice(0, 10);
+      const cnt = events.filter(e => e.event_date >= ws && e.event_date <= we).length;
+      weekly_chart.push({ week_start: ws, count: cnt });
+    }
+
+    // timeline (incidents + coaching + quality)
+    const timeline = [];
+    const fmtPct = v => {
+      if (v == null) return '—';
+      const n = Number(v);
+      if (isNaN(n)) return '—';
+      const pct = n <= 1.5 ? n * 100 : n;
+      return pct.toFixed(1) + '%';
+    };
+    events.forEach(e => timeline.push({
+      kind: 'incident', date: e.event_date, datetime: e.event_datetime,
+      title: e.metric_type, detail: (e.metric_subtype || '') + (e.video_link ? ' · video' : ''),
+      review_status: e.review_status, video_link: e.video_link, event_id: e.event_id
+    }));
+    coachings.forEach(c => timeline.push({
+      kind: c.type === 'InPerson' ? 'inperson' : c.type === 'Skipped' ? 'skipped' : 'sms',
+      date: c.created_at ? c.created_at.slice(0, 10) : null,
+      datetime: c.created_at,
+      title: c.type === 'InPerson' ? 'In-person 1:1' : c.type === 'Skipped' ? 'Coaching skipped' : 'SMS coaching sent',
+      detail: c.message_body || '',
+      coaching_id: c.id, triggered_by_event_id: c.triggered_by_event_id, guide_attached: c.guide_attached || ''
+    }));
+    quality.forEach(q => timeline.push({
+      kind: 'quality', date: q.event_date, datetime: null,
+      title: 'Quality update · daily',
+      detail: 'DCR ' + fmtPct(q.dcr_pct) + ' · POD ' + fmtPct(q.pod_pct) +
+              ' · ' + (q.packages_delivered || 0) + ' packages · ' +
+              (q.routes_completed || 0) + ' route(s)'
+    }));
+    timeline.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      const ta = a.datetime ? new Date(a.datetime).getTime() : 0;
+      const tb = b.datetime ? new Date(b.datetime).getTime() : 0;
+      return tb - ta;
+    });
+
+    const STATUS_MAP = {
+      pre_onboarding: 'Pre-onboarding', onboarding: 'Onboarding', active: 'Active',
+      inactive: 'Inactive', terminated: 'Terminated'
+    };
+    return {
+      status: 'ok',
+      driver: { ...driver, status: STATUS_MAP[driver.status] || driver.status || 'Active' },
+      summary: {
+        lifetime_events: events.length,
+        events_30d: events30.length,
+        total_coachings: sms + inper,
+        sms_count: sms,
+        inperson_count: inper,
+        pattern_tag,
+        trend: 'flat',
+        tenure_days: driver.first_seen_date
+          ? Math.round((today - new Date(driver.first_seen_date + 'T00:00:00')) / 86400000) : 0,
+        hire_date: driver.hire_date || driver.first_seen_date,
+        status: STATUS_MAP[driver.status] || driver.status || 'Active'
+      },
+      by_metric_30d, weekly_chart, timeline
+    };
+  },
+
+  // driverRecentActivity — port of Apps Script getDriverRecentActivity. Returns
+  // {status:'ok', result: {items:[{kind, title, detail, date}], next_inperson_number}}
+  // kinds: event (safety incident), sms, inperson, skipped — most recent first.
+  driverRecentActivity: async (params) => {
+    const tid = params.transporter_id;
+    if (!tid) return { status: 'error', message: 'transporter_id required' };
+    const limit = Math.max(1, Math.min(50, Number(params.limit) || 5));
+    const dspId = await rrGetDspId();
+
+    const [evR, cR] = await Promise.all([
+      sb.from('safety_events')
+        .select('event_date, event_datetime, metric_type, metric_subtype')
+        .eq('dsp_id', dspId).eq('transporter_id', tid)
+        .order('event_date', { ascending: false }).limit(limit),
+      sb.from('coaching_log')
+        .select('type, message_body, created_at')
+        .eq('dsp_id', dspId).eq('transporter_id', tid)
+        .order('created_at', { ascending: false })
+    ]);
+    if (evR.error) throw evR.error;
+    if (cR.error) throw cR.error;
+
+    const events = evR.data || [];
+    const coachings = cR.data || [];
+
+    const merged = [];
+    events.forEach(e => merged.push({
+      kind: 'event',
+      title: e.metric_type || 'Event',
+      detail: e.metric_subtype || '',
+      date: e.event_date || (e.event_datetime ? e.event_datetime.slice(0, 10) : ''),
+      _sort: e.event_datetime || e.event_date || ''
+    }));
+    coachings.forEach(c => {
+      let kind = 'sms', title = 'SMS coaching sent';
+      if (c.type === 'InPerson') { kind = 'inperson'; title = 'In-person 1:1'; }
+      else if (c.type === 'Skipped') { kind = 'skipped'; title = 'Coaching skipped'; }
+      merged.push({
+        kind, title,
+        detail: c.message_body || '',
+        date: c.created_at ? c.created_at.slice(0, 10) : '',
+        _sort: c.created_at || ''
+      });
+    });
+
+    merged.sort((a, b) => (a._sort < b._sort ? 1 : a._sort > b._sort ? -1 : 0));
+    const items = merged.slice(0, limit).map(({ _sort, ...rest }) => rest);
+    const next_inperson_number = coachings.filter(c => c.type === 'InPerson').length + 1;
+
+    return { status: 'ok', result: { items, next_inperson_number } };
+  },
+
+  // sendManualMessage — invokes the send-sms Edge Function which looks up the
+  // applicant by email (DSP-scoped) and sends an SMS via Twilio.
+  // Returns {status:'ok', sid, to, applicant_name} or {status:'error', message}.
+  sendManualMessage: async (params) => {
+    const email = params && params.email;
+    const message = params && params.message;
+    if (!email || !message) return { status: 'error', message: 'email and message required' };
+    const { data, error } = await sb.functions.invoke('send-sms', {
+      body: { email, message }
+    });
+    if (error) {
+      return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    }
+    return data;
+  }
+};
+
 async function apiCall(params) {
+  const action = params && params.action;
+  if (action && SUPABASE_HANDLERS[action]) {
+    try { return await SUPABASE_HANDLERS[action](params); }
+    catch (e) { console.error('[supabase]', action, e); throw e; }
+  }
   const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
   const res = await fetch(API + '?' + qs + '&t=' + Date.now());
   return res.json();
@@ -8566,31 +9729,14 @@ async function perfLoadDecision() {
   if (footer) footer.style.display = 'none';
 
   try {
-    // Try tiered view first; if it 404s or errors, fall back to V2
-    let res;
-    try {
-      const winParam = (perfState.decisionWindow === 'all') ? 'all' : String(perfState.decisionWindow);
-      res = await apiCall({ action: 'decisionViewTiered', window_days: winParam });
-    } catch (tierErr) {
-      console.warn('Tiered view unavailable, falling back to V2:', tierErr && tierErr.message);
-      res = null;
-    }
-
-    if (res && res.status === 'ok' && res.result && res.result.counts) {
-      perfState.decision = res.result;
-      perfState.useTiered = true;
-      perfRenderDecisionTiered(res.result);
-      return;
-    }
-
-    // Fallback: legacy V2 view
-    perfState.useTiered = false;
-    res = await apiCall({ action: 'decisionViewV2', window: String(perfState.decisionWindow) });
-    if (res.status !== 'ok') {
-      throw new Error(res.message || 'unknown error');
+    const winParam = (perfState.decisionWindow === 'all') ? 'all' : String(perfState.decisionWindow);
+    const res = await apiCall({ action: 'decisionViewTiered', window_days: winParam });
+    if (!res || res.status !== 'ok' || !res.result || !res.result.counts) {
+      throw new Error((res && res.message) || 'No tiered data available');
     }
     perfState.decision = res.result;
-    perfRenderDecision(res.result);
+    perfState.useTiered = true;
+    perfRenderDecisionTiered(res.result);
   } catch (e) {
     console.error('perfLoadDecision failed:', e);
     if (rows) rows.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
