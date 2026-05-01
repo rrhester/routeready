@@ -8,6 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <meta name="color-scheme" content="light only">
 <meta name="theme-color" content="#FFFFFF">
+<!-- Supabase JS client (Phase A) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   color-scheme: light only;
@@ -3875,6 +3877,23 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 </head>
 <body class="light">
 
+<!-- ── RouteReady Auth Gate (Phase A) ──────────────────────── -->
+<div id="rr-auth-gate" style="position:fixed;inset:0;z-index:99999;background:#0F1419;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;color:#fff">
+  <div style="background:#1A1F26;border:1px solid #2A3038;border-radius:16px;padding:32px;width:380px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div style="font-family:'DM Serif Display',serif;font-size:28px;margin-bottom:6px">RouteReady</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:24px">Sign in to your dashboard</div>
+    <form id="rr-auth-form" autocomplete="on">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.5);margin-bottom:6px">Email</label>
+      <input type="email" id="rr-auth-email" required autocomplete="username" style="width:100%;padding:11px 14px;background:#10161D;border:1px solid #2A3038;border-radius:8px;color:#fff;font-size:14px;margin-bottom:16px;font-family:inherit;box-sizing:border-box" />
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.5);margin-bottom:6px">Password</label>
+      <input type="password" id="rr-auth-password" required autocomplete="current-password" style="width:100%;padding:11px 14px;background:#10161D;border:1px solid #2A3038;border-radius:8px;color:#fff;font-size:14px;margin-bottom:20px;font-family:inherit;box-sizing:border-box" />
+      <button type="submit" id="rr-auth-submit" style="width:100%;padding:12px;background:#146EB4;border:none;border-radius:8px;color:#fff;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit">Sign in</button>
+      <div id="rr-auth-error" style="margin-top:14px;font-size:12px;color:#F87171;min-height:1em"></div>
+    </form>
+  </div>
+</div>
+<!-- ────────────────────────────────────────────────────────── -->
+
 <div id="confetti-container"></div>
 
 <div id="loading">
@@ -5120,9 +5139,59 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 <span id="m-screened-sub" style="display:none"></span>
 
 <script>
+// ── Supabase client + auth gate (Phase A) ────────────────────────────
+const SUPABASE_URL = 'https://qkjhkpbnsxiuwmxurcip.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_M4UehtnadYgq2RAGlzTiRw__z6SjIWb';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
+
+(async function rrAuthGate(){
+  const gate = document.getElementById('rr-auth-gate');
+  const form = document.getElementById('rr-auth-form');
+  const emailEl = document.getElementById('rr-auth-email');
+  const pwdEl = document.getElementById('rr-auth-password');
+  const errEl = document.getElementById('rr-auth-error');
+  const btn = document.getElementById('rr-auth-submit');
+
+  function showGate(){ if (gate) gate.style.display = 'flex'; }
+  function hideGate(){ if (gate) gate.style.display = 'none'; }
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { hideGate(); return; }
+  showGate();
+
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    const { error } = await sb.auth.signInWithPassword({
+      email: emailEl.value.trim(),
+      password: pwdEl.value
+    });
+    btn.disabled = false; btn.textContent = 'Sign in';
+    if (error) { errEl.textContent = error.message; return; }
+    hideGate();
+    location.reload();
+  });
+})();
+
+// Sign-out helper — call rrSignOut() from console or wire to a button later
+async function rrSignOut(){ await sb.auth.signOut(); location.reload(); }
+
+// ── apiCall shim — Supabase first, GAS fallback ──────────────────────
 const API = 'https://script.google.com/macros/s/AKfycbwiWxrTv5ulBLP0sYT9kAhoPMW4KEO4agLn2Jk8e1wW4l8689ttOxOywKGQG1USittn/exec';
 
+// Phase B will populate this map: action name -> async (params) => responseShape
+const SUPABASE_HANDLERS = {};
+
 async function apiCall(params) {
+  const action = params && params.action;
+  if (action && SUPABASE_HANDLERS[action]) {
+    try { return await SUPABASE_HANDLERS[action](params); }
+    catch (e) { console.error('[supabase]', action, e); throw e; }
+  }
   const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
   const res = await fetch(API + '?' + qs + '&t=' + Date.now());
   return res.json();
