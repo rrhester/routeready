@@ -2545,6 +2545,99 @@ a{color:inherit;text-decoration:none}
 }
 .posted-banner svg{width:16px;height:16px;flex-shrink:0;stroke-width:2.5}
 .posted-banner strong{font-weight:700}
+
+/* ─────────────────────────────────────────────────────────────
+   OKAMI → SCHEDULE link callout
+   ───────────────────────────────────────────────────────────── */
+.okami-source{
+  background:linear-gradient(120deg,#1E40AF11,#3B82F611);
+  border:1px solid #146EB433;border-radius:var(--r-md);
+  padding:10px 14px;display:flex;align-items:center;gap:12px;margin-bottom:var(--s-3);
+  font-size:12px;color:var(--text);
+}
+.okami-source-icon{
+  width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#1E40AF,#3B82F6);
+  color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.okami-source-icon svg{width:13px;height:13px;stroke-width:2}
+.okami-source strong{font-weight:700}
+.okami-source-link{margin-left:auto;font-size:12px;color:var(--accent-text);font-weight:500;cursor:pointer}
+.okami-source-link:hover{text-decoration:underline}
+
+/* ─────────────────────────────────────────────────────────────
+   STAFFING FORECAST CHART (OKAMI)
+   ───────────────────────────────────────────────────────────── */
+.forecast-chart-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);margin-bottom:var(--s-4);
+}
+.forecast-chart-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--s-4);gap:var(--s-3)}
+.forecast-chart-title{font-size:13px;font-weight:600;color:var(--text);margin:0 0 4px 0}
+.forecast-chart-sub{font-size:12px;color:var(--text-muted);margin:0}
+.forecast-chart-legend{display:flex;gap:var(--s-3);flex-wrap:wrap;align-items:center}
+.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);font-weight:500}
+.legend-swatch{width:12px;height:3px;border-radius:1.5px}
+.legend-swatch.plan{background:var(--accent)}
+.legend-swatch.roster{background:var(--text-muted)}
+.legend-swatch.effective{background:var(--amber);border-top:1px dashed var(--amber);border-radius:0;height:0}
+
+.forecast-svg{width:100%;height:200px;display:block}
+.forecast-grid line{stroke:var(--border);stroke-width:1}
+.forecast-axis text{font-size:10px;fill:var(--text-subtle);font-family:'Inter',sans-serif}
+.forecast-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.forecast-line.plan{stroke:var(--accent)}
+.forecast-line.roster{stroke:var(--text-muted)}
+.forecast-line.effective{stroke:var(--amber);stroke-dasharray:4 4}
+.forecast-area{fill:var(--red);opacity:.06}
+.forecast-dot{fill:var(--accent);stroke:#fff;stroke-width:2}
+
+.forecast-callout-row{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3);margin-top:var(--s-4);
+  padding-top:var(--s-4);border-top:1px solid var(--border);
+}
+.forecast-callout{padding:0 4px}
+.forecast-callout-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.forecast-callout-value{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.forecast-callout-value.warn{color:var(--amber)}
+.forecast-callout-value.bad{color:var(--red)}
+.forecast-callout-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+
+/* ─────────────────────────────────────────────────────────────
+   DRIVER INTELLIGENCE (Drivers > Insights)
+   ───────────────────────────────────────────────────────────── */
+.di-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+.di-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);
+}
+.di-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.di-val{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.1}
+.di-val .frac{font-size:12px;color:var(--text-subtle);font-weight:500}
+.di-val.warn{color:var(--amber)}
+.di-val.bad{color:var(--red)}
+.di-val.ok{color:var(--green)}
+.di-sub{font-size:11px;color:var(--text-subtle);margin-top:6px;line-height:1.4;display:flex;align-items:center;gap:4px}
+.di-trend{font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px}
+.di-trend.up{color:var(--green);background:var(--green-soft)}
+.di-trend.down{color:var(--red);background:var(--red-soft)}
+
+.di-section{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);margin-bottom:var(--s-3);
+}
+.di-section-title{font-size:13px;font-weight:600;color:var(--text);margin:0 0 var(--s-3) 0}
+
+.di-bar-row{display:grid;grid-template-columns:140px 1fr 60px;gap:var(--s-3);align-items:center;padding:6px 0}
+.di-bar-label{font-size:12px;color:var(--text-muted);font-weight:500}
+.di-bar-track{height:18px;background:var(--canvas);border-radius:4px;overflow:hidden}
+.di-bar-fill{height:100%;border-radius:4px}
+.di-bar-fill.tier-a{background:var(--green)}
+.di-bar-fill.tier-b{background:var(--accent)}
+.di-bar-fill.tier-c{background:var(--amber)}
+.di-bar-fill.tier-d{background:var(--red)}
+.di-bar-count{font-size:13px;font-weight:600;text-align:right;color:var(--text)}
+
+.di-split{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
 </style>
 </head>
 <body>
@@ -3112,6 +3205,7 @@ a{color:inherit;text-decoration:none}
         <!-- Drivers sub-nav: Roster · Schedules · Time off -->
         <div class="subnav">
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
+          <button class="subnav-item" data-sub="insights" onclick="drSub('insights')">Insights</button>
           <button class="subnav-item" data-sub="schedules" onclick="drSub('schedules')">Schedules</button>
           <button class="subnav-item" data-sub="timeoff" onclick="drSub('timeoff')">Time off</button>
         </div>
@@ -3224,6 +3318,121 @@ a{color:inherit;text-decoration:none}
         </div>
 
         </div><!-- /dr-sub-roster -->
+
+        <!-- INSIGHTS SUB-VIEW — driver intelligence -->
+        <div class="dr-subview" id="dr-sub-insights">
+
+          <div class="di-grid">
+            <div class="di-card">
+              <div class="di-label">Total active drivers</div>
+              <div class="di-val">78</div>
+              <div class="di-sub"><span class="di-trend up">▲ +2</span>vs last week</div>
+            </div>
+            <div class="di-card">
+              <div class="di-label">Avg tenure</div>
+              <div class="di-val">14.2<span class="frac"> mo</span></div>
+              <div class="di-sub">Median 11 mo · longest 4.2 yr (Cole)</div>
+            </div>
+            <div class="di-card">
+              <div class="di-label">30-day turnover</div>
+              <div class="di-val warn">7%</div>
+              <div class="di-sub"><span class="di-trend down">▼ −2%</span>vs prior 30 days</div>
+            </div>
+            <div class="di-card">
+              <div class="di-label">Annualized turnover</div>
+              <div class="di-val warn">27%</div>
+              <div class="di-sub">Industry avg ~35% · you're below</div>
+            </div>
+          </div>
+
+          <div class="di-grid" style="margin-bottom:var(--s-5)">
+            <div class="di-card">
+              <div class="di-label">Drivers past 30 days</div>
+              <div class="di-val ok">62<span class="frac"> / 78</span></div>
+              <div class="di-sub">First-30 retention: 79%</div>
+            </div>
+            <div class="di-card">
+              <div class="di-label">At-risk drivers</div>
+              <div class="di-val bad">5</div>
+              <div class="di-sub">Score &lt; 75 OR safety/attendance flag</div>
+            </div>
+            <div class="di-card">
+              <div class="di-label">Avg fleet score</div>
+              <div class="di-val">81</div>
+              <div class="di-sub"><span class="di-trend up">▲ +3</span>last 30 days</div>
+            </div>
+            <div class="di-card">
+              <div class="di-label">Avg attendance · 30d</div>
+              <div class="di-val ok">96%</div>
+              <div class="di-sub">12 callouts across roster · 3 patterned</div>
+            </div>
+          </div>
+
+          <div class="di-section">
+            <h3 class="di-section-title">Tenure distribution</h3>
+            <div class="di-bar-row">
+              <span class="di-bar-label">0–30 days</span>
+              <div class="di-bar-track"><div class="di-bar-fill tier-d" style="width:21%"></div></div>
+              <div class="di-bar-count">16</div>
+            </div>
+            <div class="di-bar-row">
+              <span class="di-bar-label">30–90 days</span>
+              <div class="di-bar-track"><div class="di-bar-fill tier-c" style="width:18%"></div></div>
+              <div class="di-bar-count">14</div>
+            </div>
+            <div class="di-bar-row">
+              <span class="di-bar-label">90 days – 1 year</span>
+              <div class="di-bar-track"><div class="di-bar-fill tier-b" style="width:32%"></div></div>
+              <div class="di-bar-count">25</div>
+            </div>
+            <div class="di-bar-row">
+              <span class="di-bar-label">1–2 years</span>
+              <div class="di-bar-track"><div class="di-bar-fill tier-a" style="width:22%"></div></div>
+              <div class="di-bar-count">17</div>
+            </div>
+            <div class="di-bar-row">
+              <span class="di-bar-label">2+ years</span>
+              <div class="di-bar-track"><div class="di-bar-fill tier-a" style="width:8%"></div></div>
+              <div class="di-bar-count">6</div>
+            </div>
+            <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5">
+              <strong style="color:var(--text)">Insight:</strong> 38% of your roster is under 90 days. The first-90 cliff is your biggest retention risk — focus coaching here.
+            </div>
+          </div>
+
+          <div class="di-split">
+            <div class="di-section">
+              <h3 class="di-section-title">Performance distribution</h3>
+              <div class="di-bar-row"><span class="di-bar-label">Top tier (85+)</span><div class="di-bar-track"><div class="di-bar-fill tier-a" style="width:35%"></div></div><div class="di-bar-count">27</div></div>
+              <div class="di-bar-row"><span class="di-bar-label">Strong (75–84)</span><div class="di-bar-track"><div class="di-bar-fill tier-b" style="width:46%"></div></div><div class="di-bar-count">36</div></div>
+              <div class="di-bar-row"><span class="di-bar-label">Coachable (65–74)</span><div class="di-bar-track"><div class="di-bar-fill tier-c" style="width:13%"></div></div><div class="di-bar-count">10</div></div>
+              <div class="di-bar-row"><span class="di-bar-label">At risk (&lt; 65)</span><div class="di-bar-track"><div class="di-bar-fill tier-d" style="width:6%"></div></div><div class="di-bar-count">5</div></div>
+            </div>
+
+            <div class="di-section">
+              <h3 class="di-section-title">Hire source mix · last 90 days</h3>
+              <div class="di-bar-row"><span class="di-bar-label">Indeed</span><div class="di-bar-track"><div class="di-bar-fill tier-b" style="width:62%"></div></div><div class="di-bar-count">14</div></div>
+              <div class="di-bar-row"><span class="di-bar-label">Referral</span><div class="di-bar-track"><div class="di-bar-fill tier-a" style="width:22%"></div></div><div class="di-bar-count">5</div></div>
+              <div class="di-bar-row"><span class="di-bar-label">Walk-in</span><div class="di-bar-track"><div class="di-bar-fill tier-c" style="width:13%"></div></div><div class="di-bar-count">3</div></div>
+              <div class="di-bar-row"><span class="di-bar-label">Job fair</span><div class="di-bar-track"><div class="di-bar-fill tier-d" style="width:4%"></div></div><div class="di-bar-count">1</div></div>
+              <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5">
+                <strong style="color:var(--text)">Insight:</strong> Referrals retain 87% past 30d vs Indeed 71%. Boost referral bonus.
+              </div>
+            </div>
+          </div>
+
+          <div class="di-section" style="margin-top:var(--s-3)">
+            <h3 class="di-section-title">Coaching cadence · last 30 days</h3>
+            <div class="di-bar-row"><span class="di-bar-label">SMS coaching</span><div class="di-bar-track"><div class="di-bar-fill tier-b" style="width:48%"></div></div><div class="di-bar-count">12</div></div>
+            <div class="di-bar-row"><span class="di-bar-label">In-person 1:1</span><div class="di-bar-track"><div class="di-bar-fill tier-a" style="width:24%"></div></div><div class="di-bar-count">6</div></div>
+            <div class="di-bar-row"><span class="di-bar-label">Recognition</span><div class="di-bar-track"><div class="di-bar-fill tier-a" style="width:16%"></div></div><div class="di-bar-count">4</div></div>
+            <div class="di-bar-row"><span class="di-bar-label">Pull from route</span><div class="di-bar-track"><div class="di-bar-fill tier-c" style="width:8%"></div></div><div class="di-bar-count">2</div></div>
+            <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5">
+              <strong style="color:var(--text)">Insight:</strong> 67% of coachings resulted in score improvement within 14 days. Davidson, Reyes, Whitfield haven't been coached this cycle yet.
+            </div>
+          </div>
+
+        </div><!-- /dr-sub-insights -->
 
         <!-- SCHEDULES SUB-VIEW -->
         <div class="dr-subview" id="dr-sub-schedules">
@@ -4158,6 +4367,13 @@ a{color:inherit;text-decoration:none}
                 <button class="view-toggle-btn">Route view</button>
               </div>
             </div>
+          </div>
+
+          <!-- OKAMI source — schedule pulled from 13-week plan -->
+          <div class="okami-source">
+            <div class="okami-source-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div>Pulled from <strong>OKAMI · Week 19</strong> · <strong>38 routes</strong> this week · <strong>85 drivers needed</strong> (76 base + 9 cushion at 12%)</div>
+            <span class="okami-source-link" onclick="goto('okami')">Adjust in OKAMI →</span>
           </div>
 
           <!-- Builder header with live coverage gauge + actions -->
@@ -5585,6 +5801,93 @@ a{color:inherit;text-decoration:none}
               <div class="okami-insight-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
               <div class="okami-insight-title">Peak season · 22 weeks out</div>
               <div class="okami-insight-msg">Holiday volume Nov 6 – Dec 25. Start <strong>seasonal hiring</strong> Oct 15. Avg DSP needs <strong>+18 seasonal drivers</strong>.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STAFFING FORECAST — Plan vs Roster vs Effective need -->
+        <div class="forecast-chart-card">
+          <div class="forecast-chart-head">
+            <div>
+              <h3 class="forecast-chart-title">Staffing forecast · 13 weeks</h3>
+              <p class="forecast-chart-sub">Plan (drivers needed) vs Roster (current + projected hires) vs Effective need (with attrition + at-risk replacement)</p>
+            </div>
+            <div class="forecast-chart-legend">
+              <span class="legend-item"><span class="legend-swatch plan"></span>Plan need</span>
+              <span class="legend-item"><span class="legend-swatch roster"></span>Roster + hires</span>
+              <span class="legend-item"><span class="legend-swatch effective"></span>Effective need (with risk)</span>
+            </div>
+          </div>
+
+          <svg class="forecast-svg" viewBox="0 0 720 200" preserveAspectRatio="none">
+            <!-- Grid lines (Y axis) -->
+            <g class="forecast-grid">
+              <line x1="40" y1="20" x2="700" y2="20" />
+              <line x1="40" y1="65" x2="700" y2="65" />
+              <line x1="40" y1="110" x2="700" y2="110" />
+              <line x1="40" y1="155" x2="700" y2="155" />
+              <line x1="40" y1="180" x2="700" y2="180" />
+            </g>
+            <!-- Y axis labels -->
+            <g class="forecast-axis">
+              <text x="0" y="24">180</text>
+              <text x="0" y="69">150</text>
+              <text x="0" y="114">120</text>
+              <text x="0" y="159">90</text>
+              <text x="0" y="184">70</text>
+            </g>
+            <!-- X axis week labels (every other) -->
+            <g class="forecast-axis">
+              <text x="42" y="196">W19</text>
+              <text x="142" y="196">W21</text>
+              <text x="242" y="196">W23</text>
+              <text x="342" y="196">W25</text>
+              <text x="442" y="196">W27</text>
+              <text x="542" y="196">W29</text>
+              <text x="642" y="196">W31</text>
+            </g>
+
+            <!-- Gap area between Plan and Roster (red shading where roster < plan) -->
+            <path class="forecast-area" d="M40,143 L90,138 L140,134 L190,124 L240,38 L290,38 L340,113 L390,113 L440,108 L490,113 L540,2 L590,103 L640,108 L690,113 L690,143 L640,138 L590,128 L540,123 L490,118 L440,108 L390,98 L340,93 L290,88 L240,83 L190,78 L140,73 L90,68 L40,65 Z" />
+
+            <!-- Plan line (drivers needed × week) -->
+            <!-- Values: 85, 90, 94, 101, 161, 161, 112, 112, 117, 112, 179, 123, 117 -->
+            <!-- Mapped to y range: 70-180 → svg 180-20 -->
+            <polyline class="forecast-line plan" points="40,160 95,153 150,148 205,138 260,38 315,38 370,113 425,113 480,105 535,113 590,12 645,103 700,113" />
+
+            <!-- Roster line (current + projected hires) -->
+            <!-- Values: 78, 81, 86, 90, 90, 94, 96, 100, 104, 108, 112, 112, 115 -->
+            <polyline class="forecast-line roster" points="40,170 95,166 150,158 205,153 260,153 315,148 370,144 425,138 480,131 535,125 590,118 645,118 700,114" />
+
+            <!-- Effective need line (with attrition + at-risk replacement) -->
+            <polyline class="forecast-line effective" points="40,155 95,148 150,143 205,133 260,33 315,33 370,108 425,108 480,100 535,108 590,7 645,98 700,108" />
+
+            <!-- Cycle markers / HVE markers -->
+            <line x1="205" y1="20" x2="205" y2="180" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2 4" opacity=".5" />
+            <text class="forecast-axis" x="208" y="32" fill="var(--accent)" style="font-weight:600">C14 ends</text>
+
+            <line x1="260" y1="20" x2="315" y2="20" stroke="var(--amber)" stroke-width="2" />
+            <text class="forecast-axis" x="265" y="14" fill="var(--amber)" style="font-weight:600">⚡ HVE</text>
+
+            <line x1="590" y1="20" x2="590" y2="180" stroke="var(--amber)" stroke-width="1" stroke-dasharray="2 4" opacity=".5" />
+            <text class="forecast-axis" x="593" y="14" fill="var(--amber)" style="font-weight:600">⚡ Prime</text>
+          </svg>
+
+          <div class="forecast-callout-row">
+            <div class="forecast-callout">
+              <div class="forecast-callout-label">Today's gap</div>
+              <div class="forecast-callout-value warn">−7</div>
+              <div class="forecast-callout-sub">85 needed · 78 on roster</div>
+            </div>
+            <div class="forecast-callout">
+              <div class="forecast-callout-label">Largest gap (W23/W24)</div>
+              <div class="forecast-callout-value bad">−71</div>
+              <div class="forecast-callout-sub">HVE absorbed via ADW + OT, no hires needed</div>
+            </div>
+            <div class="forecast-callout">
+              <div class="forecast-callout-label">Hires required (excl. HVE)</div>
+              <div class="forecast-callout-value">28</div>
+              <div class="forecast-callout-sub">over 13 weeks · ~62 applicants needed</div>
             </div>
           </div>
         </div>
