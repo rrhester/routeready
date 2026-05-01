@@ -2793,6 +2793,145 @@ a{color:inherit;text-decoration:none}
 .row-menu-item svg{width:13px;height:13px;color:var(--text-muted)}
 .row-menu-item.danger{color:var(--red)}
 .row-menu-item.danger svg{color:var(--red)}
+
+/* ─────────────────────────────────────────────────────────────
+   SMART DROP — AI multi-extraction import
+   ───────────────────────────────────────────────────────────── */
+.sd-trigger{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 10px;border-radius:var(--r-md);
+  background:linear-gradient(135deg,#1E40AF,#3B82F6);
+  border:1px solid transparent;
+  font-size:12px;font-weight:600;color:#fff;
+  cursor:pointer;font-family:inherit;margin-right:var(--s-2);
+}
+.sd-trigger:hover{filter:brightness(1.05)}
+.sd-trigger svg{width:13px;height:13px;stroke-width:2.5}
+
+.sd-modal{max-width:780px;width:96vw;max-height:88vh}
+.sd-stages{
+  display:flex;align-items:center;padding:10px 14px;background:var(--canvas);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:11px;
+}
+.sd-stage{
+  display:flex;align-items:center;gap:6px;color:var(--text-subtle);font-weight:500;
+}
+.sd-stage.active{color:var(--text);font-weight:700}
+.sd-stage.done{color:var(--green)}
+.sd-stage-num{
+  width:18px;height:18px;border-radius:50%;background:var(--canvas);
+  border:1.5px solid var(--border-strong);color:var(--text-subtle);
+  display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;
+}
+.sd-stage.active .sd-stage-num{background:var(--accent);border-color:var(--accent);color:#fff}
+.sd-stage.done .sd-stage-num{background:var(--green);border-color:var(--green);color:#fff}
+.sd-stage-arrow{color:var(--text-subtle);margin:0 8px}
+
+.sd-drop{
+  border:2px dashed var(--border-strong);border-radius:var(--r-md);
+  padding:32px 24px;text-align:center;background:var(--canvas);
+  cursor:pointer;transition:border-color .12s,background .12s;
+}
+.sd-drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+.sd-drop-icon{
+  width:48px;height:48px;border-radius:12px;
+  background:linear-gradient(135deg,#1E40AF,#3B82F6);color:#fff;
+  display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px;
+}
+.sd-drop-icon svg{width:22px;height:22px;stroke-width:2}
+.sd-drop-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.sd-drop-sub{font-size:12px;color:var(--text-muted);line-height:1.5}
+
+.sd-paste-area{
+  width:100%;min-height:140px;border:1px solid var(--border-strong);border-radius:8px;
+  padding:12px;font-family:'SF Mono',Menlo,monospace;font-size:12px;line-height:1.55;
+  background:var(--surface);color:var(--text);margin-top:var(--s-3);resize:vertical;
+}
+.sd-paste-area:focus{outline:none;border-color:var(--accent)}
+
+.sd-loading{
+  text-align:center;padding:40px 20px;font-size:13px;color:var(--text-muted);
+}
+.sd-loading-icon{
+  width:36px;height:36px;border:3px solid var(--canvas);border-top-color:var(--accent);
+  border-radius:50%;display:inline-block;margin-bottom:10px;
+  animation:sdSpin 1s linear infinite;
+}
+@keyframes sdSpin{to{transform:rotate(360deg)}}
+
+.sd-result-banner{
+  background:linear-gradient(120deg,#1E40AF11,#3B82F611);
+  border:1px solid #146EB433;border-radius:var(--r-md);padding:10px 14px;
+  display:flex;align-items:center;gap:10px;margin-bottom:var(--s-3);font-size:12px;color:var(--text);
+}
+.sd-result-banner-icon{
+  width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#1E40AF,#3B82F6);
+  color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.sd-result-banner-icon svg{width:13px;height:13px;stroke-width:2.5}
+.sd-result-banner strong{font-weight:700}
+
+.sd-extraction{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  margin-bottom:var(--s-3);overflow:hidden;
+}
+.sd-extraction.skipped{opacity:.5}
+.sd-extraction-head{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--canvas);
+  border-bottom:1px solid var(--border);
+}
+.sd-extraction-toggle{
+  width:18px;height:18px;border:1.5px solid var(--border-strong);border-radius:4px;
+  display:inline-flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;
+}
+.sd-extraction.active .sd-extraction-toggle{background:var(--accent);border-color:var(--accent)}
+.sd-extraction.active .sd-extraction-toggle svg{width:11px;height:11px}
+.sd-extraction-name{font-size:13px;font-weight:600;color:var(--text);flex:1}
+.sd-extraction-count{font-size:11px;color:var(--text-muted)}
+.sd-extraction-route{font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px;background:var(--accent-soft);color:var(--accent-text);letter-spacing:.02em;text-transform:uppercase}
+.sd-extraction-conf{font-size:10px;color:var(--text-subtle);font-weight:600}
+
+.sd-table{width:100%;border-collapse:collapse;font-size:12px}
+.sd-table thead th{
+  text-align:left;padding:6px 12px;background:var(--canvas);
+  font-size:10px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.sd-table tbody td{padding:6px 12px;border-top:1px solid var(--border);color:var(--text)}
+.sd-table tbody tr.flagged{background:#FFFBEB}
+.sd-flag-pill{font-size:9px;font-weight:600;color:var(--amber);background:var(--amber-soft);padding:1px 6px;border-radius:6px}
+.sd-cite{font-size:10px;color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace}
+
+/* ─────────────────────────────────────────────────────────────
+   TIME INTEGRITY — Drivers > Insights
+   ───────────────────────────────────────────────────────────── */
+.ti-section{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);margin-bottom:var(--s-3);
+}
+.ti-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--s-3);gap:var(--s-3)}
+.ti-title{font-size:13px;font-weight:600;color:var(--text);margin:0;display:flex;align-items:center;gap:8px}
+.ti-title-icon{
+  width:22px;height:22px;border-radius:6px;background:var(--amber-soft);color:var(--amber);
+  display:flex;align-items:center;justify-content:center;
+}
+.ti-title-icon svg{width:13px;height:13px;stroke-width:2.5}
+.ti-summary{
+  background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid #FCD34D;
+  border-radius:var(--r-md);padding:14px 16px;font-size:13px;color:#78350F;line-height:1.55;
+  margin-bottom:var(--s-3);
+}
+.ti-summary strong{font-weight:700}
+.ti-row{
+  display:grid;grid-template-columns:auto 1fr auto auto auto;gap:var(--s-3);align-items:center;
+  padding:12px 0;border-bottom:1px solid var(--border);
+}
+.ti-row:last-child{border-bottom:none}
+.ti-row-name{font-size:13px;font-weight:600;color:var(--text)}
+.ti-row-meta{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.ti-row-stat{font-size:13px;font-weight:600;color:var(--text);text-align:right}
+.ti-row-stat-label{font-size:10px;color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.ti-row-cost{font-size:13px;font-weight:700;color:var(--red);text-align:right}
 </style>
 </head>
 <body>
@@ -2896,6 +3035,10 @@ a{color:inherit;text-decoration:none}
       </div>
       <button class="icon-btn" title="Reports" onclick="goto('reports')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+      </button>
+      <button class="sd-trigger" onclick="openSmartDrop()" title="AI Smart Drop — paste anything, we route it">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+        Smart Drop
       </button>
       <button class="cov-pill" onclick="openCoverageDetail()" title="Coverage Confidence — click for full breakdown">
         <span class="cov-pill-ring">
@@ -3589,6 +3732,75 @@ a{color:inherit;text-decoration:none}
             <div class="di-bar-row"><span class="di-bar-label">Pull from route</span><div class="di-bar-track"><div class="di-bar-fill tier-c" style="width:8%"></div></div><div class="di-bar-count">2</div></div>
             <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5">
               <strong style="color:var(--text)">Insight:</strong> 67% of coachings resulted in score improvement within 14 days. Davidson, Reyes, Whitfield haven't been coached this cycle yet.
+            </div>
+          </div>
+
+          <!-- TIME INTEGRITY — pattern detection from payroll/clock data -->
+          <div class="ti-section" style="margin-top:var(--s-3)">
+            <div class="ti-head">
+              <h3 class="ti-title">
+                <span class="ti-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                Time integrity · last 30 days
+              </h3>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-sm" onclick="openSmartDrop()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+                  Import payroll data
+                </button>
+                <button class="btn btn-sm">Dispute with payroll</button>
+              </div>
+            </div>
+
+            <div class="ti-summary">
+              <strong>4 drivers with consistent clock-out variance &gt; 20 min · estimated overpayment <strong>$1,240</strong> this cycle ($14,880 annualized).</strong> Auto-flagged from imported payroll data and matched against scheduled times. Click any driver to coach the pattern or contest in payroll.
+            </div>
+
+            <div class="ti-row">
+              <div class="avatar-sm tier-d">MD</div>
+              <div>
+                <div class="ti-row-name">Marcus Davidson</div>
+                <div class="ti-row-meta">+32 min avg · clock-out late on 11 of last 12 shifts · pattern: Mondays + Fridays</div>
+              </div>
+              <div><div class="ti-row-stat-label">Variance</div><div class="ti-row-stat" style="color:var(--red)">+32m</div></div>
+              <div><div class="ti-row-stat-label">Est. overpaid</div><div class="ti-row-cost">$486</div></div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Marcus Davidson','attendance','Time integrity flag · +32m clock-out variance avg')">Coach</button>
+            </div>
+
+            <div class="ti-row">
+              <div class="avatar-sm tier-c">JB</div>
+              <div>
+                <div class="ti-row-name">Jordan Beckett</div>
+                <div class="ti-row-meta">+28 min avg · 8 of 11 shifts · pattern: Fridays</div>
+              </div>
+              <div><div class="ti-row-stat-label">Variance</div><div class="ti-row-stat" style="color:var(--amber)">+28m</div></div>
+              <div><div class="ti-row-stat-label">Est. overpaid</div><div class="ti-row-cost">$324</div></div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Jordan Beckett','attendance','Time integrity flag · +28m variance, Friday pattern')">Coach</button>
+            </div>
+
+            <div class="ti-row">
+              <div class="avatar-sm tier-c">KW</div>
+              <div>
+                <div class="ti-row-name">Kerwin Whitfield</div>
+                <div class="ti-row-meta">+24 min avg · 9 of 12 shifts · no clear day pattern</div>
+              </div>
+              <div><div class="ti-row-stat-label">Variance</div><div class="ti-row-stat" style="color:var(--amber)">+24m</div></div>
+              <div><div class="ti-row-stat-label">Est. overpaid</div><div class="ti-row-cost">$252</div></div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Kerwin Whitfield','attendance','Time integrity flag · +24m variance')">Coach</button>
+            </div>
+
+            <div class="ti-row">
+              <div class="avatar-sm tier-d">TR</div>
+              <div>
+                <div class="ti-row-name">Tasha Reyes</div>
+                <div class="ti-row-meta">+22 min avg · 7 of 11 shifts · pattern: returns from KMO2-08C late</div>
+              </div>
+              <div><div class="ti-row-stat-label">Variance</div><div class="ti-row-stat" style="color:var(--amber)">+22m</div></div>
+              <div><div class="ti-row-stat-label">Est. overpaid</div><div class="ti-row-cost">$178</div></div>
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Tasha Reyes','attendance','Time integrity flag · KMO2-08C return time consistently late')">Coach</button>
+            </div>
+
+            <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5">
+              <strong style="color:var(--text)">Insight:</strong> Three of the four flagged drivers have route-related patterns (last stop is on the far edge of route). Consider re-balancing KMO2-08C and KMO3-04D — recovers ~$700/cycle.
             </div>
           </div>
 
@@ -8015,6 +8227,167 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     SMART DROP MODAL — AI multi-extraction import
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-smart-drop" onclick="if(event.target===this)closeModal('modal-smart-drop')">
+  <div class="modal-card sd-modal">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title" style="display:flex;align-items:center;gap:8px">
+          <span style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#1E40AF,#3B82F6);color:#fff;display:inline-flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg></span>
+          Smart Drop · AI multi-extraction
+        </p>
+        <p class="modal-sub">Paste anything. We extract every type of data we know how to use and route each to the right place.</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-smart-drop')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+
+    <div class="sd-stages">
+      <div class="sd-stage active" data-step="1"><span class="sd-stage-num">1</span>Drop</div>
+      <span class="sd-stage-arrow">→</span>
+      <div class="sd-stage" data-step="2"><span class="sd-stage-num">2</span>AI analyzes</div>
+      <span class="sd-stage-arrow">→</span>
+      <div class="sd-stage" data-step="3"><span class="sd-stage-num">3</span>Review &amp; import</div>
+    </div>
+
+    <div class="modal-body" style="max-height:calc(88vh - 200px);overflow-y:auto">
+
+      <!-- STEP 1 — DROP -->
+      <div id="sd-step-1">
+        <div class="sd-drop" onclick="document.getElementById('sd-paste').focus()">
+          <div class="sd-drop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div class="sd-drop-title">Drop a file or paste content</div>
+          <div class="sd-drop-sub">Excel · CSV · PDF · Word · email · pasted text<br/>We figure out what's in it.</div>
+        </div>
+        <textarea class="sd-paste-area" id="sd-paste" placeholder="Or paste content here…  (try a payroll report, vehicle list, Amazon scorecard, anything)"></textarea>
+
+        <div style="margin-top:var(--s-3);font-size:11px;color:var(--text-subtle)">
+          <strong style="color:var(--text)">Try one of these examples to see how it works:</strong>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            <button class="cd-pill" onclick="sdLoadExample('payroll')">Payroll report</button>
+            <button class="cd-pill" onclick="sdLoadExample('roster')">Driver roster</button>
+            <button class="cd-pill" onclick="sdLoadExample('scorecard')">Amazon scorecard</button>
+            <button class="cd-pill" onclick="sdLoadExample('invoice')">Maintenance invoice</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 — ANALYZE (loading) -->
+      <div id="sd-step-2" style="display:none">
+        <div class="sd-loading">
+          <div class="sd-loading-icon"></div>
+          <div style="font-weight:600;color:var(--text)">Analyzing your data…</div>
+          <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Identifying types · extracting fields · matching to driver records</div>
+        </div>
+      </div>
+
+      <!-- STEP 3 — REVIEW & IMPORT -->
+      <div id="sd-step-3" style="display:none">
+
+        <div class="sd-result-banner">
+          <div class="sd-result-banner-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div>AI found <strong>4 data types</strong> in this file across <strong>5 drivers</strong> · 1 row flagged for review · 1 row skipped (unknown format)</div>
+        </div>
+
+        <!-- TIME ENTRIES -->
+        <div class="sd-extraction active">
+          <div class="sd-extraction-head">
+            <span class="sd-extraction-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="sd-extraction-name">Time entries</span>
+            <span class="sd-extraction-count">5 rows</span>
+            <span class="sd-extraction-route">→ Time Integrity</span>
+            <span class="sd-extraction-conf">98% confidence</span>
+          </div>
+          <table class="sd-table">
+            <thead><tr><th>Driver</th><th>Date</th><th>Clock in</th><th>Sched in</th><th>Clock out</th><th>Sched out</th><th>Variance</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td>Marcus Davidson</td><td>Apr 22</td><td>6:42a</td><td>7:00a</td><td>6:18p</td><td>6:00p</td><td style="color:var(--amber);font-weight:600">+18m</td><td class="sd-cite">L4</td></tr>
+              <tr><td>Marcus Davidson</td><td>Apr 23</td><td>6:55a</td><td>7:00a</td><td>5:58p</td><td>6:00p</td><td style="color:var(--green)">OK</td><td class="sd-cite">L5</td></tr>
+              <tr><td>Marcus Davidson</td><td>Apr 24</td><td>6:50a</td><td>7:00a</td><td>6:42p</td><td>6:00p</td><td style="color:var(--red);font-weight:700">+42m</td><td class="sd-cite">L6</td></tr>
+              <tr><td>Marcus Davidson</td><td>Apr 25</td><td colspan="4" style="font-style:italic;color:var(--text-subtle)">CALLOUT — extracted to attendance</td><td>—</td><td class="sd-cite">L7</td></tr>
+              <tr><td>Marcus Davidson</td><td>Apr 26</td><td>7:08a</td><td>7:00a</td><td>6:35p</td><td>6:00p</td><td style="color:var(--red);font-weight:700">+35m</td><td class="sd-cite">L8</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- PAY RECORD -->
+        <div class="sd-extraction active">
+          <div class="sd-extraction-head">
+            <span class="sd-extraction-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="sd-extraction-name">Pay record</span>
+            <span class="sd-extraction-count">1 row</span>
+            <span class="sd-extraction-route">→ Driver record</span>
+            <span class="sd-extraction-conf">99% confidence</span>
+          </div>
+          <table class="sd-table">
+            <thead><tr><th>Driver</th><th>Period</th><th>Reg hrs</th><th>OT hrs</th><th>Gross</th><th>Net</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td>Marcus Davidson</td><td>Apr 22 – Apr 28</td><td>40.0</td><td>7.2</td><td>$964.40</td><td>$771.07</td><td class="sd-cite">L18-26</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ATTENDANCE -->
+        <div class="sd-extraction active">
+          <div class="sd-extraction-head">
+            <span class="sd-extraction-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="sd-extraction-name">Attendance</span>
+            <span class="sd-extraction-count">1 callout</span>
+            <span class="sd-extraction-route">→ Attendance log</span>
+            <span class="sd-extraction-conf">100% confidence</span>
+          </div>
+          <table class="sd-table">
+            <thead><tr><th>Driver</th><th>Date</th><th>Status</th><th>Pattern flag</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr class="flagged"><td>Marcus Davidson</td><td>Thu Apr 25</td><td>Callout</td><td><span class="sd-flag-pill">3rd Mon-Thu callout in 30d</span></td><td class="sd-cite">L7</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- BONUS -->
+        <div class="sd-extraction active">
+          <div class="sd-extraction-head">
+            <span class="sd-extraction-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="sd-extraction-name">Bonus</span>
+            <span class="sd-extraction-count">1 row</span>
+            <span class="sd-extraction-route">→ Recognition log</span>
+            <span class="sd-extraction-conf">96% confidence</span>
+          </div>
+          <table class="sd-table">
+            <thead><tr><th>Driver</th><th>Type</th><th>Amount</th><th>Reason (extracted)</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td>Marcus Davidson</td><td>Performance bonus</td><td>$50.00</td><td style="color:var(--text-muted);font-style:italic">Not detected — set manually</td><td class="sd-cite">L21</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- SKIPPED -->
+        <div class="sd-extraction skipped">
+          <div class="sd-extraction-head">
+            <span class="sd-extraction-toggle" style="background:transparent;border-color:var(--border-strong)"></span>
+            <span class="sd-extraction-name">Unknown row · skipped</span>
+            <span class="sd-extraction-count">1 row</span>
+            <span class="sd-extraction-route" style="background:var(--canvas);color:var(--text-subtle)">— skipped</span>
+            <span class="sd-extraction-conf">Below threshold</span>
+          </div>
+          <div style="padding:10px 14px;font-size:12px;color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace">L29 · "Department code: KMO1-DLV-23 · ref-2487-A"</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn" id="sd-back-btn" onclick="sdBack()" style="display:none">← Back</button>
+      <button class="btn" onclick="closeModal('modal-smart-drop');sdReset()">Cancel</button>
+      <button class="btn btn-primary" id="sd-next-btn" onclick="sdAnalyze()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+        Analyze with AI
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      BROADCAST COMPOSER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-broadcast" onclick="if(event.target===this)closeModal('modal-broadcast')">
@@ -9159,6 +9532,75 @@ a{color:inherit;text-decoration:none}
     document.querySelector('#view-fleet .subnav-item[data-sub="' + sub + '"]').classList.add('active');
     document.querySelectorAll('.fleet-tab').forEach(function(v){ v.style.display = 'none'; });
     document.getElementById('fleet-tab-' + sub).style.display = 'block';
+  }
+
+  // ─── SMART DROP — multi-stage modal flow ─────────────────
+  function openSmartDrop(){
+    sdReset();
+    openModal('modal-smart-drop');
+    setTimeout(function(){ const t = document.getElementById('sd-paste'); if (t) t.focus(); }, 100);
+  }
+  function sdReset(){
+    document.getElementById('sd-step-1').style.display = 'block';
+    document.getElementById('sd-step-2').style.display = 'none';
+    document.getElementById('sd-step-3').style.display = 'none';
+    document.querySelectorAll('.sd-stage').forEach(function(s){ s.classList.remove('active','done'); });
+    document.querySelector('.sd-stage[data-step="1"]').classList.add('active');
+    const back = document.getElementById('sd-back-btn');
+    const next = document.getElementById('sd-next-btn');
+    if (back) back.style.display = 'none';
+    if (next) {
+      next.style.display = 'inline-flex';
+      next.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg> Analyze with AI';
+      next.onclick = sdAnalyze;
+    }
+    const paste = document.getElementById('sd-paste');
+    if (paste) paste.value = '';
+  }
+  function sdAnalyze(){
+    const paste = document.getElementById('sd-paste').value.trim();
+    if (paste.length < 10) { toast('Paste some content first (or click an example)', 'warn'); return; }
+    document.getElementById('sd-step-1').style.display = 'none';
+    document.getElementById('sd-step-2').style.display = 'block';
+    document.querySelectorAll('.sd-stage').forEach(function(s){ s.classList.remove('active'); });
+    document.querySelector('.sd-stage[data-step="1"]').classList.add('done');
+    document.querySelector('.sd-stage[data-step="2"]').classList.add('active');
+    document.getElementById('sd-next-btn').style.display = 'none';
+    setTimeout(function(){ sdShowResults(); }, 1800);
+  }
+  function sdShowResults(){
+    document.getElementById('sd-step-2').style.display = 'none';
+    document.getElementById('sd-step-3').style.display = 'block';
+    document.querySelectorAll('.sd-stage').forEach(function(s){ s.classList.remove('active'); });
+    document.querySelector('.sd-stage[data-step="2"]').classList.add('done');
+    document.querySelector('.sd-stage[data-step="3"]').classList.add('active');
+    const back = document.getElementById('sd-back-btn');
+    const next = document.getElementById('sd-next-btn');
+    if (back) back.style.display = 'inline-flex';
+    if (next) {
+      next.style.display = 'inline-flex';
+      next.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirm import (4 types · 5 rows)';
+      next.onclick = function(){
+        closeModal('modal-smart-drop');
+        toast('Imported · 5 time entries → Time Integrity · 1 pay record → Driver record · 1 callout → Attendance · 1 bonus → Recognition');
+        sdReset();
+      };
+    }
+  }
+  function sdBack(){
+    sdReset();
+    document.getElementById('sd-step-2').style.display = 'none';
+    document.getElementById('sd-step-3').style.display = 'none';
+  }
+  function sdLoadExample(type){
+    const examples = {
+      payroll: 'Driver: Marcus Davidson\nPosition: Driver · KMO1\nPay period: Apr 22 – Apr 28\n\nClock activity:\n  Mon Apr 22  In: 6:42 AM  Sched: 7:00 AM  Out: 6:18 PM  Sched out: 6:00 PM  +18 min\n  Tue Apr 23  In: 6:55 AM  Sched: 7:00 AM  Out: 5:58 PM  Sched out: 6:00 PM  OK\n  Wed Apr 24  In: 6:50 AM  Sched: 7:00 AM  Out: 6:42 PM  Sched out: 6:00 PM  +42 min\n  Thu Apr 25  CALLOUT\n  Fri Apr 26  In: 7:08 AM  Sched: 7:00 AM  Out: 6:35 PM  Sched out: 6:00 PM  +35 min\n\nHours worked: 47.2\nRegular: 40.0   OT: 7.2\n\nEarnings:\n  Regular wages       $720.00  ($18.00 × 40h)\n  Overtime           $194.40  ($27.00 × 7.2h)\n  Performance bonus   $50.00\n  Gross               $964.40\n  Federal withhold   −$87.45\n  State withhold     −$32.10\n  FICA               −$73.78\n  Net               $771.07\n\nDepartment code: KMO1-DLV-23 · ref-2487-A',
+      roster: 'Active Drivers — KMO1\n\nName, Phone, Hire Date, Station\nMarcus Davidson, 417-555-0100, Nov 12 2024, KMO1\nTasha Reyes, 417-555-0142, Aug 4 2025, KMO2\nKerwin Whitfield, 417-555-0193, May 1 2023, KMO1\nJordan Beckett, 417-555-0218, Nov 1 2024, KMO3',
+      scorecard: 'Amazon DSP Weekly Scorecard · Cycle 14 Week 3\nDSP: Cardinal Logistics · Station KMO1\n\nOverall: Fantastic\nDCR: 99.6%\nSWC: Fantastic\nDelivered: 4,672 packages\nNo show: 1.1%\nSafety events: 4\n  • Marcus Davidson — hard brake event\n  • Tasha Reyes — speed event (×2)\n  • Jordan Beckett — late return',
+      invoice: 'INVOICE · Springfield Truck Service\nDate: April 15, 2025\nVehicle: VAN-04 (5HXXX12345)\n\nServices:\n  Oil change & filter      $45.00\n  Tire rotation             $40.00\n  Air filter replacement    $25.00\n  Labor                     $35.00\n\nSubtotal: $145.00\nTax: $11.60\nTotal: $156.60\n\nNext service due: May 15, 2025 (5,000 mi)'
+    };
+    document.getElementById('sd-paste').value = examples[type] || '';
+    toast('Example loaded · click "Analyze with AI" to see what gets extracted');
   }
 
   // ─── VEHICLE DETAIL ──────────────────────────────────────
