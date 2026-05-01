@@ -6209,6 +6209,58 @@ const SUPABASE_HANDLERS = {
       },
       by_metric_30d, weekly_chart, timeline
     };
+  },
+
+  // driverRecentActivity — port of Apps Script getDriverRecentActivity. Returns
+  // {status:'ok', result: {items:[{kind, title, detail, date}], next_inperson_number}}
+  // kinds: event (safety incident), sms, inperson, skipped — most recent first.
+  driverRecentActivity: async (params) => {
+    const tid = params.transporter_id;
+    if (!tid) return { status: 'error', message: 'transporter_id required' };
+    const limit = Math.max(1, Math.min(50, Number(params.limit) || 5));
+    const dspId = await rrGetDspId();
+
+    const [evR, cR] = await Promise.all([
+      sb.from('safety_events')
+        .select('event_date, event_datetime, metric_type, metric_subtype')
+        .eq('dsp_id', dspId).eq('transporter_id', tid)
+        .order('event_date', { ascending: false }).limit(limit),
+      sb.from('coaching_log')
+        .select('type, message_body, created_at')
+        .eq('dsp_id', dspId).eq('transporter_id', tid)
+        .order('created_at', { ascending: false })
+    ]);
+    if (evR.error) throw evR.error;
+    if (cR.error) throw cR.error;
+
+    const events = evR.data || [];
+    const coachings = cR.data || [];
+
+    const merged = [];
+    events.forEach(e => merged.push({
+      kind: 'event',
+      title: e.metric_type || 'Event',
+      detail: e.metric_subtype || '',
+      date: e.event_date || (e.event_datetime ? e.event_datetime.slice(0, 10) : ''),
+      _sort: e.event_datetime || e.event_date || ''
+    }));
+    coachings.forEach(c => {
+      let kind = 'sms', title = 'SMS coaching sent';
+      if (c.type === 'InPerson') { kind = 'inperson'; title = 'In-person 1:1'; }
+      else if (c.type === 'Skipped') { kind = 'skipped'; title = 'Coaching skipped'; }
+      merged.push({
+        kind, title,
+        detail: c.message_body || '',
+        date: c.created_at ? c.created_at.slice(0, 10) : '',
+        _sort: c.created_at || ''
+      });
+    });
+
+    merged.sort((a, b) => (a._sort < b._sort ? 1 : a._sort > b._sort ? -1 : 0));
+    const items = merged.slice(0, limit).map(({ _sort, ...rest }) => rest);
+    const next_inperson_number = coachings.filter(c => c.type === 'InPerson').length + 1;
+
+    return { status: 'ok', result: { items, next_inperson_number } };
   }
 };
 
@@ -9661,31 +9713,14 @@ async function perfLoadDecision() {
   if (footer) footer.style.display = 'none';
 
   try {
-    // Try tiered view first; if it 404s or errors, fall back to V2
-    let res;
-    try {
-      const winParam = (perfState.decisionWindow === 'all') ? 'all' : String(perfState.decisionWindow);
-      res = await apiCall({ action: 'decisionViewTiered', window_days: winParam });
-    } catch (tierErr) {
-      console.warn('Tiered view unavailable, falling back to V2:', tierErr && tierErr.message);
-      res = null;
-    }
-
-    if (res && res.status === 'ok' && res.result && res.result.counts) {
-      perfState.decision = res.result;
-      perfState.useTiered = true;
-      perfRenderDecisionTiered(res.result);
-      return;
-    }
-
-    // Fallback: legacy V2 view
-    perfState.useTiered = false;
-    res = await apiCall({ action: 'decisionViewV2', window: String(perfState.decisionWindow) });
-    if (res.status !== 'ok') {
-      throw new Error(res.message || 'unknown error');
+    const winParam = (perfState.decisionWindow === 'all') ? 'all' : String(perfState.decisionWindow);
+    const res = await apiCall({ action: 'decisionViewTiered', window_days: winParam });
+    if (!res || res.status !== 'ok' || !res.result || !res.result.counts) {
+      throw new Error((res && res.message) || 'No tiered data available');
     }
     perfState.decision = res.result;
-    perfRenderDecision(res.result);
+    perfState.useTiered = true;
+    perfRenderDecisionTiered(res.result);
   } catch (e) {
     console.error('perfLoadDecision failed:', e);
     if (rows) rows.innerHTML = '<div class="perf-error">Could not load decision view: ' + perfEsc(e.message || 'unknown error') + '</div>';
