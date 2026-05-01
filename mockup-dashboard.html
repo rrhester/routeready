@@ -2309,6 +2309,96 @@ a{color:inherit;text-decoration:none}
   font-size:11px;color:var(--text-subtle);background:var(--canvas);
   border-radius:6px;padding:8px 10px;font-family:'SF Mono',Menlo,monospace;line-height:1.5;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   OKAMI — 13-week strategic capacity planner
+   ───────────────────────────────────────────────────────────── */
+.okami-knobs{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-4) var(--s-5);margin-bottom:var(--s-4);
+  display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-4);align-items:end;
+}
+.okami-knob-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.okami-knob-label .help{
+  width:12px;height:12px;border-radius:50%;background:var(--canvas);color:var(--text-subtle);
+  display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;cursor:help;
+}
+.okami-knob-value{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.okami-knob-value .frac{font-size:11px;font-weight:500;color:var(--text-subtle)}
+.okami-knob input[type=range]{width:100%;margin-top:6px;accent-color:var(--accent)}
+.okami-knob-marks{display:flex;justify-content:space-between;font-size:9px;color:var(--text-subtle);margin-top:4px;font-weight:600}
+.okami-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+
+/* Insights bar */
+.okami-insights{
+  background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);
+  color:#fff;border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);margin-bottom:var(--s-4);
+}
+.okami-insights-head{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:var(--s-3);
+}
+.okami-insights-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
+.okami-insight{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
+  border-radius:var(--r-md);padding:12px 14px;
+}
+.okami-insight-icon{
+  width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:8px;
+}
+.okami-insight-icon svg{width:13px;height:13px;stroke-width:2}
+.okami-insight-icon.green{background:#16A34A33;color:#86EFAC}
+.okami-insight-icon.amber{background:#D9770633;color:#FCD34D}
+.okami-insight-icon.red{background:#DC262633;color:#FCA5A5}
+.okami-insight-icon.blue{background:#146EB433;color:#93C5FD}
+.okami-insight-title{font-size:12px;font-weight:600;color:#fff;margin-bottom:3px}
+.okami-insight-msg{font-size:11px;color:rgba(255,255,255,.7);line-height:1.5}
+.okami-insight-msg strong{color:#fff;font-weight:600}
+
+/* 13-week table */
+.okami-table{width:100%;border-collapse:collapse}
+.okami-table thead th{
+  text-align:left;font-size:10px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;padding:10px 12px;
+  background:var(--canvas);border-bottom:1px solid var(--border);
+}
+.okami-table thead th.center{text-align:center}
+.okami-table tbody td{
+  padding:12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);vertical-align:middle;
+}
+.okami-table tbody tr:last-child td{border-bottom:none}
+.okami-table tbody tr.cycle-end{border-bottom:2px solid var(--accent);background:#FAFBFC}
+.okami-table tbody tr.hve{background:#FFFBEB}
+.okami-table tbody tr.peak{background:#FEF3C7}
+.okami-week-tag{
+  display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;
+  margin-top:3px;letter-spacing:.04em;text-transform:uppercase;
+}
+.okami-week-tag.hve{background:var(--amber);color:#fff}
+.okami-week-tag.peak{background:#7C3AED;color:#fff}
+.okami-week-tag.cycle{background:var(--accent);color:#fff}
+
+.strategy-pills{display:flex;gap:3px;flex-wrap:wrap}
+.strategy-pill{
+  font-size:10px;font-weight:600;padding:3px 8px;border-radius:8px;
+  background:var(--canvas);color:var(--text-muted);cursor:pointer;border:1px solid var(--border);
+}
+.strategy-pill.active.hire{background:var(--accent-soft);color:var(--accent-text);border-color:#146EB433}
+.strategy-pill.active.adw{background:#FEF3C7;color:#92400E;border-color:#FCD34D}
+.strategy-pill.active.ot{background:#EDE9FE;color:#6D28D9;border-color:#DDD6FE}
+.strategy-pill.active.seasonal{background:var(--green-soft);color:var(--green);border-color:#86EFAC}
+
+/* Summary cards */
+.okami-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-top:var(--s-4)}
+.okami-sum{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-4);
+}
+.okami-sum-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.okami-sum-value{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.1}
+.okami-sum-sub{font-size:11px;color:var(--text-subtle);margin-top:4px;line-height:1.4}
+.okami-sum.warn{border-color:#FCD34D;background:#FFFBEB}
+.okami-sum.bad{border-color:#FCA5A5;background:#FEF2F2}
 </style>
 </head>
 <body>
@@ -2356,6 +2446,11 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Schedule
         <span class="nav-badge" style="background:#D97706">5</span>
+      </button>
+      <button class="nav-item" data-view="okami" onclick="goto('okami')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        OKAMI
+        <span class="nav-badge" style="background:#7C3AED">13w</span>
       </button>
       <button class="nav-item" data-view="messages" onclick="goto('messages')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -3847,7 +3942,6 @@ a{color:inherit;text-decoration:none}
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')">Open shifts <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
           <button class="subnav-item" data-sub="availability" onclick="schedSub('availability')">Availability</button>
           <button class="subnav-item" data-sub="forecast" onclick="schedSub('forecast')">Forecast</button>
-          <button class="subnav-item" data-sub="plan" onclick="schedSub('plan')">Route plan</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
           <button class="subnav-item" data-sub="driverapp" onclick="schedSub('driverapp')">Driver app</button>
@@ -5145,6 +5239,287 @@ a{color:inherit;text-decoration:none}
               </div>
             </div>
 
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         OKAMI — 13-week strategic capacity planner
+         (Amazon's term for DSP route plan horizon)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-okami">
+      <div class="page">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">OKAMI</h1>
+            <p class="page-sub">13-week route plan · Amazon's strategic horizon · routes vs. staffing vs. risk</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
+              Export plan
+            </button>
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              Reset to defaults
+            </button>
+            <button class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Save plan
+            </button>
+          </div>
+        </div>
+
+        <!-- Knobs -->
+        <div class="okami-knobs">
+          <div class="okami-knob">
+            <div class="okami-knob-label">Drivers per route<span class="help" title="Industry baseline · 2 = 1 primary + 1 backup">?</span></div>
+            <div class="okami-knob-value">2.0</div>
+            <input type="range" min="1.5" max="2.5" value="2.0" step="0.1" oninput="recalcOkami()" id="okami-dpr" />
+            <div class="okami-knob-marks"><span>1.5</span><span>2.0</span><span>2.5</span></div>
+          </div>
+          <div class="okami-knob">
+            <div class="okami-knob-label">Cushion · attrition + callouts</div>
+            <div class="okami-knob-value" id="okami-cushion-val">12<span class="frac">%</span></div>
+            <input type="range" min="0" max="25" value="12" step="1" oninput="recalcOkami()" id="okami-cushion" />
+            <div class="okami-knob-marks"><span>0%</span><span>12%</span><span>25%</span></div>
+          </div>
+          <div class="okami-knob">
+            <div class="okami-knob-label">ADW · avg days worked<span class="help" title="Bump up to absorb HVE without hiring">?</span></div>
+            <div class="okami-knob-value" id="okami-adw-val">5.0<span class="frac"> days</span></div>
+            <input type="range" min="4.0" max="6.0" value="5.0" step="0.1" oninput="recalcOkami()" id="okami-adw" />
+            <div class="okami-knob-marks"><span>4.0</span><span>5.0</span><span>6.0</span></div>
+          </div>
+          <div class="okami-knob">
+            <div class="okami-knob-label">OT tolerance<span class="help" title="Hours/driver/week of OT you'll absorb before hiring">?</span></div>
+            <div class="okami-knob-value" id="okami-ot-val">0<span class="frac"> hrs</span></div>
+            <input type="range" min="0" max="10" value="0" step="1" oninput="recalcOkami()" id="okami-ot" />
+            <div class="okami-knob-marks"><span>0h</span><span>5h</span><span>10h</span></div>
+          </div>
+          <div class="okami-knob">
+            <div class="okami-knob-label">Seasonal hires<span class="help" title="Allowed during peak (Nov–Dec). Auto-end after Jan 5.">?</span></div>
+            <div class="okami-toggle-row">
+              <span class="okami-knob-value">Off</span>
+              <label class="toggle"><input type="checkbox" onchange="toggleSeasonal(this)" id="okami-seasonal" /><span class="toggle-slider"></span></label>
+            </div>
+            <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Recommended Oct 15 – Jan 5</div>
+          </div>
+        </div>
+
+        <!-- Insights bar -->
+        <div class="okami-insights">
+          <div class="okami-insights-head">
+            <span>Plan insights · drawn from your real history</span>
+            <span style="text-transform:none;letter-spacing:0;font-weight:500;color:rgba(255,255,255,.5)">Updated nightly</span>
+          </div>
+          <div class="okami-insights-grid">
+            <div class="okami-insight">
+              <div class="okami-insight-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg></div>
+              <div class="okami-insight-title">Turnover · 27% annualized</div>
+              <div class="okami-insight-msg">12 drivers left in last 90 days. Bake <strong>~5 attrition</strong> into next 13 weeks.</div>
+            </div>
+            <div class="okami-insight">
+              <div class="okami-insight-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div>
+              <div class="okami-insight-title">3 at-risk drivers</div>
+              <div class="okami-insight-msg">Davidson, Reyes, Whitfield. Probability of leaving within 30 days: <strong>62%</strong>. Plan for replacement.</div>
+            </div>
+            <div class="okami-insight">
+              <div class="okami-insight-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/></svg></div>
+              <div class="okami-insight-title">HVE detected · Week 23</div>
+              <div class="okami-insight-msg">Routes jump <strong>50 → 72</strong> for 2 weeks then return to 50. Recommend ADW bump + OT, not hires.</div>
+            </div>
+            <div class="okami-insight">
+              <div class="okami-insight-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <div class="okami-insight-title">Callouts · 4/week avg</div>
+              <div class="okami-insight-msg">Effective ADW <strong>4.6</strong> not 5.0. Plan accordingly or coach pattern-callout drivers.</div>
+            </div>
+            <div class="okami-insight">
+              <div class="okami-insight-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="okami-insight-title">Pipeline · 14 in screening</div>
+              <div class="okami-insight-msg">At your <strong>21% screen→hire rate</strong>, ~3 hires likely. Friday's 7 booked + 5 likely = 12 net for cycle 14.</div>
+            </div>
+            <div class="okami-insight">
+              <div class="okami-insight-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+              <div class="okami-insight-title">Peak season · 22 weeks out</div>
+              <div class="okami-insight-msg">Holiday volume Nov 6 – Dec 25. Start <strong>seasonal hiring</strong> Oct 15. Avg DSP needs <strong>+18 seasonal drivers</strong>.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 13-week table -->
+        <div class="plan-table-wrap">
+          <table class="okami-table">
+            <thead>
+              <tr>
+                <th>Week</th>
+                <th class="center">Routes (max)</th>
+                <th class="center">Drivers needed</th>
+                <th class="center">Available</th>
+                <th class="center">Gap</th>
+                <th class="center">Strategy</th>
+                <th class="center">Hire by</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="okami-tbody">
+              <!-- 13 weeks -->
+              <tr>
+                <td><div class="plan-week-label">W19</div><div class="plan-week-dates">May 1–7</div><span class="okami-week-tag cycle">Cycle 14</span></td>
+                <td class="center"><input class="plan-route-input" data-w="0" value="38" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">85</div></td>
+                <td class="center"><div class="plan-calc">78</div></td>
+                <td class="center"><div class="plan-gap warn">−7</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">Apr 28</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W20</div><div class="plan-week-dates">May 8–14</div></td>
+                <td class="center"><input class="plan-route-input" data-w="1" value="40" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">90</div></td>
+                <td class="center"><div class="plan-calc">81</div></td>
+                <td class="center"><div class="plan-gap warn">−9</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">May 5</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W21</div><div class="plan-week-dates">May 15–21</div></td>
+                <td class="center"><input class="plan-route-input" data-w="2" value="42" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">94</div></td>
+                <td class="center"><div class="plan-calc">86</div></td>
+                <td class="center"><div class="plan-gap warn">−8</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">May 12</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
+              </tr>
+              <tr class="cycle-end">
+                <td><div class="plan-week-label">W22</div><div class="plan-week-dates">May 22–28</div><span class="okami-week-tag cycle">C14 ends</span></td>
+                <td class="center"><input class="plan-route-input" data-w="3" value="45" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">101</div></td>
+                <td class="center"><div class="plan-calc">90</div></td>
+                <td class="center"><div class="plan-gap bad">−11</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">May 19</div></td>
+                <td><span class="plan-status-pill bad"><span class="dot"></span>Critical</span></td>
+              </tr>
+              <tr class="hve">
+                <td><div class="plan-week-label">W23</div><div class="plan-week-dates">May 29 – Jun 4</div><span class="okami-week-tag hve">⚡ HVE</span></td>
+                <td class="center"><input class="plan-route-input" data-w="4" value="72" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">161</div><div class="plan-calc-sub">spike +27 vs avg</div></td>
+                <td class="center"><div class="plan-calc">90</div></td>
+                <td class="center"><div class="plan-gap bad">−71</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active adw">ADW 5.5</span><span class="strategy-pill active ot">+8h OT</span></div></td>
+                <td class="center"><div class="plan-calc">—</div><div class="plan-calc-sub">don't hire</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>HVE absorbed</span></td>
+              </tr>
+              <tr class="hve">
+                <td><div class="plan-week-label">W24</div><div class="plan-week-dates">Jun 5–11</div><span class="okami-week-tag hve">⚡ HVE</span></td>
+                <td class="center"><input class="plan-route-input" data-w="5" value="72" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">161</div></td>
+                <td class="center"><div class="plan-calc">94</div></td>
+                <td class="center"><div class="plan-gap bad">−67</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active adw">ADW 5.5</span><span class="strategy-pill active ot">+8h OT</span></div></td>
+                <td class="center"><div class="plan-calc">—</div><div class="plan-calc-sub">don't hire</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>HVE absorbed</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W25</div><div class="plan-week-dates">Jun 12–18</div></td>
+                <td class="center"><input class="plan-route-input" data-w="6" value="50" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">112</div></td>
+                <td class="center"><div class="plan-calc">96</div></td>
+                <td class="center"><div class="plan-gap warn">−16</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">Jun 9</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W26</div><div class="plan-week-dates">Jun 19–25</div></td>
+                <td class="center"><input class="plan-route-input" data-w="7" value="50" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">112</div></td>
+                <td class="center"><div class="plan-calc">100</div></td>
+                <td class="center"><div class="plan-gap warn">−12</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">Jun 16</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W27</div><div class="plan-week-dates">Jun 26 – Jul 2</div></td>
+                <td class="center"><input class="plan-route-input" data-w="8" value="52" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">117</div></td>
+                <td class="center"><div class="plan-calc">104</div></td>
+                <td class="center"><div class="plan-gap warn">−13</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">Jun 23</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W28</div><div class="plan-week-dates">Jul 3–9</div></td>
+                <td class="center"><input class="plan-route-input" data-w="9" value="50" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">112</div></td>
+                <td class="center"><div class="plan-calc">108</div></td>
+                <td class="center"><div class="plan-gap warn">−4</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">Jun 30</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
+              </tr>
+              <tr class="hve">
+                <td><div class="plan-week-label">W29</div><div class="plan-week-dates">Jul 10–16</div><span class="okami-week-tag hve">⚡ Prime</span></td>
+                <td class="center"><input class="plan-route-input" data-w="10" value="80" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">179</div><div class="plan-calc-sub">Prime Day spike</div></td>
+                <td class="center"><div class="plan-calc">112</div></td>
+                <td class="center"><div class="plan-gap bad">−67</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active adw">ADW 5.5</span><span class="strategy-pill active ot">+10h OT</span></div></td>
+                <td class="center"><div class="plan-calc">—</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>HVE absorbed</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W30</div><div class="plan-week-dates">Jul 17–23</div></td>
+                <td class="center"><input class="plan-route-input" data-w="11" value="55" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">123</div></td>
+                <td class="center"><div class="plan-calc">112</div></td>
+                <td class="center"><div class="plan-gap warn">−11</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
+                <td class="center"><div class="plan-calc">Jul 14</div></td>
+                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
+              </tr>
+              <tr>
+                <td><div class="plan-week-label">W31</div><div class="plan-week-dates">Jul 24–30</div></td>
+                <td class="center"><input class="plan-route-input" data-w="12" value="52" oninput="recalcOkami()"/></td>
+                <td class="center"><div class="plan-calc">117</div></td>
+                <td class="center"><div class="plan-calc">115</div></td>
+                <td class="center"><div class="plan-gap ok">−2</div></td>
+                <td class="center"><div class="strategy-pills"><span class="strategy-pill">Maintain</span></div></td>
+                <td class="center"><div class="plan-calc">—</div></td>
+                <td><span class="plan-status-pill ok"><span class="dot"></span>On track</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="okami-summary-grid">
+          <div class="okami-sum">
+            <div class="okami-sum-label">Permanent hires needed</div>
+            <div class="okami-sum-value">28</div>
+            <div class="okami-sum-sub">across 13 weeks · ~62 applicants at 21% screen→hire</div>
+          </div>
+          <div class="okami-sum warn">
+            <div class="okami-sum-label">HVE weeks · ADW + OT</div>
+            <div class="okami-sum-value">3</div>
+            <div class="okami-sum-sub">W23, W24, W29 · absorbing without hiring saves $$$$</div>
+          </div>
+          <div class="okami-sum">
+            <div class="okami-sum-label">Seasonal hires recommended</div>
+            <div class="okami-sum-value">+18</div>
+            <div class="okami-sum-sub">Oct 15 – Jan 5 · auto-end after peak</div>
+          </div>
+          <div class="okami-sum bad">
+            <div class="okami-sum-label">Plan health</div>
+            <div class="okami-sum-value" style="color:var(--red)">Hire ahead</div>
+            <div class="okami-sum-sub">Pipeline covers 54% of need · import 60+ applicants now</div>
           </div>
         </div>
 
@@ -6921,6 +7296,7 @@ a{color:inherit;text-decoration:none}
       drivers: 'Drivers',
       fleet: 'Fleet',
       schedule: 'Schedule',
+      okami: 'OKAMI',
       messages: 'Messages',
       forms: 'Forms',
       alerts: 'Alerts',
@@ -6934,6 +7310,7 @@ a{color:inherit;text-decoration:none}
       drivers: '78 active · 5 at risk',
       fleet: '24 vehicles · 312 assets · 2 maint items',
       schedule: 'Week of May 1–7 · 5 pending approvals',
+      okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
       forms: '12 published · 47 submissions this week',
       alerts: '8 open · 3 require action',
@@ -7070,6 +7447,75 @@ a{color:inherit;text-decoration:none}
 
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
+
+  // ─── OKAMI ────────────────────────────────────────────────
+  var okamiAvail = [78,81,86,90,90,94,96,100,104,108,112,112,115];
+  function recalcOkami(){
+    const dpr = parseFloat(document.getElementById('okami-dpr').value) || 2.0;
+    const cushion = (parseFloat(document.getElementById('okami-cushion').value) || 0) / 100;
+    const adw = parseFloat(document.getElementById('okami-adw').value) || 5.0;
+    const ot = parseInt(document.getElementById('okami-ot').value) || 0;
+    document.getElementById('okami-cushion-val').innerHTML = (cushion*100).toFixed(0) + '<span class="frac">%</span>';
+    document.getElementById('okami-adw-val').innerHTML = adw.toFixed(1) + '<span class="frac"> days</span>';
+    document.getElementById('okami-ot-val').innerHTML = ot + '<span class="frac"> hrs</span>';
+
+    // Effective driver multiplier from ADW + OT (ADW 5 = 1x baseline)
+    const adwMult = adw / 5.0;
+    const otMult = 1 + (ot / 50); // 50h baseline week
+    const capacityMult = adwMult * otMult;
+
+    let totalHires = 0;
+    document.querySelectorAll('#okami-tbody tr').forEach(function(row, i){
+      const input = row.querySelector('.plan-route-input');
+      if (!input) return;
+      const routes = parseInt(input.value) || 0;
+      const base = Math.round(routes * dpr);
+      const cush = Math.ceil(base * cushion);
+      const needed = base + cush;
+      const baseAvailable = okamiAvail[i] || 78;
+      const effectiveAvailable = Math.round(baseAvailable * capacityMult);
+      const gap = effectiveAvailable - needed;
+
+      const cells = row.querySelectorAll('td');
+      // Drivers needed
+      const subText = row.classList.contains('hve') ? '<div class="plan-calc-sub">spike · absorb if can</div>' : '';
+      cells[2].innerHTML = '<div class="plan-calc">' + needed + '</div>' + subText;
+      // Available — show effective if multiplier changed
+      if (capacityMult > 1.01) {
+        cells[3].innerHTML = '<div class="plan-calc">' + effectiveAvailable + '</div><div class="plan-calc-sub">' + baseAvailable + ' × ' + capacityMult.toFixed(2) + 'x</div>';
+      } else {
+        cells[3].innerHTML = '<div class="plan-calc">' + baseAvailable + '</div>';
+      }
+      // Gap
+      const gapEl = cells[4].querySelector('.plan-gap');
+      if (gapEl) {
+        gapEl.textContent = (gap >= 0 ? '+' : '') + gap;
+        gapEl.classList.remove('ok','warn','bad');
+        gapEl.classList.add(gap >= 0 ? 'ok' : (gap >= -10 ? 'warn' : 'bad'));
+      }
+      // Status pill
+      const pill = cells[7].querySelector('.plan-status-pill');
+      const isHve = row.classList.contains('hve');
+      if (pill) {
+        pill.classList.remove('ok','warn','bad');
+        if (isHve && gap < 0) { pill.classList.add('warn'); pill.innerHTML = '<span class="dot"></span>HVE absorbed'; }
+        else if (gap >= 0) { pill.classList.add('ok'); pill.innerHTML = '<span class="dot"></span>On track'; }
+        else if (gap >= -10) { pill.classList.add('warn'); pill.innerHTML = '<span class="dot"></span>Tight'; }
+        else { pill.classList.add('bad'); pill.innerHTML = '<span class="dot"></span>Critical'; }
+      }
+      if (gap < 0 && !isHve) totalHires += -gap;
+    });
+    // Update permanent hires summary
+    const sumValue = document.querySelector('.okami-summary-grid .okami-sum:first-child .okami-sum-value');
+    if (sumValue) sumValue.textContent = totalHires;
+    const sumSub = document.querySelector('.okami-summary-grid .okami-sum:first-child .okami-sum-sub');
+    if (sumSub) sumSub.textContent = 'across 13 weeks · ~' + Math.ceil(totalHires/0.21) + ' applicants at 21% screen→hire';
+  }
+  function toggleSeasonal(input){
+    const lbl = input.closest('.okami-knob').querySelector('.okami-knob-value');
+    if (lbl) lbl.textContent = input.checked ? 'On' : 'Off';
+    toast(input.checked ? 'Seasonal hiring enabled — Oct 15 – Jan 5' : 'Seasonal hiring disabled');
+  }
 
   // ─── ROUTE PLAN — live recalc ──────────────────────────────
   var planAvailable = [78, 81, 86, 90, 90, 94, 100, 108]; // adjusted by week
