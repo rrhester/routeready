@@ -5850,6 +5850,289 @@ const SUPABASE_HANDLERS = {
       saved:   rows.length,
       message: 'Saved ' + rows.length + ' question' + (rows.length === 1 ? '' : 's')
     };
+  },
+
+  // ── PHASE D — multi-table writes ────────────────────────────────────
+
+  // setDriverStatus — update driver_roster.status + insert StatusChange row
+  // in coaching_log. Two queries; if the second fails the first is left
+  // applied (acceptable: writes are idempotent and the status change is
+  // user-visible even without the log row).
+  setDriverStatus: async (params) => {
+    const STATUS_TO_DB = {
+      'Active': 'active', 'Pre-onboarding': 'pre_onboarding',
+      'Onboarding': 'onboarding', 'Inactive': 'inactive', 'Terminated': 'terminated'
+    };
+    const tid = params.tid;
+    const newStatus = params.status;
+    const reason = params.reason || '';
+    if (!tid || !newStatus) return { status: 'error', message: 'tid and status required' };
+    const dbStatus = STATUS_TO_DB[newStatus];
+    if (!dbStatus) return { status: 'error', message: 'invalid status: ' + newStatus };
+
+    const dspId = await rrGetDspId();
+    const upd = await sb.from('driver_roster')
+      .update({ status: dbStatus, last_updated: new Date().toISOString() })
+      .eq('dsp_id', dspId)
+      .eq('transporter_id', tid)
+      .select('driver_name')
+      .maybeSingle();
+    if (upd.error) return { status: 'error', message: upd.error.message };
+    if (!upd.data)  return { status: 'error', message: 'driver not found' };
+
+    const coachingId = 'CL' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    const ins = await sb.from('coaching_log').insert({
+      id:             coachingId,
+      dsp_id:         dspId,
+      transporter_id: tid,
+      driver_name:    upd.data.driver_name || '',
+      type:           'StatusChange',
+      message_body:   'Status changed to ' + newStatus + (reason ? ' · ' + reason : '')
+    });
+    if (ins.error) console.warn('[setDriverStatus] coaching log insert failed:', ins.error);
+    return { status: 'ok', new_status: newStatus };
+  },
+
+  // logInPerson — append a single coaching_log row of type=InPerson
+  logInPerson: async (params) => {
+    const tid = params.tid;
+    if (!tid) return { status: 'error', message: 'tid required' };
+    const dspId = await rrGetDspId();
+    const coachingId = 'CL' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    const { error } = await sb.from('coaching_log').insert({
+      id:             coachingId,
+      dsp_id:         dspId,
+      transporter_id: tid,
+      driver_name:    params.name || '',
+      type:           'InPerson',
+      message_body:   params.notes || ''
+    });
+    if (error) throw error;
+    return { status: 'ok', coaching_id: coachingId, timestamp: new Date() };
+  },
+
+  // ── PHASE B-medium — complex reads (ported from Performance.gs) ──────
+
+  // getDriverMath — port of driver_math.gs getDriverMath. Returns
+  // {driver, window, inputs, calculation, thresholds, classification,
+  //  fleet_comparison, coaching_history}. Used by the "Show your work" panel.
+  getDriverMath: async (params) => {
+    const tid = params.transporter_id;
+    if (!tid) return { error: 'transporter_id required' };
+    const windowDays = Number(params.window_days || 30);
+    const today = new Date();
+    const isoToday = today.toISOString().slice(0, 10);
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() - windowDays + 1);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    const dspId = await rrGetDspId();
+    const [drvR, evR, qR, cR, allEvR, allQR] = await Promise.all([
+      sb.from('driver_roster').select('driver_name').eq('dsp_id', dspId).eq('transporter_id', tid).maybeSingle(),
+      sb.from('safety_events').select('event_date, metric_type, metric_subtype, review_status').eq('dsp_id', dspId).eq('transporter_id', tid).gte('event_date', cutoffStr).order('event_date'),
+      sb.from('quality_daily').select('event_date, routes_completed').eq('dsp_id', dspId).eq('transporter_id', tid).gte('event_date', cutoffStr),
+      sb.from('coaching_log').select('type, message_body, created_at').eq('dsp_id', dspId).eq('transporter_id', tid).order('created_at'),
+      sb.from('safety_events').select('id', { count: 'exact', head: true }).eq('dsp_id', dspId).gte('event_date', cutoffStr),
+      sb.from('quality_daily').select('routes_completed').eq('dsp_id', dspId).gte('event_date', cutoffStr)
+    ]);
+
+    const driver = drvR.data || { driver_name: 'Unknown' };
+    const events = evR.data || [];
+    const qualityRows = qR.data || [];
+    const coaching = cR.data || [];
+
+    let totalRoutes = 0;
+    qualityRows.forEach(q => { totalRoutes += Number(q.routes_completed) || 0; });
+    const totalEvents = events.length;
+
+    const MIN_ROUTES = 3, ACTION = 5.0, CHRONIC = 10.0;
+    let ratePer100 = null, fallback = false;
+    if (totalRoutes >= MIN_ROUTES) {
+      ratePer100 = totalRoutes > 0 ? (totalEvents / totalRoutes) * 100 : 0;
+    } else { fallback = true; }
+
+    let tier = 'CLEAR', tierReason = '';
+    const round1 = (n) => n == null ? null : Math.round(Number(n) * 10) / 10;
+    if (fallback) {
+      tier = 'NEW';
+      tierReason = 'Fewer than ' + MIN_ROUTES + ' routes — too few to compute a rate. Showing raw count instead.';
+    } else if (ratePer100 >= CHRONIC) {
+      tier = 'CHRONIC'; tierReason = round1(ratePer100) + ' ≥ ' + CHRONIC + ' (chronic threshold)';
+    } else if (ratePer100 >= ACTION) {
+      tier = 'PATTERN'; tierReason = round1(ratePer100) + ' ≥ ' + ACTION + ' (action threshold)';
+    } else {
+      tier = 'CLEAR';   tierReason = round1(ratePer100) + ' < ' + ACTION + ' (action threshold)';
+    }
+
+    const fleetEvents = allEvR.count || 0;
+    let fleetRoutes = 0;
+    (allQR.data || []).forEach(q => { fleetRoutes += Number(q.routes_completed) || 0; });
+    const fleetRate = fleetRoutes > 0 ? (fleetEvents / fleetRoutes) * 100 : 0;
+    const fleetMultiplier = (fleetRate > 0 && ratePer100 != null && ratePer100 > 0)
+      ? ratePer100 / fleetRate : null;
+
+    const sms = coaching.filter(c => c.type === 'SMS');
+    const inper = coaching.filter(c => c.type === 'InPerson');
+    const fmt = ts => ts ? new Date(ts).toISOString().slice(0, 10) : null;
+
+    return {
+      driver: { name: driver.driver_name, transporter_id: tid },
+      window: { days: windowDays, start: cutoffStr, end: isoToday },
+      inputs: {
+        events: events.map(e => ({
+          date: e.event_date, type: e.metric_type || '', subtype: e.metric_subtype || '',
+          review_status: e.review_status || ''
+        })),
+        total_events: totalEvents, total_routes: totalRoutes, quality_days: qualityRows.length
+      },
+      calculation: {
+        rate_per_100: round1(ratePer100),
+        fallback_to_count: fallback,
+        formula: fallback
+          ? totalEvents + ' events (rate not computed — too few routes)'
+          : totalEvents + ' / ' + totalRoutes + ' × 100 = ' + round1(ratePer100)
+      },
+      thresholds: { action: ACTION, chronic: CHRONIC, min_routes: MIN_ROUTES },
+      classification: { tier, reason: tierReason },
+      fleet_comparison: {
+        fleet_rate: round1(fleetRate),
+        fleet_events: fleetEvents,
+        fleet_routes: fleetRoutes,
+        multiplier: round1(fleetMultiplier)
+      },
+      coaching_history: {
+        sms_count: sms.length,
+        inperson_count: inper.length,
+        sms_recent: sms.slice(-5).map(c => ({ date: fmt(c.created_at), preview: (c.message_body || '').slice(0, 80) })),
+        inperson_recent: inper.slice(-5).map(c => ({ date: fmt(c.created_at), preview: (c.message_body || '').slice(0, 80) })),
+        last_sms_date: sms.length ? fmt(sms[sms.length - 1].created_at) : null,
+        last_inperson_date: inper.length ? fmt(inper[inper.length - 1].created_at) : null
+      }
+    };
+  },
+
+  // driverRecord — port of getCoachingRecord from Performance.gs. Returns
+  // {driver, summary, by_metric_30d, weekly_chart, timeline}.
+  driverRecord: async (params) => {
+    const tid = params.tid;
+    if (!tid) return { status: 'error', message: 'tid required' };
+    const dspId = await rrGetDspId();
+    const today = new Date();
+    const isoToday = today.toISOString().slice(0, 10);
+    const cutoff14 = new Date(today); cutoff14.setDate(cutoff14.getDate() - 13);
+    const cutoff14Str = cutoff14.toISOString().slice(0, 10);
+    const cutoff30 = new Date(today); cutoff30.setDate(cutoff30.getDate() - 29);
+    const cutoff30Str = cutoff30.toISOString().slice(0, 10);
+
+    const [drvR, evR, cR, qR] = await Promise.all([
+      sb.from('driver_roster').select('*').eq('dsp_id', dspId).eq('transporter_id', tid).maybeSingle(),
+      sb.from('safety_events').select('*').eq('dsp_id', dspId).eq('transporter_id', tid),
+      sb.from('coaching_log').select('*').eq('dsp_id', dspId).eq('transporter_id', tid),
+      sb.from('quality_daily').select('*').eq('dsp_id', dspId).eq('transporter_id', tid)
+    ]);
+    if (!drvR.data) return { status: 'error', message: 'driver not found' };
+    const driver = drvR.data;
+    const events = evR.data || [];
+    const coachings = cR.data || [];
+    const quality = qR.data || [];
+
+    const events30 = events.filter(e => e.event_date >= cutoff30Str);
+    const sms = coachings.filter(c => c.type === 'SMS').length;
+    const inper = coachings.filter(c => c.type === 'InPerson').length;
+
+    // pattern_tag (port from Performance.gs)
+    const dates = events.map(e => e.event_date);
+    let pattern_tag = 'CLEAR';
+    if (dates.length) {
+      const last14 = dates.filter(d => d >= cutoff14Str);
+      const older = dates.filter(d => d < cutoff14Str);
+      if (last14.length === 0)        pattern_tag = 'CLEAR';
+      else if (last14.length >= 6)    pattern_tag = 'CHRONIC';
+      else if (!older.length && last14.length <= 2) pattern_tag = 'FIRST_WEEK';
+      else                            pattern_tag = 'PATTERN';
+    }
+
+    // by_metric_30d with canonical labels
+    const counts = {};
+    events30.forEach(e => {
+      const m = String(e.metric_type || '').trim();
+      if (!m) return;
+      counts[m] = (counts[m] || 0) + 1;
+    });
+    if (counts['Distraction']) { counts['Distractions'] = (counts['Distractions'] || 0) + counts['Distraction']; delete counts['Distraction']; }
+    if (counts['Sign Signal']) { counts['Sign/Signal'] = (counts['Sign/Signal'] || 0) + counts['Sign Signal']; delete counts['Sign Signal']; }
+    const canonical = ['Speeding','Following Distance','Distractions','Sign/Signal','Seatbelt'];
+    const by_metric_30d = canonical.map(name => ({ metric_type: name, count: counts[name] || 0 }));
+
+    // weekly_chart — 13 weeks back
+    const weekly_chart = [];
+    for (let i = 12; i >= 0; i--) {
+      const wkEnd = new Date(today); wkEnd.setDate(today.getDate() - i * 7);
+      const wkStart = new Date(wkEnd); wkStart.setDate(wkEnd.getDate() - 6);
+      const ws = wkStart.toISOString().slice(0, 10);
+      const we = wkEnd.toISOString().slice(0, 10);
+      const cnt = events.filter(e => e.event_date >= ws && e.event_date <= we).length;
+      weekly_chart.push({ week_start: ws, count: cnt });
+    }
+
+    // timeline (incidents + coaching + quality)
+    const timeline = [];
+    const fmtPct = v => {
+      if (v == null) return '—';
+      const n = Number(v);
+      if (isNaN(n)) return '—';
+      const pct = n <= 1.5 ? n * 100 : n;
+      return pct.toFixed(1) + '%';
+    };
+    events.forEach(e => timeline.push({
+      kind: 'incident', date: e.event_date, datetime: e.event_datetime,
+      title: e.metric_type, detail: (e.metric_subtype || '') + (e.video_link ? ' · video' : ''),
+      review_status: e.review_status, video_link: e.video_link, event_id: e.event_id
+    }));
+    coachings.forEach(c => timeline.push({
+      kind: c.type === 'InPerson' ? 'inperson' : c.type === 'Skipped' ? 'skipped' : 'sms',
+      date: c.created_at ? c.created_at.slice(0, 10) : null,
+      datetime: c.created_at,
+      title: c.type === 'InPerson' ? 'In-person 1:1' : c.type === 'Skipped' ? 'Coaching skipped' : 'SMS coaching sent',
+      detail: c.message_body || '',
+      coaching_id: c.id, triggered_by_event_id: c.triggered_by_event_id, guide_attached: c.guide_attached || ''
+    }));
+    quality.forEach(q => timeline.push({
+      kind: 'quality', date: q.event_date, datetime: null,
+      title: 'Quality update · daily',
+      detail: 'DCR ' + fmtPct(q.dcr_pct) + ' · POD ' + fmtPct(q.pod_pct) +
+              ' · ' + (q.packages_delivered || 0) + ' packages · ' +
+              (q.routes_completed || 0) + ' route(s)'
+    }));
+    timeline.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      const ta = a.datetime ? new Date(a.datetime).getTime() : 0;
+      const tb = b.datetime ? new Date(b.datetime).getTime() : 0;
+      return tb - ta;
+    });
+
+    const STATUS_MAP = {
+      pre_onboarding: 'Pre-onboarding', onboarding: 'Onboarding', active: 'Active',
+      inactive: 'Inactive', terminated: 'Terminated'
+    };
+    return {
+      status: 'ok',
+      driver: { ...driver, status: STATUS_MAP[driver.status] || driver.status || 'Active' },
+      summary: {
+        lifetime_events: events.length,
+        events_30d: events30.length,
+        total_coachings: sms + inper,
+        sms_count: sms,
+        inperson_count: inper,
+        pattern_tag,
+        trend: 'flat',
+        tenure_days: driver.first_seen_date
+          ? Math.round((today - new Date(driver.first_seen_date + 'T00:00:00')) / 86400000) : 0,
+        hire_date: driver.hire_date || driver.first_seen_date,
+        status: STATUS_MAP[driver.status] || driver.status || 'Active'
+      },
+      by_metric_30d, weekly_chart, timeline
+    };
   }
 };
 
