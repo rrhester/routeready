@@ -4301,6 +4301,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
       </div>
       <div style="display:flex;align-items:center;gap:.625rem">
         <button id="add-applicant-btn" onclick="openAddApplicantModal()" style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:16px;background:rgba(20,110,180,.12);border:1px solid rgba(20,110,180,.5);color:var(--bolt2);font-size:11px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;letter-spacing:.3px;transition:all .15s"><span style="font-size:14px;line-height:1">+</span> Add Applicant</button>
+        <button id="bulk-ingest-btn" onclick="openBulkIngestModal()" style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:16px;background:rgba(20,110,180,.12);border:1px solid rgba(20,110,180,.5);color:var(--bolt2);font-size:11px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;letter-spacing:.3px;transition:all .15s"><span style="font-size:14px;line-height:1">⇣</span> Bulk Ingest</button>
         <div class="ws-mode-tag" id="ws-mode-tag" style="display:none">Pipeline View</div>
         <button id="close-iday-btn" onclick="confirmCloseIday()" style="display:none;padding:6px 14px;border-radius:20px;background:rgba(20,110,180,.12);border:1px solid rgba(20,110,180,.25);color:var(--bolt2);font-size:11px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:all .2s">Close Interview Day</button>
       </div>
@@ -4841,6 +4842,57 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     <div class="aa-actions">
       <button type="button" class="aa-btn aa-btn-cancel" onclick="closeAddApplicantModal()">Cancel</button>
       <button type="button" class="aa-btn aa-btn-submit" id="aa-submit-btn" onclick="submitAddApplicant()">Add &amp; send screening</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Ingest Modal -->
+<div id="bi-modal-overlay" class="aa-modal-overlay" style="display:none" onclick="if(event.target===this)closeBulkIngestModal()">
+  <div class="aa-modal" role="dialog" aria-labelledby="bi-title" style="max-width:720px">
+    <div class="aa-head">
+      <div>
+        <div class="aa-eyebrow">Bulk import</div>
+        <div class="aa-title" id="bi-title">Paste applicants from Indeed</div>
+      </div>
+      <button class="aa-close" onclick="closeBulkIngestModal()" aria-label="Close">×</button>
+    </div>
+
+    <div class="aa-confirm neutral" style="margin-bottom:14px">
+      <div class="aa-confirm-arrow">i</div>
+      <div>Copy rows from Excel (including the header row) and paste below. Only <strong>name</strong>, <strong>email</strong>, and <strong>phone</strong> columns are imported — other columns are ignored.</div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <div class="aa-field-label">Paste tab-separated rows</div>
+      <textarea id="bi-textarea" oninput="previewBulkIngest()" placeholder="name&#9;email&#9;phone&#9;status&#9;...&#10;John Smith&#9;john@example.com&#9;555-0100&#9;..." style="width:100%;min-height:140px;background:var(--w05);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--white);font-family:'SF Mono',Menlo,Consolas,monospace;box-sizing:border-box;resize:vertical;line-height:1.5"></textarea>
+    </div>
+
+    <div id="bi-preview-wrap" style="display:none;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="aa-field-label" style="margin-bottom:0">Preview</div>
+        <div id="bi-summary" style="font-size:11px;color:var(--w60);font-weight:500"></div>
+      </div>
+      <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--w05)">
+        <table id="bi-preview-table" style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead style="position:sticky;top:0;background:#2A3450;z-index:1">
+            <tr style="text-align:left">
+              <th style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--w50);border-bottom:1px solid var(--border)">First</th>
+              <th style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--w50);border-bottom:1px solid var(--border)">Last</th>
+              <th style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--w50);border-bottom:1px solid var(--border)">Email</th>
+              <th style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--w50);border-bottom:1px solid var(--border)">Phone</th>
+              <th style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--w50);border-bottom:1px solid var(--border)">Status</th>
+            </tr>
+          </thead>
+          <tbody id="bi-preview-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="bi-status" style="font-size:12px;color:var(--w60);margin-bottom:12px;min-height:18px"></div>
+
+    <div class="aa-actions">
+      <button type="button" class="aa-btn aa-btn-cancel" onclick="closeBulkIngestModal()">Cancel</button>
+      <button type="button" class="aa-btn aa-btn-submit" id="bi-submit-btn" onclick="submitBulkIngest()" disabled>Import 0 applicants</button>
     </div>
   </div>
 </div>
@@ -7281,6 +7333,8 @@ document.addEventListener('keydown', function(e){
     if (cycOverlay && cycOverlay.style.display === 'flex') dismissCycleComplete();
     const aaOverlay = document.getElementById('aa-modal-overlay');
     if (aaOverlay && aaOverlay.style.display === 'flex') closeAddApplicantModal();
+    const biOverlay = document.getElementById('bi-modal-overlay');
+    if (biOverlay && biOverlay.style.display === 'flex') closeBulkIngestModal();
     const brOverlay = document.getElementById('bonus-report-overlay');
     if (brOverlay && brOverlay.style.display === 'flex') { closeBonusReport(); return; }
     const refOverlay = document.getElementById('ref-settings-overlay');
@@ -7518,6 +7572,170 @@ function restoreAddApplicantSubmitLabel() {
   if (aaSelectedStage === 'new') btn.textContent = 'Add & send screening';
   else if (aaSelectedStage === 'prescreened') btn.textContent = 'Add & send Cal link';
   else btn.textContent = 'Add applicant';
+}
+
+// ── BULK INGEST MODAL ───────────────────────────────────────
+var biParsedRows = [];
+
+function openBulkIngestModal() {
+  const overlay = document.getElementById('bi-modal-overlay');
+  if (!overlay) return;
+  document.getElementById('bi-textarea').value = '';
+  document.getElementById('bi-preview-wrap').style.display = 'none';
+  document.getElementById('bi-status').textContent = '';
+  const btn = document.getElementById('bi-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Import 0 applicants';
+  btn.onclick = submitBulkIngest;
+  biParsedRows = [];
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(function(){ document.getElementById('bi-textarea').focus(); }, 50);
+}
+
+function closeBulkIngestModal() {
+  const overlay = document.getElementById('bi-modal-overlay');
+  if (overlay) overlay.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function parseBulkIngestText(text) {
+  const out = [];
+  const lines = String(text || '').split(/\r?\n/).map(function(l){ return l.replace(/\s+$/,''); }).filter(function(l){ return l.trim().length > 0; });
+  if (lines.length === 0) return out;
+
+  const sep = lines[0].indexOf('\t') >= 0 ? '\t' : ',';
+  const cells0 = lines[0].split(sep).map(function(c){ return c.trim().toLowerCase(); });
+  const headerLike = cells0.some(function(c){ return /^(name|first.?name|last.?name|email|phone)/.test(c); });
+
+  let nameIdx = -1, fnameIdx = -1, lnameIdx = -1, emailIdx = -1, phoneIdx = -1;
+  let dataStart = 0;
+
+  if (headerLike) {
+    cells0.forEach(function(c, i){
+      if (/^(full.?name|candidate.?name|^name$)/.test(c)) nameIdx = i;
+      else if (/^first.?name/.test(c)) fnameIdx = i;
+      else if (/^last.?name/.test(c)) lnameIdx = i;
+      else if (/^e.?mail/.test(c)) emailIdx = i;
+      else if (/^(phone|mobile|cell)/.test(c)) phoneIdx = i;
+    });
+    dataStart = 1;
+  } else {
+    nameIdx = 0; emailIdx = 1; phoneIdx = 2;
+  }
+
+  for (let i = dataStart; i < lines.length; i++) {
+    const cells = lines[i].split(sep).map(function(c){ return (c || '').trim(); });
+    let firstName = '', lastName = '', email = '', phone = '';
+
+    if (fnameIdx >= 0 || lnameIdx >= 0) {
+      firstName = (cells[fnameIdx] || '').trim();
+      lastName  = (cells[lnameIdx] || '').trim();
+    } else if (nameIdx >= 0) {
+      const full = (cells[nameIdx] || '').trim();
+      const parts = full.split(/\s+/);
+      firstName = parts[0] || '';
+      lastName  = parts.slice(1).join(' ');
+    }
+
+    if (emailIdx >= 0) email = (cells[emailIdx] || '').trim();
+    if (phoneIdx >= 0) phone = (cells[phoneIdx] || '').trim();
+
+    let error = '';
+    if (!firstName) error = 'missing name';
+    else if (!email && !phone) error = 'missing email/phone';
+    else if (email && email.indexOf('@') < 0) error = 'invalid email';
+
+    out.push({ firstName: firstName, lastName: lastName, email: email, phone: phone, error: error });
+  }
+
+  return out;
+}
+
+function previewBulkIngest() {
+  const text = document.getElementById('bi-textarea').value;
+  biParsedRows = parseBulkIngestText(text);
+  const wrap = document.getElementById('bi-preview-wrap');
+  const body = document.getElementById('bi-preview-body');
+  const summary = document.getElementById('bi-summary');
+  const btn = document.getElementById('bi-submit-btn');
+
+  if (!biParsedRows || biParsedRows.length === 0) {
+    wrap.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Import 0 applicants';
+    return;
+  }
+
+  const validCount = biParsedRows.filter(function(r){ return !r.error; }).length;
+  const invalidCount = biParsedRows.length - validCount;
+
+  body.innerHTML = biParsedRows.map(function(r){
+    const bad = !!r.error;
+    const rowStyle = bad ? 'background:rgba(239,122,119,.08)' : '';
+    const statusCell = bad
+      ? '<span style="color:#ef7a77;font-weight:600">' + r.error + '</span>'
+      : '<span style="color:#86d485;font-weight:600">ready</span>';
+    return '<tr style="' + rowStyle + '">'
+      + '<td style="padding:6px 10px;color:var(--white);border-bottom:1px solid rgba(255,255,255,.05)">' + escapeHtml(r.firstName) + '</td>'
+      + '<td style="padding:6px 10px;color:var(--w70);border-bottom:1px solid rgba(255,255,255,.05)">' + escapeHtml(r.lastName) + '</td>'
+      + '<td style="padding:6px 10px;color:var(--w70);border-bottom:1px solid rgba(255,255,255,.05)">' + escapeHtml(r.email) + '</td>'
+      + '<td style="padding:6px 10px;color:var(--w70);border-bottom:1px solid rgba(255,255,255,.05)">' + escapeHtml(r.phone) + '</td>'
+      + '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px">' + statusCell + '</td>'
+      + '</tr>';
+  }).join('');
+
+  summary.textContent = validCount + ' ready' + (invalidCount > 0 ? ' • ' + invalidCount + ' skipped' : '');
+  wrap.style.display = 'block';
+
+  btn.disabled = validCount === 0;
+  btn.textContent = 'Import ' + validCount + ' applicant' + (validCount === 1 ? '' : 's');
+  btn.onclick = submitBulkIngest;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function submitBulkIngest() {
+  const validRows = (biParsedRows || []).filter(function(r){ return !r.error; });
+  if (validRows.length === 0) return;
+
+  const btn = document.getElementById('bi-submit-btn');
+  const status = document.getElementById('bi-status');
+  btn.disabled = true;
+
+  let added = 0, dup = 0, err = 0;
+  for (let i = 0; i < validRows.length; i++) {
+    const row = validRows[i];
+    status.textContent = 'Importing ' + (i + 1) + ' of ' + validRows.length + '… (' + added + ' added, ' + dup + ' duplicates' + (err > 0 ? ', ' + err + ' errors' : '') + ')';
+    try {
+      const result = await apiCall({
+        action: 'addApplicant',
+        firstName: row.firstName,
+        lastName: row.lastName,
+        phone: row.phone,
+        email: row.email,
+        stage: 'new',
+        source: 'Indeed',
+        score: '',
+        bookingDateTime: ''
+      });
+      if (result && result.status === 'duplicate') dup++;
+      else if (result && result.status === 'error') err++;
+      else added++;
+    } catch (e) {
+      console.error('bulk ingest row failed', e, row);
+      err++;
+    }
+  }
+
+  status.textContent = 'Done. ' + added + ' added, ' + dup + ' duplicate' + (dup === 1 ? '' : 's') + ' skipped' + (err > 0 ? ', ' + err + ' error' + (err === 1 ? '' : 's') : '') + '.';
+  btn.textContent = 'Close';
+  btn.disabled = false;
+  btn.onclick = function(){ closeBulkIngestModal(); if (typeof loadData === 'function') loadData(); };
 }
 
 // ── REFERRAL PROGRAM ────────────────────────────────────────
