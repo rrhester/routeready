@@ -5724,6 +5724,7 @@ const SUPABASE_HANDLERS = {
       backupName:            'BackupContactName',
       backupEmail:           'BackupContactEmail',
       calComURL:             'CalComURL',
+      calComAPIKey:          'CalComAPIKey',
       hiredMessage:          'HiredMessage',
       messageWindowStart:    'MessageWindowStart',
       messageWindowEnd:      'MessageWindowEnd',
@@ -6277,6 +6278,145 @@ const SUPABASE_HANDLERS = {
       return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
     }
     return data;
+  },
+
+  // getCalSchedule — invokes the cal-schedule Edge Function to load the DSP's
+  // default Cal.com availability schedule. Returns the same shape the Apps
+  // Script version did: { availability:[{days,startTime,endTime}], timeZone,
+  // dateOverrides:[{date,startTime,endTime}] }.
+  getCalSchedule: async () => {
+    const { data, error } = await sb.functions.invoke('cal-schedule', {
+      body: { op: 'get' }
+    });
+    if (error) return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    return data;
+  },
+
+  // updateCalSchedule — pushes availability/overrides back to Cal.com via
+  // the cal-schedule Edge Function. Accepts the same JSON-string params the
+  // Apps Script version took (availability, timeZone, overrides).
+  updateCalSchedule: async (params) => {
+    const { data, error } = await sb.functions.invoke('cal-schedule', {
+      body: {
+        op: 'update',
+        availability: params && params.availability,
+        timeZone:     params && params.timeZone,
+        overrides:    params && params.overrides
+      }
+    });
+    if (error) return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    return data;
+  },
+
+  // closeCycle — archives the current hiring cycle:
+  //   1. counts applicants by funnel stage,
+  //   2. writes one cycle_history row,
+  //   3. increments settings.OrientationCycleNumber.
+  // Returns the shape executeCloseIday() expects:
+  //   {status, cycleNumber, nextCycle, hired, noShow, notHired, stillInPipeline}
+  // If nothing has been decided yet (no Hired / No-Show / Not Hired), returns
+  // {status:'nothing'} so the UI can prompt the user to action results first.
+  closeCycle: async () => {
+    const dspId = await rrGetDspId();
+
+    // Pull applicants for this DSP. Fields: status, attendance, score.
+    const { data: applicants, error: apErr } = await sb
+      .from('applicants')
+      .select('status, attendance, score')
+      .eq('dsp_id', dspId);
+    if (apErr) throw apErr;
+
+    const STATUS_DECIDED  = new Set(['hired','not_hired','no_show']);
+    const STATUS_BOOKED   = new Set(['booked','hired','not_hired','no_show','promoted']);
+    const STATUS_PASSED   = new Set(['passed','waitlist','booked','hired','not_hired','no_show','promoted']);
+    const STATUS_SCREENED = new Set([
+      'screening','passed','failed','waitlist','booked','hired','not_hired','no_show','promoted'
+    ]);
+
+    const isAttended = (a) => a.attendance === 'Attended' || a.status === 'hired';
+    const isNoShow   = (a) => a.attendance === 'No-Show'  || a.status === 'no_show';
+
+    let applied = 0, screened = 0, passed = 0, booked = 0;
+    let attended = 0, noShowed = 0, hired = 0, notHired = 0, decided = 0;
+    let stillInPipeline = 0;
+    let scoreAttSum = 0, scoreAttN = 0;
+    let scoreNsSum = 0, scoreNsN  = 0;
+
+    (applicants || []).forEach(a => {
+      applied++;
+      const s = String(a.status || '').toLowerCase();
+      if (STATUS_SCREENED.has(s)) screened++;
+      if (STATUS_PASSED.has(s))   passed++;
+      if (STATUS_BOOKED.has(s))   booked++;
+      if (STATUS_DECIDED.has(s) || a.attendance) decided++;
+      if (s === 'hired') hired++;
+      if (s === 'not_hired') notHired++;
+      if (isAttended(a)) {
+        attended++;
+        const n = Number(a.score);
+        if (Number.isFinite(n)) { scoreAttSum += n; scoreAttN++; }
+      }
+      if (isNoShow(a)) {
+        noShowed++;
+        const n = Number(a.score);
+        if (Number.isFinite(n)) { scoreNsSum += n; scoreNsN++; }
+      }
+      if (!STATUS_DECIDED.has(s) && !a.attendance && s !== 'failed' && s !== 'filtered') {
+        stillInPipeline++;
+      }
+    });
+
+    if (decided === 0) return { status: 'nothing' };
+
+    // Read current cycle # + target from settings (defaults match Apps Script).
+    const { data: setRows, error: setErr } = await sb
+      .from('settings')
+      .select('key,value')
+      .eq('dsp_id', dspId)
+      .in('key', ['OrientationCycleNumber','HeadcountTarget','OrientationDate','ThrottleMode']);
+    if (setErr) throw setErr;
+    const settingsMap = Object.fromEntries((setRows || []).map(r => [r.key, r.value]));
+    const cycleNumber = parseInt(settingsMap.OrientationCycleNumber, 10) || 1;
+    const target      = parseInt(settingsMap.HeadcountTarget, 10) || 0;
+    const oriDate     = settingsMap.OrientationDate || new Date().toISOString().slice(0,10);
+    const throttle    = settingsMap.ThrottleMode || '';
+
+    const avg = (sum, n) => n > 0 ? Math.round((sum / n) * 10) / 10 : null;
+
+    const { error: histErr } = await sb.from('cycle_history').insert({
+      dsp_id:               dspId,
+      cycle_number:         cycleNumber,
+      orientation_date:     oriDate,
+      target:               target,
+      applied:              applied,
+      screened:             screened,
+      passed:               passed,
+      booked:               booked,
+      attended:             attended,
+      no_showed:            noShowed,
+      avg_score_attended:   avg(scoreAttSum, scoreAttN),
+      avg_score_no_show:    avg(scoreNsSum,  scoreNsN),
+      throttle_modes:       throttle,
+      notes:                ''
+    });
+    if (histErr) throw histErr;
+
+    const nextCycle = cycleNumber + 1;
+    const { error: bumpErr } = await sb.from('settings').upsert(
+      { dsp_id: dspId, key: 'OrientationCycleNumber', value: String(nextCycle) },
+      { onConflict: 'dsp_id,key' }
+    );
+    if (bumpErr) throw bumpErr;
+
+    return {
+      status:          'ok',
+      cycleNumber:     cycleNumber,
+      nextCycle:       nextCycle,
+      hired:           hired,
+      noShow:          noShowed,
+      notHired:        notHired,
+      stillInPipeline: stillInPipeline
+    };
   }
 };
 
