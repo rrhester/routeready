@@ -1306,6 +1306,134 @@ a{color:inherit;text-decoration:none}
 .modal-foot{padding:var(--s-4) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-2)}
 .modal-field-label{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px}
 .modal-row-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+
+/* ─────────────────────────────────────────────────────────────
+   PREMIUM SCHEDULE — AI, conflicts, forecast, rules, live panel
+   ───────────────────────────────────────────────────────────── */
+
+/* Live "right now" panel above the schedule */
+.live-panel{
+  background:linear-gradient(120deg,#0F172A 0%,#1E293B 100%);
+  color:#fff;border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);
+  margin-bottom:var(--s-4);display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-5);align-items:center;
+}
+.live-pulse{
+  width:10px;height:10px;border-radius:50%;background:#22C55E;flex-shrink:0;
+  box-shadow:0 0 0 4px rgba(34,197,94,.18);
+  animation:livePulse 1.6s ease-in-out infinite;
+}
+@keyframes livePulse{0%,100%{box-shadow:0 0 0 4px rgba(34,197,94,.18)}50%{box-shadow:0 0 0 8px rgba(34,197,94,.05)}}
+.live-stats{display:flex;gap:var(--s-6);flex-wrap:wrap}
+.live-stat-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:2px}
+.live-stat-value{font-size:16px;font-weight:700;color:#fff;line-height:1.1}
+.live-stat-value .frac{color:rgba(255,255,255,.55);font-weight:500;font-size:12px}
+.live-stat-value.warn{color:#FCD34D}
+.live-stat-value.bad{color:#FCA5A5}
+
+/* AI banner / button */
+.ai-banner{
+  background:linear-gradient(120deg,#1E40AF 0%,#3B82F6 100%);
+  color:#fff;border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);
+  margin-bottom:var(--s-4);display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);align-items:center;
+  box-shadow:0 4px 16px rgba(59,130,246,.22);
+}
+.ai-banner-icon{
+  width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.ai-banner-icon svg{width:20px;height:20px}
+.ai-banner-title{font-size:14px;font-weight:600;color:#fff;margin-bottom:2px}
+.ai-banner-msg{font-size:12px;color:rgba(255,255,255,.78);line-height:1.4}
+.ai-banner-cta{
+  background:#fff;color:#1E40AF;padding:8px 14px;border-radius:8px;
+  font-size:12px;font-weight:700;border:none;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.ai-banner-cta:hover{background:#F1F5F9}
+.ai-banner-cta svg{width:14px;height:14px;stroke-width:2.5}
+
+/* Conflict marker on calendar cells */
+.cal-cell{position:relative}
+.conflict-marker{
+  position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:50%;
+  background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:700;cursor:help;z-index:2;
+  box-shadow:0 0 0 2px var(--surface);
+}
+.conflict-marker.error{background:var(--red)}
+
+/* Forecast cards */
+.forecast-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3)}
+.forecast-week{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-4);
+}
+.forecast-week-label{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}
+.forecast-week-dates{font-size:11px;color:var(--text-subtle);margin-bottom:var(--s-3)}
+.forecast-coverage{display:flex;align-items:baseline;gap:6px;margin-bottom:var(--s-3)}
+.forecast-num{font-size:22px;font-weight:700;letter-spacing:-.01em;color:var(--text)}
+.forecast-of{font-size:13px;color:var(--text-subtle);font-weight:500}
+.forecast-status{
+  font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;
+  display:inline-flex;align-items:center;gap:5px;margin-bottom:var(--s-3);
+}
+.forecast-status.ok{background:var(--green-soft);color:var(--green)}
+.forecast-status.warn{background:var(--amber-soft);color:var(--amber)}
+.forecast-status.bad{background:var(--red-soft);color:var(--red)}
+.forecast-issues{font-size:11px;color:var(--text-muted);line-height:1.5;margin-bottom:var(--s-3)}
+.forecast-issues strong{color:var(--text);font-weight:600}
+.forecast-action{
+  width:100%;padding:7px;border-radius:6px;font-size:12px;font-weight:500;
+  background:var(--canvas);border:1px solid var(--border);color:var(--text);cursor:pointer;font-family:inherit;
+}
+.forecast-action:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+.forecast-action.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.forecast-action.primary:hover{background:var(--accent-hover)}
+
+/* Rules engine layout */
+.rules-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:var(--s-4)}
+.rules-section{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);
+}
+.rules-section-title{font-size:13px;font-weight:600;color:var(--text);margin:0 0 var(--s-4) 0;display:flex;align-items:center;gap:8px}
+.rules-section-title svg{width:14px;height:14px;color:var(--text-muted);stroke-width:2}
+.rule-row{display:grid;grid-template-columns:1fr auto;gap:var(--s-4);padding:var(--s-3) 0;align-items:center}
+.rule-row + .rule-row{border-top:1px solid var(--border)}
+.rule-label{font-size:13px;font-weight:500;color:var(--text)}
+.rule-help{font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.5}
+.rule-input{
+  width:80px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;
+  font-size:13px;font-family:inherit;text-align:center;background:var(--surface);color:var(--text);
+}
+.blackout-list{display:flex;flex-direction:column;gap:6px}
+.blackout-item{
+  display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);align-items:center;
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 12px;
+}
+.blackout-item-name{font-size:12px;font-weight:600;color:var(--text)}
+.blackout-item-dates{font-size:11px;color:var(--text-subtle)}
+
+/* AI auto-schedule modal — bigger, richer */
+.ai-modal-section{
+  background:var(--canvas);border-radius:8px;padding:var(--s-3) var(--s-4);
+  display:flex;align-items:flex-start;gap:10px;margin-bottom:var(--s-3);
+  font-size:12px;line-height:1.5;
+}
+.ai-modal-section-icon{
+  width:24px;height:24px;border-radius:50%;background:var(--accent-soft);
+  color:var(--accent-text);display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.ai-modal-section-icon svg{width:13px;height:13px;stroke-width:2.5}
+.ai-modal-section strong{color:var(--text);font-weight:600}
+.ai-modal-section-body{flex:1}
+.ai-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.ai-detail{
+  font-size:11px;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:8px 10px;
+}
+.ai-detail-label{font-size:9px;color:var(--text-subtle);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.ai-detail-value{font-size:12px;font-weight:600;color:var(--text)}
 </style>
 </head>
 <body>
@@ -2481,19 +2609,60 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <!-- Sub-nav: Week / Drivers / Time off / Swaps / Open shifts / Templates / Driver app -->
+        <!-- Sub-nav -->
         <div class="subnav">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
           <button class="subnav-item" data-sub="drivers" onclick="schedSub('drivers')">By driver</button>
           <button class="subnav-item" data-sub="timeoff" onclick="schedSub('timeoff')">Time off <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
           <button class="subnav-item" data-sub="swaps" onclick="schedSub('swaps')">Swaps <span style="background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">2</span></button>
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')">Open shifts <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
+          <button class="subnav-item" data-sub="forecast" onclick="schedSub('forecast')">Forecast</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
-          <button class="subnav-item" data-sub="driverapp" onclick="schedSub('driverapp')">Driver app preview</button>
+          <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
+          <button class="subnav-item" data-sub="driverapp" onclick="schedSub('driverapp')">Driver app</button>
+        </div>
+
+        <!-- LIVE PANEL — visible across all sub-views -->
+        <div class="live-panel">
+          <div class="live-pulse"></div>
+          <div class="live-stats">
+            <div>
+              <div class="live-stat-label">Today, May 1</div>
+              <div class="live-stat-value">74<span class="frac"> / 78 checked in</span></div>
+            </div>
+            <div>
+              <div class="live-stat-label">Currently on route</div>
+              <div class="live-stat-value">71<span class="frac"> / 90 routes</span></div>
+            </div>
+            <div>
+              <div class="live-stat-label">Callouts today</div>
+              <div class="live-stat-value warn">3</div>
+            </div>
+            <div>
+              <div class="live-stat-label">Open shifts</div>
+              <div class="live-stat-value bad">3</div>
+            </div>
+          </div>
+          <button class="btn btn-sm" onclick="goto('checkin')">Open check-in →</button>
         </div>
 
         <!-- WEEK VIEW SUB-VIEW -->
         <div class="sched-subview active" id="sched-sub-week">
+
+          <!-- AI Auto-Schedule banner -->
+          <div class="ai-banner">
+            <div class="ai-banner-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.36 7.36L12 16.71l-6.17 4.51 2.36-7.36L2 9.36h7.61z"/></svg>
+            </div>
+            <div>
+              <div class="ai-banner-title">AI can auto-schedule next week</div>
+              <div class="ai-banner-msg">Optimized for coverage, qualifications, fairness, and known time-off. Manager reviews before publishing.</div>
+            </div>
+            <button class="ai-banner-cta" onclick="openAiSchedule()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+              Generate next week
+            </button>
+          </div>
 
           <div class="sched-toolbar">
             <div class="sched-week-nav">
@@ -2546,7 +2715,10 @@ a{color:inherit;text-decoration:none}
               <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO2-08C</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
               <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO2-08C</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
               <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO2-08C</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip swap"><div class="shift-chip-route">↔ Hill</div><div class="shift-chip-time">Pending swap</div></div></div>
+              <div class="cal-cell">
+                <div class="conflict-marker" title="Swap pending approval — schedule will adjust">!</div>
+                <div class="shift-chip swap"><div class="shift-chip-route">↔ Hill</div><div class="shift-chip-time">Pending swap</div></div>
+              </div>
               <div class="cal-cell"><div class="shift-chip off">Off</div></div>
               <div class="cal-cell"><div class="shift-chip off">Off</div></div>
             </div>
@@ -2581,7 +2753,10 @@ a{color:inherit;text-decoration:none}
               <div class="cal-cell today"><div class="shift-chip"><div class="shift-chip-route">KMO3-12B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
               <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-12B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
               <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-12B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>
+              <div class="cal-cell">
+                <div class="conflict-marker error" title="PTO approved but route still scheduled — needs reassignment">!</div>
+                <div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div>
+              </div>
               <div class="cal-cell"><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>
               <div class="cal-cell"><div class="shift-chip off">Off</div></div>
               <div class="cal-cell"><div class="shift-chip off">Off</div></div>
@@ -2804,6 +2979,191 @@ a{color:inherit;text-decoration:none}
             <div><div class="open-shift-when">Saturday May 5</div><div class="open-shift-when-sub">7:00 AM – 6:00 PM</div></div>
             <div class="open-shift-claims"><strong>2 backup drivers</strong> notified · waiting</div>
             <button class="btn btn-sm">Send reminder</button>
+          </div>
+        </div>
+
+        <!-- FORECAST — 4-week look-ahead -->
+        <div class="sched-subview" id="sched-sub-forecast" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4)">
+            <div>
+              <h2 style="font-size:15px;font-weight:600;margin:0">4-week coverage forecast</h2>
+              <p class="page-sub" style="margin:4px 0 0 0">Predicts uncovered routes before they happen, based on schedules, time-off, and historical patterns.</p>
+            </div>
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.36 7.36L12 16.71l-6.17 4.51 2.36-7.36L2 9.36h7.61z"/></svg>
+              Auto-fix all
+            </button>
+          </div>
+
+          <div class="forecast-grid">
+            <div class="forecast-week">
+              <div class="forecast-week-label">Week 1 · This week</div>
+              <div class="forecast-week-dates">May 1 – May 7</div>
+              <div class="forecast-coverage"><div class="forecast-num">87</div><div class="forecast-of">of 90 routes</div></div>
+              <div class="forecast-status warn"><span class="kpi-pip amber"></span>3 open shifts</div>
+              <div class="forecast-issues"><strong>Tuesday + Friday</strong> short — backup pool notified for KMO2-15A and KMO3-07C.</div>
+              <button class="forecast-action">Manage open shifts</button>
+            </div>
+
+            <div class="forecast-week">
+              <div class="forecast-week-label">Week 2 · Next week</div>
+              <div class="forecast-week-dates">May 8 – May 14</div>
+              <div class="forecast-coverage"><div class="forecast-num">85</div><div class="forecast-of">of 90 routes</div></div>
+              <div class="forecast-status warn"><span class="kpi-pip amber"></span>5 open shifts</div>
+              <div class="forecast-issues">Reyes off Mon–Wed (PTO). <strong>2 routes need backup</strong> Mon, 1 Tue, 2 Wed.</div>
+              <button class="forecast-action primary" onclick="openAiSchedule()">AI auto-schedule →</button>
+            </div>
+
+            <div class="forecast-week">
+              <div class="forecast-week-label">Week 3</div>
+              <div class="forecast-week-dates">May 15 – May 21</div>
+              <div class="forecast-coverage"><div class="forecast-num">82</div><div class="forecast-of">of 90 routes</div></div>
+              <div class="forecast-status bad"><span class="kpi-pip red"></span>8 open shifts</div>
+              <div class="forecast-issues">Devon Patterson approved PTO. <strong>3 callout-prone Mondays</strong> in pattern history. Backup pool currently 4 deep — likely insufficient.</div>
+              <button class="forecast-action primary">Plan hires →</button>
+            </div>
+
+            <div class="forecast-week">
+              <div class="forecast-week-label">Week 4</div>
+              <div class="forecast-week-dates">May 22 – May 28</div>
+              <div class="forecast-coverage"><div class="forecast-num">80</div><div class="forecast-of">of 90 routes</div></div>
+              <div class="forecast-status bad"><span class="kpi-pip red"></span>10 open shifts</div>
+              <div class="forecast-issues">Camille Foster PTO. Memorial Day weekend dip. <strong>Hire 3 drivers</strong> from cycle 14 to fill structural gap.</div>
+              <button class="forecast-action primary" onclick="goto('pipeline')">Open pipeline →</button>
+            </div>
+          </div>
+
+          <div style="margin-top:var(--s-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-5)">
+            <h3 style="font-size:13px;font-weight:600;margin:0 0 var(--s-3) 0">Pattern insights</h3>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-4)">
+              <div>
+                <div style="font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Callout pattern</div>
+                <div style="font-size:13px;color:var(--text);line-height:1.5">3 drivers consistently call out Mondays. Build buffer for that day.</div>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Demand seasonality</div>
+                <div style="font-size:13px;color:var(--text);line-height:1.5">Friday demand averages 105% of Tuesday. Schedule 2 extra drivers Fri.</div>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Open shift fill rate</div>
+                <div style="font-size:13px;color:var(--text);line-height:1.5">Backup pool fills 78% of open shifts within 24h. Notify earlier next time.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RULES — compliance + schedule settings -->
+        <div class="sched-subview" id="sched-sub-rules" style="display:none">
+          <div style="margin-bottom:var(--s-4)">
+            <h2 style="font-size:15px;font-weight:600;margin:0">Schedule rules &amp; compliance</h2>
+            <p class="page-sub" style="margin:4px 0 0 0">The system enforces these automatically. Conflicts surface inline as you build the schedule.</p>
+          </div>
+
+          <div class="rules-grid">
+
+            <div class="rules-section">
+              <h3 class="rules-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Hours &amp; rest
+              </h3>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Max hours per week per driver</div>
+                  <div class="rule-help">Warns when a driver's scheduled hours exceed this limit.</div>
+                </div>
+                <input class="rule-input" value="55" />
+              </div>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Max consecutive working days</div>
+                  <div class="rule-help">Drivers can't be scheduled more than this many days in a row.</div>
+                </div>
+                <input class="rule-input" value="6" />
+              </div>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Min rest between shifts (hours)</div>
+                  <div class="rule-help">DOT-style rest enforcement.</div>
+                </div>
+                <input class="rule-input" value="10" />
+              </div>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Required days off per month</div>
+                  <div class="rule-help">Auto-block manager from scheduling beyond.</div>
+                </div>
+                <input class="rule-input" value="8" />
+              </div>
+            </div>
+
+            <div class="rules-section">
+              <h3 class="rules-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Publishing &amp; locks
+              </h3>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Lock period (hours before shift)</div>
+                  <div class="rule-help">Schedule changes within this window need driver acknowledgment.</div>
+                </div>
+                <input class="rule-input" value="48" />
+              </div>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Auto-publish on Sundays</div>
+                  <div class="rule-help">Generate next week from templates and publish at 6 PM Sunday.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Notify drivers when published</div>
+                  <div class="rule-help">SMS each driver their week. Email summary too.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Allow driver self-claim of open shifts</div>
+                  <div class="rule-help">Backup drivers can grab open shifts without manager approval (still logged).</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="rule-row">
+                <div>
+                  <div class="rule-label">Auto-approve swaps if both drivers qualified</div>
+                  <div class="rule-help">If A wants to swap with B and both can run each other's routes, no manager step.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+
+            <div class="rules-section" style="grid-column:1/-1">
+              <h3 class="rules-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+                Blackout dates · no time off allowed
+              </h3>
+              <p class="page-sub" style="margin:0 0 var(--s-3) 0">High-volume periods. Time-off requests for these dates are auto-declined unless manager overrides.</p>
+              <div class="blackout-list">
+                <div class="blackout-item">
+                  <div><div class="blackout-item-name">Prime Day</div><div class="blackout-item-dates">Jul 14 – Jul 17, 2026</div></div>
+                  <span class="tag" style="background:var(--red-soft);color:var(--red)">All drivers required</span>
+                  <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div>
+                <div class="blackout-item">
+                  <div><div class="blackout-item-name">Black Friday week</div><div class="blackout-item-dates">Nov 24 – Nov 30, 2026</div></div>
+                  <span class="tag" style="background:var(--red-soft);color:var(--red)">All drivers required</span>
+                  <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div>
+                <div class="blackout-item">
+                  <div><div class="blackout-item-name">Holiday peak</div><div class="blackout-item-dates">Dec 15 – Dec 24, 2026</div></div>
+                  <span class="tag" style="background:var(--amber-soft);color:var(--amber)">Limited approvals</span>
+                  <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div>
+              </div>
+              <button class="btn btn-sm" style="margin-top:var(--s-3)">+ Add blackout</button>
+            </div>
+
           </div>
         </div>
 
@@ -3248,6 +3608,71 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     AI AUTO-SCHEDULE MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-ai-schedule" onclick="if(event.target===this)closeModal('modal-ai-schedule')">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title" style="display:flex;align-items:center;gap:8px">
+          <span style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#1E40AF,#3B82F6);color:#fff;display:inline-flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.36 7.36L12 16.71l-6.17 4.51 2.36-7.36L2 9.36h7.61z"/></svg></span>
+          AI auto-schedule
+        </p>
+        <p class="modal-sub">Proposed schedule for May 8–14 · review and accept</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-ai-schedule')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+
+      <div class="ai-modal-section">
+        <div class="ai-modal-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="ai-modal-section-body">
+          <strong>Coverage</strong> — All 90 routes assigned for the full week. 5 backup-pool drivers held in reserve for callouts.
+        </div>
+      </div>
+
+      <div class="ai-modal-section">
+        <div class="ai-modal-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="ai-modal-section-body">
+          <strong>Time-off respected</strong> — Tasha Reyes (May 10–12) and Marcus Hill (May 9) flagged off. Replacements assigned.
+          <div class="ai-detail-grid">
+            <div class="ai-detail"><div class="ai-detail-label">Tasha's KMO2-08C</div><div class="ai-detail-value">→ Devon Patterson (qualified)</div></div>
+            <div class="ai-detail"><div class="ai-detail-label">Marcus's KMO1-22A</div><div class="ai-detail-value">→ Sasha Underwood (claimed)</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-modal-section">
+        <div class="ai-modal-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="ai-modal-section-body">
+          <strong>Fairness</strong> — Hours distributed within ±3h across drivers (target 50–55h/week). No driver scheduled 6 days in a row.
+        </div>
+      </div>
+
+      <div class="ai-modal-section">
+        <div class="ai-modal-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="ai-modal-section-body">
+          <strong>Performance-aware</strong> — Avoided putting low-scoring drivers on highest-stop routes. KMO1-09A (top route) → Camille Foster (88 score).
+        </div>
+      </div>
+
+      <div class="ai-modal-section" style="background:var(--amber-soft);border:1px solid #FCD34D">
+        <div class="ai-modal-section-icon" style="background:#FFFBEB;color:#92400E"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+        <div class="ai-modal-section-body" style="color:#78350F">
+          <strong>2 items need your input</strong> — Saturday May 14 needs a driver for KMO3-19D (no qualified backup available). Friday May 13 has Davidson on a route that historically has issues for him (consider reassign).
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-ai-schedule')">Cancel</button>
+      <button class="btn" onclick="closeModal('modal-ai-schedule'); toast('Refining schedule…')">Refine</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-ai-schedule'); toast('Schedule accepted · ready to publish')">Accept &amp; review in calendar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      COACH DRIVER DRAWER (single source of truth for all coaching)
      ═══════════════════════════════════════════════════════════ -->
 <div class="coach-backdrop" id="cd-backdrop" onclick="closeCoachDrawer()"></div>
@@ -3603,6 +4028,9 @@ a{color:inherit;text-decoration:none}
     goto('drivers');
     setTimeout(function(){ drSub('schedules'); }, 50);
   }
+
+  // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
+  function openAiSchedule(){ openModal('modal-ai-schedule'); }
 
   // ─── PIPELINE STAGE FILTER ─────────────────────────────────
   function filterPipelineStage(btn){
