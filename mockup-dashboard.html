@@ -2735,6 +2735,64 @@ a{color:inherit;text-decoration:none}
 .phone-cl-check.done{background:var(--green);border-color:var(--green);color:#fff}
 .phone-cl-check.done svg{width:11px;height:11px}
 .phone-cl-task.done .phone-cl-text{text-decoration:line-through;color:var(--text-subtle)}
+
+/* Wider drawer for editor/runner views */
+.detail-drawer.wide{width:640px}
+.detail-drawer.xwide{width:780px}
+
+/* Task runner inside checklist drawer */
+.run-task{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
+  padding:12px 14px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);margin-bottom:8px;cursor:pointer;
+}
+.run-task:hover{background:var(--canvas)}
+.run-task.done{background:var(--green-soft);border-color:#86EFAC;opacity:.85}
+.run-task.done .run-task-title{text-decoration:line-through;color:var(--text-muted)}
+.run-task-check{
+  width:20px;height:20px;border-radius:50%;border:2px solid var(--border-strong);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.run-task.done .run-task-check{background:var(--green);border-color:var(--green);color:#fff}
+.run-task.done .run-task-check svg{width:11px;height:11px}
+.run-task-title{font-size:13px;font-weight:500;color:var(--text)}
+.run-task-meta{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.run-task-flag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--canvas);color:var(--text-muted)}
+
+/* Asset detail list rows */
+.asset-row{
+  display:grid;grid-template-columns:auto 1fr auto auto auto;gap:14px;align-items:center;
+  padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;
+}
+.asset-row:last-child{border-bottom:none}
+.asset-row:hover{background:var(--canvas)}
+.asset-id{font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--text-muted)}
+.asset-name{font-weight:600;color:var(--text)}
+.asset-status{font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px}
+.asset-status.assigned{background:var(--green-soft);color:var(--green)}
+.asset-status.inv{background:var(--canvas);color:var(--text-muted)}
+.asset-status.lost{background:var(--red-soft);color:var(--red)}
+.asset-status.repair{background:var(--amber-soft);color:var(--amber)}
+
+/* OKAMI strategy pills clickable */
+.strategy-pill{cursor:pointer;transition:background .12s}
+.strategy-pill:hover{filter:brightness(1.05)}
+
+/* Row action popover */
+.row-menu{
+  position:absolute;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);box-shadow:0 12px 32px rgba(15,23,42,.12);
+  min-width:160px;padding:6px;display:none;z-index:90;
+}
+.row-menu.open{display:block}
+.row-menu-item{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;
+  cursor:pointer;font-size:12px;color:var(--text);
+}
+.row-menu-item:hover{background:var(--canvas)}
+.row-menu-item svg{width:13px;height:13px;color:var(--text-muted)}
+.row-menu-item.danger{color:var(--red)}
+.row-menu-item.danger svg{color:var(--red)}
 </style>
 </head>
 <body>
@@ -7255,6 +7313,319 @@ a{color:inherit;text-decoration:none}
 <div class="toast-stack" id="toast-stack"></div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     VEHICLE DETAIL DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer wide" id="vehicle-drawer" aria-label="Vehicle detail">
+  <div class="detail-head">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex:1;min-width:0">
+      <div class="veh-icon" style="width:48px;height:48px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
+      <div>
+        <h2 class="detail-name" id="veh-name">VAN-04</h2>
+        <div class="detail-meta" id="veh-meta">2023 Mercedes Sprinter · 5HXXX12345 · KMO1 · plate JR4-2918</div>
+      </div>
+    </div>
+    <button class="cd-close" onclick="closeVehicleDetail()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-section">
+      <div class="detail-section-label">Status</div>
+      <div class="detail-stat-grid">
+        <div><div class="detail-stat-label">Mileage</div><div class="detail-stat-value" id="veh-miles">87,420</div></div>
+        <div><div class="detail-stat-label">Status</div><div class="detail-stat-value" id="veh-status" style="color:var(--green)">Active</div></div>
+        <div><div class="detail-stat-label">Assigned to</div><div class="detail-stat-value" id="veh-driver">Marcus Davidson</div></div>
+        <div><div class="detail-stat-label">Last serviced</div><div class="detail-stat-value">Apr 15</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-label">Maintenance history</div>
+      <div class="detail-timeline">
+        <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">Oil + tire rotation<small>$145 · Springfield Truck</small></div><div class="detail-timeline-time">Apr 15</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">DOT annual inspection passed<small>$185</small></div><div class="detail-timeline-time">Jan 5</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Brake pad replacement<small>$420</small></div><div class="detail-timeline-time">Dec 18</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-label">Damage log</div>
+      <div class="detail-timeline">
+        <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Right rear quarter scratch<small>Driver: Davidson · noted Mar 12 · est $280 repair</small></div><div class="detail-timeline-time">Mar 12</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-label">Documents</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="doc-card" onclick="openDocPreview('Insurance card · Progressive')"><div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="doc-card-name">Insurance card</div><div class="doc-card-meta">Progressive · expires Aug 15</div></div>
+        <div class="doc-card" onclick="openDocPreview('Registration · MO DOR')"><div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div><div class="doc-card-name">Registration</div><div class="doc-card-meta">MO DOR · expires Jun 30</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeVehicleDetail()">Close</button>
+    <button class="btn" onclick="openWorkOrder()">Schedule service</button>
+    <button class="btn btn-primary" onclick="closeVehicleDetail();toast('Reassign vehicle — would open driver picker')">Reassign driver</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PER-DRIVER SCHEDULE EDITOR DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer wide" id="sched-edit-drawer" aria-label="Driver schedule">
+  <div class="detail-head">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex:1">
+      <div class="detail-avatar" id="se-initials">??</div>
+      <div>
+        <h2 class="detail-name" id="se-name">Driver schedule</h2>
+        <div class="detail-meta" id="se-meta">Standing weekly pattern · current week May 1–7</div>
+      </div>
+    </div>
+    <button class="cd-close" onclick="closeScheduleEdit()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-section">
+      <div class="detail-section-label">Standing weekly pattern</div>
+      <p style="font-size:11px;color:var(--text-subtle);margin:0 0 10px 0">Days driver is available to be scheduled. Applies recurring.</p>
+      <div class="sched-draw-day-row">
+        <button class="sched-draw-day on" onclick="sgToggle(this)"><span class="sched-draw-day-letter">M</span></button>
+        <button class="sched-draw-day on" onclick="sgToggle(this)"><span class="sched-draw-day-letter">T</span></button>
+        <button class="sched-draw-day on" onclick="sgToggle(this)"><span class="sched-draw-day-letter">W</span></button>
+        <button class="sched-draw-day on" onclick="sgToggle(this)"><span class="sched-draw-day-letter">T</span></button>
+        <button class="sched-draw-day on" onclick="sgToggle(this)"><span class="sched-draw-day-letter">F</span></button>
+        <button class="sched-draw-day" onclick="sgToggle(this)"><span class="sched-draw-day-letter">S</span></button>
+        <button class="sched-draw-day" onclick="sgToggle(this)"><span class="sched-draw-day-letter">S</span></button>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Hours preference</div>
+      <div class="cd-grid2">
+        <div><label class="cd-field-label">Min hours/week</label><input class="cd-input" value="40" /></div>
+        <div><label class="cd-field-label">Max hours/week</label><input class="cd-input" value="55" /></div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">This week's shifts</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px"><span><strong>Tue May 1</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px"><span><strong>Wed May 2</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px"><span><strong>Thu May 3</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px"><span><strong>Fri May 4</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px"><span><strong>Sat May 5</strong> · KMO1-22A</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Time off</div>
+      <button class="btn btn-sm btn-primary" onclick="openModal('modal-add-timeoff')">+ Add time off</button>
+      <p style="font-size:11px;color:var(--text-subtle);margin:8px 0 0 0">No upcoming time off.</p>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeScheduleEdit()">Close</button>
+    <button class="btn btn-primary" onclick="closeScheduleEdit();toast('Schedule pattern saved · applies next unpublished week')">Save changes</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     CHECKLIST DETAIL / RUNNER DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer wide" id="checklist-drawer" aria-label="Checklist detail">
+  <div class="detail-head">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex:1;min-width:0">
+      <div class="cl-card-icon opening" id="cl-d-icon" style="width:44px;height:44px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><circle cx="12" cy="12" r="5"/></svg></div>
+      <div>
+        <h2 class="detail-name" id="cl-d-name">Station opening · KMO1</h2>
+        <div class="detail-meta" id="cl-d-meta">12 tasks · daily by 6:30 AM · assigned to Jaime Navarro</div>
+      </div>
+    </div>
+    <button class="cd-close" onclick="closeChecklistDetail()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-section">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="detail-stat-label">Today's progress</div>
+          <div style="font-size:18px;font-weight:700;margin-top:2px"><span id="cl-d-progress">9</span> of 12 complete · 75%</div>
+        </div>
+        <button class="btn btn-sm" onclick="toast('Audit log opens — full completion history')">View audit log</button>
+      </div>
+      <div class="cl-card-progress" style="margin-top:10px"><div class="cl-card-progress-fill" id="cl-d-bar" style="width:75%"></div></div>
+    </div>
+
+    <div class="detail-section-label">Task checklist · click any to mark complete</div>
+    <div id="cl-d-tasks">
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Unlock station &amp; turn on lights</div><div class="run-task-meta">Done by Jaime · 6:02 AM</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Check all 24 vans staged for routes</div><div class="run-task-meta">📷 Photo attached · 6:04 AM</div></div><span class="run-task-flag photo">Photo</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Confirm scanners are docked &amp; charged</div><div class="run-task-meta">📷 Photo attached · 6:06 AM</div></div><span class="run-task-flag photo">Photo</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Print route sheets &amp; staging map</div><div class="run-task-meta">Done by Jaime · 6:08 AM</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Verify driver list against today's schedule</div><div class="run-task-meta">2 callouts noted · Davidson, Reyes</div></div><span class="run-task-flag comment">Comment</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Pull-out air check on yard</div><div class="run-task-meta">Clear · 6:12 AM</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Brief drivers on today's exceptions</div><div class="run-task-meta">3 drivers briefed · 6:15 AM</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Hand out route sheets</div><div class="run-task-meta">All distributed · 6:17 AM</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task done" onclick="cdRunToggle(this)"><div class="run-task-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="run-task-title">Confirm dispatcher login &amp; tools active</div><div class="run-task-meta">Done · 6:18 AM</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task" onclick="cdRunToggle(this)"><div class="run-task-check"></div><div><div class="run-task-title">Verify trash bins emptied</div><div class="run-task-meta">Pending</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task" onclick="cdRunToggle(this)"><div class="run-task-check"></div><div><div class="run-task-title">Walk back lot for stragglers</div><div class="run-task-meta">Pending · do at 6:25 AM</div></div><span class="run-task-flag">Required</span></div>
+      <div class="run-task" onclick="cdRunToggle(this)"><div class="run-task-check"></div><div><div class="run-task-title">Sign off on opening checklist</div><div class="run-task-meta">Pending · signature required</div></div><span class="run-task-flag signature">Signature</span></div>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeChecklistDetail()">Close</button>
+    <button class="btn" onclick="toast('Reminder sent to Jaime')">Send reminder</button>
+    <button class="btn btn-primary" onclick="closeChecklistDetail();toast('Checklist marked complete · audit logged')">Mark complete</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FORM EDITOR DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer wide" id="form-edit-drawer" aria-label="Form detail">
+  <div class="detail-head">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex:1;min-width:0">
+      <div class="form-card-icon" style="width:44px;height:44px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
+      <div>
+        <h2 class="detail-name" id="form-d-name">Pre-trip vehicle inspection</h2>
+        <div class="detail-meta" id="form-d-meta">14 questions · daily · 78 assigned · 72 submitted today</div>
+      </div>
+    </div>
+    <button class="cd-close" onclick="closeFormEdit()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-section">
+      <div class="detail-section-label">Today's submissions</div>
+      <div class="detail-stat-grid">
+        <div><div class="detail-stat-label">Submitted</div><div class="detail-stat-value">72</div></div>
+        <div><div class="detail-stat-label">Pending</div><div class="detail-stat-value" style="color:var(--amber)">6</div></div>
+        <div><div class="detail-stat-label">Flagged</div><div class="detail-stat-value" style="color:var(--red)">1</div></div>
+        <div><div class="detail-stat-label">Avg time</div><div class="detail-stat-value">2:14</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-label">Recent submissions · click any to view</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px;cursor:pointer" onclick="closeFormEdit();openSubmission('Marcus Davidson','complete')"><span><strong>Marcus Davidson</strong> · 7:02 AM</span><span class="subm-status complete">Complete</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px;cursor:pointer" onclick="closeFormEdit();openSubmission('Tasha Reyes','flagged')"><span><strong>Tasha Reyes</strong> · 7:14 AM</span><span class="subm-status flagged">Action needed</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px;cursor:pointer" onclick="closeFormEdit();openSubmission('Camille Foster','complete')"><span><strong>Camille Foster</strong> · 7:21 AM</span><span class="subm-status complete">Complete</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:6px;cursor:pointer" onclick="closeFormEdit();openSubmission('Devon Patterson','complete')"><span><strong>Devon Patterson</strong> · 7:28 AM</span><span class="subm-status complete">Complete</span></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-label">Form structure (read-only preview)</div>
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.6">
+        <div>1. Vehicle ID <span style="color:var(--red)">*</span></div>
+        <div>2. Tire condition <span style="color:var(--red)">*</span></div>
+        <div>3. Photo of damage (conditional)</div>
+        <div>4. Brake test passed <span style="color:var(--red)">*</span></div>
+        <div>5. Fluid levels OK</div>
+        <div>6. Fuel level at start</div>
+        <div>7. Notes (optional)</div>
+        <div>8. Driver signature <span style="color:var(--red)">*</span></div>
+        <div style="color:var(--text-subtle);margin-top:4px">+ 6 more questions</div>
+      </div>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeFormEdit()">Close</button>
+    <button class="btn" onclick="closeFormEdit();openModal('modal-form-builder')">Edit form</button>
+    <button class="btn btn-primary" onclick="toast('Submissions exported as CSV')">Export submissions</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SUBMISSION DETAIL DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer" id="submission-drawer" aria-label="Submission detail">
+  <div class="detail-head">
+    <div>
+      <h2 class="detail-name" id="sub-name">Pre-trip · Marcus Davidson</h2>
+      <div class="detail-meta" id="sub-meta">Submitted 7:02 AM · VAN-04 · 1 min 47 sec to complete</div>
+    </div>
+    <button class="cd-close" onclick="closeSubmission()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-section">
+      <div class="detail-section-label">Answers</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Vehicle ID</span><span style="font-weight:600">VAN-04</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Tire condition</span><span style="font-weight:600;color:var(--green)" id="sub-tire">All four inflated, no damage</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Brake test</span><span style="font-weight:600;color:var(--green)">Yes — firm, even braking</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Fluid levels</span><span style="font-weight:600">Oil ✓ · Coolant ✓ · Washer ✓</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Fuel at start</span><span style="font-weight:600">3/4</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Notes</span><span style="font-weight:600;color:var(--text-subtle)">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Signature</span><span style="font-weight:600">M. Davidson ✓</span></div>
+      </div>
+    </div>
+    <div class="detail-section" id="sub-photo-section">
+      <div class="detail-section-label">Photo evidence</div>
+      <div style="background:var(--canvas);border-radius:8px;padding:24px;text-align:center;color:var(--text-subtle);font-size:11px">📷 Photo placeholder · 1 image attached</div>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeSubmission()">Close</button>
+    <button class="btn" onclick="toast('Marked as reviewed · cleared from pending')">Mark reviewed</button>
+    <button class="btn btn-primary" id="sub-action-btn" onclick="closeSubmission();openCoachDrawer('Driver','quality','Submission flagged')" style="display:none">Flag &amp; coach</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAINTENANCE WORK ORDER MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-work-order" onclick="if(event.target===this)closeModal('modal-work-order')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Schedule maintenance · VAN-04</p>
+        <p class="modal-sub">Oil change due in 4 days · 87,420 mi</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-work-order')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row-2">
+        <div><label class="modal-field-label">Service type</label><select class="cd-input"><option>Oil change</option><option>Tire rotation</option><option>Brake service</option><option>DOT inspection</option><option>Other</option></select></div>
+        <div><label class="modal-field-label">Vendor</label><select class="cd-input"><option>Springfield Truck</option><option>Quick Lube Plus</option><option>Custom...</option></select></div>
+      </div>
+      <div class="modal-row-2">
+        <div><label class="modal-field-label">Scheduled date</label><input type="date" class="cd-input" /></div>
+        <div><label class="modal-field-label">Estimated cost</label><input class="cd-input" placeholder="$" value="89" /></div>
+      </div>
+      <div><label class="modal-field-label">Notes</label><textarea class="cd-textarea" placeholder="Any notes for the vendor or for your records..." style="min-height:60px"></textarea></div>
+      <div style="background:var(--accent-soft);border:1px solid #146EB433;border-radius:8px;padding:10px 12px;font-size:12px;color:var(--accent-text)">
+        Vehicle will be marked <strong>In maintenance</strong> on the scheduled date · driver will be notified · backup pool flagged for coverage.
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-work-order')">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-work-order');toast('Work order scheduled · vendor notified')">Schedule service</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     DOCUMENT PREVIEW MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-doc-preview" onclick="if(event.target===this)closeModal('modal-doc-preview')">
+  <div class="modal-card" style="max-width:680px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title" id="doc-preview-name">Document preview</p>
+        <p class="modal-sub" id="doc-preview-sub">PDF · uploaded Jan 15 · 1.2 MB</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-doc-preview')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:60px 40px;text-align:center">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle);margin-bottom:12px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px">PDF preview</div>
+        <div style="font-size:11px;color:var(--text-subtle)">When backend is wired this will render the actual document</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-doc-preview')">Close</button>
+      <button class="btn" onclick="toast('Download started')">Download</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-doc-preview');toast('Document replaced · audit logged')">Replace</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      CHECKLIST BUILDER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-checklist-builder" onclick="if(event.target===this)closeModal('modal-checklist-builder')">
@@ -8790,6 +9161,166 @@ a{color:inherit;text-decoration:none}
     document.getElementById('fleet-tab-' + sub).style.display = 'block';
   }
 
+  // ─── VEHICLE DETAIL ──────────────────────────────────────
+  function openVehicleDetail(name, model, miles, status, driver){
+    document.getElementById('veh-name').textContent = name || 'Vehicle';
+    if (model) document.getElementById('veh-meta').textContent = model;
+    if (miles) document.getElementById('veh-miles').textContent = miles;
+    if (status) {
+      const el = document.getElementById('veh-status');
+      el.textContent = status;
+      el.style.color = status === 'Active' ? 'var(--green)' : status === 'In maintenance' ? 'var(--amber)' : 'var(--red)';
+    }
+    if (driver) document.getElementById('veh-driver').textContent = driver;
+    document.getElementById('vehicle-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeVehicleDetail(){
+    document.getElementById('vehicle-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── PER-DRIVER SCHEDULE EDITOR ──────────────────────────
+  function openScheduleEdit(name){
+    const initials = (name || '').split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase();
+    document.getElementById('se-initials').textContent = initials || 'DR';
+    document.getElementById('se-name').textContent = name || 'Driver schedule';
+    document.getElementById('se-meta').textContent = 'Standing weekly pattern · current week May 1–7';
+    document.getElementById('sched-edit-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeScheduleEdit(){
+    document.getElementById('sched-edit-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── CHECKLIST DETAIL / RUNNER ────────────────────────────
+  function openChecklistDetail(name, meta, iconClass){
+    if (name) document.getElementById('cl-d-name').textContent = name;
+    if (meta) document.getElementById('cl-d-meta').textContent = meta;
+    if (iconClass) {
+      const ic = document.getElementById('cl-d-icon');
+      ic.className = 'cl-card-icon ' + iconClass;
+      ic.style.width = '44px'; ic.style.height = '44px';
+    }
+    document.getElementById('checklist-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeChecklistDetail(){
+    document.getElementById('checklist-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  function cdRunToggle(row){
+    row.classList.toggle('done');
+    const check = row.querySelector('.run-task-check');
+    if (row.classList.contains('done')) {
+      check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    } else {
+      check.innerHTML = '';
+    }
+    // recalc progress
+    const all = document.querySelectorAll('#cl-d-tasks .run-task');
+    const done = document.querySelectorAll('#cl-d-tasks .run-task.done').length;
+    const pct = Math.round(done / all.length * 100);
+    document.getElementById('cl-d-progress').textContent = done;
+    document.getElementById('cl-d-bar').style.width = pct + '%';
+  }
+
+  // ─── FORM DETAIL/EDITOR ───────────────────────────────────
+  function openFormEdit(name, meta){
+    if (name) document.getElementById('form-d-name').textContent = name;
+    if (meta) document.getElementById('form-d-meta').textContent = meta;
+    document.getElementById('form-edit-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeFormEdit(){
+    document.getElementById('form-edit-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── SUBMISSION DETAIL ────────────────────────────────────
+  function openSubmission(name, status){
+    document.getElementById('sub-name').textContent = 'Pre-trip · ' + (name || 'Driver');
+    const flagBtn = document.getElementById('sub-action-btn');
+    if (status === 'flagged') {
+      document.getElementById('sub-tire').textContent = 'One or more tires need attention';
+      document.getElementById('sub-tire').style.color = 'var(--amber)';
+      flagBtn.style.display = 'inline-flex';
+    } else {
+      document.getElementById('sub-tire').textContent = 'All four inflated, no damage';
+      document.getElementById('sub-tire').style.color = 'var(--green)';
+      flagBtn.style.display = 'none';
+    }
+    document.getElementById('submission-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSubmission(){
+    document.getElementById('submission-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── MAINTENANCE WORK ORDER ──────────────────────────────
+  function openWorkOrder(){
+    closeVehicleDetail();
+    setTimeout(function(){ openModal('modal-work-order'); }, 200);
+  }
+
+  // ─── DOCUMENT PREVIEW ────────────────────────────────────
+  function openDocPreview(name){
+    document.getElementById('doc-preview-name').textContent = name || 'Document';
+    openModal('modal-doc-preview');
+  }
+
+  // ─── ASSET CATEGORY DETAIL (drawer-style — replace toast) ─
+  function openAssetCategory(catName, count){
+    toast('Asset category: ' + catName + ' · drilldown view with ' + count + ' assets and assignment history would render here');
+    // Future: open a drawer with asset list filtered by category
+  }
+
+  // ─── OKAMI STRATEGY PILL CYCLING ─────────────────────────
+  function cycleStrategy(pill){
+    const opts = ['hire','adw','ot','seasonal'];
+    const labels = { hire:'Hire', adw:'ADW 5.5', ot:'+8h OT', seasonal:'Seasonal' };
+    let cur = '';
+    opts.forEach(function(c){ if (pill.classList.contains(c)) cur = c; });
+    const next = opts[(opts.indexOf(cur) + 1) % opts.length];
+    opts.forEach(function(c){ pill.classList.remove(c); });
+    pill.classList.add(next, 'active');
+    pill.textContent = labels[next];
+    toast('Strategy switched to ' + labels[next]);
+  }
+
+  // ─── MESSAGE QUICK REPLY → fill textarea ─────────────────
+  function fillQuickReply(text){
+    const ta = document.querySelector('.msg-input');
+    if (ta) {
+      ta.value = text;
+      ta.focus();
+    }
+  }
+
+  // ─── CONVERSATION SWITCHING (Messages) ────────────────────
+  // Already partially wired via selectConversation — extend to swap header
+  const _origSelect = (typeof selectConversation === 'function') ? selectConversation : null;
+  if (_origSelect) {
+    selectConversation = function(el, id){
+      _origSelect(el, id);
+      const name = el.querySelector('.msg-item-name');
+      const headerName = document.querySelector('.msg-conv-name');
+      if (name && headerName) headerName.textContent = name.textContent;
+    };
+  }
+
   // ─── CHECKLISTS ───────────────────────────────────────────
   function checklistSub(sub){
     document.querySelectorAll('#view-checklists .subnav-item').forEach(function(b){ b.classList.remove('active'); });
@@ -8846,10 +9377,11 @@ a{color:inherit;text-decoration:none}
     document.body.style.overflow = 'hidden';
   }
   function closeApplicantDetail(){
-    document.getElementById('applicant-drawer').classList.remove('open');
+    ['applicant-drawer','driver-drawer','coverage-drawer','vehicle-drawer','sched-edit-drawer','checklist-drawer','form-edit-drawer','submission-drawer'].forEach(function(id){
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    });
     document.getElementById('ap-backdrop').classList.remove('open');
-    document.getElementById('driver-drawer').classList.remove('open');
-    document.getElementById('coverage-drawer').classList.remove('open');
     document.body.style.overflow = '';
   }
 
@@ -9055,6 +9587,146 @@ a{color:inherit;text-decoration:none}
           const t = card.querySelector('.report-title');
           toast('Opening: ' + (t ? t.textContent : 'Report'));
         }
+      });
+    });
+    // Vehicle rows in Fleet > Vehicles
+    document.querySelectorAll('#fleet-tab-vehicles tbody tr').forEach(function(r){
+      if (r.dataset.detailWired) return;
+      r.dataset.detailWired = '1';
+      r.style.cursor = 'pointer';
+      r.addEventListener('click', function(e){
+        if (e.target.closest('.row-action')) return;
+        const cells = r.children;
+        const nameEl = r.querySelector('.cell-name');
+        const subEl = r.querySelector('.cell-name-sub');
+        const model = cells[1] ? cells[1].textContent.trim() : '';
+        const miles = cells[2] ? cells[2].textContent.replace(/\s*mi.*/,'').trim() : '';
+        const statusEl = r.querySelector('.veh-status');
+        const status = statusEl ? statusEl.textContent.trim() : '';
+        const driverCell = cells[4] ? cells[4].textContent.trim() : '';
+        if (nameEl) {
+          const meta = (subEl ? subEl.textContent + ' · ' : '') + model;
+          openVehicleDetail(nameEl.textContent.trim(), meta, miles, status, driverCell);
+        }
+      });
+    });
+    // Schedule > By driver "Edit" buttons
+    document.querySelectorAll('#sched-sub-drivers .actions-cell .btn').forEach(function(b){
+      if (b.dataset.editWired) return;
+      b.dataset.editWired = '1';
+      b.addEventListener('click', function(e){
+        e.stopPropagation();
+        const row = b.closest('tr');
+        if (!row) return;
+        const nameEl = row.querySelector('.cell-name');
+        if (nameEl) openScheduleEdit(nameEl.textContent.trim());
+      });
+    });
+    // Drivers > Schedules "Edit" buttons
+    document.querySelectorAll('#dr-sub-schedules .actions-cell .btn').forEach(function(b){
+      if (b.dataset.editWired) return;
+      b.dataset.editWired = '1';
+      b.addEventListener('click', function(e){
+        e.stopPropagation();
+        const row = b.closest('tr');
+        if (!row) return;
+        const nameEl = row.querySelector('.cell-name');
+        if (nameEl) openScheduleEdit(nameEl.textContent.trim());
+      });
+    });
+    // Checklist cards in Checklists > My checklists
+    document.querySelectorAll('#checklist-tab-my .cl-card').forEach(function(card){
+      if (card.dataset.detailWired) return;
+      card.dataset.detailWired = '1';
+      card.onclick = null;
+      card.addEventListener('click', function(){
+        const name = card.querySelector('.cl-card-name');
+        const meta = card.querySelector('.cl-card-meta');
+        const icon = card.querySelector('.cl-card-icon');
+        let iconClass = 'opening';
+        if (icon) {
+          ['opening','closing','vehicle','onboard','compliance','shift'].forEach(function(c){
+            if (icon.classList.contains(c)) iconClass = c;
+          });
+        }
+        openChecklistDetail(name ? name.textContent : 'Checklist', meta ? meta.textContent : '', iconClass);
+      });
+    });
+    // Form cards in Forms > My forms
+    document.querySelectorAll('#forms-tab-my .form-card').forEach(function(card){
+      if (card.dataset.detailWired) return;
+      card.dataset.detailWired = '1';
+      card.onclick = null;
+      card.addEventListener('click', function(){
+        const name = card.querySelector('.form-card-title');
+        const meta = card.querySelector('.form-card-desc');
+        openFormEdit(name ? name.textContent : 'Form', meta ? meta.textContent : '');
+      });
+    });
+    // Submission rows
+    document.querySelectorAll('#forms-tab-subm .subm-row').forEach(function(row){
+      if (row.dataset.detailWired) return;
+      // skip header row
+      if (row.style.cursor === 'default') return;
+      row.dataset.detailWired = '1';
+      row.onclick = null;
+      row.addEventListener('click', function(){
+        const name = row.querySelector('.subm-form-name');
+        const status = row.querySelector('.subm-status');
+        let s = 'complete';
+        if (status && (status.classList.contains('flagged') || status.textContent.toLowerCase().includes('action') || status.textContent.toLowerCase().includes('open'))) s = 'flagged';
+        if (name) {
+          const driver = name.textContent.split('·')[1] || 'Driver';
+          openSubmission(driver.trim(), s);
+        }
+      });
+    });
+    // Asset category cards
+    document.querySelectorAll('#fleet-tab-assets .asset-cat').forEach(function(card){
+      if (card.dataset.detailWired) return;
+      card.dataset.detailWired = '1';
+      card.onclick = null;
+      card.addEventListener('click', function(){
+        const name = card.querySelector('.asset-cat-name');
+        const stats = card.querySelector('.asset-cat-stats');
+        openAssetCategory(name ? name.textContent : 'Assets', stats ? stats.textContent : '');
+      });
+    });
+    // Maintenance "Schedule" / "View work order" buttons
+    document.querySelectorAll('#fleet-tab-maint .btn').forEach(function(b){
+      if (b.dataset.workWired) return;
+      const t = b.textContent.trim();
+      if (t === 'Schedule' || t === 'View work order') {
+        b.dataset.workWired = '1';
+        b.addEventListener('click', function(){ openModal('modal-work-order'); });
+      }
+    });
+    // Documents in Fleet > Documents
+    document.querySelectorAll('#fleet-tab-docs .doc-card').forEach(function(card){
+      if (card.dataset.detailWired) return;
+      card.dataset.detailWired = '1';
+      card.addEventListener('click', function(){
+        const name = card.querySelector('.doc-card-name');
+        openDocPreview(name ? name.textContent : 'Document');
+      });
+    });
+    // OKAMI strategy pills — cycle on click
+    document.querySelectorAll('#view-okami .strategy-pill').forEach(function(pill){
+      if (pill.dataset.cycleWired) return;
+      pill.dataset.cycleWired = '1';
+      pill.addEventListener('click', function(e){
+        e.stopPropagation();
+        cycleStrategy(pill);
+      });
+    });
+    // Quick reply chips in Messages
+    document.querySelectorAll('.msg-quick-reply').forEach(function(chip){
+      if (chip.dataset.qrWired) return;
+      chip.dataset.qrWired = '1';
+      chip.addEventListener('click', function(){
+        const text = chip.textContent.replace(/^[^a-zA-Z]+/,'').trim();
+        if (text === '+ More') { toast('More quick replies — would expand library'); return; }
+        fillQuickReply(text);
       });
     });
   }
