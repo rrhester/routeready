@@ -746,6 +746,33 @@ body {
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbwiWxrTv5ulBLP0sYT9kAhoPMW4KEO4agLn2Jk8e1wW4l8689ttOxOywKGQG1USittn/exec";
 
+// ── Supabase Edge Function bridge ─────────────────────────────────────
+// record.html is public (no operator login). The Edge Functions below
+// must be deployed with "Verify JWT" turned OFF in Supabase Studio so an
+// anon-key call works for any applicant who has a valid record link.
+const SB_URL  = "https://qkjhkpbnsxiuwmxurcip.supabase.co";
+const SB_ANON = "sb_publishable_M4UehtnadYgq2RAGlzTiRw__z6SjIWb";
+
+async function sbInvoke(fnName, payload, opts) {
+  const url = SB_URL + "/functions/v1/" + fnName;
+  const init = {
+    method: (opts && opts.method) || "POST",
+    headers: {
+      "Authorization": "Bearer " + SB_ANON,
+      "apikey":        SB_ANON,
+      "Content-Type":  "application/json",
+    },
+  };
+  if (init.method !== "GET") init.body = JSON.stringify(payload || {});
+  const res = await fetch(url, init);
+  let json = {};
+  try { json = await res.json(); } catch (_) {}
+  if (!res.ok && !json.status) {
+    return { status: "error", message: "Edge Function HTTP " + res.status };
+  }
+  return json;
+}
+
 let config = null;
 let applicantId = "";
 let currentStep = "welcome";
@@ -775,10 +802,9 @@ async function init() {
   }
 
   try {
-    const res = await fetch(API_URL + "?action=getRecordConfig&id=" + encodeURIComponent(applicantId));
-    config = await res.json();
-    if (config.status === "error") {
-      showError(config.message);
+    config = await sbInvoke("record-config", { id: applicantId });
+    if (!config || config.status === "error") {
+      showError((config && config.message) || "Could not load application.");
       return;
     }
     applyConfig(config);
@@ -958,37 +984,33 @@ function submitForm() {
 }
 
 function sendFilteredEvent() {
-  const params = new URLSearchParams({
-    action: "finalizeApplication",
-    uploadId: uploadId,
-    applicantId: applicantId,
-    firstName: applicant.firstName,
-    lastName:  applicant.lastName,
-    email:     applicant.email,
-    phone:     applicant.phone,
-    formAnswers: JSON.stringify(applicant.answers),
+  // Fire-and-forget filter beacon — applicant won't see the response.
+  sbInvoke("finalize-application", {
+    uploadId:     uploadId,
+    applicantId:  applicantId,
+    firstName:    applicant.firstName,
+    lastName:     applicant.lastName,
+    email:        applicant.email,
+    phone:        applicant.phone,
+    formAnswers:  JSON.stringify(applicant.answers),
     filteredOnly: "1"
-  });
-  fetch(API_URL + "?" + params.toString()).catch(function(){});
+  }).catch(function(){});
 }
 
 async function submitApplicationNoVideo() {
   goToStep("uploading");
   try {
-    const params = new URLSearchParams({
-      action: "finalizeApplication",
-      applicantId: applicantId,
-      firstName: applicant.firstName,
-      lastName:  applicant.lastName,
-      email:     applicant.email,
-      phone:     applicant.phone,
-      formAnswers: JSON.stringify(applicant.answers),
-      fileIds: "[]",
-      userAgent: navigator.userAgent.substring(0, 200),
+    const result = await sbInvoke("finalize-application", {
+      applicantId:  applicantId,
+      firstName:    applicant.firstName,
+      lastName:     applicant.lastName,
+      email:        applicant.email,
+      phone:        applicant.phone,
+      formAnswers:  JSON.stringify(applicant.answers),
+      fileIds:      "[]",
+      userAgent:    navigator.userAgent.substring(0, 200),
       videoSkipped: "1"
     });
-    const res = await fetch(API_URL + "?" + params.toString());
-    const result = await res.json();
     if (result.status === "ok") {
       goToStep("done");
     } else if (result.status === "filtered") {
@@ -1205,19 +1227,16 @@ async function submitApplication() {
 
     const fileIds = [uploadResult];
 
-    const params = new URLSearchParams({
-      action: "finalizeApplication",
+    const result = await sbInvoke("finalize-application", {
       applicantId: applicantId,
-      firstName: applicant.firstName,
-      lastName:  applicant.lastName,
-      email:     applicant.email,
-      phone:     applicant.phone,
+      firstName:   applicant.firstName,
+      lastName:    applicant.lastName,
+      email:       applicant.email,
+      phone:       applicant.phone,
       formAnswers: JSON.stringify(applicant.answers),
-      fileIds: JSON.stringify(fileIds),
-      userAgent: navigator.userAgent.substring(0, 200)
+      fileIds:     JSON.stringify(fileIds),
+      userAgent:   navigator.userAgent.substring(0, 200)
     });
-    const res = await fetch(API_URL + "?" + params.toString());
-    const result = await res.json();
     if (result.status === "ok") {
       goToStep("done");
     } else if (result.status === "filtered") {
