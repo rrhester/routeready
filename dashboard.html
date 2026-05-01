@@ -5247,6 +5247,133 @@ const SUPABASE_HANDLERS = {
       bonusAmount: parseFloat(m.ReferralBonusAmount || '300') || 300,
       payableDay:  parseInt(m.ReferralBonusPayableDay || '30', 10) || 30
     };
+  },
+
+  // coachingQueue — Apps Script returns {status:'ok', date, drivers:[{transporter_id,
+  // driver_name, events:[{metric_type}], already_coached, pattern_tag}]}
+  // Supabase RPC returns event_count + metric_types[]; we synthesize an events array
+  // of the right length so existing consumers (which read d.events.length) still work.
+  coachingQueue: async (params) => {
+    const date = (params && params.date) || null;
+    const { data, error } = await sb.rpc('coaching_queue_for_date',
+      date ? { p_target_date: date } : {});
+    if (error) throw error;
+    const rows = data || [];
+    const drivers = rows.map(r => {
+      const total = Number(r.event_count) || 0;
+      const types = r.metric_types || [];
+      const events = Array.from({ length: total }, (_, i) => ({
+        metric_type: types.length ? types[i % types.length] : 'Other'
+      }));
+      return {
+        transporter_id: r.transporter_id,
+        driver_name:    r.driver_name,
+        events,
+        already_coached: !!r.already_coached,
+        pattern_tag:    r.pattern_tag || 'CLEAR'
+      };
+    });
+    const targetDate = (rows[0] && rows[0].target_date) || date || null;
+    return { status: 'ok', date: targetDate, drivers };
+  },
+
+  // getMorningPerformance — Apps Script returns {status:'ok', result:<jsonb>}
+  // Supabase morning_performance() returns the same well-formed jsonb directly.
+  getMorningPerformance: async () => {
+    const { data, error } = await sb.rpc('morning_performance');
+    if (error) throw error;
+    return { status: 'ok', result: data };
+  },
+
+  // getScreeningQuestions — Apps Script returns {status:'ok', questions, totalSlots:8, library}
+  // Source: question_bank table (library) + screening_selections per-DSP (questions)
+  getScreeningQuestions: async () => {
+    const [qb, sel] = await Promise.all([
+      sb.from('question_bank')
+        .select('id, category, label, default_filter, amber_warn')
+        .order('id'),
+      sb.from('screening_selections')
+        .select('slot_order, question_id, source, custom_text, filter_override')
+        .order('slot_order')
+    ]);
+    if (qb.error) throw qb.error;
+    if (sel.error) throw sel.error;
+
+    const library = (qb.data || []).map(r => ({
+      id:            r.id,
+      category:      r.category || '',
+      label:         r.label    || '',
+      defaultFilter: !!r.default_filter,
+      amberWarn:     r.amber_warn || ''
+    }));
+    const libraryById = {};
+    library.forEach(q => { libraryById[q.id] = q; });
+
+    const mySelections = (sel.data || []).slice().sort((a, b) =>
+      (a.slot_order || 0) - (b.slot_order || 0));
+
+    let questions;
+    if (mySelections.length === 0) {
+      const starterIds = ['q_age21', 'q_workauth', 'q_license', 'q_10hrshift'];
+      questions = starterIds.map((id, idx) => {
+        const libq = libraryById[id];
+        if (!libq) return null;
+        return {
+          slotOrder:  idx + 1,
+          questionId: id,
+          source:     'library',
+          label:      libq.label,
+          filter:     libq.defaultFilter,
+          amberWarn:  libq.amberWarn,
+          category:   libq.category
+        };
+      }).filter(q => q);
+    } else {
+      questions = mySelections.map(s => {
+        if (s.source === 'custom') {
+          return {
+            slotOrder:  s.slot_order,
+            questionId: s.question_id,
+            source:     'custom',
+            label:      s.custom_text || '',
+            filter:     s.filter_override === true,
+            amberWarn:  '',
+            category:   'Custom'
+          };
+        }
+        const libq = libraryById[s.question_id];
+        if (!libq) return null;
+        const filterFinal = s.filter_override === true ? true
+          : s.filter_override === false ? false
+          : libq.defaultFilter;
+        return {
+          slotOrder:  s.slot_order,
+          questionId: s.question_id,
+          source:     'library',
+          label:      libq.label,
+          filter:     filterFinal,
+          amberWarn:  libq.amberWarn,
+          category:   libq.category
+        };
+      }).filter(q => q);
+    }
+    return { status: 'ok', questions, totalSlots: 8, library };
+  },
+
+  // exportDataCounts — Apps Script returns {applicants, hired, history, bonus}
+  exportDataCounts: async () => {
+    const [a, h, hist, b] = await Promise.all([
+      sb.from('applicants').select('id', { count: 'exact', head: true }),
+      sb.from('applicants').select('id', { count: 'exact', head: true }).eq('status', 'hired'),
+      sb.from('cycle_history').select('id', { count: 'exact', head: true }),
+      sb.from('referrals').select('id', { count: 'exact', head: true })
+    ]);
+    return {
+      applicants: a.count || 0,
+      hired:      h.count || 0,
+      history:    hist.count || 0,
+      bonus:      b.count || 0
+    };
   }
 };
 
