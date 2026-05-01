@@ -1252,6 +1252,58 @@ a{color:inherit;text-decoration:none}
   position:absolute;top:-32px;left:50%;transform:translateX(-50%);
   font-size:11px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:.04em;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   TOAST SYSTEM (interaction feedback)
+   ───────────────────────────────────────────────────────────── */
+.toast-stack{
+  position:fixed;bottom:24px;right:24px;z-index:200;
+  display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+  pointer-events:none;
+}
+.toast{
+  background:#0F172A;color:#fff;padding:12px 16px;border-radius:10px;
+  font-size:13px;font-weight:500;display:flex;align-items:center;gap:10px;
+  box-shadow:0 12px 32px rgba(15,23,42,.18);
+  animation:toastSlide .25s ease;pointer-events:auto;max-width:380px;
+  border-left:3px solid var(--green);
+}
+.toast.success{border-left-color:var(--green)}
+.toast.warn{border-left-color:var(--amber)}
+.toast.error{border-left-color:var(--red)}
+.toast-icon{width:18px;height:18px;flex-shrink:0;color:var(--green)}
+.toast.warn .toast-icon{color:var(--amber)}
+.toast.error .toast-icon{color:var(--red)}
+@keyframes toastSlide{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast.fade{animation:toastFade .2s ease forwards}
+@keyframes toastFade{to{transform:translateX(20px);opacity:0}}
+
+/* Generic modal overlay (for the new mockup-style modals) */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:80;
+  display:none;align-items:center;justify-content:center;padding:20px;
+  animation:fadeIn .15s ease;
+}
+.modal-backdrop.open{display:flex}
+.modal-card{
+  background:var(--surface);border-radius:var(--r-lg);
+  width:100%;max-width:480px;max-height:88vh;overflow-y:auto;
+  box-shadow:0 24px 48px rgba(15,23,42,.18);animation:modalUp .2s ease;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes modalUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-head{padding:var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start}
+.modal-title{font-size:15px;font-weight:600;margin:0 0 2px 0}
+.modal-sub{font-size:12px;color:var(--text-muted);margin:0}
+.modal-close{
+  width:28px;height:28px;border-radius:6px;background:transparent;border:none;
+  color:var(--text-subtle);display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.modal-close:hover{background:var(--canvas);color:var(--text)}
+.modal-body{padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4)}
+.modal-foot{padding:var(--s-4) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-2)}
+.modal-field-label{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px}
+.modal-row-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
 </style>
 </head>
 <body>
@@ -3070,6 +3122,99 @@ a{color:inherit;text-decoration:none}
   </div>
 </div>
 
+<!-- Toast stack -->
+<div class="toast-stack" id="toast-stack"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ADD APPLICANT MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-add-applicant" onclick="if(event.target===this)closeModal('modal-add-applicant')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Add applicant</p>
+        <p class="modal-sub">New applicant added to cycle 14</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-add-applicant')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row-2">
+        <div><label class="modal-field-label">First name</label><input class="cd-input" id="aa-fn" placeholder="Marcus" /></div>
+        <div><label class="modal-field-label">Last name</label><input class="cd-input" id="aa-ln" placeholder="Davidson" /></div>
+      </div>
+      <div><label class="modal-field-label">Phone</label><input class="cd-input" id="aa-phone" placeholder="+1 417 555 0100" /></div>
+      <div><label class="modal-field-label">Email</label><input class="cd-input" id="aa-email" placeholder="optional" /></div>
+      <div>
+        <label class="modal-field-label">Source</label>
+        <div class="cd-pill-row">
+          <button class="cd-pill active" onclick="cdSetPill(this,'src')">Indeed</button>
+          <button class="cd-pill" onclick="cdSetPill(this,'src')">Walk-in</button>
+          <button class="cd-pill" onclick="cdSetPill(this,'src')">Referral</button>
+          <button class="cd-pill" onclick="cdSetPill(this,'src')">Other</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-add-applicant')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAddApplicant()">Add &amp; send screening</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     BULK INGEST MODAL (mockup style)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-bulk-ingest" onclick="if(event.target===this)closeModal('modal-bulk-ingest')">
+  <div class="modal-card" style="max-width:680px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Bulk ingest from Indeed</p>
+        <p class="modal-sub">Paste rows from Excel — only name, email, phone are imported</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-bulk-ingest')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <textarea class="cd-textarea" id="bi-paste" placeholder="name&#9;email&#9;phone&#9;...&#10;John Smith&#9;john@example.com&#9;555-0100" style="min-height:140px;font-family:'SF Mono',Menlo,monospace;font-size:12px"></textarea>
+      <div id="bi-preview" style="display:none;border:1px solid var(--border);border-radius:8px;background:var(--canvas);padding:var(--s-4);font-size:12px;color:var(--text-muted)"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-bulk-ingest')">Cancel</button>
+      <button class="btn btn-primary" id="bi-import-btn" onclick="submitBulkIngest()" disabled>Paste rows above</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ADD TIME OFF MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-add-timeoff" onclick="if(event.target===this)closeModal('modal-add-timeoff')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Add time off</p>
+        <p class="modal-sub">Goes to manager approval queue</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-add-timeoff')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div><label class="modal-field-label">Driver</label><input class="cd-input" placeholder="Search drivers…" /></div>
+      <div class="modal-row-2">
+        <div><label class="modal-field-label">From</label><input type="date" class="cd-input" /></div>
+        <div><label class="modal-field-label">To</label><input type="date" class="cd-input" /></div>
+      </div>
+      <div>
+        <label class="modal-field-label">Reason</label>
+        <select class="cd-input"><option>Vacation</option><option>Personal</option><option>Sick</option><option>Bereavement</option><option>Other</option></select>
+      </div>
+      <div><label class="modal-field-label">Notes (optional)</label><textarea class="cd-textarea" style="min-height:60px"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-add-timeoff')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTimeOff()">Submit request</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════
      COACH DRIVER DRAWER (single source of truth for all coaching)
      ═══════════════════════════════════════════════════════════ -->
@@ -3425,6 +3570,293 @@ a{color:inherit;text-decoration:none}
   function gotoSchedules(){
     goto('drivers');
     setTimeout(function(){ drSub('schedules'); }, 50);
+  }
+
+  // ─── TOASTS ────────────────────────────────────────────────
+  function toast(msg, kind){
+    kind = kind || 'success';
+    const stack = document.getElementById('toast-stack');
+    const el = document.createElement('div');
+    el.className = 'toast ' + kind;
+    const icon = kind === 'success'
+      ? '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+      : kind === 'warn'
+      ? '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+      : '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    el.innerHTML = icon + '<span>' + msg + '</span>';
+    stack.appendChild(el);
+    setTimeout(function(){ el.classList.add('fade'); setTimeout(function(){ el.remove(); }, 250); }, 2800);
+  }
+
+  // ─── GENERIC MODAL OPEN/CLOSE ──────────────────────────────
+  function openModal(id){
+    document.getElementById(id).classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal(id){
+    document.getElementById(id).classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── ADD APPLICANT ─────────────────────────────────────────
+  function openAddApplicantModal(){
+    document.getElementById('aa-fn').value = '';
+    document.getElementById('aa-ln').value = '';
+    document.getElementById('aa-phone').value = '';
+    document.getElementById('aa-email').value = '';
+    openModal('modal-add-applicant');
+    setTimeout(function(){ document.getElementById('aa-fn').focus(); }, 50);
+  }
+  function submitAddApplicant(){
+    const fn = document.getElementById('aa-fn').value.trim();
+    const ln = document.getElementById('aa-ln').value.trim();
+    const phone = document.getElementById('aa-phone').value.trim();
+    const email = document.getElementById('aa-email').value.trim();
+    if (!fn && !ln) { toast('Add a name first', 'warn'); return; }
+    if (!phone && !email) { toast('Phone or email required', 'warn'); return; }
+    closeModal('modal-add-applicant');
+    toast((fn || ln) + ' added to pipeline · screening SMS sent');
+  }
+
+  // ─── BULK INGEST ───────────────────────────────────────────
+  function openBulkIngest(){
+    document.getElementById('bi-paste').value = '';
+    document.getElementById('bi-preview').style.display = 'none';
+    const btn = document.getElementById('bi-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Paste rows above';
+    openModal('modal-bulk-ingest');
+    setTimeout(function(){ document.getElementById('bi-paste').focus(); }, 50);
+  }
+  document.addEventListener('input', function(e){
+    if (e.target && e.target.id === 'bi-paste') {
+      const rows = e.target.value.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
+      const data = rows.length > 1 ? rows.length - 1 : 0; // assume header
+      const preview = document.getElementById('bi-preview');
+      const btn = document.getElementById('bi-import-btn');
+      if (data > 0) {
+        preview.style.display = 'block';
+        preview.innerHTML = '<strong>' + data + '</strong> rows ready to import · 0 duplicates detected';
+        btn.disabled = false;
+        btn.textContent = 'Import ' + data + ' applicant' + (data === 1 ? '' : 's');
+      } else {
+        preview.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = 'Paste rows above';
+      }
+    }
+  });
+  function submitBulkIngest(){
+    const text = document.getElementById('bi-paste').value;
+    const rows = text.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
+    const count = rows.length > 1 ? rows.length - 1 : 0;
+    if (count === 0) { toast('Paste rows first', 'warn'); return; }
+    closeModal('modal-bulk-ingest');
+    toast(count + ' applicants imported · screening SMS sent to all');
+  }
+
+  // ─── APPROVE / DENY / SWAP / PUBLISH ───────────────────────
+  function approveTimeOff(btn, name){
+    const card = btn.closest('.approval-card');
+    if (card) {
+      card.style.transition = 'opacity .25s, transform .25s';
+      card.style.opacity = '0';
+      card.style.transform = 'translateX(20px)';
+      setTimeout(function(){ card.remove(); }, 250);
+    }
+    toast('Time off approved for ' + (name || 'driver') + ' · SMS sent');
+  }
+  function denyRequest(btn, name){
+    const card = btn.closest('.approval-card');
+    if (card) {
+      card.style.transition = 'opacity .25s';
+      card.style.opacity = '0';
+      setTimeout(function(){ card.remove(); }, 250);
+    }
+    toast('Request denied · ' + (name || 'driver') + ' notified', 'warn');
+  }
+  function approveSwap(btn, names){
+    const card = btn.closest('.approval-card');
+    if (card) {
+      card.style.transition = 'opacity .25s, transform .25s';
+      card.style.opacity = '0';
+      card.style.transform = 'translateX(20px)';
+      setTimeout(function(){ card.remove(); }, 250);
+    }
+    toast('Swap approved · ' + (names || 'both drivers') + ' notified');
+  }
+  function publishWeek(btn){
+    const pill = document.querySelector('.sched-status-pill');
+    if (pill) {
+      pill.classList.remove('draft');
+      pill.innerHTML = '<span class="status-dot"></span>Published · drivers notified';
+    }
+    if (btn) {
+      btn.textContent = 'Published ✓';
+      btn.disabled = true;
+      setTimeout(function(){
+        btn.textContent = 'Publish week';
+        btn.disabled = false;
+      }, 3000);
+    }
+    toast('Week published · 78 drivers notified by SMS');
+  }
+  function notifyBackup(btn){
+    if (btn) { btn.textContent = 'Backup notified ✓'; btn.disabled = true; setTimeout(function(){ btn.textContent = 'Notify backup'; btn.disabled = false; }, 2500); }
+    toast('Backup pool notified · 4 drivers');
+  }
+  function assignOpenShift(btn, name){
+    const row = btn.closest('.open-shift');
+    if (row) {
+      row.style.transition = 'opacity .3s';
+      row.style.opacity = '0';
+      setTimeout(function(){ row.remove(); }, 300);
+    }
+    toast('Shift assigned to ' + (name || 'driver'));
+  }
+  function submitTimeOff(){
+    closeModal('modal-add-timeoff');
+    toast('Time off request submitted · pending approval');
+  }
+  function applyTemplate(name){
+    toast('"' + name + '" template applied to selected drivers');
+  }
+
+  // Hook the existing buttons that previously did nothing
+  document.addEventListener('DOMContentLoaded', wireMockupButtons);
+  setTimeout(wireMockupButtons, 100); // fallback in case DOMContentLoaded already fired
+
+  function wireMockupButtons(){
+    // Add Applicant — every instance
+    document.querySelectorAll('.btn.btn-primary').forEach(function(b){
+      const text = b.textContent.trim();
+      if (text === 'Add applicant' && !b.dataset.wired) {
+        b.dataset.wired = '1';
+        b.addEventListener('click', openAddApplicantModal);
+      }
+      if (text === 'Bulk ingest' && !b.dataset.wired) {
+        b.dataset.wired = '1';
+        b.addEventListener('click', openBulkIngest);
+      }
+    });
+    document.querySelectorAll('.btn').forEach(function(b){
+      const text = b.textContent.trim();
+      if (text === 'Bulk ingest' && !b.dataset.wired) {
+        b.dataset.wired = '1';
+        b.addEventListener('click', openBulkIngest);
+      }
+    });
+
+    // Approve / Deny on time-off & swaps
+    document.querySelectorAll('#sched-sub-timeoff .approval-card').forEach(function(card){
+      const title = card.querySelector('.approval-title');
+      const name = title ? title.textContent.split('·')[0].trim() : 'Driver';
+      const btns = card.querySelectorAll('.approval-actions .btn');
+      btns.forEach(function(b){
+        if (b.dataset.wired) return;
+        b.dataset.wired = '1';
+        if (b.textContent.trim() === 'Approve') b.addEventListener('click', function(){ approveTimeOff(b, name); });
+        if (b.textContent.trim() === 'Deny') b.addEventListener('click', function(){ denyRequest(b, name); });
+      });
+    });
+    document.querySelectorAll('#sched-sub-swaps .approval-card').forEach(function(card){
+      const title = card.querySelector('.approval-title');
+      const name = title ? title.textContent.replace('·', '').trim() : 'swap';
+      const btns = card.querySelectorAll('.approval-actions .btn');
+      btns.forEach(function(b){
+        if (b.dataset.wired) return;
+        b.dataset.wired = '1';
+        const t = b.textContent.trim();
+        if (t === 'Approve swap' || t === 'Choose driver') b.addEventListener('click', function(){ approveSwap(b, name); });
+        if (t === 'Deny' || t === 'Decline') b.addEventListener('click', function(){ denyRequest(b, name); });
+      });
+    });
+
+    // Publish week
+    document.querySelectorAll('.btn.btn-primary').forEach(function(b){
+      if (b.textContent.trim() === 'Publish week' && !b.dataset.wired) {
+        b.dataset.wired = '1';
+        b.addEventListener('click', function(){ publishWeek(b); });
+      }
+    });
+
+    // Open shifts: notify / assign
+    document.querySelectorAll('#sched-sub-open .open-shift').forEach(function(row){
+      const route = row.querySelector('.open-shift-route');
+      const routeName = route ? route.textContent : 'route';
+      row.querySelectorAll('.btn').forEach(function(b){
+        if (b.dataset.wired) return;
+        b.dataset.wired = '1';
+        const t = b.textContent.trim();
+        if (t === 'Notify backup' || t === 'Send reminder') b.addEventListener('click', function(){ notifyBackup(b); });
+        if (t.indexOf('Assign') === 0) b.addEventListener('click', function(){ assignOpenShift(b, t.replace('Assign','').trim()); });
+      });
+    });
+    // "Notify backup pool" button at top of Open shifts
+    document.querySelectorAll('#sched-sub-open .btn.btn-primary').forEach(function(b){
+      if (b.textContent.trim().indexOf('Notify backup') >= 0 && !b.dataset.wired) {
+        b.dataset.wired = '1';
+        b.addEventListener('click', function(){ notifyBackup(b); });
+      }
+    });
+
+    // Add time off
+    document.querySelectorAll('.btn.btn-primary').forEach(function(b){
+      if (b.textContent.trim() === 'Add time off' && !b.dataset.wired) {
+        b.dataset.wired = '1';
+        b.addEventListener('click', function(){ openModal('modal-add-timeoff'); });
+      }
+    });
+
+    // Templates
+    document.querySelectorAll('.template-card').forEach(function(card){
+      if (card.dataset.wired) return;
+      card.dataset.wired = '1';
+      const name = card.querySelector('.template-card-name');
+      const nameText = name ? name.textContent : 'Template';
+      card.addEventListener('click', function(){ applyTemplate(nameText); });
+    });
+
+    // Settings save buttons (any "Save" action)
+    document.querySelectorAll('.btn.btn-primary').forEach(function(b){
+      const t = b.textContent.trim();
+      if ((t === 'Save' || t === 'Save changes') && !b.dataset.wired) {
+        b.dataset.wired = '1';
+        b.addEventListener('click', function(){ toast('Settings saved'); });
+      }
+    });
+
+    // Coach drawer Save / Send buttons (override the close-only behavior with toast)
+    var cdSaveBtn = document.getElementById('cd-save-btn');
+    if (cdSaveBtn && !cdSaveBtn.dataset.wiredAction) {
+      cdSaveBtn.dataset.wiredAction = '1';
+      cdSaveBtn.addEventListener('click', function(){ toast('Saved to driver record'); });
+    }
+    var cdSendBtn = document.getElementById('cd-send-btn');
+    if (cdSendBtn && !cdSendBtn.dataset.wiredAction) {
+      cdSendBtn.dataset.wiredAction = '1';
+      cdSendBtn.addEventListener('click', function(){
+        var seg = document.querySelector('.cd-segment.active');
+        var segVal = seg ? seg.getAttribute('data-seg') : 'sms';
+        if (segVal === 'sms') toast('Coaching SMS sent · saved to driver record');
+        else if (segVal === 'inperson') toast('1:1 logged to driver record');
+        else if (segVal === 'pull') toast('Driver pulled from route · backup notified');
+        else if (segVal === 'suspend') toast('Driver suspended · HR notified');
+      });
+    }
+
+    // Stale "Open" buttons on dashboard
+    document.querySelectorAll('.hs-stale-act, .row-action').forEach(function(b){
+      if (b.dataset.wired) return;
+      b.dataset.wired = '1';
+      b.addEventListener('click', function(){ /* row-action menu would open */ });
+    });
+  }
+
+  // Re-wire when sub-views switch (in case new buttons appear)
+  const _origSchedSub = (typeof schedSub === 'function') ? schedSub : null;
+  if (_origSchedSub) {
+    schedSub = function(s){ _origSchedSub(s); setTimeout(wireMockupButtons, 50); };
   }
 
   // ─── ATTENDANCE CHECK-IN ───────────────────────────────────
