@@ -1190,8 +1190,9 @@ a{color:inherit;text-decoration:none}
 .driver-app-frame{
   background:linear-gradient(180deg,#0F172A 0%,#1E293B 100%);
   border-radius:var(--r-lg);padding:var(--s-6);
-  display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-4);
+  display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4);
 }
+@media (max-width:1280px){.driver-app-frame{grid-template-columns:repeat(2,1fr);row-gap:var(--s-8)}}
 .phone-frame{
   background:#fff;border-radius:32px;
   box-shadow:0 24px 48px rgba(0,0,0,.25),0 0 0 8px #1A1F2E,0 0 0 9px #2A3140;
@@ -1434,6 +1435,46 @@ a{color:inherit;text-decoration:none}
 }
 .ai-detail-label{font-size:9px;color:var(--text-subtle);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
 .ai-detail-value{font-size:12px;font-weight:600;color:var(--text)}
+
+/* ─────────────────────────────────────────────────────────────
+   AVAILABILITY MATRIX
+   ───────────────────────────────────────────────────────────── */
+.avail-legend{
+  display:flex;gap:var(--s-4);align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:10px 14px;margin-bottom:var(--s-3);font-size:11px;
+}
+.avail-legend-item{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted)}
+.avail-legend-swatch{width:14px;height:14px;border-radius:4px;border:1px solid var(--border)}
+.avail-legend-swatch.preferred{background:var(--accent-soft);border-color:#146EB433}
+.avail-legend-swatch.available{background:var(--surface);border-color:var(--border-strong)}
+.avail-legend-swatch.unavailable{background:#F1F5F9;border-color:transparent}
+.avail-legend-swatch.timeoff{background:var(--red-soft);border-color:#FCA5A5}
+
+.avail-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.avail-table thead th{
+  text-align:center;padding:10px;font-size:10px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border);background:var(--canvas);
+}
+.avail-table thead th.driver-col{text-align:left;padding-left:16px}
+.avail-table tbody td{padding:8px;border-bottom:1px solid var(--border);text-align:center;vertical-align:middle}
+.avail-table tbody tr:last-child td{border-bottom:none}
+.avail-table tbody tr:hover{background:var(--canvas)}
+.avail-table .driver-col{padding-left:16px;text-align:left}
+.avail-cell{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:36px;height:28px;border-radius:6px;font-size:11px;font-weight:600;
+}
+.avail-cell.preferred{background:var(--accent-soft);color:var(--accent-text)}
+.avail-cell.available{background:var(--surface);color:var(--text-muted);border:1px solid var(--border-strong)}
+.avail-cell.unavailable{background:#F1F5F9;color:var(--text-subtle)}
+.avail-cell.timeoff{background:var(--red-soft);color:var(--red);font-size:9px;font-weight:700}
+.avail-hours{font-size:11px;color:var(--text-muted)}
+.avail-hours strong{color:var(--text);font-weight:600}
+
+/* Availability tint on the main week calendar */
+.cal-cell.unavailable{background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 8px,#F1F5F9 8px,#F1F5F9 16px)}
+.cal-cell.preferred{background:linear-gradient(180deg,#F8FBFE 0%,var(--surface) 100%)}
 </style>
 </head>
 <body>
@@ -2616,6 +2657,7 @@ a{color:inherit;text-decoration:none}
           <button class="subnav-item" data-sub="timeoff" onclick="schedSub('timeoff')">Time off <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
           <button class="subnav-item" data-sub="swaps" onclick="schedSub('swaps')">Swaps <span style="background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">2</span></button>
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')">Open shifts <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
+          <button class="subnav-item" data-sub="availability" onclick="schedSub('availability')">Availability</button>
           <button class="subnav-item" data-sub="forecast" onclick="schedSub('forecast')">Forecast</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
@@ -2982,6 +3024,139 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
+        <!-- AVAILABILITY MATRIX -->
+        <div class="sched-subview" id="sched-sub-availability" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4)">
+            <div>
+              <h2 style="font-size:15px;font-weight:600;margin:0">Driver availability</h2>
+              <p class="page-sub" style="margin:4px 0 0 0">What each driver is willing to work, recurring. Drivers update this in their app — managers see conflicts when scheduling outside it.</p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+              </button>
+              <button class="btn btn-sm">Request availability update</button>
+            </div>
+          </div>
+
+          <div class="avail-legend">
+            <div class="avail-legend-item"><span class="avail-legend-swatch preferred"></span>Preferred</div>
+            <div class="avail-legend-item"><span class="avail-legend-swatch available"></span>Available</div>
+            <div class="avail-legend-item"><span class="avail-legend-swatch unavailable"></span>Not available</div>
+            <div class="avail-legend-item"><span class="avail-legend-swatch timeoff"></span>Time off (date-specific)</div>
+            <div class="avail-legend-item" style="margin-left:auto;color:var(--text-subtle)">Last updated by drivers · 2h ago</div>
+          </div>
+
+          <table class="avail-table">
+            <thead>
+              <tr>
+                <th class="driver-col">Driver</th>
+                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+                <th>Min hrs</th>
+                <th>Max hrs</th>
+                <th>Preferences</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="driver-col"><div style="display:flex;align-items:center;gap:10px"><div class="avatar-sm tier-d">MD</div><div><div class="cell-name">Marcus Davidson</div><div class="cell-name-sub">KMO1 · 18 mo</div></div></div></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell available">✓</span></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td class="avail-hours"><strong>40h</strong></td>
+                <td class="avail-hours"><strong>55h</strong></td>
+                <td style="font-size:11px;color:var(--text-muted);text-align:left">Open to swaps · Backup pool</td>
+              </tr>
+              <tr>
+                <td class="driver-col"><div style="display:flex;align-items:center;gap:10px"><div class="avatar-sm tier-d">TR</div><div><div class="cell-name">Tasha Reyes</div><div class="cell-name-sub">KMO2 · 9 mo</div></div></div></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell available">✓</span></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td class="avail-hours"><strong>40h</strong></td>
+                <td class="avail-hours"><strong>50h</strong></td>
+                <td style="font-size:11px;color:var(--text-muted);text-align:left">Childcare on Wed · Open to swaps</td>
+              </tr>
+              <tr>
+                <td class="driver-col"><div style="display:flex;align-items:center;gap:10px"><div class="avatar-sm tier-c">KW</div><div><div class="cell-name">Kerwin Whitfield</div><div class="cell-name-sub">KMO1 · 24 mo</div></div></div></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell available">✓</span></td>
+                <td class="avail-hours"><strong>50h</strong></td>
+                <td class="avail-hours"><strong>60h</strong></td>
+                <td style="font-size:11px;color:var(--text-muted);text-align:left">Wants extra hours · 6+ days</td>
+              </tr>
+              <tr>
+                <td class="driver-col"><div style="display:flex;align-items:center;gap:10px"><div class="avatar-sm tier-c">JB</div><div><div class="cell-name">Jordan Beckett</div><div class="cell-name-sub">KMO3 · 6 mo</div></div></div></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td class="avail-hours"><strong>40h</strong></td>
+                <td class="avail-hours"><strong>50h</strong></td>
+                <td style="font-size:11px;color:var(--text-muted);text-align:left">School Mondays · Tu–Sat preferred</td>
+              </tr>
+              <tr>
+                <td class="driver-col"><div style="display:flex;align-items:center;gap:10px"><div class="avatar-sm tier-b">DP</div><div><div class="cell-name">Devon Patterson</div><div class="cell-name-sub">KMO3 · 11 mo</div></div></div></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell timeoff">PTO</span></td>
+                <td><span class="avail-cell timeoff">PTO</span></td>
+                <td><span class="avail-cell available">✓</span></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td class="avail-hours"><strong>40h</strong></td>
+                <td class="avail-hours"><strong>55h</strong></td>
+                <td style="font-size:11px;color:var(--text-muted);text-align:left">PTO May 15–17</td>
+              </tr>
+              <tr>
+                <td class="driver-col"><div style="display:flex;align-items:center;gap:10px"><div class="avatar-sm tier-a">CF</div><div><div class="cell-name">Camille Foster</div><div class="cell-name-sub">KMO1 · 22 mo</div></div></div></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell preferred">✓</span></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td><span class="avail-cell unavailable">—</span></td>
+                <td class="avail-hours"><strong>40h</strong></td>
+                <td class="avail-hours"><strong>50h</strong></td>
+                <td style="font-size:11px;color:var(--text-muted);text-align:left">Strict M–F</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top:var(--s-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-5)">
+            <h3 style="font-size:13px;font-weight:600;margin:0 0 var(--s-3) 0">Availability summary by day</h3>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s-2)">
+              <div style="text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Mon</div><div style="font-size:18px;font-weight:700;color:var(--text)">71</div><div style="font-size:11px;color:var(--text-subtle)">of 78 available</div></div>
+              <div style="text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Tue</div><div style="font-size:18px;font-weight:700;color:var(--text)">75</div><div style="font-size:11px;color:var(--text-subtle)">of 78 available</div></div>
+              <div style="text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Wed</div><div style="font-size:18px;font-weight:700;color:var(--amber)">68</div><div style="font-size:11px;color:var(--text-subtle)">of 78 available</div></div>
+              <div style="text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Thu</div><div style="font-size:18px;font-weight:700;color:var(--text)">73</div><div style="font-size:11px;color:var(--text-subtle)">of 78 available</div></div>
+              <div style="text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Fri</div><div style="font-size:18px;font-weight:700;color:var(--text)">76</div><div style="font-size:11px;color:var(--text-subtle)">of 78 available</div></div>
+              <div style="text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sat</div><div style="font-size:18px;font-weight:700;color:var(--amber)">52</div><div style="font-size:11px;color:var(--text-subtle)">of 78 available</div></div>
+              <div style="text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sun</div><div style="font-size:18px;font-weight:700;color:var(--red)">28</div><div style="font-size:11px;color:var(--text-subtle)">of 78 available</div></div>
+            </div>
+            <div style="margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
+              <strong style="color:var(--text)">Coverage forecast</strong> — Sunday is your tightest day. Demand 38 routes, only 28 drivers available. <a style="color:var(--accent-text);font-weight:500" onclick="goto('pipeline')" href="javascript:void(0)">Hire 10 more weekend-available drivers →</a>
+            </div>
+          </div>
+        </div>
+
         <!-- FORECAST — 4-week look-ahead -->
         <div class="sched-subview" id="sched-sub-forecast" style="display:none">
           <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4)">
@@ -3334,6 +3509,53 @@ a{color:inherit;text-decoration:none}
                 <div class="phone-nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>Swaps</div>
                 <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Alerts</div>
                 <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Me</div>
+              </div>
+            </div>
+
+            <!-- PHONE 4: My Availability -->
+            <div class="phone-frame">
+              <div class="phone-label">My availability</div>
+              <div class="phone-notch"></div>
+              <div class="phone-header" style="margin-top:20px">
+                <div>
+                  <div class="phone-title">Availability</div>
+                  <div class="phone-sub">Days you can work</div>
+                </div>
+                <div class="phone-avatar">TR</div>
+              </div>
+
+              <div style="font-size:9px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Recurring weekly</div>
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+                <div style="background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:8px 0;text-align:center;font-size:9px;font-weight:600">M<div style="font-size:7px;margin-top:1px">Pref</div></div>
+                <div style="background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:8px 0;text-align:center;font-size:9px;font-weight:600">T<div style="font-size:7px;margin-top:1px">Pref</div></div>
+                <div style="background:var(--canvas);color:var(--text-subtle);border-radius:6px;padding:8px 0;text-align:center;font-size:9px;font-weight:500">W<div style="font-size:7px;margin-top:1px">Off</div></div>
+                <div style="background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:8px 0;text-align:center;font-size:9px;font-weight:600">T<div style="font-size:7px;margin-top:1px">Pref</div></div>
+                <div style="background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:8px 0;text-align:center;font-size:9px;font-weight:600">F<div style="font-size:7px;margin-top:1px">Pref</div></div>
+                <div style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text-muted);border-radius:6px;padding:8px 0;text-align:center;font-size:9px;font-weight:500">S<div style="font-size:7px;margin-top:1px">OK</div></div>
+                <div style="background:var(--canvas);color:var(--text-subtle);border-radius:6px;padding:8px 0;text-align:center;font-size:9px;font-weight:500">S<div style="font-size:7px;margin-top:1px">Off</div></div>
+              </div>
+
+              <div style="font-size:9px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;margin-top:8px">Hours per week</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                <div style="background:var(--canvas);border-radius:8px;padding:8px;font-size:11px"><div style="font-size:9px;color:var(--text-subtle);margin-bottom:2px">Min</div><div style="font-weight:700;font-size:13px">40h</div></div>
+                <div style="background:var(--canvas);border-radius:8px;padding:8px;font-size:11px"><div style="font-size:9px;color:var(--text-subtle);margin-bottom:2px">Max</div><div style="font-weight:700;font-size:13px">50h</div></div>
+              </div>
+
+              <div style="font-size:9px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;margin-top:6px">Preferences</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;background:var(--canvas);border-radius:6px;padding:8px 10px;font-size:10px;font-weight:500">
+                <span>Open to swaps</span><span style="color:var(--green);font-weight:700">ON</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;background:var(--canvas);border-radius:6px;padding:8px 10px;font-size:10px;font-weight:500">
+                <span>Backup pool</span><span style="color:var(--green);font-weight:700">ON</span>
+              </div>
+
+              <button class="phone-action-btn ghost" style="font-size:10px">Update</button>
+
+              <div class="phone-bottom-nav">
+                <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Schedule</div>
+                <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>Swaps</div>
+                <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Alerts</div>
+                <div class="phone-nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Me</div>
               </div>
             </div>
 
