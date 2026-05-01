@@ -5710,6 +5710,146 @@ const SUPABASE_HANDLERS = {
       .eq('id', params.refId);
     if (error) throw error;
     return { status: 'ok' };
+  },
+
+  // saveSettings — bulk upsert into settings using the same paramMap
+  // the Apps Script saveSettings uses. dashboardPassword is intentionally
+  // skipped — Supabase Auth handles passwords now.
+  saveSettings: async (params) => {
+    const PARAM_MAP = {
+      dspName:               'DSPName',
+      dspEmail:              'DSPEmail',
+      primaryPhone:          'PrimaryPhone',
+      sevenamRecipients:     'SevenAMRecipients',
+      backupName:            'BackupContactName',
+      backupEmail:           'BackupContactEmail',
+      calComURL:             'CalComURL',
+      hiredMessage:          'HiredMessage',
+      messageWindowStart:    'MessageWindowStart',
+      messageWindowEnd:      'MessageWindowEnd',
+      driverPreferences:     'DriverPreferences',
+      notesToRouteReady:     'DSPPreferences',
+      target:                'HeadcountTarget',
+      oriDate:               'OrientationDate',
+      preferences:           'DSPPreferences',
+      videoScreeningEnabled: 'VideoScreeningEnabled',
+      videoPrompt1:          'VideoPrompt1',
+      videoPrompt2:          'VideoPrompt2',
+      videoPrompt3:          'VideoPrompt3',
+      videoMaxSeconds:       'VideoMaxSeconds',
+      videoLinkExpiryHrs:    'VideoLinkExpiryHours'
+    };
+    const dspId = await rrGetDspId();
+    const rows = [];
+    Object.keys(PARAM_MAP).forEach(k => {
+      if (params[k] !== undefined && params[k] !== '') {
+        rows.push({ dsp_id: dspId, key: PARAM_MAP[k], value: String(params[k]) });
+      }
+    });
+    if (!rows.length) return { status: 'ok' };
+    const { error } = await sb.from('settings').upsert(rows, { onConflict: 'dsp_id,key' });
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // saveReferralSettings — upsert four referral keys
+  saveReferralSettings: async (params) => {
+    const dspId = await rrGetDspId();
+    const rows = [];
+    if (params.on !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralProgramOn', value: String(params.on) });
+    if (params.outreachDay !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralOutreachDay', value: String(parseInt(params.outreachDay, 10) || 7) });
+    if (params.bonusAmount !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralBonusAmount', value: String(parseFloat(params.bonusAmount) || 300) });
+    if (params.payableDay !== undefined)
+      rows.push({ dsp_id: dspId, key: 'ReferralBonusPayableDay', value: String(parseInt(params.payableDay, 10) || 30) });
+    if (!rows.length) return { status: 'ok' };
+    const { error } = await sb.from('settings').upsert(rows, { onConflict: 'dsp_id,key' });
+    if (error) throw error;
+    return { status: 'ok' };
+  },
+
+  // saveMessageTemplates — wipe-and-rewrite for this DSP
+  saveMessageTemplates: async (params) => {
+    let templates;
+    try { templates = JSON.parse(params.templates || '{}'); }
+    catch (e) { return { status: 'error', message: 'invalid JSON' }; }
+    const dspId = await rrGetDspId();
+    const { error: delErr } = await sb.from('message_templates').delete().eq('dsp_id', dspId);
+    if (delErr) throw delErr;
+    const now = new Date().toISOString();
+    const rows = Object.keys(templates).map(k => {
+      const t = templates[k] || {};
+      return {
+        dsp_id:         dspId,
+        touchpoint_key: k,
+        sms:            String(t.sms || ''),
+        email_subject:  String(t.emailSubject || ''),
+        email_body:     String(t.emailBody || ''),
+        updated_at:     now
+      };
+    });
+    if (rows.length) {
+      const { error } = await sb.from('message_templates').insert(rows);
+      if (error) throw error;
+    }
+    return { status: 'ok', count: rows.length };
+  },
+
+  // saveScreeningQuestions — wipe-and-rewrite screening_selections for this DSP
+  saveScreeningQuestions: async (params) => {
+    let questions;
+    try { questions = JSON.parse(params.questions || '[]'); }
+    catch (e) { return { status: 'error', message: 'invalid questions JSON' }; }
+    if (!Array.isArray(questions))
+      return { status: 'error', message: 'questions must be an array' };
+    if (questions.length > 8)
+      return { status: 'error', message: 'Maximum 8 questions allowed' };
+
+    const dspId = await rrGetDspId();
+    const { error: delErr } = await sb.from('screening_selections').delete().eq('dsp_id', dspId);
+    if (delErr) throw delErr;
+
+    const now = new Date().toISOString();
+    const rows = questions.map((q, i) => {
+      const slotOrder = i + 1;
+      const source = String(q.source || 'library').toLowerCase();
+      if (source === 'custom') {
+        const customText = String(q.customText || q.label || '').trim();
+        if (!customText)
+          throw new Error('Custom question at slot ' + slotOrder + ' is missing text');
+        return {
+          dsp_id:          dspId,
+          slot_order:      slotOrder,
+          question_id:     'c_' + Math.random().toString(36).substring(2, 10),
+          source:          'custom',
+          custom_text:     customText,
+          filter_override: q.filter === true,
+          updated_at:      now
+        };
+      }
+      const qid = String(q.questionId || '').trim();
+      if (!qid) throw new Error('Library question at slot ' + slotOrder + ' missing questionId');
+      return {
+        dsp_id:          dspId,
+        slot_order:      slotOrder,
+        question_id:     qid,
+        source:          'library',
+        custom_text:     '',
+        filter_override: q.filter === true,
+        updated_at:      now
+      };
+    });
+    if (rows.length) {
+      const { error } = await sb.from('screening_selections').insert(rows);
+      if (error) throw error;
+    }
+    return {
+      status:  'ok',
+      saved:   rows.length,
+      message: 'Saved ' + rows.length + ' question' + (rows.length === 1 ? '' : 's')
+    };
   }
 };
 
