@@ -1475,6 +1475,121 @@ a{color:inherit;text-decoration:none}
 /* Availability tint on the main week calendar */
 .cal-cell.unavailable{background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 8px,#F1F5F9 8px,#F1F5F9 16px)}
 .cal-cell.preferred{background:linear-gradient(180deg,#F8FBFE 0%,var(--surface) 100%)}
+
+/* ─────────────────────────────────────────────────────────────
+   POPOVER DROPDOWNS (filters, account menu, notifications)
+   ───────────────────────────────────────────────────────────── */
+.popover-anchor{position:relative;display:inline-block}
+.popover{
+  position:absolute;top:calc(100% + 6px);right:0;min-width:240px;max-width:340px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  box-shadow:0 12px 32px rgba(15,23,42,.12);z-index:90;
+  display:none;animation:fadeIn .12s ease;
+}
+.popover.open{display:block}
+.popover-section{padding:6px}
+.popover-section + .popover-section{border-top:1px solid var(--border)}
+.popover-item{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;
+  font-size:13px;color:var(--text);cursor:pointer;background:transparent;border:none;width:100%;text-align:left;
+  font-family:inherit;
+}
+.popover-item:hover{background:var(--canvas)}
+.popover-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.popover-item svg{width:14px;height:14px;color:var(--text-muted);flex-shrink:0}
+.popover-item.active svg{color:var(--accent-text)}
+.popover-item .check{margin-left:auto;color:var(--accent);opacity:0;font-weight:700}
+.popover-item.active .check{opacity:1}
+.popover-head{
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;
+}
+.popover-empty{padding:24px;text-align:center;font-size:12px;color:var(--text-subtle)}
+.notif-item{
+  display:grid;grid-template-columns:24px 1fr;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);cursor:pointer;
+}
+.notif-item:hover{background:var(--canvas)}
+.notif-item:last-child{border-bottom:none}
+.notif-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.notif-icon.amber{background:var(--amber-soft);color:var(--amber)}
+.notif-icon.red{background:var(--red-soft);color:var(--red)}
+.notif-icon.blue{background:var(--accent-soft);color:var(--accent-text)}
+.notif-icon.green{background:var(--green-soft);color:var(--green)}
+.notif-icon svg{width:13px;height:13px;stroke-width:2}
+.notif-title{font-size:12px;font-weight:600;color:var(--text);line-height:1.35}
+.notif-msg{font-size:11px;color:var(--text-muted);line-height:1.4;margin-top:2px}
+.notif-time{font-size:10px;color:var(--text-subtle);margin-top:3px}
+
+.search-results{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  box-shadow:0 12px 32px rgba(15,23,42,.12);z-index:90;
+  display:none;max-height:400px;overflow-y:auto;
+}
+.search-results.open{display:block}
+.search-result{
+  display:grid;grid-template-columns:32px 1fr auto;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);cursor:pointer;align-items:center;
+}
+.search-result:hover{background:var(--canvas)}
+.search-result:last-child{border-bottom:none}
+.search-result-name{font-size:13px;font-weight:600;color:var(--text)}
+.search-result-meta{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.search-result-tag{font-size:10px;font-weight:600;color:var(--text-subtle);background:var(--canvas);padding:2px 7px;border-radius:8px}
+
+/* ─────────────────────────────────────────────────────────────
+   APPLICANT / DRIVER DETAIL DRAWERS
+   ───────────────────────────────────────────────────────────── */
+.detail-drawer{
+  position:fixed;top:0;right:0;bottom:0;width:520px;max-width:92vw;
+  background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:-12px 0 32px rgba(15,23,42,.08);
+  z-index:60;transform:translateX(100%);transition:transform .22s cubic-bezier(.32,.72,.4,1);
+  display:flex;flex-direction:column;
+}
+.detail-drawer.open{transform:translateX(0)}
+.detail-head{
+  padding:var(--s-5);border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-4);
+}
+.detail-avatar{
+  width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,#146EB4,#2563EB);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;
+}
+.detail-name{font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0}
+.detail-meta{font-size:12px;color:var(--text-muted);line-height:1.5}
+.detail-body{flex:1;overflow-y:auto;padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4)}
+.detail-section{
+  background:var(--canvas);border-radius:var(--r-md);padding:var(--s-4);
+}
+.detail-section-label{
+  font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);margin-bottom:8px;
+}
+.detail-stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-3)}
+.detail-stat-label{font-size:10px;font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:3px}
+.detail-stat-value{font-size:15px;font-weight:700;color:var(--text)}
+.detail-timeline{display:flex;flex-direction:column;gap:10px}
+.detail-timeline-item{
+  display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:flex-start;
+  font-size:12px;
+}
+.detail-timeline-dot{
+  width:10px;height:10px;border-radius:50%;background:var(--accent);
+  margin-top:5px;justify-self:center;
+}
+.detail-timeline-dot.green{background:var(--green)}
+.detail-timeline-dot.red{background:var(--red)}
+.detail-timeline-dot.amber{background:var(--amber)}
+.detail-timeline-text{color:var(--text);font-weight:500;line-height:1.4}
+.detail-timeline-text small{color:var(--text-subtle);font-weight:400;display:block;margin-top:1px}
+.detail-timeline-time{font-size:10px;color:var(--text-subtle);white-space:nowrap}
+.detail-foot{
+  padding:var(--s-4) var(--s-5);border-top:1px solid var(--border);
+  display:flex;gap:var(--s-2);justify-content:flex-end;background:var(--surface);
+}
 </style>
 </head>
 <body>
@@ -1552,21 +1667,24 @@ a{color:inherit;text-decoration:none}
       <div class="topbar-title" id="tb-title">Dashboard</div>
       <div class="topbar-context" id="tb-context">Cycle 14 · Day 3 of 28</div>
       <div class="topbar-spacer"></div>
-      <div class="search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        Search drivers, applicants…
-        <span class="search-kbd">⌘K</span>
+      <div style="position:relative">
+        <div class="search" style="cursor:text" onclick="document.getElementById('topbar-search').focus()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="topbar-search" placeholder="Search drivers, applicants…" oninput="onTopbarSearch(this.value)" onfocus="onTopbarSearch(this.value)" onblur="setTimeout(closeSearch,150)" style="border:none;background:transparent;outline:none;font:inherit;color:var(--text);min-width:160px;padding:0" />
+          <span class="search-kbd">⌘K</span>
+        </div>
+        <div class="search-results" id="search-results"></div>
       </div>
       <button class="coach-trigger" onclick="openCoachDrawer()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Coach driver
         <span class="coach-trigger-kbd">C</span>
       </button>
-      <button class="icon-btn" aria-label="Notifications">
+      <button class="icon-btn" aria-label="Notifications" onclick="event.stopPropagation();togglePopover('popover-notif')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span class="dot"></span>
       </button>
-      <div class="account">RH</div>
+      <div class="account" onclick="event.stopPropagation();togglePopover('popover-account')" style="cursor:pointer">RH</div>
     </header>
 
     <!-- ─── DASHBOARD VIEW ─── -->
@@ -2503,14 +2621,14 @@ a{color:inherit;text-decoration:none}
 
         <div class="settings-layout">
           <nav class="settings-nav">
-            <button class="settings-nav-item active">Workspace</button>
-            <button class="settings-nav-item">Team</button>
-            <button class="settings-nav-item">Integrations</button>
-            <button class="settings-nav-item">Hiring criteria</button>
-            <button class="settings-nav-item">Screening questions</button>
-            <button class="settings-nav-item">SMS &amp; messaging</button>
-            <button class="settings-nav-item">Video screening</button>
-            <button class="settings-nav-item">Billing</button>
+            <button class="settings-nav-item active" data-set="workspace" onclick="setSettingsSection(this)">Workspace</button>
+            <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
+            <button class="settings-nav-item" data-set="integrations" onclick="setSettingsSection(this)">Integrations</button>
+            <button class="settings-nav-item" data-set="hiring" onclick="setSettingsSection(this)">Hiring criteria</button>
+            <button class="settings-nav-item" data-set="screening" onclick="setSettingsSection(this)">Screening questions</button>
+            <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
+            <button class="settings-nav-item" data-set="video" onclick="setSettingsSection(this)">Video screening</button>
+            <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
           <div>
@@ -3864,6 +3982,158 @@ a{color:inherit;text-decoration:none}
 <div class="toast-stack" id="toast-stack"></div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     APPLICANT DETAIL DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<div class="coach-backdrop" id="ap-backdrop" onclick="closeApplicantDetail()"></div>
+<aside class="detail-drawer" id="applicant-drawer" aria-label="Applicant detail">
+  <div class="detail-head">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex:1;min-width:0">
+      <div class="detail-avatar" id="ap-initials">??</div>
+      <div style="min-width:0;flex:1">
+        <h2 class="detail-name" id="ap-name">Applicant</h2>
+        <div class="detail-meta" id="ap-meta">—</div>
+      </div>
+    </div>
+    <button class="cd-close" onclick="closeApplicantDetail()" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="detail-body">
+
+    <div class="detail-section">
+      <div class="detail-section-label">Score &amp; tier</div>
+      <div class="detail-stat-grid">
+        <div><div class="detail-stat-label">Score</div><div class="detail-stat-value" id="ap-score">—</div></div>
+        <div><div class="detail-stat-label">Tier</div><div class="detail-stat-value" id="ap-tier">Priority</div></div>
+        <div><div class="detail-stat-label">Source</div><div class="detail-stat-value" id="ap-source">Indeed</div></div>
+        <div><div class="detail-stat-label">Stage</div><div class="detail-stat-value" id="ap-stage">Screening</div></div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Screening answers</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:12px">
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Work authorized</span><span style="color:var(--green);font-weight:600">Yes</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Valid driver license</span><span style="color:var(--green);font-weight:600">Yes</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Lift 50 lbs</span><span style="color:var(--green);font-weight:600">Yes</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Days available</span><span style="color:var(--text);font-weight:600">M, T, Th, F, Sa</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Start date</span><span style="color:var(--text);font-weight:600">Immediately</span></div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Activity</div>
+      <div class="detail-timeline">
+        <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Screening passed<small>All hard requirements met</small></div><div class="detail-timeline-time">2h ago</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">Screening SMS sent<small>+1 417 555 0142</small></div><div class="detail-timeline-time">3h ago</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">Imported from Indeed<small>Source: Indeed weekly batch</small></div><div class="detail-timeline-time">3h ago</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeApplicantDetail()">Close</button>
+    <button class="btn" onclick="toast('Cal.com link sent to applicant')">Send Cal link</button>
+    <button class="btn btn-primary" onclick="toast('Marked as hired · welcome email sent')">Mark hired</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     DRIVER RECORD DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer" id="driver-drawer" aria-label="Driver record">
+  <div class="detail-head">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex:1;min-width:0">
+      <div class="detail-avatar" id="dr-initials">??</div>
+      <div style="min-width:0;flex:1">
+        <h2 class="detail-name" id="dr-name">Driver</h2>
+        <div class="detail-meta" id="dr-meta">—</div>
+      </div>
+    </div>
+    <button class="cd-close" onclick="closeDriverDetail()" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="detail-body">
+
+    <div class="detail-section">
+      <div class="detail-section-label">Performance</div>
+      <div class="detail-stat-grid">
+        <div><div class="detail-stat-label">Score</div><div class="detail-stat-value" id="dr-score">—</div></div>
+        <div><div class="detail-stat-label">Attendance · 30d</div><div class="detail-stat-value" id="dr-att">100%</div></div>
+        <div><div class="detail-stat-label">Tenure</div><div class="detail-stat-value" id="dr-tenure">—</div></div>
+        <div><div class="detail-stat-label">Station</div><div class="detail-stat-value" id="dr-station">—</div></div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Coaching history</div>
+      <div class="detail-timeline">
+        <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Safety coaching SMS<small>"Following distance flagged. Discussed Tuesday 1:1."</small></div><div class="detail-timeline-time">3 days ago</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot"></div><div class="detail-timeline-text">In-person 1:1<small>Topics: safe driving, attendance</small></div><div class="detail-timeline-time">2 weeks ago</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot green"></div><div class="detail-timeline-text">Recognition SMS<small>"Top safety performer last cycle"</small></div><div class="detail-timeline-time">1 month ago</div></div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Recent attendance</div>
+      <div class="detail-timeline">
+        <div class="detail-timeline-item"><div class="detail-timeline-dot red"></div><div class="detail-timeline-text">Callout · Friday Apr 25</div><div class="detail-timeline-time">6 days ago</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot red"></div><div class="detail-timeline-text">Callout · Monday Apr 21</div><div class="detail-timeline-time">10 days ago</div></div>
+        <div class="detail-timeline-item"><div class="detail-timeline-dot amber"></div><div class="detail-timeline-text">Late · Thursday Apr 17</div><div class="detail-timeline-time">2 weeks ago</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeDriverDetail()">Close</button>
+    <button class="btn" onclick="closeDriverDetail();toast('Schedule editor — would open per-driver schedule drawer')">Edit schedule</button>
+    <button class="btn btn-primary" onclick="closeDriverDetail();openCoachDrawer(document.getElementById('dr-name').textContent.trim())">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Coach
+    </button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     NOTIFICATION POPOVER
+     ═══════════════════════════════════════════════════════════ -->
+<div class="popover" id="popover-notif" style="position:fixed;top:50px;right:80px;width:340px">
+  <div class="popover-head" style="display:flex;justify-content:space-between;align-items:center"><span>Notifications</span><span style="font-size:10px;color:var(--accent-text);font-weight:500;cursor:pointer" onclick="toast('All marked read')">Mark all read</span></div>
+  <div>
+    <div class="notif-item" onclick="goto('alerts');closePopovers()">
+      <div class="notif-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <div><div class="notif-title">Short 12 drivers next week</div><div class="notif-msg">Confirmed routes 90, available 78</div><div class="notif-time">3h ago</div></div>
+    </div>
+    <div class="notif-item" onclick="goto('schedule');setTimeout(function(){schedSub('timeoff');},50);closePopovers()">
+      <div class="notif-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></div>
+      <div><div class="notif-title">Devon Patterson · time off request</div><div class="notif-msg">May 15–17 awaiting approval</div><div class="notif-time">2h ago</div></div>
+    </div>
+    <div class="notif-item" onclick="goto('schedule');setTimeout(function(){schedSub('swaps');},50);closePopovers()">
+      <div class="notif-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg></div>
+      <div><div class="notif-title">Tasha ↔ Marcus swap accepted</div><div class="notif-msg">Friday May 4 swap awaiting your approval</div><div class="notif-time">2h ago</div></div>
+    </div>
+    <div class="notif-item" onclick="goto('drivers');closePopovers()">
+      <div class="notif-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div><div class="notif-title">Trevor Anders hired</div><div class="notif-msg">Welcome SMS sent · onboarding starts Monday</div><div class="notif-time">Yesterday</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ACCOUNT POPOVER
+     ═══════════════════════════════════════════════════════════ -->
+<div class="popover" id="popover-account" style="position:fixed;top:50px;right:24px">
+  <div class="popover-head">Ryan Hester · Cardinal Logistics</div>
+  <div class="popover-section">
+    <button class="popover-item" onclick="goto('settings');closePopovers()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg>Settings</button>
+    <button class="popover-item" onclick="toast('Profile editor — would open here')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</button>
+    <button class="popover-item" onclick="toast('Help center — would open here')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Help &amp; support</button>
+  </div>
+  <div class="popover-section">
+    <button class="popover-item" onclick="toast('Signed out')" style="color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign out</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      ADD APPLICANT MODAL
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-add-applicant" onclick="if(event.target===this)closeModal('modal-add-applicant')">
@@ -4377,6 +4647,222 @@ a{color:inherit;text-decoration:none}
 
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
+
+  // ─── APPLICANT DETAIL DRAWER ───────────────────────────────
+  function openApplicantDetail(name, meta, score, source, stage){
+    document.getElementById('ap-initials').textContent = (name || '').split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase();
+    document.getElementById('ap-name').textContent = name || 'Applicant';
+    document.getElementById('ap-meta').textContent = meta || '';
+    document.getElementById('ap-score').textContent = score || '—';
+    document.getElementById('ap-tier').textContent = (+score >= 7) ? 'Priority' : (+score >= 4) ? 'Standard' : 'Low';
+    document.getElementById('ap-source').textContent = source || 'Indeed';
+    document.getElementById('ap-stage').textContent = stage || 'New';
+    document.getElementById('applicant-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeApplicantDetail(){
+    document.getElementById('applicant-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.getElementById('driver-drawer').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── DRIVER DETAIL DRAWER ──────────────────────────────────
+  function openDriverDetail(name, station, tenure, score, attendance){
+    document.getElementById('dr-initials').textContent = (name || '').split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase();
+    document.getElementById('dr-name').textContent = name || 'Driver';
+    document.getElementById('dr-meta').textContent = (station ? station + ' · ' : '') + (tenure || '') + ' tenure';
+    document.getElementById('dr-score').textContent = score || '—';
+    document.getElementById('dr-att').textContent = attendance || '100%';
+    document.getElementById('dr-tenure').textContent = tenure || '—';
+    document.getElementById('dr-station').textContent = station || '—';
+    document.getElementById('driver-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDriverDetail(){
+    document.getElementById('driver-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── POPOVERS (notifications, account, filters) ───────────
+  function togglePopover(id){
+    const el = document.getElementById(id);
+    const wasOpen = el.classList.contains('open');
+    closePopovers();
+    if (!wasOpen) el.classList.add('open');
+  }
+  function closePopovers(){
+    document.querySelectorAll('.popover').forEach(function(p){ p.classList.remove('open'); });
+  }
+  document.addEventListener('click', function(e){
+    // Close popovers when clicking outside
+    if (!e.target.closest('.popover') && !e.target.closest('.icon-btn') && !e.target.closest('.account') && !e.target.closest('.filter-chip') && !e.target.closest('.popover-anchor')) {
+      closePopovers();
+    }
+  });
+
+  // ─── TOPBAR SEARCH ─────────────────────────────────────────
+  const SEARCH_INDEX = [
+    {name:'Marcus Davidson', meta:'Driver · KMO1 · score 62', tag:'driver', kind:'driver', score:62, station:'KMO1', tenure:'18 mo'},
+    {name:'Tasha Reyes', meta:'Driver · KMO2 · score 68', tag:'driver', kind:'driver', score:68, station:'KMO2', tenure:'9 mo'},
+    {name:'Kerwin Whitfield', meta:'Driver · KMO1 · score 71', tag:'driver', kind:'driver', score:71, station:'KMO1', tenure:'24 mo'},
+    {name:'Jordan Beckett', meta:'Driver · KMO3 · score 73', tag:'driver', kind:'driver', score:73, station:'KMO3', tenure:'6 mo'},
+    {name:'Devon Patterson', meta:'Driver · KMO3 · score 79', tag:'driver', kind:'driver', score:79, station:'KMO3', tenure:'11 mo'},
+    {name:'Camille Foster', meta:'Driver · KMO1 · score 88', tag:'driver', kind:'driver', score:88, station:'KMO1', tenure:'22 mo'},
+    {name:'Alicia Monroe', meta:'Applicant · screening · score 8', tag:'applicant', kind:'applicant', score:8, source:'Indeed', stage:'Screening'},
+    {name:'Brianna Cole', meta:'Applicant · passed · score 9', tag:'applicant', kind:'applicant', score:9, source:'Referral', stage:'Passed'},
+    {name:'Marcus Hill', meta:'Applicant · booked Fri · score 5', tag:'applicant', kind:'applicant', score:5, source:'Indeed', stage:'Booked'},
+    {name:'Sasha Underwood', meta:'Applicant · new · score 3', tag:'applicant', kind:'applicant', score:3, source:'Walk-in', stage:'New'},
+    {name:'Trevor Anders', meta:'Applicant · hired · score 8', tag:'applicant', kind:'applicant', score:8, source:'Referral', stage:'Hired'}
+  ];
+  function onTopbarSearch(q){
+    const wrap = document.getElementById('search-results');
+    if (!q || q.length < 1) { wrap.classList.remove('open'); return; }
+    const matches = SEARCH_INDEX.filter(function(r){ return r.name.toLowerCase().indexOf(q.toLowerCase()) >= 0; }).slice(0,8);
+    if (matches.length === 0) {
+      wrap.innerHTML = '<div class="popover-empty">No matches for "' + q + '"</div>';
+    } else {
+      wrap.innerHTML = matches.map(function(r){
+        const initials = r.name.split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase();
+        return '<div class="search-result" data-kind="' + r.kind + '" data-name="' + r.name + '">'
+          + '<div class="avatar-sm tier-b">' + initials + '</div>'
+          + '<div><div class="search-result-name">' + r.name + '</div><div class="search-result-meta">' + r.meta + '</div></div>'
+          + '<span class="search-result-tag">' + r.tag + '</span>'
+          + '</div>';
+      }).join('');
+      wrap.querySelectorAll('.search-result').forEach(function(el, i){
+        el.addEventListener('click', function(){
+          const r = matches[i];
+          if (r.kind === 'driver') openDriverDetail(r.name, r.station, r.tenure, r.score, '100%');
+          else openApplicantDetail(r.name, r.source + ' · ' + r.stage, r.score, r.source, r.stage);
+          closeSearch();
+          document.getElementById('topbar-search').value = '';
+        });
+      });
+    }
+    wrap.classList.add('open');
+  }
+  function closeSearch(){ document.getElementById('search-results').classList.remove('open'); }
+  document.addEventListener('keydown', function(e){
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      const s = document.getElementById('topbar-search');
+      if (s) s.focus();
+    }
+  });
+
+  // ─── SETTINGS NAV ──────────────────────────────────────────
+  const SETTINGS_SECTIONS = {
+    workspace: { title:'Workspace', sub:'Basic information about your DSP.' },
+    team: { title:'Team', sub:'Manage team members and roles.' },
+    integrations: { title:'Integrations', sub:'Connected services that power the dashboard.' },
+    hiring: { title:'Hiring criteria', sub:'Score thresholds, deal-breakers, and required answers.' },
+    screening: { title:'Screening questions', sub:'Library of questions sent to applicants via SMS.' },
+    sms: { title:'SMS & messaging', sub:'Quiet hours, opt-out handling, default templates.' },
+    video: { title:'Video screening', sub:'Recorded video introductions from applicants.' },
+    billing: { title:'Billing', sub:'Subscription, invoices, payment method.' }
+  };
+  function setSettingsSection(btn){
+    const id = btn.getAttribute('data-set');
+    document.querySelectorAll('.settings-nav-item').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    const cfg = SETTINGS_SECTIONS[id] || { title:'Settings', sub:'' };
+    toast('Switched to: ' + cfg.title);
+  }
+
+  // ─── ALERT TABS FILTER ─────────────────────────────────────
+  function filterAlertTab(btn){
+    document.querySelectorAll('.alert-tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    const text = btn.textContent.split(/\s+/)[0];
+    toast('Filtered to: ' + text);
+  }
+
+  // ─── REPORT CARD ───────────────────────────────────────────
+  function openReport(name){ toast('Opening: ' + name + ' (report detail page would render here)'); }
+
+  // ─── UNIVERSAL ACTION FALLBACK ─────────────────────────────
+  // Catches any remaining buttons that don't have explicit handlers,
+  // gives them a helpful toast so the user knows the click was registered.
+  function wireFallbackActions(){
+    document.querySelectorAll('.btn, .filter-chip, .row-action, .stage-week-arrow, .sched-week-arrow, .alert-tab').forEach(function(b){
+      if (b.dataset.fbWired) return;
+      // skip if already wired or has onclick / handler
+      if (b.onclick || b.dataset.wired || b.dataset.wiredAction) return;
+      b.dataset.fbWired = '1';
+      b.addEventListener('click', function(e){
+        const text = (b.textContent || '').trim();
+        if (!text) return;
+        // alert tabs
+        if (b.classList.contains('alert-tab')) { filterAlertTab(b); return; }
+        // filter chips show coming-soon style
+        if (b.classList.contains('filter-chip')) { toast(text + ' filter — dropdown would open here'); return; }
+        // row actions
+        if (b.classList.contains('row-action')) { toast('Row menu — would show edit/delete/details'); return; }
+        // generic
+        toast(text + (text.endsWith('…') ? '' : ''));
+      });
+    });
+    // applicant rows clickable
+    document.querySelectorAll('#view-pipeline tbody tr').forEach(function(r){
+      if (r.id === 'pipeline-empty-row' || r.dataset.detailWired) return;
+      r.dataset.detailWired = '1';
+      r.style.cursor = 'pointer';
+      r.addEventListener('click', function(e){
+        if (e.target.closest('.row-action')) return;
+        const nameEl = r.querySelector('.cell-name');
+        const subEl = r.querySelector('.cell-name-sub');
+        const scoreEl = r.querySelector('.cell-score');
+        const sourceEl = r.querySelector('.cell-source');
+        const stageEl = r.querySelector('.stage-pill');
+        if (!nameEl) return;
+        openApplicantDetail(
+          nameEl.textContent.trim(),
+          (subEl ? subEl.textContent.trim() : ''),
+          scoreEl ? scoreEl.textContent.trim() : '',
+          sourceEl ? sourceEl.textContent.trim() : '',
+          stageEl ? stageEl.textContent.replace(/^\W+/, '').trim() : ''
+        );
+      });
+    });
+    // driver rows clickable
+    document.querySelectorAll('#dr-sub-roster tbody tr').forEach(function(r){
+      if (r.dataset.detailWired) return;
+      r.dataset.detailWired = '1';
+      r.style.cursor = 'pointer';
+      r.addEventListener('click', function(e){
+        if (e.target.closest('.coach-row-btn') || e.target.closest('.row-action')) return;
+        const nameEl = r.querySelector('.cell-name');
+        const subEl = r.querySelector('.cell-name-sub');
+        const station = r.children[1] ? r.children[1].textContent.trim() : '';
+        const tenure = r.children[2] ? r.children[2].textContent.trim() : '';
+        const score = r.querySelector('.score-bar') ? r.querySelector('.score-bar').nextElementSibling.textContent.trim() : '';
+        const att = r.querySelector('.att-pill strong') ? r.querySelector('.att-pill strong').textContent.trim() : '100%';
+        if (!nameEl) return;
+        openDriverDetail(nameEl.textContent.trim(), station, tenure, score, att);
+      });
+    });
+    // report card clicks
+    document.querySelectorAll('.report-card').forEach(function(card){
+      if (card.dataset.detailWired) return;
+      card.dataset.detailWired = '1';
+      card.addEventListener('click', function(){
+        const t = card.querySelector('.report-title');
+        openReport(t ? t.textContent : 'Report');
+      });
+    });
+  }
+  setTimeout(wireFallbackActions, 200);
+  // Re-wire after any view switch
+  const _origGoto = goto;
+  goto = function(v){ _origGoto(v); setTimeout(wireFallbackActions, 50); };
+  const _origSchedSub2 = schedSub;
+  schedSub = function(s){ _origSchedSub2(s); setTimeout(wireFallbackActions, 50); };
+  const _origDrSub = drSub;
+  drSub = function(s){ _origDrSub(s); setTimeout(wireFallbackActions, 50); };
 
   // ─── DRIVER-MANAGED AVAILABILITY MASTER TOGGLE ─────────────
   function toggleDriverManaged(input){
