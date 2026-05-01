@@ -1190,9 +1190,8 @@ a{color:inherit;text-decoration:none}
 .driver-app-frame{
   background:linear-gradient(180deg,#0F172A 0%,#1E293B 100%);
   border-radius:var(--r-lg);padding:var(--s-6);
-  display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-3);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-4);row-gap:var(--s-8);
 }
-@media (max-width:1380px){.driver-app-frame{grid-template-columns:repeat(3,1fr);row-gap:var(--s-8)}}
 @media (max-width:980px){.driver-app-frame{grid-template-columns:repeat(2,1fr);row-gap:var(--s-8)}}
 .phone-frame{
   background:#fff;border-radius:32px;
@@ -1926,6 +1925,129 @@ a{color:inherit;text-decoration:none}
   display:flex;align-items:center;gap:8px;
 }
 .aud-count strong{font-weight:700}
+
+/* ─────────────────────────────────────────────────────────────
+   FORMS PLATFORM
+   ───────────────────────────────────────────────────────────── */
+.forms-shell{
+  display:grid;grid-template-columns:280px 1fr;gap:var(--s-4);
+  align-items:start;
+}
+.forms-side{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-2);display:flex;flex-direction:column;gap:1px;
+  position:sticky;top:80px;
+}
+.forms-side-section{padding:var(--s-3) var(--s-3) 4px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle)}
+.forms-side-item{
+  padding:8px 12px;border-radius:6px;font-size:13px;color:var(--text-muted);font-weight:500;
+  cursor:pointer;border:none;background:transparent;text-align:left;
+  display:flex;align-items:center;gap:8px;
+}
+.forms-side-item:hover{background:var(--canvas);color:var(--text)}
+.forms-side-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.forms-side-item .count{margin-left:auto;font-size:10px;color:var(--text-subtle);font-weight:600;background:var(--canvas);padding:1px 7px;border-radius:8px}
+.forms-side-item.active .count{background:#146EB433;color:var(--accent-text)}
+
+.forms-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-3)}
+.form-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);cursor:pointer;transition:border-color .12s,box-shadow .12s;
+  display:flex;flex-direction:column;gap:var(--s-3);
+}
+.form-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+.form-card-status{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px;
+  background:var(--green-soft);color:var(--green);align-self:flex-start;
+  display:inline-flex;align-items:center;gap:4px;
+}
+.form-card-status.draft{background:var(--canvas);color:var(--text-muted)}
+.form-card-status.archived{background:var(--canvas);color:var(--text-subtle)}
+.form-card-icon{
+  width:36px;height:36px;border-radius:var(--r-md);
+  background:var(--accent-soft);color:var(--accent-text);
+  display:flex;align-items:center;justify-content:center;
+}
+.form-card-icon svg{width:18px;height:18px;stroke-width:2}
+.form-card-title{font-size:14px;font-weight:600;color:var(--text)}
+.form-card-desc{font-size:12px;color:var(--text-muted);line-height:1.5;flex:1}
+.form-card-stats{
+  display:flex;gap:var(--s-3);font-size:11px;color:var(--text-subtle);
+  padding-top:var(--s-3);border-top:1px solid var(--border);
+}
+.form-card-stats strong{color:var(--text);font-weight:600}
+
+/* Form builder modal */
+.builder-modal{max-width:1080px;width:96vw;max-height:92vh;display:flex;flex-direction:column}
+.builder-grid{
+  display:grid;grid-template-columns:200px 1fr 240px;gap:0;
+  background:var(--canvas);border-top:1px solid var(--border);
+  flex:1;min-height:520px;
+}
+.field-palette{
+  background:var(--surface);border-right:1px solid var(--border);padding:var(--s-3);overflow-y:auto;
+}
+.field-palette-section{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle);padding:var(--s-3) 4px 6px}
+.field-type{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;
+  font-size:12px;color:var(--text);cursor:grab;background:transparent;border:1px solid transparent;
+}
+.field-type:hover{background:var(--canvas);border-color:var(--border)}
+.field-type svg{width:14px;height:14px;color:var(--text-muted);stroke-width:2}
+
+.builder-canvas{
+  background:var(--canvas);padding:var(--s-5);overflow-y:auto;
+}
+.builder-canvas-form{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);max-width:560px;margin:0 auto;
+}
+.builder-form-name{font-size:18px;font-weight:700;border:none;background:transparent;width:100%;outline:none;color:var(--text);margin-bottom:6px}
+.builder-form-desc{font-size:12px;color:var(--text-muted);border:none;background:transparent;width:100%;outline:none;resize:none;font-family:inherit;line-height:1.5}
+.builder-field{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:14px 16px;margin-top:var(--s-3);position:relative;cursor:move;
+}
+.builder-field.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.builder-field-handle{
+  position:absolute;left:-22px;top:50%;transform:translateY(-50%);
+  color:var(--text-subtle);font-size:14px;
+}
+.builder-field-label{
+  display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;
+}
+.builder-field-label .req{color:var(--red);margin-left:3px}
+.builder-field-input{
+  width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px;
+  font-size:13px;background:var(--canvas);color:var(--text-subtle);font-family:inherit;
+}
+.builder-field-radio-row{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.builder-field-radio{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted)}
+.builder-field-radio::before{content:'';width:14px;height:14px;border:1.5px solid var(--border-strong);border-radius:50%;display:inline-block}
+.builder-field-img-placeholder{
+  background:var(--canvas);border:1.5px dashed var(--border-strong);border-radius:8px;
+  padding:24px;text-align:center;color:var(--text-subtle);font-size:12px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.builder-field-img-placeholder svg{width:24px;height:24px;color:var(--text-subtle)}
+
+.field-props{
+  background:var(--surface);border-left:1px solid var(--border);padding:var(--s-4);overflow-y:auto;
+}
+.field-props-head{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-3)}
+.field-prop-row{margin-bottom:var(--s-3)}
+.field-prop-label{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:5px}
+.field-prop-input{width:100%;padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;font-size:12px;background:var(--surface);color:var(--text);font-family:inherit}
+
+/* Submissions table & form analytics */
+.subm-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:var(--s-3);align-items:center;padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border)}
+.subm-row:last-child{border-bottom:none}
+.subm-row:hover{background:var(--canvas);cursor:pointer}
+.subm-form-name{font-size:13px;font-weight:600;color:var(--text)}
+.subm-form-meta{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.subm-status{font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px}
+.subm-status.complete{background:var(--green-soft);color:var(--green)}
+.subm-status.flagged{background:var(--red-soft);color:var(--red)}
 </style>
 </head>
 <body>
@@ -1973,6 +2095,11 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Messages
         <span class="nav-badge">7</span>
+      </button>
+      <button class="nav-item" data-view="forms" onclick="goto('forms')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        Forms
+        <span class="nav-badge" style="background:var(--accent)">3</span>
       </button>
       <button class="nav-item" data-view="alerts" onclick="goto('alerts')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -4521,6 +4648,47 @@ a{color:inherit;text-decoration:none}
               </div>
             </div>
 
+            <!-- PHONE 6: Forms -->
+            <div class="phone-frame">
+              <div class="phone-label">Forms</div>
+              <div class="phone-notch"></div>
+              <div class="phone-header" style="margin-top:20px">
+                <div>
+                  <div class="phone-title">Forms</div>
+                  <div class="phone-sub">2 due before route</div>
+                </div>
+                <div class="phone-avatar">TR</div>
+              </div>
+
+              <div style="background:var(--red-soft);border:1px solid #FCA5A5;border-radius:10px;padding:10px;font-size:11px;color:#991B1B">
+                <strong>Pre-trip inspection</strong> · required before 7:00 AM
+                <div style="margin-top:6px;display:flex;gap:6px">
+                  <button class="phone-action-btn" style="flex:1;font-size:10px;padding:7px">Start now</button>
+                </div>
+              </div>
+
+              <div style="background:var(--canvas);border-radius:10px;padding:10px;font-size:11px">
+                <strong style="font-size:11px">End-of-route checklist</strong>
+                <div style="font-size:10px;color:var(--text-subtle);margin-top:2px">Submit when route complete</div>
+              </div>
+
+              <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+                <div style="font-size:9px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Recent</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:11px"><span>Pre-trip · yesterday</span><span style="color:var(--green)">✓</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:11px"><span>End-of-route · yesterday</span><span style="color:var(--green)">✓</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:11px"><span>Maintenance · 2d ago</span><span style="color:var(--amber);font-weight:600;font-size:9px">In review</span></div>
+              </div>
+
+              <button class="phone-action-btn ghost" style="font-size:10px;margin-top:auto">Submit a request →</button>
+
+              <div class="phone-bottom-nav">
+                <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Schedule</div>
+                <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages</div>
+                <div class="phone-nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Forms</div>
+                <div class="phone-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Me</div>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -4689,6 +4857,217 @@ a{color:inherit;text-decoration:none}
               </div>
             </div>
           </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         FORMS — DSP-built custom forms drivers fill out
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-forms">
+      <div class="page">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Forms</h1>
+            <p class="page-sub">Build the forms your drivers use · 12 published · 47 submissions this week</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export submissions
+            </button>
+            <button class="btn btn-primary" onclick="openModal('modal-form-builder')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Build a form
+            </button>
+          </div>
+        </div>
+
+        <div class="forms-shell">
+          <!-- LEFT: forms category nav -->
+          <aside class="forms-side">
+            <div class="forms-side-section">Forms</div>
+            <button class="forms-side-item active" onclick="formsTab(this,'my')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              My forms <span class="count">12</span>
+            </button>
+            <button class="forms-side-item" onclick="formsTab(this,'subm')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Submissions <span class="count">47</span>
+            </button>
+            <button class="forms-side-item" onclick="formsTab(this,'tpl')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Templates <span class="count">8</span>
+            </button>
+            <button class="forms-side-item" onclick="formsTab(this,'analytics')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Analytics
+            </button>
+
+            <div class="forms-side-section" style="margin-top:var(--s-3)">Categories</div>
+            <button class="forms-side-item">Pre-trip / Inspection <span class="count">3</span></button>
+            <button class="forms-side-item">Incident reports <span class="count">2</span></button>
+            <button class="forms-side-item">End-of-route <span class="count">2</span></button>
+            <button class="forms-side-item">Onboarding <span class="count">3</span></button>
+            <button class="forms-side-item">Maintenance <span class="count">2</span></button>
+            <button class="forms-side-item">Archived <span class="count">5</span></button>
+          </aside>
+
+          <!-- RIGHT: forms content -->
+          <main>
+            <!-- MY FORMS -->
+            <div class="forms-tab" id="forms-tab-my">
+              <div class="forms-grid">
+                <div class="form-card" onclick="toast('Opens form editor with submissions')">
+                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
+                  <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
+                  <div class="form-card-title">Pre-trip vehicle inspection</div>
+                  <div class="form-card-desc">14 questions · daily submission required from drivers before route start. Includes brake/tire/fluid check + photo of damage.</div>
+                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>72</strong> submitted today</span><span><strong>6</strong> pending</span></div>
+                </div>
+
+                <div class="form-card" onclick="toast('Opens form editor')">
+                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
+                  <div class="form-card-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+                  <div class="form-card-title">Incident report</div>
+                  <div class="form-card-desc">9 fields · drivers submit on-demand for vehicle damage, customer complaint, or safety concern. Photo required.</div>
+                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>4</strong> submitted this week</span><span><strong>1</strong> needs review</span></div>
+                </div>
+
+                <div class="form-card" onclick="toast('Opens form editor')">
+                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
+                  <div class="form-card-icon" style="background:#EDE9FE;color:#6D28D9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                  <div class="form-card-title">End-of-route checklist</div>
+                  <div class="form-card-desc">7 items · driver confirms all packages delivered, parked safely, fuel level recorded. Auto-prompted at GPS return.</div>
+                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>71</strong> submitted today</span><span><strong>0</strong> flagged</span></div>
+                </div>
+
+                <div class="form-card" onclick="toast('Opens form editor')">
+                  <span class="form-card-status draft">Draft</span>
+                  <div class="form-card-icon" style="background:var(--amber-soft);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1l9 4v6c0 5-9 11-9 11s-9-6-9-11V5z"/></svg></div>
+                  <div class="form-card-title">Customer feedback intake</div>
+                  <div class="form-card-desc">5 fields · capture customer compliments and complaints from drivers. Goes to me for review.</div>
+                  <div class="form-card-stats"><span>Last edited <strong>2 days ago</strong></span></div>
+                </div>
+
+                <div class="form-card" onclick="toast('Opens form editor')">
+                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
+                  <div class="form-card-icon" style="background:#FEF3C7;color:#92400E"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M14.31 8l5.74 9.94"/><path d="M9.69 8h11.48"/></svg></div>
+                  <div class="form-card-title">Maintenance request</div>
+                  <div class="form-card-desc">8 fields · drivers report vehicle issues with photo, severity, and next-route impact. Auto-routes to maintenance contact.</div>
+                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>2</strong> open</span><span><strong>11</strong> resolved this month</span></div>
+                </div>
+
+                <div class="form-card" onclick="toast('Opens form editor')">
+                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
+                  <div class="form-card-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                  <div class="form-card-title">New driver onboarding · Day 1</div>
+                  <div class="form-card-desc">23 fields · I-9 attestation, emergency contact, direct deposit form, uniform sizing. Required within 48h of hire.</div>
+                  <div class="form-card-stats"><span><strong>4</strong> assigned</span><span><strong>3</strong> submitted</span><span><strong>1</strong> in progress</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SUBMISSIONS -->
+            <div class="forms-tab" id="forms-tab-subm" style="display:none">
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+                <div class="subm-row" style="background:var(--canvas);font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;cursor:default">
+                  <div></div><div>Form · Driver</div><div>Status</div><div>Submitted</div><div></div>
+                </div>
+                <div class="subm-row" onclick="toast('Open submission detail')">
+                  <div class="form-card-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
+                  <div><div class="subm-form-name">Pre-trip inspection · Marcus Davidson</div><div class="subm-form-meta">All checks passed · no damage reported</div></div>
+                  <span class="subm-status complete">Complete</span>
+                  <div class="cell-time">7:02 AM</div>
+                  <button class="btn btn-sm">View</button>
+                </div>
+                <div class="subm-row" onclick="toast('Open submission detail')">
+                  <div class="form-card-icon" style="width:32px;height:32px;background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+                  <div><div class="subm-form-name">Incident report · Kerwin Whitfield</div><div class="subm-form-meta">DSP sticker damaged · photo attached · KMO1-09A</div></div>
+                  <span class="subm-status flagged">Needs review</span>
+                  <div class="cell-time">1h ago</div>
+                  <button class="btn btn-sm btn-primary">Review</button>
+                </div>
+                <div class="subm-row" onclick="toast('Open submission detail')">
+                  <div class="form-card-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
+                  <div><div class="subm-form-name">Pre-trip inspection · Tasha Reyes</div><div class="subm-form-meta">Tire pressure low on rear-left · noted</div></div>
+                  <span class="subm-status flagged">Action needed</span>
+                  <div class="cell-time">7:14 AM</div>
+                  <button class="btn btn-sm">View</button>
+                </div>
+                <div class="subm-row" onclick="toast('Open submission detail')">
+                  <div class="form-card-icon" style="width:32px;height:32px;background:#EDE9FE;color:#6D28D9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg></div>
+                  <div><div class="subm-form-name">End-of-route · Camille Foster</div><div class="subm-form-meta">All packages delivered · fuel 3/4 · parked KMO1-Spot 12</div></div>
+                  <span class="subm-status complete">Complete</span>
+                  <div class="cell-time">Yesterday 6:43 PM</div>
+                  <button class="btn btn-sm">View</button>
+                </div>
+                <div class="subm-row" onclick="toast('Open submission detail')">
+                  <div class="form-card-icon" style="width:32px;height:32px;background:#FEF3C7;color:#92400E"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/></svg></div>
+                  <div><div class="subm-form-name">Maintenance request · Devon Patterson</div><div class="subm-form-meta">Brake squeal on hard stops · photo of pad attached · medium urgency</div></div>
+                  <span class="subm-status flagged">Open</span>
+                  <div class="cell-time">2 days ago</div>
+                  <button class="btn btn-sm btn-primary">Open ticket</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- TEMPLATES -->
+            <div class="forms-tab" id="forms-tab-tpl" style="display:none">
+              <div style="margin-bottom:var(--s-4);font-size:13px;color:var(--text-muted)">Pre-built starter forms designed for DSPs. Click any to copy into your forms.</div>
+              <div class="forms-grid">
+                <div class="form-card" onclick="toast('Template copied to your forms — opens in builder')">
+                  <span class="form-card-status archived">Template</span>
+                  <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
+                  <div class="form-card-title">DOT-style pre-trip inspection</div>
+                  <div class="form-card-desc">17 questions covering brakes, tires, lights, fluids, mirrors, seat belts. With photo upload for any defect.</div>
+                  <div class="form-card-stats"><span>Used by <strong>1,200+ DSPs</strong></span></div>
+                </div>
+                <div class="form-card" onclick="toast('Template copied')">
+                  <span class="form-card-status archived">Template</span>
+                  <div class="form-card-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+                  <div class="form-card-title">Vehicle accident report</div>
+                  <div class="form-card-desc">12 fields · date/time, location, parties involved, witness info, photos, narrative. Required for insurance.</div>
+                  <div class="form-card-stats"><span>Used by <strong>980+ DSPs</strong></span></div>
+                </div>
+                <div class="form-card" onclick="toast('Template copied')">
+                  <span class="form-card-status archived">Template</span>
+                  <div class="form-card-icon" style="background:#EDE9FE;color:#6D28D9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/></svg></div>
+                  <div class="form-card-title">Fuel receipt submission</div>
+                  <div class="form-card-desc">5 fields · station, gallons, total, photo of receipt, vehicle. For mileage reimbursement.</div>
+                  <div class="form-card-stats"><span>Used by <strong>2,400+ DSPs</strong></span></div>
+                </div>
+                <div class="form-card" onclick="toast('Template copied')">
+                  <span class="form-card-status archived">Template</span>
+                  <div class="form-card-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                  <div class="form-card-title">New hire onboarding (Day 1)</div>
+                  <div class="form-card-desc">21 fields · I-9 attestation, emergency contact, direct deposit, uniform sizing, sign-off acknowledgments.</div>
+                  <div class="form-card-stats"><span>Used by <strong>1,500+ DSPs</strong></span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ANALYTICS -->
+            <div class="forms-tab" id="forms-tab-analytics" style="display:none">
+              <div class="report-stat-grid" style="margin-bottom:var(--s-4)">
+                <div class="kpi-card"><div class="kpi-label">Submissions this week</div><div class="kpi-value">47</div><div class="kpi-sub"><span class="kpi-pip green"></span>+12% vs last week</div></div>
+                <div class="kpi-card"><div class="kpi-label">Completion rate</div><div class="kpi-value">93%</div><div class="kpi-sub"><span class="kpi-pip green"></span>started → finished</div></div>
+                <div class="kpi-card"><div class="kpi-label">Avg time to complete</div><div class="kpi-value">2:14</div><div class="kpi-sub">across all forms</div></div>
+                <div class="kpi-card"><div class="kpi-label">Flagged submissions</div><div class="kpi-value" style="color:var(--amber)">3</div><div class="kpi-sub"><span class="kpi-pip amber"></span>need your review</div></div>
+              </div>
+
+              <div class="card">
+                <div class="card-head"><h3 class="card-title">Submission rate by form</h3></div>
+                <div class="funnel">
+                  <div class="funnel-row s1"><div class="funnel-label">Pre-trip</div><div class="funnel-bar"><div class="funnel-fill" style="width:92%">72 of 78 today</div></div><div class="funnel-count">92%</div></div>
+                  <div class="funnel-row s2"><div class="funnel-label">End-of-route</div><div class="funnel-bar"><div class="funnel-fill" style="width:91%">71 of 78 today</div></div><div class="funnel-count">91%</div></div>
+                  <div class="funnel-row s3"><div class="funnel-label">Onboarding</div><div class="funnel-bar"><div class="funnel-fill" style="width:75%">3 of 4</div></div><div class="funnel-count">75%</div></div>
+                  <div class="funnel-row s4"><div class="funnel-label">Maintenance</div><div class="funnel-bar"><div class="funnel-fill" style="width:50%">2 open of last 4</div></div><div class="funnel-count">50%</div></div>
+                </div>
+              </div>
+            </div>
+
+          </main>
         </div>
       </div>
     </div>
@@ -4866,6 +5245,155 @@ a{color:inherit;text-decoration:none}
 
 <!-- Toast stack -->
 <div class="toast-stack" id="toast-stack"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FORM BUILDER MODAL (no-code drag-drop)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-form-builder" onclick="if(event.target===this)closeModal('modal-form-builder')">
+  <div class="modal-card builder-modal">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Form builder</p>
+        <p class="modal-sub">Drag fields from the left → drop in the form → edit properties on the right</p>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-sm">Preview</button>
+        <button class="btn btn-sm">Save draft</button>
+        <button class="btn btn-sm btn-primary" onclick="closeModal('modal-form-builder');toast('Form published · drivers will see it now')">Publish</button>
+        <button class="modal-close" onclick="closeModal('modal-form-builder')" style="margin-left:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+    <div class="builder-grid">
+      <!-- LEFT: Field palette -->
+      <div class="field-palette">
+        <div class="field-palette-section">Text</div>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/></svg>Short text</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>Long text</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M16 8a4 4 0 1 0-8 0v4"/></svg>Email</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/></svg>Phone</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="14" y2="15"/></svg>Number</button>
+
+        <div class="field-palette-section">Choice</div>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Single choice</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Multi-select</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>Dropdown</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Yes/No</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Rating · 1–5</button>
+
+        <div class="field-palette-section">Date &amp; time</div>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Date</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time</button>
+
+        <div class="field-palette-section">Files &amp; photos</div>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photo capture</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>File upload</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8"/></svg>Signature</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 8-8z"/></svg>GPS location</button>
+
+        <div class="field-palette-section">Layout</div>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16"/></svg>Section header</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/></svg>Divider</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image / instruction</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>Embed video</button>
+
+        <div class="field-palette-section">Logic</div>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>Conditional logic</button>
+        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Validation rule</button>
+      </div>
+
+      <!-- MIDDLE: Form canvas -->
+      <div class="builder-canvas">
+        <div class="builder-canvas-form">
+          <input class="builder-form-name" value="Pre-trip vehicle inspection" />
+          <textarea class="builder-form-desc" rows="2">Complete before starting your route. Photos required for any defects. Submit takes ~2 minutes.</textarea>
+
+          <div class="builder-field">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">Vehicle ID<span class="req">*</span></label>
+            <input class="builder-field-input" placeholder="VAN-04" disabled />
+          </div>
+
+          <div class="builder-field active">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">Tire condition<span class="req">*</span></label>
+            <div class="builder-field-radio-row">
+              <div class="builder-field-radio">All four tires inflated, no visible damage</div>
+              <div class="builder-field-radio">One or more tires need attention</div>
+            </div>
+          </div>
+
+          <div class="builder-field">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">If issue found, attach photo</label>
+            <div class="builder-field-img-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Photo capture · driver tap to upload from camera
+            </div>
+          </div>
+
+          <div class="builder-field">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">Brake test passed<span class="req">*</span></label>
+            <div class="builder-field-radio-row">
+              <div class="builder-field-radio">Yes — firm, even braking</div>
+              <div class="builder-field-radio">No — soft pedal or pulling</div>
+            </div>
+          </div>
+
+          <div class="builder-field">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">Fluid levels OK</label>
+            <div class="builder-field-radio-row">
+              <div class="builder-field-radio">Oil ✓</div>
+              <div class="builder-field-radio">Coolant ✓</div>
+              <div class="builder-field-radio">Washer fluid ✓</div>
+            </div>
+          </div>
+
+          <div class="builder-field">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">Fuel level at start</label>
+            <input class="builder-field-input" placeholder="Pick: Empty / 1/4 / 1/2 / 3/4 / Full" disabled />
+          </div>
+
+          <div class="builder-field">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">Notes (optional)</label>
+            <textarea class="builder-field-input" placeholder="Anything to flag for dispatch?" rows="2" disabled></textarea>
+          </div>
+
+          <div class="builder-field">
+            <span class="builder-field-handle">⋮⋮</span>
+            <label class="builder-field-label">Driver signature<span class="req">*</span></label>
+            <div class="builder-field-img-placeholder" style="background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 8px,#F1F5F9 8px,#F1F5F9 16px)">
+              Tap to sign
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="margin-top:var(--s-4);width:100%;justify-content:center">+ Drag a field here or click to add</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: Field properties (for selected field) -->
+      <div class="field-props">
+        <div class="field-props-head">Field properties</div>
+        <div class="field-prop-row"><span class="field-prop-label">Field type</span><div style="font-size:13px;font-weight:600;color:var(--text)">Single choice</div></div>
+        <div class="field-prop-row"><span class="field-prop-label">Question</span><input class="field-prop-input" value="Tire condition" /></div>
+        <div class="field-prop-row"><span class="field-prop-label">Help text</span><input class="field-prop-input" value="Walk around vehicle, check all four tires" /></div>
+        <div class="field-prop-row"><span class="field-prop-label">Required</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+        <div class="field-prop-row"><span class="field-prop-label">Auto-fail when</span><select class="field-prop-input"><option>One or more tires need attention</option><option>Never</option></select></div>
+        <div class="field-prop-row"><span class="field-prop-label">If "needs attention" → show next field</span><select class="field-prop-input"><option>Photo capture · "If issue found, attach photo"</option><option>None</option></select></div>
+
+        <div class="field-props-head" style="margin-top:var(--s-4)">Form-level settings</div>
+        <div class="field-prop-row"><span class="field-prop-label">Assigned to</span><div style="font-size:12px;color:var(--text-muted)">All KMO1 + KMO2 + KMO3 drivers (78)</div></div>
+        <div class="field-prop-row"><span class="field-prop-label">Schedule</span><div style="font-size:12px;color:var(--text-muted)">Daily at 6:30 AM · push notification</div></div>
+        <div class="field-prop-row"><span class="field-prop-label">Required submission</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+        <div class="field-prop-row"><span class="field-prop-label">Submit before</span><div style="font-size:12px;color:var(--text-muted)">Route start time</div></div>
+        <div class="field-prop-row"><span class="field-prop-label">Notify on flagged answer</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════
      BROADCAST COMPOSER MODAL
@@ -5618,6 +6146,7 @@ a{color:inherit;text-decoration:none}
       drivers: 'Drivers',
       schedule: 'Schedule',
       messages: 'Messages',
+      forms: 'Forms',
       alerts: 'Alerts',
       reports: 'Reports',
       settings: 'Settings',
@@ -5629,6 +6158,7 @@ a{color:inherit;text-decoration:none}
       drivers: '78 active · 5 at risk',
       schedule: 'Week of May 1–7 · 5 pending approvals',
       messages: '7 unread · 12 active drivers',
+      forms: '12 published · 47 submissions this week',
       alerts: '8 open · 3 require action',
       reports: 'Auto-generated nightly',
       settings: 'Cardinal Logistics · KMO1',
@@ -5763,6 +6293,15 @@ a{color:inherit;text-decoration:none}
 
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
+
+  // ─── FORMS ─────────────────────────────────────────────────
+  function formsTab(btn, sub){
+    document.querySelectorAll('#view-forms .forms-side-item').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.querySelectorAll('.forms-tab').forEach(function(v){ v.style.display = 'none'; });
+    const target = document.getElementById('forms-tab-' + sub);
+    if (target) target.style.display = 'block';
+  }
 
   // ─── MESSAGES ──────────────────────────────────────────────
   function msgListTab(btn){
