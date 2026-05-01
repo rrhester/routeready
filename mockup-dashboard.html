@@ -811,6 +811,135 @@ a{color:inherit;text-decoration:none}
   font-size:11px;font-weight:600;letter-spacing:.01em;
 }
 .thesis-pill svg{width:11px;height:11px;stroke-width:2.5}
+
+/* ─────────────────────────────────────────────────────────────
+   ATTENDANCE — morning check-in banner + full-screen flow
+   ───────────────────────────────────────────────────────────── */
+.checkin-banner{
+  background:linear-gradient(120deg,#0F172A 0%,#1E40AF 100%);
+  color:#fff;border-radius:var(--r-lg);padding:var(--s-5) var(--s-6);
+  display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-6);
+  position:relative;overflow:hidden;
+}
+.checkin-banner::after{
+  content:'';position:absolute;right:-40px;top:-40px;width:160px;height:160px;
+  background:radial-gradient(circle,rgba(255,255,255,.08) 0%,transparent 70%);pointer-events:none;
+}
+.checkin-banner-icon{
+  width:44px;height:44px;border-radius:var(--r-md);
+  background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.checkin-banner-icon svg{width:22px;height:22px;stroke-width:1.75}
+.checkin-banner-body{flex:1;min-width:0;position:relative;z-index:1}
+.checkin-banner-eyebrow{
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.65);margin-bottom:3px;
+}
+.checkin-banner-title{font-size:16px;font-weight:600;line-height:1.3;color:#fff}
+.checkin-banner-sub{font-size:12px;color:rgba(255,255,255,.7);margin-top:2px;line-height:1.5}
+.checkin-banner-cta{
+  background:#fff;color:#0F172A;padding:9px 16px;border-radius:var(--r-md);
+  font-size:13px;font-weight:600;border:none;cursor:pointer;flex-shrink:0;position:relative;z-index:1;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.checkin-banner-cta:hover{background:#F1F5F9}
+.checkin-banner-cta svg{width:14px;height:14px;stroke-width:2}
+
+/* Compact summary version (after check-in is done) */
+.checkin-summary{
+  background:var(--green-soft);border:1px solid #BBF7D0;
+  border-radius:var(--r-lg);padding:var(--s-3) var(--s-5);
+  display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-6);
+}
+.checkin-summary-check{
+  width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.checkin-summary-check svg{width:14px;height:14px;stroke-width:3}
+.checkin-summary-msg{flex:1;font-size:13px;color:var(--text)}
+.checkin-summary-msg strong{font-weight:600}
+.checkin-summary-link{font-size:12px;color:var(--accent-text);font-weight:500;background:none;border:none;cursor:pointer}
+
+/* Check-in full screen */
+.checkin-page{padding:var(--s-6) var(--s-8)}
+.checkin-head{
+  display:flex;justify-content:space-between;align-items:flex-end;
+  margin-bottom:var(--s-5);gap:var(--s-4);
+}
+.checkin-progress-wrap{margin-bottom:var(--s-4)}
+.checkin-progress{
+  height:8px;background:var(--canvas);border-radius:4px;overflow:hidden;
+}
+.checkin-progress-fill{
+  height:100%;background:linear-gradient(90deg,var(--accent),#2563EB);
+  border-radius:4px;transition:width .25s;
+}
+.checkin-progress-meta{
+  display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);
+  margin-top:6px;
+}
+
+.checkin-toolbar{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:var(--s-3);gap:var(--s-3);
+}
+.checkin-list{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  overflow:hidden;
+}
+.checkin-row{
+  display:grid;grid-template-columns:1fr 80px auto;gap:var(--s-4);align-items:center;
+  padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border);
+}
+.checkin-row:last-child{border-bottom:none}
+.checkin-row.marked-callout{background:#FEF2F2}
+.checkin-row.marked-late{background:#FFFBEB}
+.checkin-row.marked-noshow{background:#FEE2E2}
+.checkin-row.marked-present{background:#F0FDF4}
+
+.checkin-driver{display:flex;align-items:center;gap:10px}
+.checkin-driver-name{font-size:13px;font-weight:600;color:var(--text)}
+.checkin-driver-meta{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.checkin-driver-pattern{
+  font-size:10px;font-weight:600;color:var(--amber);margin-top:3px;
+  display:inline-flex;align-items:center;gap:3px;
+}
+.checkin-station{font-size:12px;color:var(--text-muted)}
+
+.status-row{display:flex;gap:4px}
+.status-btn{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  font-size:14px;color:var(--text-muted);transition:all .12s;
+}
+.status-btn:hover{background:var(--canvas);border-color:var(--border-strong)}
+.status-btn.active.s-present{background:var(--green);border-color:var(--green);color:#fff}
+.status-btn.active.s-late{background:var(--amber);border-color:var(--amber);color:#fff}
+.status-btn.active.s-callout{background:var(--red);border-color:var(--red);color:#fff}
+.status-btn.active.s-noshow{background:#0F172A;border-color:#0F172A;color:#fff}
+.status-btn svg{width:14px;height:14px;stroke-width:2.5}
+
+.checkin-foot{
+  position:sticky;bottom:0;background:var(--surface);
+  border-top:1px solid var(--border);padding:var(--s-4) var(--s-5);
+  display:flex;align-items:center;gap:var(--s-3);margin-top:var(--s-4);
+  border-radius:0 0 var(--r-lg) var(--r-lg);
+}
+.checkin-foot-counts{flex:1;font-size:13px;color:var(--text);display:flex;gap:var(--s-4);align-items:center;font-weight:500}
+.checkin-count-pip{
+  display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);
+}
+.checkin-count-pip-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+/* Attendance pill (in driver tables, etc.) */
+.att-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:500;color:var(--text-muted);
+}
+.att-pill-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.att-pill.warn .att-pill-dot{background:var(--amber)}
+.att-pill.bad .att-pill-dot{background:var(--red)}
+.att-pill strong{color:var(--text);font-weight:600}
 </style>
 </head>
 <body>
@@ -919,6 +1048,22 @@ a{color:inherit;text-decoration:none}
               Add applicant
             </button>
           </div>
+        </div>
+
+        <!-- Morning check-in banner -->
+        <div class="checkin-banner" id="checkin-banner">
+          <div class="checkin-banner-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <div class="checkin-banner-body">
+            <div class="checkin-banner-eyebrow">Today · Tuesday, May 1</div>
+            <div class="checkin-banner-title">Check in your team for today</div>
+            <div class="checkin-banner-sub">78 drivers expected · 0 marked so far · Live coverage updates as you check in</div>
+          </div>
+          <button class="checkin-banner-cta" onclick="goto('checkin')">
+            Start check-in
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
         </div>
 
         <!-- KPI strip -->
@@ -1334,6 +1479,7 @@ a{color:inherit;text-decoration:none}
                 <th>Station</th>
                 <th>Tenure</th>
                 <th>Score</th>
+                <th>Attendance · 30d</th>
                 <th>Status</th>
                 <th>Last coached</th>
                 <th></th>
@@ -1345,6 +1491,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO1</td>
                 <td>18 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill red" style="width:62%"></span></span><span style="font-weight:600">62</span></td>
+                <td><span class="att-pill bad"><span class="att-pill-dot"></span><strong>3 callouts</strong> · 88%</span></td>
                 <td><span class="flag safety">Safety</span><br><span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2 ready</span></td>
                 <td class="cell-time">3 days ago</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags this cycle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
@@ -1354,6 +1501,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO2</td>
                 <td>9 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill amber" style="width:68%"></span></span><span style="font-weight:600">68</span></td>
+                <td><span class="att-pill warn"><span class="att-pill-dot"></span><strong>2 callouts</strong> · 92%</span></td>
                 <td><span class="flag attendance">Attendance</span><br><span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 ready</span></td>
                 <td class="cell-time">Yesterday</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Tasha Reyes','attendance','1 attendance incident this cycle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
@@ -1363,6 +1511,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO1</td>
                 <td>24 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill amber" style="width:71%"></span></span><span style="font-weight:600">71</span></td>
+                <td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>
                 <td><span class="flag scorecard">Scorecard</span><br><span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>1 ready, 2 screening</span></td>
                 <td class="cell-time">5 days ago</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over last 2 weeks')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
@@ -1372,6 +1521,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO3</td>
                 <td>6 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill amber" style="width:73%"></span></span><span style="font-weight:600">73</span></td>
+                <td><span class="att-pill warn"><span class="att-pill-dot"></span><strong>1 callout</strong> · 96%</span></td>
                 <td><span class="flag scorecard">Scorecard</span><br><span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>KMO3 thin</span></td>
                 <td class="cell-time">Today</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns in last 7 days')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
@@ -1381,6 +1531,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO3</td>
                 <td>11 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill" style="width:79%"></span></span><span style="font-weight:600">79</span></td>
+                <td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>
                 <td><span class="tag">On track</span></td>
                 <td class="cell-time">2 wks ago</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Devon Patterson','quality','')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
@@ -1390,6 +1541,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO1</td>
                 <td>22 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill" style="width:88%"></span></span><span style="font-weight:600">88</span></td>
+                <td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>
                 <td><span class="tag" style="background:var(--green-soft);color:var(--green)">Top tier</span></td>
                 <td class="cell-time">Never</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Camille Foster','behavior','Top performer — recognition opportunity')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
@@ -1703,6 +1855,174 @@ a{color:inherit;text-decoration:none}
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         TODAY'S CHECK-IN VIEW (attendance)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-checkin">
+      <div class="checkin-page">
+        <div class="checkin-head">
+          <div>
+            <button class="btn btn-sm" onclick="goto('dashboard')" style="margin-bottom:10px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              Back to Dashboard
+            </button>
+            <h1 class="page-title">Today's check-in</h1>
+            <p class="page-sub">Tuesday, May 1 · 78 drivers expected · KMO1, KMO2, KMO3</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">Mark all on time</button>
+            <button class="btn btn-primary" onclick="goto('dashboard')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Save &amp; close
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="checkin-progress-wrap">
+          <div class="checkin-progress"><div class="checkin-progress-fill" id="ci-progress" style="width:0%"></div></div>
+          <div class="checkin-progress-meta">
+            <span><span id="ci-marked">0</span> of 78 marked</span>
+            <span>Coverage updates live as you check in</span>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="checkin-toolbar">
+          <div class="toolbar-left">
+            <span class="filter-chip">All routes</span>
+            <span class="filter-chip">Unmarked first</span>
+          </div>
+          <div class="toolbar-right">
+            <span class="filter-chip">Sort: A → Z</span>
+          </div>
+        </div>
+
+        <!-- List -->
+        <div class="checkin-list">
+
+          <div class="checkin-row" data-name="MD">
+            <div class="checkin-driver">
+              <div class="avatar-sm tier-d">MD</div>
+              <div>
+                <div class="checkin-driver-name">Marcus Davidson</div>
+                <div class="checkin-driver-meta">+1 417 555 0100</div>
+                <div class="checkin-driver-pattern">⚠ Pattern: 3 callouts in last 30 days</div>
+              </div>
+            </div>
+            <div class="checkin-station">KMO1</div>
+            <div class="status-row">
+              <button class="status-btn" data-s="present" onclick="ciMark(this)" title="Present"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="status-btn" data-s="late" onclick="ciMark(this)" title="Late"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+              <button class="status-btn" data-s="callout" onclick="ciMark(this)" title="Callout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="status-btn" data-s="noshow" onclick="ciMark(this)" title="No-show"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>
+            </div>
+          </div>
+
+          <div class="checkin-row" data-name="TR">
+            <div class="checkin-driver">
+              <div class="avatar-sm tier-d">TR</div>
+              <div>
+                <div class="checkin-driver-name">Tasha Reyes</div>
+                <div class="checkin-driver-meta">+1 417 555 0142</div>
+                <div class="checkin-driver-pattern">⚠ Pattern: Mondays + Fridays</div>
+              </div>
+            </div>
+            <div class="checkin-station">KMO2</div>
+            <div class="status-row">
+              <button class="status-btn" data-s="present" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="status-btn" data-s="late" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+              <button class="status-btn" data-s="callout" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="status-btn" data-s="noshow" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>
+            </div>
+          </div>
+
+          <div class="checkin-row" data-name="KW">
+            <div class="checkin-driver">
+              <div class="avatar-sm tier-c">KW</div>
+              <div>
+                <div class="checkin-driver-name">Kerwin Whitfield</div>
+                <div class="checkin-driver-meta">+1 417 555 0193</div>
+              </div>
+            </div>
+            <div class="checkin-station">KMO1</div>
+            <div class="status-row">
+              <button class="status-btn" data-s="present" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="status-btn" data-s="late" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+              <button class="status-btn" data-s="callout" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="status-btn" data-s="noshow" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>
+            </div>
+          </div>
+
+          <div class="checkin-row" data-name="JB">
+            <div class="checkin-driver">
+              <div class="avatar-sm tier-c">JB</div>
+              <div>
+                <div class="checkin-driver-name">Jordan Beckett</div>
+                <div class="checkin-driver-meta">+1 417 555 0218</div>
+              </div>
+            </div>
+            <div class="checkin-station">KMO3</div>
+            <div class="status-row">
+              <button class="status-btn" data-s="present" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="status-btn" data-s="late" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+              <button class="status-btn" data-s="callout" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="status-btn" data-s="noshow" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>
+            </div>
+          </div>
+
+          <div class="checkin-row" data-name="DP">
+            <div class="checkin-driver">
+              <div class="avatar-sm tier-b">DP</div>
+              <div>
+                <div class="checkin-driver-name">Devon Patterson</div>
+                <div class="checkin-driver-meta">+1 417 555 0276</div>
+              </div>
+            </div>
+            <div class="checkin-station">KMO3</div>
+            <div class="status-row">
+              <button class="status-btn" data-s="present" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="status-btn" data-s="late" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+              <button class="status-btn" data-s="callout" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="status-btn" data-s="noshow" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>
+            </div>
+          </div>
+
+          <div class="checkin-row" data-name="CF">
+            <div class="checkin-driver">
+              <div class="avatar-sm tier-a">CF</div>
+              <div>
+                <div class="checkin-driver-name">Camille Foster</div>
+                <div class="checkin-driver-meta">+1 417 555 0341</div>
+              </div>
+            </div>
+            <div class="checkin-station">KMO1</div>
+            <div class="status-row">
+              <button class="status-btn" data-s="present" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="status-btn" data-s="late" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+              <button class="status-btn" data-s="callout" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="status-btn" data-s="noshow" onclick="ciMark(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>
+            </div>
+          </div>
+
+          <!-- Sticky footer counts -->
+          <div class="checkin-foot">
+            <div class="checkin-foot-counts">
+              <span class="checkin-count-pip"><span class="checkin-count-pip-dot" style="background:var(--green)"></span>Present <strong id="ci-c-present">0</strong></span>
+              <span class="checkin-count-pip"><span class="checkin-count-pip-dot" style="background:var(--amber)"></span>Late <strong id="ci-c-late">0</strong></span>
+              <span class="checkin-count-pip"><span class="checkin-count-pip-dot" style="background:var(--red)"></span>Callout <strong id="ci-c-callout">0</strong></span>
+              <span class="checkin-count-pip"><span class="checkin-count-pip-dot" style="background:#0F172A"></span>No-show <strong id="ci-c-noshow">0</strong></span>
+            </div>
+            <button class="btn">Save draft</button>
+            <button class="btn btn-primary" onclick="goto('dashboard')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1922,7 +2242,8 @@ a{color:inherit;text-decoration:none}
       drivers: 'Drivers',
       alerts: 'Alerts',
       reports: 'Reports',
-      settings: 'Settings'
+      settings: 'Settings',
+      checkin: "Today's Check-in"
     };
     var contexts = {
       dashboard: 'Cycle 14 · Day 3 of 28',
@@ -1930,7 +2251,8 @@ a{color:inherit;text-decoration:none}
       drivers: '78 active · 5 at risk',
       alerts: '8 open · 3 require action',
       reports: 'Auto-generated nightly',
-      settings: 'Cardinal Logistics · KMO1'
+      settings: 'Cardinal Logistics · KMO1',
+      checkin: 'Tuesday, May 1 · 78 expected'
     };
     document.getElementById('tb-title').textContent = titles[view] || '';
     document.getElementById('tb-context').textContent = contexts[view] || '';
@@ -2027,6 +2349,38 @@ a{color:inherit;text-decoration:none}
       openCoachDrawer();
     }
   });
+
+  // ─── ATTENDANCE CHECK-IN ───────────────────────────────────
+  function ciMark(btn){
+    var row = btn.closest('.checkin-row');
+    var status = btn.getAttribute('data-s');
+    // Reset row
+    row.classList.remove('marked-present','marked-late','marked-callout','marked-noshow');
+    row.querySelectorAll('.status-btn').forEach(function(b){
+      b.classList.remove('active','s-present','s-late','s-callout','s-noshow');
+    });
+    // Apply
+    btn.classList.add('active','s-' + status);
+    row.classList.add('marked-' + status);
+    ciUpdateCounts();
+  }
+  function ciUpdateCounts(){
+    var counts = { present:0, late:0, callout:0, noshow:0 };
+    document.querySelectorAll('#view-checkin .checkin-row').forEach(function(r){
+      var active = r.querySelector('.status-btn.active');
+      if (active) {
+        var s = active.getAttribute('data-s');
+        if (counts[s] != null) counts[s]++;
+      }
+    });
+    document.getElementById('ci-c-present').textContent = counts.present;
+    document.getElementById('ci-c-late').textContent    = counts.late;
+    document.getElementById('ci-c-callout').textContent = counts.callout;
+    document.getElementById('ci-c-noshow').textContent  = counts.noshow;
+    var marked = counts.present + counts.late + counts.callout + counts.noshow;
+    document.getElementById('ci-marked').textContent = marked;
+    document.getElementById('ci-progress').style.width = (marked / 78 * 100) + '%';
+  }
 </script>
 
 </body>
