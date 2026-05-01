@@ -1590,6 +1590,75 @@ a{color:inherit;text-decoration:none}
   padding:var(--s-4) var(--s-5);border-top:1px solid var(--border);
   display:flex;gap:var(--s-2);justify-content:flex-end;background:var(--surface);
 }
+
+/* ─────────────────────────────────────────────────────────────
+   COVERAGE CONFIDENCE DEEP-DIVE
+   ───────────────────────────────────────────────────────────── */
+.cc-headline{
+  background:linear-gradient(135deg,#0F172A 0%,#1E40AF 100%);
+  color:#fff;padding:24px;border-radius:var(--r-lg);
+  display:grid;grid-template-columns:1fr auto;gap:var(--s-4);align-items:center;
+}
+.cc-headline-num{font-size:48px;font-weight:700;letter-spacing:-.03em;line-height:1;color:#fff}
+.cc-headline-label{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:6px}
+.cc-headline-status{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#86EFAC;margin-top:6px}
+.cc-headline-status svg{width:14px;height:14px;stroke-width:2.5}
+.cc-headline-thesis{font-size:11px;color:rgba(255,255,255,.7);margin-top:4px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+
+.cc-timeframe-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-top:var(--s-3)}
+.cc-timeframe{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--s-3) var(--s-4);
+}
+.cc-timeframe-label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+.cc-timeframe-num{font-size:20px;font-weight:700;color:var(--text)}
+.cc-timeframe-num.warn{color:var(--amber)}
+.cc-timeframe-num.bad{color:var(--red)}
+.cc-timeframe-bar{
+  height:4px;background:var(--canvas);border-radius:2px;margin-top:6px;overflow:hidden;
+}
+.cc-timeframe-bar-fill{height:100%;background:var(--green);border-radius:2px}
+.cc-timeframe-bar-fill.warn{background:var(--amber)}
+.cc-timeframe-bar-fill.bad{background:var(--red)}
+.cc-timeframe-detail{font-size:10px;color:var(--text-subtle);margin-top:4px}
+
+.cc-factor{
+  display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:flex-start;
+  padding:8px 0;border-bottom:1px solid var(--border);
+}
+.cc-factor:last-child{border-bottom:none}
+.cc-factor-icon{
+  width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.cc-factor-icon.pos{background:var(--green-soft);color:var(--green)}
+.cc-factor-icon.neg{background:var(--red-soft);color:var(--red)}
+.cc-factor-icon.warn{background:var(--amber-soft);color:var(--amber)}
+.cc-factor-icon svg{width:12px;height:12px;stroke-width:2.5}
+.cc-factor-text{font-size:12px;color:var(--text);line-height:1.45}
+.cc-factor-text strong{font-weight:600}
+.cc-factor-text small{color:var(--text-subtle);font-size:11px;display:block;margin-top:2px}
+.cc-factor-impact{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px;white-space:nowrap;
+}
+.cc-factor-impact.pos{background:var(--green-soft);color:var(--green)}
+.cc-factor-impact.neg{background:var(--red-soft);color:var(--red)}
+.cc-factor-impact.warn{background:var(--amber-soft);color:var(--amber)}
+
+.cc-action{
+  display:grid;grid-template-columns:1fr auto;gap:var(--s-3);align-items:center;
+  background:var(--accent-soft);border:1px solid #146EB433;border-radius:var(--r-md);
+  padding:10px 14px;margin-bottom:6px;
+}
+.cc-action-text{font-size:12px;color:var(--text);line-height:1.4}
+.cc-action-text strong{color:var(--accent-text)}
+
+/* Make Coverage Confidence KPI clickable */
+.kpi-card.coverage{cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.kpi-card.coverage:hover{border-color:#86EFAC;box-shadow:0 4px 12px rgba(34,197,94,.12)}
+.kpi-card.coverage::after{
+  content:'›';position:absolute;top:14px;right:16px;
+  color:var(--text-subtle);font-size:18px;font-weight:300;
+}
 </style>
 </head>
 <body>
@@ -1736,7 +1805,7 @@ a{color:inherit;text-decoration:none}
             <div class="kpi-value">78<span class="kpi-value-fraction"> / 90</span></div>
             <div class="kpi-sub"><span class="kpi-pip red"></span> Short 12 for next week</div>
           </div>
-          <div class="kpi-card coverage warn">
+          <div class="kpi-card coverage warn" onclick="openCoverageDetail()">
             <div class="kpi-label" style="display:flex;justify-content:space-between;align-items:center">
               <span>Coverage confidence</span>
               <span style="font-size:9px;color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:none">THE THESIS</span>
@@ -3982,6 +4051,157 @@ a{color:inherit;text-decoration:none}
 <div class="toast-stack" id="toast-stack"></div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     COVERAGE CONFIDENCE DEEP-DIVE DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer" id="coverage-drawer" style="width:640px" aria-label="Coverage confidence detail">
+  <div class="detail-head" style="padding-bottom:0">
+    <div>
+      <h2 class="detail-name" style="font-size:16px;margin-bottom:2px">Coverage Confidence</h2>
+      <div class="detail-meta">The thesis · supply vs. demand vs. risk · what's behind the score</div>
+    </div>
+    <button class="cd-close" onclick="closeCoverageDetail()" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="detail-body">
+
+    <div class="cc-headline">
+      <div>
+        <div class="cc-headline-label">Overall · this week</div>
+        <div class="cc-headline-num">84%</div>
+        <div class="cc-headline-status">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+          Safe to act on accountability
+        </div>
+        <div class="cc-headline-thesis">"Coach with confidence — the bench is real"</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="detail-section-label" style="margin-top:8px">By timeframe</div>
+      <div class="cc-timeframe-grid">
+        <div class="cc-timeframe">
+          <div class="cc-timeframe-label">This week</div>
+          <div class="cc-timeframe-num">87%</div>
+          <div class="cc-timeframe-bar"><div class="cc-timeframe-bar-fill" style="width:87%"></div></div>
+          <div class="cc-timeframe-detail">3 open shifts · backup notified</div>
+        </div>
+        <div class="cc-timeframe">
+          <div class="cc-timeframe-label">Next week</div>
+          <div class="cc-timeframe-num">81%</div>
+          <div class="cc-timeframe-bar"><div class="cc-timeframe-bar-fill" style="width:81%"></div></div>
+          <div class="cc-timeframe-detail">5 gaps · pipeline likely to fill 3</div>
+        </div>
+        <div class="cc-timeframe">
+          <div class="cc-timeframe-label">Cycle end (25d)</div>
+          <div class="cc-timeframe-num warn">62%</div>
+          <div class="cc-timeframe-bar"><div class="cc-timeframe-bar-fill warn" style="width:62%"></div></div>
+          <div class="cc-timeframe-detail">Hire 3+ to stay safe</div>
+        </div>
+        <div class="cc-timeframe">
+          <div class="cc-timeframe-label">4 weeks out</div>
+          <div class="cc-timeframe-num bad">54%</div>
+          <div class="cc-timeframe-bar"><div class="cc-timeframe-bar-fill bad" style="width:54%"></div></div>
+          <div class="cc-timeframe-detail">Memorial Day · structural gap</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="detail-section-label" style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Working in your favor (supply)
+      </div>
+      <div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon pos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="cc-factor-text"><strong>78 active drivers</strong><small>Capacity baseline. Avg score 81 (above target).</small></div>
+          <span class="cc-factor-impact pos">+ baseline</span>
+        </div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon pos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="cc-factor-text"><strong>14 applicants in screening</strong><small>Historical screen→hire rate 56%. Expected hires this cycle: 8.</small></div>
+          <span class="cc-factor-impact pos">+8 hires</span>
+        </div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon pos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="cc-factor-text"><strong>7 candidates booked Friday</strong><small>Show rate this cycle: 71%. Hire rate from interview: 68%.</small></div>
+          <span class="cc-factor-impact pos">+3–5 hires</span>
+        </div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon pos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="cc-factor-text"><strong>5 backup pool drivers</strong><small>Open shift fill rate: 78% within 24h. Strong reliability.</small></div>
+          <span class="cc-factor-impact pos">+ resilience</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="detail-section-label" style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Working against you (demand + risk)
+      </div>
+      <div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon neg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/></svg></div>
+          <div class="cc-factor-text"><strong>3 drivers below performance threshold</strong><small>Davidson (62), Reyes (68), Whitfield (71). Likely to need coaching out within cycle.</small></div>
+          <span class="cc-factor-impact neg">−3 capacity</span>
+        </div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          <div class="cc-factor-text"><strong>Davidson · 3 callouts in last 30 days</strong><small>Pattern: Mondays. 67% probability of calling out next Monday based on history.</small></div>
+          <span class="cc-factor-impact warn">−1 Mon</span>
+        </div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></div>
+          <div class="cc-factor-text"><strong>2 drivers approved PTO next week</strong><small>Reyes (May 10–12), Patterson (May 15–17). Both routes pre-assigned but on backup.</small></div>
+          <span class="cc-factor-impact warn">−2 routes</span>
+        </div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div class="cc-factor-text"><strong>KMO3 station bench is thin</strong><small>Only 1 backup-qualified driver for KMO3 routes. Single point of failure.</small></div>
+          <span class="cc-factor-impact warn">station risk</span>
+        </div>
+        <div class="cc-factor">
+          <div class="cc-factor-icon neg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="cc-factor-text"><strong>Cycle ends in 25 days</strong><small>Currently 4 hires of 12 needed. Pipeline trajectory: 8 likely. Gap of 4 forecasted.</small></div>
+          <span class="cc-factor-impact neg">cycle gap</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="detail-section-label" style="margin-top:8px">What would improve this score</div>
+      <div class="cc-action">
+        <div class="cc-action-text">Hire <strong>3 more drivers this cycle</strong> — moves cycle-end score from 62% → 84%.</div>
+        <button class="btn btn-sm btn-primary" onclick="goto('pipeline');closeCoverageDetail()">Open pipeline →</button>
+      </div>
+      <div class="cc-action">
+        <div class="cc-action-text">Coach Davidson this week — <strong>resolves 67% Monday-callout risk</strong>, recovers 1 driver.</div>
+        <button class="btn btn-sm btn-primary" onclick="closeCoverageDetail();openCoachDrawer('Marcus Davidson','safety','3 callouts in last 30 days · Monday pattern')">Coach now</button>
+      </div>
+      <div class="cc-action">
+        <div class="cc-action-text">Notify backup pool earlier for next week — <strong>fill rate jumps from 78% → 91%</strong> with 48h notice.</div>
+        <button class="btn btn-sm" onclick="closeCoverageDetail();goto('schedule');setTimeout(function(){schedSub('open');},50)">Open shifts →</button>
+      </div>
+      <div class="cc-action">
+        <div class="cc-action-text">Add KMO3-qualified backup driver — <strong>removes station single point of failure</strong>.</div>
+        <button class="btn btn-sm" onclick="goto('pipeline');closeCoverageDetail()">Source candidate</button>
+      </div>
+    </div>
+
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeCoverageDetail()">Close</button>
+    <button class="btn" onclick="toast('Coverage report PDF generating…')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export report
+    </button>
+    <button class="btn btn-primary" onclick="closeCoverageDetail();goto('pipeline')">Take action →</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
      APPLICANT DETAIL DRAWER
      ═══════════════════════════════════════════════════════════ -->
 <div class="coach-backdrop" id="ap-backdrop" onclick="closeApplicantDetail()"></div>
@@ -4648,6 +4868,18 @@ a{color:inherit;text-decoration:none}
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
 
+  // ─── COVERAGE CONFIDENCE DEEP-DIVE ─────────────────────────
+  function openCoverageDetail(){
+    document.getElementById('coverage-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCoverageDetail(){
+    document.getElementById('coverage-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
   // ─── APPLICANT DETAIL DRAWER ───────────────────────────────
   function openApplicantDetail(name, meta, score, source, stage){
     document.getElementById('ap-initials').textContent = (name || '').split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase();
@@ -4665,6 +4897,7 @@ a{color:inherit;text-decoration:none}
     document.getElementById('applicant-drawer').classList.remove('open');
     document.getElementById('ap-backdrop').classList.remove('open');
     document.getElementById('driver-drawer').classList.remove('open');
+    document.getElementById('coverage-drawer').classList.remove('open');
     document.body.style.overflow = '';
   }
 
