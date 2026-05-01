@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RouteReady — Redesign Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   DESIGN TOKENS
+   ───────────────────────────────────────────────────────────── */
+:root{
+  /* Surfaces */
+  --canvas:#F7F8FA;
+  --surface:#FFFFFF;
+  --surface-hover:#F1F3F6;
+  --sidebar:#0F172A;
+  --sidebar-hover:#1E293B;
+  --sidebar-active:#1E40AF1A;
+
+  /* Borders */
+  --border:#E5E8EE;
+  --border-strong:#D1D6DE;
+
+  /* Text */
+  --text:#0F172A;
+  --text-muted:#475569;
+  --text-subtle:#94A3B8;
+  --text-inverse:#F8FAFC;
+  --text-inverse-muted:#94A3B8;
+
+  /* Brand */
+  --accent:#146EB4;
+  --accent-hover:#0F5A95;
+  --accent-soft:#146EB414;
+  --accent-text:#0E5A95;
+
+  /* Semantic */
+  --green:#16A34A;
+  --green-soft:#16A34A14;
+  --amber:#D97706;
+  --amber-soft:#D9770614;
+  --red:#DC2626;
+  --red-soft:#DC262614;
+
+  /* Spacing scale (8px) */
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px;
+  --s-5:20px; --s-6:24px; --s-8:32px; --s-10:40px;
+
+  /* Radii */
+  --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px;
+
+  /* Shadow (very subtle, only for hovers/menus) */
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+  --shadow-md:0 4px 12px rgba(15,23,42,.06);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  color:var(--text);
+  background:var(--canvas);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+button{font-family:inherit;cursor:pointer}
+a{color:inherit;text-decoration:none}
+
+/* ─────────────────────────────────────────────────────────────
+   APP SHELL
+   ───────────────────────────────────────────────────────────── */
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+
+/* Sidebar */
+.sidebar{
+  background:var(--sidebar);
+  color:var(--text-inverse);
+  display:flex;flex-direction:column;
+  padding:var(--s-5) var(--s-3);
+  position:sticky;top:0;height:100vh;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:0 var(--s-3) var(--s-6) var(--s-3)}
+.brand-mark{
+  width:28px;height:28px;border-radius:8px;
+  background:linear-gradient(135deg,#2563EB,#146EB4);
+  display:flex;align-items:center;justify-content:center;
+}
+.brand-mark svg{width:16px;height:16px}
+.brand-name{font-weight:700;font-size:15px;letter-spacing:-.01em}
+.brand-name em{font-style:normal;font-weight:400;color:var(--text-inverse-muted)}
+
+.nav{display:flex;flex-direction:column;gap:2px;flex:1}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;border-radius:var(--r-md);
+  color:var(--text-inverse-muted);
+  font-size:13px;font-weight:500;
+  cursor:pointer;transition:background .12s,color .12s;
+  border:none;background:transparent;text-align:left;width:100%;
+}
+.nav-item:hover{background:var(--sidebar-hover);color:var(--text-inverse)}
+.nav-item.active{background:#1E3A8A33;color:#fff;font-weight:600}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;stroke-width:1.75}
+.nav-badge{
+  margin-left:auto;background:var(--red);color:#fff;
+  font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;
+  min-width:18px;text-align:center;
+}
+
+.nav-section-label{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:#64748B;padding:var(--s-4) var(--s-3) var(--s-2) var(--s-3);
+}
+
+.workspace-chip{
+  margin-top:var(--s-3);padding:10px 12px;border-radius:var(--r-md);
+  background:#1E293B;display:flex;align-items:center;gap:10px;
+}
+.workspace-chip-avatar{
+  width:24px;height:24px;border-radius:6px;
+  background:linear-gradient(135deg,#146EB4,#2563EB);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;color:#fff;
+}
+.workspace-chip-name{font-size:12px;font-weight:600;color:#fff;line-height:1.2}
+.workspace-chip-sub{font-size:10px;color:var(--text-inverse-muted);line-height:1.2;margin-top:2px}
+
+/* Main column */
+.main{display:flex;flex-direction:column;min-width:0}
+
+/* Top bar */
+.topbar{
+  height:56px;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
+  position:sticky;top:0;z-index:10;
+}
+.topbar-title{font-size:14px;font-weight:600;color:var(--text)}
+.topbar-context{font-size:12px;color:var(--text-subtle);margin-left:var(--s-3)}
+.topbar-spacer{flex:1}
+.search{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--canvas);min-width:240px;color:var(--text-subtle);font-size:13px;
+}
+.search svg{width:14px;height:14px;stroke-width:2}
+.search-kbd{
+  margin-left:auto;font-size:10px;font-weight:600;
+  background:#fff;border:1px solid var(--border);
+  padding:1px 5px;border-radius:4px;color:var(--text-subtle);
+}
+.icon-btn{
+  width:32px;height:32px;border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;color:var(--text-muted);position:relative;
+}
+.icon-btn:hover{background:var(--surface-hover);color:var(--text)}
+.icon-btn svg{width:16px;height:16px;stroke-width:1.75}
+.icon-btn .dot{
+  position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
+  background:var(--red);border:2px solid #fff;
+}
+.account{
+  width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(135deg,#146EB4,#2563EB);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#fff;cursor:pointer;
+}
+
+/* Page */
+.page{padding:var(--s-8) var(--s-8)}
+.page-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-6);gap:var(--s-4)}
+.page-title{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:0 0 4px 0}
+.page-sub{font-size:13px;color:var(--text-muted);margin:0}
+.page-actions{display:flex;gap:var(--s-2);align-items:center}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 12px;border-radius:var(--r-md);
+  font-size:13px;font-weight:500;border:1px solid transparent;
+  transition:background .12s,border-color .12s,color .12s;
+  background:var(--surface);color:var(--text);border-color:var(--border);
+}
+.btn:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn svg{width:14px;height:14px;stroke-width:2}
+
+/* ─────────────────────────────────────────────────────────────
+   KPI STRIP
+   ───────────────────────────────────────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-6)}
+.kpi-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);
+}
+.kpi-label{
+  font-size:11px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
+}
+.kpi-value{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--text)}
+.kpi-value-fraction{font-size:14px;color:var(--text-subtle);font-weight:500;margin-left:2px}
+.kpi-sub{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text-muted)}
+.kpi-pip{width:8px;height:8px;border-radius:50%;display:inline-block}
+.kpi-pip.green{background:var(--green)}
+.kpi-pip.amber{background:var(--amber)}
+.kpi-pip.red{background:var(--red)}
+.kpi-delta{font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px}
+.kpi-delta.up{color:var(--green);background:var(--green-soft)}
+.kpi-delta.down{color:var(--red);background:var(--red-soft)}
+
+/* ─────────────────────────────────────────────────────────────
+   ATTENTION ZONE
+   ───────────────────────────────────────────────────────────── */
+.section{margin-bottom:var(--s-6)}
+.section-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s-3)}
+.section-title{font-size:13px;font-weight:600;color:var(--text);margin:0}
+.section-sub{font-size:12px;color:var(--text-subtle)}
+
+.attn-list{display:flex;flex-direction:column;gap:var(--s-2)}
+.attn-card{
+  background:var(--surface);border:1px solid var(--border);border-left-width:3px;border-radius:var(--r-md);
+  padding:var(--s-4) var(--s-5);
+  display:flex;align-items:center;gap:var(--s-4);
+}
+.attn-card.sev-amber{border-left-color:var(--amber)}
+.attn-card.sev-red{border-left-color:var(--red)}
+.attn-card.sev-blue{border-left-color:var(--accent)}
+.attn-icon{
+  width:32px;height:32px;border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.attn-icon.sev-amber{background:var(--amber-soft);color:var(--amber)}
+.attn-icon.sev-red{background:var(--red-soft);color:var(--red)}
+.attn-icon.sev-blue{background:var(--accent-soft);color:var(--accent-text)}
+.attn-icon svg{width:16px;height:16px;stroke-width:2}
+.attn-body{flex:1;min-width:0}
+.attn-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
+.attn-msg{font-size:12px;color:var(--text-muted);line-height:1.45}
+
+.attn-empty{
+  background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-md);
+  padding:var(--s-6);text-align:center;color:var(--text-muted);font-size:13px;
+}
+.attn-empty strong{color:var(--text);font-weight:600;display:block;margin-bottom:2px}
+
+/* ─────────────────────────────────────────────────────────────
+   PIPELINE HEALTH + PERFORMANCE RISK (split row)
+   ───────────────────────────────────────────────────────────── */
+.split{display:grid;grid-template-columns:1.15fr 1fr;gap:var(--s-3);margin-bottom:var(--s-6)}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);
+}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s-4)}
+.card-title{font-size:13px;font-weight:600;color:var(--text);margin:0}
+.card-link{font-size:12px;color:var(--accent-text);font-weight:500}
+
+/* Funnel */
+.funnel{display:flex;flex-direction:column;gap:10px}
+.funnel-row{display:grid;grid-template-columns:90px 1fr 60px;gap:var(--s-3);align-items:center}
+.funnel-label{font-size:12px;color:var(--text-muted);font-weight:500}
+.funnel-bar{height:24px;background:var(--canvas);border-radius:6px;position:relative;overflow:hidden}
+.funnel-fill{
+  height:100%;border-radius:6px;background:var(--accent);
+  display:flex;align-items:center;padding:0 8px;color:#fff;
+  font-size:11px;font-weight:600;transition:width .3s;
+}
+.funnel-row.s2 .funnel-fill{background:#2563EB;opacity:.85}
+.funnel-row.s3 .funnel-fill{background:#3B82F6;opacity:.75}
+.funnel-row.s4 .funnel-fill{background:#60A5FA;opacity:.85}
+.funnel-count{font-size:13px;font-weight:600;color:var(--text);text-align:right}
+
+/* Performance risk list */
+.perf-list{display:flex;flex-direction:column}
+.perf-row{
+  display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.perf-row:last-child{border-bottom:none}
+.perf-name{font-size:13px;font-weight:600;color:var(--text)}
+.perf-detail{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.flag{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;
+  letter-spacing:.02em;
+}
+.flag.safety{background:var(--red-soft);color:var(--red)}
+.flag.attendance{background:var(--amber-soft);color:var(--amber)}
+.flag.scorecard{background:var(--accent-soft);color:var(--accent-text)}
+
+/* Trends (low emphasis) */
+.trends{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-4) var(--s-5);
+}
+.trends-head{
+  display:flex;justify-content:space-between;align-items:center;cursor:pointer;
+}
+.trends-title{font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase}
+.trends-toggle{color:var(--text-subtle);font-size:12px}
+.trends-body{display:none;padding-top:var(--s-4);margin-top:var(--s-4);border-top:1px solid var(--border)}
+.trends.open .trends-body{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-5)}
+.trends.open .trends-toggle{transform:rotate(180deg)}
+.trend-item-label{font-size:11px;color:var(--text-muted);margin-bottom:4px}
+.trend-item-value{font-size:18px;font-weight:700;color:var(--text)}
+.trend-item-spark{
+  height:32px;background:linear-gradient(180deg,var(--accent-soft) 0%,transparent 100%);
+  border-bottom:1.5px solid var(--accent);margin-top:6px;border-radius:2px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PIPELINE PAGE
+   ───────────────────────────────────────────────────────────── */
+.stage-tabs{
+  display:flex;gap:2px;margin-bottom:var(--s-4);
+  border-bottom:1px solid var(--border);
+}
+.stage-tab{
+  padding:10px 14px;font-size:13px;font-weight:500;color:var(--text-muted);
+  border:none;background:transparent;cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  display:flex;align-items:center;gap:6px;
+}
+.stage-tab:hover{color:var(--text)}
+.stage-tab.active{color:var(--text);font-weight:600;border-bottom-color:var(--accent)}
+.stage-tab-count{
+  font-size:11px;font-weight:600;color:var(--text-subtle);
+  background:var(--canvas);padding:1px 7px;border-radius:10px;
+}
+.stage-tab.active .stage-tab-count{color:var(--accent-text);background:var(--accent-soft)}
+
+.toolbar{
+  display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);
+  margin-bottom:var(--s-3);
+}
+.toolbar-left{display:flex;align-items:center;gap:var(--s-2)}
+.toolbar-right{display:flex;align-items:center;gap:var(--s-2)}
+.filter-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 10px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);font-size:12px;color:var(--text-muted);font-weight:500;
+}
+.filter-chip svg{width:12px;height:12px;stroke-width:2}
+
+/* Table */
+.table-wrap{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+}
+.table{width:100%;border-collapse:collapse}
+.table thead th{
+  text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);
+  letter-spacing:.04em;text-transform:uppercase;
+  padding:10px 16px;background:var(--canvas);border-bottom:1px solid var(--border);
+}
+.table tbody td{
+  padding:14px 16px;font-size:13px;color:var(--text);
+  border-bottom:1px solid var(--border);vertical-align:middle;
+}
+.table tbody tr:last-child td{border-bottom:none}
+.table tbody tr:hover{background:var(--canvas)}
+.cell-name{font-weight:600}
+.cell-name-sub{font-size:11px;color:var(--text-subtle);font-weight:400;margin-top:2px}
+.cell-contact{color:var(--text-muted);font-size:12px;line-height:1.4}
+.cell-score{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:24px;border-radius:6px;font-size:12px;font-weight:600;
+}
+.cell-score.tier-priority{background:var(--green-soft);color:var(--green)}
+.cell-score.tier-standard{background:var(--accent-soft);color:var(--accent-text)}
+.cell-score.tier-low{background:#F1F5F9;color:var(--text-subtle)}
+.stage-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;
+}
+.stage-pill .dot{width:6px;height:6px;border-radius:50%}
+.stage-pill.new{background:#F1F5F9;color:var(--text-muted)}
+.stage-pill.new .dot{background:var(--text-subtle)}
+.stage-pill.screening{background:var(--accent-soft);color:var(--accent-text)}
+.stage-pill.screening .dot{background:var(--accent)}
+.stage-pill.passed{background:var(--green-soft);color:var(--green)}
+.stage-pill.passed .dot{background:var(--green)}
+.stage-pill.booked{background:#EDE9FE;color:#6D28D9}
+.stage-pill.booked .dot{background:#7C3AED}
+.cell-source{font-size:12px;color:var(--text-muted)}
+.cell-time{font-size:12px;color:var(--text-subtle)}
+.row-action{
+  border:none;background:transparent;color:var(--text-subtle);
+  width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;
+}
+.row-action:hover{background:var(--canvas);color:var(--text)}
+.row-action svg{width:14px;height:14px;stroke-width:2}
+
+/* Page switching */
+.view{display:none}
+.view.active{display:block}
+
+/* Mockup banner */
+.mockup-banner{
+  background:#0F172A;color:#F8FAFC;font-size:12px;
+  padding:8px var(--s-6);display:flex;align-items:center;gap:10px;justify-content:center;
+}
+.mockup-banner strong{color:#FCD34D;font-weight:700}
+.mockup-banner a{color:#93C5FD;text-decoration:underline;text-underline-offset:2px}
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">
+  <strong>MOCKUP PREVIEW</strong>
+  <span>Static design — not wired to your live data. Click sidebar items to switch views.</span>
+</div>
+
+<div class="app">
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SIDEBAR
+       ═══════════════════════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 96 96" fill="none">
+          <polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#fff"/>
+        </svg>
+      </div>
+      <div class="brand-name">Route<em>Ready</em></div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard" onclick="goto('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-item" data-view="pipeline" onclick="goto('pipeline')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+        Hiring Pipeline
+        <span class="nav-badge">12</span>
+      </button>
+      <button class="nav-item" onclick="alert('Drivers — design pending')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Drivers
+      </button>
+      <button class="nav-item" onclick="alert('Alerts — design pending')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Alerts
+        <span class="nav-badge">3</span>
+      </button>
+      <button class="nav-item" onclick="alert('Reports — design pending')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        Reports
+      </button>
+      <button class="nav-item" onclick="alert('Settings — design pending')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <div class="workspace-chip">
+      <div class="workspace-chip-avatar">CL</div>
+      <div>
+        <div class="workspace-chip-name">Cardinal Logistics</div>
+        <div class="workspace-chip-sub">DSP · KMO1</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MAIN
+       ═══════════════════════════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-title" id="tb-title">Dashboard</div>
+      <div class="topbar-context" id="tb-context">Cycle 14 · Day 3 of 28</div>
+      <div class="topbar-spacer"></div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Search drivers, applicants…
+        <span class="search-kbd">⌘K</span>
+      </div>
+      <button class="icon-btn" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="dot"></span>
+      </button>
+      <div class="account">RH</div>
+    </header>
+
+    <!-- ─── DASHBOARD VIEW ─── -->
+    <div class="view active" id="view-dashboard">
+      <div class="page">
+
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Good morning, Ryan</h1>
+            <p class="page-sub">Here's what needs your attention today.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+            <button class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add applicant
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI strip -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Routes covered</div>
+            <div class="kpi-value">82<span class="kpi-value-fraction"> / 90</span></div>
+            <div class="kpi-sub"><span class="kpi-pip amber"></span> 8 routes uncovered tomorrow</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Drivers available</div>
+            <div class="kpi-value">78<span class="kpi-value-fraction"> / 90</span></div>
+            <div class="kpi-sub"><span class="kpi-pip red"></span> Short 12 for next week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Pipeline strength</div>
+            <div class="kpi-value">Moderate</div>
+            <div class="kpi-sub"><span class="kpi-pip amber"></span> 14 applicants in screening</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">30-day retention</div>
+            <div class="kpi-value">87%</div>
+            <div class="kpi-sub"><span class="kpi-delta up">▲ 4%</span> vs prior 30 days</div>
+          </div>
+        </div>
+
+        <!-- Requires Attention -->
+        <div class="section">
+          <div class="section-head">
+            <h2 class="section-title">Requires attention</h2>
+            <span class="section-sub">3 items</span>
+          </div>
+          <div class="attn-list">
+
+            <div class="attn-card sev-red">
+              <div class="attn-icon sev-red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div class="attn-body">
+                <div class="attn-title">Short 12 drivers for next week</div>
+                <div class="attn-msg">Confirmed routes 90, available drivers 78. Pipeline can cover 6 if interview day Friday goes well.</div>
+              </div>
+              <button class="btn btn-primary btn-sm">Plan hires</button>
+            </div>
+
+            <div class="attn-card sev-amber">
+              <div class="attn-icon sev-amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="attn-body">
+                <div class="attn-title">3 drivers below performance threshold</div>
+                <div class="attn-msg">M. Davidson, T. Reyes, K. Whitfield — flagged this cycle. Coaching window closes in 5 days.</div>
+              </div>
+              <button class="btn btn-sm">Review</button>
+            </div>
+
+            <div class="attn-card sev-blue">
+              <div class="attn-icon sev-blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <div class="attn-body">
+                <div class="attn-title">Pipeline thinning for cycle 15</div>
+                <div class="attn-msg">Only 14 applicants in screening — usual cadence is 22+. Bulk import from Indeed or boost throttle.</div>
+              </div>
+              <button class="btn btn-sm">Open ingest</button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Pipeline Health + Performance Risk -->
+        <div class="split">
+          <div class="card">
+            <div class="card-head">
+              <h3 class="card-title">Pipeline health · Cycle 14</h3>
+              <a class="card-link" onclick="goto('pipeline')">View pipeline →</a>
+            </div>
+            <div class="funnel">
+              <div class="funnel-row s1">
+                <div class="funnel-label">Applied</div>
+                <div class="funnel-bar"><div class="funnel-fill" style="width:100%">48</div></div>
+                <div class="funnel-count">48</div>
+              </div>
+              <div class="funnel-row s2">
+                <div class="funnel-label">Screened</div>
+                <div class="funnel-bar"><div class="funnel-fill" style="width:62%">30</div></div>
+                <div class="funnel-count">30</div>
+              </div>
+              <div class="funnel-row s3">
+                <div class="funnel-label">Booked</div>
+                <div class="funnel-bar"><div class="funnel-fill" style="width:35%">17</div></div>
+                <div class="funnel-count">17</div>
+              </div>
+              <div class="funnel-row s4">
+                <div class="funnel-label">Hired</div>
+                <div class="funnel-bar"><div class="funnel-fill" style="width:21%">10</div></div>
+                <div class="funnel-count">10</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h3 class="card-title">Performance risk</h3>
+              <a class="card-link">All drivers →</a>
+            </div>
+            <div class="perf-list">
+              <div class="perf-row">
+                <div>
+                  <div class="perf-name">Marcus Davidson</div>
+                  <div class="perf-detail">Score 62 · 2 missed days · KMO1 route</div>
+                </div>
+                <span class="flag safety">Safety</span>
+                <button class="btn btn-sm">Review</button>
+              </div>
+              <div class="perf-row">
+                <div>
+                  <div class="perf-name">Tasha Reyes</div>
+                  <div class="perf-detail">Score 68 · 1 incident · KMO2 route</div>
+                </div>
+                <span class="flag attendance">Attendance</span>
+                <button class="btn btn-sm">Review</button>
+              </div>
+              <div class="perf-row">
+                <div>
+                  <div class="perf-name">Kerwin Whitfield</div>
+                  <div class="perf-detail">Score 71 · Scorecard slipping · KMO1</div>
+                </div>
+                <span class="flag scorecard">Scorecard</span>
+                <button class="btn btn-sm">Review</button>
+              </div>
+              <div class="perf-row">
+                <div>
+                  <div class="perf-name">Jordan Beckett</div>
+                  <div class="perf-detail">Score 73 · Late returns · KMO3</div>
+                </div>
+                <span class="flag scorecard">Scorecard</span>
+                <button class="btn btn-sm">Review</button>
+              </div>
+              <div class="perf-row">
+                <div>
+                  <div class="perf-name">Asha Thornton</div>
+                  <div class="perf-detail">Score 74 · 1 callout · KMO2</div>
+                </div>
+                <span class="flag attendance">Attendance</span>
+                <button class="btn btn-sm">Review</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trends (collapsed) -->
+        <div class="trends" id="trends">
+          <div class="trends-head" onclick="document.getElementById('trends').classList.toggle('open')">
+            <div class="trends-title">30-day trends</div>
+            <div class="trends-toggle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+          <div class="trends-body">
+            <div>
+              <div class="trend-item-label">Applicants per week</div>
+              <div class="trend-item-value">38</div>
+              <div class="trend-item-spark"></div>
+            </div>
+            <div>
+              <div class="trend-item-label">Hire conversion</div>
+              <div class="trend-item-value">21%</div>
+              <div class="trend-item-spark"></div>
+            </div>
+            <div>
+              <div class="trend-item-label">Avg time to hire</div>
+              <div class="trend-item-value">9.2d</div>
+              <div class="trend-item-spark"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── HIRING PIPELINE VIEW ─── -->
+    <div class="view" id="view-pipeline">
+      <div class="page">
+
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Hiring pipeline</h1>
+            <p class="page-sub">48 applicants in cycle 14 · last imported 2h ago</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Bulk ingest
+            </button>
+            <button class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add applicant
+            </button>
+          </div>
+        </div>
+
+        <!-- Stage tabs -->
+        <div class="stage-tabs">
+          <button class="stage-tab active">All <span class="stage-tab-count">48</span></button>
+          <button class="stage-tab">New <span class="stage-tab-count">12</span></button>
+          <button class="stage-tab">Screening <span class="stage-tab-count">14</span></button>
+          <button class="stage-tab">Passed <span class="stage-tab-count">8</span></button>
+          <button class="stage-tab">Booked <span class="stage-tab-count">7</span></button>
+          <button class="stage-tab">Hired <span class="stage-tab-count">7</span></button>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <span class="filter-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              Source: All
+            </span>
+            <span class="filter-chip">
+              Score: All
+            </span>
+          </div>
+          <div class="toolbar-right">
+            <span class="filter-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              Sort: Newest
+            </span>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Applicant</th>
+                <th>Contact</th>
+                <th>Score</th>
+                <th>Stage</th>
+                <th>Source</th>
+                <th>Added</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="cell-name">Alicia Monroe</div>
+                  <div class="cell-name-sub">Springfield, MO</div>
+                </td>
+                <td class="cell-contact">alicia.m@email.com<br>+1 417 555 0142</td>
+                <td><span class="cell-score tier-priority">8</span></td>
+                <td><span class="stage-pill screening"><span class="dot"></span>Screening</span></td>
+                <td class="cell-source">Indeed</td>
+                <td class="cell-time">2h ago</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cell-name">Devon Patterson</div>
+                  <div class="cell-name-sub">Joplin, MO</div>
+                </td>
+                <td class="cell-contact">devon.p@email.com<br>+1 417 555 0193</td>
+                <td><span class="cell-score tier-standard">6</span></td>
+                <td><span class="stage-pill new"><span class="dot"></span>New</span></td>
+                <td class="cell-source">Indeed</td>
+                <td class="cell-time">3h ago</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cell-name">Brianna Cole</div>
+                  <div class="cell-name-sub">Carthage, MO</div>
+                </td>
+                <td class="cell-contact">brianna.c@email.com<br>+1 417 555 0218</td>
+                <td><span class="cell-score tier-priority">9</span></td>
+                <td><span class="stage-pill passed"><span class="dot"></span>Passed</span></td>
+                <td class="cell-source">Referral</td>
+                <td class="cell-time">Yesterday</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cell-name">Marcus Hill</div>
+                  <div class="cell-name-sub">Springfield, MO</div>
+                </td>
+                <td class="cell-contact">marcus.h@email.com<br>+1 417 555 0276</td>
+                <td><span class="cell-score tier-standard">5</span></td>
+                <td><span class="stage-pill booked"><span class="dot"></span>Booked Fri 9:00</span></td>
+                <td class="cell-source">Indeed</td>
+                <td class="cell-time">Yesterday</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cell-name">Sasha Underwood</div>
+                  <div class="cell-name-sub">Nixa, MO</div>
+                </td>
+                <td class="cell-contact">sasha.u@email.com<br>+1 417 555 0341</td>
+                <td><span class="cell-score tier-low">3</span></td>
+                <td><span class="stage-pill new"><span class="dot"></span>New</span></td>
+                <td class="cell-source">Walk-in</td>
+                <td class="cell-time">2 days ago</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cell-name">Camille Foster</div>
+                  <div class="cell-name-sub">Branson, MO</div>
+                </td>
+                <td class="cell-contact">camille.f@email.com<br>+1 417 555 0408</td>
+                <td><span class="cell-score tier-priority">7</span></td>
+                <td><span class="stage-pill screening"><span class="dot"></span>Screening</span></td>
+                <td class="cell-source">Indeed</td>
+                <td class="cell-time">2 days ago</td>
+                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function goto(view){
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    document.getElementById('view-' + view).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+    var navBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
+    if (navBtn) navBtn.classList.add('active');
+    var titles = { dashboard: 'Dashboard', pipeline: 'Hiring Pipeline' };
+    var contexts = { dashboard: 'Cycle 14 · Day 3 of 28', pipeline: 'Cycle 14 · 48 applicants' };
+    document.getElementById('tb-title').textContent = titles[view] || '';
+    document.getElementById('tb-context').textContent = contexts[view] || '';
+    window.scrollTo({top:0,behavior:'instant'});
+  }
+</script>
+
+</body>
+</html>
