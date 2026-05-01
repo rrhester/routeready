@@ -725,6 +725,92 @@ a{color:inherit;text-decoration:none}
 .integration-name{font-size:13px;font-weight:600;color:var(--text)}
 .integration-status{font-size:11px;color:var(--text-subtle);margin-top:1px;display:flex;align-items:center;gap:5px}
 .integration-status .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+/* ─────────────────────────────────────────────────────────────
+   COVERAGE CONFIDENCE (the product thesis, made visible)
+   ───────────────────────────────────────────────────────────── */
+.kpi-card.coverage{
+  background:linear-gradient(180deg,#FFFFFF 0%,#F0F9F4 100%);
+  border-color:#BBF7D0;
+  position:relative;overflow:hidden;
+}
+.kpi-card.coverage.warn{
+  background:linear-gradient(180deg,#FFFFFF 0%,#FEF3C7 100%);
+  border-color:#FCD34D;
+}
+.kpi-card.coverage.risk{
+  background:linear-gradient(180deg,#FFFFFF 0%,#FEE2E2 100%);
+  border-color:#FCA5A5;
+}
+.coverage-meter{
+  display:flex;align-items:center;gap:10px;margin-top:6px;
+}
+.coverage-ring{
+  position:relative;width:32px;height:32px;flex-shrink:0;
+}
+.coverage-ring svg{transform:rotate(-90deg)}
+.coverage-ring-bg{fill:none;stroke:#E5E8EE;stroke-width:4}
+.coverage-ring-fg{fill:none;stroke:var(--green);stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .4s}
+.kpi-card.coverage.warn .coverage-ring-fg{stroke:var(--amber)}
+.kpi-card.coverage.risk .coverage-ring-fg{stroke:var(--red)}
+.coverage-status{
+  font-size:11px;font-weight:600;color:var(--green);
+  display:inline-flex;align-items:center;gap:4px;margin-top:6px;
+}
+.kpi-card.coverage.warn .coverage-status{color:var(--amber)}
+.kpi-card.coverage.risk .coverage-status{color:var(--red)}
+.coverage-math{
+  font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.5;
+}
+
+/* Coverage badge (inline, used on perf risk rows + drivers table) */
+.coverage-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;
+  background:var(--green-soft);color:var(--green);letter-spacing:.02em;
+  white-space:nowrap;
+}
+.coverage-badge.warn{background:var(--amber-soft);color:var(--amber)}
+.coverage-badge.risk{background:var(--red-soft);color:var(--red)}
+.coverage-badge svg{width:10px;height:10px;stroke-width:2.5}
+
+/* Coverage panel inside coach drawer (Pull / Suspend) */
+.cd-coverage{
+  background:linear-gradient(180deg,#F0FDF4 0%,#DCFCE7 100%);
+  border:1px solid #86EFAC;border-radius:var(--r-md);
+  padding:12px 14px;display:flex;gap:10px;align-items:flex-start;
+}
+.cd-coverage.warn{
+  background:linear-gradient(180deg,#FFFBEB 0%,#FEF3C7 100%);
+  border-color:#FCD34D;
+}
+.cd-coverage.risk{
+  background:linear-gradient(180deg,#FEF2F2 0%,#FEE2E2 100%);
+  border-color:#FCA5A5;
+}
+.cd-coverage-icon{
+  width:22px;height:22px;border-radius:50%;background:#16A34A;color:#fff;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.cd-coverage.warn .cd-coverage-icon{background:#D97706}
+.cd-coverage.risk .cd-coverage-icon{background:#DC2626}
+.cd-coverage-icon svg{width:12px;height:12px;stroke-width:3}
+.cd-coverage-title{font-size:13px;font-weight:600;color:#14532D;margin-bottom:3px}
+.cd-coverage.warn .cd-coverage-title{color:#78350F}
+.cd-coverage.risk .cd-coverage-title{color:#7F1D1D}
+.cd-coverage-msg{font-size:12px;color:#166534;line-height:1.5}
+.cd-coverage.warn .cd-coverage-msg{color:#92400E}
+.cd-coverage.risk .cd-coverage-msg{color:#991B1B}
+.cd-coverage-msg strong{font-weight:600}
+
+/* Tagline pill (used in topbar context for the dashboard) */
+.thesis-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 10px;border-radius:12px;
+  background:var(--green-soft);color:var(--green);
+  font-size:11px;font-weight:600;letter-spacing:.01em;
+}
+.thesis-pill svg{width:11px;height:11px;stroke-width:2.5}
 </style>
 </head>
 <body>
@@ -847,10 +933,25 @@ a{color:inherit;text-decoration:none}
             <div class="kpi-value">78<span class="kpi-value-fraction"> / 90</span></div>
             <div class="kpi-sub"><span class="kpi-pip red"></span> Short 12 for next week</div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Pipeline strength</div>
-            <div class="kpi-value">Moderate</div>
-            <div class="kpi-sub"><span class="kpi-pip amber"></span> 14 applicants in screening</div>
+          <div class="kpi-card coverage warn">
+            <div class="kpi-label" style="display:flex;justify-content:space-between;align-items:center">
+              <span>Coverage confidence</span>
+              <span style="font-size:9px;color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:none">THE THESIS</span>
+            </div>
+            <div class="coverage-meter">
+              <div class="coverage-ring">
+                <svg width="32" height="32" viewBox="0 0 32 32">
+                  <circle class="coverage-ring-bg" cx="16" cy="16" r="13"/>
+                  <circle class="coverage-ring-fg" cx="16" cy="16" r="13" stroke-dasharray="81.7" stroke-dashoffset="13"/>
+                </svg>
+              </div>
+              <div class="kpi-value">84%</div>
+            </div>
+            <div class="coverage-status">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Safe to act on accountability
+            </div>
+            <div class="coverage-math">11 of 15 gap covered · 3 at-risk drivers tracked</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">30-day retention</div>
@@ -944,6 +1045,7 @@ a{color:inherit;text-decoration:none}
                 <div>
                   <div class="perf-name">Marcus Davidson</div>
                   <div class="perf-detail">Score 62 · 2 missed days · KMO1 route</div>
+                  <span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2 booked replacements ready</span>
                 </div>
                 <span class="flag safety">Safety</span>
                 <button class="coach-row-btn" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags this cycle')">
@@ -955,6 +1057,7 @@ a{color:inherit;text-decoration:none}
                 <div>
                   <div class="perf-name">Tasha Reyes</div>
                   <div class="perf-detail">Score 68 · 1 incident · KMO2 route</div>
+                  <span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 booked replacements ready</span>
                 </div>
                 <span class="flag attendance">Attendance</span>
                 <button class="coach-row-btn" onclick="openCoachDrawer('Tasha Reyes','attendance','1 attendance incident this cycle')">
@@ -966,6 +1069,7 @@ a{color:inherit;text-decoration:none}
                 <div>
                   <div class="perf-name">Kerwin Whitfield</div>
                   <div class="perf-detail">Score 71 · Scorecard slipping · KMO1</div>
+                  <span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>1 booked, 2 in screening</span>
                 </div>
                 <span class="flag scorecard">Scorecard</span>
                 <button class="coach-row-btn" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over last 2 weeks')">
@@ -977,6 +1081,7 @@ a{color:inherit;text-decoration:none}
                 <div>
                   <div class="perf-name">Jordan Beckett</div>
                   <div class="perf-detail">Score 73 · Late returns · KMO3</div>
+                  <span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>KMO3 bench thin · 1 in screening</span>
                 </div>
                 <span class="flag scorecard">Scorecard</span>
                 <button class="coach-row-btn" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns in last 7 days')">
@@ -988,6 +1093,7 @@ a{color:inherit;text-decoration:none}
                 <div>
                   <div class="perf-name">Asha Thornton</div>
                   <div class="perf-detail">Score 74 · 1 callout · KMO2</div>
+                  <span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 booked replacements ready</span>
                 </div>
                 <span class="flag attendance">Attendance</span>
                 <button class="coach-row-btn" onclick="openCoachDrawer('Asha Thornton','attendance','1 callout this cycle')">
@@ -1239,7 +1345,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO1</td>
                 <td>18 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill red" style="width:62%"></span></span><span style="font-weight:600">62</span></td>
-                <td><span class="flag safety">Safety</span></td>
+                <td><span class="flag safety">Safety</span><br><span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2 ready</span></td>
                 <td class="cell-time">3 days ago</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags this cycle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
               </tr>
@@ -1248,7 +1354,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO2</td>
                 <td>9 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill amber" style="width:68%"></span></span><span style="font-weight:600">68</span></td>
-                <td><span class="flag attendance">Attendance</span></td>
+                <td><span class="flag attendance">Attendance</span><br><span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 ready</span></td>
                 <td class="cell-time">Yesterday</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Tasha Reyes','attendance','1 attendance incident this cycle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
               </tr>
@@ -1257,7 +1363,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO1</td>
                 <td>24 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill amber" style="width:71%"></span></span><span style="font-weight:600">71</span></td>
-                <td><span class="flag scorecard">Scorecard</span></td>
+                <td><span class="flag scorecard">Scorecard</span><br><span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>1 ready, 2 screening</span></td>
                 <td class="cell-time">5 days ago</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over last 2 weeks')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
               </tr>
@@ -1266,7 +1372,7 @@ a{color:inherit;text-decoration:none}
                 <td>KMO3</td>
                 <td>6 mo</td>
                 <td><span class="score-bar"><span class="score-bar-fill amber" style="width:73%"></span></span><span style="font-weight:600">73</span></td>
-                <td><span class="flag scorecard">Scorecard</span></td>
+                <td><span class="flag scorecard">Scorecard</span><br><span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>KMO3 thin</span></td>
                 <td class="cell-time">Today</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns in last 7 days')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
               </tr>
@@ -1720,7 +1826,18 @@ a{color:inherit;text-decoration:none}
 
     <!-- Pull view -->
     <div id="cd-view-pull" class="cd-view" style="display:none">
-      <div class="cd-grid2">
+
+      <div class="cd-coverage">
+        <div class="cd-coverage-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div class="cd-coverage-title">Coverage holds for this route</div>
+          <div class="cd-coverage-msg">Driver currently runs <strong>KMO1 route 14B</strong>. <strong>Brianna Cole</strong> and <strong>Marcus Hill</strong> are both booked Friday and qualified for KMO1. <strong>5 more in screening</strong> for next week. Pull with confidence.</div>
+        </div>
+      </div>
+
+      <div class="cd-grid2" style="margin-top:var(--s-4)">
         <div>
           <label class="cd-field-label">Pull date</label>
           <input type="date" class="cd-input" />
@@ -1743,7 +1860,18 @@ a{color:inherit;text-decoration:none}
 
     <!-- Suspend view -->
     <div id="cd-view-suspend" class="cd-view" style="display:none">
-      <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:#FECACA;color:#991B1B">
+
+      <div class="cd-coverage">
+        <div class="cd-coverage-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div class="cd-coverage-title">Coverage holds — you can suspend with confidence</div>
+          <div class="cd-coverage-msg"><strong>2 booked drivers</strong> can take over KMO1 route 14B starting Monday. <strong>5 in screening</strong> backfill the bench within 7 days. Suspending Davidson does not put you below your route minimum.</div>
+        </div>
+      </div>
+
+      <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:#FECACA;color:#991B1B;margin-top:var(--s-3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div><strong>Suspending a driver</strong> removes them from all routes, ends their app access, and notifies HR. This is a logged HR event.</div>
       </div>
