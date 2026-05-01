@@ -2391,27 +2391,42 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <!-- SNAPSHOT — demoted from KPI grid -->
-        <div class="snapshot">
-          <div class="snap-item">
-            <div class="snap-label">Net this week</div>
-            <div class="snap-value">+2 <span class="frac">drivers</span></div>
-            <div class="snap-sub">3 hired · 1 left · 1 onboarding</div>
+        <!-- KPI strip -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Net headcount this week</div>
+            <div class="kpi-value">+2<span class="kpi-value-fraction"> drivers</span></div>
+            <div class="kpi-sub"><span class="kpi-pip green"></span> 3 hired · 1 left · 1 onboarding</div>
           </div>
-          <div class="snap-item">
-            <div class="snap-label">Drivers available</div>
-            <div class="snap-value warn">78 <span class="frac">/ 90</span></div>
-            <div class="snap-sub">Short 12 for next week</div>
+          <div class="kpi-card">
+            <div class="kpi-label">Drivers available</div>
+            <div class="kpi-value">78<span class="kpi-value-fraction"> / 90</span></div>
+            <div class="kpi-sub"><span class="kpi-pip red"></span> Short 12 for next week</div>
           </div>
-          <div class="snap-item">
-            <div class="snap-label">Pipeline</div>
-            <div class="snap-value">14 <span class="frac">in screening</span></div>
-            <div class="snap-sub">7 booked Friday · 56% screen→hire rate</div>
+          <div class="kpi-card coverage warn" onclick="openCoverageDetail()">
+            <div class="kpi-label" style="display:flex;justify-content:space-between;align-items:center">
+              <span>Coverage confidence</span>
+              <span style="font-size:9px;color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:none">THE THESIS</span>
+            </div>
+            <div class="coverage-meter">
+              <div class="coverage-ring">
+                <svg width="32" height="32" viewBox="0 0 32 32">
+                  <circle class="coverage-ring-bg" cx="16" cy="16" r="13"/>
+                  <circle class="coverage-ring-fg" cx="16" cy="16" r="13" stroke-dasharray="81.7" stroke-dashoffset="13"/>
+                </svg>
+              </div>
+              <div class="kpi-value">84%</div>
+            </div>
+            <div class="coverage-status">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Safe to act on accountability
+            </div>
+            <div class="coverage-math">11 of 15 gap covered · 3 at-risk drivers tracked</div>
           </div>
-          <div class="snap-item">
-            <div class="snap-label">30-day retention</div>
-            <div class="snap-value">87%</div>
-            <div class="snap-sub">▲ 4% vs prior 30 days</div>
+          <div class="kpi-card">
+            <div class="kpi-label">30-day retention</div>
+            <div class="kpi-value">87%</div>
+            <div class="kpi-sub"><span class="kpi-delta up">▲ 4%</span> vs prior 30 days</div>
           </div>
         </div>
 
