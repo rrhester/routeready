@@ -3872,50 +3872,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 @keyframes rrAISpin { to { transform: rotate(360deg) } }
 
-/* ══════════════════════════════════════════════════════════════
-   V2 SHELL REFRESH (gentle) — additive, narrow scope.
-   Only touches: body font, sidebar background + active state.
-   No display rules, no init changes, no topbar changes.
-═══════════════════════════════════════════════════════════════ */
-body {
-  font-family: 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Sidebar: slate dark to match mockup */
-.rr-side {
-  background: #0F172A !important;
-  border-right: 1px solid rgba(255,255,255,.06) !important;
-}
-.rr-side-dsp {
-  background: #1E293B !important;
-  border-color: transparent !important;
-}
-.rr-side-dsp-av {
-  background: linear-gradient(135deg,#146EB4,#2563EB) !important;
-}
-.rr-side-head {
-  color: #475569 !important;
-  letter-spacing: .12em !important;
-}
-.rr-side-item {
-  border-radius: 8px !important;
-  transition: background .12s, color .12s !important;
-}
-.rr-side-item:hover {
-  background: #1E293B !important;
-}
-.rr-side-item.active {
-  background: #1E40AF33 !important;
-  color: #fff !important;
-}
-.rr-side-item.active::before { display: none !important }
-.rr-side-item.active .rr-side-ic,
-.rr-side-item:hover .rr-side-ic {
-  color: #93C5FD !important;
-}
-
 </style>
 
 </head>
