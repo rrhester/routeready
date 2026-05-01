@@ -6261,6 +6261,22 @@ const SUPABASE_HANDLERS = {
     const next_inperson_number = coachings.filter(c => c.type === 'InPerson').length + 1;
 
     return { status: 'ok', result: { items, next_inperson_number } };
+  },
+
+  // sendManualMessage — invokes the send-sms Edge Function which looks up the
+  // applicant by email (DSP-scoped) and sends an SMS via Twilio.
+  // Returns {status:'ok', sid, to, applicant_name} or {status:'error', message}.
+  sendManualMessage: async (params) => {
+    const email = params && params.email;
+    const message = params && params.message;
+    if (!email || !message) return { status: 'error', message: 'email and message required' };
+    const { data, error } = await sb.functions.invoke('send-sms', {
+      body: { email, message }
+    });
+    if (error) {
+      return { status: 'error', message: 'Edge Function error: ' + (error.message || 'unknown') };
+    }
+    return data;
   }
 };
 
