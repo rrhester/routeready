@@ -2479,6 +2479,72 @@ a{color:inherit;text-decoration:none}
 .driver-picker-item:hover{background:var(--canvas)}
 .driver-picker-item.qual-warn{color:var(--amber)}
 .driver-picker-meta{font-size:10px;color:var(--text-subtle);margin-left:auto}
+
+/* ─────────────────────────────────────────────────────────────
+   SCHEDULE LIFECYCLE — Draft → Review → Posted
+   ───────────────────────────────────────────────────────────── */
+.lifecycle{
+  display:flex;align-items:center;gap:0;
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:6px;
+}
+.life-step{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px;font-weight:500;
+  color:var(--text-subtle);border-radius:6px;flex:1;justify-content:center;
+}
+.life-step.done{color:var(--green);background:transparent}
+.life-step.active{color:var(--text);background:var(--surface);font-weight:700;box-shadow:var(--shadow-sm)}
+.life-step.pending{color:var(--text-subtle)}
+.life-num{
+  width:18px;height:18px;border-radius:50%;background:var(--canvas);color:var(--text-subtle);
+  display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;
+  border:1.5px solid var(--border-strong);
+}
+.life-step.active .life-num{background:var(--accent);color:#fff;border-color:var(--accent)}
+.life-step.done .life-num{background:var(--green);color:#fff;border-color:var(--green)}
+.life-arrow{color:var(--text-subtle);font-size:12px;padding:0 2px}
+
+/* Review modal — large summary view */
+.review-modal{max-width:760px;width:96vw}
+.review-section{
+  background:var(--canvas);border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--s-3);
+}
+.review-section-head{
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
+}
+.review-section-title{font-size:12px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.review-section-title svg{width:14px;height:14px;stroke-width:2}
+.review-section-title.ok svg{color:var(--green)}
+.review-section-title.warn svg{color:var(--amber)}
+.review-section-title.bad svg{color:var(--red)}
+.review-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3)}
+.review-stat-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+.review-stat-val{font-size:18px;font-weight:700;color:var(--text)}
+.review-stat-val.warn{color:var(--amber)}
+.review-stat-val.bad{color:var(--red)}
+.review-conflict{
+  display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+  padding:8px 10px;background:var(--surface);border-radius:6px;border-left:3px solid var(--amber);
+  font-size:12px;margin-top:6px;
+}
+.review-conflict.bad{border-left-color:var(--red)}
+.review-conflict.ok{border-left-color:var(--green)}
+.review-conflict-icon{
+  width:22px;height:22px;border-radius:50%;background:var(--amber-soft);color:var(--amber);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.review-conflict.bad .review-conflict-icon{background:var(--red-soft);color:var(--red)}
+.review-conflict.ok .review-conflict-icon{background:var(--green-soft);color:var(--green)}
+.review-conflict-icon svg{width:11px;height:11px;stroke-width:2.5}
+
+/* Posted state — celebratory */
+.posted-banner{
+  background:linear-gradient(120deg,#16A34A,#22C55E);color:#fff;
+  border-radius:var(--r-md);padding:10px 14px;display:flex;align-items:center;gap:10px;
+  font-size:12px;font-weight:500;
+}
+.posted-banner svg{width:16px;height:16px;flex-shrink:0;stroke-width:2.5}
+.posted-banner strong{font-weight:700}
 </style>
 </head>
 <body>
@@ -4006,9 +4072,9 @@ a{color:inherit;text-decoration:none}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export
             </button>
-            <button class="btn btn-primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Publish week
+            <button class="btn btn-primary" id="schedule-cta" onclick="advanceSchedule()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Finalize draft
             </button>
           </div>
         </div>
@@ -4080,7 +4146,13 @@ a{color:inherit;text-decoration:none}
               <button class="btn btn-sm" style="margin-left:8px">Today</button>
             </div>
             <div style="display:flex;align-items:center;gap:var(--s-3)">
-              <span class="sched-status-pill draft"><span class="status-dot"></span>Draft · unpublished changes</span>
+              <div class="lifecycle" id="schedule-lifecycle">
+                <div class="life-step active" data-stage="draft"><span class="life-num">1</span>Draft</div>
+                <span class="life-arrow">→</span>
+                <div class="life-step pending" data-stage="review"><span class="life-num">2</span>Review</div>
+                <span class="life-arrow">→</span>
+                <div class="life-step pending" data-stage="posted"><span class="life-num">3</span>Posted</div>
+              </div>
               <div class="view-toggle">
                 <button class="view-toggle-btn active">Driver view</button>
                 <button class="view-toggle-btn">Route view</button>
@@ -6715,6 +6787,137 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     SCHEDULE REVIEW MODAL — stage 2 (Draft → Review)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-schedule-review" onclick="if(event.target===this)closeModal('modal-schedule-review')">
+  <div class="modal-card review-modal">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Review week before posting</p>
+        <p class="modal-sub">May 1 – May 7 · 78 drivers · Cycle 14</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-schedule-review')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+
+      <div class="review-section">
+        <div class="review-section-head">
+          <div class="review-section-title ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Coverage</div>
+          <span style="font-size:11px;color:var(--text-subtle)">82% filled · 37 of 45 shifts</span>
+        </div>
+        <div class="review-stat-row">
+          <div><div class="review-stat-label">Routes covered</div><div class="review-stat-val">87 <span style="font-size:12px;color:var(--text-subtle);font-weight:500">/ 90</span></div></div>
+          <div><div class="review-stat-label">Drivers scheduled</div><div class="review-stat-val">71</div></div>
+          <div><div class="review-stat-label">Open shifts</div><div class="review-stat-val warn">3</div></div>
+          <div><div class="review-stat-label">PTO this week</div><div class="review-stat-val">1</div></div>
+        </div>
+      </div>
+
+      <div class="review-section">
+        <div class="review-section-head">
+          <div class="review-section-title warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Conflicts &amp; warnings</div>
+          <span style="font-size:11px;color:var(--text-subtle)">3 to review</span>
+        </div>
+        <div class="review-conflict bad">
+          <div class="review-conflict-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+          <div><strong>3 open shifts · KMO2-15A (Tue), KMO3-07C (Fri), KMO1-19D (Sat)</strong> — backup pool notified, none claimed yet</div>
+          <button class="btn btn-sm">Manage</button>
+        </div>
+        <div class="review-conflict">
+          <div class="review-conflict-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div>
+          <div><strong>Tasha Reyes ↔ Marcus Hill swap pending</strong> · Friday May 4 · both accepted, awaiting your approval</div>
+          <button class="btn btn-sm">Approve</button>
+        </div>
+        <div class="review-conflict">
+          <div class="review-conflict-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div>
+          <div><strong>Devon Patterson · PTO conflict</strong> — approved May 15–17 but still scheduled for KMO3-12B Thu/Fri</div>
+          <button class="btn btn-sm">Reassign route</button>
+        </div>
+      </div>
+
+      <div class="review-section">
+        <div class="review-section-head">
+          <div class="review-section-title ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Hours &amp; rules check</div>
+          <span style="font-size:11px;color:var(--text-subtle)">all within limits</span>
+        </div>
+        <div class="review-stat-row">
+          <div><div class="review-stat-label">Avg hours/driver</div><div class="review-stat-val">52h</div></div>
+          <div><div class="review-stat-label">Max hours (Whitfield)</div><div class="review-stat-val">55h</div></div>
+          <div><div class="review-stat-label">Min rest violations</div><div class="review-stat-val">0</div></div>
+          <div><div class="review-stat-label">6+ day stretches</div><div class="review-stat-val">1</div></div>
+        </div>
+      </div>
+
+      <div class="review-section" style="background:var(--accent-soft);border:1px solid #146EB433">
+        <div class="review-section-title" style="color:var(--accent-text)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Coverage Confidence: <strong style="margin-left:4px">87% · Safe to post</strong>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5">
+          You can post even with 3 open shifts — backup pool will absorb. Posting locks the schedule and notifies all 78 drivers via SMS + push.
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-schedule-review');setLifecycleStage('draft')">← Back to draft</button>
+      <button class="btn" onclick="closeModal('modal-schedule-review');toast('Review saved · come back anytime')">Save review</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-schedule-review');openModal('modal-schedule-post')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Continue to post
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCHEDULE POST CONFIRMATION — stage 3 (Review → Posted)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-schedule-post" onclick="if(event.target===this)closeModal('modal-schedule-post')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Post schedule to drivers</p>
+        <p class="modal-sub">May 1 – May 7 · 78 drivers will be notified</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-schedule-post')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--canvas);border-radius:var(--r-md);padding:14px 16px;font-size:13px;line-height:1.6;color:var(--text)">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">What happens when you post</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted)">
+          <div style="display:flex;align-items:center;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span><strong style="color:var(--text)">78 drivers</strong> get SMS + push notification with their week</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>Schedule <strong style="color:var(--text)">locks for the week</strong> · changes after this trigger driver acknowledgment</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>3 open shifts go live to <strong style="color:var(--text)">backup pool</strong> for first-come claim</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span><strong style="color:var(--text)">Driver app</strong> updates immediately with shift cards + route info</span></div>
+        </div>
+      </div>
+
+      <div>
+        <label class="modal-field-label">Notification channels</label>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" checked />Push notification (in-app)</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" checked />SMS</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" />Email summary</label>
+        </div>
+      </div>
+
+      <div>
+        <label class="modal-field-label">Custom note to drivers (optional)</label>
+        <textarea class="cd-textarea" placeholder="Add a note that goes with the schedule notification..." style="min-height:60px"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-schedule-post')">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-schedule-post');setLifecycleStage('posted')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Post to 78 drivers
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      BROADCAST COMPOSER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-broadcast" onclick="if(event.target===this)closeModal('modal-broadcast')">
@@ -7616,6 +7819,53 @@ a{color:inherit;text-decoration:none}
 
   // ─── AI AUTO-SCHEDULE ──────────────────────────────────────
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
+
+  // ─── SCHEDULE LIFECYCLE — Draft → Review → Posted ─────────
+  function setLifecycleStage(stage){
+    document.querySelectorAll('#schedule-lifecycle .life-step').forEach(function(s){
+      s.classList.remove('active','done','pending');
+    });
+    const order = ['draft','review','posted'];
+    const idx = order.indexOf(stage);
+    order.forEach(function(name, i){
+      const el = document.querySelector('#schedule-lifecycle .life-step[data-stage="' + name + '"]');
+      if (!el) return;
+      if (i < idx) el.classList.add('done');
+      else if (i === idx) el.classList.add('active');
+      else el.classList.add('pending');
+    });
+    // Update primary CTA based on stage
+    const cta = document.getElementById('schedule-cta');
+    if (cta) {
+      if (stage === 'draft') {
+        cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Finalize draft';
+        cta.disabled = false;
+      } else if (stage === 'review') {
+        cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Continue to post';
+        cta.disabled = false;
+      } else if (stage === 'posted') {
+        cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Make changes';
+      }
+    }
+    if (stage === 'posted') {
+      toast('Schedule posted · 78 drivers notified by SMS + push');
+    }
+  }
+  function advanceSchedule(){
+    const active = document.querySelector('#schedule-lifecycle .life-step.active');
+    if (!active) return;
+    const stage = active.getAttribute('data-stage');
+    if (stage === 'draft') {
+      setLifecycleStage('review');
+      openModal('modal-schedule-review');
+    } else if (stage === 'review') {
+      openModal('modal-schedule-post');
+    } else {
+      // Posted — return to draft for changes
+      setLifecycleStage('draft');
+      toast('Reopened as draft · changes will require re-post');
+    }
+  }
 
   // ─── SCHEDULE BUILDER — click-to-assign + drag-drop sim ───
   function wireBuilder(){
