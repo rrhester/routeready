@@ -3925,6 +3925,16 @@ input[type="time"]::-webkit-calendar-picker-indicator {
       </div>
     </div>
 
+  <!-- Overview -->
+    <div class="rr-side-section">
+      <div class="rr-side-head">Overview</div>
+      <button class="rr-side-item rr-side-home" data-mode="home" onclick="rrSideNav('home')">
+        <svg class="rr-side-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span class="rr-side-label">Today</span>
+        <span class="rr-side-badge-new">NEW</span>
+      </button>
+    </div>
+
   <!-- Hiring -->
     <div class="rr-side-section">
       <div class="rr-side-head">Hiring</div>
@@ -4106,6 +4116,221 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     </div>
   </div>
 </nav>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HOME / TODAY SCREEN — new visual system, additive
+     ═══════════════════════════════════════════════════════════ -->
+<section id="home-screen" style="display:none">
+
+<style>
+/* Home screen — scoped tokens so we don't pollute existing styles */
+#home-screen{
+  --hs-canvas:#F7F8FA;
+  --hs-surface:#FFFFFF;
+  --hs-border:#E5E8EE;
+  --hs-border-strong:#D1D6DE;
+  --hs-text:#0F172A;
+  --hs-text-muted:#475569;
+  --hs-text-subtle:#94A3B8;
+  --hs-accent:#146EB4;
+  --hs-accent-text:#0E5A95;
+  --hs-accent-soft:#146EB414;
+  --hs-green:#16A34A;
+  --hs-green-soft:#16A34A14;
+  --hs-amber:#D97706;
+  --hs-amber-soft:#D9770614;
+  --hs-red:#DC2626;
+  --hs-red-soft:#DC262614;
+  background:var(--hs-canvas);min-height:100vh;
+  font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--hs-text);
+  padding:32px 40px;
+}
+#home-screen *{box-sizing:border-box}
+.hs-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;gap:16px;flex-wrap:wrap}
+.hs-greeting{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:0 0 4px 0}
+.hs-context{font-size:13px;color:var(--hs-text-muted);margin:0}
+.hs-header-actions{display:flex;gap:8px;align-items:center}
+.hs-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;
+  font-size:13px;font-weight:500;border:1px solid var(--hs-border);background:var(--hs-surface);
+  color:var(--hs-text);cursor:pointer;transition:background .12s;
+  font-family:inherit;
+}
+.hs-btn:hover{background:#F1F3F6}
+.hs-btn-primary{background:var(--hs-accent);border-color:var(--hs-accent);color:#fff}
+.hs-btn-primary:hover{background:#0F5A95;border-color:#0F5A95}
+.hs-btn svg{width:14px;height:14px;stroke-width:2}
+
+.hs-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.hs-kpi{
+  background:var(--hs-surface);border:1px solid var(--hs-border);border-radius:12px;
+  padding:20px;
+}
+.hs-kpi-label{
+  font-size:11px;font-weight:600;color:var(--hs-text-muted);
+  letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px;
+}
+.hs-kpi-value{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.hs-kpi-frac{font-size:14px;color:var(--hs-text-subtle);font-weight:500;margin-left:2px}
+.hs-kpi-sub{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--hs-text-muted)}
+.hs-pip{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--hs-green)}
+.hs-pip.amber{background:var(--hs-amber)}
+.hs-pip.red{background:var(--hs-red)}
+
+.hs-section{margin-bottom:24px}
+.hs-section-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.hs-section-title{font-size:13px;font-weight:600;color:var(--hs-text);margin:0}
+.hs-section-sub{font-size:12px;color:var(--hs-text-subtle)}
+
+.hs-attn-list{display:flex;flex-direction:column;gap:8px}
+.hs-attn{
+  background:var(--hs-surface);border:1px solid var(--hs-border);border-left-width:3px;border-radius:8px;
+  padding:14px 20px;display:flex;align-items:center;gap:14px;
+}
+.hs-attn.sev-amber{border-left-color:var(--hs-amber)}
+.hs-attn.sev-red{border-left-color:var(--hs-red)}
+.hs-attn.sev-blue{border-left-color:var(--hs-accent)}
+.hs-attn.sev-green{border-left-color:var(--hs-green)}
+.hs-attn-icon{
+  width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.hs-attn-icon.sev-amber{background:var(--hs-amber-soft);color:var(--hs-amber)}
+.hs-attn-icon.sev-red{background:var(--hs-red-soft);color:var(--hs-red)}
+.hs-attn-icon.sev-blue{background:var(--hs-accent-soft);color:var(--hs-accent-text)}
+.hs-attn-icon.sev-green{background:var(--hs-green-soft);color:var(--hs-green)}
+.hs-attn-icon svg{width:16px;height:16px;stroke-width:2}
+.hs-attn-body{flex:1;min-width:0}
+.hs-attn-title{font-size:13px;font-weight:600;color:var(--hs-text);margin-bottom:2px}
+.hs-attn-msg{font-size:12px;color:var(--hs-text-muted);line-height:1.45}
+
+.hs-attn-empty{
+  background:var(--hs-surface);border:1px dashed var(--hs-border-strong);border-radius:8px;
+  padding:24px;text-align:center;color:var(--hs-text-muted);font-size:13px;
+}
+.hs-attn-empty strong{color:var(--hs-text);font-weight:600;display:block;margin-bottom:2px}
+
+.hs-split{display:grid;grid-template-columns:1.15fr 1fr;gap:12px;margin-bottom:24px}
+@media (max-width:920px){.hs-split{grid-template-columns:1fr}.hs-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.hs-card{
+  background:var(--hs-surface);border:1px solid var(--hs-border);border-radius:12px;
+  padding:20px;
+}
+.hs-card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px}
+.hs-card-title{font-size:13px;font-weight:600;color:var(--hs-text);margin:0}
+.hs-card-link{font-size:12px;color:var(--hs-accent-text);font-weight:500;background:none;border:none;cursor:pointer;font-family:inherit;padding:0}
+.hs-card-link:hover{text-decoration:underline}
+
+.hs-funnel{display:flex;flex-direction:column;gap:10px}
+.hs-funnel-row{display:grid;grid-template-columns:90px 1fr 60px;gap:12px;align-items:center}
+.hs-funnel-label{font-size:12px;color:var(--hs-text-muted);font-weight:500}
+.hs-funnel-bar{height:24px;background:var(--hs-canvas);border-radius:6px;position:relative;overflow:hidden}
+.hs-funnel-fill{
+  height:100%;border-radius:6px;background:var(--hs-accent);
+  display:flex;align-items:center;padding:0 8px;color:#fff;font-size:11px;font-weight:600;
+  transition:width .35s ease;
+}
+.hs-funnel-row.s2 .hs-funnel-fill{background:#2563EB;opacity:.85}
+.hs-funnel-row.s3 .hs-funnel-fill{background:#3B82F6;opacity:.75}
+.hs-funnel-row.s4 .hs-funnel-fill{background:#60A5FA;opacity:.85}
+.hs-funnel-count{font-size:13px;font-weight:600;text-align:right}
+
+.hs-stale-list{display:flex;flex-direction:column}
+.hs-stale-row{
+  display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--hs-border);
+}
+.hs-stale-row:last-child{border-bottom:none}
+.hs-stale-name{font-size:13px;font-weight:600}
+.hs-stale-detail{font-size:11px;color:var(--hs-text-subtle);margin-top:1px}
+.hs-stale-act{
+  font-size:11px;font-weight:500;color:var(--hs-accent-text);background:var(--hs-accent-soft);
+  border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:inherit;
+}
+.hs-stale-act:hover{background:#146EB422}
+
+.hs-thesis-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;font-weight:600;color:var(--hs-text-subtle);letter-spacing:.04em;text-transform:uppercase;
+}
+
+.hs-roadmap{
+  background:var(--hs-surface);border:1px solid var(--hs-border);border-radius:12px;
+  padding:14px 20px;font-size:12px;color:var(--hs-text-muted);
+  display:flex;align-items:center;gap:10px;
+}
+.hs-roadmap-tag{
+  font-size:9px;font-weight:700;letter-spacing:.08em;
+  background:var(--hs-amber-soft);color:var(--hs-amber);padding:2px 7px;border-radius:8px;
+}
+</style>
+
+<div class="hs-header">
+  <div>
+    <h1 class="hs-greeting" id="hs-greeting">Today</h1>
+    <p class="hs-context" id="hs-context">Loading…</p>
+  </div>
+  <div class="hs-header-actions">
+    <button class="hs-btn" onclick="rrSideNav('pipeline')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Open pipeline
+    </button>
+    <button class="hs-btn hs-btn-primary" onclick="openAddApplicantModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add applicant
+    </button>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="hs-kpi-grid" id="hs-kpis">
+  <div class="hs-kpi"><div class="hs-kpi-label">Total applicants</div><div class="hs-kpi-value" id="hs-k-applied">—</div><div class="hs-kpi-sub"><span class="hs-pip"></span><span id="hs-k-applied-sub">this cycle</span></div></div>
+  <div class="hs-kpi"><div class="hs-kpi-label">In screening</div><div class="hs-kpi-value" id="hs-k-screened">—</div><div class="hs-kpi-sub"><span class="hs-pip"></span><span id="hs-k-screened-sub">awaiting screening result</span></div></div>
+  <div class="hs-kpi"><div class="hs-kpi-label">Booked</div><div class="hs-kpi-value" id="hs-k-booked">—</div><div class="hs-kpi-sub"><span class="hs-pip"></span><span id="hs-k-booked-sub">interview confirmed</span></div></div>
+  <div class="hs-kpi"><div class="hs-kpi-label">Hired this cycle</div><div class="hs-kpi-value" id="hs-k-hired">—</div><div class="hs-kpi-sub"><span class="hs-pip"></span><span id="hs-k-hired-sub">net for cycle</span></div></div>
+</div>
+
+<!-- Requires Attention -->
+<div class="hs-section">
+  <div class="hs-section-head">
+    <h2 class="hs-section-title">Requires attention</h2>
+    <span class="hs-section-sub" id="hs-attn-count">—</span>
+  </div>
+  <div class="hs-attn-list" id="hs-attn-list">
+    <div class="hs-attn-empty"><strong>All clear</strong>Nothing urgent right now.</div>
+  </div>
+</div>
+
+<!-- Pipeline Health + Stale split -->
+<div class="hs-split">
+  <div class="hs-card">
+    <div class="hs-card-head">
+      <h3 class="hs-card-title">Pipeline health</h3>
+      <button class="hs-card-link" onclick="rrSideNav('pipeline')">Open pipeline →</button>
+    </div>
+    <div class="hs-funnel" id="hs-funnel">
+      <div class="hs-funnel-row s1"><div class="hs-funnel-label">Applied</div><div class="hs-funnel-bar"><div class="hs-funnel-fill" id="hs-f-applied" style="width:0%">0</div></div><div class="hs-funnel-count" id="hs-f-applied-c">0</div></div>
+      <div class="hs-funnel-row s2"><div class="hs-funnel-label">Screened</div><div class="hs-funnel-bar"><div class="hs-funnel-fill" id="hs-f-screened" style="width:0%">0</div></div><div class="hs-funnel-count" id="hs-f-screened-c">0</div></div>
+      <div class="hs-funnel-row s3"><div class="hs-funnel-label">Booked</div><div class="hs-funnel-bar"><div class="hs-funnel-fill" id="hs-f-booked" style="width:0%">0</div></div><div class="hs-funnel-count" id="hs-f-booked-c">0</div></div>
+      <div class="hs-funnel-row s4"><div class="hs-funnel-label">Hired</div><div class="hs-funnel-bar"><div class="hs-funnel-fill" id="hs-f-hired" style="width:0%">0</div></div><div class="hs-funnel-count" id="hs-f-hired-c">0</div></div>
+    </div>
+  </div>
+
+  <div class="hs-card">
+    <div class="hs-card-head">
+      <h3 class="hs-card-title">Stale applicants</h3>
+      <button class="hs-card-link" onclick="rrSideNav('pipeline')">All →</button>
+    </div>
+    <div id="hs-stale-list"></div>
+  </div>
+</div>
+
+<!-- Roadmap notice (honest about what's not yet wired) -->
+<div class="hs-roadmap">
+  <span class="hs-roadmap-tag">ROADMAP</span>
+  <span>Coverage Confidence, Performance Risk, and the Today's Check-in flow you saw in the design preview ship as schedule + attendance backends are built. The above is your real, live cycle data.</span>
+</div>
+
+</section>
 
 <main id="main" style="display:none">
 
@@ -7007,6 +7232,133 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── RENDER HOME (Today screen) ────────────────────────────────
+function renderHome() {
+  if (!data) return;
+  // Greeting
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const dspName = (data.dsp || '').split(/\s+/)[0] || '';
+  const greetEl = document.getElementById('hs-greeting');
+  if (greetEl) greetEl.textContent = greet + (data.dsp ? ', ' + (data.dspContact || dspName || data.dsp) : '');
+
+  // Context line
+  let ctx = data.dsp || 'RouteReady';
+  if (data.orientationDate) {
+    try {
+      const d = new Date(data.orientationDate);
+      if (!isNaN(d)) ctx += ' · Orientation ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    } catch(e){}
+  }
+  const ctxEl = document.getElementById('hs-context');
+  if (ctxEl) ctxEl.textContent = ctx;
+
+  // KPIs
+  const applied  = +data.applied  || 0;
+  const screened = +data.screened || 0;
+  const passed   = +data.passed   || 0;
+  const booked   = +data.booked   || 0;
+  const hired    = +data.hired    || 0;
+
+  document.getElementById('hs-k-applied').textContent  = applied;
+  document.getElementById('hs-k-screened').textContent = screened;
+  document.getElementById('hs-k-booked').textContent   = booked;
+  document.getElementById('hs-k-hired').textContent    = hired;
+  document.getElementById('hs-k-applied-sub').textContent  = 'this cycle';
+  document.getElementById('hs-k-screened-sub').textContent = screened > 0 ? Math.round((passed/screened)*100) + '% passing rate' : 'awaiting screening';
+  document.getElementById('hs-k-booked-sub').textContent   = (booked > 0 ? booked : 'no') + ' interviews confirmed';
+  document.getElementById('hs-k-hired-sub').textContent    = applied > 0 ? Math.round((hired/applied)*100) + '% conversion' : 'no hires yet';
+
+  // Funnel widths (max scaled to applied)
+  const max = Math.max(applied, 1);
+  function setFunnel(id, val){
+    const fill = document.getElementById('hs-f-' + id);
+    const cnt  = document.getElementById('hs-f-' + id + '-c');
+    if (fill) { fill.style.width = (val / max * 100) + '%'; fill.textContent = val; }
+    if (cnt) cnt.textContent = val;
+  }
+  setFunnel('applied', applied);
+  setFunnel('screened', screened);
+  setFunnel('booked', booked);
+  setFunnel('hired', hired);
+
+  // Stale list (top 5)
+  const staleAll = (data.applicants || []).filter(function(a){ return a.stale; });
+  const stale = staleAll.slice(0, 5);
+  const staleWrap = document.getElementById('hs-stale-list');
+  if (staleWrap) {
+    if (stale.length === 0) {
+      staleWrap.innerHTML = '<div style="font-size:12px;color:var(--hs-text-subtle);padding:18px 0;text-align:center">No stale applicants. Pipeline is healthy. 🎯</div>';
+    } else {
+      staleWrap.innerHTML = '<div class="hs-stale-list">' + stale.map(function(a){
+        const name = (a.fullName || a.name || ((a.firstName||'') + ' ' + (a.lastName||''))).trim() || a.email || 'Unknown';
+        const detail = (a.status ? a.status + ' · ' : '') + ((a.hoursSinceBooking != null) ? a.hoursSinceBooking + 'h since contact' : '');
+        return '<div class="hs-stale-row"><div><div class="hs-stale-name">' + escapeHsHtml(name) + '</div><div class="hs-stale-detail">' + escapeHsHtml(detail) + '</div></div><button class="hs-stale-act" onclick="rrSideNav(\'pipeline\')">Open</button></div>';
+      }).join('') + '</div>';
+    }
+  }
+
+  // Requires Attention — derive from existing data
+  const attn = [];
+  if (staleAll.length >= 3) {
+    attn.push({
+      sev:'amber',
+      title: staleAll.length + ' stale applicant' + (staleAll.length===1?'':'s'),
+      msg: 'These haven\'t advanced in over 24 hours. Open the pipeline to review.',
+      action: 'Open pipeline',
+      handler: "rrSideNav('pipeline')"
+    });
+  }
+  if (data.throttleMode && /closed|paused/i.test(data.throttleMode)) {
+    attn.push({
+      sev:'blue',
+      title: 'Pipeline throttle is ' + data.throttleMode,
+      msg: data.throttleReasoning || 'No new applicants are being ingested.',
+      action: 'Review',
+      handler: "rrSideNav('pipeline')"
+    });
+  }
+  if (booked === 0 && data.orientationDate) {
+    attn.push({
+      sev:'red',
+      title: 'No interviews booked yet for this cycle',
+      msg: 'Pipeline is ready but no candidates are confirmed. Send Cal.com links to passed applicants.',
+      action: 'Open pipeline',
+      handler: "rrSideNav('pipeline')"
+    });
+  }
+  const attnList = document.getElementById('hs-attn-list');
+  const attnCount = document.getElementById('hs-attn-count');
+  if (attn.length === 0) {
+    attnList.innerHTML = '<div class="hs-attn-empty"><strong>All clear</strong>Nothing urgent right now.</div>';
+    attnCount.textContent = '0 items';
+  } else {
+    attnCount.textContent = attn.length + ' item' + (attn.length===1?'':'s');
+    const iconMap = {
+      amber: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      red:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      blue:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+    };
+    attnList.innerHTML = attn.map(function(a){
+      return '<div class="hs-attn sev-' + a.sev + '">'
+        + '<div class="hs-attn-icon sev-' + a.sev + '">' + iconMap[a.sev] + '</div>'
+        + '<div class="hs-attn-body"><div class="hs-attn-title">' + escapeHsHtml(a.title) + '</div><div class="hs-attn-msg">' + escapeHsHtml(a.msg) + '</div></div>'
+        + '<button class="hs-btn" onclick="' + a.handler + '">' + a.action + '</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Mark sidebar Home item active
+  document.querySelectorAll('.rr-side-item').forEach(function(b){ b.classList.remove('active'); });
+  const homeBtn = document.querySelector('.rr-side-home');
+  if (homeBtn) homeBtn.classList.add('active');
+}
+function escapeHsHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // ── RENDER ROSTER ─────────────────────────────────────────────
 function renderRoster() {
   const list = document.getElementById('roster-list');
@@ -7084,6 +7436,7 @@ function setMode(mode) {
   const schedMode = mode === 'schedule';
   const setMode_isSettings = mode === 'settings';
   const perfMode = mode === 'perf';
+  const homeMode = mode === 'home';
 
   // v12: always scroll to top when switching modes — otherwise if the user
   // was scrolled down on the dashboard, the new screen appears "under" it.
@@ -7097,6 +7450,7 @@ function setMode(mode) {
 
   // Show/hide main dashboard vs full-page screens
   const mainEl   = document.getElementById('main');
+  const homeEl   = document.getElementById('home-screen');
   const schedEl  = document.getElementById('schedule-screen');
   const setEl    = document.getElementById('settings-screen');
   const perfEl   = document.getElementById('performance-screen');
@@ -7104,11 +7458,19 @@ function setMode(mode) {
   const dlEl     = document.getElementById('drivers-list-screen');
 
   // Hide all full-page screens first
+  if (homeEl)  homeEl.style.display  = 'none';
   if (schedEl) schedEl.style.display = 'none';
   if (setEl)   setEl.style.display   = 'none';
   if (perfEl)  perfEl.style.display  = 'none';
   if (drEl)    drEl.style.display    = 'none';
   if (dlEl)    dlEl.style.display    = 'none';
+
+  if (homeMode) {
+    if (mainEl) mainEl.style.display = 'none';
+    if (homeEl) homeEl.style.display = 'block';
+    if (typeof renderHome === 'function') renderHome();
+    return;
+  }
 
   if (schedMode) {
     if (mainEl) mainEl.style.display = 'none';
