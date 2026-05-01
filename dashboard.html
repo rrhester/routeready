@@ -5374,6 +5374,171 @@ const SUPABASE_HANDLERS = {
       history:    hist.count || 0,
       bonus:      b.count || 0
     };
+  },
+
+  // decisionViewTiered — Apps Script returns {status:'ok', result: <output of getDecisionViewTiered>}
+  // Maps to Supabase rpc('decision_view_tiered_counts'): single row of
+  // {tier_1, tier_2, tier_3, total_flagged, clean, fleet_size}
+  decisionViewTiered: async (params) => {
+    const win = parseInt((params && params.window_days) || '30', 10) || 30;
+    const { data, error } = await sb.rpc('decision_view_tiered_counts', { p_window_days: win });
+    if (error) throw error;
+    const row = (data && data[0]) || {};
+    return {
+      status: 'ok',
+      result: {
+        tier_1:        Number(row.tier_1)        || 0,
+        tier_2:        Number(row.tier_2)        || 0,
+        tier_3:        Number(row.tier_3)        || 0,
+        total_flagged: Number(row.total_flagged) || 0,
+        clean:         Number(row.clean)         || 0,
+        fleet_size:    Number(row.fleet_size)    || 0
+      }
+    };
+  },
+
+  // bonusReport — Apps Script returns full bucketed referral payload
+  bonusReport: async () => {
+    const [refsResp, settingsResp, dspResp] = await Promise.all([
+      sb.from('referrals').select('id, referred_name, referred_email, referrer_name, applied_date, hired_date, payable_date, paid_date, amount, status'),
+      sb.from('settings').select('key, value').in('key',
+        ['ReferralProgramOn','ReferralOutreachDay','ReferralBonusAmount','ReferralBonusPayableDay']),
+      sb.from('settings').select('value').eq('key','DSPName').maybeSingle()
+    ]);
+    if (refsResp.error) throw refsResp.error;
+    const rows = refsResp.data || [];
+    const settingsMap = {};
+    (settingsResp.data || []).forEach(r => { settingsMap[r.key] = r.value; });
+    const settings = {
+      on:          String(settingsMap.ReferralProgramOn || 'false').toLowerCase() === 'true',
+      outreachDay: parseInt(settingsMap.ReferralOutreachDay || '7', 10) || 7,
+      bonusAmount: parseFloat(settingsMap.ReferralBonusAmount || '300') || 300,
+      payableDay:  parseInt(settingsMap.ReferralBonusPayableDay || '30', 10) || 30
+    };
+
+    const fmtDate = v => {
+      if (!v) return '';
+      try { return new Date(v).toLocaleDateString(); } catch { return ''; }
+    };
+    const buckets = { owed: [], pending: [], paid: [], voided: [] };
+    let totalOwed = 0;
+    rows.forEach(r => {
+      const item = {
+        id:            r.id,
+        referredName:  r.referred_name  || '',
+        referredEmail: r.referred_email || '',
+        referrerName:  r.referrer_name  || '',
+        appliedDate:   fmtDate(r.applied_date),
+        hiredDate:     fmtDate(r.hired_date),
+        payableDate:   fmtDate(r.payable_date),
+        paidDate:      fmtDate(r.paid_date),
+        amount:        Number(r.amount) || 0,
+        status:        (r.status || '').charAt(0).toUpperCase() + (r.status || '').slice(1)
+      };
+      const status = (r.status || '').toLowerCase();
+      if (status === 'owed')         { buckets.owed.push(item);    totalOwed += item.amount; }
+      else if (status === 'pending') { buckets.pending.push(item); }
+      else if (status === 'paid')    { buckets.paid.push(item);    }
+      else if (status === 'voided')  { buckets.voided.push(item);  }
+    });
+    return {
+      owed:    buckets.owed,
+      pending: buckets.pending,
+      paid:    buckets.paid,
+      voided:  buckets.voided,
+      totals: {
+        owed: buckets.owed.length,
+        pending: buckets.pending.length,
+        paid: buckets.paid.length,
+        voided: buckets.voided.length,
+        totalOwed
+      },
+      settings,
+      generatedAt: new Date().toLocaleString(),
+      dspName: (dspResp.data && dspResp.data.value) || ''
+    };
+  },
+
+  // bonusReportCsv — wraps bonusReport into a CSV download payload
+  bonusReportCsv: async () => {
+    const report = await SUPABASE_HANDLERS.bonusReport();
+    const header = ['Referred Name','Referred Email','Referrer','Applied','Hired','Payable','Paid','Amount','Status'];
+    const all = [...report.owed, ...report.pending, ...report.paid, ...report.voided];
+    const escape = v => {
+      const s = String(v == null ? '' : v).replace(/"/g, '""');
+      return /[",\n]/.test(s) ? '"' + s + '"' : s;
+    };
+    const lines = [header.map(escape).join(',')];
+    all.forEach(r => lines.push([
+      r.referredName, r.referredEmail, r.referrerName,
+      r.appliedDate, r.hiredDate, r.payableDate, r.paidDate,
+      Number(r.amount).toFixed(2), r.status
+    ].map(escape).join(',')));
+    return {
+      status:   'ok',
+      csv:      lines.join('\n'),
+      filename: 'bonus_report_' + new Date().toISOString().slice(0, 10) + '.csv'
+    };
+  },
+
+  // exportData — type=applicants|hired|history|bonus → CSV payload
+  exportData: async (params) => {
+    const type = (params && params.type) || '';
+    const today = new Date().toISOString().slice(0, 10);
+    const csvEsc = v => {
+      if (v == null) return '';
+      if (v instanceof Date) return v.toISOString().slice(0, 16).replace('T', ' ');
+      const s = String(v).replace(/"/g, '""');
+      return /[",\n\r]/.test(s) ? '"' + s + '"' : s;
+    };
+    const toCsv = (header, rows) =>
+      [header.map(csvEsc).join(','), ...rows.map(r => r.map(csvEsc).join(','))].join('\n');
+
+    if (type === 'applicants') {
+      const { data, error } = await sb.from('applicants').select(
+        'first_name, last_name, phone, email, contacted, status, booking_time, score, priority, ingested_at, attendance, source');
+      if (error) throw error;
+      const header = ['First Name','Last Name','Phone','Email','Contacted','Status',
+        'Booking Time','Score','Priority','Ingested','Attendance','Source'];
+      const rows = (data || []).map(r => [
+        r.first_name, r.last_name, r.phone, r.email, r.contacted, r.status,
+        r.booking_time, r.score, r.priority, r.ingested_at, r.attendance, r.source
+      ]);
+      return { status: 'ok', csv: toCsv(header, rows), filename: 'applicants_' + today + '.csv' };
+    }
+
+    if (type === 'hired') {
+      const { data, error } = await sb.from('applicants').select(
+        'first_name, last_name, phone, email, booking_time, score, priority, source')
+        .eq('status', 'hired');
+      if (error) throw error;
+      const header = ['First Name','Last Name','Phone','Email','Hired Date (Booking Time)',
+        'Score','Priority','Source'];
+      const rows = (data || []).map(r => [
+        r.first_name, r.last_name, r.phone, r.email, r.booking_time,
+        r.score, r.priority, r.source
+      ]);
+      return { status: 'ok', csv: toCsv(header, rows), filename: 'hired_drivers_' + today + '.csv' };
+    }
+
+    if (type === 'history') {
+      const { data, error } = await sb.from('cycle_history').select('*').order('cycle_number');
+      if (error) throw error;
+      const header = ['Cycle','OrientationDate','Target','Applied','Screened','Passed',
+        'Booked','Attended','NoShowed','AvgScoreAttended','AvgScoreNoShow','ThrottleModes','Notes'];
+      const rows = (data || []).map(r => [
+        r.cycle_number, r.orientation_date, r.target, r.applied, r.screened, r.passed,
+        r.booked, r.attended, r.no_showed, r.avg_score_attended, r.avg_score_no_show,
+        r.throttle_modes, r.notes
+      ]);
+      return { status: 'ok', csv: toCsv(header, rows), filename: 'cycle_history_' + today + '.csv' };
+    }
+
+    if (type === 'bonus') {
+      return await SUPABASE_HANDLERS.bonusReportCsv();
+    }
+
+    return { status: 'error', message: 'Unknown export type: ' + type };
   }
 };
 
