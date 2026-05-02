@@ -4186,8 +4186,55 @@ a{color:inherit;text-decoration:none}
           <div class="pipeline-kpi" style="background:linear-gradient(135deg, var(--accent-soft), var(--surface) 80%);border-color:rgba(59,130,246,.3)" title="Applicants × show × hire = predicted hires this cycle">
             <div class="pipeline-kpi-label">Predicted hires this cycle</div>
             <div class="pipeline-kpi-value">~<span id="pipeline-kpi-predicted">11</span><span class="frac"> hires · need 12</span></div>
-            <div class="pipeline-kpi-trend" id="pipeline-kpi-predicted-line">48 × 72% × 31% · feeds Staffing Risk →</div>
+            <div class="pipeline-kpi-trend" id="pipeline-kpi-predicted-line">48 × 72% × 31% · feeds Performance →</div>
           </div>
+        </div>
+
+        <!-- ─── PIPELINE COVERAGE — 5-week demand vs pipeline ─── -->
+        <style>
+          .pipe-coverage{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:var(--s-4);margin-bottom:var(--s-4)}
+          .pipe-coverage-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap}
+          .pipe-coverage-head h3{font-size:14px;font-weight:600;color:var(--text);margin:0;letter-spacing:-.2px}
+          .pipe-coverage-head p{font-size:11px;color:var(--text-subtle);margin:2px 0 0 0;line-height:1.4}
+          .pipe-coverage-verdict{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+          .pipe-coverage-verdict.ok{background:var(--green-soft);color:var(--green)}
+          .pipe-coverage-verdict.warn{background:var(--amber-soft);color:var(--amber)}
+          .pipe-coverage-verdict.bad{background:#FEE2E2;color:#991B1B}
+          .pipe-coverage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:var(--s-3)}
+          @media (max-width:920px){.pipe-coverage-grid{grid-template-columns:repeat(2,1fr)}}
+          .pipe-week-card{background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+          .pipe-week-card.today{border-color:var(--accent);background:#3B82F60A}
+          .pipe-week-card.short{background:#FEE2E20D;border-color:#FECACA}
+          .pipe-week-card.critical{background:#FEE2E2;border-color:#FECACA}
+          .pipe-week-head{display:flex;justify-content:space-between;align-items:baseline}
+          .pipe-week-label{font-size:11px;font-weight:700;color:var(--text);letter-spacing:.04em;text-transform:uppercase}
+          .pipe-week-date{font-size:10px;color:var(--text-subtle)}
+          .pipe-week-row{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted)}
+          .pipe-week-row strong{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+          .pipe-week-gap{margin-top:auto;padding:4px 8px;border-radius:5px;font-size:11px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+          .pipe-week-gap.ok{background:var(--green-soft);color:var(--green)}
+          .pipe-week-gap.warn{background:var(--amber-soft);color:var(--amber)}
+          .pipe-week-gap.bad{background:#FEE2E2;color:#991B1B}
+          .pipe-coverage-rec{background:linear-gradient(135deg,var(--accent-soft),var(--surface) 90%);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:10px 14px;font-size:12.5px;line-height:1.55;color:var(--text);display:flex;align-items:center;gap:10px}
+          .pipe-coverage-rec svg{width:16px;height:16px;color:var(--accent);flex-shrink:0}
+          .pipe-coverage-rec strong{color:var(--accent-text);font-weight:700}
+          .pipe-coverage-math{font-size:10px;color:var(--text-subtle);margin-top:8px;line-height:1.5;padding-top:8px;border-top:1px solid var(--border)}
+        </style>
+
+        <div class="pipe-coverage" id="pipe-coverage-panel">
+          <div class="pipe-coverage-head">
+            <div>
+              <h3>Pipeline coverage — next 5 weeks</h3>
+              <p>Current pipeline projected against OKAMI demand. Pulls from your live show rate, hire rate, and stage mix.</p>
+            </div>
+            <span class="pipe-coverage-verdict warn" id="pipe-coverage-overall">— evaluating</span>
+          </div>
+          <div class="pipe-coverage-grid" id="pipe-coverage-grid"><!-- populated by pipeRenderForecast() --></div>
+          <div class="pipe-coverage-rec" id="pipe-coverage-rec">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div id="pipe-coverage-rec-text">Computing recommendation…</div>
+          </div>
+          <div class="pipe-coverage-math" id="pipe-coverage-math">Pipeline-can-deliver = stage counts × stage-weighted conversion. Hires from a stage land in the week that matches its remaining cycle days.</div>
         </div>
 
         <!-- Stage tabs -->
@@ -12103,7 +12150,230 @@ Evidence attached:
     document.querySelectorAll('.pipe-subview').forEach(function(v){ v.style.display = 'none'; v.classList.remove('active'); });
     var view = document.getElementById('pipe-sub-' + sub);
     if (view) { view.style.display = ''; view.classList.add('active'); }
+    // Render coverage panel when funnel sub-view becomes active
+    if (sub === 'funnel') setTimeout(pipeRenderForecast, 30);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PIPELINE COVERAGE — 5-week demand vs pipeline projection
+  //   - Reads OKAMI demand (drivers needed per week) from the OKAMI
+  //     table or a static seed if not yet rendered
+  //   - Reads pipeline counts from the stage-tab badges
+  //   - Reads show + hire rates from the existing KPI inputs
+  //   - Distributes projected hires across weeks based on stage
+  //     (booked → ~week 0–1, passed → ~week 1–2, screening → 2–3,
+  //      new → 3–4) using cycle velocity as the driver
+  //   - Surfaces per-week verdict + a single recommendation:
+  //     "Add X applicants this week to cover Week N"
+  // ═══════════════════════════════════════════════════════════════
+
+  // Seed values for OKAMI weeks 0..12, taken from the static okami-tbody.
+  // First 3 entries get overridden by RR_OKAMI_DAILY[0..2] when the user
+  // edits daily targets; weeks 3+ stay static unless OKAMI table is edited.
+  var RR_OKAMI_FORECAST_SEED = [
+    { idx:0,  label:'W19', dateLabel:'May 1–7',     routesMax:38, driversNeeded:85,  driversAvail:78 },
+    { idx:1,  label:'W20', dateLabel:'May 8–14',    routesMax:40, driversNeeded:90,  driversAvail:81 },
+    { idx:2,  label:'W21', dateLabel:'May 15–21',   routesMax:42, driversNeeded:94,  driversAvail:86 },
+    { idx:3,  label:'W22', dateLabel:'May 22–28',   routesMax:45, driversNeeded:101, driversAvail:90 },
+    { idx:4,  label:'W23', dateLabel:'May 29–Jun 4',routesMax:72, driversNeeded:161, driversAvail:90, hve:true }
+  ];
+
+  // Read live values from the OKAMI table where possible; otherwise use seed.
+  function pipeReadOkamiWeek(idx){
+    var seed = RR_OKAMI_FORECAST_SEED[idx];
+    if (!seed) return null;
+    var row = document.querySelectorAll('#okami-tbody tr[id^="okami-row-"]')[idx]
+            || document.querySelectorAll('#okami-tbody tr:not(.okami-detail)')[idx];
+    if (!row) return Object.assign({}, seed);
+    var cells = row.querySelectorAll('td');
+    var routesInput = cells[1] && cells[1].querySelector('input.plan-route-input');
+    var routesMax = routesInput ? (parseInt(routesInput.value, 10) || seed.routesMax) : seed.routesMax;
+    var driversNeededEl = cells[2] && cells[2].querySelector('.plan-calc');
+    var driversAvailEl = cells[3] && cells[3].querySelector('.plan-calc');
+    var driversNeeded = driversNeededEl ? (parseInt(driversNeededEl.textContent, 10) || seed.driversNeeded) : seed.driversNeeded;
+    var driversAvail = driversAvailEl ? (parseInt(driversAvailEl.textContent, 10) || seed.driversAvail) : seed.driversAvail;
+    return { idx:idx, label:seed.label, dateLabel:seed.dateLabel, routesMax:routesMax, driversNeeded:driversNeeded, driversAvail:driversAvail, hve:seed.hve };
+  }
+
+  // Read pipeline stage counts from the stage-tab badges
+  function pipeReadStageCounts(){
+    var counts = { all:0, new:0, screening:0, passed:0, booked:0, hired:0 };
+    document.querySelectorAll('#pipeline-stage-tabs .stage-tab').forEach(function(b){
+      var stage = b.getAttribute('data-stage');
+      var cn = b.querySelector('.stage-tab-count');
+      if (stage && cn) counts[stage] = parseInt(cn.textContent, 10) || 0;
+    });
+    return counts;
+  }
+
+  function pipeReadRates(){
+    var s = document.getElementById('pipeline-kpi-show');
+    var h = document.getElementById('pipeline-kpi-hire');
+    var v = document.getElementById('pipeline-kpi-velocity');
+    return {
+      showPct: (s ? parseFloat(s.textContent) : 72) / 100,
+      hirePct: (h ? parseFloat(h.textContent) : 31) / 100,
+      cycleDays: v ? parseFloat(v.textContent) : 9.2
+    };
+  }
+
+  // Distribute projected hires across the 5 weeks based on stage.
+  // The math: each stage has a typical "days-to-hire" remaining. Booked
+  // candidates can convert in ~3 days, passed ~5, screening ~7, new ~9.
+  // We bucket those time-to-hire estimates into week buckets (0–7, 8–14,
+  // 15–21, 22–28, 29–35) and apply combined show × hire conversion.
+  function pipeProjectHiresByWeek(){
+    var counts = pipeReadStageCounts();
+    var rates = pipeReadRates();
+    // Combined conversion = show × hire (already-booked applicants only need hire interview to convert; rest needs both)
+    var convPostBook = rates.hirePct;                     // booked already passed screening + showed
+    var convFromPassed = rates.showPct * rates.hirePct;   // passed → still need to show + hire
+    var convFromScreening = 0.85 * rates.showPct * rates.hirePct; // ~85% pass screening
+    var convFromNew = 0.55 * rates.showPct * rates.hirePct;       // ~55% engage and reach screening
+    // Expected hires from each stage
+    var hBooked = counts.booked * convPostBook;
+    var hPassed = counts.passed * convFromPassed;
+    var hScreening = counts.screening * convFromScreening;
+    var hNew = counts['new'] * convFromNew;
+    // Distribute across weeks (smoothed over 2 buckets each, with stage center)
+    // Returns array of length 5
+    var byWeek = [0, 0, 0, 0, 0];
+    function dist(total, centerWeek){
+      // 70% in centerWeek, 20% in centerWeek-1, 10% in centerWeek+1
+      var idx = Math.max(0, Math.min(4, centerWeek));
+      byWeek[idx] += total * 0.7;
+      if (idx - 1 >= 0) byWeek[idx - 1] += total * 0.2;
+      if (idx + 1 <= 4) byWeek[idx + 1] += total * 0.1;
+    }
+    dist(hBooked, 0);    // Booked → land mostly week 0
+    dist(hPassed, 1);    // Passed → week 1
+    dist(hScreening, 2); // Screening → week 2
+    dist(hNew, 3);       // New → week 3
+    return byWeek;
+  }
+
+  function pipeForecast(){
+    var weeks = [0,1,2,3,4].map(pipeReadOkamiWeek).filter(Boolean);
+    var byWeek = pipeProjectHiresByWeek();
+    // Cumulative drivers expected to be live by start of each week
+    var startingActive = weeks[0] ? weeks[0].driversAvail : 78;
+    var cumHires = 0;
+    return weeks.map(function(w, i){
+      cumHires += byWeek[i] || 0;
+      var projectedActive = startingActive + Math.floor(cumHires);
+      var gap = projectedActive - w.driversNeeded;
+      var verdict = w.hve ? 'hve' : (gap >= 0 ? 'ok' : Math.abs(gap) <= 5 ? 'warn' : 'bad');
+      return {
+        idx: w.idx, label: w.label, dateLabel: w.dateLabel,
+        routesMax: w.routesMax, driversNeeded: w.driversNeeded, driversAvail: w.driversAvail,
+        projectedHires: byWeek[i] || 0,
+        cumulativeHires: Math.floor(cumHires),
+        projectedActive: projectedActive,
+        gap: gap, verdict: verdict, hve: w.hve
+      };
+    });
+  }
+
+  function pipeRenderForecast(){
+    var grid = document.getElementById('pipe-coverage-grid');
+    if (!grid) return;
+    var rows = pipeForecast();
+
+    grid.innerHTML = rows.map(function(r, i){
+      var verdictClass = r.verdict === 'ok' ? 'ok' : r.verdict === 'warn' ? 'warn' : 'bad';
+      var cardClass = i === 0 ? 'today' : (r.verdict === 'bad' || r.verdict === 'hve' ? 'critical' : (r.verdict === 'warn' ? 'short' : ''));
+      var gapTxt = r.gap >= 0 ? '+' + r.gap + ' covered' : (r.gap + ' short');
+      var gapLabel = r.hve ? 'HVE absorption' : gapTxt;
+      var gapCls = r.hve ? 'bad' : (r.gap >= 0 ? 'ok' : Math.abs(r.gap) <= 5 ? 'warn' : 'bad');
+      var weekLabel = i === 0 ? 'This week' : '+' + i + ' wk' + (i === 1 ? '' : 's');
+      return '<div class="pipe-week-card ' + cardClass + '">'
+        + '<div class="pipe-week-head"><span class="pipe-week-label">' + weekLabel + '</span><span class="pipe-week-date">' + r.label + ' · ' + r.dateLabel + '</span></div>'
+        + '<div class="pipe-week-row"><span>Routes (max)</span><strong>' + r.routesMax + '</strong></div>'
+        + '<div class="pipe-week-row"><span>Drivers needed</span><strong>' + r.driversNeeded + '</strong></div>'
+        + '<div class="pipe-week-row"><span>Active + projected</span><strong>' + r.projectedActive + '</strong></div>'
+        + '<div class="pipe-week-row"><span>Pipeline delivers</span><strong>+' + Math.round(r.projectedHires * 10)/10 + '</strong></div>'
+        + '<div class="pipe-week-gap ' + gapCls + '">' + gapLabel + '</div>'
+      + '</div>';
+    }).join('');
+
+    // Overall verdict: count weeks short
+    var shortCount = rows.filter(function(r){ return r.gap < 0 && !r.hve; }).length;
+    var hveCount = rows.filter(function(r){ return r.hve; }).length;
+    var verdictEl = document.getElementById('pipe-coverage-overall');
+    if (verdictEl) {
+      if (shortCount === 0 && hveCount === 0) {
+        verdictEl.className = 'pipe-coverage-verdict ok';
+        verdictEl.textContent = '✓ All 5 weeks covered';
+      } else if (shortCount <= 1 && hveCount === 0) {
+        verdictEl.className = 'pipe-coverage-verdict warn';
+        verdictEl.textContent = shortCount + ' week short';
+      } else {
+        verdictEl.className = 'pipe-coverage-verdict bad';
+        verdictEl.textContent = shortCount + ' week' + (shortCount === 1 ? '' : 's') + ' short' + (hveCount > 0 ? ' · ' + hveCount + ' HVE' : '');
+      }
+    }
+
+    // Recommendation
+    var recText = document.getElementById('pipe-coverage-rec-text');
+    if (recText) recText.innerHTML = pipeRecommend(rows);
+
+    // Math line
+    var math = document.getElementById('pipe-coverage-math');
+    if (math) {
+      var rates = pipeReadRates();
+      var counts = pipeReadStageCounts();
+      math.innerHTML = '<strong style="color:var(--text)">Math:</strong> Show rate ' + Math.round(rates.showPct * 100) + '% · Hire rate '
+        + Math.round(rates.hirePct * 100) + '% · Cycle ' + rates.cycleDays.toFixed(1) + ' days · Pipeline today: '
+        + counts['new'] + ' new · ' + counts.screening + ' screening · ' + counts.passed + ' passed · '
+        + counts.booked + ' booked. Conversion modeled per stage based on remaining funnel steps.';
+    }
+  }
+
+  function pipeRecommend(rows){
+    var rates = pipeReadRates();
+    // Find the largest gap among non-HVE weeks
+    var worst = rows.filter(function(r){ return !r.hve && r.gap < 0; }).sort(function(a, b){ return a.gap - b.gap; })[0];
+    if (!worst) {
+      return 'Pipeline is adequate for the next 5 weeks. Maintain inflow at current Indeed spend; no acceleration needed.';
+    }
+    // Hires needed = absolute gap in worst week
+    var hiresNeeded = Math.abs(worst.gap);
+    // To net X hires, you need X / overall conversion. Assume new applicants enter as "new" stage (lowest conversion).
+    var convFromNew = 0.55 * rates.showPct * rates.hirePct;
+    var applicantsNeeded = Math.ceil(hiresNeeded / Math.max(convFromNew, 0.05));
+    return '<strong>Add ~' + applicantsNeeded + ' applicants to the funnel this week</strong> to cover ' + worst.label
+      + ' (' + worst.dateLabel + ', short ' + Math.abs(worst.gap) + ' driver' + (Math.abs(worst.gap) === 1 ? '' : 's') + '). '
+      + 'New applicants entering today convert at ~' + Math.round(convFromNew * 100) + '% (after screening, show, and hire). '
+      + 'Boost Indeed spend or open referral payouts to accelerate inflow.';
+  }
+  window.pipeRenderForecast = pipeRenderForecast;
+
+  // Re-render whenever OKAMI changes affect demand
+  if (typeof okamiRenderDailyPanel === 'function' && !okamiRenderDailyPanel._wrappedForPipe) {
+    var _origOkamiPanel = okamiRenderDailyPanel;
+    okamiRenderDailyPanel = function(weekIdx){
+      _origOkamiPanel(weekIdx);
+      // If pipeline funnel is currently visible, refresh it
+      var visible = document.querySelector('#pipe-sub-funnel.active') || document.querySelector('#pipe-sub-funnel:not([style*="display: none"])');
+      if (visible && document.getElementById('view-pipeline').classList.contains('active')) {
+        setTimeout(pipeRenderForecast, 30);
+      }
+    };
+    okamiRenderDailyPanel._wrappedForPipe = true;
+  }
+
+  // Render on view nav
+  if (typeof goto === 'function' && !goto._wrappedForPipeForecast) {
+    var _origGotoForPipeForecast = goto;
+    goto = function(view){
+      _origGotoForPipeForecast(view);
+      if (view === 'pipeline') setTimeout(pipeRenderForecast, 60);
+    };
+    goto._wrappedForPipeForecast = true;
+  }
+
+  document.addEventListener('DOMContentLoaded', pipeRenderForecast);
+  if (document.readyState !== 'loading') pipeRenderForecast();
   function sgToggle(btn){
     btn.classList.toggle('on');
     if (btn.classList.contains('on')) {
