@@ -4154,125 +4154,103 @@ a{color:inherit;text-decoration:none}
         <!-- FUNNEL SUB-VIEW -->
         <div class="pipe-subview active" id="pipe-sub-funnel">
 
-        <!-- Today's interviews banner — only when bookings are today -->
+        <!-- ─── HEADER STRIP — Today's interviews + cycle stats in one slim row ─── -->
         <style>
-          .iv-day-banner{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#F0FDF4,var(--surface) 70%);border:1px solid rgba(34,197,94,.25);border-radius:10px;padding:12px 16px;margin-bottom:var(--s-3)}
-          .iv-day-banner svg.icon{width:22px;height:22px;color:var(--green);flex-shrink:0}
-          .iv-day-banner-text{flex:1;font-size:13px;color:var(--text);line-height:1.5}
-          .iv-day-banner-text strong{color:var(--green);font-weight:700}
-          .iv-day-banner-cta{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:0;font-family:inherit;transition:background .15s}
-          .iv-day-banner-cta:hover{background:#15803D}
-          .iv-day-banner-cta svg{width:14px;height:14px}
+          .hp-header-strip{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s-3);font-size:12.5px;color:var(--text-muted);flex-wrap:wrap}
+          .hp-header-strip-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+          .hp-header-strip-iv{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:600}
+          .hp-header-strip-iv svg{width:14px;height:14px}
+          .hp-header-strip-iv strong{color:var(--green)}
+          .hp-header-strip-stat{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted)}
+          .hp-header-strip-stat strong{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+          .hp-header-strip-divider{width:1px;height:14px;background:var(--border)}
+          .hp-header-strip-cta{font-size:12px;font-weight:600;color:var(--green);text-decoration:none;display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+          .hp-header-strip-cta:hover{color:#15803D}
         </style>
-        <div class="iv-day-banner" id="iv-day-banner">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <div class="iv-day-banner-text">
-            <strong>7 interviews scheduled today</strong> · auto-SMS already fired confirmations · Interview Day mode locks down the rest of the dashboard so nothing distracts you.
+
+        <div class="hp-header-strip" id="hp-header-strip">
+          <div class="hp-header-strip-left">
+            <span class="hp-header-strip-iv" id="hp-iv-pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <strong>7</strong> interviews today
+            </span>
+            <span class="hp-header-strip-divider"></span>
+            <span class="hp-header-strip-stat">Show <strong id="pipeline-kpi-show">72</strong>%</span>
+            <span class="hp-header-strip-stat">Hire <strong id="pipeline-kpi-hire">31</strong>%</span>
+            <span class="hp-header-strip-stat">Cycle <strong id="pipeline-kpi-velocity">9.2</strong>d</span>
+            <span class="hp-header-strip-stat">Predicted ~<strong id="pipeline-kpi-predicted">11</strong> / need 12</span>
           </div>
-          <button class="iv-day-banner-cta" onclick="goto('interview')">
-            Open Interview Day
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </button>
+          <a class="hp-header-strip-cta" onclick="goto('interview')">
+            Open Interview Day →
+          </a>
         </div>
 
-        <!-- Throughput KPIs -->
-        <div class="pipeline-kpis">
-          <div class="pipeline-kpi" title="Applicants who showed up to interview ÷ booked">
-            <div class="pipeline-kpi-label">Show rate</div>
-            <div class="pipeline-kpi-value"><span id="pipeline-kpi-show">72</span><span class="frac">% · screened ÷ booked</span></div>
-            <div class="pipeline-kpi-trend"><span class="up">▲ 3</span> vs last cycle</div>
-          </div>
-          <div class="pipeline-kpi" title="Hires ÷ applicants interviewed">
-            <div class="pipeline-kpi-label">Hire rate</div>
-            <div class="pipeline-kpi-value"><span id="pipeline-kpi-hire">31</span><span class="frac">% · hired ÷ interviewed</span></div>
-            <div class="pipeline-kpi-trend">Steady · 30-day avg</div>
-          </div>
-          <div class="pipeline-kpi" title="Days from applied to hired (avg)">
-            <div class="pipeline-kpi-label">Cycle velocity</div>
-            <div class="pipeline-kpi-value"><span id="pipeline-kpi-velocity">9.2</span><span class="frac"> days · applied → hired</span></div>
-            <div class="pipeline-kpi-trend"><span class="up">▼ 0.8</span> faster vs last cycle</div>
-          </div>
-          <div class="pipeline-kpi" style="background:linear-gradient(135deg, var(--accent-soft), var(--surface) 80%);border-color:rgba(59,130,246,.3)" title="Applicants × show × hire = predicted hires this cycle">
-            <div class="pipeline-kpi-label">Predicted hires this cycle</div>
-            <div class="pipeline-kpi-value">~<span id="pipeline-kpi-predicted">11</span><span class="frac"> hires · need 12</span></div>
-            <div class="pipeline-kpi-trend" id="pipeline-kpi-predicted-line">48 × 72% × 31% · feeds Performance →</div>
-          </div>
-        </div>
-
-        <!-- ─── PIPELINE COVERAGE — 5-week demand vs pipeline ─── -->
+        <!-- ─── PIPELINE COVERAGE — slim 5-week strip ─── -->
         <style>
-          .pipe-coverage{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:var(--s-4);margin-bottom:var(--s-4)}
-          .pipe-coverage-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap}
-          .pipe-coverage-head h3{font-size:14px;font-weight:600;color:var(--text);margin:0;letter-spacing:-.2px}
-          .pipe-coverage-head p{font-size:11px;color:var(--text-subtle);margin:2px 0 0 0;line-height:1.4}
-          .pipe-coverage-verdict{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+          .pipe-coverage{margin-bottom:var(--s-4)}
+          .pipe-coverage-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-3);margin-bottom:10px;flex-wrap:wrap}
+          .pipe-coverage-head h3{font-size:11px;font-weight:700;color:var(--text-muted);margin:0;letter-spacing:.06em;text-transform:uppercase}
+          .pipe-coverage-verdict{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
           .pipe-coverage-verdict.ok{background:var(--green-soft);color:var(--green)}
           .pipe-coverage-verdict.warn{background:var(--amber-soft);color:var(--amber)}
           .pipe-coverage-verdict.bad{background:#FEE2E2;color:#991B1B}
-          .pipe-coverage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:var(--s-3)}
+          .pipe-coverage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}
           @media (max-width:920px){.pipe-coverage-grid{grid-template-columns:repeat(2,1fr)}}
-          .pipe-week-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;cursor:help;transition:border-color .15s}
+          .pipe-week-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 12px;display:flex;flex-direction:column;gap:10px;cursor:help;transition:border-color .15s}
           .pipe-week-card:hover{border-color:var(--text-subtle)}
-          .pipe-week-card.today{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
-          .pipe-week-card.critical{border-color:#FCA5A5}
-          .pipe-week-head{display:flex;justify-content:space-between;align-items:baseline}
-          .pipe-week-label{font-size:11px;font-weight:700;color:var(--text);letter-spacing:.04em;text-transform:uppercase}
+          .pipe-week-card.today{border-color:var(--accent);box-shadow:0 0 0 1px rgba(59,130,246,.18)}
+          .pipe-week-head{display:flex;flex-direction:column;gap:1px}
+          .pipe-week-label{font-size:11px;font-weight:700;color:var(--text);letter-spacing:.02em}
           .pipe-week-date{font-size:10px;color:var(--text-subtle);font-weight:500}
-          .pipe-week-gap-big{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 0;border-radius:8px;text-align:center}
-          .pipe-week-gap-big .pipe-week-gap-num{font-size:28px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px}
-          .pipe-week-gap-big .pipe-week-gap-lbl{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;opacity:.85}
+          .pipe-week-gap-big{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0;border-radius:7px;text-align:center}
+          .pipe-week-gap-big .pipe-week-gap-num{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+          .pipe-week-gap-big .pipe-week-gap-lbl{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:3px;opacity:.85}
           .pipe-week-gap-big.ok{background:var(--green-soft);color:var(--green)}
           .pipe-week-gap-big.warn{background:var(--amber-soft);color:var(--amber)}
           .pipe-week-gap-big.bad{background:#FEE2E2;color:#991B1B}
           .pipe-week-foot{font-size:10px;color:var(--text-subtle);text-align:center;font-variant-numeric:tabular-nums}
-          .pipe-coverage-rec{background:linear-gradient(135deg,var(--accent-soft),var(--surface) 90%);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:10px 14px;font-size:12.5px;line-height:1.55;color:var(--text);display:flex;align-items:center;gap:10px}
-          .pipe-coverage-rec svg{width:16px;height:16px;color:var(--accent);flex-shrink:0}
-          .pipe-coverage-rec strong{color:var(--accent-text);font-weight:700}
-          .pipe-coverage-math{font-size:10px;color:var(--text-subtle);margin-top:8px;line-height:1.5;padding-top:8px;border-top:1px solid var(--border)}
+          .pipe-coverage-rec{font-size:12px;line-height:1.5;color:var(--text-muted);padding:0 2px;display:flex;align-items:center;gap:8px}
+          .pipe-coverage-rec svg{width:14px;height:14px;color:var(--accent);flex-shrink:0}
+          .pipe-coverage-rec strong{color:var(--text);font-weight:600}
         </style>
 
         <div class="pipe-coverage" id="pipe-coverage-panel">
           <div class="pipe-coverage-head">
-            <div>
-              <h3>Pipeline coverage — next 5 weeks</h3>
-              <p>Current pipeline projected against OKAMI demand. Pulls from your live show rate, hire rate, and stage mix.</p>
-            </div>
+            <h3>Pipeline coverage · next 5 weeks</h3>
             <span class="pipe-coverage-verdict warn" id="pipe-coverage-overall">— evaluating</span>
           </div>
-          <div class="pipe-coverage-grid" id="pipe-coverage-grid"><!-- populated by pipeRenderForecast() --></div>
-          <div class="pipe-coverage-rec" id="pipe-coverage-rec">
+          <div class="pipe-coverage-grid" id="pipe-coverage-grid"></div>
+          <div class="pipe-coverage-rec">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             <div id="pipe-coverage-rec-text">Computing recommendation…</div>
           </div>
-          <div class="pipe-coverage-math" id="pipe-coverage-math">Pipeline-can-deliver = stage counts × stage-weighted conversion. Hires from a stage land in the week that matches its remaining cycle days.</div>
+          <!-- math footer kept in DOM for the JS that updates it, but hidden -->
+          <div id="pipe-coverage-math" style="display:none"></div>
         </div>
 
-        <!-- Stage tabs -->
-        <div class="stage-tabs" id="pipeline-stage-tabs">
-          <button class="stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="stage-tab-count">48</span></button>
-          <button class="stage-tab" data-stage="new" onclick="filterPipelineStage(this)">New <span class="stage-tab-count">12</span></button>
-          <button class="stage-tab" data-stage="screening" onclick="filterPipelineStage(this)">Screening <span class="stage-tab-count">14</span></button>
-          <button class="stage-tab" data-stage="passed" onclick="filterPipelineStage(this)">Passed <span class="stage-tab-count">8</span></button>
-          <button class="stage-tab" data-stage="booked" onclick="filterPipelineStage(this)">Booked <span class="stage-tab-count">7</span></button>
-          <button class="stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="stage-tab-count">7</span></button>
-        </div>
+        <!-- Applicants list header — stage tabs + sort, single row -->
+        <style>
+          .hp-list-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap}
+          .hp-stages{display:flex;gap:2px;background:var(--canvas);border-radius:8px;padding:3px}
+          .hp-stage-btn{appearance:none;background:transparent;border:0;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted);padding:6px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+          .hp-stage-btn.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
+          .hp-stage-btn:hover:not(.active){color:var(--text)}
+          .hp-stage-btn-count{font-size:10px;font-weight:700;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+          .hp-stage-btn.active .hp-stage-btn-count{color:var(--text-muted)}
+          .hp-list-tools{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-subtle)}
+        </style>
 
-        <!-- Toolbar -->
-        <div class="toolbar">
-          <div class="toolbar-left">
-            <span class="filter-chip">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-              Source: All
-            </span>
-            <span class="filter-chip">
-              Score: All
-            </span>
+        <div class="hp-list-head">
+          <div class="hp-stages" id="pipeline-stage-tabs">
+            <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="hp-stage-btn-count stage-tab-count">48</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="new" onclick="filterPipelineStage(this)">New <span class="hp-stage-btn-count stage-tab-count">12</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="screening" onclick="filterPipelineStage(this)">Screening <span class="hp-stage-btn-count stage-tab-count">14</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="passed" onclick="filterPipelineStage(this)">Passed <span class="hp-stage-btn-count stage-tab-count">8</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="booked" onclick="filterPipelineStage(this)">Booked <span class="hp-stage-btn-count stage-tab-count">7</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">7</span></button>
           </div>
-          <div class="toolbar-right">
-            <span class="filter-chip">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-              Sort: Newest
-            </span>
+          <div class="hp-list-tools">
+            Sort: Newest first
           </div>
         </div>
 
