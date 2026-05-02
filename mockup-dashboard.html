@@ -3494,24 +3494,14 @@ a{color:inherit;text-decoration:none}
         Schedule
         <span class="nav-badge" style="background:#D97706">5</span>
       </button>
-      <button class="nav-item" data-view="okami" onclick="goto('okami')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        OKAMI
-        <span class="nav-badge" style="background:#7C3AED">13w</span>
-      </button>
       <button class="nav-item" data-view="messages" onclick="goto('messages')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Messages
         <span class="nav-badge">7</span>
       </button>
       <button class="nav-item" data-view="forms" onclick="goto('forms')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
-        Forms
-        <span class="nav-badge" style="background:var(--accent)">3</span>
-      </button>
-      <button class="nav-item" data-view="checklists" onclick="goto('checklists')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Checklists
+        Workflows
         <span class="nav-badge" style="background:var(--amber)">4</span>
       </button>
       <button class="nav-item" data-view="finances" onclick="goto('finances')">
@@ -3523,10 +3513,6 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
         Build
         <span class="nav-badge" style="background:#7C3AED">NEW</span>
-      </button>
-      <button class="nav-item" data-view="settings" onclick="goto('settings')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
       </button>
     </nav>
 
@@ -4785,6 +4771,7 @@ a{color:inherit;text-decoration:none}
           <button class="subnav-item" data-sub="forecast" onclick="schedSub('forecast')">Forecast</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
+          <button class="subnav-item" onclick="goto('okami')" style="margin-left:auto" title="13-week OKAMI capacity plan">Plan ↗</button>
         </div>
 
         <!-- LIVE PANEL — visible across all sub-views -->
@@ -6517,19 +6504,20 @@ a{color:inherit;text-decoration:none}
       <div class="page">
         <div class="page-header">
           <div>
-            <h1 class="page-title">Forms</h1>
-            <p class="page-sub">Build the forms your drivers use · 12 published · 47 submissions this week</p>
+            <h1 class="page-title">Workflows</h1>
+            <p class="page-sub">Forms and checklists your drivers fill out · 12 forms published · 47 submissions this week</p>
           </div>
           <div class="page-actions">
-            <button class="btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export submissions
-            </button>
             <button class="btn btn-primary" onclick="openModal('modal-form-builder')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Build a form
             </button>
           </div>
+        </div>
+
+        <div class="subnav">
+          <button class="subnav-item active">Forms</button>
+          <button class="subnav-item" onclick="goto('checklists')">Checklists <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
         </div>
 
         <div class="forms-shell">
@@ -6728,14 +6716,10 @@ a{color:inherit;text-decoration:none}
       <div class="page">
         <div class="page-header">
           <div>
-            <h1 class="page-title">Checklists</h1>
+            <h1 class="page-title">Workflows</h1>
             <p class="page-sub">Recurring task lists for opening, closing, vehicle prep, onboarding · 14 active · 4 due now</p>
           </div>
           <div class="page-actions">
-            <button class="btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
-              Export
-            </button>
             <button class="btn btn-primary" onclick="openModal('modal-checklist-builder')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Build a checklist
@@ -6744,7 +6728,8 @@ a{color:inherit;text-decoration:none}
         </div>
 
         <div class="subnav">
-          <button class="subnav-item active" data-sub="my" onclick="checklistSub('my')">My checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
+          <button class="subnav-item" onclick="goto('forms')">Forms</button>
+          <button class="subnav-item active" data-sub="my" onclick="checklistSub('my')">Checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
           <button class="subnav-item" data-sub="status" onclick="checklistSub('status')">Today's status <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
           <button class="subnav-item" data-sub="templates" onclick="checklistSub('templates')">Templates <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">9</span></button>
         </div>
@@ -10014,8 +9999,8 @@ Evidence attached:
       schedule: 'Schedule',
       okami: 'OKAMI',
       messages: 'Messages',
-      forms: 'Forms',
-      checklists: 'Checklists',
+      forms: 'Workflows',
+      checklists: 'Workflows',
       finances: 'Finances',
       build: 'Build Your Own Tool',
       settings: 'Settings',
@@ -10029,8 +10014,8 @@ Evidence attached:
       schedule: 'Week of May 1–7 · 5 pending approvals',
       okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
-      forms: '12 published · 47 submissions this week',
-      checklists: '14 active · 4 due now',
+      forms: '12 forms · 47 submissions this week',
+      checklists: '14 checklists · 4 due now',
       finances: '$14,420 recovered YTD · 3 invoices pending review',
       build: 'No-code tool builder · 5 saved tools',
       settings: 'Cardinal Logistics · KMO1',
