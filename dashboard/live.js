@@ -212,6 +212,203 @@ window.goto = function (view) {
   if (view === "pipeline") loadPipeline(getActiveStage());
 };
 
+// ─── Add applicant ─────────────────────────────────────────────────────────
+//
+// We bind via event delegation on a data-attribute, not by overriding the
+// mockup's window.submitAddApplicant(). Module top-level await means the
+// global override happens later than DOM-paint, and inline onclick handlers
+// would fire the mockup stub if the user clicked early.
+
+async function doAddApplicant() {
+  const fn    = document.getElementById("aa-fn").value.trim();
+  const ln    = document.getElementById("aa-ln").value.trim();
+  const phone = document.getElementById("aa-phone").value.trim();
+  const email = document.getElementById("aa-email").value.trim();
+  const source = (document.querySelector("#modal-add-applicant .cd-pill.active")?.textContent || "Indeed").toLowerCase();
+
+  if (!fn && !ln) { toast("Add a name first", "warn"); return; }
+  if (!phone && !email) { toast("Phone or email required", "warn"); return; }
+
+  const payload = {
+    dsp_short_code: window.RR.dsp.short_code,
+    first_name: fn || null,
+    last_name:  ln || null,
+    full_name:  `${fn} ${ln}`.trim(),
+    phone:      phone ? toE164(phone) : null,
+    email:      email || null,
+    source,
+  };
+
+  const { data: applicant, error } = await sb.rpc("intake_applicant", { p_payload: payload });
+  if (error) { toast("Add failed: " + error.message, "warn"); return; }
+
+  if (applicant.phone && applicant.status === "applied") {
+    await sb.rpc("send_screening_link", { p_id: applicant.id });
+  }
+
+  closeModal("modal-add-applicant");
+  await loadPipeline("all");
+  toast(`${applicant.full_name} added · screening SMS queued`, "success");
+}
+
+// ─── Bulk ingest (paste from Indeed CSV/TSV) ───────────────────────────────
+//
+// Accepts tab-OR comma-delimited paste with a header row. Maps any of
+// these header labels to our fields:
+//   name     ← "name", "applicant name", "full name", "candidate name"
+//   first    ← "first name", "first", "given name"
+//   last     ← "last name", "last", "surname", "family name"
+//   email    ← "email", "email address", "e-mail"
+//   phone    ← "phone", "phone number", "mobile", "cell"
+//
+// At minimum we need (name OR first+last) and (phone OR email). Rows
+// missing both are skipped with a counter shown in the result toast.
+
+function parseBulkText(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return { rows: [], skipped: 0, headers: [] };
+
+  // Detect delimiter: tab if any tab in header, else comma.
+  const delim = lines[0].includes("\t") ? "\t" : ",";
+  const headers = splitCsv(lines[0], delim).map(h => h.toLowerCase().trim());
+
+  const idx = (...names) => headers.findIndex(h => names.some(n => h === n || h.includes(n)));
+  const iName  = idx("applicant name", "candidate name", "full name", "name");
+  const iFirst = idx("first name", "first", "given");
+  const iLast  = idx("last name", "last", "surname", "family");
+  const iEmail = idx("email address", "e-mail", "email");
+  const iPhone = idx("phone number", "phone", "mobile", "cell");
+
+  const rows = [];
+  let skipped = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsv(lines[i], delim);
+    let first = iFirst >= 0 ? cols[iFirst]?.trim() : "";
+    let last  = iLast  >= 0 ? cols[iLast]?.trim()  : "";
+    const fullName = iName >= 0 ? cols[iName]?.trim() : "";
+
+    if (!first && !last && fullName) {
+      const parts = fullName.split(/\s+/);
+      first = parts[0] || "";
+      last  = parts.slice(1).join(" ");
+    }
+    const full = (fullName || `${first} ${last}`).trim();
+
+    const email = iEmail >= 0 ? cols[iEmail]?.trim() : "";
+    const phone = iPhone >= 0 ? cols[iPhone]?.trim() : "";
+
+    if (!full)        { skipped++; continue; }
+    if (!email && !phone) { skipped++; continue; }
+
+    rows.push({
+      first_name: first || null,
+      last_name:  last  || null,
+      full_name:  full,
+      email:      email || null,
+      phone:      phone ? toE164(phone) : null,
+    });
+  }
+  return { rows, skipped, headers };
+}
+
+// Minimal CSV splitter: handles double-quoted fields with embedded commas.
+function splitCsv(line, delim) {
+  const out = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === delim && !inQ) {
+      out.push(cur); cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+// Loose phone normalizer → E.164. Stored as +1XXXXXXXXXX for US numbers,
+// otherwise passes through anything already starting with +.
+function toE164(raw) {
+  const digits = String(raw).replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) return digits;
+  if (digits.length === 10) return "+1" + digits;
+  if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+  return digits ? "+" + digits : null;
+}
+
+async function doBulkIngest() {
+  const text = document.getElementById("bi-paste").value;
+  const { rows, skipped } = parseBulkText(text);
+  if (rows.length === 0) {
+    toast(`No importable rows. Need a header row with at least name + phone or email.`, "warn");
+    return;
+  }
+
+  const btn = document.getElementById("bi-import-btn");
+  btn.disabled = true;
+  btn.textContent = `Importing 0 / ${rows.length}…`;
+
+  let added = 0, dupes = 0, failed = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    btn.textContent = `Importing ${i + 1} / ${rows.length}…`;
+    try {
+      const { data: existing } = await sb.from("applicants")
+        .select("id").eq("dsp_id", window.RR.dsp.id)
+        .or(`email.eq.${row.email ?? "__none__"},phone.eq.${row.phone ?? "__none__"}`).limit(1);
+
+      const { data: applicant, error } = await sb.rpc("intake_applicant", {
+        p_payload: {
+          dsp_short_code: window.RR.dsp.short_code,
+          source: "indeed",
+          ...row,
+        },
+      });
+      if (error) { failed++; continue; }
+
+      if (existing && existing.length > 0 && existing[0].id === applicant.id) {
+        dupes++;
+      } else {
+        added++;
+        if (applicant.phone && applicant.status === "applied") {
+          await sb.rpc("send_screening_link", { p_id: applicant.id });
+        }
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  closeModal("modal-bulk-ingest");
+  await loadPipeline("all");
+  toast(`Imported ${added} · ${dupes} duplicates · ${failed} failed${skipped ? ` · ${skipped} unparseable rows skipped` : ""}`,
+    failed ? "warn" : "success");
+}
+
+// Capture-phase delegate for the two import buttons. Capture phase
+// + stopImmediatePropagation guarantees we win even if the mockup's
+// inline onclick somehow re-attaches.
+document.addEventListener("click", (e) => {
+  const add = e.target.closest("[data-rr-add-applicant]");
+  if (add) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    doAddApplicant();
+    return;
+  }
+  const bulk = e.target.closest("[data-rr-bulk-ingest]");
+  if (bulk) {
+    if (bulk.disabled) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    doBulkIngest();
+  }
+}, true);
+
 // Sign-out hook: any element with [data-rr-signout] logs out.
 document.addEventListener("click", async (e) => {
   if (e.target.closest("[data-rr-signout]")) {

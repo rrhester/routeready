@@ -4287,11 +4287,11 @@ a{color:inherit;text-decoration:none}
             <p class="page-sub">48 applicants in cycle 14 · last imported 2h ago</p>
           </div>
           <div class="page-actions">
-            <button class="btn">
+            <button class="btn" onclick="openBulkIngest()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               Bulk ingest
             </button>
-            <button class="btn btn-primary">
+            <button class="btn btn-primary" onclick="openAddApplicantModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add applicant
             </button>
@@ -11837,7 +11837,7 @@ Evidence attached:
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal('modal-add-applicant')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitAddApplicant()">Add &amp; send screening</button>
+      <button class="btn btn-primary" data-rr-add-applicant>Add &amp; send screening</button>
     </div>
   </div>
 </div>
@@ -11860,7 +11860,7 @@ Evidence attached:
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal('modal-bulk-ingest')">Cancel</button>
-      <button class="btn btn-primary" id="bi-import-btn" onclick="submitBulkIngest()" disabled>Paste rows above</button>
+      <button class="btn btn-primary" id="bi-import-btn" data-rr-bulk-ingest disabled>Paste rows above</button>
     </div>
   </div>
 </div>
