@@ -3913,191 +3913,344 @@ a{color:inherit;text-decoration:none}
 
     <!-- ─── DASHBOARD VIEW ─── -->
     <div class="view active" id="view-dashboard">
-      <div class="page" style="max-width:760px;margin:0 auto">
+      <div class="page" style="max-width:1080px;margin:0 auto">
 
-        <!-- ─── Operator-grade dashboard: status strip + ranked decision list ─── -->
+        <!-- ─── Clean dashboard: task-card grid (pin / dismiss / open) ─── -->
         <style>
-          /* Status strip: one row, all glanceable values */
-          .dash-strip{display:flex;align-items:center;gap:var(--s-4);padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s-3);flex-wrap:wrap}
-          .dash-strip-headline{display:flex;align-items:baseline;gap:8px;font-weight:600;color:var(--text);font-size:15px;flex-shrink:0}
-          .dash-strip-headline strong{font-size:28px;font-weight:700;color:var(--text);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px}
-          .dash-strip-pips{display:flex;align-items:center;gap:18px;flex:1;min-width:0;flex-wrap:wrap}
-          .dash-strip-pip{display:inline-flex;align-items:baseline;gap:5px;font-size:12.5px;color:var(--text-muted);font-weight:500;white-space:nowrap}
-          .dash-strip-pip strong{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
-          .dash-strip-pip.warn strong{color:var(--amber)}
-          .dash-strip-pip.bad strong{color:var(--red)}
-          .dash-strip-date{font-size:12px;color:var(--text-subtle);font-weight:500;flex-shrink:0}
+          /* Header: minimal, single line */
+          .db-header{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s-4);margin-bottom:var(--s-5);flex-wrap:wrap}
+          .db-eyebrow{font-size:11px;font-weight:600;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+          .db-title{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1.1}
+          .db-meta{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--text-muted)}
+          .db-meta strong{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+          .db-meta-divider{width:1px;height:12px;background:var(--border)}
+          .db-restore{display:none;align-items:center;gap:5px;padding:5px 10px;background:transparent;border:1px dashed var(--border);border-radius:6px;font:inherit;font-size:11px;font-weight:500;color:var(--text-muted);cursor:pointer}
+          .db-restore:hover{background:var(--canvas);color:var(--text);border-color:var(--border-strong)}
+          .db-restore svg{width:11px;height:11px}
 
-          /* Today's check-in pin (one row, slim) */
-          .dash-checkin-pin{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s-3);font-size:13px}
-          .dash-checkin-pin svg{width:16px;height:16px;color:var(--text-muted);flex-shrink:0}
-          .dash-checkin-pin-text{flex:1;color:var(--text)}
-          .dash-checkin-pin-text strong{font-weight:600}
-          .dash-checkin-pin-meta{font-size:11px;color:var(--text-subtle);margin-left:6px}
-          .dash-checkin-pin-cta{padding:6px 14px;background:var(--text);color:#fff;border:0;border-radius:6px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0}
-          .dash-checkin-pin-cta:hover{background:#000}
-          .dash-checkin-pin.complete{background:transparent;border-style:dashed;color:var(--text-subtle)}
-          .dash-checkin-pin.complete svg{color:var(--green)}
-          .dash-checkin-pin.complete .dash-checkin-pin-cta{display:none}
+          /* Card grid — breathable, two columns */
+          .task-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-4)}
+          @media (max-width:760px){.task-grid{grid-template-columns:1fr}}
 
-          /* Decision list */
-          .dash-list-head{display:flex;align-items:baseline;justify-content:space-between;margin:var(--s-4) 0 8px}
-          .dash-list-title{font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
-          .dash-list-progress{font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums}
-          .dash-list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-          .dash-row{display:grid;grid-template-columns:14px 1fr auto auto;gap:14px;align-items:center;padding:14px 18px;border-top:1px solid var(--border);cursor:pointer;transition:background .12s}
-          .dash-row:first-child{border-top:0}
-          .dash-row:hover{background:var(--canvas)}
-          .dash-row:focus-visible{outline:0;background:var(--canvas);box-shadow:inset 3px 0 0 var(--accent)}
-          .dash-row.cleared{opacity:.4}
-          .dash-row.cleared .dash-row-cta{display:none}
-          .dash-sev{width:8px;height:8px;border-radius:50%;flex-shrink:0;justify-self:center}
-          .dash-sev.bad{background:var(--red);box-shadow:0 0 0 3px rgba(220,38,38,.15)}
-          .dash-sev.warn{background:var(--amber)}
-          .dash-sev.info{background:var(--text-subtle);opacity:.5}
-          .dash-row-body{display:flex;flex-direction:column;gap:1px;min-width:0}
-          .dash-row-title{font-size:14px;font-weight:600;color:var(--text);line-height:1.3}
-          .dash-row-meta{font-size:12px;color:var(--text-subtle);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          .dash-row-count{font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
-          .dash-row-count.bad{color:var(--red)}
-          .dash-row-count.warn{color:var(--amber)}
-          .dash-row-cta{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap}
-          .dash-row-cta:hover{background:var(--text);color:#fff;border-color:var(--text)}
-          .dash-row-cta svg{width:11px;height:11px}
-          .dash-row.bad .dash-row-cta{background:var(--red);color:#fff;border-color:var(--red)}
-          .dash-row.bad .dash-row-cta:hover{background:#991B1B;border-color:#991B1B}
+          /* Base task card */
+          .task-card{
+            position:relative;
+            background:var(--surface);
+            border:1px solid var(--border);
+            border-radius:12px;
+            padding:18px 20px 16px;
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+            transition:border-color .15s, box-shadow .15s, opacity .2s, transform .2s;
+            min-height:160px;
+          }
+          .task-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+          .task-card.deleted{display:none}
+          .task-card.cleared{opacity:.55}
+          .task-card.cleared .task-cta{display:none}
 
-          /* All-clear empty state — quiet, not celebratory */
-          .dash-allclear{padding:48px 24px;text-align:center;font-size:13px;color:var(--text-subtle)}
-          .dash-allclear strong{color:var(--text);font-weight:600;display:block;margin-bottom:4px;font-size:15px}
+          /* Pin/close — top right, ghost until hover */
+          .task-tools{position:absolute;top:10px;right:10px;display:flex;gap:2px;opacity:0;transition:opacity .15s}
+          .task-card:hover .task-tools, .task-card.pinned .task-tools, .task-card:focus-within .task-tools{opacity:1}
+          .task-tool{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:6px;color:var(--text-subtle);cursor:pointer;transition:background .12s,color .12s}
+          .task-tool:hover{background:var(--canvas);color:var(--text)}
+          .task-tool svg{width:14px;height:14px;stroke-width:2}
+          .task-card.pinned .task-tool[data-tool="pin"]{color:var(--accent);opacity:1}
+          .task-card.pinned .task-tool[data-tool="pin"] svg{fill:var(--accent)}
+
+          /* Severity hairline along the top */
+          .task-card::before{
+            content:"";
+            position:absolute;top:0;left:14px;right:14px;height:2px;
+            background:transparent;border-radius:0 0 2px 2px;
+          }
+          .task-card[data-sev="bad"]::before{background:var(--red)}
+          .task-card[data-sev="warn"]::before{background:var(--amber)}
+          .task-card[data-sev="info"]::before{background:var(--border-strong)}
+
+          /* Card head: eyebrow + count */
+          .task-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-right:64px}
+          .task-eyebrow{font-size:10.5px;font-weight:700;color:var(--text-subtle);letter-spacing:.08em;text-transform:uppercase}
+          .task-count{font-size:12px;font-weight:700;color:var(--text-muted);font-variant-numeric:tabular-nums;background:var(--canvas);padding:3px 9px;border-radius:999px;white-space:nowrap}
+          .task-card[data-sev="bad"] .task-count{background:var(--red-soft);color:var(--red)}
+          .task-card[data-sev="warn"] .task-count{background:var(--amber-soft);color:var(--amber)}
+
+          /* Title + body */
+          .task-title{font-size:15px;font-weight:600;color:var(--text);line-height:1.3;margin:0}
+          .task-msg{font-size:12.5px;color:var(--text-muted);line-height:1.5;flex:1}
+
+          /* Footer CTA — text link feel, not heavy button */
+          .task-cta{
+            align-self:flex-start;
+            display:inline-flex;align-items:center;gap:4px;
+            padding:0;
+            background:transparent;border:0;
+            color:var(--text);font:inherit;font-size:12.5px;font-weight:600;
+            cursor:pointer;
+          }
+          .task-cta:hover{color:var(--accent)}
+          .task-cta svg{width:11px;height:11px;transition:transform .15s}
+          .task-cta:hover svg{transform:translateX(2px)}
+
+          /* Pinned cards float to the top */
+          .task-card.pinned{order:-1;border-color:rgba(59,130,246,.4);background:linear-gradient(180deg, rgba(59,130,246,.03), var(--surface) 40%)}
+
+          /* ─── Attendance card (special — full width, richer, always on top) ─── */
+          .attendance-card{
+            order:-2;
+            grid-column:1 / -1;
+            min-height:auto;
+            padding:20px 22px;
+            display:grid;
+            grid-template-columns:auto 1fr auto;
+            grid-template-areas:"icon body cta";
+            gap:18px;
+            align-items:center;
+          }
+          @media (max-width:680px){
+            .attendance-card{grid-template-columns:1fr;grid-template-areas:"icon" "body" "cta";gap:14px}
+          }
+          .attendance-card::before{background:var(--accent)}
+          .ac-icon-wrap{
+            grid-area:icon;
+            width:44px;height:44px;
+            background:var(--accent-soft);color:var(--accent-text);
+            border-radius:10px;
+            display:flex;align-items:center;justify-content:center;
+            flex-shrink:0;
+          }
+          .ac-icon-wrap svg{width:22px;height:22px;stroke-width:2}
+          .ac-body{grid-area:body;display:flex;flex-direction:column;gap:6px;min-width:0}
+          .ac-headline{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+          .ac-stat{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1}
+          .ac-stat-lbl{font-size:13px;color:var(--text-muted);font-weight:500}
+          .ac-meta{font-size:12px;color:var(--text-subtle);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .ac-flag{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;background:var(--amber-soft);color:var(--amber);border-radius:999px;font-size:11px;font-weight:600}
+          .ac-flag-dot{width:5px;height:5px;border-radius:50%;background:var(--amber)}
+          .ac-cta{
+            grid-area:cta;
+            display:inline-flex;align-items:center;gap:6px;
+            padding:9px 16px;
+            background:var(--text);color:#fff;
+            border:0;border-radius:8px;
+            font:inherit;font-size:13px;font-weight:600;
+            cursor:pointer;white-space:nowrap;
+            transition:background .12s, transform .12s;
+          }
+          .ac-cta:hover{background:#000}
+          .ac-cta svg{width:13px;height:13px}
+          .attendance-card.cleared .ac-cta{display:none}
+          .attendance-card.cleared::after{content:"Completed";grid-area:cta;font-size:12px;color:var(--green);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+
+          /* All-clear empty state */
+          .db-allclear{padding:56px 24px;text-align:center;font-size:13px;color:var(--text-subtle);background:var(--surface);border:1px dashed var(--border);border-radius:12px;margin-top:var(--s-4)}
+          .db-allclear strong{color:var(--text);font-weight:600;display:block;margin-bottom:4px;font-size:15px}
+          .db-allclear.show{display:block}
         </style>
 
-        <!-- Status strip: one glance, everything operational -->
-        <div class="dash-strip">
-          <div class="dash-strip-headline">
-            <strong id="dash-to-clear">8</strong> to clear
+        <!-- Compact header -->
+        <div class="db-header">
+          <div>
+            <div class="db-eyebrow" id="db-eyebrow">Tuesday, May 1 · Cycle 14, day 3</div>
+            <h1 class="db-title">Today's tasks</h1>
           </div>
-          <div class="dash-strip-pips">
-            <span class="dash-strip-pip" title="% of next week's routes covered by qualified drivers">Coverage <strong id="dash-pip-coverage">84%</strong></span>
-            <span class="dash-strip-pip" title="Open shifts this week needing backfill">Open shifts <strong class="bad" id="dash-pip-open">3</strong></span>
-            <span class="dash-strip-pip" title="Drivers with attendance/safety/scorecard flags">At risk <strong class="warn" id="dash-pip-atrisk">5</strong></span>
-            <span class="dash-strip-pip" title="Today's check-in progress"><strong id="dash-pip-checkin">0</strong> / 78 checked in</span>
+          <div class="db-meta">
+            <span><strong id="queue-total">9</strong> open</span>
+            <span class="db-meta-divider"></span>
+            <span><strong id="queue-cleared">0</strong> cleared</span>
+            <span class="db-meta-divider"></span>
+            <span>Coverage <strong>84%</strong></span>
+            <button class="db-restore" id="db-restore" type="button" onclick="restoreTaskCards()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              Restore (<span id="db-deleted-n">0</span>)
+            </button>
           </div>
-          <span class="dash-strip-date" id="dash-strip-date">Tue · May 1</span>
         </div>
 
-        <!-- Today's check-in pin: only when not yet started -->
-        <div class="dash-checkin-pin" id="dash-checkin-pin">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <div class="dash-checkin-pin-text">
-            <strong>Today's check-in not started</strong>
-            <span class="dash-checkin-pin-meta">78 drivers expected · loadout 4:00 AM</span>
+        <!-- Task card grid — attendance card spans full width, others 2-col -->
+        <div class="task-grid" id="action-queue">
+
+          <!-- ATTENDANCE — full-width summary, click-through to capture flow -->
+          <div class="task-card attendance-card action-card" data-action="attendance" data-sev="info" data-task-key="attendance">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>
+              </button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="ac-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="ac-body">
+              <div class="task-eyebrow" style="margin-bottom:2px">Attendance · check in with your team</div>
+              <div class="ac-headline">
+                <span class="ac-stat"><span id="dash-pip-checkin">0</span> / 78</span>
+                <span class="ac-stat-lbl action-card-title">drivers checked in today</span>
+              </div>
+              <div class="ac-meta">
+                <span>Loadout 4:00 AM · KMO1, KMO2, KMO3</span>
+                <span class="ac-flag"><span class="ac-flag-dot"></span>3 callout patterns flagged</span>
+              </div>
+            </div>
+            <button class="ac-cta" onclick="goto('checkin')" type="button">
+              Open check-in
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
           </div>
-          <button class="dash-checkin-pin-cta" onclick="goto('checkin')">Start →</button>
+
+          <!-- SAFETY -->
+          <div class="task-card action-card" data-action="safety" data-sev="bad" data-task-key="safety">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Safety</span>
+              <span class="task-count action-count red">3 events</span>
+            </div>
+            <h3 class="task-title action-card-title">Acknowledge safety events</h3>
+            <p class="task-msg">2 Mentor harsh-brake · 1 minor accident (VAN-08, 4/29)</p>
+            <button class="task-cta" type="button" onclick="openSafetyQueue()">
+              Acknowledge
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- UNDERPERFORMERS -->
+          <div class="task-card action-card" data-action="underperformer" data-sev="warn" data-task-key="underperformer">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Performance</span>
+              <span class="task-count action-count amber" id="underperf-card-count">5 drivers</span>
+            </div>
+            <h3 class="task-title action-card-title">Review underperformers</h3>
+            <p class="task-msg" id="underperf-card-msg">Davidson, Reyes, Whitfield, Beckett, Thornton — score below 75</p>
+            <button class="task-cta" type="button" onclick="goto('staffing')">
+              Review
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- DOCUMENTS -->
+          <div class="task-card action-card" data-action="documents" data-sev="warn" data-task-key="documents">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Compliance</span>
+              <span class="task-count action-count amber">2</span>
+            </div>
+            <h3 class="task-title action-card-title">Documents expiring this week</h3>
+            <p class="task-msg">DOT inspection VAN-14 (6d) · driver license renewal (11d)</p>
+            <button class="task-cta" type="button" onclick="goto('fleet');setTimeout(function(){fleetSub('docs');},50)">
+              Review
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- QUALITY -->
+          <div class="task-card action-card" data-action="quality" data-sev="warn" data-task-key="quality">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Quality</span>
+              <span class="task-count action-count amber">8</span>
+            </div>
+            <h3 class="task-title action-card-title">Quality misses this week</h3>
+            <p class="task-msg">5 DCR concessions · 2 POD issues · 1 scan miss</p>
+            <button class="task-cta" type="button" onclick="openQualityQueue()">
+              Review
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- SCHEDULE -->
+          <div class="task-card action-card" data-action="schedule" data-sev="info" data-task-key="schedule">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Schedule</span>
+              <span class="task-count action-count">5</span>
+            </div>
+            <h3 class="task-title action-card-title">Schedule approvals</h3>
+            <p class="task-msg">3 time-off · 2 swap requests · next week still draft</p>
+            <button class="task-cta" type="button" onclick="goto('schedule');setTimeout(function(){schedSub('timeoff');},50)">
+              Review
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- PIPELINE -->
+          <div class="task-card action-card" data-action="pipeline" data-sev="info" data-task-key="pipeline">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Hiring</span>
+              <span class="task-count action-count">7</span>
+            </div>
+            <h3 class="task-title action-card-title">Pipeline · stage decisions</h3>
+            <p class="task-msg">7 applicants awaiting move · cycle 14 closes in 5 days</p>
+            <button class="task-cta" type="button" onclick="goto('pipeline')">
+              Review
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- COACHING -->
+          <div class="task-card action-card" data-action="coaching" data-sev="info" data-task-key="coaching">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Coaching</span>
+              <span class="task-count action-count">4</span>
+            </div>
+            <h3 class="task-title action-card-title">Coaching follow-ups</h3>
+            <p class="task-msg">4 drivers due for follow-up · did the behavior change?</p>
+            <button class="task-cta" type="button" onclick="openCoachDrawer()">
+              Review
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- DISPUTES -->
+          <div class="task-card action-card" data-action="disputes" data-sev="info" data-task-key="disputes">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg></button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="task-head">
+              <span class="task-eyebrow">Finance</span>
+              <span class="task-count action-count">$1,847</span>
+            </div>
+            <h3 class="task-title action-card-title">Invoice disputes ready to file</h3>
+            <p class="task-msg">6 auto-flagged · scan compliance, late returns, POD</p>
+            <button class="task-cta" type="button" onclick="goto('finances')">
+              Review
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
         </div>
 
-        <!-- Decision list — ranked by severity, single CTA per row -->
-        <div class="dash-list-head">
-          <span class="dash-list-title">Decisions</span>
-          <span class="dash-list-progress"><span id="queue-cleared">0</span> of <span id="queue-total">8</span> cleared</span>
-        </div>
-
-        <div class="dash-list" id="action-queue">
-
-          <!-- 1. Safety — highest severity, always pinned top -->
-          <div class="dash-row bad action-card" data-action="safety" tabindex="0" onclick="if(!event.target.closest('button'))openSafetyQueue()">
-            <span class="dash-sev bad"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Safety · acknowledge events</div>
-              <div class="dash-row-meta">2 Mentor harsh-brake · 1 minor accident (VAN-08, 4/29)</div>
-            </div>
-            <div class="dash-row-count bad action-count red">3 events</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();openSafetyQueue()">Acknowledge<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
-          </div>
-
-          <!-- 2. Documents expiring -->
-          <div class="dash-row warn action-card" data-action="documents" tabindex="0" onclick="if(!event.target.closest('button')){goto('fleet');setTimeout(function(){fleetSub('docs');},50)}">
-            <span class="dash-sev warn"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Documents expiring this week</div>
-              <div class="dash-row-meta">DOT inspection VAN-14 (6d) · driver license renewal (11d)</div>
-            </div>
-            <div class="dash-row-count warn action-count amber">2</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();goto('fleet');setTimeout(function(){fleetSub('docs');},50)">Review</button>
-          </div>
-
-          <!-- 3. Underperformers -->
-          <div class="dash-row warn action-card" data-action="underperformer" tabindex="0" onclick="if(!event.target.closest('button'))goto('staffing')">
-            <span class="dash-sev warn"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Underperformers · review</div>
-              <div class="dash-row-meta" id="underperf-card-msg">Davidson, Reyes, Whitfield, Beckett, Thornton — score below 75</div>
-            </div>
-            <div class="dash-row-count warn action-count amber" id="underperf-card-count">5 drivers</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();goto('staffing')">Review</button>
-          </div>
-
-          <!-- 4. Quality misses -->
-          <div class="dash-row warn action-card" data-action="quality" tabindex="0" onclick="if(!event.target.closest('button'))openQualityQueue()">
-            <span class="dash-sev warn"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Quality misses this week</div>
-              <div class="dash-row-meta">5 DCR concessions · 2 POD issues · 1 scan miss</div>
-            </div>
-            <div class="dash-row-count warn action-count amber">8</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();openQualityQueue()">Review</button>
-          </div>
-
-          <!-- 5. Schedule approvals -->
-          <div class="dash-row info action-card" data-action="schedule" tabindex="0" onclick="if(!event.target.closest('button')){goto('schedule');setTimeout(function(){schedSub('timeoff');},50)}">
-            <span class="dash-sev info"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Schedule approvals</div>
-              <div class="dash-row-meta">3 time-off · 2 swap requests · next week still draft</div>
-            </div>
-            <div class="dash-row-count action-count">5</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();goto('schedule');setTimeout(function(){schedSub('timeoff');},50)">Review</button>
-          </div>
-
-          <!-- 6. Pipeline -->
-          <div class="dash-row info action-card" data-action="pipeline" tabindex="0" onclick="if(!event.target.closest('button'))goto('pipeline')">
-            <span class="dash-sev info"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Pipeline · stage decisions</div>
-              <div class="dash-row-meta">7 applicants awaiting move · cycle 14 closes in 5 days</div>
-            </div>
-            <div class="dash-row-count action-count">7</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();goto('pipeline')">Review</button>
-          </div>
-
-          <!-- 7. Coaching follow-ups -->
-          <div class="dash-row info action-card" data-action="coaching" tabindex="0" onclick="if(!event.target.closest('button'))openCoachDrawer()">
-            <span class="dash-sev info"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Coaching follow-ups</div>
-              <div class="dash-row-meta">4 drivers due for follow-up · did the behavior change?</div>
-            </div>
-            <div class="dash-row-count action-count">4</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();openCoachDrawer()">Review</button>
-          </div>
-
-          <!-- 8. Invoice disputes — money, but never urgent today -->
-          <div class="dash-row info action-card" data-action="disputes" tabindex="0" onclick="if(!event.target.closest('button'))goto('finances')">
-            <span class="dash-sev info"></span>
-            <div class="dash-row-body">
-              <div class="dash-row-title">Invoice disputes ready to file</div>
-              <div class="dash-row-meta">6 auto-flagged · scan compliance, late returns, POD</div>
-            </div>
-            <div class="dash-row-count action-count">$1,847</div>
-            <button class="dash-row-cta" onclick="event.stopPropagation();goto('finances')">Review</button>
-          </div>
-
-        </div>
-
-        <!-- Quiet all-clear (only shows when queue empty) -->
-        <div class="dash-allclear" id="all-clear-state" style="display:none">
+        <!-- All-clear empty state -->
+        <div class="db-allclear" id="all-clear-state" style="display:none">
           <strong>All clear</strong>
-          Decisions handled. Coverage holds.
+          Nothing left for today. Coverage holds.
         </div>
 
       </div>
@@ -12132,27 +12285,25 @@ Evidence attached:
   function updateQueueProgress(){
     var queue = document.getElementById('action-queue');
     if (!queue) return;
-    var total = queue.querySelectorAll('.action-card').length;
-    var cleared = queue.querySelectorAll('.action-card.cleared').length;
+    // Visible cards = total - dismissed
+    var visible = queue.querySelectorAll('.action-card:not(.deleted)');
+    var total = visible.length;
+    var cleared = queue.querySelectorAll('.action-card:not(.deleted).cleared').length;
+    var open = total - cleared;
     var clearedEl = document.getElementById('queue-cleared');
     var totalEl = document.getElementById('queue-total');
     var subEl = document.getElementById('dashboard-sub');
     var allClear = document.getElementById('all-clear-state');
     if (clearedEl) clearedEl.textContent = cleared;
-    if (totalEl) totalEl.textContent = total;
+    if (totalEl) totalEl.textContent = open;
     if (subEl) {
-      var pending = total - cleared;
-      if (pending === 0) {
-        subEl.textContent = 'All clear · You\'re done for the day.';
-      } else if (cleared === 0) {
-        subEl.textContent = pending + ' decisions waiting · clear them and you\'re done for the day.';
-      } else {
-        subEl.textContent = pending + ' waiting · ' + cleared + ' cleared so far today.';
-      }
+      if (open === 0) subEl.textContent = 'All clear · You\'re done for the day.';
+      else if (cleared === 0) subEl.textContent = open + ' tasks waiting.';
+      else subEl.textContent = open + ' waiting · ' + cleared + ' cleared.';
     }
     if (allClear) {
-      if (cleared === total && total > 0) allClear.classList.add('show');
-      else allClear.classList.remove('show');
+      if (open === 0 && total > 0) { allClear.classList.add('show'); allClear.style.display = 'block'; }
+      else { allClear.classList.remove('show'); allClear.style.display = 'none'; }
     }
   }
   function resetActionQueue(){
@@ -12163,8 +12314,75 @@ Evidence attached:
     });
     updateQueueProgress();
     recomputeStaffingRisk();
-    toast('Queue reset · 8 decisions restored');
+    toast('Queue reset · all tasks restored');
   }
+
+  // ─── TASK CARD PIN / DISMISS / RESTORE ──────────────────────
+  // Persistence keyed by data-task-key. Pinned cards float to top via CSS order.
+  var DASH_CARDS_KEY = 'rr.dashboard.cards.v1';
+  function _readCardState(){
+    try { return JSON.parse(localStorage.getItem(DASH_CARDS_KEY)) || {pinned:[], deleted:[]}; }
+    catch (e) { return {pinned:[], deleted:[]}; }
+  }
+  function _writeCardState(state){
+    try { localStorage.setItem(DASH_CARDS_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function _applyCardState(){
+    var state = _readCardState();
+    var cards = document.querySelectorAll('#action-queue .task-card');
+    cards.forEach(function(c){
+      var key = c.getAttribute('data-task-key');
+      if (!key) return;
+      c.classList.toggle('pinned', state.pinned.indexOf(key) !== -1);
+      c.classList.toggle('deleted', state.deleted.indexOf(key) !== -1);
+    });
+    _refreshRestoreBtn(state);
+    if (typeof updateQueueProgress === 'function') updateQueueProgress();
+  }
+  function _refreshRestoreBtn(state){
+    var btn = document.getElementById('db-restore');
+    var n = document.getElementById('db-deleted-n');
+    if (!btn) return;
+    var count = (state || _readCardState()).deleted.length;
+    if (n) n.textContent = count;
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+  function pinTaskCard(toolEl){
+    var card = toolEl.closest('.task-card');
+    if (!card) return;
+    var key = card.getAttribute('data-task-key');
+    var state = _readCardState();
+    var i = state.pinned.indexOf(key);
+    if (i === -1) { state.pinned.push(key); card.classList.add('pinned'); toast('Pinned to top'); }
+    else { state.pinned.splice(i, 1); card.classList.remove('pinned'); toast('Unpinned'); }
+    _writeCardState(state);
+  }
+  function dismissTaskCard(toolEl){
+    var card = toolEl.closest('.task-card');
+    if (!card) return;
+    var key = card.getAttribute('data-task-key');
+    var state = _readCardState();
+    if (state.deleted.indexOf(key) === -1) state.deleted.push(key);
+    // unpin if pinned
+    var pi = state.pinned.indexOf(key);
+    if (pi !== -1) state.pinned.splice(pi, 1);
+    _writeCardState(state);
+    card.classList.add('deleted');
+    card.classList.remove('pinned');
+    _refreshRestoreBtn(state);
+    if (typeof updateQueueProgress === 'function') updateQueueProgress();
+    toast('Card dismissed · use Restore to bring back');
+  }
+  function restoreTaskCards(){
+    _writeCardState({pinned: _readCardState().pinned, deleted: []});
+    document.querySelectorAll('#action-queue .task-card.deleted').forEach(function(c){
+      c.classList.remove('deleted');
+    });
+    _refreshRestoreBtn();
+    if (typeof updateQueueProgress === 'function') updateQueueProgress();
+    toast('Restored dismissed cards');
+  }
+  document.addEventListener('DOMContentLoaded', _applyCardState);
 
   function goto(view){
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
