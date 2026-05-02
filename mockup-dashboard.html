@@ -3913,212 +3913,191 @@ a{color:inherit;text-decoration:none}
 
     <!-- ─── DASHBOARD VIEW ─── -->
     <div class="view active" id="view-dashboard">
-      <div class="page">
+      <div class="page" style="max-width:760px;margin:0 auto">
 
-        <div class="page-header">
-          <div>
-            <h1 class="page-title">Good morning, Ryan</h1>
-            <p class="page-sub" id="dashboard-sub">8 decisions waiting · clear them and you're done for the day.</p>
+        <!-- ─── Operator-grade dashboard: status strip + ranked decision list ─── -->
+        <style>
+          /* Status strip: one row, all glanceable values */
+          .dash-strip{display:flex;align-items:center;gap:var(--s-4);padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s-3);flex-wrap:wrap}
+          .dash-strip-headline{display:flex;align-items:baseline;gap:8px;font-weight:600;color:var(--text);font-size:15px;flex-shrink:0}
+          .dash-strip-headline strong{font-size:28px;font-weight:700;color:var(--text);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+          .dash-strip-pips{display:flex;align-items:center;gap:18px;flex:1;min-width:0;flex-wrap:wrap}
+          .dash-strip-pip{display:inline-flex;align-items:baseline;gap:5px;font-size:12.5px;color:var(--text-muted);font-weight:500;white-space:nowrap}
+          .dash-strip-pip strong{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+          .dash-strip-pip.warn strong{color:var(--amber)}
+          .dash-strip-pip.bad strong{color:var(--red)}
+          .dash-strip-date{font-size:12px;color:var(--text-subtle);font-weight:500;flex-shrink:0}
+
+          /* Today's check-in pin (one row, slim) */
+          .dash-checkin-pin{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s-3);font-size:13px}
+          .dash-checkin-pin svg{width:16px;height:16px;color:var(--text-muted);flex-shrink:0}
+          .dash-checkin-pin-text{flex:1;color:var(--text)}
+          .dash-checkin-pin-text strong{font-weight:600}
+          .dash-checkin-pin-meta{font-size:11px;color:var(--text-subtle);margin-left:6px}
+          .dash-checkin-pin-cta{padding:6px 14px;background:var(--text);color:#fff;border:0;border-radius:6px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0}
+          .dash-checkin-pin-cta:hover{background:#000}
+          .dash-checkin-pin.complete{background:transparent;border-style:dashed;color:var(--text-subtle)}
+          .dash-checkin-pin.complete svg{color:var(--green)}
+          .dash-checkin-pin.complete .dash-checkin-pin-cta{display:none}
+
+          /* Decision list */
+          .dash-list-head{display:flex;align-items:baseline;justify-content:space-between;margin:var(--s-4) 0 8px}
+          .dash-list-title{font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+          .dash-list-progress{font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+          .dash-list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+          .dash-row{display:grid;grid-template-columns:14px 1fr auto auto;gap:14px;align-items:center;padding:14px 18px;border-top:1px solid var(--border);cursor:pointer;transition:background .12s}
+          .dash-row:first-child{border-top:0}
+          .dash-row:hover{background:var(--canvas)}
+          .dash-row:focus-visible{outline:0;background:var(--canvas);box-shadow:inset 3px 0 0 var(--accent)}
+          .dash-row.cleared{opacity:.4}
+          .dash-row.cleared .dash-row-cta{display:none}
+          .dash-sev{width:8px;height:8px;border-radius:50%;flex-shrink:0;justify-self:center}
+          .dash-sev.bad{background:var(--red);box-shadow:0 0 0 3px rgba(220,38,38,.15)}
+          .dash-sev.warn{background:var(--amber)}
+          .dash-sev.info{background:var(--text-subtle);opacity:.5}
+          .dash-row-body{display:flex;flex-direction:column;gap:1px;min-width:0}
+          .dash-row-title{font-size:14px;font-weight:600;color:var(--text);line-height:1.3}
+          .dash-row-meta{font-size:12px;color:var(--text-subtle);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .dash-row-count{font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+          .dash-row-count.bad{color:var(--red)}
+          .dash-row-count.warn{color:var(--amber)}
+          .dash-row-cta{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap}
+          .dash-row-cta:hover{background:var(--text);color:#fff;border-color:var(--text)}
+          .dash-row-cta svg{width:11px;height:11px}
+          .dash-row.bad .dash-row-cta{background:var(--red);color:#fff;border-color:var(--red)}
+          .dash-row.bad .dash-row-cta:hover{background:#991B1B;border-color:#991B1B}
+
+          /* All-clear empty state — quiet, not celebratory */
+          .dash-allclear{padding:48px 24px;text-align:center;font-size:13px;color:var(--text-subtle)}
+          .dash-allclear strong{color:var(--text);font-weight:600;display:block;margin-bottom:4px;font-size:15px}
+        </style>
+
+        <!-- Status strip: one glance, everything operational -->
+        <div class="dash-strip">
+          <div class="dash-strip-headline">
+            <strong id="dash-to-clear">8</strong> to clear
           </div>
-          <div class="page-actions">
-            <button class="btn btn-sm" onclick="resetActionQueue()" title="Restore queue (demo helper)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-              Reset queue
-            </button>
+          <div class="dash-strip-pips">
+            <span class="dash-strip-pip" title="% of next week's routes covered by qualified drivers">Coverage <strong id="dash-pip-coverage">84%</strong></span>
+            <span class="dash-strip-pip" title="Open shifts this week needing backfill">Open shifts <strong class="bad" id="dash-pip-open">3</strong></span>
+            <span class="dash-strip-pip" title="Drivers with attendance/safety/scorecard flags">At risk <strong class="warn" id="dash-pip-atrisk">5</strong></span>
+            <span class="dash-strip-pip" title="Today's check-in progress"><strong id="dash-pip-checkin">0</strong> / 78 checked in</span>
           </div>
+          <span class="dash-strip-date" id="dash-strip-date">Tue · May 1</span>
         </div>
 
-        <!-- Morning check-in banner -->
-        <div class="checkin-banner" id="checkin-banner">
-          <div class="checkin-banner-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <!-- Today's check-in pin: only when not yet started -->
+        <div class="dash-checkin-pin" id="dash-checkin-pin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <div class="dash-checkin-pin-text">
+            <strong>Today's check-in not started</strong>
+            <span class="dash-checkin-pin-meta">78 drivers expected · loadout 4:00 AM</span>
           </div>
-          <div class="checkin-banner-body">
-            <div class="checkin-banner-eyebrow">Today · Tuesday, May 1</div>
-            <div class="checkin-banner-title">Check in your team for today</div>
-            <div class="checkin-banner-sub">78 drivers expected · 0 marked so far · Live coverage updates as you check in</div>
-          </div>
-          <button class="checkin-banner-cta" onclick="goto('checkin')">
-            Start check-in
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </button>
+          <button class="dash-checkin-pin-cta" onclick="goto('checkin')">Start →</button>
         </div>
 
-        <!-- Persistent health strip — calm, never demands action -->
-        <div class="health-strip">
-          <div class="health-card" onclick="openCoverageDetail()" title="% of next week's routes covered by qualified, available drivers">
-            <div class="health-icon green">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <div>
-              <div class="health-label">Coverage Confidence · next week</div>
-              <div class="health-value">84<span class="frac">%</span></div>
-              <div class="health-trend">11 of 15 gap covered · safe to act</div>
-            </div>
-          </div>
-          <div class="health-card" onclick="goto('drivers')" title="Driver Composite Score · fleet average across safety, quality, attendance, scorecard">
-            <div class="health-icon blue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
-            </div>
-            <div>
-              <div class="health-label">Driver Composite Score · fleet avg</div>
-              <div class="health-value">81</div>
-              <div class="health-trend"><span class="up">▲ 2</span> vs last week · 5 below 75</div>
-            </div>
-          </div>
-          <div class="health-card" onclick="goto('drivers');setTimeout(function(){drSub('insights');},50)" title="Retention Propensity · forward-looking churn risk">
-            <div class="health-icon amber">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <div>
-              <div class="health-label">Retention Propensity</div>
-              <div class="health-value">73<span class="frac"> / 78 healthy</span></div>
-              <div class="health-trend">5 at-risk · 3 high probability of leaving</div>
-            </div>
-          </div>
+        <!-- Decision list — ranked by severity, single CTA per row -->
+        <div class="dash-list-head">
+          <span class="dash-list-title">Decisions</span>
+          <span class="dash-list-progress"><span id="queue-cleared">0</span> of <span id="queue-total">8</span> cleared</span>
         </div>
 
-        <!-- Today's queue header -->
-        <div class="queue-head">
-          <div>
-            <h2 class="queue-title">Your queue today</h2>
-            <p class="bb-section-sub" style="margin:4px 0 0 0">Strategic decisions waiting on you. Clear each one to be done for the day.</p>
+        <div class="dash-list" id="action-queue">
+
+          <!-- 1. Safety — highest severity, always pinned top -->
+          <div class="dash-row bad action-card" data-action="safety" tabindex="0" onclick="if(!event.target.closest('button'))openSafetyQueue()">
+            <span class="dash-sev bad"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Safety · acknowledge events</div>
+              <div class="dash-row-meta">2 Mentor harsh-brake · 1 minor accident (VAN-08, 4/29)</div>
+            </div>
+            <div class="dash-row-count bad action-count red">3 events</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();openSafetyQueue()">Acknowledge<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
           </div>
-          <div class="queue-progress"><span class="num" id="queue-cleared">0</span> of <span class="num" id="queue-total">8</span> cleared</div>
+
+          <!-- 2. Documents expiring -->
+          <div class="dash-row warn action-card" data-action="documents" tabindex="0" onclick="if(!event.target.closest('button')){goto('fleet');setTimeout(function(){fleetSub('docs');},50)}">
+            <span class="dash-sev warn"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Documents expiring this week</div>
+              <div class="dash-row-meta">DOT inspection VAN-14 (6d) · driver license renewal (11d)</div>
+            </div>
+            <div class="dash-row-count warn action-count amber">2</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();goto('fleet');setTimeout(function(){fleetSub('docs');},50)">Review</button>
+          </div>
+
+          <!-- 3. Underperformers -->
+          <div class="dash-row warn action-card" data-action="underperformer" tabindex="0" onclick="if(!event.target.closest('button'))goto('staffing')">
+            <span class="dash-sev warn"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Underperformers · review</div>
+              <div class="dash-row-meta" id="underperf-card-msg">Davidson, Reyes, Whitfield, Beckett, Thornton — score below 75</div>
+            </div>
+            <div class="dash-row-count warn action-count amber" id="underperf-card-count">5 drivers</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();goto('staffing')">Review</button>
+          </div>
+
+          <!-- 4. Quality misses -->
+          <div class="dash-row warn action-card" data-action="quality" tabindex="0" onclick="if(!event.target.closest('button'))openQualityQueue()">
+            <span class="dash-sev warn"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Quality misses this week</div>
+              <div class="dash-row-meta">5 DCR concessions · 2 POD issues · 1 scan miss</div>
+            </div>
+            <div class="dash-row-count warn action-count amber">8</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();openQualityQueue()">Review</button>
+          </div>
+
+          <!-- 5. Schedule approvals -->
+          <div class="dash-row info action-card" data-action="schedule" tabindex="0" onclick="if(!event.target.closest('button')){goto('schedule');setTimeout(function(){schedSub('timeoff');},50)}">
+            <span class="dash-sev info"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Schedule approvals</div>
+              <div class="dash-row-meta">3 time-off · 2 swap requests · next week still draft</div>
+            </div>
+            <div class="dash-row-count action-count">5</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();goto('schedule');setTimeout(function(){schedSub('timeoff');},50)">Review</button>
+          </div>
+
+          <!-- 6. Pipeline -->
+          <div class="dash-row info action-card" data-action="pipeline" tabindex="0" onclick="if(!event.target.closest('button'))goto('pipeline')">
+            <span class="dash-sev info"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Pipeline · stage decisions</div>
+              <div class="dash-row-meta">7 applicants awaiting move · cycle 14 closes in 5 days</div>
+            </div>
+            <div class="dash-row-count action-count">7</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();goto('pipeline')">Review</button>
+          </div>
+
+          <!-- 7. Coaching follow-ups -->
+          <div class="dash-row info action-card" data-action="coaching" tabindex="0" onclick="if(!event.target.closest('button'))openCoachDrawer()">
+            <span class="dash-sev info"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Coaching follow-ups</div>
+              <div class="dash-row-meta">4 drivers due for follow-up · did the behavior change?</div>
+            </div>
+            <div class="dash-row-count action-count">4</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();openCoachDrawer()">Review</button>
+          </div>
+
+          <!-- 8. Invoice disputes — money, but never urgent today -->
+          <div class="dash-row info action-card" data-action="disputes" tabindex="0" onclick="if(!event.target.closest('button'))goto('finances')">
+            <span class="dash-sev info"></span>
+            <div class="dash-row-body">
+              <div class="dash-row-title">Invoice disputes ready to file</div>
+              <div class="dash-row-meta">6 auto-flagged · scan compliance, late returns, POD</div>
+            </div>
+            <div class="dash-row-count action-count">$1,847</div>
+            <button class="dash-row-cta" onclick="event.stopPropagation();goto('finances')">Review</button>
+          </div>
+
         </div>
 
-        <!-- All-clear empty state (hidden until queue=0) -->
-        <div class="all-clear" id="all-clear-state">
-          <div class="all-clear-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <div class="all-clear-title">All clear · You're done for the day.</div>
-          <div class="all-clear-sub">Coverage holds at 84%. Composite trending up. The team is in good hands — go home.</div>
-        </div>
-
-        <!-- 8-card action queue -->
-        <div class="action-queue" id="action-queue">
-
-          <div class="action-card" data-action="pipeline">
-            <div class="action-card-head">
-              <div class="action-icon purple">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </div>
-              <span class="action-count">7 items</span>
-            </div>
-            <div class="action-card-title">Pipeline decisions</div>
-            <div class="action-card-msg">7 applicants awaiting stage move. Cycle 14 closes in 5 days.</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('pipeline')">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
-          <div class="action-card" data-action="underperformer">
-            <div class="action-card-head">
-              <div class="action-icon amber">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg>
-              </div>
-              <span class="action-count amber" id="underperf-card-count">5 drivers</span>
-            </div>
-            <div class="action-card-title">Underperformers · review</div>
-            <div class="action-card-msg" id="underperf-card-msg">Davidson, Reyes, Whitfield, Beckett, Thornton — score below 75. Coaching window closes Friday.</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('staffing')">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
-          <div class="action-card" data-action="safety">
-            <div class="action-card-head">
-              <div class="action-icon red">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              </div>
-              <span class="action-count red">3 events</span>
-            </div>
-            <div class="action-card-title">Safety infractions</div>
-            <div class="action-card-msg">2 Mentor harsh-brake events · 1 minor accident report (VAN-08, 4/29). Acknowledge and coach.</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="openSafetyQueue()">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
-          <div class="action-card" data-action="quality">
-            <div class="action-card-head">
-              <div class="action-icon amber">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              </div>
-              <span class="action-count amber">8 issues</span>
-            </div>
-            <div class="action-card-title">Quality misses</div>
-            <div class="action-card-msg">5 DCR concessions · 2 POD photo issues · 1 scan compliance miss this week. Review for dispute or coach.</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="openQualityQueue()">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
-          <div class="action-card" data-action="schedule">
-            <div class="action-card-head">
-              <div class="action-icon blue">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
-              </div>
-              <span class="action-count">5 pending</span>
-            </div>
-            <div class="action-card-title">Schedule approvals</div>
-            <div class="action-card-msg">3 time-off requests · 2 swap requests waiting on you. Next week's schedule still in draft.</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('schedule');setTimeout(function(){schedSub('timeoff');},50)">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
-          <div class="action-card" data-action="disputes">
-            <div class="action-card-head">
-              <div class="action-icon green">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              </div>
-              <span class="action-count">$1,847</span>
-            </div>
-            <div class="action-card-title">Invoice disputes · review</div>
-            <div class="action-card-msg">6 auto-flagged disputes ready to file. Scan compliance, late returns, POD discrepancies.</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('finances')">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
-          <div class="action-card" data-action="coaching">
-            <div class="action-card-head">
-              <div class="action-icon blue">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              </div>
-              <span class="action-count">4 due</span>
-            </div>
-            <div class="action-card-title">Coaching follow-ups</div>
-            <div class="action-card-msg">4 drivers due for follow-up after this week's coaching. Did the behavior change?</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer()">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
-          <div class="action-card" data-action="documents">
-            <div class="action-card-head">
-              <div class="action-icon amber">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-              <span class="action-count amber">2 expiring</span>
-            </div>
-            <div class="action-card-title">Documents expiring</div>
-            <div class="action-card-msg">DOT inspection (VAN-14) expires in 6 days · 1 driver license renewal in 11 days.</div>
-            <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('fleet');setTimeout(function(){fleetSub('docs');},50)">Review</button>
-              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
-            </div>
-          </div>
-
+        <!-- Quiet all-clear (only shows when queue empty) -->
+        <div class="dash-allclear" id="all-clear-state" style="display:none">
+          <strong>All clear</strong>
+          Decisions handled. Coverage holds.
         </div>
 
       </div>
