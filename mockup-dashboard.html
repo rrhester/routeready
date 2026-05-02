@@ -4745,14 +4745,6 @@ a{color:inherit;text-decoration:none}
             <p class="page-sub">Week of May 1–7 · 78 drivers · 3 routes uncovered · 5 pending approvals</p>
           </div>
           <div class="page-actions">
-            <button class="btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
-              Templates
-            </button>
-            <button class="btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export
-            </button>
             <button class="btn btn-primary" id="schedule-cta" onclick="advanceSchedule()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Finalize draft
@@ -4763,114 +4755,41 @@ a{color:inherit;text-decoration:none}
         <!-- Sub-nav -->
         <div class="subnav">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
-          <button class="subnav-item" data-sub="drivers" onclick="schedSub('drivers')">By driver</button>
           <button class="subnav-item" data-sub="timeoff" onclick="schedSub('timeoff')">Time off <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
-          <button class="subnav-item" data-sub="swaps" onclick="schedSub('swaps')">Swaps <span style="background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">2</span></button>
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')">Open shifts <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
-          <button class="subnav-item" data-sub="availability" onclick="schedSub('availability')">Availability</button>
-          <button class="subnav-item" data-sub="forecast" onclick="schedSub('forecast')">Forecast</button>
-          <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
           <button class="subnav-item" onclick="goto('okami')" style="margin-left:auto" title="13-week OKAMI capacity plan">Plan ↗</button>
         </div>
 
-        <!-- LIVE PANEL — visible across all sub-views -->
-        <div class="live-panel">
-          <div class="live-pulse"></div>
-          <div class="live-stats">
-            <div>
-              <div class="live-stat-label">Today, May 1</div>
-              <div class="live-stat-value">74<span class="frac"> / 78 checked in</span></div>
-            </div>
-            <div>
-              <div class="live-stat-label">Currently on route</div>
-              <div class="live-stat-value">71<span class="frac"> / 90 routes</span></div>
-            </div>
-            <div>
-              <div class="live-stat-label">Callouts today</div>
-              <div class="live-stat-value warn">3</div>
-            </div>
-            <div>
-              <div class="live-stat-label">Open shifts</div>
-              <div class="live-stat-value bad">3</div>
-            </div>
-          </div>
-          <button class="btn btn-sm" onclick="goto('checkin')">Open check-in →</button>
+        <!-- Live status — single line above calendar -->
+        <div style="display:flex;align-items:center;gap:14px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:var(--s-4);font-size:12px">
+          <span style="display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:600"><span style="width:6px;height:6px;background:var(--green);border-radius:50%;display:inline-block"></span>Live</span>
+          <span style="color:var(--text-muted)">Today, May 1</span>
+          <span><strong>74</strong>/78 checked in</span>
+          <span><strong>71</strong>/90 on route</span>
+          <span style="color:var(--amber)"><strong>3</strong> callouts</span>
+          <span style="color:var(--red)"><strong>3</strong> open shifts</span>
+          <button class="btn btn-sm" style="margin-left:auto" onclick="goto('checkin')">Open check-in →</button>
         </div>
 
         <!-- WEEK VIEW SUB-VIEW -->
         <div class="sched-subview active" id="sched-sub-week">
 
-          <!-- AI Auto-Schedule banner -->
-          <div class="ai-banner">
-            <div class="ai-banner-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.36 7.36L12 16.71l-6.17 4.51 2.36-7.36L2 9.36h7.61z"/></svg>
-            </div>
-            <div>
-              <div class="ai-banner-title">AI can auto-schedule next week</div>
-              <div class="ai-banner-msg">Optimized for coverage, qualifications, fairness, and known time-off. Manager reviews before publishing.</div>
-            </div>
-            <button class="ai-banner-cta" onclick="openAiSchedule()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
-              Generate next week
-            </button>
-          </div>
-
-          <div class="sched-toolbar">
+          <!-- Lightweight toolbar: week nav + 1 status line + 1 primary action -->
+          <div class="sched-toolbar" style="border:none;background:transparent;padding:0;margin-bottom:var(--s-3)">
             <div class="sched-week-nav">
               <button class="sched-week-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 18 9 12 15 6"/></svg></button>
               <div>
                 <div class="sched-week-label">May 1 – May 7, 2026</div>
-                <div class="sched-week-sub">Cycle 14 · This week</div>
+                <div class="sched-week-sub" style="font-size:11px;color:var(--text-subtle)">Cycle 14 · 82% filled (37/45 shifts) · OKAMI Week 19 · <span style="color:var(--accent-text);cursor:pointer" onclick="goto('okami')">Adjust in OKAMI →</span></div>
               </div>
               <button class="sched-week-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"/></svg></button>
               <button class="btn btn-sm" style="margin-left:8px">Today</button>
             </div>
-            <div style="display:flex;align-items:center;gap:var(--s-3)">
-              <div class="lifecycle" id="schedule-lifecycle">
-                <div class="life-step active" data-stage="draft"><span class="life-num">1</span>Draft</div>
-                <span class="life-arrow">→</span>
-                <div class="life-step pending" data-stage="review"><span class="life-num">2</span>Review</div>
-                <span class="life-arrow">→</span>
-                <div class="life-step pending" data-stage="posted"><span class="life-num">3</span>Posted</div>
-              </div>
-              <div class="view-toggle">
-                <button class="view-toggle-btn active">Driver view</button>
-                <button class="view-toggle-btn">Route view</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- OKAMI source — schedule pulled from 13-week plan -->
-          <div class="okami-source">
-            <div class="okami-source-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-            <div>Pulled from <strong>OKAMI · Week 19</strong> · <strong>38 routes</strong> this week · <strong>85 drivers needed</strong> (76 base + 9 cushion at 12%)</div>
-            <span class="okami-source-link" onclick="goto('okami')">Adjust in OKAMI →</span>
-          </div>
-
-          <!-- Builder header with live coverage gauge + actions -->
-          <div class="builder-header">
-            <div class="builder-gauge">
-              <div class="builder-gauge-pct" id="builder-gauge-pct">82%</div>
-              <div>
-                <div class="builder-gauge-label">Week filled · <strong id="builder-filled">37</strong> of <strong id="builder-total">45</strong> shifts assigned</div>
-                <div class="builder-gauge-track" style="margin-top:4px"><div class="builder-gauge-fill" id="builder-gauge-fill" style="width:82%"></div></div>
-              </div>
-            </div>
-            <div class="builder-actions">
-              <button class="btn btn-sm" onclick="toast('Last week copied · review and publish')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                Copy last week
-              </button>
-              <button class="btn btn-sm" onclick="toast('Apply standard M–F template to all unassigned drivers')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/></svg>
-                Apply template
-              </button>
-              <button class="btn btn-sm btn-primary" onclick="openAiSchedule()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
-                Auto-fill week
-              </button>
-            </div>
+            <button class="btn btn-sm btn-primary" onclick="openAiSchedule()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+              Auto-fill week
+            </button>
           </div>
 
           <div class="builder-shell">
@@ -10164,47 +10083,27 @@ Evidence attached:
   function openAiSchedule(){ openModal('modal-ai-schedule'); }
 
   // ─── SCHEDULE LIFECYCLE — Draft → Review → Posted ─────────
+  var _scheduleStage = 'draft';
   function setLifecycleStage(stage){
-    document.querySelectorAll('#schedule-lifecycle .life-step').forEach(function(s){
-      s.classList.remove('active','done','pending');
-    });
-    const order = ['draft','review','posted'];
-    const idx = order.indexOf(stage);
-    order.forEach(function(name, i){
-      const el = document.querySelector('#schedule-lifecycle .life-step[data-stage="' + name + '"]');
-      if (!el) return;
-      if (i < idx) el.classList.add('done');
-      else if (i === idx) el.classList.add('active');
-      else el.classList.add('pending');
-    });
-    // Update primary CTA based on stage
+    _scheduleStage = stage;
     const cta = document.getElementById('schedule-cta');
-    if (cta) {
-      if (stage === 'draft') {
-        cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Finalize draft';
-        cta.disabled = false;
-      } else if (stage === 'review') {
-        cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Continue to post';
-        cta.disabled = false;
-      } else if (stage === 'posted') {
-        cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Make changes';
-      }
-    }
-    if (stage === 'posted') {
+    if (!cta) return;
+    if (stage === 'draft') {
+      cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Finalize draft';
+    } else if (stage === 'review') {
+      cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Continue to post';
+    } else if (stage === 'posted') {
+      cta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Make changes';
       toast('Schedule posted · 78 drivers notified by SMS + push');
     }
   }
   function advanceSchedule(){
-    const active = document.querySelector('#schedule-lifecycle .life-step.active');
-    if (!active) return;
-    const stage = active.getAttribute('data-stage');
-    if (stage === 'draft') {
+    if (_scheduleStage === 'draft') {
       setLifecycleStage('review');
       openModal('modal-schedule-review');
-    } else if (stage === 'review') {
+    } else if (_scheduleStage === 'review') {
       openModal('modal-schedule-post');
     } else {
-      // Posted — return to draft for changes
       setLifecycleStage('draft');
       toast('Reopened as draft · changes will require re-post');
     }
