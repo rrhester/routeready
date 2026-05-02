@@ -4778,10 +4778,11 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <!-- Drivers sub-nav: Roster · Insights -->
+        <!-- Drivers sub-nav: Roster · Insights · Attendance -->
         <div class="subnav">
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
           <button class="subnav-item" data-sub="insights" onclick="drSub('insights')">Insights</button>
+          <button class="subnav-item" data-sub="attendance" onclick="drSub('attendance')">Attendance <span id="att-subnav-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
         </div>
 
         <!-- ROSTER SUB-VIEW -->
@@ -5231,6 +5232,327 @@ a{color:inherit;text-decoration:none}
           </div>
 
         </div><!-- /dr-sub-insights -->
+
+        <!-- ═══════════════════════════════════════════════════════
+             ATTENDANCE SUB-VIEW — Report + Policy Builder + Log
+             Data source: Today's check-in flow (manual mark).
+             Computed live from RR_ATTENDANCE_POLICY + RR_ATTENDANCE_LOG.
+             ═══════════════════════════════════════════════════════ -->
+        <style>
+          .att-tabstrip{display:flex;gap:4px;padding:4px;background:var(--canvas);border-radius:10px;margin-bottom:var(--s-4);width:fit-content}
+          .att-tab{appearance:none;background:transparent;border:0;font:inherit;padding:8px 14px;border-radius:7px;color:var(--text-muted);cursor:pointer;font-weight:500;font-size:13px}
+          .att-tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
+          .att-pane{display:none}
+          .att-pane.active{display:block}
+
+          .att-status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}
+          .att-status-pill.good{background:var(--green-soft);color:var(--green)}
+          .att-status-pill.verbal{background:#FBBF2422;color:#A16207}
+          .att-status-pill.written{background:var(--amber-soft);color:var(--amber)}
+          .att-status-pill.final{background:#F97316;color:#fff}
+          .att-status-pill.term{background:var(--red);color:#fff}
+
+          .att-event-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+          .att-event-dot.callout{background:var(--amber)}
+          .att-event-dot.noshow{background:var(--red)}
+          .att-event-dot.late{background:#FBBF24}
+          .att-event-dot.earlyout{background:#A78BFA}
+          .att-event-dot.present{background:var(--green)}
+
+          .att-num{font-weight:600;font-variant-numeric:tabular-nums}
+          .att-num.warn{color:var(--amber)}
+          .att-num.bad{color:var(--red)}
+          .att-num.ok{color:var(--green)}
+
+          .pol-mode-row{display:flex;gap:8px;margin-bottom:var(--s-4)}
+          .pol-mode-btn{flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;text-align:left;font:inherit}
+          .pol-mode-btn .pol-mode-title{font-weight:600;color:var(--text);font-size:14px;margin-bottom:3px}
+          .pol-mode-btn .pol-mode-help{font-size:11px;color:var(--text-subtle);line-height:1.4}
+          .pol-mode-btn.active{border-color:var(--accent);background:#3B82F60A;box-shadow:0 0 0 2px #3B82F61F}
+
+          .pol-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:var(--s-4);margin-bottom:var(--s-3)}
+          .pol-section-title{font-size:13px;font-weight:600;color:var(--text);margin:0 0 4px 0}
+          .pol-section-sub{font-size:11px;color:var(--text-subtle);margin:0 0 var(--s-3) 0;line-height:1.4}
+
+          .pol-event-row{display:grid;grid-template-columns:24px 1fr 90px 100px;gap:var(--s-3);align-items:center;padding:8px 0;border-top:1px solid var(--border)}
+          .pol-event-row:first-of-type{border-top:0}
+          .pol-event-row label.sub{font-size:11px;color:var(--text-subtle)}
+
+          .pol-thresh-row{display:grid;grid-template-columns:24px 1fr 80px 80px 110px;gap:var(--s-3);align-items:center;padding:8px 0;border-top:1px solid var(--border)}
+          .pol-thresh-row:first-of-type{border-top:0}
+          .pol-thresh-color{width:14px;height:14px;border-radius:4px}
+
+          .pol-input{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);width:100%;text-align:right;font-variant-numeric:tabular-nums}
+          .pol-input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px #3B82F61F}
+          .pol-select{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);width:100%}
+
+          .pol-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--text);cursor:pointer;user-select:none}
+          .pol-chip.active{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+          .pol-chip .pol-chip-x{opacity:.5;font-size:14px;line-height:1}
+
+          .pol-foot{position:sticky;bottom:0;background:linear-gradient(180deg,#fff0,var(--surface) 30%);padding:var(--s-3) 0 0 0;display:flex;gap:var(--s-3);justify-content:flex-end;align-items:center;margin-top:var(--s-4)}
+          .pol-foot-status{font-size:11px;color:var(--text-subtle);margin-right:auto}
+
+          .att-detail-row{display:none;background:var(--canvas)}
+          .att-detail-row.open{display:table-row}
+          .att-detail-cell{padding:var(--s-3);font-size:12px}
+          .att-timeline{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px var(--s-3);align-items:center}
+          .att-timeline-date{color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+          .att-timeline-pts{color:var(--text-muted);font-variant-numeric:tabular-nums}
+
+          .att-log-row{display:grid;grid-template-columns:120px 180px 1fr 80px 90px;gap:var(--s-3);align-items:center;padding:10px var(--s-3);border-bottom:1px solid var(--border);font-size:13px}
+          .att-log-row:hover{background:var(--canvas)}
+        </style>
+
+        <div class="dr-subview" id="dr-sub-attendance">
+
+          <!-- Tab strip: Report · Policy · Log -->
+          <div class="att-tabstrip">
+            <button class="att-tab active" data-att="report" onclick="attTab('report')">Report</button>
+            <button class="att-tab" data-att="policy" onclick="attTab('policy')">Policy builder</button>
+            <button class="att-tab" data-att="log" onclick="attTab('log')">Event log <span id="att-log-count" style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
+          </div>
+
+          <!-- ─── REPORT PANE ─────────────────────────────────── -->
+          <div class="att-pane active" id="att-pane-report">
+
+            <div class="di-grid" style="margin-bottom:var(--s-4)">
+              <div class="di-card">
+                <div class="di-label">Avg attendance</div>
+                <div class="di-val ok" id="att-kpi-rate">—</div>
+                <div class="di-sub" id="att-kpi-rate-sub">Roster average · selected window</div>
+              </div>
+              <div class="di-card">
+                <div class="di-label">In policy action</div>
+                <div class="di-val warn" id="att-kpi-action">—</div>
+                <div class="di-sub" id="att-kpi-action-sub">Verbal · written · final · term</div>
+              </div>
+              <div class="di-card">
+                <div class="di-label">Callouts &amp; no-shows</div>
+                <div class="di-val" id="att-kpi-incidents">—</div>
+                <div class="di-sub" id="att-kpi-incidents-sub">Selected window</div>
+              </div>
+              <div class="di-card">
+                <div class="di-label">Active policy</div>
+                <div class="di-val" style="font-size:18px" id="att-kpi-mode">Hybrid</div>
+                <div class="di-sub" id="att-kpi-mode-sub">90-day rolling · 4 thresholds</div>
+              </div>
+            </div>
+
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <span class="filter-chip" onclick="attCycleWindow(this)" id="att-window-chip">Window: 30 days</span>
+                <span class="filter-chip">Station: All</span>
+                <span class="filter-chip">Status: All</span>
+              </div>
+              <div class="toolbar-right">
+                <span class="filter-chip">Sort: Points (high → low)</span>
+                <button class="btn btn-sm" onclick="attExportCsv()" title="Export CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table" id="att-report-table">
+                <thead>
+                  <tr>
+                    <th>Driver</th>
+                    <th>Station</th>
+                    <th style="text-align:right">Scheduled</th>
+                    <th style="text-align:right">Present</th>
+                    <th style="text-align:right">Late</th>
+                    <th style="text-align:right">Callouts</th>
+                    <th style="text-align:right">No-shows</th>
+                    <th style="text-align:right">Points</th>
+                    <th style="text-align:right">Occ.</th>
+                    <th>Status</th>
+                    <th>Last incident</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="att-report-body"><!-- populated by attRender() --></tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:var(--s-3);font-size:11px;color:var(--text-muted);line-height:1.5">
+              <strong style="color:var(--text)">How this is computed:</strong> events come from Today's check-in (Present / Late / Call-out / No-show buttons). Points and occurrences apply the Policy builder settings, with decay and exempt categories. Click a row to see the full timeline.
+            </div>
+
+          </div><!-- /att-pane-report -->
+
+          <!-- ─── POLICY BUILDER PANE ─────────────────────────── -->
+          <div class="att-pane" id="att-pane-policy">
+
+            <div class="pol-section">
+              <h3 class="pol-section-title">Policy mode</h3>
+              <p class="pol-section-sub">Points-based rewards graduated severity (e.g. 3 callouts &lt; 1 no-show). Occurrence-based counts incidents flatly. Hybrid tracks both and triggers on whichever is hit first — this is what most DSPs use.</p>
+              <div class="pol-mode-row">
+                <button class="pol-mode-btn" data-mode="points" onclick="attSetMode('points')">
+                  <div class="pol-mode-title">Points-based</div>
+                  <div class="pol-mode-help">Each event has a point value. Thresholds trigger by total points.</div>
+                </button>
+                <button class="pol-mode-btn" data-mode="occurrence" onclick="attSetMode('occurrence')">
+                  <div class="pol-mode-title">Occurrence-based</div>
+                  <div class="pol-mode-help">Count of incidents in a rolling window. Simple but blunt.</div>
+                </button>
+                <button class="pol-mode-btn active" data-mode="hybrid" onclick="attSetMode('hybrid')">
+                  <div class="pol-mode-title">Hybrid <span style="font-weight:500;color:var(--text-subtle);font-size:11px">recommended</span></div>
+                  <div class="pol-mode-help">Track both. First threshold hit fires the action.</div>
+                </button>
+              </div>
+            </div>
+
+            <div class="pol-section">
+              <h3 class="pol-section-title">Event types &amp; severity</h3>
+              <p class="pol-section-sub">Set the point value and whether the event counts as an occurrence. Set zero points to disable scoring for that event.</p>
+              <div>
+                <div class="pol-event-row">
+                  <span class="att-event-dot late"></span>
+                  <div><div style="font-weight:500">Late arrival</div><div style="font-size:11px;color:var(--text-subtle)">Beyond grace period</div></div>
+                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-late" value="0.5" />
+                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-late" /><span class="toggle-slider"></span></label>
+                </div>
+                <div class="pol-event-row">
+                  <span class="att-event-dot callout"></span>
+                  <div><div style="font-weight:500">Call-out</div><div style="font-size:11px;color:var(--text-subtle)">Notice given before threshold window</div></div>
+                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-callout" value="1.0" />
+                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-callout" checked /><span class="toggle-slider"></span></label>
+                </div>
+                <div class="pol-event-row">
+                  <span class="att-event-dot earlyout"></span>
+                  <div><div style="font-weight:500">Early clock-out</div><div style="font-size:11px;color:var(--text-subtle)">Left route before completion without approval</div></div>
+                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-earlyout" value="0.5" />
+                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-earlyout" /><span class="toggle-slider"></span></label>
+                </div>
+                <div class="pol-event-row">
+                  <span class="att-event-dot noshow"></span>
+                  <div><div style="font-weight:500">No-call no-show</div><div style="font-size:11px;color:var(--text-subtle)">No notice, or notice within the threshold window</div></div>
+                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-noshow" value="3.0" />
+                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-noshow" checked /><span class="toggle-slider"></span></label>
+                </div>
+                <div style="display:grid;grid-template-columns:24px 1fr 90px 100px;gap:var(--s-3);font-size:10px;color:var(--text-subtle);margin-top:6px;letter-spacing:.04em;text-transform:uppercase">
+                  <span></span><span></span><span style="text-align:right">Points</span><span style="text-align:right">Counts as occ.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pol-section">
+              <h3 class="pol-section-title">Windows &amp; grace periods</h3>
+              <div class="form-row">
+                <div><div class="form-label">Call-out window</div><div class="form-help">Notice given <strong>at least</strong> this many hours before shift counts as call-out. Less = no-call no-show.</div></div>
+                <div style="display:flex;align-items:center;gap:8px"><input class="pol-input" type="number" min="0" max="24" id="pol-callout-window" value="4" style="width:72px" /><span style="font-size:12px;color:var(--text-muted)">hours before shift</span></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Late grace period</div><div class="form-help">Arrivals within this window of scheduled start are not counted as late.</div></div>
+                <div style="display:flex;align-items:center;gap:8px"><input class="pol-input" type="number" min="0" max="60" id="pol-late-grace" value="10" style="width:72px" /><span style="font-size:12px;color:var(--text-muted)">minutes</span></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Decay / aging</div><div class="form-help">Events older than this drop off the driver's running total.</div></div>
+                <div style="display:flex;align-items:center;gap:8px"><input class="pol-input" type="number" min="14" max="365" id="pol-decay-days" value="90" style="width:72px" /><span style="font-size:12px;color:var(--text-muted)">days rolling</span></div>
+              </div>
+              <div class="form-row" style="border-bottom:0">
+                <div><div class="form-label">Reset cadence</div><div class="form-help">Rolling = continuous decay. Quarterly = full reset on quarter boundary.</div></div>
+                <div><select class="pol-select" id="pol-reset" style="width:160px"><option value="rolling" selected>Rolling window</option><option value="quarter">Quarterly reset</option><option value="annual">Annual reset</option></select></div>
+              </div>
+            </div>
+
+            <div class="pol-section">
+              <h3 class="pol-section-title">Action thresholds</h3>
+              <p class="pol-section-sub">When a driver crosses one of these, RouteReady auto-creates a coaching action and (optionally) notifies the driver. Edit either column — whichever is reached first triggers the action.</p>
+              <div>
+                <div style="display:grid;grid-template-columns:24px 1fr 80px 80px 110px;gap:var(--s-3);font-size:10px;color:var(--text-subtle);padding-bottom:6px;letter-spacing:.04em;text-transform:uppercase">
+                  <span></span><span>Level</span><span style="text-align:right">Points</span><span style="text-align:right">Occurrences</span><span>Auto-action</span>
+                </div>
+                <div class="pol-thresh-row">
+                  <div class="pol-thresh-color" style="background:#FBBF24"></div>
+                  <div><div style="font-weight:500">Verbal warning</div><div style="font-size:11px;color:var(--text-subtle)">SMS check-in + log entry</div></div>
+                  <input class="pol-input" type="number" step="0.5" id="pol-th-verbal-pts" value="2" />
+                  <input class="pol-input" type="number" step="1" id="pol-th-verbal-occ" value="2" />
+                  <select class="pol-select"><option>SMS check-in</option><option>Coach drawer</option><option>Notify owner</option></select>
+                </div>
+                <div class="pol-thresh-row">
+                  <div class="pol-thresh-color" style="background:var(--amber)"></div>
+                  <div><div style="font-weight:500">Written warning</div><div style="font-size:11px;color:var(--text-subtle)">Generates document for signature</div></div>
+                  <input class="pol-input" type="number" step="0.5" id="pol-th-written-pts" value="4" />
+                  <input class="pol-input" type="number" step="1" id="pol-th-written-occ" value="4" />
+                  <select class="pol-select"><option>Generate doc</option><option>SMS + doc</option></select>
+                </div>
+                <div class="pol-thresh-row">
+                  <div class="pol-thresh-color" style="background:#F97316"></div>
+                  <div><div style="font-weight:500">Final warning</div><div style="font-size:11px;color:var(--text-subtle)">Owner approval required</div></div>
+                  <input class="pol-input" type="number" step="0.5" id="pol-th-final-pts" value="6" />
+                  <input class="pol-input" type="number" step="1" id="pol-th-final-occ" value="6" />
+                  <select class="pol-select"><option>Owner approval</option><option>Auto-issue</option></select>
+                </div>
+                <div class="pol-thresh-row">
+                  <div class="pol-thresh-color" style="background:var(--red)"></div>
+                  <div><div style="font-weight:500">Termination eligible</div><div style="font-size:11px;color:var(--text-subtle)">Owner-only · never auto-fires</div></div>
+                  <input class="pol-input" type="number" step="0.5" id="pol-th-term-pts" value="8" />
+                  <input class="pol-input" type="number" step="1" id="pol-th-term-occ" value="8" />
+                  <select class="pol-select" disabled><option>Owner review (manual)</option></select>
+                </div>
+              </div>
+            </div>
+
+            <div class="pol-section">
+              <h3 class="pol-section-title">Exempt categories</h3>
+              <p class="pol-section-sub">Events tagged with these categories don't accrue points or occurrences. Click to toggle.</p>
+              <div id="pol-exempt-chips" style="display:flex;flex-wrap:wrap;gap:6px">
+                <span class="pol-chip active" data-cat="Approved PTO" onclick="attToggleChip(this)">Approved PTO</span>
+                <span class="pol-chip active" data-cat="Jury duty" onclick="attToggleChip(this)">Jury duty</span>
+                <span class="pol-chip active" data-cat="Bereavement" onclick="attToggleChip(this)">Bereavement</span>
+                <span class="pol-chip active" data-cat="FMLA" onclick="attToggleChip(this)">FMLA</span>
+                <span class="pol-chip" data-cat="Vehicle issue (DSP fault)" onclick="attToggleChip(this)">Vehicle issue (DSP fault)</span>
+                <span class="pol-chip" data-cat="Weather closure" onclick="attToggleChip(this)">Weather closure</span>
+                <span class="pol-chip active" data-cat="Workplace injury" onclick="attToggleChip(this)">Workplace injury</span>
+              </div>
+            </div>
+
+            <div class="pol-section">
+              <h3 class="pol-section-title">Notifications</h3>
+              <div class="form-row">
+                <div><div class="form-label">Notify driver via SMS at threshold cross</div><div class="form-help">Driver receives a templated SMS the moment they cross verbal/written/final.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="pol-notify-driver" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Notify owner at final + term</div><div class="form-help">Surface in the dashboard action queue.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="pol-notify-owner" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="form-row" style="border-bottom:0">
+                <div><div class="form-label">Auto-create coaching task</div><div class="form-help">Pre-fills Coach drawer with template + last 3 events.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="pol-auto-coach" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+            </div>
+
+            <div class="pol-foot">
+              <span class="pol-foot-status" id="pol-foot-status">Editing draft · changes preview live in Report</span>
+              <button class="btn" onclick="attResetPolicy()">Reset to defaults</button>
+              <button class="btn btn-primary" onclick="attSavePolicy()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Save and apply
+              </button>
+            </div>
+
+          </div><!-- /att-pane-policy -->
+
+          <!-- ─── EVENT LOG PANE ──────────────────────────────── -->
+          <div class="att-pane" id="att-pane-log">
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <span class="filter-chip">Last 90 days</span>
+                <span class="filter-chip">All event types</span>
+                <span class="filter-chip">All drivers</span>
+              </div>
+            </div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+              <div class="att-log-row" style="background:var(--canvas);font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
+                <span>Date</span><span>Driver</span><span>Event</span><span style="text-align:right">Points</span><span></span>
+              </div>
+              <div id="att-log-body"><!-- populated --></div>
+            </div>
+            <p style="font-size:11px;color:var(--text-subtle);margin-top:var(--s-3);line-height:1.5">Each entry was created from Today's check-in. To exempt an event (e.g. retroactive jury duty), click "Exempt" — points and occurrences will recompute everywhere.</p>
+          </div><!-- /att-pane-log -->
+
+        </div><!-- /dr-sub-attendance -->
 
       </div>
     </div>
@@ -13366,6 +13688,13 @@ Evidence attached:
     btn.classList.add('active','s-' + status);
     row.classList.add('marked-' + status);
     ciUpdateCounts();
+    // Log attendance event (skip 'present' — non-event)
+    var nameEl = row.querySelector('.checkin-driver-name');
+    if (nameEl && status !== 'present') {
+      window.attLogFromCheckin && window.attLogFromCheckin(nameEl.textContent.trim(), status);
+    } else if (nameEl && status === 'present') {
+      window.attClearCheckinForToday && window.attClearCheckinForToday(nameEl.textContent.trim());
+    }
     // If newly callout/noshow, increment Open shifts subnav badge
     var becameCallout = (status === 'callout' || status === 'noshow');
     if (becameCallout && !wasCallout) {
@@ -13396,6 +13725,448 @@ Evidence attached:
     document.getElementById('ci-marked').textContent = marked;
     document.getElementById('ci-progress').style.width = (marked / 78 * 100) + '%';
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ATTENDANCE — policy + event log + report
+  // Data source: ciMark() in Today's check-in writes to RR_ATTENDANCE_LOG.
+  // Report is computed live from policy + log.
+  // ═══════════════════════════════════════════════════════════════
+  var RR_DRIVERS = [
+    { id:'MD', name:'Marcus Davidson',  station:'KMO1', tier:'tier-d', scheduled30:22 },
+    { id:'TR', name:'Tasha Reyes',      station:'KMO2', tier:'tier-d', scheduled30:21 },
+    { id:'KW', name:'Kerwin Whitfield', station:'KMO1', tier:'tier-c', scheduled30:22 },
+    { id:'JB', name:'Jordan Beckett',   station:'KMO3', tier:'tier-c', scheduled30:20 },
+    { id:'DP', name:'Devon Patterson',  station:'KMO3', tier:'tier-b', scheduled30:22 },
+    { id:'AT', name:'Asha Thornton',    station:'KMO2', tier:'tier-c', scheduled30:21 },
+    { id:'CF', name:'Camille Foster',   station:'KMO1', tier:'tier-a', scheduled30:22 }
+  ];
+
+  function _daysAgo(n){ var d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0,10); }
+  function _fmtDate(iso){
+    var d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
+  }
+  function _fmtRel(iso){
+    var d = new Date(iso + 'T12:00:00');
+    var diff = Math.round((Date.now() - d.getTime()) / 86400000);
+    if (diff <= 0) return 'today';
+    if (diff === 1) return 'yesterday';
+    if (diff < 14) return diff + 'd ago';
+    if (diff < 60) return Math.round(diff/7) + 'w ago';
+    return Math.round(diff/30) + 'mo ago';
+  }
+
+  // Seed events that match what's shown in the existing roster table
+  var RR_ATTENDANCE_LOG = [
+    // Marcus Davidson: 3 callouts in 30d (matches roster pill)
+    { id:'a1', driverId:'MD', date:_daysAgo(3),  type:'callout',  category:null, exempt:false, note:'Said sick · 6am' },
+    { id:'a2', driverId:'MD', date:_daysAgo(11), type:'callout',  category:null, exempt:false, note:'Family emergency' },
+    { id:'a3', driverId:'MD', date:_daysAgo(19), type:'noshow',   category:null, exempt:false, note:'Did not respond to dispatcher' },
+    { id:'a4', driverId:'MD', date:_daysAgo(26), type:'late',     category:null, exempt:false, note:'+22 min, traffic' },
+    // Tasha Reyes: 2 callouts (Mon/Fri pattern) + 1 late
+    { id:'a5', driverId:'TR', date:_daysAgo(4),  type:'callout',  category:null, exempt:false, note:'Friday · sick' },
+    { id:'a6', driverId:'TR', date:_daysAgo(14), type:'callout',  category:null, exempt:false, note:'Monday · childcare' },
+    { id:'a7', driverId:'TR', date:_daysAgo(22), type:'late',     category:null, exempt:false, note:'+18 min' },
+    // Jordan Beckett: 1 callout + 2 late (matches scorecard slip)
+    { id:'a8', driverId:'JB', date:_daysAgo(7),  type:'callout',  category:null, exempt:false, note:'No detail' },
+    { id:'a9', driverId:'JB', date:_daysAgo(15), type:'late',     category:null, exempt:false, note:'+14 min' },
+    { id:'a10',driverId:'JB', date:_daysAgo(28), type:'late',     category:null, exempt:false, note:'+12 min' },
+    // Asha Thornton: 1 callout + 1 late (at-risk but borderline)
+    { id:'a11',driverId:'AT', date:_daysAgo(9),  type:'callout',  category:'Approved PTO', exempt:true, note:'Scheduled time-off · approved' },
+    { id:'a12',driverId:'AT', date:_daysAgo(20), type:'late',     category:null, exempt:false, note:'+11 min' },
+    // Kerwin, Devon, Camille: clean
+  ];
+
+  var RR_ATTENDANCE_POLICY = _attDefaultPolicy();
+  var _attWindow = 30;
+  var _attSeq = RR_ATTENDANCE_LOG.length;
+
+  function _attDefaultPolicy(){
+    return {
+      mode: 'hybrid',
+      events: {
+        late:     { points: 0.5, occurrence: false, label: 'Late' },
+        callout:  { points: 1.0, occurrence: true,  label: 'Call-out' },
+        earlyout: { points: 0.5, occurrence: false, label: 'Early out' },
+        noshow:   { points: 3.0, occurrence: true,  label: 'No-show' }
+      },
+      callout_window_hours: 4,
+      late_grace_minutes: 10,
+      decay_days: 90,
+      reset: 'rolling',
+      thresholds: {
+        verbal:  { points: 2, occ: 2, label: 'Verbal warning' },
+        written: { points: 4, occ: 4, label: 'Written warning' },
+        final:   { points: 6, occ: 6, label: 'Final warning' },
+        term:    { points: 8, occ: 8, label: 'Termination eligible' }
+      },
+      exempt_categories: ['Approved PTO','Jury duty','Bereavement','FMLA','Workplace injury'],
+      notify_driver: true,
+      notify_owner: true,
+      auto_coach: true
+    };
+  }
+
+  // ─── TAB SWITCHING ──────────────────────────────────────────────
+  function attTab(name){
+    document.querySelectorAll('#dr-sub-attendance .att-tab').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('#dr-sub-attendance .att-tab[data-att="' + name + '"]').classList.add('active');
+    document.querySelectorAll('#dr-sub-attendance .att-pane').forEach(function(p){ p.classList.remove('active'); });
+    document.getElementById('att-pane-' + name).classList.add('active');
+    if (name === 'log') attRenderLog();
+  }
+
+  // ─── POLICY MUTATION ────────────────────────────────────────────
+  function attSetMode(mode){
+    RR_ATTENDANCE_POLICY.mode = mode;
+    document.querySelectorAll('#att-pane-policy .pol-mode-btn').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('#att-pane-policy .pol-mode-btn[data-mode="' + mode + '"]').classList.add('active');
+    attRender();
+  }
+  function attToggleChip(el){
+    el.classList.toggle('active');
+    var cat = el.getAttribute('data-cat');
+    var arr = RR_ATTENDANCE_POLICY.exempt_categories;
+    var idx = arr.indexOf(cat);
+    if (el.classList.contains('active') && idx < 0) arr.push(cat);
+    if (!el.classList.contains('active') && idx >= 0) arr.splice(idx, 1);
+    attRender();
+  }
+  function attReadPolicyFromDom(){
+    var p = RR_ATTENDANCE_POLICY;
+    function num(id, dflt){ var v = parseFloat(document.getElementById(id).value); return isNaN(v) ? dflt : v; }
+    function bool(id){ return !!document.getElementById(id).checked; }
+    p.events.late.points     = num('pol-pts-late', 0.5);
+    p.events.callout.points  = num('pol-pts-callout', 1);
+    p.events.earlyout.points = num('pol-pts-earlyout', 0.5);
+    p.events.noshow.points   = num('pol-pts-noshow', 3);
+    p.events.late.occurrence     = bool('pol-occ-late');
+    p.events.callout.occurrence  = bool('pol-occ-callout');
+    p.events.earlyout.occurrence = bool('pol-occ-earlyout');
+    p.events.noshow.occurrence   = bool('pol-occ-noshow');
+    p.callout_window_hours = num('pol-callout-window', 4);
+    p.late_grace_minutes   = num('pol-late-grace', 10);
+    p.decay_days           = num('pol-decay-days', 90);
+    p.reset                = document.getElementById('pol-reset').value;
+    p.thresholds.verbal.points  = num('pol-th-verbal-pts', 2);
+    p.thresholds.verbal.occ     = num('pol-th-verbal-occ', 2);
+    p.thresholds.written.points = num('pol-th-written-pts', 4);
+    p.thresholds.written.occ    = num('pol-th-written-occ', 4);
+    p.thresholds.final.points   = num('pol-th-final-pts', 6);
+    p.thresholds.final.occ      = num('pol-th-final-occ', 6);
+    p.thresholds.term.points    = num('pol-th-term-pts', 8);
+    p.thresholds.term.occ       = num('pol-th-term-occ', 8);
+    p.notify_driver = bool('pol-notify-driver');
+    p.notify_owner  = bool('pol-notify-owner');
+    p.auto_coach    = bool('pol-auto-coach');
+  }
+  function attWritePolicyToDom(){
+    var p = RR_ATTENDANCE_POLICY;
+    function set(id, v){ var el = document.getElementById(id); if (el) el.value = v; }
+    function chk(id, v){ var el = document.getElementById(id); if (el) el.checked = !!v; }
+    set('pol-pts-late', p.events.late.points);
+    set('pol-pts-callout', p.events.callout.points);
+    set('pol-pts-earlyout', p.events.earlyout.points);
+    set('pol-pts-noshow', p.events.noshow.points);
+    chk('pol-occ-late', p.events.late.occurrence);
+    chk('pol-occ-callout', p.events.callout.occurrence);
+    chk('pol-occ-earlyout', p.events.earlyout.occurrence);
+    chk('pol-occ-noshow', p.events.noshow.occurrence);
+    set('pol-callout-window', p.callout_window_hours);
+    set('pol-late-grace', p.late_grace_minutes);
+    set('pol-decay-days', p.decay_days);
+    set('pol-reset', p.reset);
+    set('pol-th-verbal-pts', p.thresholds.verbal.points);
+    set('pol-th-verbal-occ', p.thresholds.verbal.occ);
+    set('pol-th-written-pts', p.thresholds.written.points);
+    set('pol-th-written-occ', p.thresholds.written.occ);
+    set('pol-th-final-pts', p.thresholds.final.points);
+    set('pol-th-final-occ', p.thresholds.final.occ);
+    set('pol-th-term-pts', p.thresholds.term.points);
+    set('pol-th-term-occ', p.thresholds.term.occ);
+    chk('pol-notify-driver', p.notify_driver);
+    chk('pol-notify-owner', p.notify_owner);
+    chk('pol-auto-coach', p.auto_coach);
+    document.querySelectorAll('#att-pane-policy .pol-mode-btn').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-mode') === p.mode);
+    });
+    document.querySelectorAll('#pol-exempt-chips .pol-chip').forEach(function(c){
+      c.classList.toggle('active', p.exempt_categories.indexOf(c.getAttribute('data-cat')) >= 0);
+    });
+  }
+  function attResetPolicy(){
+    RR_ATTENDANCE_POLICY = _attDefaultPolicy();
+    attWritePolicyToDom();
+    attRender();
+    _toast('Policy reset to defaults');
+  }
+  function attSavePolicy(){
+    attReadPolicyFromDom();
+    attRender();
+    var s = document.getElementById('pol-foot-status');
+    if (s) { s.textContent = 'Saved · applied to all drivers'; s.style.color = 'var(--green)';
+      setTimeout(function(){ s.textContent = 'Editing draft · changes preview live in Report'; s.style.color = ''; }, 2400);
+    }
+    _toast('Attendance policy saved');
+  }
+  function _toast(msg){
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)';
+    document.body.appendChild(t);
+    setTimeout(function(){ t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 1800);
+    setTimeout(function(){ t.remove(); }, 2300);
+  }
+
+  // ─── COMPUTATION ────────────────────────────────────────────────
+  function attEventsForDriver(driverId, windowDays){
+    var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
+    return RR_ATTENDANCE_LOG.filter(function(e){
+      if (e.driverId !== driverId) return false;
+      if (new Date(e.date + 'T00:00:00') < cutoff) return false;
+      return true;
+    });
+  }
+  function attComputeDriver(driver, windowDays){
+    var p = RR_ATTENDANCE_POLICY;
+    var events = attEventsForDriver(driver.id, windowDays);
+    var counts = { late:0, callout:0, noshow:0, earlyout:0 };
+    var points = 0, occ = 0, lastIncident = null;
+    events.forEach(function(e){
+      if (e.exempt) return;
+      counts[e.type] = (counts[e.type] || 0) + 1;
+      var cfg = p.events[e.type];
+      if (!cfg) return;
+      points += cfg.points || 0;
+      if (cfg.occurrence) occ += 1;
+      if (!lastIncident || e.date > lastIncident) lastIncident = e.date;
+    });
+    var status = attDriverStatus(points, occ);
+    var present = Math.max(0, driver.scheduled30 - counts.callout - counts.noshow);
+    var rate = driver.scheduled30 > 0 ? Math.round(present / driver.scheduled30 * 100) : 100;
+    return {
+      counts: counts, points: Math.round(points * 10) / 10, occ: occ,
+      lastIncident: lastIncident, status: status,
+      scheduled: driver.scheduled30, present: present, rate: rate
+    };
+  }
+  function attDriverStatus(points, occ){
+    var t = RR_ATTENDANCE_POLICY.thresholds;
+    var mode = RR_ATTENDANCE_POLICY.mode;
+    function hits(level){
+      if (mode === 'points')      return points >= t[level].points;
+      if (mode === 'occurrence')  return occ >= t[level].occ;
+      return points >= t[level].points || occ >= t[level].occ;
+    }
+    if (hits('term'))    return 'term';
+    if (hits('final'))   return 'final';
+    if (hits('written')) return 'written';
+    if (hits('verbal'))  return 'verbal';
+    return 'good';
+  }
+  function attStatusLabel(s){
+    return ({ good:'Good standing', verbal:'Verbal warning', written:'Written warning', final:'Final warning', term:'Termination eligible' })[s] || s;
+  }
+
+  // ─── RENDERING ──────────────────────────────────────────────────
+  function attCycleWindow(el){
+    var seq = [30, 60, 90];
+    _attWindow = seq[(seq.indexOf(_attWindow) + 1) % seq.length];
+    el.textContent = 'Window: ' + _attWindow + ' days';
+    attRender();
+  }
+  function attRender(){
+    var rows = RR_DRIVERS.map(function(d){
+      return { d: d, c: attComputeDriver(d, _attWindow) };
+    });
+    rows.sort(function(a, b){
+      if (b.c.points !== a.c.points) return b.c.points - a.c.points;
+      return b.c.occ - a.c.occ;
+    });
+
+    // KPIs
+    var totalScheduled = 0, totalPresent = 0, inAction = 0, totalIncidents = 0;
+    rows.forEach(function(r){
+      totalScheduled += r.c.scheduled;
+      totalPresent   += r.c.present;
+      totalIncidents += r.c.counts.callout + r.c.counts.noshow;
+      if (r.c.status !== 'good') inAction++;
+    });
+    var avgRate = totalScheduled > 0 ? Math.round(totalPresent / totalScheduled * 100) : 100;
+    var rateEl = document.getElementById('att-kpi-rate');
+    if (rateEl) {
+      rateEl.textContent = avgRate + '%';
+      rateEl.className = 'di-val ' + (avgRate >= 95 ? 'ok' : avgRate >= 90 ? 'warn' : 'bad');
+    }
+    var actionEl = document.getElementById('att-kpi-action');
+    if (actionEl) {
+      actionEl.textContent = inAction;
+      actionEl.className = 'di-val ' + (inAction === 0 ? 'ok' : inAction <= 2 ? 'warn' : 'bad');
+    }
+    var incEl = document.getElementById('att-kpi-incidents');
+    if (incEl) incEl.textContent = totalIncidents;
+    var modeEl = document.getElementById('att-kpi-mode');
+    if (modeEl) modeEl.textContent = ({ points:'Points-based', occurrence:'Occurrence-based', hybrid:'Hybrid' })[RR_ATTENDANCE_POLICY.mode];
+    var modeSubEl = document.getElementById('att-kpi-mode-sub');
+    if (modeSubEl) modeSubEl.textContent = RR_ATTENDANCE_POLICY.decay_days + '-day ' + RR_ATTENDANCE_POLICY.reset + ' · 4 thresholds';
+    var rateSubEl = document.getElementById('att-kpi-rate-sub');
+    if (rateSubEl) rateSubEl.textContent = totalPresent + ' / ' + totalScheduled + ' shifts · last ' + _attWindow + 'd';
+    var incSubEl = document.getElementById('att-kpi-incidents-sub');
+    if (incSubEl) incSubEl.textContent = 'Last ' + _attWindow + ' days · across ' + RR_DRIVERS.length + ' drivers';
+
+    // Subnav badge — show count if any in action
+    var badge = document.getElementById('att-subnav-badge');
+    if (badge) {
+      if (inAction > 0) { badge.textContent = inAction; badge.style.display = ''; }
+      else { badge.style.display = 'none'; }
+    }
+
+    // Table
+    var body = document.getElementById('att-report-body');
+    if (!body) return;
+    body.innerHTML = '';
+    rows.forEach(function(r){
+      var tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.onclick = function(){ attToggleDetail(r.d.id); };
+      var statusClass = r.c.status;
+      var pointsCls = r.c.points >= RR_ATTENDANCE_POLICY.thresholds.written.points ? 'bad'
+                     : r.c.points >= RR_ATTENDANCE_POLICY.thresholds.verbal.points ? 'warn' : '';
+      tr.innerHTML =
+        '<td><div class="cell-driver"><div class="avatar-sm ' + r.d.tier + '">' + r.d.id + '</div>'
+        + '<div><div class="cell-name">' + r.d.name + '</div>'
+        + '<div class="cell-name-sub">' + (r.c.lastIncident ? 'Last: ' + _fmtRel(r.c.lastIncident) : 'Clean record') + '</div></div></div></td>'
+        + '<td>' + r.d.station + '</td>'
+        + '<td style="text-align:right" class="att-num">' + r.c.scheduled + '</td>'
+        + '<td style="text-align:right" class="att-num">' + r.c.present + '</td>'
+        + '<td style="text-align:right" class="att-num' + (r.c.counts.late ? ' warn' : '') + '">' + (r.c.counts.late || '–') + '</td>'
+        + '<td style="text-align:right" class="att-num' + (r.c.counts.callout ? ' warn' : '') + '">' + (r.c.counts.callout || '–') + '</td>'
+        + '<td style="text-align:right" class="att-num' + (r.c.counts.noshow ? ' bad' : '') + '">' + (r.c.counts.noshow || '–') + '</td>'
+        + '<td style="text-align:right" class="att-num ' + pointsCls + '">' + r.c.points.toFixed(1) + '</td>'
+        + '<td style="text-align:right" class="att-num">' + r.c.occ + '</td>'
+        + '<td><span class="att-status-pill ' + statusClass + '">' + attStatusLabel(r.c.status) + '</span></td>'
+        + '<td class="cell-time">' + (r.c.lastIncident ? _fmtDate(r.c.lastIncident) : '—') + '</td>'
+        + '<td>' + (r.c.status !== 'good'
+            ? '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openCoachDrawer(\'' + r.d.name.replace(/'/g, "\\'") + '\',\'attendance\',\'Attendance policy: ' + attStatusLabel(r.c.status) + ' · ' + r.c.points.toFixed(1) + ' pts · ' + r.c.occ + ' occ\')">Coach</button>'
+            : '<span style="color:var(--text-subtle);font-size:12px">—</span>') + '</td>';
+      body.appendChild(tr);
+
+      // Detail row (timeline)
+      var detail = document.createElement('tr');
+      detail.className = 'att-detail-row';
+      detail.id = 'att-detail-' + r.d.id;
+      var events = attEventsForDriver(r.d.id, _attWindow).sort(function(a,b){ return b.date.localeCompare(a.date); });
+      var timelineHtml = events.length === 0
+        ? '<div style="color:var(--text-subtle);font-style:italic">No events in this window. Clean record.</div>'
+        : '<div class="att-timeline">' + events.map(function(e){
+            var pts = (RR_ATTENDANCE_POLICY.events[e.type] || {}).points || 0;
+            var counted = !e.exempt;
+            return '<span class="att-timeline-date">' + _fmtDate(e.date) + '</span>'
+              + '<span><span class="att-event-dot ' + e.type + '"></span><strong>' + (RR_ATTENDANCE_POLICY.events[e.type] || {label:e.type}).label + '</strong>'
+              + (e.note ? ' <span style="color:var(--text-subtle)">· ' + e.note + '</span>' : '')
+              + (e.exempt ? ' <span class="tag" style="background:var(--green-soft);color:var(--green);font-size:10px;margin-left:6px">Exempt: ' + e.category + '</span>' : '')
+              + '</span>'
+              + '<span class="att-timeline-pts">' + (counted ? '+' + pts.toFixed(1) + ' pt' : '0 pt') + '</span>'
+              + '<button class="btn btn-sm" onclick="event.stopPropagation();attToggleExempt(\'' + e.id + '\')">' + (e.exempt ? 'Un-exempt' : 'Exempt') + '</button>';
+          }).join('') + '</div>';
+      detail.innerHTML = '<td colspan="12" class="att-detail-cell"><div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Timeline · ' + r.d.name + '</div>' + timelineHtml + '</td>';
+      body.appendChild(detail);
+    });
+
+    // Log count badge
+    var logCount = document.getElementById('att-log-count');
+    if (logCount) logCount.textContent = RR_ATTENDANCE_LOG.length;
+  }
+
+  function attToggleDetail(driverId){
+    document.querySelectorAll('#att-report-body .att-detail-row').forEach(function(r){
+      if (r.id === 'att-detail-' + driverId) r.classList.toggle('open');
+      else r.classList.remove('open');
+    });
+  }
+
+  function attToggleExempt(eventId){
+    var ev = RR_ATTENDANCE_LOG.find(function(e){ return e.id === eventId; });
+    if (!ev) return;
+    ev.exempt = !ev.exempt;
+    if (ev.exempt && !ev.category) ev.category = 'Approved PTO';
+    attRender();
+    if (document.getElementById('att-pane-log').classList.contains('active')) attRenderLog();
+  }
+
+  function attRenderLog(){
+    var body = document.getElementById('att-log-body');
+    if (!body) return;
+    var sorted = RR_ATTENDANCE_LOG.slice().sort(function(a, b){ return b.date.localeCompare(a.date); });
+    if (sorted.length === 0) {
+      body.innerHTML = '<div style="padding:var(--s-4);text-align:center;color:var(--text-subtle);font-size:13px">No events logged yet. Mark drivers in Today\'s check-in to populate.</div>';
+      return;
+    }
+    body.innerHTML = sorted.map(function(e){
+      var d = RR_DRIVERS.find(function(x){ return x.id === e.driverId; });
+      if (!d) return '';
+      var cfg = RR_ATTENDANCE_POLICY.events[e.type] || { label:e.type, points:0 };
+      return '<div class="att-log-row">'
+        + '<span style="color:var(--text-muted);font-variant-numeric:tabular-nums">' + _fmtDate(e.date) + ' <span style="color:var(--text-subtle);font-size:11px">· ' + _fmtRel(e.date) + '</span></span>'
+        + '<span><strong>' + d.name + '</strong> <span style="color:var(--text-subtle)">· ' + d.station + '</span></span>'
+        + '<span><span class="att-event-dot ' + e.type + '"></span>' + cfg.label + (e.note ? ' <span style="color:var(--text-subtle)">· ' + e.note + '</span>' : '') + (e.exempt ? ' <span class="tag" style="background:var(--green-soft);color:var(--green);font-size:10px;margin-left:6px">Exempt</span>' : '') + '</span>'
+        + '<span style="text-align:right;font-variant-numeric:tabular-nums" class="' + (e.exempt ? '' : 'att-num') + '">' + (e.exempt ? '0.0' : cfg.points.toFixed(1)) + '</span>'
+        + '<button class="btn btn-sm" onclick="attToggleExempt(\'' + e.id + '\')">' + (e.exempt ? 'Un-exempt' : 'Exempt') + '</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  function attExportCsv(){
+    var rows = [['Driver','Station','Scheduled','Present','Late','Callouts','No-shows','Points','Occurrences','Status','Last incident']];
+    RR_DRIVERS.forEach(function(d){
+      var c = attComputeDriver(d, _attWindow);
+      rows.push([d.name, d.station, c.scheduled, c.present, c.counts.late, c.counts.callout, c.counts.noshow, c.points.toFixed(1), c.occ, attStatusLabel(c.status), c.lastIncident || '']);
+    });
+    var csv = rows.map(function(r){ return r.map(function(x){ return '"' + String(x).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
+    var blob = new Blob([csv], { type:'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'attendance-report-' + _attWindow + 'd.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    _toast('Exported attendance-report-' + _attWindow + 'd.csv');
+  }
+
+  // ─── HOOKS FROM CHECK-IN FLOW ───────────────────────────────────
+  // ciMark() calls these when a driver is marked Late / Callout / No-show / Present.
+  window.attLogFromCheckin = function(driverName, status){
+    var driver = RR_DRIVERS.find(function(d){ return d.name === driverName; });
+    if (!driver) return;
+    var today = _daysAgo(0);
+    // Replace any same-day event for this driver to keep the log idempotent during demo
+    RR_ATTENDANCE_LOG = RR_ATTENDANCE_LOG.filter(function(e){
+      return !(e.driverId === driver.id && e.date === today && (e.type === 'late' || e.type === 'callout' || e.type === 'noshow'));
+    });
+    _attSeq++;
+    RR_ATTENDANCE_LOG.push({
+      id: 'a' + _attSeq,
+      driverId: driver.id,
+      date: today,
+      type: status === 'noshow' ? 'noshow' : status,  // map check-in status → event type
+      category: null,
+      exempt: false,
+      note: 'From morning check-in'
+    });
+    attRender();
+  };
+  window.attClearCheckinForToday = function(driverName){
+    var driver = RR_DRIVERS.find(function(d){ return d.name === driverName; });
+    if (!driver) return;
+    var today = _daysAgo(0);
+    RR_ATTENDANCE_LOG = RR_ATTENDANCE_LOG.filter(function(e){
+      return !(e.driverId === driver.id && e.date === today && (e.type === 'late' || e.type === 'callout' || e.type === 'noshow'));
+    });
+    attRender();
+  };
+
+  // Initial render
+  document.addEventListener('DOMContentLoaded', function(){ attRender(); });
+  // Also render now in case DOMContentLoaded already fired (script is at end of body)
+  if (document.readyState !== 'loading') attRender();
 </script>
 
 </body>
