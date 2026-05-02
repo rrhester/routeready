@@ -418,6 +418,103 @@ values
    'percent', 10, 2.0, 5.0, 0)
 on conflict (dsp_id, station_id, iso_year, iso_week) do nothing;
 
+-- ─── Phase 4: screening questions + applicants ─────────────────────
+
+insert into public.screening_questions
+  (id, dsp_id, prompt, field_type, options, required, hard_filter, scoring, display_order)
+values
+  ('q0000001-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'Are you authorized to work in the United States?',
+   'yes_no', '["Yes","No"]'::jsonb, true,
+   '{"answer":"No"}'::jsonb,
+   '{"Yes":0,"No":0}'::jsonb,                       -- hard-filter; no points
+   1),
+  ('q0000001-0000-0000-0000-000000000002',
+   '11111111-1111-1111-1111-111111111111',
+   'Do you have a valid driver license?',
+   'yes_no', '["Yes","No"]'::jsonb, true,
+   '{"answer":"No"}'::jsonb,
+   '{"Yes":0,"No":0}'::jsonb, 2),
+  ('q0000001-0000-0000-0000-000000000003',
+   '11111111-1111-1111-1111-111111111111',
+   'Can you safely lift 50 lbs repeatedly?',
+   'yes_no', '["Yes","No"]'::jsonb, true,
+   '{"answer":"No"}'::jsonb,
+   '{"Yes":0,"No":0}'::jsonb, 3),
+  ('q0000001-0000-0000-0000-000000000004',
+   '11111111-1111-1111-1111-111111111111',
+   'Which days are you available to work?',
+   'multi', '["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]'::jsonb, true,
+   null,
+   '{"Mon":1,"Tue":1,"Wed":1,"Thu":1,"Fri":1,"Sat":1,"Sun":1}'::jsonb,
+   4),
+  ('q0000001-0000-0000-0000-000000000005',
+   '11111111-1111-1111-1111-111111111111',
+   'When can you start?',
+   'single', '["This week","Next week","2 weeks","1 month+"]'::jsonb, true,
+   null,
+   '{"This week":3,"Next week":2,"2 weeks":1,"1 month+":0}'::jsonb,
+   5),
+  ('q0000001-0000-0000-0000-000000000006',
+   '11111111-1111-1111-1111-111111111111',
+   'Have you had any moving violations in the last 3 years?',
+   'yes_no', '["Yes","No"]'::jsonb, false, null,
+   '{"Yes":0,"No":2}'::jsonb,
+   6),
+  ('q0000001-0000-0000-0000-000000000007',
+   '11111111-1111-1111-1111-111111111111',
+   'Do you have prior delivery experience?',
+   'single', '["Amazon DSP","Other delivery","Personal delivery","No"]'::jsonb,
+   false, null,
+   '{"Amazon DSP":3,"Other delivery":2,"Personal delivery":1,"No":0}'::jsonb,
+   7)
+on conflict (id) do nothing;
+
+-- A handful of applicants spanning the funnel. Names match mockup pipeline.
+insert into public.applicants
+  (id, dsp_id, station_id, full_name, email, phone, source, source_ref,
+   referrer_driver_id, stage, score, interview_at)
+values
+  ('aa000001-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000001',
+   'Trevor Anders', 'trevor.anders@example.com', '+14175558881',
+   'referral', null,
+   'dddd0001-0000-0000-0000-000000000003',                 -- Marcus referred Trevor
+   'booked', 8,
+   current_date + 1 + interval '9 hours'),
+  ('aa000001-0000-0000-0000-000000000002',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000001',
+   'Marcus Hill', 'marcus.hill@example.com', '+14175558882',
+   'ziprecruiter', 'zr-12345',
+   null,
+   'booked', 9,
+   current_date + 1 + interval '9 hours 30 minutes'),
+  ('aa000001-0000-0000-0000-000000000003',
+   '11111111-1111-1111-1111-111111111111',
+   null,
+   'Lena Whitcomb', 'lena.w@example.com', '+14175558883',
+   'indeed', 'in-67890',
+   null,
+   'passed', 7, null),
+  ('aa000001-0000-0000-0000-000000000004',
+   '11111111-1111-1111-1111-111111111111',
+   null,
+   'Sasha Underwood', 'sasha@example.com', '+14175558884',
+   'indeed', 'in-67891',
+   null,
+   'screening', 5, null),
+  ('aa000001-0000-0000-0000-000000000005',
+   '11111111-1111-1111-1111-111111111111',
+   null,
+   'Devin Mateo', 'devin@example.com', '+14175558885',
+   'walkin', null,
+   null,
+   'new', null, null)
+on conflict (id) do nothing;
+
 -- ─── Sanity output ────────────────────────────────────────────────────
 
 do $$
@@ -425,17 +522,21 @@ declare
   v_drivers int; v_users int; v_dsps int;
   v_att int; v_hr int; v_coach int;
   v_routes int; v_shifts int; v_okami int;
+  v_applicants int; v_questions int;
 begin
-  select count(*) into v_dsps    from public.dsps;
-  select count(*) into v_drivers from public.drivers;
-  select count(*) into v_users   from public.app_users;
-  select count(*) into v_att     from public.attendance_events;
-  select count(*) into v_hr      from public.hr_events;
-  select count(*) into v_coach   from public.coaching_events;
-  select count(*) into v_routes  from public.routes;
-  select count(*) into v_shifts  from public.shifts;
-  select count(*) into v_okami   from public.okami_weeks;
+  select count(*) into v_dsps      from public.dsps;
+  select count(*) into v_drivers   from public.drivers;
+  select count(*) into v_users     from public.app_users;
+  select count(*) into v_att       from public.attendance_events;
+  select count(*) into v_hr        from public.hr_events;
+  select count(*) into v_coach     from public.coaching_events;
+  select count(*) into v_routes    from public.routes;
+  select count(*) into v_shifts    from public.shifts;
+  select count(*) into v_okami     from public.okami_weeks;
+  select count(*) into v_applicants from public.applicants;
+  select count(*) into v_questions  from public.screening_questions;
   raise notice
-    'Seed loaded: % DSPs, % staff, % drivers, % att, % HR, % coach, % routes, % shifts, % OKAMI weeks',
-    v_dsps, v_users, v_drivers, v_att, v_hr, v_coach, v_routes, v_shifts, v_okami;
+    'Seed loaded: % DSPs, % staff, % drivers, % att, % HR, % coach, % routes, % shifts, % OKAMI, % applicants, % screening questions',
+    v_dsps, v_users, v_drivers, v_att, v_hr, v_coach,
+    v_routes, v_shifts, v_okami, v_applicants, v_questions;
 end $$;
