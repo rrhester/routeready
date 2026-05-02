@@ -24,7 +24,7 @@ values (
   jsonb_build_object(
     'public_base_url', 'https://gorouteready.com',
     'cal', jsonb_build_object(
-      'username', 'routeready',
+      'username', 'Routeready',
       'interview_slug', 'interview',
       'orientation_slug', 'orientation-day'
     ),

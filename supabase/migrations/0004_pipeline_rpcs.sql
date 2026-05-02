@@ -420,7 +420,7 @@ begin
   from public.dsps where id = v_dsp;
 
   v_slug := coalesce(v_slug, case when p_kind = 'interview' then 'interview' else 'orientation-day' end);
-  v_cal_user := coalesce(v_cal_user, 'routeready');
+  v_cal_user := coalesce(v_cal_user, 'Routeready');
 
   v_link := 'https://cal.com/' || v_cal_user || '/' || v_slug
             || '?metadata[applicant_id]=' || p_id::text
