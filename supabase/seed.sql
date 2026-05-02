@@ -515,6 +515,51 @@ values
    'new', null, null)
 on conflict (id) do nothing;
 
+-- ─── Phase 5: license policy + form templates + sample inspection ─────
+
+insert into public.license_policies (dsp_id, enabled, days_before, notify_owner, block_scheduling)
+values
+  ('11111111-1111-1111-1111-111111111111', true, array[30, 14], true, true),
+  ('22222222-2222-2222-2222-222222222222', true, array[30, 14], true, true)
+on conflict (dsp_id) do nothing;
+
+-- Pre-trip inspection template
+insert into public.form_templates (id, dsp_id, name, trigger_type, schema, active) values
+  ('ff0000a1-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'Pre-trip vehicle inspection', 'pre_trip',
+   '{"fields":[
+     {"id":"odometer","label":"Odometer reading","type":"number","required":true},
+     {"id":"tires_ok","label":"Tires inflated and undamaged?","type":"yes_no","required":true},
+     {"id":"lights_ok","label":"All lights working?","type":"yes_no","required":true},
+     {"id":"brakes_ok","label":"Brakes responsive?","type":"yes_no","required":true},
+     {"id":"damage_photo","label":"Photo of any damage","type":"photo","required":false},
+     {"id":"notes","label":"Notes","type":"text","required":false}
+   ]}'::jsonb, true),
+  ('ff0000a1-0000-0000-0000-000000000002',
+   '11111111-1111-1111-1111-111111111111',
+   'Post-trip vehicle inspection', 'post_trip',
+   '{"fields":[
+     {"id":"odometer","label":"Odometer reading","type":"number","required":true},
+     {"id":"damage_new","label":"Any new damage?","type":"yes_no","required":true,
+      "conditional_show":{"id":"damage_photo","when":"Yes"}},
+     {"id":"damage_photo","label":"Photo of damage","type":"photo","required":false},
+     {"id":"trip_notes","label":"Trip notes","type":"text","required":false}
+   ]}'::jsonb, true)
+on conflict (id) do nothing;
+
+-- Daily safety checklist
+insert into public.checklist_templates (id, dsp_id, name, cadence, items, active) values
+  ('cc0000a1-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'Daily safety checklist', 'daily',
+   '[
+     {"id":"radio_brief","label":"Morning radio brief delivered"},
+     {"id":"weather_check","label":"Weather forecast reviewed"},
+     {"id":"yard_walk","label":"Yard walk-around completed"}
+   ]'::jsonb, true)
+on conflict (id) do nothing;
+
 -- ─── Sanity output ────────────────────────────────────────────────────
 
 do $$
@@ -523,6 +568,7 @@ declare
   v_att int; v_hr int; v_coach int;
   v_routes int; v_shifts int; v_okami int;
   v_applicants int; v_questions int;
+  v_license_pol int; v_form_tpl int; v_checklist_tpl int;
 begin
   select count(*) into v_dsps      from public.dsps;
   select count(*) into v_drivers   from public.drivers;
@@ -535,8 +581,12 @@ begin
   select count(*) into v_okami     from public.okami_weeks;
   select count(*) into v_applicants from public.applicants;
   select count(*) into v_questions  from public.screening_questions;
+  select count(*) into v_license_pol from public.license_policies;
+  select count(*) into v_form_tpl    from public.form_templates;
+  select count(*) into v_checklist_tpl from public.checklist_templates;
   raise notice
-    'Seed loaded: % DSPs, % staff, % drivers, % att, % HR, % coach, % routes, % shifts, % OKAMI, % applicants, % screening questions',
+    'Seed loaded: % DSPs, % staff, % drivers, % att, % HR, % coach, % routes, % shifts, % OKAMI, % applicants, % screening Qs, % license policies, % form templates, % checklist templates',
     v_dsps, v_users, v_drivers, v_att, v_hr, v_coach,
-    v_routes, v_shifts, v_okami, v_applicants, v_questions;
+    v_routes, v_shifts, v_okami, v_applicants, v_questions,
+    v_license_pol, v_form_tpl, v_checklist_tpl;
 end $$;
