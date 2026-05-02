@@ -92,21 +92,70 @@ under `additional_redirect_urls`. Make sure the live project's auth
 settings include the same allow-list (Dashboard → Authentication → URL
 Configuration), since `config.toml` is local-only by default.
 
-## 5. Optional: scheduled SMS/email drainer
+## 5. Database settings (immediate-send triggers)
 
-The `send-sms` and `send-email` functions only fire when invoked. Set up
-a Postgres cron via `pg_cron` to invoke them every minute:
+Migration `0007_immediate_send_triggers.sql` adds AFTER INSERT triggers on
+`sms_messages` and `email_messages` that fire the matching edge function
+the moment a queued row lands — so SMS goes out in seconds, not on the
+next cron tick. Both triggers read two database-level settings:
 
 ```sql
-select cron.schedule('drain-sms',   '* * * * *',
-  $$select net.http_post(
-       'https://doiwrhkirgblcvuskhno.functions.supabase.co/send-sms',
-       '{}'::jsonb,
-       '{}'::jsonb,
-       headers := jsonb_build_object(
-         'Authorization', 'Bearer ' || current_setting('app.service_role_key')
-       )) $$);
+alter database postgres set "app.functions_base_url"
+  to 'https://doiwrhkirgblcvuskhno.functions.supabase.co';
+
+alter database postgres set "app.service_role_key"
+  to 'sb_secret_REPLACE_WITH_REAL_VALUE';
 ```
 
-(Skip until you actually have queued traffic — the apply form invokes
-`send-sms` directly via the trigger chain in production.)
+Run these once in the Supabase SQL editor as the postgres role. They
+persist across connections for the entire database. Existing connections
+need to reconnect to pick them up — the dashboard's SQL editor and edge
+functions automatically open fresh connections, so it's a non-issue.
+
+The triggers silently no-op if either setting is missing or empty, so
+running migration 0007 before setting them is safe — the cron drainer
+(below) picks up any rows the trigger skipped.
+
+## 6. Cron drainer (safety net)
+
+A 1-minute cron job catches anything the immediate-send triggers missed
+(network blip, edge-function cold start, etc.). Set this up once:
+
+```sql
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+select cron.schedule(
+  'drain-sms-every-minute',
+  '* * * * *',
+  $$
+    select net.http_post(
+      url := 'https://doiwrhkirgblcvuskhno.functions.supabase.co/send-sms',
+      headers := jsonb_build_object(
+        'Content-Type',  'application/json',
+        'Authorization', 'Bearer ' || current_setting('app.service_role_key')
+      ),
+      body := '{}'::jsonb
+    );
+  $$
+);
+
+select cron.schedule(
+  'drain-email-every-minute',
+  '* * * * *',
+  $$
+    select net.http_post(
+      url := 'https://doiwrhkirgblcvuskhno.functions.supabase.co/send-email',
+      headers := jsonb_build_object(
+        'Content-Type',  'application/json',
+        'Authorization', 'Bearer ' || current_setting('app.service_role_key')
+      ),
+      body := '{}'::jsonb
+    );
+  $$
+);
+```
+
+To inspect runs: `select * from cron.job_run_details order by start_time desc limit 20;`
+
+To pause: `select cron.unschedule('drain-sms-every-minute');`
