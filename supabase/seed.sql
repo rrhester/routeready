@@ -304,12 +304,127 @@ values
    '11111111-aaaa-0000-0000-000000000001')
 on conflict do nothing;
 
+-- ─── Phase 3: routes + 1 week of shifts + OKAMI W19 ─────────────────
+
+insert into public.routes (id, dsp_id, station_id, code, start_time, end_time)
+values
+  ('rrrr0001-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000001',
+   'KMO1-14B', '07:00', '18:00'),
+  ('rrrr0001-0000-0000-0000-000000000002',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000001',
+   'KMO1-09A', '07:00', '18:00'),
+  ('rrrr0001-0000-0000-0000-000000000003',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000001',
+   'KMO1-03B', '07:00', '18:00'),
+  ('rrrr0001-0000-0000-0000-000000000004',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000002',
+   'KMO2-08C', '07:00', '18:00'),
+  ('rrrr0001-0000-0000-0000-000000000005',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000003',
+   'KMO3-04D', '07:00', '18:00'),
+  ('rrrr0001-0000-0000-0000-000000000006',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000003',
+   'KMO3-12B', '07:00', '18:00')
+on conflict (id) do nothing;
+
+-- Shifts for the next 7 days, matching the mockup grid (Marcus on KMO1-14B
+-- Tue-Sat, Tasha on KMO2-08C Tue-Fri + swap, Kerwin on KMO1-09A Tue-Sun, etc.)
+do $$
+declare
+  v_drivers uuid[] := array[
+    'dddd0001-0000-0000-0000-000000000001'::uuid,    -- Marcus
+    'dddd0001-0000-0000-0000-000000000002',          -- Tasha
+    'dddd0001-0000-0000-0000-000000000003',          -- Kerwin
+    'dddd0001-0000-0000-0000-000000000004',          -- Jordan
+    'dddd0001-0000-0000-0000-000000000005',          -- Devon
+    'dddd0001-0000-0000-0000-000000000007'           -- Camille
+  ];
+  v_routes uuid[] := array[
+    'rrrr0001-0000-0000-0000-000000000001'::uuid,   -- KMO1-14B
+    'rrrr0001-0000-0000-0000-000000000004',         -- KMO2-08C
+    'rrrr0001-0000-0000-0000-000000000002',         -- KMO1-09A
+    'rrrr0001-0000-0000-0000-000000000005',         -- KMO3-04D
+    'rrrr0001-0000-0000-0000-000000000006',         -- KMO3-12B
+    'rrrr0001-0000-0000-0000-000000000003'          -- KMO1-03B
+  ];
+  v_stations uuid[] := array[
+    'aaaa1111-0000-0000-0000-000000000001'::uuid,   -- KMO1
+    'aaaa1111-0000-0000-0000-000000000002',         -- KMO2
+    'aaaa1111-0000-0000-0000-000000000001',         -- KMO1
+    'aaaa1111-0000-0000-0000-000000000003',         -- KMO3
+    'aaaa1111-0000-0000-0000-000000000003',         -- KMO3
+    'aaaa1111-0000-0000-0000-000000000001'          -- KMO1
+  ];
+  v_d  date;
+  v_dow int;
+  i    int;
+begin
+  for i in 1 .. array_length(v_drivers, 1) loop
+    for d in 0 .. 6 loop
+      v_d := current_date + d;
+      v_dow := extract(dow from v_d)::int;  -- 0=Sun..6=Sat
+      -- Saturday + Sunday off for everyone except Kerwin (works Sat too)
+      if v_dow = 0 then
+        -- Sunday: everyone off (we don't insert a row; "off" is implicit)
+        continue;
+      end if;
+      if v_dow = 6 and i <> 3 then  -- only Kerwin (i=3) works Saturday
+        continue;
+      end if;
+      insert into public.shifts
+        (dsp_id, station_id, driver_id, route_id, shift_date, status, published)
+      values
+        ('11111111-1111-1111-1111-111111111111',
+         v_stations[i],
+         v_drivers[i],
+         v_routes[i],
+         v_d,
+         'scheduled',
+         true)
+      on conflict do nothing;
+    end loop;
+  end loop;
+
+  -- 3 open shifts (need backfill) for next Tuesday
+  insert into public.shifts
+    (dsp_id, station_id, route_id, shift_date, status, published)
+  select '11111111-1111-1111-1111-111111111111',
+         'aaaa1111-0000-0000-0000-000000000001',
+         'rrrr0001-0000-0000-0000-000000000001',
+         current_date + d, 'open', true
+  from generate_series(1, 3) d
+  on conflict do nothing;
+end $$;
+
+-- OKAMI W19 (current week)
+insert into public.okami_weeks
+  (id, dsp_id, iso_year, iso_week, week_start, routes_max, daily_targets,
+   cushion_mode, cushion_value, dpr, adw, ot_hours)
+values
+  ('00aa0019-0000-0000-0000-000000000019',
+   '11111111-1111-1111-1111-111111111111',
+   extract(isoyear from current_date)::int,
+   extract(week    from current_date)::int,
+   date_trunc('week', current_date)::date,
+   38,
+   jsonb_build_object('mon',35,'tue',38,'wed',38,'thu',40,'fri',38,'sat',28,'sun',18),
+   'percent', 10, 2.0, 5.0, 0)
+on conflict (dsp_id, station_id, iso_year, iso_week) do nothing;
+
 -- ─── Sanity output ────────────────────────────────────────────────────
 
 do $$
 declare
   v_drivers int; v_users int; v_dsps int;
   v_att int; v_hr int; v_coach int;
+  v_routes int; v_shifts int; v_okami int;
 begin
   select count(*) into v_dsps    from public.dsps;
   select count(*) into v_drivers from public.drivers;
@@ -317,7 +432,10 @@ begin
   select count(*) into v_att     from public.attendance_events;
   select count(*) into v_hr      from public.hr_events;
   select count(*) into v_coach   from public.coaching_events;
+  select count(*) into v_routes  from public.routes;
+  select count(*) into v_shifts  from public.shifts;
+  select count(*) into v_okami   from public.okami_weeks;
   raise notice
-    'Seed loaded: % DSPs, % staff users, % drivers, % attendance events, % HR events, % coaching events',
-    v_dsps, v_users, v_drivers, v_att, v_hr, v_coach;
+    'Seed loaded: % DSPs, % staff, % drivers, % att, % HR, % coach, % routes, % shifts, % OKAMI weeks',
+    v_dsps, v_users, v_drivers, v_att, v_hr, v_coach, v_routes, v_shifts, v_okami;
 end $$;
