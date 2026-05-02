@@ -191,13 +191,133 @@ values
 on conflict (id) do nothing;
 
 -- ─── Sanity output ───────────────────────────────────────────────────────
+-- ─── Phase 2: attendance policy + 30 days of events ────────────────────
+-- Mirrors the seed events from the mockup so reports show realistic numbers.
+
+insert into public.attendance_policies (dsp_id) values
+  ('11111111-1111-1111-1111-111111111111'),
+  ('22222222-2222-2222-2222-222222222222')
+on conflict (dsp_id) do nothing;
+
+-- Marcus Davidson: 3 callouts (one becomes a no-show) + 1 late
+insert into public.attendance_events
+  (dsp_id, driver_id, event_type, event_date, notes, source) values
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000001',
+   'callout', current_date - 3,  'Said sick · 6am',                    'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000001',
+   'callout', current_date - 11, 'Family emergency',                   'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000001',
+   'noshow',  current_date - 19, 'Did not respond to dispatcher',      'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000001',
+   'late',    current_date - 26, '+22 min · traffic',                  'check_in')
+on conflict do nothing;
+
+-- Tasha Reyes: Mon/Fri pattern + 1 late
+insert into public.attendance_events
+  (dsp_id, driver_id, event_type, event_date, notes, source) values
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000002',
+   'callout', current_date - 4,  'Friday · sick',                      'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000002',
+   'callout', current_date - 14, 'Monday · childcare',                 'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000002',
+   'late',    current_date - 22, '+18 min',                            'check_in')
+on conflict do nothing;
+
+-- Jordan Beckett
+insert into public.attendance_events
+  (dsp_id, driver_id, event_type, event_date, notes, source) values
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000004',
+   'callout', current_date - 7,  'No detail',                          'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000004',
+   'late',    current_date - 15, '+14 min',                            'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000004',
+   'late',    current_date - 28, '+12 min',                            'check_in')
+on conflict do nothing;
+
+-- Asha Thornton: 1 callout (exempt — approved PTO) + 1 late
+insert into public.attendance_events
+  (dsp_id, driver_id, event_type, event_date, exempt, exempt_category, notes, source) values
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000006',
+   'callout', current_date - 9, true, 'Approved PTO',
+   'Scheduled time-off · approved',                                     'check_in')
+on conflict do nothing;
+insert into public.attendance_events
+  (dsp_id, driver_id, event_type, event_date, notes, source) values
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000006',
+   'late',    current_date - 20, '+11 min',                            'check_in')
+on conflict do nothing;
+
+-- VTO events on top performers (over-scheduled days)
+insert into public.attendance_events
+  (dsp_id, driver_id, event_type, event_date, notes, source) values
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000007', -- Camille Foster
+   'vto', current_date - 6,  'Light Sat — accepted VTO',                'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000005', -- Devon Patterson
+   'vto', current_date - 13, 'Sun overage — accepted VTO',              'check_in'),
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000003', -- Kerwin Whitfield
+   'vto', current_date - 20, 'Sun overage — accepted VTO',              'check_in')
+on conflict do nothing;
+
+-- ─── Phase 2: HR file fixture — one written warning, one prior void ───
+-- Marcus Davidson has a written warning on file (matches mockup state).
+
+insert into public.hr_events
+  (id, dsp_id, driver_id, event_type, severity, effective_date,
+   reason_category, reason_detail, evidence_refs, initiated_by)
+values
+  ('99990001-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000001',
+   'written_warning', 'major', current_date - 12,
+   'attendance',
+   'Written warning issued after 2 callouts in 7 days. Driver acknowledged ' ||
+   'verbally; attendance points were 4.5 at issue (above written threshold). ' ||
+   'Coaching plan: 1:1 every Monday morning for 4 weeks.',
+   jsonb_build_object('attendance_event_count', 4),
+   '11111111-aaaa-0000-0000-000000000001')
+on conflict (id) do nothing;
+
+-- A coaching event tied to the HR event
+insert into public.coaching_events
+  (dsp_id, driver_id, category, channel, context_summary, related_hr_event_id, initiated_by)
+values
+  ('11111111-1111-1111-1111-111111111111',
+   'dddd0001-0000-0000-0000-000000000001',
+   'attendance', 'in_person',
+   'Written warning · 4.5 attendance points, multiple Monday callouts',
+   '99990001-0000-0000-0000-000000000001',
+   '11111111-aaaa-0000-0000-000000000001')
+on conflict do nothing;
+
+-- ─── Sanity output ────────────────────────────────────────────────────
+
 do $$
 declare
   v_drivers int; v_users int; v_dsps int;
+  v_att int; v_hr int; v_coach int;
 begin
   select count(*) into v_dsps    from public.dsps;
   select count(*) into v_drivers from public.drivers;
   select count(*) into v_users   from public.app_users;
-  raise notice 'Seed loaded: % DSPs, % staff users, % drivers',
-    v_dsps, v_users, v_drivers;
+  select count(*) into v_att     from public.attendance_events;
+  select count(*) into v_hr      from public.hr_events;
+  select count(*) into v_coach   from public.coaching_events;
+  raise notice
+    'Seed loaded: % DSPs, % staff users, % drivers, % attendance events, % HR events, % coaching events',
+    v_dsps, v_users, v_drivers, v_att, v_hr, v_coach;
 end $$;
