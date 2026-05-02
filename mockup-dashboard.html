@@ -3836,8 +3836,8 @@ a{color:inherit;text-decoration:none}
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
       <button class="nav-item" data-view="staffing" onclick="goto('staffing')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Staffing Risk
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-.32 0-.63.05-.91.14"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/></svg>
+        Performance
         <span class="nav-badge" id="staffing-status-dot" style="background:var(--amber);width:8px;height:8px;border-radius:50%;padding:0;min-width:0;display:inline-block" title="Cautious"></span>
       </button>
       <button class="nav-item" data-view="fleet" onclick="goto('fleet')">
@@ -4027,12 +4027,12 @@ a{color:inherit;text-decoration:none}
               <div class="action-icon amber">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg>
               </div>
-              <span class="action-count amber">5 drivers</span>
+              <span class="action-count amber" id="underperf-card-count">5 drivers</span>
             </div>
             <div class="action-card-title">Underperformers · review</div>
-            <div class="action-card-msg">Davidson, Reyes, Whitfield, Beckett, Thornton — score below 75. Coaching window closes Friday.</div>
+            <div class="action-card-msg" id="underperf-card-msg">Davidson, Reyes, Whitfield, Beckett, Thornton — score below 75. Coaching window closes Friday.</div>
             <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('drivers');setTimeout(function(){drSub('insights');},50)">Review</button>
+              <button class="btn btn-sm btn-primary" onclick="goto('staffing')">Review</button>
               <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
@@ -4988,12 +4988,13 @@ a{color:inherit;text-decoration:none}
           </div>
 
           <div class="di-split">
-            <div class="di-section">
-              <h3 class="di-section-title">Performance distribution</h3>
-              <div class="di-bar-row"><span class="di-bar-label">Top tier (85+)</span><div class="di-bar-track"><div class="di-bar-fill tier-a" style="width:35%"></div></div><div class="di-bar-count">27</div></div>
-              <div class="di-bar-row"><span class="di-bar-label">Strong (75–84)</span><div class="di-bar-track"><div class="di-bar-fill tier-b" style="width:46%"></div></div><div class="di-bar-count">36</div></div>
-              <div class="di-bar-row"><span class="di-bar-label">Coachable (65–74)</span><div class="di-bar-track"><div class="di-bar-fill tier-c" style="width:13%"></div></div><div class="di-bar-count">10</div></div>
-              <div class="di-bar-row"><span class="di-bar-label">At risk (&lt; 65)</span><div class="di-bar-track"><div class="di-bar-fill tier-d" style="width:6%"></div></div><div class="di-bar-count">5</div></div>
+            <div class="di-section" style="background:var(--canvas);display:flex;align-items:center;gap:12px;padding:var(--s-3);border-radius:8px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;color:var(--text-muted);flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg>
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:13px;color:var(--text)">Performance distribution moved</div>
+                <div style="font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.4">Now lives in Performance Management alongside the bottom-N accountability list and termination guidance.</div>
+              </div>
+              <button class="btn btn-sm" onclick="goto('staffing')">Open Performance →</button>
             </div>
 
             <div class="di-section">
@@ -7271,10 +7272,10 @@ a{color:inherit;text-decoration:none}
         <div class="page-header">
           <div>
             <h1 class="page-title" style="display:flex;align-items:center;gap:10px">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;stroke-width:2.2;color:var(--accent)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              Staffing Risk
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;stroke-width:2.2;color:var(--accent)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-.32 0-.63.05-.91.14"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/></svg>
+              Performance Management
             </h1>
-            <p class="page-sub">Can you hold drivers accountable without breaking coverage? Live answer.</p>
+            <p class="page-sub">Coach, warn, and terminate underperformers. Staffing risk sets the ceiling on how aggressive you can be.</p>
           </div>
           <div class="page-actions">
             <button class="btn btn-sm" onclick="recomputeStaffingRisk();toast('Recomputed from current state')">
@@ -7347,140 +7348,61 @@ a{color:inherit;text-decoration:none}
 
         </div>
 
-        <!-- Decision support -->
+        <!-- Termination guidance band — driven by staffing risk -->
+        <div id="perf-guidance" style="background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin:var(--s-4) 0;display:flex;align-items:center;gap:14px">
+          <div id="perf-guidance-icon" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--amber-soft);color:var(--amber)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Termination guidance · driven by current staffing risk</div>
+            <div id="perf-guidance-title" style="font-size:14px;font-weight:600;color:var(--text);margin-top:2px">Cautious — terminate selectively, hold most</div>
+            <div id="perf-guidance-msg" style="font-size:12px;color:var(--text-muted);margin-top:3px;line-height:1.4">You're 1 short of OKAMI need after predicted hires. Reserve termination for egregious cases — final-warning instead. The "Suggested action" column below already factors this in.</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Suggested action ceiling</div>
+            <div id="perf-guidance-ceiling" style="font-size:13px;font-weight:700;color:var(--amber);margin-top:2px">Final warning</div>
+          </div>
+        </div>
+
+        <!-- Performance distribution KPI (moved from Drivers → Insights) -->
+        <div class="staffing-decisions" style="margin-bottom:var(--s-4)">
+          <div class="staffing-decisions-head">
+            <div>
+              <h2 class="staffing-section-title">Performance distribution</h2>
+              <p class="bb-section-sub" style="margin:4px 0 0 0">Where the roster sits on score. The bottom band is what the accountability list flags.</p>
+            </div>
+            <span style="font-size:11px;color:var(--text-subtle)" id="perf-dist-status">—</span>
+          </div>
+          <div id="perf-distribution-body" style="padding:var(--s-3) 0"></div>
+        </div>
+
+        <!-- Accountability list with Bottom-N selector -->
         <div class="staffing-decisions">
           <div class="staffing-decisions-head">
             <div>
               <h2 class="staffing-section-title">Accountability decisions</h2>
-              <p class="bb-section-sub" style="margin:4px 0 0 0">For each at-risk driver: can you release them without losing coverage, or must you coach?</p>
+              <p class="bb-section-sub" style="margin:4px 0 0 0">Bottom performers ranked by composite score. Suggested action respects current staffing risk ceiling.</p>
             </div>
-            <span class="staffing-decisions-count" id="staffing-decisions-count">5 drivers flagged</span>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Show:</span>
+              <select id="perf-bottom-n" onchange="perfRender()" style="font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer">
+                <optgroup label="By count">
+                  <option value="n:5">Bottom 5 drivers</option>
+                  <option value="n:10" selected>Bottom 10 drivers</option>
+                  <option value="n:15">Bottom 15 drivers</option>
+                  <option value="n:25">Bottom 25 drivers</option>
+                </optgroup>
+                <optgroup label="By percent">
+                  <option value="p:10">Bottom 10% of roster</option>
+                  <option value="p:20">Bottom 20% of roster</option>
+                  <option value="p:25">Bottom 25% of roster</option>
+                </optgroup>
+              </select>
+              <span class="staffing-decisions-count" id="staffing-decisions-count">—</span>
+            </div>
           </div>
 
-          <div class="decision-list" id="staffing-decision-list">
-
-            <div class="decision-row" data-driver="Marcus Davidson">
-              <div class="decision-driver">
-                <div class="avatar-sm tier-d">MD</div>
-                <div>
-                  <div class="decision-name">Marcus Davidson</div>
-                  <div class="decision-meta">KMO1 · Score 62 · 18 mo · 2 missed days</div>
-                </div>
-              </div>
-              <div class="decision-flags">
-                <span class="flag safety">Safety</span>
-                <span class="flag attendance">Attendance</span>
-              </div>
-              <div class="decision-bench" data-bench="ok">
-                <span class="decision-bench-pill ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2 booked replacements ready</span>
-              </div>
-              <div class="decision-verdict ok">
-                <strong>Safe to release</strong>
-                <span class="decision-verdict-sub">KMO1 bench has coverage</span>
-              </div>
-              <div class="decision-actions">
-                <button class="btn btn-sm" onclick="openDriverDetail('Marcus Davidson','KMO1','18 mo','62','88%')">View record</button>
-                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags · KMO1 has 2 booked replacements')">Coach first</button>
-              </div>
-            </div>
-
-            <div class="decision-row" data-driver="Tasha Reyes">
-              <div class="decision-driver">
-                <div class="avatar-sm tier-c">TR</div>
-                <div>
-                  <div class="decision-name">Tasha Reyes</div>
-                  <div class="decision-meta">KMO2 · Score 68 · 9 mo · 1 incident</div>
-                </div>
-              </div>
-              <div class="decision-flags">
-                <span class="flag attendance">Attendance</span>
-              </div>
-              <div class="decision-bench" data-bench="warn">
-                <span class="decision-bench-pill warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>3 booked, but KMO2 also losing 1 next cycle</span>
-              </div>
-              <div class="decision-verdict warn">
-                <strong>Coach, don't release</strong>
-                <span class="decision-verdict-sub">Net KMO2 position fragile</span>
-              </div>
-              <div class="decision-actions">
-                <button class="btn btn-sm" onclick="openDriverDetail('Tasha Reyes','KMO2','9 mo','68','92%')">View record</button>
-                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Tasha Reyes','attendance','1 incident · KMO2 bench fragile · coach first')">Coach</button>
-              </div>
-            </div>
-
-            <div class="decision-row" data-driver="Kerwin Whitfield">
-              <div class="decision-driver">
-                <div class="avatar-sm tier-c">KW</div>
-                <div>
-                  <div class="decision-name">Kerwin Whitfield</div>
-                  <div class="decision-meta">KMO1 · Score 71 · 24 mo · scorecard slipping</div>
-                </div>
-              </div>
-              <div class="decision-flags">
-                <span class="flag scorecard">Scorecard</span>
-              </div>
-              <div class="decision-bench" data-bench="warn">
-                <span class="decision-bench-pill warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>1 booked, 2 in screening — uncertain timing</span>
-              </div>
-              <div class="decision-verdict warn">
-                <strong>Coach, don't release</strong>
-                <span class="decision-verdict-sub">2 yr tenure · high reset cost</span>
-              </div>
-              <div class="decision-actions">
-                <button class="btn btn-sm" onclick="openDriverDetail('Kerwin Whitfield','KMO1','24 mo','71','97%')">View record</button>
-                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over 2 weeks · 24 mo tenure')">Coach</button>
-              </div>
-            </div>
-
-            <div class="decision-row" data-driver="Jordan Beckett">
-              <div class="decision-driver">
-                <div class="avatar-sm tier-c">JB</div>
-                <div>
-                  <div class="decision-name">Jordan Beckett</div>
-                  <div class="decision-meta">KMO3 · Score 73 · 6 mo · late returns</div>
-                </div>
-              </div>
-              <div class="decision-flags">
-                <span class="flag scorecard">Scorecard</span>
-              </div>
-              <div class="decision-bench" data-bench="bad">
-                <span class="decision-bench-pill bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg>KMO3 bench thin · 1 in screening</span>
-              </div>
-              <div class="decision-verdict bad">
-                <strong>Hold · no replacements</strong>
-                <span class="decision-verdict-sub">Coach hard, prepare KMO3 hires</span>
-              </div>
-              <div class="decision-actions">
-                <button class="btn btn-sm" onclick="openDriverDetail('Jordan Beckett','KMO3','6 mo','73','94%')">View record</button>
-                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns last 7 days · KMO3 bench thin')">Coach</button>
-              </div>
-            </div>
-
-            <div class="decision-row" data-driver="Asha Thornton">
-              <div class="decision-driver">
-                <div class="avatar-sm tier-c">AT</div>
-                <div>
-                  <div class="decision-name">Asha Thornton</div>
-                  <div class="decision-meta">KMO2 · Score 74 · 14 mo · 1 callout</div>
-                </div>
-              </div>
-              <div class="decision-flags">
-                <span class="flag attendance">Attendance</span>
-              </div>
-              <div class="decision-bench" data-bench="ok">
-                <span class="decision-bench-pill ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 booked replacements ready</span>
-              </div>
-              <div class="decision-verdict ok">
-                <strong>Coach first · then decide</strong>
-                <span class="decision-verdict-sub">14 mo tenure · single incident</span>
-              </div>
-              <div class="decision-actions">
-                <button class="btn btn-sm" onclick="openDriverDetail('Asha Thornton','KMO2','14 mo','74','96%')">View record</button>
-                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Asha Thornton','attendance','1 callout · 14 mo tenure · coachable')">Coach</button>
-              </div>
-            </div>
-
-          </div>
+          <div id="perf-decision-list-dynamic" style="padding:var(--s-2) 0"><!-- populated by perfRender() --></div>
         </div>
 
         <!-- Math footer -->
@@ -12008,7 +11930,7 @@ Evidence attached:
       pipeline: 'Hiring Pipeline',
       drivers: 'Drivers',
       interview: 'Interview Day',
-      staffing: 'Staffing Risk',
+      staffing: 'Performance Management',
       fleet: 'Fleet',
       schedule: 'Schedule',
       okami: 'OKAMI',
@@ -13955,15 +13877,15 @@ Evidence attached:
   // ═══════════════════════════════════════════════════════════════
   function _isoFromNow(n){ var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); }
   var RR_DRIVERS = [
-    // licenseExpiry is a real DOT/CDL expiration date — seeded relative to today so the
-    // 30d / 14d auto-text and schedule flag render visibly in the demo
-    { id:'MD', name:'Marcus Davidson',  station:'KMO1', tier:'tier-d', scheduled30:22, licenseExpiry:_isoFromNow(4)   }, // expires this week
-    { id:'TR', name:'Tasha Reyes',      station:'KMO2', tier:'tier-d', scheduled30:21, licenseExpiry:_isoFromNow(28)  }, // 30d window
-    { id:'KW', name:'Kerwin Whitfield', station:'KMO1', tier:'tier-c', scheduled30:22, licenseExpiry:_isoFromNow(6)   }, // expires this week
-    { id:'JB', name:'Jordan Beckett',   station:'KMO3', tier:'tier-c', scheduled30:20, licenseExpiry:_isoFromNow(12)  }, // 14d window
-    { id:'DP', name:'Devon Patterson',  station:'KMO3', tier:'tier-b', scheduled30:22, licenseExpiry:_isoFromNow(90)  },
-    { id:'AT', name:'Asha Thornton',    station:'KMO2', tier:'tier-c', scheduled30:21, licenseExpiry:_isoFromNow(22)  }, // 30d window
-    { id:'CF', name:'Camille Foster',   station:'KMO1', tier:'tier-a', scheduled30:22, licenseExpiry:_isoFromNow(200) }
+    // score = composite performance (matches the score pills in the Roster table)
+    // licenseExpiry seeded relative to today so the 30d/14d auto-text and schedule flag render in demo
+    { id:'MD', name:'Marcus Davidson',  station:'KMO1', tier:'tier-d', scheduled30:22, score:62, tenureMonths:18, licenseExpiry:_isoFromNow(4)   },
+    { id:'TR', name:'Tasha Reyes',      station:'KMO2', tier:'tier-d', scheduled30:21, score:68, tenureMonths:9,  licenseExpiry:_isoFromNow(28)  },
+    { id:'KW', name:'Kerwin Whitfield', station:'KMO1', tier:'tier-c', scheduled30:22, score:71, tenureMonths:24, licenseExpiry:_isoFromNow(6)   },
+    { id:'JB', name:'Jordan Beckett',   station:'KMO3', tier:'tier-c', scheduled30:20, score:73, tenureMonths:6,  licenseExpiry:_isoFromNow(12)  },
+    { id:'DP', name:'Devon Patterson',  station:'KMO3', tier:'tier-b', scheduled30:22, score:79, tenureMonths:11, licenseExpiry:_isoFromNow(90)  },
+    { id:'AT', name:'Asha Thornton',    station:'KMO2', tier:'tier-c', scheduled30:21, score:74, tenureMonths:14, licenseExpiry:_isoFromNow(22)  },
+    { id:'CF', name:'Camille Foster',   station:'KMO1', tier:'tier-a', scheduled30:22, score:88, tenureMonths:22, licenseExpiry:_isoFromNow(200) }
   ];
 
   function _daysAgo(n){ var d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0,10); }
@@ -14777,6 +14699,256 @@ Evidence attached:
     openModal('modal-hr-file');
   }
   window.openHrFile = openHrFile;
+
+  // ═══════════════════════════════════════════════════════════════
+  // PERFORMANCE MANAGEMENT — bottom-N + suggested action × staffing risk
+  //   - Reads composite score from RR_DRIVERS, attendance points from
+  //     attComputeDriver, suspension status from RR_SUSPENSIONS
+  //   - Suggested action = base action(score, points) capped by staffing
+  //     risk ceiling (Healthy / Cautious / Critical)
+  //   - Performance Distribution KPI rendered here (moved from Insights)
+  //   - Bottom-N selector: by count or by percent
+  // ═══════════════════════════════════════════════════════════════
+
+  // Pull staffing-risk level from the existing hero band's title.
+  // recomputeStaffingRisk() already maintains this — we just consume.
+  function perfStaffingLevel(){
+    var t = document.getElementById('staffing-hero-title');
+    var txt = (t && t.textContent || '').toLowerCase();
+    if (txt.indexOf('critical') >= 0 || txt.indexOf('hold') >= 0) return 'critical';
+    if (txt.indexOf('healthy') >= 0 || txt.indexOf('release') >= 0) return 'healthy';
+    return 'cautious';
+  }
+
+  // Termination ceiling per staffing level.
+  // 'keep' < 'coach' < 'verbal' < 'written' < 'final' < 'suspend' < 'term'
+  var PERF_RANK = { keep:0, coach:1, verbal:2, written:3, final:4, suspend:5, term:6 };
+  var PERF_LABEL = {
+    keep: 'Top performer · recognize',
+    coach: 'Coach',
+    verbal: 'Verbal warning',
+    written: 'Written warning',
+    final: 'Final warning',
+    suspend: 'Suspend',
+    term: 'Term-eligible'
+  };
+  function perfCeiling(level){
+    if (level === 'healthy')  return 'term';     // No constraint — everything on the table
+    if (level === 'critical') return 'coach';    // Hold the line; only coaching
+    return 'final';                               // Cautious — final warning ok, no termination
+  }
+  function _perfCap(action, ceiling){
+    if (PERF_RANK[action] > PERF_RANK[ceiling]) return ceiling;
+    return action;
+  }
+
+  // Per-driver "what should we do" before any ceiling cap.
+  function perfBaseAction(driver){
+    var score = driver.score || 0;
+    var comp = (window.attComputeDriver && window.RR_ATTENDANCE_POLICY)
+      ? attComputeDriver(driver, 30) : null;
+    var points = comp ? comp.points : 0;
+    var attStatus = comp ? comp.status : 'good';
+
+    // Attendance status escalates regardless of score
+    if (attStatus === 'term')    return 'term';
+    if (attStatus === 'final')   return 'final';
+    if (attStatus === 'written') return 'written';
+    if (attStatus === 'verbal')  return 'verbal';
+
+    if (score < 60) return 'term';
+    if (score < 65) return 'final';
+    if (score < 70) return 'written';
+    if (score < 75) return 'coach';
+    if (score < 85) return 'keep';
+    return 'keep';
+  }
+  function perfSuggestedAction(driver){
+    if (window.isDriverSuspended && isDriverSuspended(driver.id)) return 'suspend'; // already suspended
+    var base = perfBaseAction(driver);
+    var ceiling = perfCeiling(perfStaffingLevel());
+    return _perfCap(base, ceiling);
+  }
+
+  // ─── PERFORMANCE DISTRIBUTION ───────────────────────────────────
+  function perfRenderDistribution(){
+    var body = document.getElementById('perf-distribution-body');
+    if (!body || !window.RR_DRIVERS) return;
+    var roster = RR_DRIVERS.slice();
+    var bands = [
+      { label: 'Top tier (85+)',     min: 85, max: 200, klass: 'tier-a' },
+      { label: 'Strong (75–84)',     min: 75, max: 84,  klass: 'tier-b' },
+      { label: 'Coachable (65–74)',  min: 65, max: 74,  klass: 'tier-c' },
+      { label: 'At risk (< 65)',     min: 0,  max: 64,  klass: 'tier-d' }
+    ];
+    var total = roster.length;
+    var maxBandSize = bands.reduce(function(m, b){
+      var n = roster.filter(function(d){ return (d.score||0) >= b.min && (d.score||0) <= b.max; }).length;
+      return Math.max(m, n);
+    }, 1);
+    body.innerHTML = bands.map(function(b){
+      var n = roster.filter(function(d){ return (d.score||0) >= b.min && (d.score||0) <= b.max; }).length;
+      var pct = total > 0 ? Math.round(n / total * 100) : 0;
+      var barWidth = maxBandSize > 0 ? Math.round(n / maxBandSize * 100) : 0;
+      return '<div class="di-bar-row">'
+        + '<span class="di-bar-label">' + b.label + '</span>'
+        + '<div class="di-bar-track"><div class="di-bar-fill ' + b.klass + '" style="width:' + barWidth + '%"></div></div>'
+        + '<div class="di-bar-count">' + n + '</div>'
+      + '</div>';
+    }).join('');
+    var status = document.getElementById('perf-dist-status');
+    if (status) status.textContent = 'Across ' + total + ' active driver' + (total === 1 ? '' : 's');
+  }
+
+  // ─── ACTION BADGE STYLING ───────────────────────────────────────
+  function perfActionBadge(action, capped){
+    var color = ({
+      keep:    { bg: 'var(--green-soft)',  fg: 'var(--green)' },
+      coach:   { bg: '#DBEAFE',            fg: '#1D4ED8' },
+      verbal:  { bg: '#FEF3C7',            fg: '#A16207' },
+      written: { bg: 'var(--amber-soft)',  fg: 'var(--amber)' },
+      final:   { bg: '#FFEDD5',            fg: '#C2410C' },
+      suspend: { bg: '#FEE2E2',            fg: '#991B1B' },
+      term:    { bg: 'var(--red)',         fg: '#fff' }
+    })[action] || { bg: 'var(--canvas)', fg: 'var(--text)' };
+    var capNote = capped ? '<span style="font-size:9px;font-weight:500;opacity:.85;display:block;margin-top:1px;letter-spacing:0;text-transform:none">capped by staffing</span>' : '';
+    return '<span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;background:' + color.bg + ';color:' + color.fg + '">' + (PERF_LABEL[action] || action) + capNote + '</span>';
+  }
+
+  // ─── GUIDANCE BAND ─────────────────────────────────────────────
+  function perfRenderGuidance(){
+    var level = perfStaffingLevel();
+    var iconWrap = document.getElementById('perf-guidance-icon');
+    var titleEl = document.getElementById('perf-guidance-title');
+    var msgEl = document.getElementById('perf-guidance-msg');
+    var ceilEl = document.getElementById('perf-guidance-ceiling');
+    if (!titleEl || !msgEl || !ceilEl) return;
+    var copy = ({
+      healthy: {
+        title: 'Healthy — terminate underperformers without holding back',
+        msg: 'Bench is deep. You can release bottom performers and Coverage Confidence will hold. Suggested actions below go up to Term-eligible.',
+        ceilLabel: 'Term-eligible',
+        ceilColor: 'var(--green)',
+        iconBg: 'var(--green-soft)', iconFg: 'var(--green)'
+      },
+      cautious: {
+        title: 'Cautious — terminate selectively, hold most',
+        msg: 'You\'re short of OKAMI need after predicted hires. Reserve termination for egregious cases — final-warning instead. Suggestions are capped at Final warning.',
+        ceilLabel: 'Final warning',
+        ceilColor: 'var(--amber)',
+        iconBg: 'var(--amber-soft)', iconFg: 'var(--amber)'
+      },
+      critical: {
+        title: 'Critical — hold the line, coach hard',
+        msg: 'Coverage is at risk. Terminations would put you below operational floor. Suggested actions are capped at Coach — the goal is to recover these drivers, not lose them.',
+        ceilLabel: 'Coach',
+        ceilColor: 'var(--red)',
+        iconBg: '#FEE2E2', iconFg: '#991B1B'
+      }
+    })[level] || {};
+    titleEl.textContent = copy.title || '';
+    msgEl.textContent = copy.msg || '';
+    ceilEl.textContent = copy.ceilLabel || '';
+    ceilEl.style.color = copy.ceilColor || 'var(--text)';
+    if (iconWrap) {
+      iconWrap.style.background = copy.iconBg || 'var(--canvas)';
+      iconWrap.style.color = copy.iconFg || 'var(--text-muted)';
+    }
+  }
+
+  // ─── BOTTOM-N + ACCOUNTABILITY LIST ────────────────────────────
+  function perfRender(){
+    perfRenderGuidance();
+    perfRenderDistribution();
+    var body = document.getElementById('perf-decision-list-dynamic');
+    if (!body || !window.RR_DRIVERS) return;
+    var sel = document.getElementById('perf-bottom-n');
+    var spec = sel ? sel.value : 'n:10';
+    var parts = spec.split(':');
+    var mode = parts[0]; var v = parseInt(parts[1], 10);
+    var rosterSorted = RR_DRIVERS.slice().sort(function(a, b){ return (a.score||0) - (b.score||0); });
+    var n = mode === 'p' ? Math.max(1, Math.ceil(rosterSorted.length * v / 100)) : v;
+    n = Math.min(n, rosterSorted.length);
+    var rows = rosterSorted.slice(0, n);
+
+    var ceiling = perfCeiling(perfStaffingLevel());
+    var countEl = document.getElementById('staffing-decisions-count');
+    if (countEl) countEl.textContent = rows.length + ' driver' + (rows.length === 1 ? '' : 's') + ' shown · ceiling: ' + (PERF_LABEL[ceiling] || ceiling);
+
+    if (rows.length === 0) {
+      body.innerHTML = '<div style="padding:var(--s-4);text-align:center;color:var(--text-subtle);font-size:13px">No drivers in roster.</div>';
+      return;
+    }
+
+    body.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">'
+      + '<div style="display:grid;grid-template-columns:1.6fr 80px 100px 110px 1.4fr auto;gap:14px;padding:10px 16px;background:var(--canvas);font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">'
+        + '<span>Driver</span>'
+        + '<span style="text-align:right">Score</span>'
+        + '<span style="text-align:right" title="Attendance points last 30d">Att. pts</span>'
+        + '<span>Flags</span>'
+        + '<span>Suggested action</span>'
+        + '<span></span>'
+      + '</div>'
+      + rows.map(function(d){
+        var comp = (window.attComputeDriver && window.RR_ATTENDANCE_POLICY) ? attComputeDriver(d, 30) : null;
+        var points = comp ? comp.points.toFixed(1) : '0.0';
+        var pointsCls = comp && comp.points >= (RR_ATTENDANCE_POLICY.thresholds.written.points) ? 'color:var(--red)'
+                      : comp && comp.points >= (RR_ATTENDANCE_POLICY.thresholds.verbal.points) ? 'color:var(--amber)' : 'color:var(--text-muted)';
+        var flags = [];
+        if (comp && comp.counts.callout > 0) flags.push('<span class="flag attendance">Attendance</span>');
+        if (comp && comp.counts.noshow > 0)  flags.push('<span class="flag attendance">No-show</span>');
+        if ((d.score || 0) < 65) flags.push('<span class="flag scorecard">Scorecard</span>');
+        if (window.isDriverSuspended && isDriverSuspended(d.id)) flags.push('<span class="flag" style="background:var(--red);color:#fff">Suspended</span>');
+        if (flags.length === 0) flags.push('<span style="color:var(--text-subtle);font-size:11px;font-style:italic">none</span>');
+        var base = perfBaseAction(d);
+        var capped = _perfCap(base, ceiling);
+        var wasCapped = capped !== base;
+        var scoreClass = (d.score||0) < 65 ? 'tier-d' : (d.score||0) < 75 ? 'tier-c' : (d.score||0) < 85 ? 'tier-b' : 'tier-a';
+        return '<div style="display:grid;grid-template-columns:1.6fr 80px 100px 110px 1.4fr auto;gap:14px;padding:12px 16px;border-top:1px solid var(--border);align-items:center">'
+          + '<div style="display:flex;align-items:center;gap:8px">'
+            + '<div class="avatar-sm ' + d.tier + '">' + d.id + '</div>'
+            + '<div><div style="font-weight:600;font-size:13px">' + d.name + '</div>'
+            + '<div style="font-size:11px;color:var(--text-subtle)">' + d.station + ' · ' + (d.tenureMonths || '?') + ' mo</div></div>'
+          + '</div>'
+          + '<div style="text-align:right;font-weight:700;font-size:14px;font-variant-numeric:tabular-nums" class="' + scoreClass + '">' + (d.score || '—') + '</div>'
+          + '<div style="text-align:right;font-weight:600;font-size:13px;font-variant-numeric:tabular-nums;' + pointsCls + '">' + points + '</div>'
+          + '<div style="display:flex;gap:4px;flex-wrap:wrap">' + flags.join('') + '</div>'
+          + '<div>' + perfActionBadge(capped, wasCapped) + (wasCapped ? '<div style="font-size:10px;color:var(--text-subtle);margin-top:3px;line-height:1.3">Without cap: ' + (PERF_LABEL[base] || base) + '</div>' : '') + '</div>'
+          + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+            + (window.isDriverSuspended && isDriverSuspended(d.id)
+                ? '<button class="btn btn-sm btn-primary" onclick="openReinstateModal(\'' + d.id + '\')">Reinstate</button>'
+                : '<button class="btn btn-sm btn-primary" onclick="openCoachDrawer(\'' + d.name.replace(/\x27/g, "\\\x27") + '\',\'attendance\',\'Performance review · score ' + (d.score||0) + ' · ' + points + ' att. pts · suggested ' + (PERF_LABEL[capped] || capped) + '\')">Coach</button>')
+            + (window.openHrFile ? '<button class="btn btn-sm" onclick="openHrFile(\'' + d.id + '\')">HR file</button>' : '')
+          + '</div>'
+        + '</div>';
+      }).join('') + '</div>';
+
+    // Update dashboard underperformer card count + msg
+    var card = document.getElementById('underperf-card-count');
+    var msg = document.getElementById('underperf-card-msg');
+    var below = RR_DRIVERS.filter(function(d){ return (d.score || 0) < 75; });
+    if (card) card.textContent = below.length + ' driver' + (below.length === 1 ? '' : 's');
+    if (msg) {
+      var names = below.slice(0, 5).map(function(d){ return d.name.split(' ').slice(-1)[0]; }).join(', ');
+      msg.textContent = (below.length === 0
+        ? 'Roster is clean — no drivers below score 75.'
+        : names + (below.length > 5 ? ' + ' + (below.length - 5) + ' more' : '') + ' — score below 75. Review under Performance Management.');
+    }
+  }
+  window.perfRender = perfRender;
+
+  // Re-render when navigation lands on staffing
+  if (typeof goto === 'function' && !goto._wrappedForPerf) {
+    var _origGotoForPerf = goto;
+    goto = function(view){
+      _origGotoForPerf(view);
+      if (view === 'staffing') setTimeout(perfRender, 60);
+    };
+    goto._wrappedForPerf = true;
+  }
+
+  document.addEventListener('DOMContentLoaded', perfRender);
+  if (document.readyState !== 'loading') perfRender();
 
   // ═══════════════════════════════════════════════════════════════
   // LICENSE RENEWALS — auto-text + schedule flag + Insights panel
