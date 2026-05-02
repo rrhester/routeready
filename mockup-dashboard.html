@@ -9756,7 +9756,7 @@ Evidence attached:
      NOTIFICATION POPOVER
      ═══════════════════════════════════════════════════════════ -->
 <div class="popover" id="popover-notif" style="position:fixed;top:50px;right:80px;width:340px">
-  <div class="popover-head" style="display:flex;justify-content:space-between;align-items:center"><span>Notifications</span><span style="font-size:10px;color:var(--accent-text);font-weight:500;cursor:pointer" onclick="toast('All marked read')">Mark all read</span></div>
+  <div class="popover-head" style="display:flex;justify-content:space-between;align-items:center"><span>Notifications</span><span style="font-size:10px;color:var(--accent-text);font-weight:500;cursor:pointer" onclick="markAllNotifsRead()">Mark all read</span></div>
   <div>
     <div class="notif-item" onclick="goto('dashboard');closePopovers()">
       <div class="notif-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
@@ -11156,11 +11156,33 @@ Evidence attached:
     document.getElementById('driver-drawer').classList.add('open');
     document.getElementById('ap-backdrop').classList.add('open');
     document.body.style.overflow = 'hidden';
+    // Topbar reflects the driver in focus
+    var tbTitle = document.getElementById('tb-title');
+    var tbContext = document.getElementById('tb-context');
+    if (tbTitle) {
+      tbTitle.dataset.driverPrev = tbTitle.dataset.driverPrev || tbTitle.textContent;
+      tbTitle.textContent = name || 'Driver';
+    }
+    if (tbContext) {
+      tbContext.dataset.driverPrev = tbContext.dataset.driverPrev || tbContext.textContent;
+      tbContext.textContent = (station || '') + (tenure ? ' · ' + tenure + ' tenure' : '') + (score ? ' · score ' + score : '');
+    }
   }
   function closeDriverDetail(){
     document.getElementById('driver-drawer').classList.remove('open');
     document.getElementById('ap-backdrop').classList.remove('open');
     document.body.style.overflow = '';
+    // Restore topbar
+    var tbTitle = document.getElementById('tb-title');
+    var tbContext = document.getElementById('tb-context');
+    if (tbTitle && tbTitle.dataset.driverPrev) {
+      tbTitle.textContent = tbTitle.dataset.driverPrev;
+      delete tbTitle.dataset.driverPrev;
+    }
+    if (tbContext && tbContext.dataset.driverPrev) {
+      tbContext.textContent = tbContext.dataset.driverPrev;
+      delete tbContext.dataset.driverPrev;
+    }
   }
 
   // ─── POPOVERS (notifications, account, filters) ───────────
@@ -11567,6 +11589,33 @@ Evidence attached:
     openModal('modal-add-applicant');
     setTimeout(function(){ document.getElementById('aa-fn').focus(); }, 50);
   }
+  // ─── MARK ALL NOTIFICATIONS READ ──────────────────────────
+  function markAllNotifsRead(){
+    var pop = document.getElementById('popover-notif');
+    if (!pop) return;
+    var list = pop.querySelector('div:nth-child(2)');
+    if (list) {
+      list.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-subtle);font-size:12px">✓ You\'re all caught up</div>';
+    }
+    // Also hide the bell dot indicator
+    var dot = document.querySelector('.icon-btn[aria-label="Notifications"] .dot');
+    if (dot) dot.style.display = 'none';
+    toast('Notifications cleared');
+  }
+
+  function _bumpPipelineCounts(n){
+    n = n || 1;
+    var nb = document.querySelector('.nav-item[data-view="pipeline"] .nav-badge');
+    if (nb) {
+      var cur = parseInt(nb.textContent, 10) || 0;
+      nb.textContent = cur + n;
+      nb.style.display = '';
+    }
+    var all = document.querySelector('.stage-tab[data-stage="all"] .stage-tab-count');
+    if (all) { var a = parseInt(all.textContent, 10) || 0; all.textContent = a + n; }
+    var newSt = document.querySelector('.stage-tab[data-stage="new"] .stage-tab-count');
+    if (newSt) { var s = parseInt(newSt.textContent, 10) || 0; newSt.textContent = s + n; }
+  }
   function submitAddApplicant(){
     const fn = document.getElementById('aa-fn').value.trim();
     const ln = document.getElementById('aa-ln').value.trim();
@@ -11575,6 +11624,7 @@ Evidence attached:
     if (!fn && !ln) { toast('Add a name first', 'warn'); return; }
     if (!phone && !email) { toast('Phone or email required', 'warn'); return; }
     closeModal('modal-add-applicant');
+    _bumpPipelineCounts(1);
     toast((fn || ln) + ' added to pipeline · screening SMS sent');
   }
 
@@ -11612,6 +11662,7 @@ Evidence attached:
     const count = rows.length > 1 ? rows.length - 1 : 0;
     if (count === 0) { toast('Paste rows first', 'warn'); return; }
     closeModal('modal-bulk-ingest');
+    _bumpPipelineCounts(count);
     toast(count + ' applicants imported · screening SMS sent to all');
   }
 
@@ -11988,6 +12039,7 @@ Evidence attached:
   function ciMark(btn){
     var row = btn.closest('.checkin-row');
     var status = btn.getAttribute('data-s');
+    var wasCallout = row.classList.contains('marked-callout') || row.classList.contains('marked-noshow');
     // Reset row
     row.classList.remove('marked-present','marked-late','marked-callout','marked-noshow');
     row.querySelectorAll('.status-btn').forEach(function(b){
@@ -11997,6 +12049,18 @@ Evidence attached:
     btn.classList.add('active','s-' + status);
     row.classList.add('marked-' + status);
     ciUpdateCounts();
+    // If newly callout/noshow, increment Open shifts subnav badge
+    var becameCallout = (status === 'callout' || status === 'noshow');
+    if (becameCallout && !wasCallout) {
+      var open = document.querySelector('#view-schedule .subnav-item[data-sub="open"] span');
+      if (open) {
+        var n = parseInt(open.textContent, 10) || 0;
+        open.textContent = (n + 1);
+        open.style.display = '';
+      }
+    } else if (!becameCallout && wasCallout) {
+      _decrementBadge('#view-schedule .subnav-item[data-sub="open"] span');
+    }
   }
   function ciUpdateCounts(){
     var counts = { present:0, late:0, callout:0, noshow:0 };
