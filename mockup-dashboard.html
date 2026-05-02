@@ -3447,6 +3447,116 @@ a{color:inherit;text-decoration:none}
 .bb-section-title{font-size:14px;font-weight:600;color:var(--text);margin:0 0 var(--s-2) 0}
 .bb-section-sub{font-size:12px;color:var(--text-muted);margin:0 0 var(--s-3) 0}
 
+/* ─── STAFFING RISK ──────────────────────────────────────────── */
+.staffing-hero{
+  display:flex;align-items:center;gap:18px;
+  padding:22px 26px;border-radius:14px;border:1px solid var(--border);
+  background:linear-gradient(135deg, var(--amber-soft), var(--surface) 80%);
+  margin-bottom:var(--s-5);
+  transition:background .25s, border-color .25s;
+}
+.staffing-hero.healthy{background:linear-gradient(135deg, rgba(34,197,94,.12), var(--surface) 80%);border-color:rgba(34,197,94,.4)}
+.staffing-hero.healthy .staffing-hero-icon{background:var(--green);color:#fff}
+.staffing-hero.cautious{background:linear-gradient(135deg, var(--amber-soft), var(--surface) 80%);border-color:rgba(245,158,11,.4)}
+.staffing-hero.cautious .staffing-hero-icon{background:var(--amber);color:#fff}
+.staffing-hero.critical{background:linear-gradient(135deg, var(--red-soft), var(--surface) 80%);border-color:rgba(239,68,68,.5)}
+.staffing-hero.critical .staffing-hero-icon{background:var(--red);color:#fff}
+.staffing-hero-icon{width:48px;height:48px;border-radius:12px;background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .25s}
+.staffing-hero-icon svg{width:22px;height:22px}
+.staffing-hero-eyebrow{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+.staffing-hero-title{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.01em;margin-bottom:4px}
+.staffing-hero-sub{font-size:13px;color:var(--text-muted);line-height:1.5;max-width:600px}
+.staffing-hero-meter{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 18px;border-radius:10px;background:var(--surface);border:1px solid var(--border);min-width:90px}
+.staffing-meter-num{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
+.staffing-hero.healthy .staffing-meter-num{color:var(--green)}
+.staffing-hero.cautious .staffing-meter-num{color:var(--amber)}
+.staffing-hero.critical .staffing-meter-num{color:var(--red)}
+.staffing-meter-label{font-size:10px;color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
+
+.staffing-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+@media (max-width:1280px){.staffing-cards{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:680px){.staffing-cards{grid-template-columns:1fr}}
+.staffing-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:6px;
+  transition:border-color .12s,box-shadow .12s;
+}
+.staffing-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+.staffing-card-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.staffing-card-value{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.1}
+.staffing-card-value .frac{font-size:12px;color:var(--text-subtle);font-weight:500}
+.staffing-card-value .up{color:var(--green)}
+.staffing-card-value .down{color:var(--red)}
+.staffing-card-trend{font-size:11px;color:var(--text-subtle);line-height:1.4}
+.staffing-card-trend.warn{color:var(--amber);font-weight:500}
+.staffing-card-trend.bad{color:var(--red);font-weight:500}
+.staffing-card-bar{height:5px;border-radius:3px;background:var(--canvas);overflow:hidden;margin-top:4px}
+.staffing-card-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),#3B82F6);border-radius:3px;transition:width .25s}
+.staffing-card-foot{font-size:11px;color:var(--text-muted);margin-top:auto;padding-top:4px}
+.staffing-card-link{color:var(--accent-text);font-weight:500;cursor:pointer;font-size:11px}
+.staffing-card-link:hover{text-decoration:underline}
+
+.staffing-decisions{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:18px 20px var(--s-2);margin-bottom:var(--s-4);
+}
+.staffing-decisions-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4);gap:var(--s-3)}
+.staffing-section-title{font-size:15px;font-weight:600;color:var(--text);margin:0}
+.staffing-decisions-count{font-size:12px;color:var(--text-muted);font-weight:500}
+.decision-list{display:flex;flex-direction:column;gap:10px}
+.decision-row{
+  display:grid;grid-template-columns: 1.4fr .8fr 1fr 1.2fr auto;
+  gap:14px;align-items:center;
+  padding:12px;border:1px solid var(--border);border-radius:10px;
+  transition:border-color .12s,background .12s;
+}
+.decision-row:hover{border-color:var(--border-strong);background:var(--canvas)}
+@media (max-width:1080px){.decision-row{grid-template-columns:1fr;gap:8px}}
+.decision-driver{display:flex;align-items:center;gap:10px}
+.decision-name{font-size:13px;font-weight:600;color:var(--text)}
+.decision-meta{font-size:11px;color:var(--text-subtle)}
+.decision-flags{display:flex;gap:4px;flex-wrap:wrap}
+.decision-bench-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:500;padding:3px 8px;border-radius:8px;
+}
+.decision-bench-pill svg{width:11px;height:11px;stroke-width:2.5}
+.decision-bench-pill.ok{background:rgba(34,197,94,.12);color:var(--green)}
+.decision-bench-pill.warn{background:var(--amber-soft);color:var(--amber)}
+.decision-bench-pill.bad{background:var(--red-soft);color:var(--red)}
+.decision-verdict{font-size:12px;line-height:1.4}
+.decision-verdict strong{display:block;font-weight:700;font-size:13px}
+.decision-verdict.ok strong{color:var(--green)}
+.decision-verdict.warn strong{color:var(--amber)}
+.decision-verdict.bad strong{color:var(--red)}
+.decision-verdict-sub{display:block;color:var(--text-subtle);font-size:11px;margin-top:1px}
+.decision-actions{display:flex;gap:6px;flex-shrink:0}
+
+.staffing-math{
+  border:1px dashed var(--border);border-radius:10px;
+  padding:14px 16px;background:var(--canvas);
+  font-size:11px;color:var(--text-muted);
+}
+.staffing-math-title{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.staffing-math-formula{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;color:var(--text);line-height:1.7;margin-bottom:8px}
+.staffing-math-formula code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:11px}
+.staffing-math-bands{display:flex;gap:8px;flex-wrap:wrap}
+.staffing-math-band{font-size:10px;font-weight:600;padding:3px 8px;border-radius:8px;letter-spacing:.02em}
+.staffing-math-band.ok{background:rgba(34,197,94,.12);color:var(--green)}
+.staffing-math-band.warn{background:var(--amber-soft);color:var(--amber)}
+.staffing-math-band.bad{background:var(--red-soft);color:var(--red)}
+
+/* Pipeline throughput KPIs */
+.pipeline-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)}
+@media (max-width:1080px){.pipeline-kpis{grid-template-columns:repeat(2,1fr)}}
+.pipeline-kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.pipeline-kpi-label{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.pipeline-kpi-value{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
+.pipeline-kpi-value .frac{font-size:11px;color:var(--text-subtle);font-weight:500}
+.pipeline-kpi-trend{font-size:11px;color:var(--text-subtle);margin-top:4px}
+.pipeline-kpi-trend .up{color:var(--green);font-weight:600}
+.pipeline-kpi-trend .down{color:var(--red);font-weight:600}
+
 /* ─── DASHBOARD ACTION QUEUE ─────────────────────────────────── */
 /* Persistent health strip — small, calm, never demands action */
 .health-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
@@ -3601,6 +3711,11 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Drivers
         <span class="nav-badge" style="background:var(--amber)">5</span>
+      </button>
+      <button class="nav-item" data-view="staffing" onclick="goto('staffing')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Staffing Risk
+        <span class="nav-badge" id="staffing-status-dot" style="background:var(--amber);width:8px;height:8px;border-radius:50%;padding:0;min-width:0;display:inline-block" title="Cautious"></span>
       </button>
       <button class="nav-item" data-view="fleet" onclick="goto('fleet')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg>
@@ -3912,6 +4027,30 @@ a{color:inherit;text-decoration:none}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add applicant
             </button>
+          </div>
+        </div>
+
+        <!-- Throughput KPIs -->
+        <div class="pipeline-kpis">
+          <div class="pipeline-kpi" title="Applicants who showed up to interview ÷ booked">
+            <div class="pipeline-kpi-label">Show rate</div>
+            <div class="pipeline-kpi-value"><span id="pipeline-kpi-show">72</span><span class="frac">% · screened ÷ booked</span></div>
+            <div class="pipeline-kpi-trend"><span class="up">▲ 3</span> vs last cycle</div>
+          </div>
+          <div class="pipeline-kpi" title="Hires ÷ applicants interviewed">
+            <div class="pipeline-kpi-label">Hire rate</div>
+            <div class="pipeline-kpi-value"><span id="pipeline-kpi-hire">31</span><span class="frac">% · hired ÷ interviewed</span></div>
+            <div class="pipeline-kpi-trend">Steady · 30-day avg</div>
+          </div>
+          <div class="pipeline-kpi" title="Days from applied to hired (avg)">
+            <div class="pipeline-kpi-label">Cycle velocity</div>
+            <div class="pipeline-kpi-value"><span id="pipeline-kpi-velocity">9.2</span><span class="frac"> days · applied → hired</span></div>
+            <div class="pipeline-kpi-trend"><span class="up">▼ 0.8</span> faster vs last cycle</div>
+          </div>
+          <div class="pipeline-kpi" style="background:linear-gradient(135deg, var(--accent-soft), var(--surface) 80%);border-color:rgba(59,130,246,.3)" title="Applicants × show × hire = predicted hires this cycle">
+            <div class="pipeline-kpi-label">Predicted hires this cycle</div>
+            <div class="pipeline-kpi-value">~<span id="pipeline-kpi-predicted">11</span><span class="frac"> hires · need 12</span></div>
+            <div class="pipeline-kpi-trend" id="pipeline-kpi-predicted-line">48 × 72% × 31% · feeds Staffing Risk →</div>
           </div>
         </div>
 
@@ -6178,6 +6317,244 @@ a{color:inherit;text-decoration:none}
             </div>
           </section>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STAFFING RISK — at-a-glance "can I hold drivers accountable?"
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-staffing">
+      <div class="page">
+
+        <div class="page-header">
+          <div>
+            <h1 class="page-title" style="display:flex;align-items:center;gap:10px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;stroke-width:2.2;color:var(--accent)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Staffing Risk
+            </h1>
+            <p class="page-sub">Can you hold drivers accountable without breaking coverage? Live answer.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sm" onclick="recomputeStaffingRisk();toast('Recomputed from current state')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              Recompute
+            </button>
+          </div>
+        </div>
+
+        <!-- Hero band -->
+        <div class="staffing-hero" id="staffing-hero">
+          <div class="staffing-hero-icon" id="staffing-hero-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div style="flex:1">
+            <div class="staffing-hero-eyebrow" id="staffing-hero-eyebrow">Staffing Risk Score</div>
+            <div class="staffing-hero-title" id="staffing-hero-title">Cautious — coach, don't release</div>
+            <div class="staffing-hero-sub" id="staffing-hero-sub">You're 1 short of OKAMI need after predicted hires. Hold accountability actions until the cycle's hires close.</div>
+          </div>
+          <div class="staffing-hero-meter" id="staffing-hero-meter" title="Closing position vs OKAMI need">
+            <div class="staffing-meter-num" id="staffing-meter-num">−1</div>
+            <div class="staffing-meter-label">predicted gap</div>
+          </div>
+        </div>
+
+        <!-- 4 signal cards -->
+        <div class="staffing-cards">
+
+          <div class="staffing-card">
+            <div class="staffing-card-label">Headcount vs OKAMI need</div>
+            <div class="staffing-card-value">
+              <span id="staffing-active">78</span><span class="frac"> / <span id="staffing-need">90</span> needed</span>
+            </div>
+            <div class="staffing-card-trend bad" id="staffing-gap-line">−12 gap · 13-week target</div>
+            <div class="staffing-card-bar">
+              <div class="staffing-card-bar-fill" id="staffing-bar-headcount" style="width:87%"></div>
+            </div>
+          </div>
+
+          <div class="staffing-card">
+            <div class="staffing-card-label">Bench erosion · next 30 days</div>
+            <div class="staffing-card-value">
+              <span id="staffing-atrisk">5</span><span class="frac"> at-risk</span>
+            </div>
+            <div class="staffing-card-trend warn" id="staffing-erosion-line">3 high probability · 2 watch</div>
+            <div class="staffing-card-foot">
+              <a class="staffing-card-link" onclick="goto('drivers');setTimeout(function(){drSub('insights');},50)">View retention propensity →</a>
+            </div>
+          </div>
+
+          <div class="staffing-card">
+            <div class="staffing-card-label">Pipeline throughput</div>
+            <div class="staffing-card-value">
+              ~<span id="staffing-predicted">11</span><span class="frac"> hires this cycle</span>
+            </div>
+            <div class="staffing-card-trend" id="staffing-throughput-line"><span id="staffing-applicants">48</span> applicants × <span id="staffing-show">72%</span> show × <span id="staffing-hire">31%</span> hire</div>
+            <div class="staffing-card-foot">
+              <a class="staffing-card-link" onclick="goto('pipeline')">Open pipeline →</a>
+            </div>
+          </div>
+
+          <div class="staffing-card">
+            <div class="staffing-card-label">Net delta this cycle</div>
+            <div class="staffing-card-value">
+              <span id="staffing-net" class="up">+3</span><span class="frac"> net</span>
+            </div>
+            <div class="staffing-card-trend" id="staffing-net-line">3 hired · 1 left · 1 onboarding</div>
+            <div class="staffing-card-foot" id="staffing-closing-line" style="font-size:11px;color:var(--text-muted)">Predicted closing: <strong id="staffing-closing">89</strong> drivers · <strong>−1 short</strong></div>
+          </div>
+
+        </div>
+
+        <!-- Decision support -->
+        <div class="staffing-decisions">
+          <div class="staffing-decisions-head">
+            <div>
+              <h2 class="staffing-section-title">Accountability decisions</h2>
+              <p class="bb-section-sub" style="margin:4px 0 0 0">For each at-risk driver: can you release them without losing coverage, or must you coach?</p>
+            </div>
+            <span class="staffing-decisions-count" id="staffing-decisions-count">5 drivers flagged</span>
+          </div>
+
+          <div class="decision-list" id="staffing-decision-list">
+
+            <div class="decision-row" data-driver="Marcus Davidson">
+              <div class="decision-driver">
+                <div class="avatar-sm tier-d">MD</div>
+                <div>
+                  <div class="decision-name">Marcus Davidson</div>
+                  <div class="decision-meta">KMO1 · Score 62 · 18 mo · 2 missed days</div>
+                </div>
+              </div>
+              <div class="decision-flags">
+                <span class="flag safety">Safety</span>
+                <span class="flag attendance">Attendance</span>
+              </div>
+              <div class="decision-bench" data-bench="ok">
+                <span class="decision-bench-pill ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2 booked replacements ready</span>
+              </div>
+              <div class="decision-verdict ok">
+                <strong>Safe to release</strong>
+                <span class="decision-verdict-sub">KMO1 bench has coverage</span>
+              </div>
+              <div class="decision-actions">
+                <button class="btn btn-sm" onclick="openDriverDetail('Marcus Davidson','KMO1','18 mo','62','88%')">View record</button>
+                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags · KMO1 has 2 booked replacements')">Coach first</button>
+              </div>
+            </div>
+
+            <div class="decision-row" data-driver="Tasha Reyes">
+              <div class="decision-driver">
+                <div class="avatar-sm tier-c">TR</div>
+                <div>
+                  <div class="decision-name">Tasha Reyes</div>
+                  <div class="decision-meta">KMO2 · Score 68 · 9 mo · 1 incident</div>
+                </div>
+              </div>
+              <div class="decision-flags">
+                <span class="flag attendance">Attendance</span>
+              </div>
+              <div class="decision-bench" data-bench="warn">
+                <span class="decision-bench-pill warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>3 booked, but KMO2 also losing 1 next cycle</span>
+              </div>
+              <div class="decision-verdict warn">
+                <strong>Coach, don't release</strong>
+                <span class="decision-verdict-sub">Net KMO2 position fragile</span>
+              </div>
+              <div class="decision-actions">
+                <button class="btn btn-sm" onclick="openDriverDetail('Tasha Reyes','KMO2','9 mo','68','92%')">View record</button>
+                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Tasha Reyes','attendance','1 incident · KMO2 bench fragile · coach first')">Coach</button>
+              </div>
+            </div>
+
+            <div class="decision-row" data-driver="Kerwin Whitfield">
+              <div class="decision-driver">
+                <div class="avatar-sm tier-c">KW</div>
+                <div>
+                  <div class="decision-name">Kerwin Whitfield</div>
+                  <div class="decision-meta">KMO1 · Score 71 · 24 mo · scorecard slipping</div>
+                </div>
+              </div>
+              <div class="decision-flags">
+                <span class="flag scorecard">Scorecard</span>
+              </div>
+              <div class="decision-bench" data-bench="warn">
+                <span class="decision-bench-pill warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>1 booked, 2 in screening — uncertain timing</span>
+              </div>
+              <div class="decision-verdict warn">
+                <strong>Coach, don't release</strong>
+                <span class="decision-verdict-sub">2 yr tenure · high reset cost</span>
+              </div>
+              <div class="decision-actions">
+                <button class="btn btn-sm" onclick="openDriverDetail('Kerwin Whitfield','KMO1','24 mo','71','97%')">View record</button>
+                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over 2 weeks · 24 mo tenure')">Coach</button>
+              </div>
+            </div>
+
+            <div class="decision-row" data-driver="Jordan Beckett">
+              <div class="decision-driver">
+                <div class="avatar-sm tier-c">JB</div>
+                <div>
+                  <div class="decision-name">Jordan Beckett</div>
+                  <div class="decision-meta">KMO3 · Score 73 · 6 mo · late returns</div>
+                </div>
+              </div>
+              <div class="decision-flags">
+                <span class="flag scorecard">Scorecard</span>
+              </div>
+              <div class="decision-bench" data-bench="bad">
+                <span class="decision-bench-pill bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg>KMO3 bench thin · 1 in screening</span>
+              </div>
+              <div class="decision-verdict bad">
+                <strong>Hold · no replacements</strong>
+                <span class="decision-verdict-sub">Coach hard, prepare KMO3 hires</span>
+              </div>
+              <div class="decision-actions">
+                <button class="btn btn-sm" onclick="openDriverDetail('Jordan Beckett','KMO3','6 mo','73','94%')">View record</button>
+                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns last 7 days · KMO3 bench thin')">Coach</button>
+              </div>
+            </div>
+
+            <div class="decision-row" data-driver="Asha Thornton">
+              <div class="decision-driver">
+                <div class="avatar-sm tier-c">AT</div>
+                <div>
+                  <div class="decision-name">Asha Thornton</div>
+                  <div class="decision-meta">KMO2 · Score 74 · 14 mo · 1 callout</div>
+                </div>
+              </div>
+              <div class="decision-flags">
+                <span class="flag attendance">Attendance</span>
+              </div>
+              <div class="decision-bench" data-bench="ok">
+                <span class="decision-bench-pill ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 booked replacements ready</span>
+              </div>
+              <div class="decision-verdict ok">
+                <strong>Coach first · then decide</strong>
+                <span class="decision-verdict-sub">14 mo tenure · single incident</span>
+              </div>
+              <div class="decision-actions">
+                <button class="btn btn-sm" onclick="openDriverDetail('Asha Thornton','KMO2','14 mo','74','96%')">View record</button>
+                <button class="btn btn-sm btn-primary" onclick="openCoachDrawer('Asha Thornton','attendance','1 callout · 14 mo tenure · coachable')">Coach</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Math footer -->
+        <div class="staffing-math">
+          <div class="staffing-math-title">How this is computed</div>
+          <div class="staffing-math-formula">
+            <code>Predicted closing = Active − Attrition − Terminations + (Applicants × Show% × Hire%)</code><br/>
+            <code>Risk = (Predicted closing − OKAMI need) ÷ OKAMI need</code>
+          </div>
+          <div class="staffing-math-bands">
+            <span class="staffing-math-band ok">≥ 0 → Healthy</span>
+            <span class="staffing-math-band warn">−5% to 0 → Cautious</span>
+            <span class="staffing-math-band bad">&lt; −5% → Critical</span>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -10302,9 +10679,114 @@ Evidence attached:
       try { ACTION_EFFECTS[actionKey](actionKey); } catch (e) { /* swallow — demo */ }
     }
     updateQueueProgress();
+    recomputeStaffingRisk();
     var name = card.querySelector('.action-card-title').textContent.trim();
     toast(name + ' · cleared');
   }
+
+  // ─── STAFFING RISK ENGINE ─────────────────────────────────
+  // Reads live state, computes risk, paints hero + sidebar dot + cards.
+  function recomputeStaffingRisk(){
+    // Read inputs from current DOM state
+    var active = 78; // hardcoded fleet size for the mock
+    var okamiNeed = 90;
+    var attrition = 1; // baseline this cycle
+    var terminations = 0;
+    // At-risk: derived from underperformer card state (cleared = 0)
+    var underperfCleared = !!document.querySelector('.action-card[data-action="underperformer"].cleared');
+    var atRisk = underperfCleared ? 0 : 5;
+    var atRiskHigh = underperfCleared ? 0 : 3;
+    // Pipeline applicants — read live from "All" stage tab count
+    var appsEl = document.querySelector('.stage-tab[data-stage="all"] .stage-tab-count');
+    var applicants = appsEl ? (parseInt(appsEl.textContent, 10) || 48) : 48;
+    var showRate = 0.72;
+    var hireRate = 0.31;
+    var predictedHires = Math.round(applicants * showRate * hireRate);
+    var predictedClosing = active - attrition - terminations + predictedHires;
+    var gap = predictedClosing - okamiNeed; // negative = short
+    var ratio = gap / okamiNeed;
+
+    // Determine band
+    var band, bandLabel, bandSub;
+    if (ratio >= 0) {
+      band = 'healthy';
+      bandLabel = 'Healthy — you can hold drivers accountable';
+      bandSub = atRisk > 0
+        ? 'You can release flagged underperformers without breaking coverage. Pipeline + bench cover the gap.'
+        : 'No at-risk drivers flagged. Pipeline is tracking ahead of OKAMI need. Focus on retention.';
+    } else if (ratio >= -0.05) {
+      band = 'cautious';
+      bandLabel = 'Cautious — coach, don\'t release';
+      bandSub = 'You\'re ' + Math.abs(gap) + ' short of OKAMI need after predicted hires. Hold accountability actions until the cycle\'s hires close.';
+    } else {
+      band = 'critical';
+      bandLabel = 'Critical — hands tied';
+      bandSub = 'Halt accountability actions. You\'re ' + Math.abs(gap) + ' short of OKAMI need. Accelerate pipeline or expand sourcing.';
+    }
+
+    // Paint hero
+    var hero = document.getElementById('staffing-hero');
+    if (hero) {
+      hero.classList.remove('healthy','cautious','critical');
+      hero.classList.add(band);
+    }
+    var titleEl = document.getElementById('staffing-hero-title');
+    if (titleEl) titleEl.textContent = bandLabel;
+    var subEl = document.getElementById('staffing-hero-sub');
+    if (subEl) subEl.textContent = bandSub;
+    var meterNum = document.getElementById('staffing-meter-num');
+    if (meterNum) meterNum.textContent = (gap >= 0 ? '+' : '') + gap;
+
+    // Paint cards
+    var setText = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('staffing-active', active);
+    setText('staffing-need', okamiNeed);
+    setText('staffing-atrisk', atRisk);
+    setText('staffing-applicants', applicants);
+    setText('staffing-predicted', predictedHires);
+    setText('staffing-closing', predictedClosing);
+    var gapLine = document.getElementById('staffing-gap-line');
+    if (gapLine) {
+      gapLine.textContent = (active >= okamiNeed ? 'Covered · ' : '−' + (okamiNeed - active) + ' gap · ') + '13-week target';
+      gapLine.classList.remove('bad','warn');
+      if (active < okamiNeed - 5) gapLine.classList.add('bad');
+      else if (active < okamiNeed) gapLine.classList.add('warn');
+    }
+    var erosionLine = document.getElementById('staffing-erosion-line');
+    if (erosionLine) {
+      erosionLine.textContent = atRisk === 0
+        ? 'No drivers flagged · all coached'
+        : atRiskHigh + ' high probability · ' + (atRisk - atRiskHigh) + ' watch';
+      erosionLine.classList.remove('bad','warn');
+      if (atRisk >= 5) erosionLine.classList.add('warn');
+      if (atRiskHigh >= 4) erosionLine.classList.add('bad');
+    }
+    var throughputLine = document.getElementById('staffing-throughput-line');
+    if (throughputLine) throughputLine.innerHTML = applicants + ' applicants × 72% show × 31% hire';
+    var closingLine = document.getElementById('staffing-closing-line');
+    if (closingLine) {
+      closingLine.innerHTML = 'Predicted closing: <strong>' + predictedClosing + '</strong> drivers · <strong>' +
+        (gap >= 0 ? '+' + gap + ' over' : gap + ' short') + '</strong>';
+    }
+    var headcountBar = document.getElementById('staffing-bar-headcount');
+    if (headcountBar) headcountBar.style.width = Math.min(100, Math.round(active/okamiNeed*100)) + '%';
+
+    // Sidebar dot color
+    var dot = document.getElementById('staffing-status-dot');
+    if (dot) {
+      var col = (band === 'healthy') ? 'var(--green)' : (band === 'cautious' ? 'var(--amber)' : 'var(--red)');
+      dot.style.background = col;
+      dot.title = bandLabel;
+    }
+
+    // Pipeline KPI strip predicted line — keep in sync
+    var pipePred = document.getElementById('pipeline-kpi-predicted');
+    if (pipePred) pipePred.textContent = predictedHires;
+    var pipePredLine = document.getElementById('pipeline-kpi-predicted-line');
+    if (pipePredLine) pipePredLine.textContent = applicants + ' × 72% × 31% · feeds Staffing Risk →';
+  }
+  // Recompute on first load
+  document.addEventListener('DOMContentLoaded', recomputeStaffingRisk);
   function updateQueueProgress(){
     var queue = document.getElementById('action-queue');
     if (!queue) return;
@@ -10338,6 +10820,7 @@ Evidence attached:
       _restore(actionKey);
     });
     updateQueueProgress();
+    recomputeStaffingRisk();
     toast('Queue reset · 8 decisions restored');
   }
 
@@ -10351,6 +10834,7 @@ Evidence attached:
       dashboard: 'Dashboard',
       pipeline: 'Hiring Pipeline',
       drivers: 'Drivers',
+      staffing: 'Staffing Risk',
       fleet: 'Fleet',
       schedule: 'Schedule',
       okami: 'OKAMI',
@@ -10366,6 +10850,7 @@ Evidence attached:
       dashboard: 'Cycle 14 · Day 3 of 28',
       pipeline: 'Cycle 14 · 48 applicants',
       drivers: '78 active · 5 at risk',
+      staffing: 'Live · headcount + bench + pipeline = accountability budget',
       fleet: '24 vehicles · 312 assets · 2 maint items',
       schedule: 'Week of May 1–7 · 5 pending approvals',
       okami: '13-week strategic capacity plan',
@@ -11615,6 +12100,7 @@ Evidence attached:
     if (all) { var a = parseInt(all.textContent, 10) || 0; all.textContent = a + n; }
     var newSt = document.querySelector('.stage-tab[data-stage="new"] .stage-tab-count');
     if (newSt) { var s = parseInt(newSt.textContent, 10) || 0; newSt.textContent = s + n; }
+    if (typeof recomputeStaffingRisk === 'function') recomputeStaffingRisk();
   }
   function submitAddApplicant(){
     const fn = document.getElementById('aa-fn').value.trim();
@@ -11789,6 +12275,7 @@ Evidence attached:
         '<div><div class="notif-title">' + name + ' hired</div><div class="notif-msg">Welcome SMS sent · onboarding starts next cycle</div><div class="notif-time">Just now</div></div>';
       notifList.insertBefore(notif, notifList.firstChild);
     }
+    if (typeof recomputeStaffingRisk === 'function') recomputeStaffingRisk();
     toast(name + ' marked as hired · welcome email + SMS sent');
   }
 
