@@ -5949,8 +5949,6 @@ a{color:inherit;text-decoration:none}
           </div>
 
           <div class="builder-shell">
-          <!-- OKAMI daily plan strip — populated by okamiRenderSchedulePlanStrip() -->
-          <div id="okami-plan-strip" style="display:none"></div>
           <!-- Calendar grid -->
           <div class="cal-wrap">
             <div class="cal-grid head">
@@ -15149,17 +15147,9 @@ Evidence attached:
       + '.okami-recommend .apply-link:hover{background:#2563EB}'
       + '.okami-totals{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--text-subtle);padding-top:6px;border-top:1px solid var(--border)}'
       + '.okami-totals strong{color:var(--text);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}'
-      // Schedule plan strip
-      + '#okami-plan-strip{background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:12px}'
-      + '.okami-plan-strip-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}'
-      + '.okami-plan-strip-title{font-weight:600;color:#0C4A6E;font-size:12px}'
-      + '.okami-plan-strip-grid{display:grid;grid-template-columns:120px repeat(7,1fr);gap:0;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #BAE6FD}'
-      + '.okami-plan-strip-grid > div{padding:6px 4px;text-align:center;font-size:11px;border-left:1px solid #E0F2FE;color:#0C4A6E}'
-      + '.okami-plan-strip-grid > div:first-child{text-align:left;padding-left:12px;font-weight:600;border-left:0;background:#F0F9FF}'
-      + '.okami-plan-strip-grid > div strong{display:block;font-size:13px;font-weight:700;color:#0369A1;font-variant-numeric:tabular-nums;margin-top:1px}'
-      + '.okami-plan-strip-grid > div.today{background:#DBEAFE}'
-      + '.okami-plan-strip-grid > div.short{background:#FEF3C7}'
-      + '.okami-plan-strip-grid > div.short strong{color:#92400E}';
+      // Schedule day-header shift count (driven by OKAMI daily targets + cushion)
+      + '.cal-cell-head .day-shifts{display:block;font-size:10px;font-weight:600;color:var(--accent-text);margin-top:3px;letter-spacing:0;text-transform:none}'
+      + '.cal-cell-head:not(.today) .day-shifts{color:var(--text-muted)}';
     var s = document.createElement('style');
     s.appendChild(document.createTextNode(css));
     document.head.appendChild(s);
@@ -15329,7 +15319,7 @@ Evidence attached:
     var n = parseInt(value, 10); if (isNaN(n) || n < 0) n = 0;
     w.daily[dayKey] = n;
     okamiRenderDailyPanel(weekIdx);
-    okamiRenderSchedulePlanStrip();
+    okamiRenderScheduleDayHeaders();
   }
   window.okamiUpdateDaily = okamiUpdateDaily;
 
@@ -15341,7 +15331,7 @@ Evidence attached:
     else w.cushionValue = Math.max(2, Math.round(okamiWeekTotalRoutes(weekIdx) * 0.10 / 7));
     w.cushionMode = mode;
     okamiRenderDailyPanel(weekIdx);
-    okamiRenderSchedulePlanStrip();
+    okamiRenderScheduleDayHeaders();
   }
   window.okamiSetCushionMode = okamiSetCushionMode;
 
@@ -15350,7 +15340,7 @@ Evidence attached:
     var n = parseFloat(value); if (isNaN(n) || n < 0) n = 0;
     w.cushionValue = n;
     okamiRenderDailyPanel(weekIdx);
-    okamiRenderSchedulePlanStrip();
+    okamiRenderScheduleDayHeaders();
   }
   window.okamiSetCushionValue = okamiSetCushionValue;
 
@@ -15360,64 +15350,80 @@ Evidence attached:
     w.cushionMode = 'percent';
     w.cushionValue = rec.percent;
     okamiRenderDailyPanel(weekIdx);
-    okamiRenderSchedulePlanStrip();
+    okamiRenderScheduleDayHeaders();
     _toast('Applied recommended cushion: ' + rec.percent + '%');
   }
   window.okamiApplyRecommended = okamiApplyRecommended;
 
   function okamiApplyToSchedule(weekIdx){
-    okamiRenderSchedulePlanStrip();
+    okamiRenderScheduleDayHeaders();
     _toast('Daily plan applied · Schedule will populate ' + okamiWeekTotalShifts(weekIdx) + ' shifts');
   }
   window.okamiApplyToSchedule = okamiApplyToSchedule;
 
-  // ─── SCHEDULE PLAN STRIP (above the calendar grid) ──────────────
-  function okamiRenderSchedulePlanStrip(){
-    var strip = document.getElementById('okami-plan-strip');
-    if (!strip) return;
-    // For now show the current week (W19 = index 0)
-    var weekIdx = 0;
-    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) { strip.style.display = 'none'; return; }
-    strip.style.display = 'block';
-    var totalRoutes = okamiWeekTotalRoutes(weekIdx);
-    var totalShifts = okamiWeekTotalShifts(weekIdx);
-    var unitLabel = w.cushionMode === 'percent' ? w.cushionValue + '% cushion' : '+' + w.cushionValue + ' shifts/day cushion';
-    // Scheduled count from the static schedule grid (used to flag short days)
-    // We don't have a real schedule here, so just compare shifts-needed vs assumed-driver-count (78)
-    strip.innerHTML =
-      '<div class="okami-plan-strip-head">'
-        + '<div class="okami-plan-strip-title">📋 Daily plan from OKAMI · ' + w.weekLabel + ' (' + w.dateLabel + ')</div>'
-        + '<div style="display:flex;gap:10px;font-size:11px;color:#0C4A6E"><span><strong>' + totalRoutes + '</strong> routes</span><span>→ <strong>' + totalShifts + '</strong> shifts</span><span>· ' + unitLabel + '</span><a style="cursor:pointer;color:#0369A1;font-weight:600;text-decoration:underline" onclick="goto(\'okami\')">Edit in OKAMI →</a></div>'
-      + '</div>'
-      + '<div class="okami-plan-strip-grid">'
-        + '<div>Daily target</div>'
-        + RR_OKAMI_DAY_KEYS.map(function(k, i){
-          var routes = w.daily[k] || 0;
-          var shifts = okamiCushionShiftsForRoutes(routes, w.cushionMode, w.cushionValue);
-          var isToday = i === 1; // mockup: Tue is "today" per cal-cell-head.today
-          return '<div class="' + (isToday ? 'today' : '') + '">'
-            + RR_OKAMI_DAY_LABELS[k]
-            + '<strong>' + routes + ' / ' + shifts + '</strong>'
-          + '</div>';
-        }).join('')
-      + '</div>'
-      + '<div style="font-size:10px;color:#0C4A6E;margin-top:6px;line-height:1.4">Daily target shows <strong>routes / shifts to schedule</strong>. Cushion absorbs callouts and no-shows.</div>';
-  }
-  window.okamiRenderSchedulePlanStrip = okamiRenderSchedulePlanStrip;
+  // ─── SCHEDULE DAY HEADERS — populate "shifts needed" per day from OKAMI ──
+  // The schedule week (Tue→Mon) shows day numbers; we add an OKAMI-derived
+  // shift count under each day header, plus update the week subtitle's
+  // shifts-needed denominator.
+  function okamiRenderScheduleDayHeaders(){
+    var heads = document.querySelectorAll('#sched-sub-week .cal-cell-head');
+    if (!heads || heads.length < 2) return;
+    var weekIdx = 0; // current week = W19
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return;
 
-  // Re-render strip whenever schedule view becomes active
+    // The schedule grid renders Tue, Wed, Thu, Fri, Sat, Sun, Mon
+    // Map each schedule position to the matching OKAMI day key
+    var schedDayOrder = ['tue','wed','thu','fri','sat','sun','mon'];
+    var totalShifts = 0;
+
+    // heads[0] is the "Driver" column; days start at heads[1]
+    schedDayOrder.forEach(function(dayKey, i){
+      var head = heads[i + 1];
+      if (!head) return;
+      var routes = w.daily[dayKey] || 0;
+      var shifts = okamiCushionShiftsForRoutes(routes, w.cushionMode, w.cushionValue);
+      totalShifts += shifts;
+      var existing = head.querySelector('.day-shifts');
+      if (existing) existing.remove();
+      if (shifts > 0) {
+        var span = document.createElement('span');
+        span.className = 'day-shifts';
+        span.textContent = shifts + ' shifts';
+        span.title = routes + ' route(s) + ' + (w.cushionMode === 'percent' ? w.cushionValue + '% cushion' : '+' + w.cushionValue + '/day cushion') + ' = ' + shifts + ' shifts to schedule';
+        head.appendChild(span);
+      }
+    });
+
+    // Update week subtitle's "X/Y shifts" denominator with OKAMI total
+    var sub = document.querySelector('#sched-sub-week .sched-week-sub');
+    if (sub) {
+      // Existing pattern: "Cycle 14 · 82% filled (37/45 shifts) · OKAMI Week 19 · …"
+      // Pull current "filled" number, replace denominator with totalShifts, recompute %
+      var html = sub.innerHTML;
+      var match = html.match(/(\d+)% filled \((\d+)\/(\d+) shifts\)/);
+      if (match) {
+        var filled = parseInt(match[2], 10);
+        var pct = totalShifts > 0 ? Math.round(filled / totalShifts * 100) : 0;
+        var newFilled = pct + '% filled (' + filled + '/' + totalShifts + ' shifts)';
+        sub.innerHTML = html.replace(/\d+% filled \(\d+\/\d+ shifts\)/, newFilled);
+      }
+    }
+  }
+  window.okamiRenderScheduleDayHeaders = okamiRenderScheduleDayHeaders;
+
+  // Re-render whenever schedule view becomes active
   if (typeof goto === 'function' && !goto._wrappedForOkami) {
     var _origGotoForOkami = goto;
     goto = function(view){
       _origGotoForOkami(view);
-      if (view === 'schedule') setTimeout(okamiRenderSchedulePlanStrip, 50);
+      if (view === 'schedule') setTimeout(okamiRenderScheduleDayHeaders, 50);
     };
     goto._wrappedForOkami = true;
   }
 
-  // Initial paint of plan strip (in case schedule is the first view shown)
-  document.addEventListener('DOMContentLoaded', okamiRenderSchedulePlanStrip);
-  if (document.readyState !== 'loading') okamiRenderSchedulePlanStrip();
+  // Initial paint (in case schedule is the first view shown)
+  document.addEventListener('DOMContentLoaded', okamiRenderScheduleDayHeaders);
+  if (document.readyState !== 'loading') okamiRenderScheduleDayHeaders();
 
   // ─── HOOK: re-apply cascade after navigation (non-destructive wrap) ──
   if (typeof goto === 'function' && !goto._wrappedForSuspension) {
