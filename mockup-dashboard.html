@@ -11484,38 +11484,82 @@ Evidence attached:
     <!-- Suspend view -->
     <div id="cd-view-suspend" class="cd-view" style="display:none">
 
-      <div class="cd-coverage">
+      <div class="cd-coverage" id="cd-suspend-coverage">
         <div class="cd-coverage-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <div>
           <div class="cd-coverage-title">Coverage holds — you can suspend with confidence</div>
-          <div class="cd-coverage-msg"><strong>2 booked drivers</strong> can take over KMO1 route 14B starting Monday. <strong>5 in screening</strong> backfill the bench within 7 days. Suspending Davidson does not put you below your route minimum.</div>
+          <div class="cd-coverage-msg" id="cd-suspend-coverage-msg"><strong>2 booked drivers</strong> can take over this driver's routes starting Monday. <strong>5 in screening</strong> backfill the bench within 7 days. Suspending does not put you below your route minimum.</div>
         </div>
       </div>
 
+      <!-- HR event explainer (rewritten for clarity) -->
       <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:#FECACA;color:#991B1B;margin-top:var(--s-3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <div><strong>Suspending a driver</strong> removes them from all routes, ends their app access, and notifies HR. This is a logged HR event.</div>
+        <div>
+          <strong>Suspending creates a permanent HR record.</strong> The driver is removed from upcoming shifts (which become open and need backfill), hidden from morning check-in, and their app access is revoked. A timestamped, immutable entry is added to their personnel file with reason and supporting evidence — required documentation if you later terminate or fight an unemployment claim.
+        </div>
       </div>
+
       <div class="cd-grid2" style="margin-top:var(--s-4)">
         <div>
           <label class="cd-field-label">Effective</label>
-          <input type="date" class="cd-input" />
+          <input type="date" class="cd-input" id="cd-sus-start" />
         </div>
         <div>
-          <label class="cd-field-label">Type</label>
-          <select class="cd-input">
-            <option>Indefinite</option>
-            <option>3 days</option>
-            <option>5 days</option>
-            <option>Pending termination</option>
+          <label class="cd-field-label">Duration</label>
+          <select class="cd-input" id="cd-sus-type" onchange="cdSusToggleReturn()">
+            <option value="indef">Indefinite (pending decision)</option>
+            <option value="3" selected>3 days</option>
+            <option value="5">5 days</option>
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="custom">Custom return date</option>
+            <option value="term">Pending termination</option>
           </select>
         </div>
       </div>
+
+      <div id="cd-sus-return-row" class="cd-grid2" style="margin-top:var(--s-3);display:none">
+        <div>
+          <label class="cd-field-label">Return date</label>
+          <input type="date" class="cd-input" id="cd-sus-return" />
+        </div>
+        <div></div>
+      </div>
+
       <div style="margin-top:var(--s-4)">
-        <label class="cd-field-label">Reason (required)</label>
-        <textarea class="cd-textarea" placeholder="Document the reason — this is part of the HR record."></textarea>
+        <label class="cd-field-label">Reason category</label>
+        <select class="cd-input" id="cd-sus-category">
+          <option value="attendance">Attendance — exceeded policy threshold</option>
+          <option value="safety">Safety — at-fault incident or unsafe driving</option>
+          <option value="conduct">Conduct — insubordination, customer complaint</option>
+          <option value="scorecard">Performance — sustained scorecard issues</option>
+          <option value="theft">Theft / time fraud</option>
+          <option value="other">Other (explain in detail)</option>
+        </select>
+      </div>
+
+      <div style="margin-top:var(--s-3)">
+        <label class="cd-field-label">Reason detail (required for HR record)</label>
+        <textarea class="cd-textarea" id="cd-sus-detail" placeholder="Document specifics: dates, what happened, prior conversations. This text becomes part of the permanent HR file and may be reviewed by you, the driver, an HR vendor, or unemployment hearing officers."></textarea>
+      </div>
+
+      <div style="margin-top:var(--s-3)">
+        <label class="cd-field-label">Attach evidence (auto-suggested from this driver's records)</label>
+        <div id="cd-sus-evidence" style="background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:12px;display:grid;gap:6px;border:1px solid var(--border)">
+          <div style="color:var(--text-subtle);font-style:italic">Open the drawer for a specific driver to load suggested evidence.</div>
+        </div>
+      </div>
+
+      <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:12px;border:1px solid var(--border)">
+        <div style="font-weight:600;color:var(--text-muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">When you click Suspend driver</div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="cd-sus-notify-driver" checked /><label for="cd-sus-notify-driver" style="cursor:pointer">SMS the driver with suspension notice + return date</label></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="cd-sus-notify-owner" checked /><label for="cd-sus-notify-owner" style="cursor:pointer">Notify owner / leadership in dashboard queue</label></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="cd-sus-gen-doc" checked /><label for="cd-sus-gen-doc" style="cursor:pointer">Generate suspension notice (PDF) for driver acknowledgment</label></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="cd-sus-release-shifts" checked /><label for="cd-sus-release-shifts" style="cursor:pointer">Release upcoming shifts to Open Shifts pool</label></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="cd-sus-revoke-app" checked /><label for="cd-sus-revoke-app" style="cursor:pointer">Revoke driver app access for the suspension window</label></div>
       </div>
     </div>
 
@@ -11531,6 +11575,93 @@ Evidence attached:
     </button>
   </div>
 </aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SUSPENSION MODALS — Reinstate · Suspended list · HR file
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-reinstate" onclick="if(event.target===this)closeModal('modal-reinstate')">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Reinstate driver</p>
+        <p class="modal-sub" id="reinstate-sub">Restore active status, schedule eligibility, and app access.</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-reinstate')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div style="padding:0 var(--s-4) var(--s-4)">
+      <div id="reinstate-summary" style="background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:var(--s-3);line-height:1.5"></div>
+      <label class="cd-field-label">Reason for reinstating</label>
+      <textarea class="cd-textarea" id="reinstate-reason" placeholder="e.g. Suspension period completed · driver acknowledged policy · returns to schedule."></textarea>
+      <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:12px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="reinstate-notify" checked /><label for="reinstate-notify" style="cursor:pointer">SMS the driver: welcome back, return date, expectations</label></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="reinstate-restore-app" checked /><label for="reinstate-restore-app" style="cursor:pointer">Restore driver app access</label></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="reinstate-add-schedule" checked /><label for="reinstate-add-schedule" style="cursor:pointer">Re-add to upcoming schedule (next published week)</label></div>
+      </div>
+      <p style="font-size:11px;color:var(--text-subtle);margin-top:var(--s-3);line-height:1.4">Reinstatement is itself a permanent HR record entry. The original suspension stays in the personnel file.</p>
+    </div>
+    <div style="padding:var(--s-3) var(--s-4);border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modal-reinstate')">Cancel</button>
+      <button class="btn btn-primary" id="reinstate-confirm-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Reinstate driver
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-suspended-list" onclick="if(event.target===this)closeModal('modal-suspended-list')">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Currently suspended drivers</p>
+        <p class="modal-sub">Drivers removed from schedule, check-in, and app access.</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-suspended-list')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="suspended-list-body" style="padding:0 var(--s-4) var(--s-4)"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-hr-file" onclick="if(event.target===this)closeModal('modal-hr-file')">
+  <div class="modal-card" style="max-width:640px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title" id="hr-file-name">HR file</p>
+        <p class="modal-sub">Immutable record of disciplinary actions and significant HR events.</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-hr-file')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="hr-file-body" style="padding:0 var(--s-4) var(--s-4);max-height:60vh;overflow:auto"></div>
+    <div style="padding:var(--s-3) var(--s-4);border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modal-hr-file')">Close</button>
+      <button class="btn btn-primary" onclick="alert('Mockup: this would generate a PDF personnel file for download/sharing.')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export personnel file (PDF)
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Suspended state visuals */
+  .checkin-row.checkin-suspended{display:none}
+  .checkin-row.checkin-suspended-shown{background:#F3F4F6;opacity:.7;display:flex}
+  .checkin-row.checkin-suspended-shown .status-row{display:none}
+  tr.row-suspended{background:#FAFAFA}
+  tr.row-suspended .cell-name{color:var(--text-muted);text-decoration:line-through}
+  .susp-list-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+  .susp-list-row:last-child{border-bottom:0}
+  .hr-event{display:grid;grid-template-columns:80px 14px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+  .hr-event-date{font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums;padding-top:2px}
+  .hr-event-dot{width:10px;height:10px;border-radius:50%;margin-top:5px}
+  .hr-event-dot.suspension{background:var(--red)}
+  .hr-event-dot.reinstate{background:var(--green)}
+  .hr-event-dot.warning{background:var(--amber)}
+  .hr-event-dot.pending_term{background:#7F1D1D}
+  .hr-event-summary{font-weight:600;font-size:13px;color:var(--text)}
+  .hr-event-meta{font-size:11px;color:var(--text-subtle);margin-top:2px}
+  .hr-event-detail{font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;background:var(--canvas);border-radius:6px;padding:8px 10px;white-space:pre-wrap}
+</style>
 
 <script>
   // ─── DASHBOARD ACTION QUEUE — clearable inbox pattern ─────
@@ -11930,7 +12061,13 @@ Evidence attached:
     if (seg === 'sms') sendBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send SMS';
     else if (seg === 'inperson') sendBtn.innerHTML = 'Log 1:1';
     else if (seg === 'pull') sendBtn.innerHTML = 'Pull from route';
-    else if (seg === 'suspend') sendBtn.innerHTML = 'Suspend driver';
+    else if (seg === 'suspend') {
+      sendBtn.innerHTML = 'Suspend driver';
+      if (window.cdPopulateSuspendForm) {
+        var nameEl = document.getElementById('cd-driver-name');
+        if (nameEl) cdPopulateSuspendForm(nameEl.textContent.trim());
+      }
+    }
   }
   function cdSetPill(el, group){
     el.parentElement.querySelectorAll('.cd-pill').forEach(function(p){ p.classList.remove('active'); });
@@ -13656,7 +13793,19 @@ Evidence attached:
         if (segVal === 'sms') toast('Coaching SMS sent · saved to driver record');
         else if (segVal === 'inperson') toast('1:1 logged to driver record');
         else if (segVal === 'pull') toast('Driver pulled from route · backup notified');
-        else if (segVal === 'suspend') toast('Driver suspended · HR notified');
+        else if (segVal === 'suspend') {
+          // Real suspension: validate, write records, fire cascade
+          if (window.cdReadSuspendForm && window.suspendDriver) {
+            var opts = cdReadSuspendForm();
+            if (!opts.detail || !opts.detail.trim()) {
+              toast('Reason detail is required for the HR record');
+              return;
+            }
+            suspendDriver(driverName, opts);
+          } else {
+            toast('Driver suspended · HR record created');
+          }
+        }
       });
     }
 
@@ -14044,11 +14193,9 @@ Evidence attached:
         + '<td style="text-align:right" class="att-num' + (r.c.counts.noshow ? ' bad' : '') + '">' + (r.c.counts.noshow || '–') + '</td>'
         + '<td style="text-align:right" class="att-num ' + pointsCls + '">' + r.c.points.toFixed(1) + '</td>'
         + '<td style="text-align:right" class="att-num">' + r.c.occ + '</td>'
-        + '<td><span class="att-status-pill ' + statusClass + '">' + attStatusLabel(r.c.status) + '</span></td>'
+        + '<td>' + attStatusPillFor(r.d, r.c) + '</td>'
         + '<td class="cell-time">' + (r.c.lastIncident ? _fmtDate(r.c.lastIncident) : '—') + '</td>'
-        + '<td>' + (r.c.status !== 'good'
-            ? '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openCoachDrawer(\'' + r.d.name.replace(/'/g, "\\'") + '\',\'attendance\',\'Attendance policy: ' + attStatusLabel(r.c.status) + ' · ' + r.c.points.toFixed(1) + ' pts · ' + r.c.occ + ' occ\')">Coach</button>'
-            : '<span style="color:var(--text-subtle);font-size:12px">—</span>') + '</td>';
+        + '<td>' + attActionFor(r.d, r.c) + '</td>';
       body.appendChild(tr);
 
       // Detail row (timeline)
@@ -14165,8 +14312,399 @@ Evidence attached:
 
   // Initial render
   document.addEventListener('DOMContentLoaded', function(){ attRender(); });
-  // Also render now in case DOMContentLoaded already fired (script is at end of body)
   if (document.readyState !== 'loading') attRender();
+
+  // ═══════════════════════════════════════════════════════════════
+  // SUSPENSION + HR FILE
+  // ═══════════════════════════════════════════════════════════════
+  var RR_SUSPENSIONS = []; // {id, driverId, startDate, returnDate, type, category, detail, evidence[], suspendedBy, timestamp, status, endedAt, endedReason}
+  var RR_HR_EVENTS   = []; // {id, driverId, type, severity, date, by, summary, detail, links, immutable, timestamp}
+  var _susSeq = 0, _hrSeq = 0;
+
+  function _findDriver(idOrName){
+    if (!window.RR_DRIVERS) return null;
+    return RR_DRIVERS.find(function(d){ return d.id === idOrName || d.name === idOrName; });
+  }
+  function _daysFromNow(n){ var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); }
+  function isDriverSuspended(driverId){
+    return RR_SUSPENSIONS.some(function(s){ return s.driverId === driverId && s.status === 'active'; });
+  }
+  function getActiveSuspension(driverId){
+    return RR_SUSPENSIONS.find(function(s){ return s.driverId === driverId && s.status === 'active'; });
+  }
+  window.isDriverSuspended = isDriverSuspended;
+  window.getActiveSuspension = getActiveSuspension;
+
+  // ─── SUSPEND FORM HELPERS (used by coach drawer) ────────────────
+  function cdSusToggleReturn(){
+    var t = document.getElementById('cd-sus-type');
+    var row = document.getElementById('cd-sus-return-row');
+    if (!t || !row) return;
+    row.style.display = (t.value === 'custom') ? '' : 'none';
+  }
+  function cdPopulateSuspendForm(driverName){
+    var driver = _findDriver(driverName);
+    var startEl = document.getElementById('cd-sus-start');
+    if (startEl) startEl.value = _daysFromNow(0);
+    var ev = document.getElementById('cd-sus-evidence');
+    if (!ev) return;
+    if (!driver) {
+      ev.innerHTML = '<div style="color:var(--text-subtle);font-style:italic">No matching driver found.</div>';
+      return;
+    }
+    var events = (window.RR_ATTENDANCE_LOG || [])
+      .filter(function(e){ return e.driverId === driver.id; })
+      .slice().sort(function(a, b){ return b.date.localeCompare(a.date); })
+      .slice(0, 6);
+    if (events.length === 0) {
+      ev.innerHTML = '<div style="color:var(--text-subtle);font-style:italic">No attendance events on file for ' + driver.name + '.</div>';
+      return;
+    }
+    ev.innerHTML = events.map(function(e){
+      var label = ({ late:'Late arrival', callout:'Call-out', noshow:'No-call no-show', earlyout:'Early clock-out' })[e.type] || e.type;
+      return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">'
+        + '<input type="checkbox" data-evidence-id="' + e.id + '" ' + (e.exempt ? '' : 'checked') + ' />'
+        + '<span><strong>' + _fmtDate(e.date) + '</strong> — ' + label
+        + (e.note ? ' <span style="color:var(--text-subtle)">(' + e.note + ')</span>' : '')
+        + (e.exempt ? ' <span style="color:var(--green);font-size:10px;font-weight:600;margin-left:4px">EXEMPT</span>' : '')
+        + '</span></label>';
+    }).join('');
+  }
+  function cdReadSuspendForm(){
+    function v(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+    function c(id){ var el = document.getElementById(id); return el ? !!el.checked : false; }
+    return {
+      startDate: v('cd-sus-start') || _daysFromNow(0),
+      type: v('cd-sus-type'),
+      returnDate: v('cd-sus-return') || null,
+      category: v('cd-sus-category'),
+      detail: v('cd-sus-detail'),
+      evidence: Array.from(document.querySelectorAll('#cd-sus-evidence input[type=checkbox]:checked'))
+                  .map(function(c){ return c.getAttribute('data-evidence-id'); }),
+      notifyDriver: c('cd-sus-notify-driver'),
+      notifyOwner: c('cd-sus-notify-owner'),
+      genDoc: c('cd-sus-gen-doc'),
+      releaseShifts: c('cd-sus-release-shifts'),
+      revokeApp: c('cd-sus-revoke-app')
+    };
+  }
+  window.cdSusToggleReturn = cdSusToggleReturn;
+  window.cdPopulateSuspendForm = cdPopulateSuspendForm;
+  window.cdReadSuspendForm = cdReadSuspendForm;
+
+  // ─── CORE: suspendDriver ────────────────────────────────────────
+  function suspendDriver(driverIdOrName, opts){
+    var driver = _findDriver(driverIdOrName);
+    if (!driver) { _toast('Could not find driver "' + driverIdOrName + '"'); return; }
+    if (isDriverSuspended(driver.id)) { _toast(driver.name + ' is already suspended'); return; }
+    var startDate = opts.startDate || _daysFromNow(0);
+    var returnDate = null;
+    if (opts.type === 'indef' || opts.type === 'term') returnDate = null;
+    else if (opts.type === 'custom') returnDate = opts.returnDate;
+    else { var n = parseInt(opts.type, 10); if (!isNaN(n)) returnDate = _daysFromNow(n); }
+    _susSeq++;
+    var sus = {
+      id: 'sus_' + _susSeq,
+      driverId: driver.id,
+      startDate: startDate,
+      returnDate: returnDate,
+      type: opts.type,
+      category: opts.category || 'other',
+      detail: opts.detail || '',
+      evidence: opts.evidence || [],
+      suspendedBy: 'You (Owner)',
+      timestamp: Date.now(),
+      status: 'active'
+    };
+    RR_SUSPENSIONS.push(sus);
+    _hrSeq++;
+    RR_HR_EVENTS.push({
+      id: 'hr_' + _hrSeq,
+      driverId: driver.id,
+      type: opts.type === 'term' ? 'pending_term' : 'suspension',
+      severity: opts.type === 'term' ? 'critical' : 'major',
+      date: startDate,
+      by: 'You (Owner)',
+      summary: (opts.type === 'term' ? 'Pending termination · ' : 'Suspended · ') + _categoryLabel(opts.category),
+      detail: opts.detail,
+      links: { suspensionId: sus.id, evidence: opts.evidence },
+      immutable: true,
+      timestamp: Date.now()
+    });
+    cascadeSuspension();
+    var msg = driver.name + ' suspended · HR record created';
+    if (opts.notifyDriver) msg += ' · driver SMS sent';
+    if (opts.releaseShifts) msg += ' · shifts released';
+    _toast(msg);
+  }
+  function reinstateDriver(driverId, opts){
+    opts = opts || {};
+    var s = getActiveSuspension(driverId);
+    if (!s) return;
+    s.status = 'ended';
+    s.endedAt = _daysFromNow(0);
+    s.endedReason = opts.reason || '';
+    _hrSeq++;
+    var driver = _findDriver(driverId);
+    RR_HR_EVENTS.push({
+      id: 'hr_' + _hrSeq,
+      driverId: driverId,
+      type: 'reinstate',
+      severity: 'info',
+      date: _daysFromNow(0),
+      by: 'You (Owner)',
+      summary: 'Reinstated to active duty',
+      detail: opts.reason || '',
+      links: { suspensionId: s.id },
+      immutable: true,
+      timestamp: Date.now()
+    });
+    cascadeSuspension();
+    _toast((driver ? driver.name : 'Driver') + ' reinstated · HR record updated');
+  }
+  window.suspendDriver = suspendDriver;
+  window.reinstateDriver = reinstateDriver;
+
+  function _categoryLabel(cat){
+    return ({ attendance:'Attendance policy', safety:'Safety', conduct:'Conduct', scorecard:'Performance', theft:'Theft / time fraud', other:'Other' })[cat] || cat;
+  }
+
+  // ─── CASCADE ────────────────────────────────────────────────────
+  function cascadeSuspension(){
+    applySuspensionToRoster();
+    applySuspensionToCheckin();
+    applySuspensionToScheduleBanner();
+    if (window.attRender) attRender();
+  }
+  window.cascadeSuspension = cascadeSuspension;
+
+  function applySuspensionToRoster(){
+    var tbody = document.querySelector('#dr-sub-roster .table tbody');
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(function(tr){
+      var nameEl = tr.querySelector('.cell-name');
+      if (!nameEl) return;
+      var driver = _findDriver(nameEl.textContent.trim());
+      if (!driver) return;
+      var s = getActiveSuspension(driver.id);
+      var cells = tr.children;
+      if (cells.length < 8) return;
+      var statusCell = cells[5];
+      var actionCell = cells[7];
+      if (s) {
+        if (!tr.dataset.origStatus) tr.dataset.origStatus = statusCell.innerHTML;
+        if (!tr.dataset.origAction) tr.dataset.origAction = actionCell.innerHTML;
+        tr.classList.add('row-suspended');
+        var returnTxt = s.returnDate ? 'returns ' + _fmtDate(s.returnDate) : (s.type === 'term' ? 'pending term.' : 'indefinite');
+        statusCell.innerHTML = '<span class="att-status-pill term">Suspended</span><br>'
+          + '<span style="font-size:11px;color:var(--text-subtle);margin-top:4px;display:inline-block">' + returnTxt + '</span>';
+        actionCell.innerHTML = '<button class="btn btn-sm" onclick="openReinstateModal(\'' + driver.id + '\')">Reinstate</button>'
+          + ' <button class="btn btn-sm" style="margin-top:4px" onclick="openHrFile(\'' + driver.id + '\')">HR file</button>';
+      } else if (tr.dataset.origStatus !== undefined) {
+        tr.classList.remove('row-suspended');
+        statusCell.innerHTML = tr.dataset.origStatus;
+        actionCell.innerHTML = tr.dataset.origAction;
+        delete tr.dataset.origStatus;
+        delete tr.dataset.origAction;
+      }
+    });
+  }
+
+  function applySuspensionToCheckin(){
+    var rows = document.querySelectorAll('#view-checkin .checkin-row');
+    if (!rows.length) return;
+    var hidden = 0;
+    rows.forEach(function(row){
+      var nameEl = row.querySelector('.checkin-driver-name');
+      if (!nameEl) return;
+      var driver = _findDriver(nameEl.textContent.trim());
+      if (!driver) return;
+      if (isDriverSuspended(driver.id)) { row.classList.add('checkin-suspended'); hidden++; }
+      else row.classList.remove('checkin-suspended');
+    });
+    var sub = document.querySelector('#view-checkin .page-sub');
+    if (sub) {
+      var totalRows = rows.length;
+      var expected = totalRows - hidden;
+      sub.textContent = sub.textContent.replace(/\d+ drivers expected/, expected + ' drivers expected');
+    }
+    var marked = document.getElementById('ci-marked');
+    if (marked && hidden > 0) {
+      var prog = document.getElementById('ci-progress');
+      if (prog) {
+        var n = parseInt(marked.textContent, 10) || 0;
+        var denom = (rows.length - hidden) || 1;
+        prog.style.width = Math.min(100, n / denom * 100) + '%';
+        // Update the surrounding text "0 of 78 marked" → "0 of 77 marked"
+        var metaSpan = marked.parentNode;
+        if (metaSpan) {
+          metaSpan.lastChild && metaSpan.lastChild.nodeType === 3
+            ? metaSpan.lastChild.nodeValue = ' of ' + denom + ' marked'
+            : null;
+        }
+      }
+    }
+  }
+
+  function applySuspensionToScheduleBanner(){
+    var anchor = document.querySelector('#sched-sub-week');
+    if (!anchor) return;
+    var existing = document.getElementById('sched-suspended-banner');
+    var active = RR_SUSPENSIONS.filter(function(s){ return s.status === 'active'; });
+    if (active.length === 0) {
+      if (existing) existing.remove();
+      var openBadge = document.querySelector('#view-schedule .subnav-item[data-sub="open"] span');
+      if (openBadge && openBadge.dataset.origCount !== undefined) {
+        openBadge.textContent = openBadge.dataset.origCount;
+        delete openBadge.dataset.origCount;
+      }
+      return;
+    }
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'sched-suspended-banner';
+      existing.style.cssText = 'background:#FEE2E2;border:1px solid #FECACA;color:#991B1B;border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:13px;display:flex;align-items:center;gap:10px';
+      anchor.insertBefore(existing, anchor.firstChild);
+    }
+    var names = active.map(function(s){ var d = _findDriver(s.driverId); return d ? d.name : '?'; }).join(', ');
+    var releasedShifts = active.length * 3; // demo estimate
+    existing.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'
+      + '<div style="flex:1"><strong>' + active.length + ' suspended:</strong> ' + names + ' · <strong>' + releasedShifts + ' shifts</strong> released to Open Shifts pool, need backfill</div>'
+      + '<button class="btn btn-sm" onclick="openSuspendedListModal()" style="background:#fff;color:#991B1B;border-color:#FECACA">View</button>';
+    var openBadge = document.querySelector('#view-schedule .subnav-item[data-sub="open"] span');
+    if (openBadge) {
+      if (openBadge.dataset.origCount === undefined) openBadge.dataset.origCount = parseInt(openBadge.textContent, 10) || 0;
+      openBadge.textContent = parseInt(openBadge.dataset.origCount, 10) + releasedShifts;
+    }
+  }
+
+  // ─── ATTENDANCE PILL OVERRIDE (called by attRender via attStatusPillFor) ──
+  window.attStatusPillFor = function(driver, comp){
+    if (isDriverSuspended(driver.id)) {
+      var s = getActiveSuspension(driver.id);
+      var sub = s.returnDate ? ' · returns ' + _fmtDate(s.returnDate) : (s.type === 'term' ? ' · pending term.' : ' · indefinite');
+      return '<span class="att-status-pill term">Suspended</span>'
+        + '<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">' + _categoryLabel(s.category) + sub + '</div>';
+    }
+    return '<span class="att-status-pill ' + comp.status + '">' + attStatusLabel(comp.status) + '</span>';
+  };
+  window.attActionFor = function(driver, comp){
+    if (isDriverSuspended(driver.id)) {
+      return '<button class="btn btn-sm" onclick="event.stopPropagation();openReinstateModal(\'' + driver.id + '\')">Reinstate</button>';
+    }
+    if (comp.status !== 'good') {
+      return '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openCoachDrawer(\'' + driver.name.replace(/\x27/g, "\\\x27") + '\',\x27attendance\x27,\x27Attendance policy: ' + attStatusLabel(comp.status) + ' · ' + comp.points.toFixed(1) + ' pts · ' + comp.occ + ' occ\x27)">Coach</button>';
+    }
+    return '<span style="color:var(--text-subtle);font-size:12px">—</span>';
+  };
+
+  // ─── REINSTATE MODAL ────────────────────────────────────────────
+  function openReinstateModal(driverId){
+    var driver = _findDriver(driverId);
+    var s = getActiveSuspension(driverId);
+    if (!driver || !s) return;
+    var sumEl = document.getElementById('reinstate-summary');
+    var subEl = document.getElementById('reinstate-sub');
+    var btn = document.getElementById('reinstate-confirm-btn');
+    var startedDays = Math.round((Date.now() - new Date(s.startDate + 'T12:00:00').getTime()) / 86400000);
+    sumEl.innerHTML =
+      '<div style="font-weight:600;color:var(--text);font-size:13px;margin-bottom:4px">' + driver.name + ' · ' + driver.station + '</div>'
+      + 'Suspended <strong>' + _fmtRel(s.startDate) + '</strong> for <strong>' + _categoryLabel(s.category) + '</strong>'
+      + (s.returnDate ? ' · scheduled return <strong>' + _fmtDate(s.returnDate) + '</strong>' : ' · indefinite')
+      + (startedDays >= 0 ? ' · ' + Math.max(0, startedDays) + ' days suspended' : '');
+    subEl.textContent = 'Restore active status, schedule eligibility, and app access for ' + driver.name + '.';
+    document.getElementById('reinstate-reason').value = '';
+    btn.onclick = function(){
+      var reason = document.getElementById('reinstate-reason').value.trim();
+      reinstateDriver(driverId, { reason: reason });
+      closeModal('modal-reinstate');
+    };
+    openModal('modal-reinstate');
+  }
+  window.openReinstateModal = openReinstateModal;
+
+  // ─── SUSPENDED LIST MODAL ───────────────────────────────────────
+  function openSuspendedListModal(){
+    var body = document.getElementById('suspended-list-body');
+    if (!body) return;
+    var active = RR_SUSPENSIONS.filter(function(s){ return s.status === 'active'; });
+    if (active.length === 0) {
+      body.innerHTML = '<div style="padding:var(--s-4);text-align:center;color:var(--text-subtle);font-size:13px">No drivers currently suspended.</div>';
+    } else {
+      body.innerHTML = active.map(function(s){
+        var d = _findDriver(s.driverId);
+        if (!d) return '';
+        var returnTxt = s.returnDate ? 'returns ' + _fmtDate(s.returnDate) : (s.type === 'term' ? 'pending term.' : 'indefinite');
+        return '<div class="susp-list-row">'
+          + '<div class="avatar-sm ' + d.tier + '">' + d.id + '</div>'
+          + '<div><div style="font-weight:600;font-size:13px">' + d.name + '</div>'
+          + '<div style="font-size:11px;color:var(--text-subtle)">' + d.station + ' · ' + _categoryLabel(s.category) + ' · ' + returnTxt + ' · suspended ' + _fmtRel(s.startDate) + '</div></div>'
+          + '<button class="btn btn-sm" onclick="closeModal(\'modal-suspended-list\');openHrFile(\'' + d.id + '\')">HR file</button>'
+          + '<button class="btn btn-sm btn-primary" onclick="closeModal(\'modal-suspended-list\');openReinstateModal(\'' + d.id + '\')">Reinstate</button>'
+          + '</div>';
+      }).join('');
+    }
+    openModal('modal-suspended-list');
+  }
+  window.openSuspendedListModal = openSuspendedListModal;
+
+  // ─── HR FILE MODAL ──────────────────────────────────────────────
+  function openHrFile(driverId){
+    var driver = _findDriver(driverId);
+    if (!driver) return;
+    document.getElementById('hr-file-name').textContent = 'HR file · ' + driver.name;
+    var events = RR_HR_EVENTS.filter(function(e){ return e.driverId === driverId; })
+                  .slice().sort(function(a, b){ return b.timestamp - a.timestamp; });
+    var body = document.getElementById('hr-file-body');
+    if (events.length === 0) {
+      body.innerHTML = '<div style="padding:var(--s-4);text-align:center;color:var(--text-subtle);font-size:13px">No HR events on file. Suspensions, written warnings, and termination actions appear here.</div>';
+    } else {
+      body.innerHTML =
+        '<div style="font-size:11px;color:var(--text-subtle);background:var(--canvas);padding:8px 12px;border-radius:6px;margin-bottom:var(--s-3);line-height:1.5"><strong style="color:var(--text)">About this file:</strong> Every entry below is timestamped and immutable. This is the documentation a court, unemployment officer, or HR vendor will request if termination is challenged.</div>'
+        + events.map(function(e){
+          var typeLabel = ({ suspension:'Suspension', reinstate:'Reinstatement', warning:'Written warning', pending_term:'Pending termination' })[e.type] || e.type;
+          var evidenceTxt = '';
+          if (e.links && e.links.evidence && e.links.evidence.length) {
+            evidenceTxt = '<div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Evidence: ' + e.links.evidence.length + ' attendance event(s) attached</div>';
+          }
+          return '<div class="hr-event">'
+            + '<div class="hr-event-date">' + _fmtDate(e.date) + '<br>' + _fmtRel(e.date) + '</div>'
+            + '<div class="hr-event-dot ' + e.type + '"></div>'
+            + '<div>'
+              + '<div class="hr-event-summary">' + typeLabel + ' — ' + e.summary + '</div>'
+              + '<div class="hr-event-meta">By ' + e.by + ' · ' + new Date(e.timestamp).toLocaleString() + (e.immutable ? ' · 🔒 immutable' : '') + '</div>'
+              + (e.detail ? '<div class="hr-event-detail">' + e.detail + '</div>' : '')
+              + evidenceTxt
+            + '</div>'
+          + '</div>';
+        }).join('');
+    }
+    openModal('modal-hr-file');
+  }
+  window.openHrFile = openHrFile;
+
+  // ─── HOOK: re-apply cascade after navigation (non-destructive wrap) ──
+  if (typeof goto === 'function' && !goto._wrappedForSuspension) {
+    var _origGotoForSus = goto;
+    goto = function(view){
+      _origGotoForSus(view);
+      setTimeout(cascadeSuspension, 30);
+    };
+    goto._wrappedForSuspension = true;
+  }
+  if (typeof drSub === 'function' && !drSub._wrappedForSuspension) {
+    var _origDrSubForSus = drSub;
+    drSub = function(sub){
+      _origDrSubForSus(sub);
+      setTimeout(cascadeSuspension, 30);
+    };
+    drSub._wrappedForSuspension = true;
+  }
+
+  // Initial cascade (no-op until first suspension)
+  document.addEventListener('DOMContentLoaded', cascadeSuspension);
+  if (document.readyState !== 'loading') cascadeSuspension();
 </script>
 
 </body>
