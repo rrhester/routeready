@@ -560,6 +560,33 @@ insert into public.checklist_templates (id, dsp_id, name, cadence, items, active
    ]'::jsonb, true)
 on conflict (id) do nothing;
 
+-- ─── Phase 6: vehicles + assets ───────────────────────────────────────
+
+insert into public.vehicles (id, dsp_id, station_id, van_number, make, model, year, status, mileage, dot_inspection_at)
+values
+  ('vvvv0001-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000001',
+   'VAN-01', 'Ford', 'Transit', 2022, 'active', 45000, current_date - 60),
+  ('vvvv0001-0000-0000-0000-000000000002',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000001',
+   'VAN-02', 'Mercedes', 'Sprinter', 2023, 'active', 28000, current_date - 30),
+  ('vvvv0001-0000-0000-0000-000000000003',
+   '11111111-1111-1111-1111-111111111111',
+   'aaaa1111-0000-0000-0000-000000000002',
+   'VAN-03', 'Ram', 'ProMaster', 2021, 'maintenance', 78000, current_date - 200)
+on conflict (id) do nothing;
+
+insert into public.assets (id, dsp_id, asset_type, identifier, vendor) values
+  ('aaaa0001-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111', 'phone', 'IMEI-001', 'Verizon'),
+  ('aaaa0001-0000-0000-0000-000000000002',
+   '11111111-1111-1111-1111-111111111111', 'fuel_card', 'WEX-1234', 'WEX'),
+  ('aaaa0001-0000-0000-0000-000000000003',
+   '11111111-1111-1111-1111-111111111111', 'toll_tag', 'TT-1234', 'TollPass')
+on conflict (id) do nothing;
+
 -- ─── Sanity output ────────────────────────────────────────────────────
 
 do $$
@@ -569,6 +596,7 @@ declare
   v_routes int; v_shifts int; v_okami int;
   v_applicants int; v_questions int;
   v_license_pol int; v_form_tpl int; v_checklist_tpl int;
+  v_vehicles int; v_assets int;
 begin
   select count(*) into v_dsps      from public.dsps;
   select count(*) into v_drivers   from public.drivers;
@@ -584,9 +612,11 @@ begin
   select count(*) into v_license_pol from public.license_policies;
   select count(*) into v_form_tpl    from public.form_templates;
   select count(*) into v_checklist_tpl from public.checklist_templates;
+  select count(*) into v_vehicles    from public.vehicles;
+  select count(*) into v_assets      from public.assets;
   raise notice
-    'Seed loaded: % DSPs, % staff, % drivers, % att, % HR, % coach, % routes, % shifts, % OKAMI, % applicants, % screening Qs, % license policies, % form templates, % checklist templates',
+    'Seed loaded: % DSPs, % staff, % drivers, % att, % HR, % coach, % routes, % shifts, % OKAMI, % applicants, % screening Qs, % license policies, % form templates, % checklist templates, % vehicles, % assets',
     v_dsps, v_users, v_drivers, v_att, v_hr, v_coach,
     v_routes, v_shifts, v_okami, v_applicants, v_questions,
-    v_license_pol, v_form_tpl, v_checklist_tpl;
+    v_license_pol, v_form_tpl, v_checklist_tpl, v_vehicles, v_assets;
 end $$;
