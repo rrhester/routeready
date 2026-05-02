@@ -242,13 +242,13 @@ async function doAddApplicant() {
   const { data: applicant, error } = await sb.rpc("intake_applicant", { p_payload: payload });
   if (error) { toast("Add failed: " + error.message, "warn"); return; }
 
-  if (applicant.phone && applicant.status === "applied") {
+  if ((applicant.phone || applicant.email) && applicant.status === "applied") {
     await sb.rpc("send_screening_link", { p_id: applicant.id });
   }
 
   closeModal("modal-add-applicant");
   await loadPipeline("all");
-  toast(`${applicant.full_name} added · screening SMS queued`, "success");
+  toast(`${applicant.full_name} added · screening invite queued`, "success");
 }
 
 // ─── Bulk ingest (paste from Indeed CSV/TSV) ───────────────────────────────
@@ -374,7 +374,7 @@ async function doBulkIngest() {
         dupes++;
       } else {
         added++;
-        if (applicant.phone && applicant.status === "applied") {
+        if ((applicant.phone || applicant.email) && applicant.status === "applied") {
           await sb.rpc("send_screening_link", { p_id: applicant.id });
         }
       }
