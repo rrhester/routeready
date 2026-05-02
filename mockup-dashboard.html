@@ -3838,7 +3838,7 @@ a{color:inherit;text-decoration:none}
             <div class="action-card-title">Schedule approvals</div>
             <div class="action-card-msg">3 time-off requests · 2 swap requests waiting on you. Next week's schedule still in draft.</div>
             <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('schedule')">Review</button>
+              <button class="btn btn-sm btn-primary" onclick="goto('schedule');setTimeout(function(){schedSub('timeoff');},50)">Review</button>
               <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
@@ -3883,7 +3883,7 @@ a{color:inherit;text-decoration:none}
             <div class="action-card-title">Documents expiring</div>
             <div class="action-card-msg">DOT inspection (VAN-14) expires in 6 days · 1 driver license renewal in 11 days.</div>
             <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="goto('fleet')">Review</button>
+              <button class="btn btn-sm btn-primary" onclick="goto('fleet');setTimeout(function(){fleetSub('docs');},50)">Review</button>
               <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
@@ -6645,28 +6645,28 @@ a{color:inherit;text-decoration:none}
             <div class="forms-tab" id="forms-tab-tpl" style="display:none">
               <div style="margin-bottom:var(--s-4);font-size:13px;color:var(--text-muted)">Pre-built starter forms designed for DSPs. Click any to copy into your forms.</div>
               <div class="forms-grid">
-                <div class="form-card" onclick="toast('Template copied to your forms — opens in builder')">
+                <div class="form-card" onclick="openModal('modal-form-builder')">
                   <span class="form-card-status archived">Template</span>
                   <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
                   <div class="form-card-title">DOT-style pre-trip inspection</div>
                   <div class="form-card-desc">17 questions covering brakes, tires, lights, fluids, mirrors, seat belts. With photo upload for any defect.</div>
                   <div class="form-card-stats"><span>Used by <strong>1,200+ DSPs</strong></span></div>
                 </div>
-                <div class="form-card" onclick="toast('Template copied')">
+                <div class="form-card" onclick="openModal('modal-form-builder')">
                   <span class="form-card-status archived">Template</span>
                   <div class="form-card-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
                   <div class="form-card-title">Vehicle accident report</div>
                   <div class="form-card-desc">12 fields · date/time, location, parties involved, witness info, photos, narrative. Required for insurance.</div>
                   <div class="form-card-stats"><span>Used by <strong>980+ DSPs</strong></span></div>
                 </div>
-                <div class="form-card" onclick="toast('Template copied')">
+                <div class="form-card" onclick="openModal('modal-form-builder')">
                   <span class="form-card-status archived">Template</span>
                   <div class="form-card-icon" style="background:#EDE9FE;color:#6D28D9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/></svg></div>
                   <div class="form-card-title">Fuel receipt submission</div>
                   <div class="form-card-desc">5 fields · station, gallons, total, photo of receipt, vehicle. For mileage reimbursement.</div>
                   <div class="form-card-stats"><span>Used by <strong>2,400+ DSPs</strong></span></div>
                 </div>
-                <div class="form-card" onclick="toast('Template copied')">
+                <div class="form-card" onclick="openModal('modal-form-builder')">
                   <span class="form-card-status archived">Template</span>
                   <div class="form-card-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
                   <div class="form-card-title">New hire onboarding (Day 1)</div>
@@ -6955,37 +6955,37 @@ a{color:inherit;text-decoration:none}
           <div style="margin-bottom:var(--s-4);font-size:13px;color:var(--text-muted)">Pre-built starter checklists for DSPs · click any to copy and edit</div>
 
           <div class="cl-grid">
-            <div class="cl-card" onclick="toast('Template copied · open in builder to customize')">
+            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
               <div class="cl-card-head"><div class="cl-card-icon opening"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="5"/></svg></div><span class="cl-card-status draft">Template</span></div>
               <div><div class="cl-card-cat">Opening</div><div class="cl-card-name">Standard Amazon DSP opening</div></div>
               <div class="cl-card-meta">14 tasks · doors, scanners, vans staged, dispatcher login, route assignments printed</div>
               <div class="cl-card-foot"><span>Used by <strong>1,800+ DSPs</strong></span></div>
             </div>
-            <div class="cl-card" onclick="toast('Template copied')">
+            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
               <div class="cl-card-head"><div class="cl-card-icon closing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div><span class="cl-card-status draft">Template</span></div>
               <div><div class="cl-card-cat">Closing</div><div class="cl-card-name">Standard closing</div></div>
               <div class="cl-card-meta">10 tasks · all vans returned, scanners docked, fuel checks, dispatcher logout</div>
               <div class="cl-card-foot"><span>Used by <strong>1,800+ DSPs</strong></span></div>
             </div>
-            <div class="cl-card" onclick="toast('Template copied')">
+            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
               <div class="cl-card-head"><div class="cl-card-icon vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="3"/></svg></div><span class="cl-card-status draft">Template</span></div>
               <div><div class="cl-card-cat">Vehicle</div><div class="cl-card-name">DOT pre-trip inspection</div></div>
               <div class="cl-card-meta">17 tasks · brakes, tires, lights, fluids, mirrors, seat belts. Photo evidence.</div>
               <div class="cl-card-foot"><span>Used by <strong>2,200+ DSPs</strong></span></div>
             </div>
-            <div class="cl-card" onclick="toast('Template copied')">
+            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
               <div class="cl-card-head"><div class="cl-card-icon onboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="7" r="4"/></svg></div><span class="cl-card-status draft">Template</span></div>
               <div><div class="cl-card-cat">Onboarding</div><div class="cl-card-name">New hire day-1</div></div>
               <div class="cl-card-meta">15 tasks · uniform, scanner, fob, app login, ride-along, paperwork sign-offs</div>
               <div class="cl-card-foot"><span>Used by <strong>1,500+ DSPs</strong></span></div>
             </div>
-            <div class="cl-card" onclick="toast('Template copied')">
+            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
               <div class="cl-card-head"><div class="cl-card-icon compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span class="cl-card-status draft">Template</span></div>
               <div><div class="cl-card-cat">Compliance</div><div class="cl-card-name">Weekly safety walk</div></div>
               <div class="cl-card-meta">11 tasks · station hazards, first aid, fire ext, lighting, EE protective gear</div>
               <div class="cl-card-foot"><span>Used by <strong>1,200+ DSPs</strong></span></div>
             </div>
-            <div class="cl-card" onclick="toast('Template copied')">
+            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
               <div class="cl-card-head"><div class="cl-card-icon shift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="17 1 21 5 17 9"/></svg></div><span class="cl-card-status draft">Template</span></div>
               <div><div class="cl-card-cat">Shift handoff</div><div class="cl-card-name">Dispatcher shift change</div></div>
               <div class="cl-card-meta">7 tasks · open issues, callouts, swap requests, route exceptions, alerts handed over</div>
@@ -7092,7 +7092,7 @@ a{color:inherit;text-decoration:none}
               <button class="btn btn-sm btn-primary">Reconcile →</button>
             </div>
 
-            <div class="invoice-row" onclick="toast('Fleet invoice — verified clean')">
+            <div class="invoice-row" onclick="openReconciliation('fleet-clean')">
               <div class="invoice-icon fleet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
               <div>
                 <div class="invoice-name">Amazon Fleet Fixed Monthly</div>
@@ -7110,7 +7110,7 @@ a{color:inherit;text-decoration:none}
               <button class="btn btn-sm">View</button>
             </div>
 
-            <div class="invoice-row disputed" onclick="toast('Variable W16 dispute — submitted Apr 25, awaiting response')">
+            <div class="invoice-row disputed" onclick="openReconciliation('variable-w16')">
               <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
               <div>
                 <div class="invoice-name">Amazon Variable Invoice · Week 16</div>
@@ -7128,7 +7128,7 @@ a{color:inherit;text-decoration:none}
               <button class="btn btn-sm">Track</button>
             </div>
 
-            <div class="invoice-row recovered" onclick="toast('Variable W15 recovery — $1,180 credited Apr 21')">
+            <div class="invoice-row recovered" onclick="openReconciliation('variable-w15')">
               <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
               <div>
                 <div class="invoice-name">Amazon Variable Invoice · Week 15</div>
@@ -7146,7 +7146,7 @@ a{color:inherit;text-decoration:none}
               <button class="btn btn-sm">View</button>
             </div>
 
-            <div class="invoice-row" onclick="toast('3P Rental — auto-reconciled clean')">
+            <div class="invoice-row" onclick="openReconciliation('3p-rental')">
               <div class="invoice-icon rental"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>
               <div>
                 <div class="invoice-name">Enterprise 3P Rental · April</div>
@@ -7178,7 +7178,7 @@ a{color:inherit;text-decoration:none}
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
             <div style="padding:14px 18px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Active disputes · 5</div>
 
-            <div class="invoice-row disputed" onclick="toast('Dispute thread — Amazon last response Apr 28')">
+            <div class="invoice-row disputed" onclick="openReconciliation('dispute-1')">
               <div class="invoice-icon variable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
               <div><div class="invoice-name">Variable W16 · scan compliance dispute</div><div class="invoice-meta">3 incorrect deductions for KMO1-14B · operational evidence attached</div></div>
               <div><div class="invoice-amount">$412.80</div><div class="invoice-amount-sub">disputing</div></div>
@@ -7187,7 +7187,7 @@ a{color:inherit;text-decoration:none}
               <button class="btn btn-sm">Open thread</button>
             </div>
 
-            <div class="invoice-row disputed" onclick="toast('Dispute thread — escalated Apr 30')">
+            <div class="invoice-row disputed" onclick="openReconciliation('dispute-2')">
               <div class="invoice-icon damage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
               <div><div class="invoice-name">VAN-08 damage charge · at-fault dispute</div><div class="invoice-meta">Photos + GPS + driver statement contradict at-fault claim · escalated</div></div>
               <div><div class="invoice-amount">$2,840.00</div><div class="invoice-amount-sub">disputing</div></div>
@@ -7196,7 +7196,7 @@ a{color:inherit;text-decoration:none}
               <button class="btn btn-sm">Open thread</button>
             </div>
 
-            <div class="invoice-row disputed" onclick="toast('Dispute thread — Amazon requested more info')">
+            <div class="invoice-row disputed" onclick="openReconciliation('dispute-3')">
               <div class="invoice-icon lmr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="12" x2="2" y2="12"/></svg></div>
               <div><div class="invoice-name">LMR Apr 22 · 3 invalid deductions</div><div class="invoice-meta">Routes flagged late but actually closed on time per RR data</div></div>
               <div><div class="invoice-amount">$364.20</div><div class="invoice-amount-sub">disputing</div></div>
@@ -7498,10 +7498,10 @@ a{color:inherit;text-decoration:none}
                 </div>
 
                 <div class="bb-actions">
-                  <button class="bb-action-chip" onclick="toast('Review action recorded · opens driver record')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Review driver</button>
+                  <button class="bb-action-chip" onclick="openDriverDetail('Marcus Davidson','KMO1','62','18 mo','100%')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Review driver</button>
                   <button class="bb-action-chip" onclick="toast('Manager notified via Messages')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Notify manager</button>
                   <button class="bb-action-chip" onclick="toast('Auto-dispute filed with payroll')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Auto-dispute payroll</button>
-                  <button class="bb-action-chip" onclick="toast('Coach drawer opens with idle-gap context')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/></svg>Coach driver</button>
+                  <button class="bb-action-chip" onclick="openCoachDrawer('Marcus Davidson','quality','Idle-gap pattern · 3.2h on CX-14 (Time Theft Analyzer flagged)')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/></svg>Coach driver</button>
                 </div>
 
                 <div style="display:flex;gap:8px;margin-top:var(--s-4);padding-top:var(--s-4);border-top:1px solid var(--border)">
@@ -9602,8 +9602,8 @@ Evidence attached:
   <div class="popover-head">Ryan Hester · Cardinal Logistics</div>
   <div class="popover-section">
     <button class="popover-item" onclick="goto('settings');closePopovers()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg>Settings</button>
-    <button class="popover-item" onclick="toast('Profile editor — would open here')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</button>
-    <button class="popover-item" onclick="toast('Help center — would open here')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Help &amp; support</button>
+    <button class="popover-item" onclick="goto('settings');closePopovers()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</button>
+    <button class="popover-item" onclick="openModal('modal-help');closePopovers()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Help &amp; support</button>
   </div>
   <div class="popover-section">
     <button class="popover-item" onclick="toast('Signed out')" style="color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign out</button>
@@ -9613,6 +9613,41 @@ Evidence attached:
 <!-- ═══════════════════════════════════════════════════════════
      ADD APPLICANT MODAL
      ═══════════════════════════════════════════════════════════ -->
+<!-- ─── HELP MODAL ─── -->
+<div class="modal-backdrop" id="modal-help" onclick="if(event.target===this)closeModal('modal-help')">
+  <div class="modal-card" style="max-width:460px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Help &amp; support</p>
+        <p class="modal-sub">Get unstuck fast</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-help')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Search docs — would open help center')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Search the help center
+      </button>
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Quickstart — would open guided tour')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+        Quickstart guide
+      </button>
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Keyboard shortcuts — opens reference')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8M6 16h12"/></svg>
+        Keyboard shortcuts
+      </button>
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Contact support — opens chat with our team')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        Contact support
+      </button>
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Feature request — opens form')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Request a feature
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="modal-add-applicant" onclick="if(event.target===this)closeModal('modal-add-applicant')">
   <div class="modal-card">
     <div class="modal-head">
