@@ -3600,6 +3600,7 @@ a{color:inherit;text-decoration:none}
       <button class="nav-item" data-view="drivers" onclick="goto('drivers')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Drivers
+        <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
       <button class="nav-item" data-view="fleet" onclick="goto('fleet')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg>
@@ -4187,6 +4188,16 @@ a{color:inherit;text-decoration:none}
                 <td><span class="tag">On track</span></td>
                 <td class="cell-time">2 wks ago</td>
                 <td><button class="coach-row-btn" onclick="openCoachDrawer('Devon Patterson','quality','')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
+              </tr>
+              <tr>
+                <td><div class="cell-driver"><div class="avatar-sm tier-c">AT</div><div><div class="cell-name">Asha Thornton</div><div class="cell-name-sub">+1 417 555 0312</div></div></div></td>
+                <td>KMO2</td>
+                <td>14 mo</td>
+                <td><span class="score-bar"><span class="score-bar-fill" style="width:74%;background:var(--amber)"></span></span><span style="font-weight:600">74</span></td>
+                <td><span class="att-pill"><span class="att-pill-dot" style="background:var(--amber)"></span><strong>1 callout</strong> · 96%</span></td>
+                <td><span class="tag" style="background:var(--amber-soft);color:var(--amber)">At risk</span></td>
+                <td class="cell-time">5d ago</td>
+                <td><button class="coach-row-btn" onclick="openCoachDrawer('Asha Thornton','attendance','1 callout this cycle · retention risk 50%')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
               </tr>
               <tr>
                 <td><div class="cell-driver"><div class="avatar-sm tier-a">CF</div><div><div class="cell-name">Camille Foster</div><div class="cell-name-sub">+1 417 555 0341</div></div></div></td>
@@ -7498,7 +7509,7 @@ a{color:inherit;text-decoration:none}
                 </div>
 
                 <div class="bb-actions">
-                  <button class="bb-action-chip" onclick="openDriverDetail('Marcus Davidson','KMO1','62','18 mo','100%')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Review driver</button>
+                  <button class="bb-action-chip" onclick="openDriverDetail('Marcus Davidson','KMO1','18 mo','62','88%')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Review driver</button>
                   <button class="bb-action-chip" onclick="toast('Manager notified via Messages')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Notify manager</button>
                   <button class="bb-action-chip" onclick="toast('Auto-dispute filed with payroll')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Auto-dispute payroll</button>
                   <button class="bb-action-chip" onclick="openCoachDrawer('Marcus Davidson','quality','Idle-gap pattern · 3.2h on CX-14 (Time Theft Analyzer flagged)')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/></svg>Coach driver</button>
@@ -10175,10 +10186,120 @@ Evidence attached:
 
 <script>
   // ─── DASHBOARD ACTION QUEUE — clearable inbox pattern ─────
+  // ─── ACTION PROPAGATION ───────────────────────────────────
+  // Each clear affects multiple surfaces. Apply hides/decrements; revert restores.
+  // We snapshot every touched DOM node's outerHTML before mutating so revert is safe.
+  var _actionSnapshots = {};
+  function _snap(action, key, el){
+    if (!el) return;
+    if (!_actionSnapshots[action]) _actionSnapshots[action] = {};
+    if (_actionSnapshots[action][key] === undefined) _actionSnapshots[action][key] = el.innerHTML;
+  }
+  function _restore(action){
+    var snap = _actionSnapshots[action];
+    if (!snap) return;
+    Object.keys(snap).forEach(function(k){
+      var el = document.querySelector(k);
+      if (el) el.innerHTML = snap[k];
+    });
+    delete _actionSnapshots[action];
+  }
+  function _hideBadge(action, key, sel){
+    var el = document.querySelector(sel);
+    if (!el) return;
+    _snap(action, key, el.parentNode); // snap parent so we restore the badge child
+    el.style.display = 'none';
+  }
+  function _zeroBadge(action, key, sel){
+    var el = document.querySelector(sel);
+    if (!el) return;
+    _snap(action, key, el);
+    el.textContent = '0';
+    el.style.opacity = '.5';
+  }
+  function _replaceText(action, key, sel, newHtml){
+    var el = document.querySelector(sel);
+    if (!el) return;
+    _snap(action, key, el);
+    el.innerHTML = newHtml;
+  }
+
+  var ACTION_EFFECTS = {
+    pipeline: function(action){
+      _hideBadge(action, 'nav-pipeline', '.nav-item[data-view="pipeline"] .nav-badge');
+    },
+    underperformer: function(action){
+      // Retention propensity health card text + Drivers/Insights at-risk val
+      _replaceText(action, 'health-retention',
+        '.health-card .health-label:contains("Retention")',
+        ''); // CSS :contains isn't supported — use direct lookup
+      // Workaround: find the retention card by its label text
+      document.querySelectorAll('.health-card').forEach(function(card){
+        var lbl = card.querySelector('.health-label');
+        if (lbl && lbl.textContent.indexOf('Retention') !== -1) {
+          var trend = card.querySelector('.health-trend');
+          if (trend) {
+            _snap(action, 'health-retention-trend', trend);
+            trend.innerHTML = '<span class="up" style="color:var(--green)">✓</span> all reviewed today';
+          }
+          var val = card.querySelector('.health-value');
+          if (val) {
+            _snap(action, 'health-retention-val', val);
+            val.innerHTML = '78<span class="frac"> / 78 healthy</span>';
+          }
+        }
+        if (lbl && lbl.textContent.indexOf('Driver Composite') !== -1) {
+          var trend = card.querySelector('.health-trend');
+          if (trend) {
+            _snap(action, 'health-composite-trend', trend);
+            trend.innerHTML = '<span class="up" style="color:var(--green)">▲ 2</span> vs last week · all coached ✓';
+          }
+        }
+      });
+      // Drivers/Insights at-risk count
+      var di = document.querySelector('.di-val.bad');
+      if (di) { _snap(action, 'di-bad', di); di.textContent = '0'; di.classList.remove('bad'); di.classList.add('ok'); }
+      // Drivers stage tab "At risk"
+      var atrisk = document.querySelector('.stage-tab[data-stage="atrisk"] .stage-tab-count');
+      if (atrisk) _zeroBadge(action, 'stagetab-atrisk', '.stage-tab[data-stage="atrisk"] .stage-tab-count');
+      // Drivers sidebar nav badge
+      _hideBadge(action, 'nav-drivers', '.nav-item[data-view="drivers"] .nav-badge');
+    },
+    safety: function(action){
+      var meta = document.querySelector('#safety-drawer .detail-meta');
+      if (meta) { _snap(action, 'safety-meta', meta); meta.textContent = '0 events · all acknowledged today'; }
+    },
+    quality: function(action){
+      var meta = document.querySelector('#quality-drawer .detail-meta');
+      if (meta) { _snap(action, 'quality-meta', meta); meta.textContent = '0 items · all reviewed today'; }
+    },
+    schedule: function(action){
+      _hideBadge(action, 'nav-schedule', '.nav-item[data-view="schedule"] .nav-badge');
+      _hideBadge(action, 'subnav-timeoff', '#view-schedule .subnav-item[data-sub="timeoff"] span');
+    },
+    disputes: function(action){
+      _hideBadge(action, 'nav-finances', '.nav-item[data-view="finances"] .nav-badge');
+      var sub = document.querySelector('#view-finances .subnav-item[data-sub="disputes"] span');
+      if (sub) _hideBadge(action, 'subnav-disputes', '#view-finances .subnav-item[data-sub="disputes"] span');
+    },
+    coaching: function(action){
+      _hideBadge(action, 'nav-workflows', '.nav-item[data-view="forms"] .nav-badge');
+    },
+    documents: function(action){
+      _hideBadge(action, 'nav-fleet', '.nav-item[data-view="fleet"] .nav-badge');
+      var sub = document.querySelector('#view-fleet .subnav-item[data-sub="docs"] span');
+      if (sub) _hideBadge(action, 'subnav-docs', '#view-fleet .subnav-item[data-sub="docs"] span');
+    }
+  };
+
   function clearAction(linkEl){
     var card = linkEl.closest('.action-card');
     if (!card || card.classList.contains('cleared')) return;
     card.classList.add('cleared');
+    var actionKey = card.getAttribute('data-action');
+    if (ACTION_EFFECTS[actionKey]) {
+      try { ACTION_EFFECTS[actionKey](actionKey); } catch (e) { /* swallow — demo */ }
+    }
     updateQueueProgress();
     var name = card.querySelector('.action-card-title').textContent.trim();
     toast(name + ' · cleared');
@@ -10212,6 +10333,8 @@ Evidence attached:
   function resetActionQueue(){
     document.querySelectorAll('#action-queue .action-card.cleared').forEach(function(c){
       c.classList.remove('cleared');
+      var actionKey = c.getAttribute('data-action');
+      _restore(actionKey);
     });
     updateQueueProgress();
     toast('Queue reset · 8 decisions restored');
