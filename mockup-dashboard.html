@@ -3808,7 +3808,7 @@ a{color:inherit;text-decoration:none}
             <div class="action-card-title">Safety infractions</div>
             <div class="action-card-msg">2 Mentor harsh-brake events · 1 minor accident report (VAN-08, 4/29). Acknowledge and coach.</div>
             <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="toast('Safety queue — would open list of 3 events')">Review</button>
+              <button class="btn btn-sm btn-primary" onclick="openSafetyQueue()">Review</button>
               <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
@@ -3823,7 +3823,7 @@ a{color:inherit;text-decoration:none}
             <div class="action-card-title">Quality misses</div>
             <div class="action-card-msg">5 DCR concessions · 2 POD photo issues · 1 scan compliance miss this week. Review for dispute or coach.</div>
             <div class="action-card-cta">
-              <button class="btn btn-sm btn-primary" onclick="toast('Quality queue — would open list of 8 items')">Review</button>
+              <button class="btn btn-sm btn-primary" onclick="openQualityQueue()">Review</button>
               <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
@@ -6031,7 +6031,7 @@ a{color:inherit;text-decoration:none}
           <aside class="msg-list">
             <div class="msg-list-head">
               <span class="msg-list-title">Conversations</span>
-              <button class="icon-btn" title="New direct message" onclick="toast('New direct message — would open driver picker')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+              <button class="icon-btn" title="New direct message" onclick="renderNewDmList('');openModal('modal-new-dm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
             </div>
             <div class="msg-list-search">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -8260,6 +8260,176 @@ Evidence attached:
     <button class="btn btn-primary" id="sub-action-btn" onclick="closeSubmission();openCoachDrawer('Driver','quality','Submission flagged')" style="display:none">Flag &amp; coach</button>
   </div>
 </aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SAFETY QUEUE DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer" id="safety-drawer" aria-label="Safety queue">
+  <div class="detail-head">
+    <div>
+      <h2 class="detail-name">Safety infractions</h2>
+      <div class="detail-meta">3 events this week · acknowledge and coach</div>
+    </div>
+    <button class="cd-close" onclick="closeSafetyQueue()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+
+    <div class="attn-card sev-red" style="margin-bottom:12px">
+      <div class="attn-icon sev-red">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="attn-body">
+        <div class="attn-title">Minor accident · VAN-08</div>
+        <div class="attn-msg">Apr 29, 11:42 AM · Driver Travis Bell · Parking-lot collision, no injuries. Photos + report on file.</div>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="closeSafetyQueue();openCoachDrawer('Travis Bell','safety','Minor accident VAN-08 on Apr 29')">Coach</button>
+    </div>
+
+    <div class="attn-card sev-amber" style="margin-bottom:12px">
+      <div class="attn-icon sev-amber">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+      </div>
+      <div class="attn-body">
+        <div class="attn-title">Mentor harsh-brake · Marcus Davidson</div>
+        <div class="attn-msg">Apr 30, 2:14 PM · Score impact -3 · 2nd event in 14 days · pattern forming.</div>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="closeSafetyQueue();openCoachDrawer('Marcus Davidson','safety','Mentor harsh-brake · 2 events in 14 days')">Coach</button>
+    </div>
+
+    <div class="attn-card sev-amber">
+      <div class="attn-icon sev-amber">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+      </div>
+      <div class="attn-body">
+        <div class="attn-title">Mentor harsh-brake · Tasha Reyes</div>
+        <div class="attn-msg">May 1, 9:38 AM · Score impact -2 · isolated event.</div>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="closeSafetyQueue();openCoachDrawer('Tasha Reyes','safety','Mentor harsh-brake · isolated event May 1')">Coach</button>
+    </div>
+
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeSafetyQueue()">Close</button>
+    <button class="btn btn-primary" onclick="closeSafetyQueue();toast('All 3 safety events marked acknowledged')">Acknowledge all</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     QUALITY QUEUE DRAWER
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer" id="quality-drawer" aria-label="Quality queue">
+  <div class="detail-head">
+    <div>
+      <h2 class="detail-name">Quality misses</h2>
+      <div class="detail-meta">8 items this week · review for dispute or coach</div>
+    </div>
+    <button class="cd-close" onclick="closeQualityQueue()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+
+    <div class="detail-section-label" style="margin-bottom:8px">DCR concessions · 5</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
+      <div class="attn-card sev-amber">
+        <div class="attn-body">
+          <div class="attn-title">3 packages · Davidson · CX-14 · Apr 28</div>
+          <div class="attn-msg">Concession reason: "Not at address" — photos look correct.</div>
+        </div>
+        <button class="btn btn-sm" onclick="closeQualityQueue();openReconciliation('quality-dcr-1')">File dispute</button>
+      </div>
+      <div class="attn-card sev-amber">
+        <div class="attn-body">
+          <div class="attn-title">2 packages · Reyes · CX-22 · Apr 30</div>
+          <div class="attn-msg">Concession reason: "Damaged in transit" — driver photos OK at scan.</div>
+        </div>
+        <button class="btn btn-sm" onclick="closeQualityQueue();openReconciliation('quality-dcr-2')">File dispute</button>
+      </div>
+    </div>
+
+    <div class="detail-section-label" style="margin-bottom:8px">POD photo issues · 2</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
+      <div class="attn-card sev-amber">
+        <div class="attn-body">
+          <div class="attn-title">Beckett · CX-09 · 4 packages flagged</div>
+          <div class="attn-msg">POD photos blurry or door-only. Coach on photo standards.</div>
+        </div>
+        <button class="btn btn-sm" onclick="closeQualityQueue();openCoachDrawer('Jordan Beckett','quality','POD photo quality · 4 flagged packages')">Coach</button>
+      </div>
+    </div>
+
+    <div class="detail-section-label" style="margin-bottom:8px">Scan compliance · 1</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="attn-card sev-amber">
+        <div class="attn-body">
+          <div class="attn-title">Whitfield · KMO1-14B · Apr 26</div>
+          <div class="attn-msg">3 packages flagged not scanned by Amazon — RouteReady scan log shows they WERE scanned. Likely sync issue.</div>
+        </div>
+        <button class="btn btn-sm" onclick="closeQualityQueue();openReconciliation('quality-scan-1')">File dispute</button>
+      </div>
+    </div>
+
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeQualityQueue()">Close</button>
+    <button class="btn btn-primary" onclick="closeQualityQueue();goto('finances');setTimeout(function(){finSub('disputes');},50)">Open all in Finances →</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ASSET CATEGORY DRAWER (one drawer, 6 categories)
+     ═══════════════════════════════════════════════════════════ -->
+<aside class="detail-drawer wide" id="asset-cat-drawer" aria-label="Asset category">
+  <div class="detail-head">
+    <div>
+      <h2 class="detail-name" id="asset-cat-name">Phones</h2>
+      <div class="detail-meta" id="asset-cat-meta">42 assigned · 3 in stock</div>
+    </div>
+    <button class="cd-close" onclick="closeAssetCategory()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-section">
+      <div class="detail-section-label">Assignments</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead style="text-align:left;color:var(--text-muted);font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase">
+          <tr><th style="padding:8px 6px;border-bottom:1px solid var(--border)">Driver</th><th style="padding:8px 6px;border-bottom:1px solid var(--border)">Serial / ID</th><th style="padding:8px 6px;border-bottom:1px solid var(--border)">Assigned</th><th style="padding:8px 6px;border-bottom:1px solid var(--border)">Status</th></tr>
+        </thead>
+        <tbody id="asset-cat-rows">
+          <tr><td style="padding:10px 6px;border-bottom:1px solid var(--border);font-weight:600">Marcus Davidson</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04821</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Mar 12, 2025</td><td style="padding:10px 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
+          <tr><td style="padding:10px 6px;border-bottom:1px solid var(--border);font-weight:600">Tasha Reyes</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04822</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Aug 4, 2025</td><td style="padding:10px 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
+          <tr><td style="padding:10px 6px;border-bottom:1px solid var(--border);font-weight:600">Kerwin Whitfield</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04823</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">May 2, 2024</td><td style="padding:10px 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
+          <tr><td style="padding:10px 6px;border-bottom:1px solid var(--border);font-weight:600">Jordan Beckett</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04824</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Nov 1, 2025</td><td style="padding:10px 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--amber-soft);color:var(--amber)">Damaged</span></td></tr>
+          <tr><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-subtle);font-style:italic">Unassigned</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04825</td><td style="padding:10px 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">—</td><td style="padding:10px 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--canvas);color:var(--text-subtle)">In stock</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="detail-foot">
+    <button class="btn" onclick="closeAssetCategory()">Close</button>
+    <button class="btn" onclick="toast('Audit log — would show check-out/in history')">Audit log</button>
+    <button class="btn btn-primary" onclick="toast('Assign asset — would open driver picker + serial scan')">Assign new</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     NEW DIRECT MESSAGE MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-new-dm" onclick="if(event.target===this)closeModal('modal-new-dm')">
+  <div class="modal-card" style="max-width:420px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">New direct message</p>
+        <p class="modal-sub">Pick a driver to start a 1:1 conversation</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-new-dm')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--canvas)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-subtle)"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="new-dm-search" placeholder="Search drivers…" style="border:none;background:transparent;outline:none;font:inherit;color:var(--text);flex:1" oninput="filterNewDm(this.value)" />
+      </div>
+      <div id="new-dm-list" style="max-height:340px;overflow:auto"></div>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════
      MAINTENANCE WORK ORDER MODAL
@@ -10636,11 +10806,78 @@ Evidence attached:
     openModal('modal-doc-preview');
   }
 
-  // ─── ASSET CATEGORY DETAIL (drawer-style — replace toast) ─
-  function openAssetCategory(catName, count){
-    toast('Asset category: ' + catName + ' · drilldown view with ' + count + ' assets and assignment history would render here');
-    // Future: open a drawer with asset list filtered by category
+  // ─── SAFETY QUEUE ─────────────────────────────────────────
+  function openSafetyQueue(){
+    document.getElementById('safety-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
   }
+  function closeSafetyQueue(){
+    document.getElementById('safety-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── QUALITY QUEUE ────────────────────────────────────────
+  function openQualityQueue(){
+    document.getElementById('quality-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeQualityQueue(){
+    document.getElementById('quality-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── ASSET CATEGORY DRAWER ────────────────────────────────
+  var ASSET_CAT_DATA = {
+    'Phones':       { meta:'42 assigned · 3 in stock',   prefix:'A1-' },
+    'Gas cards':    { meta:'48 assigned · 0 in stock',   prefix:'GC-' },
+    'Toll tags':    { meta:'24 assigned · 6 in stock',   prefix:'TT-' },
+    'Key fobs':     { meta:'24 assigned · 4 in stock',   prefix:'KF-' },
+    'Uniforms':     { meta:'78 assigned · stock varies', prefix:'UN-' },
+    'Scanners':     { meta:'42 assigned · 5 in stock',   prefix:'SC-' }
+  };
+  function openAssetCategory(catName, count){
+    var meta = (ASSET_CAT_DATA[catName] && ASSET_CAT_DATA[catName].meta) || (count + ' assets · drilldown');
+    document.getElementById('asset-cat-name').textContent = catName || 'Asset category';
+    document.getElementById('asset-cat-meta').textContent = meta;
+    // Update serial prefixes in the table for visual consistency
+    var prefix = (ASSET_CAT_DATA[catName] && ASSET_CAT_DATA[catName].prefix) || 'A1-';
+    document.querySelectorAll('#asset-cat-rows tr td:nth-child(2)').forEach(function(td, i){
+      var seq = String(4821 + i);
+      td.textContent = prefix + '0' + seq;
+    });
+    document.getElementById('asset-cat-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeAssetCategory(){
+    document.getElementById('asset-cat-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ─── NEW DIRECT MESSAGE PICKER ────────────────────────────
+  function renderNewDmList(filter){
+    var list = document.getElementById('new-dm-list');
+    if (!list) return;
+    var q = (filter || '').trim().toLowerCase();
+    var html = '';
+    (typeof MOCK_DRIVERS !== 'undefined' ? MOCK_DRIVERS : []).forEach(function(d){
+      if (q && d.name.toLowerCase().indexOf(q) === -1 && d.meta.toLowerCase().indexOf(q) === -1) return;
+      var initials = d.name.split(' ').map(function(p){return p[0];}).join('').slice(0,2);
+      html += '<button class="popover-item" style="width:100%;justify-content:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)" onclick="closeModal(\'modal-new-dm\');toast(\'Conversation opened with ' + d.name + '\')">' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:var(--canvas);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text-muted)">' + initials + '</div>' +
+        '<div style="text-align:left"><div style="font-weight:600;font-size:13px;color:var(--text)">' + d.name + '</div><div style="font-size:11px;color:var(--text-subtle)">' + d.meta + '</div></div>' +
+        '</button>';
+    });
+    list.innerHTML = html || '<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px">No drivers match "' + filter + '"</div>';
+  }
+  function filterNewDm(v){ renderNewDmList(v); }
+  // Render once on load + whenever the modal opens
+  document.addEventListener('DOMContentLoaded', function(){ renderNewDmList(''); });
 
   // ─── OKAMI STRATEGY PILL CYCLING ─────────────────────────
   function cycleStrategy(pill){
