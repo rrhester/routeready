@@ -7838,7 +7838,7 @@ Evidence attached:
       <div class="detail-foot">
         <button class="btn" onclick="closeReconciliation()">Close</button>
         <button class="btn" onclick="toast('Edit dispute letter — would open editor')">Edit letter</button>
-        <button class="btn btn-primary" onclick="closeReconciliation();toast('Dispute submitted to Amazon · evidence attached · tracking thread created')">
+        <button class="btn btn-primary" onclick="submitDispute()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           Submit dispute · $847.50
         </button>
@@ -8321,7 +8321,7 @@ Evidence attached:
   </div>
   <div class="detail-foot">
     <button class="btn" onclick="closeSafetyQueue()">Close</button>
-    <button class="btn btn-primary" onclick="closeSafetyQueue();toast('All 3 safety events marked acknowledged')">Acknowledge all</button>
+    <button class="btn btn-primary" onclick="acknowledgeAllSafety()">Acknowledge all</button>
   </div>
 </aside>
 
@@ -8381,6 +8381,7 @@ Evidence attached:
   </div>
   <div class="detail-foot">
     <button class="btn" onclick="closeQualityQueue()">Close</button>
+    <button class="btn" onclick="markAllQualityReviewed()">Mark all reviewed</button>
     <button class="btn btn-primary" onclick="closeQualityQueue();goto('finances');setTimeout(function(){finSub('disputes');},50)">Open all in Finances →</button>
   </div>
 </aside>
@@ -9332,7 +9333,7 @@ Evidence attached:
   <div class="detail-foot">
     <button class="btn" onclick="closeApplicantDetail()">Close</button>
     <button class="btn" onclick="toast('Cal.com link sent to applicant')">Send Cal link</button>
-    <button class="btn btn-primary" onclick="toast('Marked as hired · welcome email sent')">Mark hired</button>
+    <button class="btn btn-primary" onclick="markApplicantHired()">Mark hired</button>
   </div>
 </aside>
 
@@ -11615,13 +11616,46 @@ Evidence attached:
   }
 
   // ─── APPROVE / DENY / SWAP / PUBLISH ───────────────────────
+  // Helper: decrement a numeric badge or hide it at 0; supports nested span counts
+  function _decrementBadge(sel){
+    var el = document.querySelector(sel);
+    if (!el) return 0;
+    var match = el.textContent.match(/\d+/);
+    if (!match) return 0;
+    var n = Math.max(0, parseInt(match[0], 10) - 1);
+    el.textContent = el.textContent.replace(/\d+/, n);
+    if (n === 0) el.style.display = 'none';
+    return n;
+  }
+  // Helper: append empty-state inside a container if no children of selector remain
+  function _maybeEmpty(containerSel, childSel, html){
+    var c = document.querySelector(containerSel);
+    if (!c) return;
+    if (!c.querySelector(childSel)) {
+      var existing = c.querySelector('.empty-state');
+      if (!existing) {
+        var div = document.createElement('div');
+        div.className = 'empty-state';
+        div.style.cssText = 'padding:32px;text-align:center;color:var(--text-subtle);font-size:13px';
+        div.innerHTML = html || 'All caught up · nothing pending';
+        c.appendChild(div);
+      }
+    }
+  }
+
   function approveTimeOff(btn, name){
     const card = btn.closest('.approval-card');
     if (card) {
       card.style.transition = 'opacity .25s, transform .25s';
       card.style.opacity = '0';
       card.style.transform = 'translateX(20px)';
-      setTimeout(function(){ card.remove(); }, 250);
+      setTimeout(function(){
+        card.remove();
+        // After removal: decrement badges + render empty state if list is empty
+        _decrementBadge('#view-schedule .subnav-item[data-sub="timeoff"] span');
+        _decrementBadge('.nav-item[data-view="schedule"] .nav-badge');
+        _maybeEmpty('#sched-sub-timeoff', '.approval-card', '✓ All caught up · no pending time-off requests');
+      }, 250);
     }
     toast('Time off approved for ' + (name || 'driver') + ' · SMS sent');
   }
@@ -11630,7 +11664,12 @@ Evidence attached:
     if (card) {
       card.style.transition = 'opacity .25s';
       card.style.opacity = '0';
-      setTimeout(function(){ card.remove(); }, 250);
+      setTimeout(function(){
+        card.remove();
+        _decrementBadge('#view-schedule .subnav-item[data-sub="timeoff"] span');
+        _decrementBadge('.nav-item[data-view="schedule"] .nav-badge');
+        _maybeEmpty('#sched-sub-timeoff', '.approval-card', '✓ All caught up · no pending time-off requests');
+      }, 250);
     }
     toast('Request denied · ' + (name || 'driver') + ' notified', 'warn');
   }
@@ -11640,10 +11679,110 @@ Evidence attached:
       card.style.transition = 'opacity .25s, transform .25s';
       card.style.opacity = '0';
       card.style.transform = 'translateX(20px)';
-      setTimeout(function(){ card.remove(); }, 250);
+      setTimeout(function(){
+        card.remove();
+        // Visually update calendar cells for the named drivers
+        if (names) {
+          var firstName = names.split(/[↔&]/)[0].trim().split(' ')[0];
+          document.querySelectorAll('.cal-row-label-name').forEach(function(n){
+            if (n.textContent.indexOf(firstName) !== -1) {
+              var row = n.closest('.cal-grid');
+              if (row) {
+                var cells = row.querySelectorAll('.cal-cell .shift-chip');
+                if (cells.length > 4 && cells[4]) cells[4].style.outline = '2px solid var(--accent)';
+              }
+            }
+          });
+        }
+        _decrementBadge('#view-schedule .subnav-item[data-sub="swaps"] span');
+        _decrementBadge('.nav-item[data-view="schedule"] .nav-badge');
+        // Remove matching swap notification
+        document.querySelectorAll('#popover-notif .notif-item').forEach(function(item){
+          var t = item.querySelector('.notif-title');
+          if (t && t.textContent.toLowerCase().indexOf('swap') !== -1) {
+            item.style.transition = 'opacity .2s';
+            item.style.opacity = '0';
+            setTimeout(function(){ item.remove(); }, 200);
+          }
+        });
+        _maybeEmpty('#sched-sub-swaps', '.approval-card', '✓ All caught up · no pending swap requests');
+      }, 250);
     }
     toast('Swap approved · ' + (names || 'both drivers') + ' notified');
   }
+  // ─── HIRE APPLICANT ───────────────────────────────────────
+  function markApplicantHired(){
+    var nameEl = document.getElementById('ap-name');
+    var name = nameEl ? nameEl.textContent.trim() : 'Applicant';
+    closeApplicantDetail();
+    // 1. Decrement Pipeline sidebar nav badge
+    _decrementBadge('.nav-item[data-view="pipeline"] .nav-badge');
+    // 2. Decrement "All" stage count, increment "Hired" stage count
+    var allCount = document.querySelector('.stage-tab[data-stage="all"] .stage-tab-count');
+    if (allCount) {
+      var n = parseInt(allCount.textContent, 10);
+      if (!isNaN(n)) allCount.textContent = (n - 1);
+    }
+    var hiredCount = document.querySelector('.stage-tab[data-stage="hired"] .stage-tab-count');
+    if (hiredCount) {
+      var h = parseInt(hiredCount.textContent, 10);
+      if (!isNaN(h)) hiredCount.textContent = (h + 1);
+    }
+    // 3. Prepend a notification
+    var notifList = document.querySelector('#popover-notif > div:nth-child(2)');
+    if (notifList) {
+      var notif = document.createElement('div');
+      notif.className = 'notif-item';
+      notif.onclick = function(){ goto('drivers'); closePopovers(); };
+      notif.innerHTML = '<div class="notif-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div><div class="notif-title">' + name + ' hired</div><div class="notif-msg">Welcome SMS sent · onboarding starts next cycle</div><div class="notif-time">Just now</div></div>';
+      notifList.insertBefore(notif, notifList.firstChild);
+    }
+    toast(name + ' marked as hired · welcome email + SMS sent');
+  }
+
+  // ─── ACKNOWLEDGE ALL SAFETY ───────────────────────────────
+  function acknowledgeAllSafety(){
+    closeSafetyQueue();
+    var clearLink = document.querySelector('.action-card[data-action="safety"] .clear-link');
+    if (clearLink) clearLink.click();
+    else toast('All 3 safety events marked acknowledged');
+  }
+  function markAllQualityReviewed(){
+    closeQualityQueue();
+    var clearLink = document.querySelector('.action-card[data-action="quality"] .clear-link');
+    if (clearLink) clearLink.click();
+    else toast('All 8 quality items marked reviewed');
+  }
+
+  // ─── SUBMIT DISPUTE ───────────────────────────────────────
+  function submitDispute(){
+    closeReconciliation();
+    // 1. Decrement disputes pending count on Finances Inbox KPIs
+    var pending = document.querySelector('#view-finances .kpi-card .kpi-value');
+    if (pending) {
+      var match = pending.textContent.match(/\d+/);
+      if (match) {
+        var n = Math.max(0, parseInt(match[0], 10) - 1);
+        pending.textContent = pending.textContent.replace(/\d+/, n);
+      }
+    }
+    // 2. Decrement Disputes subnav badge
+    _decrementBadge('#view-finances .subnav-item[data-sub="disputes"] span');
+    // 3. Decrement Finances sidebar badge text-number portion
+    _decrementBadge('.nav-item[data-view="finances"] .nav-badge');
+    // 4. Decrement dashboard disputes action card count
+    var dc = document.querySelector('.action-card[data-action="disputes"] .action-count');
+    if (dc && !dc.textContent.match(/\$/)) {
+      var match = dc.textContent.match(/\d+/);
+      if (match) {
+        var n = Math.max(0, parseInt(match[0], 10) - 1);
+        dc.textContent = dc.textContent.replace(/\d+/, n);
+      }
+    }
+    toast('Dispute submitted to Amazon · evidence attached · tracking thread created');
+  }
+
   function publishWeek(btn){
     const pill = document.querySelector('.sched-status-pill');
     if (pill) {
@@ -11797,6 +11936,33 @@ Evidence attached:
       cdSendBtn.addEventListener('click', function(){
         var seg = document.querySelector('.cd-segment.active');
         var segVal = seg ? seg.getAttribute('data-seg') : 'sms';
+        var segLabel = ({sms:'Coaching SMS sent', inperson:'1:1 conversation logged', pull:'Driver pulled from route', suspend:'Driver suspended'})[segVal] || 'Coaching action logged';
+        var driverNameEl = document.getElementById('cd-driver-name');
+        var driverName = driverNameEl ? driverNameEl.textContent.trim() : '';
+        // 1. Append to driver record coaching timeline if drawer is open for same driver
+        var drNameEl = document.getElementById('dr-name');
+        if (drNameEl && drNameEl.textContent.trim() === driverName) {
+          var tl = document.querySelector('#dr-tabview-perf .detail-timeline');
+          if (tl) {
+            var item = document.createElement('div');
+            item.className = 'detail-timeline-item';
+            item.innerHTML = '<div class="detail-timeline-dot green"></div>' +
+              '<div class="detail-timeline-text"><strong>' + segLabel + '</strong><small>Just logged</small></div>' +
+              '<div class="detail-timeline-time">now</div>';
+            tl.insertBefore(item, tl.firstChild);
+          }
+        }
+        // 2. Decrement dashboard "Coaching follow-ups" count
+        var cc = document.querySelector('.action-card[data-action="coaching"] .action-count');
+        if (cc) {
+          var match = cc.textContent.match(/\d+/);
+          if (match) {
+            var n = Math.max(0, parseInt(match[0], 10) - 1);
+            cc.textContent = n + ' due';
+            if (n === 0) cc.classList.add('zero');
+          }
+        }
+        // 3. Toast + persist
         if (segVal === 'sms') toast('Coaching SMS sent · saved to driver record');
         else if (segVal === 'inperson') toast('1:1 logged to driver record');
         else if (segVal === 'pull') toast('Driver pulled from route · backup notified');
