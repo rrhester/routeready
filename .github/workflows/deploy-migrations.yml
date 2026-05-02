@@ -1,0 +1,42 @@
+name: Deploy Supabase migrations
+
+# Runs `supabase db push` against the live project whenever a migration
+# file changes on main. Also runnable manually from the Actions tab.
+#
+# Required repo secrets (add once at Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  - personal access token from https://supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD   - the database password you set when you created the project
+#   SUPABASE_PROJECT_REF   - doiwrhkirgblcvuskhno
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy-migrations.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-migrations
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Push migrations
+        run: supabase db push --include-all
