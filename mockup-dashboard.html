@@ -1953,6 +1953,7 @@ a{color:inherit;text-decoration:none}
 
 .forms-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-3)}
 .form-card{
+  position:relative;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-5);cursor:pointer;transition:border-color .12s,box-shadow .12s;
   display:flex;flex-direction:column;gap:var(--s-3);
@@ -2646,11 +2647,31 @@ a{color:inherit;text-decoration:none}
    ───────────────────────────────────────────────────────────── */
 .cl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
 .cl-card{
+  position:relative;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-5);cursor:pointer;transition:border-color .12s,box-shadow .12s;
   display:flex;flex-direction:column;gap:var(--s-3);
 }
 .cl-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+
+/* "Pin to dashboard" overlay button — appears on hover, on form/checklist source cards */
+.pin-to-dash{
+  position:absolute;top:10px;right:10px;
+  width:30px;height:30px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  color:var(--text-subtle);cursor:pointer;
+  opacity:0;transform:translateY(-2px);
+  transition:opacity .15s, transform .15s, color .12s, border-color .12s;
+  z-index:2;
+}
+.cl-card:hover .pin-to-dash, .form-card:hover .pin-to-dash,
+.cl-card:focus-within .pin-to-dash, .form-card:focus-within .pin-to-dash,
+.pin-to-dash.is-pinned{opacity:1;transform:translateY(0)}
+.pin-to-dash:hover{color:var(--accent);border-color:var(--accent)}
+.pin-to-dash svg{width:14px;height:14px;stroke-width:2}
+.pin-to-dash.is-pinned{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.pin-to-dash.is-pinned svg{fill:var(--accent)}
 .cl-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .cl-card-icon{
   width:36px;height:36px;border-radius:var(--r-md);
@@ -12384,12 +12405,196 @@ Evidence attached:
   }
   document.addEventListener('DOMContentLoaded', _applyCardState);
 
+  // ─── PIN ANY WORKFLOW (form / checklist) TO THE DASHBOARD ───
+  // Adds a pin button to each .form-card and .cl-card. Clicking saves the
+  // item to localStorage; the dashboard renders it as a live task card that
+  // re-reads the source DOM each time the dashboard view is opened.
+  var DASH_PINS_KEY = 'rr.dashboard.pins.v1';
+  function _readPins(){
+    try { return JSON.parse(localStorage.getItem(DASH_PINS_KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function _writePins(arr){
+    try { localStorage.setItem(DASH_PINS_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+  function _slug(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+  function _pinId(kind, name){ return kind + '-' + _slug(name); }
+
+  // Read live state from a source .cl-card or .form-card
+  function _readWorkflowSnapshot(srcEl){
+    if (!srcEl) return null;
+    var isChecklist = srcEl.classList.contains('cl-card');
+    var kind = isChecklist ? 'checklist' : 'form';
+    var nameEl = srcEl.querySelector(isChecklist ? '.cl-card-name' : '.form-card-title');
+    if (!nameEl) return null;
+    var name = nameEl.textContent.trim();
+    var id = _pinId(kind, name);
+    var snap = { id: id, kind: kind, name: name };
+    if (isChecklist) {
+      var cat = srcEl.querySelector('.cl-card-cat'); snap.cat = cat ? cat.textContent.trim() : '';
+      var meta = srcEl.querySelector('.cl-card-meta'); snap.meta = meta ? meta.textContent.trim() : '';
+      var fill = srcEl.querySelector('.cl-card-progress-fill');
+      snap.pct = fill ? parseInt(fill.style.width, 10) || 0 : 0;
+      snap.fillCls = fill && /\b(warn|bad)\b/.test(fill.className) ? fill.className.split(' ').filter(function(c){return c==='warn'||c==='bad';})[0] : '';
+      var foot = srcEl.querySelector('.cl-card-foot');
+      if (foot) {
+        var spans = foot.querySelectorAll('span');
+        snap.footMain = spans[0] ? spans[0].textContent.trim() : '';
+        snap.footSub  = spans[1] ? spans[1].textContent.trim() : '';
+      }
+      var status = srcEl.querySelector('.cl-card-status');
+      snap.status = status ? status.textContent.trim() : '';
+    } else {
+      var desc = srcEl.querySelector('.form-card-desc'); snap.meta = desc ? desc.textContent.trim() : '';
+      var stats = srcEl.querySelector('.form-card-stats');
+      if (stats) {
+        var ss = stats.querySelectorAll('span');
+        snap.statText = Array.prototype.map.call(ss, function(s){ return s.textContent.trim(); }).join(' · ');
+      }
+      var fstatus = srcEl.querySelector('.form-card-status');
+      snap.status = fstatus ? fstatus.textContent.trim() : '';
+    }
+    return snap;
+  }
+
+  // Find source card by id (kind-slug) — scans all forms + checklists
+  function _findSourceById(id){
+    var nodes = document.querySelectorAll('.cl-card, .form-card');
+    for (var i = 0; i < nodes.length; i++) {
+      var snap = _readWorkflowSnapshot(nodes[i]);
+      if (snap && snap.id === id) return nodes[i];
+    }
+    return null;
+  }
+
+  function pinWorkflow(srcEl){
+    var snap = _readWorkflowSnapshot(srcEl);
+    if (!snap) return;
+    var pins = _readPins();
+    var idx = pins.indexOf(snap.id);
+    if (idx === -1) {
+      pins.push(snap.id); _writePins(pins);
+      _setPinBtnState(srcEl, true);
+      toast('Pinned to dashboard · ' + snap.name);
+    } else {
+      pins.splice(idx, 1); _writePins(pins);
+      _setPinBtnState(srcEl, false);
+      toast('Unpinned from dashboard');
+    }
+    renderPinnedWorkflows();
+  }
+  function unpinWorkflowById(id){
+    var pins = _readPins();
+    var idx = pins.indexOf(id);
+    if (idx !== -1) { pins.splice(idx, 1); _writePins(pins); }
+    var src = _findSourceById(id);
+    if (src) _setPinBtnState(src, false);
+    renderPinnedWorkflows();
+    toast('Unpinned from dashboard');
+  }
+  function _setPinBtnState(srcEl, isPinned){
+    var btn = srcEl.querySelector('.pin-to-dash');
+    if (!btn) return;
+    btn.classList.toggle('is-pinned', !!isPinned);
+    btn.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+    btn.setAttribute('title', isPinned ? 'Unpin from dashboard' : 'Pin to dashboard');
+  }
+
+  // Inject the pin button on every form/checklist card on first load
+  function _injectPinButtons(){
+    var pins = _readPins();
+    document.querySelectorAll('.cl-card, .form-card').forEach(function(card){
+      if (card.querySelector('.pin-to-dash')) return; // idempotent
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pin-to-dash';
+      btn.setAttribute('aria-label', 'Pin to dashboard');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>';
+      btn.addEventListener('click', function(e){
+        e.stopPropagation(); e.preventDefault();
+        pinWorkflow(card);
+      });
+      card.appendChild(btn);
+      var snap = _readWorkflowSnapshot(card);
+      if (snap && pins.indexOf(snap.id) !== -1) _setPinBtnState(card, true);
+    });
+  }
+
+  // Render pinned workflows as task cards inside #action-queue
+  function renderPinnedWorkflows(){
+    var queue = document.getElementById('action-queue');
+    if (!queue) return;
+    // Remove old pinned-workflow cards (we re-render each time for live data)
+    queue.querySelectorAll('.task-card.pinned-workflow').forEach(function(c){ c.remove(); });
+    var pins = _readPins();
+    pins.forEach(function(id){
+      var src = _findSourceById(id);
+      if (!src) return;
+      var snap = _readWorkflowSnapshot(src);
+      if (!snap) return;
+      queue.appendChild(_buildPinnedCard(snap));
+    });
+    if (typeof updateQueueProgress === 'function') updateQueueProgress();
+  }
+
+  function _buildPinnedCard(snap){
+    var card = document.createElement('div');
+    card.className = 'task-card pinned-workflow';
+    card.setAttribute('data-pin-id', snap.id);
+    card.setAttribute('data-sev', 'info');
+    var eyebrow = (snap.kind === 'checklist' ? 'Checklist' : 'Form') + (snap.cat ? ' · ' + snap.cat : '');
+    var countText = '';
+    if (snap.kind === 'checklist' && snap.footMain) {
+      var m = snap.footMain.match(/(\d+\s+of\s+\d+)/i);
+      countText = m ? m[1] : (snap.status || '');
+    } else if (snap.kind === 'form') {
+      countText = snap.status || '';
+    }
+    var progressHTML = '';
+    if (snap.kind === 'checklist') {
+      var fillCls = snap.fillCls ? (' ' + snap.fillCls) : '';
+      progressHTML = '<div class="cl-card-progress" style="margin-top:6px"><div class="cl-card-progress-fill' + fillCls + '" style="width:' + snap.pct + '%"></div></div>';
+    }
+    var subline = snap.kind === 'checklist'
+      ? (snap.footSub || snap.meta || '')
+      : (snap.statText || snap.meta || '');
+    var targetView = snap.kind === 'checklist' ? 'checklists' : 'forms';
+    card.innerHTML =
+      '<div class="task-tools">' +
+        '<button class="task-tool" type="button" aria-label="Unpin" title="Remove from dashboard" onclick="event.stopPropagation();unpinWorkflowById(\'' + snap.id + '\')">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="task-head">' +
+        '<span class="task-eyebrow">' + _esc(eyebrow) + '</span>' +
+        (countText ? '<span class="task-count">' + _esc(countText) + '</span>' : '') +
+      '</div>' +
+      '<h3 class="task-title">' + _esc(snap.name) + '</h3>' +
+      progressHTML +
+      (subline ? '<p class="task-msg">' + _esc(subline) + '</p>' : '') +
+      '<button class="task-cta" type="button" onclick="goto(\'' + targetView + '\')">' +
+        'Open ' + (snap.kind === 'checklist' ? 'checklist' : 'form') +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
+      '</button>';
+    return card;
+  }
+  function _esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+  // Re-render pinned workflows whenever the dashboard view becomes active
+  // (so progress updates reflect changes the user made elsewhere)
+  document.addEventListener('DOMContentLoaded', function(){
+    _injectPinButtons();
+    renderPinnedWorkflows();
+  });
+
   function goto(view){
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     document.getElementById('view-' + view).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
     var navBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
     if (navBtn) navBtn.classList.add('active');
+    // Refresh pinned workflow cards with live progress whenever returning to dashboard
+    if (view === 'dashboard' && typeof renderPinnedWorkflows === 'function') renderPinnedWorkflows();
     var titles = {
       dashboard: 'Dashboard',
       pipeline: 'Hiring Pipeline',
