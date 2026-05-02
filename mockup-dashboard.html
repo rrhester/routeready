@@ -898,6 +898,7 @@ a{color:inherit;text-decoration:none}
 .checkin-row.marked-late{background:#FFFBEB}
 .checkin-row.marked-noshow{background:#FEE2E2}
 .checkin-row.marked-present{background:#F0FDF4}
+.checkin-row.marked-vto{background:#F0F9FF}
 
 .checkin-driver{display:flex;align-items:center;gap:10px}
 .checkin-driver-name{font-size:13px;font-weight:600;color:var(--text)}
@@ -919,6 +920,7 @@ a{color:inherit;text-decoration:none}
 .status-btn.active.s-late{background:var(--amber);border-color:var(--amber);color:#fff}
 .status-btn.active.s-callout{background:var(--red);border-color:var(--red);color:#fff}
 .status-btn.active.s-noshow{background:#0F172A;border-color:#0F172A;color:#fff}
+.status-btn.active.s-vto{background:#0EA5E9;border-color:#0EA5E9;color:#fff}
 .status-btn svg{width:14px;height:14px;stroke-width:2.5}
 
 .checkin-foot{
@@ -5270,6 +5272,7 @@ a{color:inherit;text-decoration:none}
           .att-event-dot.late{background:#FBBF24}
           .att-event-dot.earlyout{background:#A78BFA}
           .att-event-dot.present{background:var(--green)}
+          .att-event-dot.vto{background:#0EA5E9}
 
           .att-num{font-weight:600;font-variant-numeric:tabular-nums}
           .att-num.warn{color:var(--amber)}
@@ -5374,6 +5377,7 @@ a{color:inherit;text-decoration:none}
                     <th style="text-align:right">Late</th>
                     <th style="text-align:right">Callouts</th>
                     <th style="text-align:right">No-shows</th>
+                    <th style="text-align:right" title="Voluntary Time Off — manager-offered opt-out, not counted against attendance">VTO</th>
                     <th style="text-align:right">Points</th>
                     <th style="text-align:right">Occ.</th>
                     <th>Status</th>
@@ -5440,6 +5444,12 @@ a{color:inherit;text-decoration:none}
                   <div><div style="font-weight:500">No-call no-show</div><div style="font-size:11px;color:var(--text-subtle)">No notice, or notice within the threshold window</div></div>
                   <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-noshow" value="3.0" />
                   <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-noshow" checked /><span class="toggle-slider"></span></label>
+                </div>
+                <div class="pol-event-row">
+                  <span class="att-event-dot vto"></span>
+                  <div><div style="font-weight:500">VTO — voluntary time off</div><div style="font-size:11px;color:var(--text-subtle)">Manager-offered opt-out (over-scheduled day). Default is 0 points / not an occurrence — never counts against the driver. Tracked separately so you can see if your cushion is too high.</div></div>
+                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-vto" value="0" />
+                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-vto" /><span class="toggle-slider"></span></label>
                 </div>
                 <div style="display:grid;grid-template-columns:24px 1fr 90px 100px;gap:var(--s-3);font-size:10px;color:var(--text-subtle);margin-top:6px;letter-spacing:.04em;text-transform:uppercase">
                   <span></span><span></span><span style="text-align:right">Points</span><span style="text-align:right">Counts as occ.</span>
@@ -9311,6 +9321,7 @@ Evidence attached:
               <span class="checkin-count-pip"><span class="checkin-count-pip-dot" style="background:var(--amber)"></span>Late <strong id="ci-c-late">0</strong></span>
               <span class="checkin-count-pip"><span class="checkin-count-pip-dot" style="background:var(--red)"></span>Callout <strong id="ci-c-callout">0</strong></span>
               <span class="checkin-count-pip"><span class="checkin-count-pip-dot" style="background:#0F172A"></span>No-show <strong id="ci-c-noshow">0</strong></span>
+              <span class="checkin-count-pip" title="Voluntary Time Off — driver opted to skip a shift you offered. Doesn't count against attendance."><span class="checkin-count-pip-dot" style="background:#0EA5E9"></span>VTO <strong id="ci-c-vto">0</strong></span>
             </div>
             <button class="btn">Save draft</button>
             <button class="btn btn-primary" onclick="goto('dashboard')">
@@ -13890,9 +13901,9 @@ Evidence attached:
     var status = btn.getAttribute('data-s');
     var wasCallout = row.classList.contains('marked-callout') || row.classList.contains('marked-noshow');
     // Reset row
-    row.classList.remove('marked-present','marked-late','marked-callout','marked-noshow');
+    row.classList.remove('marked-present','marked-late','marked-callout','marked-noshow','marked-vto');
     row.querySelectorAll('.status-btn').forEach(function(b){
-      b.classList.remove('active','s-present','s-late','s-callout','s-noshow');
+      b.classList.remove('active','s-present','s-late','s-callout','s-noshow','s-vto');
     });
     // Apply
     btn.classList.add('active','s-' + status);
@@ -13919,7 +13930,7 @@ Evidence attached:
     }
   }
   function ciUpdateCounts(){
-    var counts = { present:0, late:0, callout:0, noshow:0 };
+    var counts = { present:0, late:0, callout:0, noshow:0, vto:0 };
     document.querySelectorAll('#view-checkin .checkin-row').forEach(function(r){
       var active = r.querySelector('.status-btn.active');
       if (active) {
@@ -13931,7 +13942,8 @@ Evidence attached:
     document.getElementById('ci-c-late').textContent    = counts.late;
     document.getElementById('ci-c-callout').textContent = counts.callout;
     document.getElementById('ci-c-noshow').textContent  = counts.noshow;
-    var marked = counts.present + counts.late + counts.callout + counts.noshow;
+    var vtoEl = document.getElementById('ci-c-vto'); if (vtoEl) vtoEl.textContent = counts.vto;
+    var marked = counts.present + counts.late + counts.callout + counts.noshow + counts.vto;
     document.getElementById('ci-marked').textContent = marked;
     document.getElementById('ci-progress').style.width = (marked / 78 * 100) + '%';
   }
@@ -13987,7 +13999,12 @@ Evidence attached:
     // Asha Thornton: 1 callout + 1 late (at-risk but borderline)
     { id:'a11',driverId:'AT', date:_daysAgo(9),  type:'callout',  category:'Approved PTO', exempt:true, note:'Scheduled time-off · approved' },
     { id:'a12',driverId:'AT', date:_daysAgo(20), type:'late',     category:null, exempt:false, note:'+11 min' },
-    // Kerwin, Devon, Camille: clean
+    // VTO events — driver opted out of a shift you offered (over-scheduled days).
+    // Doesn't accrue points; useful signal for whether your OKAMI cushion is too high.
+    { id:'a13',driverId:'CF', date:_daysAgo(6),  type:'vto',      category:null, exempt:false, note:'Light Sat — accepted VTO' },
+    { id:'a14',driverId:'DP', date:_daysAgo(13), type:'vto',      category:null, exempt:false, note:'Sun overage — accepted VTO' },
+    { id:'a15',driverId:'KW', date:_daysAgo(20), type:'vto',      category:null, exempt:false, note:'Sun overage — accepted VTO' },
+    // Kerwin, Devon, Camille: clean of attendance issues
   ];
 
   var RR_ATTENDANCE_POLICY = _attDefaultPolicy();
@@ -14001,7 +14018,10 @@ Evidence attached:
         late:     { points: 0.5, occurrence: false, label: 'Late' },
         callout:  { points: 1.0, occurrence: true,  label: 'Call-out' },
         earlyout: { points: 0.5, occurrence: false, label: 'Early out' },
-        noshow:   { points: 3.0, occurrence: true,  label: 'No-show' }
+        noshow:   { points: 3.0, occurrence: true,  label: 'No-show' },
+        // VTO is a manager-offered opt-out — never counts against attendance.
+        // Tracked here so it appears in reports and feeds the cushion recommendation.
+        vto:      { points: 0,   occurrence: false, label: 'VTO (voluntary time off)' }
       },
       callout_window_hours: 4,
       late_grace_minutes: 10,
@@ -14053,10 +14073,12 @@ Evidence attached:
     p.events.callout.points  = num('pol-pts-callout', 1);
     p.events.earlyout.points = num('pol-pts-earlyout', 0.5);
     p.events.noshow.points   = num('pol-pts-noshow', 3);
+    if (p.events.vto)        p.events.vto.points = num('pol-pts-vto', 0);
     p.events.late.occurrence     = bool('pol-occ-late');
     p.events.callout.occurrence  = bool('pol-occ-callout');
     p.events.earlyout.occurrence = bool('pol-occ-earlyout');
     p.events.noshow.occurrence   = bool('pol-occ-noshow');
+    if (p.events.vto)            p.events.vto.occurrence = bool('pol-occ-vto');
     p.callout_window_hours = num('pol-callout-window', 4);
     p.late_grace_minutes   = num('pol-late-grace', 10);
     p.decay_days           = num('pol-decay-days', 90);
@@ -14081,10 +14103,12 @@ Evidence attached:
     set('pol-pts-callout', p.events.callout.points);
     set('pol-pts-earlyout', p.events.earlyout.points);
     set('pol-pts-noshow', p.events.noshow.points);
+    if (p.events.vto) set('pol-pts-vto', p.events.vto.points);
     chk('pol-occ-late', p.events.late.occurrence);
     chk('pol-occ-callout', p.events.callout.occurrence);
     chk('pol-occ-earlyout', p.events.earlyout.occurrence);
     chk('pol-occ-noshow', p.events.noshow.occurrence);
+    if (p.events.vto) chk('pol-occ-vto', p.events.vto.occurrence);
     set('pol-callout-window', p.callout_window_hours);
     set('pol-late-grace', p.late_grace_minutes);
     set('pol-decay-days', p.decay_days);
@@ -14143,11 +14167,14 @@ Evidence attached:
   function attComputeDriver(driver, windowDays){
     var p = RR_ATTENDANCE_POLICY;
     var events = attEventsForDriver(driver.id, windowDays);
-    var counts = { late:0, callout:0, noshow:0, earlyout:0 };
+    var counts = { late:0, callout:0, noshow:0, earlyout:0, vto:0 };
     var points = 0, occ = 0, lastIncident = null;
     events.forEach(function(e){
-      if (e.exempt) return;
+      // Always tally counts so the report shows what happened
       counts[e.type] = (counts[e.type] || 0) + 1;
+      // VTO + exempt events skip points/occurrences/lastIncident
+      if (e.exempt) return;
+      if (e.type === 'vto') return;
       var cfg = p.events[e.type];
       if (!cfg) return;
       points += cfg.points || 0;
@@ -14155,6 +14182,7 @@ Evidence attached:
       if (!lastIncident || e.date > lastIncident) lastIncident = e.date;
     });
     var status = attDriverStatus(points, occ);
+    // VTO doesn't reduce attendance % — driver was offered the day off
     var present = Math.max(0, driver.scheduled30 - counts.callout - counts.noshow);
     var rate = driver.scheduled30 > 0 ? Math.round(present / driver.scheduled30 * 100) : 100;
     return {
@@ -14255,6 +14283,7 @@ Evidence attached:
         + '<td style="text-align:right" class="att-num' + (r.c.counts.late ? ' warn' : '') + '">' + (r.c.counts.late || '–') + '</td>'
         + '<td style="text-align:right" class="att-num' + (r.c.counts.callout ? ' warn' : '') + '">' + (r.c.counts.callout || '–') + '</td>'
         + '<td style="text-align:right" class="att-num' + (r.c.counts.noshow ? ' bad' : '') + '">' + (r.c.counts.noshow || '–') + '</td>'
+        + '<td style="text-align:right" class="att-num" style="color:#0EA5E9">' + (r.c.counts.vto || '–') + '</td>'
         + '<td style="text-align:right" class="att-num ' + pointsCls + '">' + r.c.points.toFixed(1) + '</td>'
         + '<td style="text-align:right" class="att-num">' + r.c.occ + '</td>'
         + '<td>' + attStatusPillFor(r.d, r.c) + '</td>'
@@ -14280,7 +14309,7 @@ Evidence attached:
               + '<span class="att-timeline-pts">' + (counted ? '+' + pts.toFixed(1) + ' pt' : '0 pt') + '</span>'
               + '<button class="btn btn-sm" onclick="event.stopPropagation();attToggleExempt(\'' + e.id + '\')">' + (e.exempt ? 'Un-exempt' : 'Exempt') + '</button>';
           }).join('') + '</div>';
-      detail.innerHTML = '<td colspan="12" class="att-detail-cell"><div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Timeline · ' + r.d.name + '</div>' + timelineHtml + '</td>';
+      detail.innerHTML = '<td colspan="13" class="att-detail-cell"><div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Timeline · ' + r.d.name + '</div>' + timelineHtml + '</td>';
       body.appendChild(detail);
     });
 
@@ -14328,10 +14357,10 @@ Evidence attached:
   }
 
   function attExportCsv(){
-    var rows = [['Driver','Station','Scheduled','Present','Late','Callouts','No-shows','Points','Occurrences','Status','Last incident']];
+    var rows = [['Driver','Station','Scheduled','Present','Late','Callouts','No-shows','VTO','Points','Occurrences','Status','Last incident']];
     RR_DRIVERS.forEach(function(d){
       var c = attComputeDriver(d, _attWindow);
-      rows.push([d.name, d.station, c.scheduled, c.present, c.counts.late, c.counts.callout, c.counts.noshow, c.points.toFixed(1), c.occ, attStatusLabel(c.status), c.lastIncident || '']);
+      rows.push([d.name, d.station, c.scheduled, c.present, c.counts.late, c.counts.callout, c.counts.noshow, c.counts.vto, c.points.toFixed(1), c.occ, attStatusLabel(c.status), c.lastIncident || '']);
     });
     var csv = rows.map(function(r){ return r.map(function(x){ return '"' + String(x).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
     var blob = new Blob([csv], { type:'text/csv' });
@@ -15446,6 +15475,69 @@ Evidence attached:
   // Initial cascade (no-op until first suspension)
   document.addEventListener('DOMContentLoaded', cascadeSuspension);
   if (document.readyState !== 'loading') cascadeSuspension();
+
+  // ═══════════════════════════════════════════════════════════════
+  // VTO BUTTON INJECTION + OKAMI RECOMMENDATION ENHANCEMENT
+  //   - The check-in flow's status-row HTML was authored before VTO
+  //     existed; inject a 5th button into every row at init so we don't
+  //     have to touch the static markup.
+  //   - Enhance the OKAMI cushion recommendation with a VTO signal:
+  //     high VTO rate ⇒ cushion is too high ⇒ recommend lowering it.
+  // ═══════════════════════════════════════════════════════════════
+  var VTO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 13 11 15 15 11"/></svg>';
+  function injectVtoButtons(){
+    document.querySelectorAll('#view-checkin .status-row').forEach(function(row){
+      if (row.querySelector('.status-btn[data-s="vto"]')) return; // already injected
+      var btn = document.createElement('button');
+      btn.className = 'status-btn';
+      btn.setAttribute('data-s', 'vto');
+      btn.setAttribute('title', 'VTO — voluntary time off (offered, accepted)');
+      btn.setAttribute('onclick', 'ciMark(this)');
+      btn.innerHTML = VTO_SVG;
+      row.appendChild(btn);
+    });
+  }
+  document.addEventListener('DOMContentLoaded', injectVtoButtons);
+  if (document.readyState !== 'loading') injectVtoButtons();
+
+  // ─── OKAMI cushion recommendation: include VTO signal ───────────
+  // If VTO rate is high, you scheduled too many shifts → recommend a
+  // LOWER cushion. Wraps the existing recommendation function.
+  if (typeof okamiRecommendCushion === 'function' && !okamiRecommendCushion._vtoEnhanced) {
+    var _origRecommend = okamiRecommendCushion;
+    window.okamiRecommendCushion = function(){
+      var base = _origRecommend();
+      if (!window.RR_ATTENDANCE_LOG || !window.RR_DRIVERS) return base;
+      var windowDays = 30;
+      var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
+      var vtoCount = 0;
+      RR_ATTENDANCE_LOG.forEach(function(e){
+        if (e.type !== 'vto') return;
+        if (new Date(e.date + 'T00:00:00') < cutoff) return;
+        vtoCount++;
+      });
+      var totalScheduled = RR_DRIVERS.reduce(function(s, d){ return s + (d.scheduled30 || 22); }, 0);
+      var vtoRate = totalScheduled > 0 ? vtoCount / totalScheduled : 0;
+      // VTO rate > 4% suggests cushion is too high (you offered too many opt-outs).
+      // Subtract the excess from the recommendation, but never recommend below 5%.
+      var adjusted = base.percent;
+      var note = '';
+      if (vtoRate > 0.04) {
+        var excess = Math.round((vtoRate - 0.04) * 100 * 1.5); // soft taper
+        adjusted = Math.max(5, base.percent - excess);
+        note = ' · ' + vtoCount + ' VTO event(s) over ' + totalScheduled + ' shifts ('
+             + (vtoRate * 100).toFixed(1) + '%) suggests cushion is too high — lowered ' + excess + '%';
+      } else if (vtoRate > 0 && vtoRate <= 0.04) {
+        note = ' · ' + vtoCount + ' VTO event(s) (' + (vtoRate * 100).toFixed(1) + '% rate) within healthy band';
+      }
+      base.percent = adjusted;
+      base.vtoCount = vtoCount;
+      base.vtoRate = vtoRate;
+      base.source = base.source + note;
+      return base;
+    };
+    window.okamiRecommendCushion._vtoEnhanced = true;
+  }
 </script>
 
 </body>
