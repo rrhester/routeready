@@ -87,6 +87,10 @@ function renderApplicantCard(a) {
     primaryBtn = `<button class="pa-disp-btn ghost" type="button" disabled>${when}</button>`;
   }
 
+  const videoBtn = a.video_url
+    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}">▶ Intro video</button>`
+    : "";
+
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
       <div class="pa-row">
@@ -98,10 +102,27 @@ function renderApplicantCard(a) {
       </div>
       <div class="pa-disp">
         <button class="pa-disp-btn ghost" type="button" data-rr-action="call">Call</button>
+        ${videoBtn}
         <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
         ${primaryBtn}
       </div>
     </div>`;
+}
+
+// Open the applicant's video intro in a simple modal overlay.
+function openVideoModal(url) {
+  let overlay = document.getElementById("rr-video-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "rr-video-overlay";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:pointer";
+    overlay.addEventListener("click", () => { overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <video controls autoplay playsinline
+           style="max-width:100%;max-height:90vh;border-radius:12px;background:#000"
+           src="${url}"></video>`;
 }
 
 async function loadPipeline(stage = "all") {
@@ -165,6 +186,11 @@ async function handleAction(btn) {
       const { data } = await sb.from("applicants").select("phone").eq("id", id).single();
       if (data?.phone) location.href = `tel:${data.phone}`;
       else toast("No phone on file", "warn");
+      btn.disabled = false;
+      return;
+    } else if (action === "play_video") {
+      const url = btn.getAttribute("data-video-url");
+      if (url) openVideoModal(url);
       btn.disabled = false;
       return;
     }
