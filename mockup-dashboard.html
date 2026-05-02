@@ -4767,13 +4767,13 @@ a{color:inherit;text-decoration:none}
             <p class="page-sub">78 active drivers across 3 stations · cycle 14</p>
           </div>
           <div class="page-actions">
-            <button class="btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export roster
+            <button class="btn" onclick="openModal('modal-bulk-driver-ingest')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Bulk import
             </button>
-            <button class="btn btn-primary" onclick="openCoachDrawer()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Coach driver
+            <button class="btn btn-primary" onclick="openModal('modal-add-driver')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add driver
             </button>
           </div>
         </div>
@@ -10787,6 +10787,74 @@ Evidence attached:
   </div>
 </div>
 
+<!-- ─── ADD DRIVER MODAL ─── -->
+<div class="modal-backdrop" id="modal-add-driver" onclick="if(event.target===this)closeModal('modal-add-driver')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Add driver</p>
+        <p class="modal-sub">Add an existing driver to the roster · welcome SMS sent on save</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-add-driver')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">First name</label><input id="ad-fn" placeholder="Devon" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none" /></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Last name</label><input id="ad-ln" placeholder="Briggs" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none" /></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Phone</label><input id="ad-phone" placeholder="+1 417 555 0123" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none" /></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Email</label><input id="ad-email" placeholder="devon@email.com" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none" /></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Station</label><select id="ad-station" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none;background:var(--surface)"><option>KMO1</option><option>KMO2</option><option>KMO3</option></select></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Hire date</label><input id="ad-hiredate" type="date" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none" /></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Pay rate</label><input id="ad-payrate" placeholder="$22.50/hr" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none" /></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Vehicle assignment</label><select id="ad-vehicle" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none;background:var(--surface)"><option value="">Unassigned</option><option>VAN-04</option><option>VAN-08</option><option>VAN-12</option><option>VAN-14</option><option>VAN-16</option></select></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Status</label><select id="ad-status" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;outline:none;background:var(--surface)"><option value="active">Active</option><option value="onboarding">Onboarding</option><option value="inactive">Inactive</option></select></div>
+      </div>
+      <div style="margin-top:14px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:8px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Welcome SMS auto-sends with portal link · driver record created instantly
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-add-driver')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAddDriver()">Add driver &amp; send welcome SMS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── BULK DRIVER INGEST MODAL ─── -->
+<div class="modal-backdrop" id="modal-bulk-driver-ingest" onclick="if(event.target===this)closeModal('modal-bulk-driver-ingest')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Bulk import drivers</p>
+        <p class="modal-sub">Paste your existing roster · welcome SMS sent to all on import</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-bulk-driver-ingest')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">
+        Paste rows from your payroll export, ADP, Gusto, or any spreadsheet. RouteReady auto-detects columns: <strong>name · phone · station · hire date · pay rate</strong>.
+      </div>
+      <textarea id="bd-paste" placeholder="First Last,+1 417 555 0123,KMO1,2024-08-12,$22.50&#10;Marcus Davidson,+1 417 555 0142,KMO1,2023-11-04,$22.00&#10;Camille Foster,+1 417 555 0341,KMO1,2022-12-15,$24.00" style="width:100%;min-height:160px;padding:12px;border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
+      <div id="bd-preview" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:8px;font-size:12px;color:var(--green);font-weight:500"></div>
+      <div style="margin-top:14px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:8px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+        Smart Drop also accepts messy formats — paste your raw payroll export and we'll extract what we need
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-bulk-driver-ingest')">Cancel</button>
+      <button class="btn btn-primary" id="bd-import-btn" onclick="submitBulkDriverIngest()" disabled>Paste rows above</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="modal-add-applicant" onclick="if(event.target===this)closeModal('modal-add-applicant')">
   <div class="modal-card">
     <div class="modal-head">
@@ -12740,6 +12808,100 @@ Evidence attached:
     closeModal('modal-bulk-ingest');
     _bumpPipelineCounts(count);
     toast(count + ' applicants imported · screening SMS sent to all');
+  }
+
+  // ─── ADD DRIVER (single) ──────────────────────────────────
+  function submitAddDriver(){
+    var fn = document.getElementById('ad-fn').value.trim();
+    var ln = document.getElementById('ad-ln').value.trim();
+    var phone = document.getElementById('ad-phone').value.trim();
+    var email = document.getElementById('ad-email').value.trim();
+    var station = document.getElementById('ad-station').value;
+    var status = document.getElementById('ad-status').value;
+    if (!fn && !ln) { toast('Add a name first', 'warn'); return; }
+    if (!phone && !email) { toast('Phone or email required', 'warn'); return; }
+    closeModal('modal-add-driver');
+    var fullName = (fn + ' ' + ln).trim();
+    // Append a row to the drivers roster
+    var tbody = document.querySelector('#dr-sub-roster tbody');
+    if (tbody) {
+      var initials = (fn[0] || '?') + (ln[0] || '?');
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td><div class="cell-driver"><div class="avatar-sm tier-b">' + initials.toUpperCase() + '</div><div><div class="cell-name">' + fullName + '</div><div class="cell-name-sub">' + (phone || email) + '</div></div></div></td>' +
+        '<td>' + station + '</td>' +
+        '<td>0 days</td>' +
+        '<td><span class="score-bar"><span class="score-bar-fill" style="width:80%"></span></span><span style="font-weight:600">—</span></td>' +
+        '<td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>' +
+        '<td><span class="tag" style="background:var(--accent-soft);color:var(--accent-text)">' + (status === 'onboarding' ? 'Onboarding' : status === 'inactive' ? 'Inactive' : 'New') + '</span></td>' +
+        '<td class="cell-time">Just added</td>' +
+        '<td><button class="coach-row-btn" onclick="openCoachDrawer(\'' + fullName + '\',\'behavior\',\'New driver — welcome check-in\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>';
+      tbody.insertBefore(tr, tbody.firstChild);
+      tr.style.background = 'rgba(34,197,94,.08)';
+      setTimeout(function(){ tr.style.transition = 'background .8s'; tr.style.background = ''; }, 50);
+    }
+    // Reset form
+    ['ad-fn','ad-ln','ad-phone','ad-email'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+    if (typeof recomputeStaffingRisk === 'function') recomputeStaffingRisk();
+    toast(fullName + ' added to roster · welcome SMS sent to ' + (phone || email));
+  }
+
+  // ─── BULK DRIVER INGEST ───────────────────────────────────
+  document.addEventListener('input', function(e){
+    if (e.target && e.target.id === 'bd-paste') {
+      var rows = e.target.value.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
+      var count = rows.length;
+      var preview = document.getElementById('bd-preview');
+      var btn = document.getElementById('bd-import-btn');
+      if (count > 0) {
+        preview.style.display = 'block';
+        preview.innerHTML = '<strong>' + count + '</strong> drivers ready to import · 0 duplicates detected';
+        btn.disabled = false;
+        btn.textContent = 'Import ' + count + ' driver' + (count === 1 ? '' : 's') + ' & send welcome SMS';
+      } else {
+        preview.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = 'Paste rows above';
+      }
+    }
+  });
+  function submitBulkDriverIngest(){
+    var text = document.getElementById('bd-paste').value;
+    var rows = text.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
+    var count = rows.length;
+    if (count === 0) { toast('Paste rows first', 'warn'); return; }
+    closeModal('modal-bulk-driver-ingest');
+    // Visual: add N placeholder rows to roster top
+    var tbody = document.querySelector('#dr-sub-roster tbody');
+    if (tbody) {
+      rows.slice(0, Math.min(count, 5)).forEach(function(line){
+        var parts = line.split(',');
+        var name = (parts[0] || 'New driver').trim();
+        var phone = (parts[1] || '').trim();
+        var station = (parts[2] || 'KMO1').trim();
+        var initials = name.split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase() || '??';
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td><div class="cell-driver"><div class="avatar-sm tier-b">' + initials + '</div><div><div class="cell-name">' + name + '</div><div class="cell-name-sub">' + (phone || '—') + '</div></div></div></td>' +
+          '<td>' + station + '</td>' +
+          '<td>—</td>' +
+          '<td><span class="score-bar"><span class="score-bar-fill" style="width:80%"></span></span><span style="font-weight:600">—</span></td>' +
+          '<td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>' +
+          '<td><span class="tag" style="background:var(--accent-soft);color:var(--accent-text)">Imported</span></td>' +
+          '<td class="cell-time">Just imported</td>' +
+          '<td><button class="coach-row-btn" onclick="openCoachDrawer(\'' + name + '\',\'behavior\',\'New driver from bulk import\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>';
+        tbody.insertBefore(tr, tbody.firstChild);
+        tr.style.background = 'rgba(34,197,94,.08)';
+      });
+      setTimeout(function(){
+        tbody.querySelectorAll('tr[style*="background"]').forEach(function(r){ r.style.transition = 'background .8s'; r.style.background = ''; });
+      }, 80);
+    }
+    // Reset form
+    document.getElementById('bd-paste').value = '';
+    document.getElementById('bd-preview').style.display = 'none';
+    var btn = document.getElementById('bd-import-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Paste rows above'; }
+    if (typeof recomputeStaffingRisk === 'function') recomputeStaffingRisk();
+    toast(count + ' drivers imported · welcome SMS sent to all');
   }
 
   // ─── APPROVE / DENY / SWAP / PUBLISH ───────────────────────
