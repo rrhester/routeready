@@ -9,7 +9,7 @@
 
 window.RR_CONFIG = Object.freeze({
   SUPABASE_URL:     "https://doiwrhkirgblcvuskhno.supabase.co",
-  SUPABASE_ANON_KEY: "REPLACE_WITH_ANON_PUBLIC_KEY",
+  SUPABASE_ANON_KEY: "sb_publishable_HvRuTWdEOrYlJPPIp4CLog_UNC3vNdI",
   ALLOWED_SIGNUP_DOMAINS: ["gorouteready.com"],
   PUBLIC_BASE_URL:  "https://gorouteready.com",
 });
