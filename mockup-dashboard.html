@@ -5949,6 +5949,8 @@ a{color:inherit;text-decoration:none}
           </div>
 
           <div class="builder-shell">
+          <!-- OKAMI daily plan strip — populated by okamiRenderSchedulePlanStrip() -->
+          <div id="okami-plan-strip" style="display:none"></div>
           <!-- Calendar grid -->
           <div class="cal-wrap">
             <div class="cal-grid head">
@@ -6922,8 +6924,8 @@ a{color:inherit;text-decoration:none}
             </thead>
             <tbody id="okami-tbody">
               <!-- 13 weeks -->
-              <tr>
-                <td><div class="plan-week-label">W19</div><div class="plan-week-dates">May 1–7</div><span class="okami-week-tag cycle">Cycle 14</span></td>
+              <tr id="okami-row-0">
+                <td><button class="okami-expand-btn" onclick="okamiToggleDaily(0)" aria-label="Expand daily plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button><div class="plan-week-label" style="display:inline-block;vertical-align:middle">W19</div><div class="plan-week-dates">May 1–7</div><span class="okami-week-tag cycle">Cycle 14</span><span class="okami-week-tag" style="background:var(--accent);color:#fff;margin-left:4px" title="Daily route targets editable for the next 3 weeks">Daily</span></td>
                 <td class="center"><input class="plan-route-input" data-w="0" value="38" oninput="recalcOkami()"/></td>
                 <td class="center"><div class="plan-calc">85</div></td>
                 <td class="center"><div class="plan-calc">78</div></td>
@@ -6932,8 +6934,9 @@ a{color:inherit;text-decoration:none}
                 <td class="center"><div class="plan-calc">Apr 28</div></td>
                 <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
               </tr>
-              <tr>
-                <td><div class="plan-week-label">W20</div><div class="plan-week-dates">May 8–14</div></td>
+              <tr class="okami-detail" id="okami-detail-0"><td colspan="8" id="okami-detail-content-0"></td></tr>
+              <tr id="okami-row-1">
+                <td><button class="okami-expand-btn" onclick="okamiToggleDaily(1)" aria-label="Expand daily plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button><div class="plan-week-label" style="display:inline-block;vertical-align:middle">W20</div><div class="plan-week-dates">May 8–14</div><span class="okami-week-tag" style="background:var(--accent);color:#fff" title="Daily route targets editable for the next 3 weeks">Daily</span></td>
                 <td class="center"><input class="plan-route-input" data-w="1" value="40" oninput="recalcOkami()"/></td>
                 <td class="center"><div class="plan-calc">90</div></td>
                 <td class="center"><div class="plan-calc">81</div></td>
@@ -6942,8 +6945,9 @@ a{color:inherit;text-decoration:none}
                 <td class="center"><div class="plan-calc">May 5</div></td>
                 <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
               </tr>
-              <tr>
-                <td><div class="plan-week-label">W21</div><div class="plan-week-dates">May 15–21</div></td>
+              <tr class="okami-detail" id="okami-detail-1"><td colspan="8" id="okami-detail-content-1"></td></tr>
+              <tr id="okami-row-2">
+                <td><button class="okami-expand-btn" onclick="okamiToggleDaily(2)" aria-label="Expand daily plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button><div class="plan-week-label" style="display:inline-block;vertical-align:middle">W21</div><div class="plan-week-dates">May 15–21</div><span class="okami-week-tag" style="background:var(--accent);color:#fff" title="Daily route targets editable for the next 3 weeks">Daily</span></td>
                 <td class="center"><input class="plan-route-input" data-w="2" value="42" oninput="recalcOkami()"/></td>
                 <td class="center"><div class="plan-calc">94</div></td>
                 <td class="center"><div class="plan-calc">86</div></td>
@@ -6952,6 +6956,7 @@ a{color:inherit;text-decoration:none}
                 <td class="center"><div class="plan-calc">May 12</div></td>
                 <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
               </tr>
+              <tr class="okami-detail" id="okami-detail-2"><td colspan="8" id="okami-detail-content-2"></td></tr>
               <tr class="cycle-end">
                 <td><div class="plan-week-label">W22</div><div class="plan-week-dates">May 22–28</div><span class="okami-week-tag cycle">C14 ends</span></td>
                 <td class="center"><input class="plan-route-input" data-w="3" value="45" oninput="recalcOkami()"/></td>
@@ -15096,6 +15101,323 @@ Evidence attached:
   }
   document.addEventListener('DOMContentLoaded', licInit);
   if (document.readyState !== 'loading') licInit();
+
+  // ═══════════════════════════════════════════════════════════════
+  // OKAMI DAILY PLANNING — daily route targets + cushion + recommendation
+  //   - First 3 weeks of the 13-week OKAMI strip get a daily breakdown
+  //   - Cushion (over-plan) configurable as % or headcount per week
+  //   - Recommendation pulled from RR_ATTENDANCE_LOG callout/no-show rate
+  //   - Daily plan + cushion drive the Schedule's daily shift count
+  // ═══════════════════════════════════════════════════════════════
+
+  // Inject scoped CSS for new OKAMI elements
+  (function _injectOkamiDailyCss(){
+    var css = ''
+      + '.okami-expand-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:var(--canvas);border:1px solid var(--border);border-radius:5px;color:var(--text-muted);cursor:pointer;margin-right:6px;vertical-align:middle;padding:0;transition:transform .15s ease,background .15s}'
+      + '.okami-expand-btn:hover{background:var(--surface);color:var(--text)}'
+      + '.okami-expand-btn svg{width:11px;height:11px}'
+      + '.okami-expand-btn.expanded{transform:rotate(90deg);background:var(--accent);color:#fff;border-color:var(--accent)}'
+      + 'tr.okami-detail{display:none}'
+      + 'tr.okami-detail.open{display:table-row}'
+      + 'tr.okami-detail > td{padding:0 !important;background:#F8FAFC;border-bottom:2px solid var(--border)}'
+      + '.okami-daily-panel{padding:var(--s-4) var(--s-4);display:grid;grid-template-columns:1fr 280px;gap:var(--s-4)}'
+      + '.okami-daily-grid{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}'
+      + '.okami-daily-grid-head{display:grid;grid-template-columns:120px repeat(7,1fr);background:var(--canvas);border-bottom:1px solid var(--border);font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase}'
+      + '.okami-daily-grid-head > div{padding:8px 6px;text-align:center}'
+      + '.okami-daily-grid-head > div:first-child{text-align:left;padding-left:14px}'
+      + '.okami-daily-row{display:grid;grid-template-columns:120px repeat(7,1fr);border-top:1px solid var(--border);align-items:center}'
+      + '.okami-daily-row:first-child{border-top:0}'
+      + '.okami-daily-row .okami-daily-label{padding:10px 14px;font-size:12px;color:var(--text-muted);font-weight:500}'
+      + '.okami-daily-cell{padding:8px 6px;text-align:center;border-left:1px solid var(--border)}'
+      + '.okami-daily-cell input{width:100%;max-width:60px;padding:6px 4px;border:1px solid var(--border);border-radius:5px;background:var(--surface);text-align:center;font:inherit;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}'
+      + '.okami-daily-cell input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px #3B82F61F}'
+      + '.okami-daily-cell-shifts{font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}'
+      + '.okami-daily-cell-shifts .frac{color:var(--text-subtle);font-weight:500;font-size:10px;display:block;margin-top:1px}'
+      + '.okami-daily-row.is-today{background:#EFF6FF}'
+      + '.okami-cushion-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px}'
+      + '.okami-cushion-card h4{margin:0;font-size:12px;font-weight:600;color:var(--text);letter-spacing:.04em;text-transform:uppercase}'
+      + '.okami-cushion-mode{display:flex;background:var(--canvas);border-radius:6px;padding:3px;gap:2px}'
+      + '.okami-cushion-mode button{flex:1;border:0;background:transparent;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted);padding:6px 8px;border-radius:4px;cursor:pointer}'
+      + '.okami-cushion-mode button.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}'
+      + '.okami-cushion-input-row{display:flex;align-items:center;gap:8px}'
+      + '.okami-cushion-input-row input{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;text-align:center}'
+      + '.okami-cushion-input-row input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px #3B82F61F}'
+      + '.okami-cushion-input-row .unit{font-size:12px;color:var(--text-muted);font-weight:500;min-width:54px}'
+      + '.okami-recommend{background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.5}'
+      + '.okami-recommend strong{color:var(--accent-text);font-weight:700}'
+      + '.okami-recommend .apply-link{display:inline-block;margin-top:6px;font-size:11px;font-weight:600;color:#fff;background:var(--accent);padding:4px 10px;border-radius:5px;cursor:pointer;border:0;font-family:inherit}'
+      + '.okami-recommend .apply-link:hover{background:#2563EB}'
+      + '.okami-totals{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--text-subtle);padding-top:6px;border-top:1px solid var(--border)}'
+      + '.okami-totals strong{color:var(--text);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}'
+      // Schedule plan strip
+      + '#okami-plan-strip{background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:12px}'
+      + '.okami-plan-strip-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}'
+      + '.okami-plan-strip-title{font-weight:600;color:#0C4A6E;font-size:12px}'
+      + '.okami-plan-strip-grid{display:grid;grid-template-columns:120px repeat(7,1fr);gap:0;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #BAE6FD}'
+      + '.okami-plan-strip-grid > div{padding:6px 4px;text-align:center;font-size:11px;border-left:1px solid #E0F2FE;color:#0C4A6E}'
+      + '.okami-plan-strip-grid > div:first-child{text-align:left;padding-left:12px;font-weight:600;border-left:0;background:#F0F9FF}'
+      + '.okami-plan-strip-grid > div strong{display:block;font-size:13px;font-weight:700;color:#0369A1;font-variant-numeric:tabular-nums;margin-top:1px}'
+      + '.okami-plan-strip-grid > div.today{background:#DBEAFE}'
+      + '.okami-plan-strip-grid > div.short{background:#FEF3C7}'
+      + '.okami-plan-strip-grid > div.short strong{color:#92400E}';
+    var s = document.createElement('style');
+    s.appendChild(document.createTextNode(css));
+    document.head.appendChild(s);
+  })();
+
+  // ─── STATE ──────────────────────────────────────────────────────
+  // Per-week daily plan + cushion. Indexed by OKAMI week index (0 = W19).
+  // Only weeks 0..2 (next 3 weeks) get a daily breakdown.
+  var RR_OKAMI_DAILY = {
+    0: {
+      weekStart: '2026-05-01', weekLabel: 'W19', dateLabel: 'May 1–7',
+      // Default daily targets sum to ~38 (the W19 routes-max value); shape mirrors typical Amazon volume curve
+      daily: { mon: 35, tue: 38, wed: 38, thu: 40, fri: 38, sat: 28, sun: 18 },
+      cushionMode: 'percent',  // 'percent' | 'count'
+      cushionValue: 10
+    },
+    1: {
+      weekStart: '2026-05-08', weekLabel: 'W20', dateLabel: 'May 8–14',
+      daily: { mon: 38, tue: 40, wed: 40, thu: 42, fri: 42, sat: 30, sun: 20 },
+      cushionMode: 'percent',
+      cushionValue: 10
+    },
+    2: {
+      weekStart: '2026-05-15', weekLabel: 'W21', dateLabel: 'May 15–21',
+      daily: { mon: 40, tue: 42, wed: 42, thu: 44, fri: 44, sat: 32, sun: 22 },
+      cushionMode: 'percent',
+      cushionValue: 10
+    }
+  };
+  var RR_OKAMI_DAY_KEYS = ['mon','tue','wed','thu','fri','sat','sun'];
+  var RR_OKAMI_DAY_LABELS = { mon:'Mon', tue:'Tue', wed:'Wed', thu:'Thu', fri:'Fri', sat:'Sat', sun:'Sun' };
+
+  // ─── RECOMMENDATION ENGINE ──────────────────────────────────────
+  // Pulls callout + no-show rate from RR_ATTENDANCE_LOG; recommends a cushion
+  // % so that historical absence doesn't put you below your daily route target.
+  function okamiRecommendCushion(){
+    if (!window.RR_ATTENDANCE_LOG || !window.RR_DRIVERS) {
+      return { percent: 8, source: 'No data — using DSP default' };
+    }
+    var windowDays = 30;
+    var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
+    var absences = 0;
+    RR_ATTENDANCE_LOG.forEach(function(e){
+      if (e.exempt) return;
+      if (new Date(e.date + 'T00:00:00') < cutoff) return;
+      if (e.type === 'callout' || e.type === 'noshow') absences++;
+    });
+    var totalScheduled = RR_DRIVERS.reduce(function(s, d){ return s + (d.scheduled30 || 22); }, 0);
+    if (totalScheduled === 0) return { percent: 8, source: 'No scheduled shifts in window' };
+    var absenceRate = absences / totalScheduled;
+    // Recommended = absence rate × 1.5 safety factor, floor 5%, ceiling 20%
+    var recommended = Math.max(5, Math.min(20, Math.round(absenceRate * 100 * 1.5)));
+    return {
+      percent: recommended,
+      absences: absences,
+      totalScheduled: totalScheduled,
+      absenceRate: absenceRate,
+      source: absences + ' callout(s) + no-show(s) over ' + totalScheduled + ' scheduled shifts last ' + windowDays + 'd = '
+              + (absenceRate * 100).toFixed(1) + '% absence rate · recommended cushion ' + recommended + '% (1.5× safety)'
+    };
+  }
+
+  // ─── COMPUTATIONS ───────────────────────────────────────────────
+  function okamiCushionShiftsForRoutes(routes, cushionMode, cushionValue){
+    if (cushionMode === 'count') return routes + (cushionValue || 0);
+    return Math.round(routes * (1 + (cushionValue || 0) / 100));
+  }
+  function okamiWeekTotalRoutes(weekIdx){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return 0;
+    return RR_OKAMI_DAY_KEYS.reduce(function(s, k){ return s + (w.daily[k] || 0); }, 0);
+  }
+  function okamiWeekTotalShifts(weekIdx){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return 0;
+    return RR_OKAMI_DAY_KEYS.reduce(function(s, k){
+      return s + okamiCushionShiftsForRoutes(w.daily[k] || 0, w.cushionMode, w.cushionValue);
+    }, 0);
+  }
+  function okamiWeekMaxRoutes(weekIdx){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return 0;
+    return Math.max.apply(null, RR_OKAMI_DAY_KEYS.map(function(k){ return w.daily[k] || 0; }));
+  }
+
+  // ─── RENDER DAILY PANEL ─────────────────────────────────────────
+  function okamiRenderDailyPanel(weekIdx){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return;
+    var container = document.getElementById('okami-detail-content-' + weekIdx);
+    if (!container) return;
+    var rec = okamiRecommendCushion();
+    var totalRoutes = okamiWeekTotalRoutes(weekIdx);
+    var totalShifts = okamiWeekTotalShifts(weekIdx);
+    var maxRoutes = okamiWeekMaxRoutes(weekIdx);
+    var extraTotal = totalShifts - totalRoutes;
+
+    var html = '<div class="okami-daily-panel">'
+      + '<div class="okami-daily-grid">'
+        + '<div class="okami-daily-grid-head">'
+          + '<div>' + w.weekLabel + ' · ' + w.dateLabel + '</div>'
+          + RR_OKAMI_DAY_KEYS.map(function(k){ return '<div>' + RR_OKAMI_DAY_LABELS[k] + '</div>'; }).join('')
+        + '</div>'
+        + '<div class="okami-daily-row">'
+          + '<div class="okami-daily-label">Routes planned</div>'
+          + RR_OKAMI_DAY_KEYS.map(function(k){
+              return '<div class="okami-daily-cell"><input type="number" min="0" max="200" value="' + (w.daily[k] || 0) + '" data-okami-w="' + weekIdx + '" data-okami-d="' + k + '" oninput="okamiUpdateDaily(' + weekIdx + ', \'' + k + '\', this.value)"/></div>';
+          }).join('')
+        + '</div>'
+        + '<div class="okami-daily-row">'
+          + '<div class="okami-daily-label">Shifts to schedule</div>'
+          + RR_OKAMI_DAY_KEYS.map(function(k){
+              var routes = w.daily[k] || 0;
+              var shifts = okamiCushionShiftsForRoutes(routes, w.cushionMode, w.cushionValue);
+              var diff = shifts - routes;
+              return '<div class="okami-daily-cell"><div class="okami-daily-cell-shifts">' + shifts + '<span class="frac">+' + diff + '</span></div></div>';
+          }).join('')
+        + '</div>'
+      + '</div>'
+
+      + '<div class="okami-cushion-card">'
+        + '<h4>Over-plan cushion</h4>'
+        + '<div style="font-size:11px;color:var(--text-subtle);line-height:1.4;margin-top:-4px">Schedule extra shifts above route count to absorb callouts and no-shows.</div>'
+        + '<div class="okami-cushion-mode">'
+          + '<button class="' + (w.cushionMode === 'percent' ? 'active' : '') + '" onclick="okamiSetCushionMode(' + weekIdx + ', \'percent\')">Percent</button>'
+          + '<button class="' + (w.cushionMode === 'count' ? 'active' : '') + '" onclick="okamiSetCushionMode(' + weekIdx + ', \'count\')">Headcount</button>'
+        + '</div>'
+        + '<div class="okami-cushion-input-row">'
+          + '<input type="number" min="0" max="' + (w.cushionMode === 'percent' ? 50 : 20) + '" value="' + w.cushionValue + '" oninput="okamiSetCushionValue(' + weekIdx + ', this.value)" />'
+          + '<span class="unit">' + (w.cushionMode === 'percent' ? '% over routes' : 'extra shifts/day') + '</span>'
+        + '</div>'
+        + '<div class="okami-recommend">'
+          + '<strong>Recommended: ' + rec.percent + '%</strong><br>'
+          + '<span style="font-size:10px;line-height:1.4">' + rec.source + '</span>'
+          + (w.cushionMode === 'percent' && w.cushionValue !== rec.percent
+              ? '<button class="apply-link" onclick="okamiApplyRecommended(' + weekIdx + ')">Apply ' + rec.percent + '%</button>'
+              : '<span style="display:inline-block;margin-top:6px;font-size:10px;color:var(--accent-text)">✓ Following recommendation</span>')
+        + '</div>'
+        + '<div class="okami-totals">'
+          + '<span>Week total <strong>' + totalRoutes + '</strong> routes</span>'
+          + '<span>→ <strong>' + totalShifts + '</strong> shifts (+' + extraTotal + ')</span>'
+        + '</div>'
+        + '<div style="font-size:10px;color:var(--text-subtle);line-height:1.4">Peak day: <strong style="color:var(--text)">' + maxRoutes + ' routes</strong> · matches OKAMI "Routes (max)" cell</div>'
+        + '<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center" onclick="okamiApplyToSchedule(' + weekIdx + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>Apply to Schedule</button>'
+      + '</div>'
+    + '</div>';
+
+    container.innerHTML = html;
+
+    // Sync the W19 max-routes input with peak day so OKAMI math stays consistent
+    var maxInput = document.querySelector('.plan-route-input[data-w="' + weekIdx + '"]');
+    if (maxInput) {
+      maxInput.value = maxRoutes;
+      if (typeof recalcOkami === 'function') recalcOkami();
+    }
+  }
+
+  // ─── INTERACTIONS ───────────────────────────────────────────────
+  function okamiToggleDaily(weekIdx){
+    var detail = document.getElementById('okami-detail-' + weekIdx);
+    var btn = document.querySelector('#okami-row-' + weekIdx + ' .okami-expand-btn');
+    if (!detail || !btn) return;
+    var isOpen = detail.classList.toggle('open');
+    btn.classList.toggle('expanded', isOpen);
+    if (isOpen) okamiRenderDailyPanel(weekIdx);
+  }
+  window.okamiToggleDaily = okamiToggleDaily;
+
+  function okamiUpdateDaily(weekIdx, dayKey, value){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return;
+    var n = parseInt(value, 10); if (isNaN(n) || n < 0) n = 0;
+    w.daily[dayKey] = n;
+    okamiRenderDailyPanel(weekIdx);
+    okamiRenderSchedulePlanStrip();
+  }
+  window.okamiUpdateDaily = okamiUpdateDaily;
+
+  function okamiSetCushionMode(weekIdx, mode){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return;
+    if (mode === w.cushionMode) return;
+    // Sensible defaults when switching
+    if (mode === 'percent') w.cushionValue = 10;
+    else w.cushionValue = Math.max(2, Math.round(okamiWeekTotalRoutes(weekIdx) * 0.10 / 7));
+    w.cushionMode = mode;
+    okamiRenderDailyPanel(weekIdx);
+    okamiRenderSchedulePlanStrip();
+  }
+  window.okamiSetCushionMode = okamiSetCushionMode;
+
+  function okamiSetCushionValue(weekIdx, value){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return;
+    var n = parseFloat(value); if (isNaN(n) || n < 0) n = 0;
+    w.cushionValue = n;
+    okamiRenderDailyPanel(weekIdx);
+    okamiRenderSchedulePlanStrip();
+  }
+  window.okamiSetCushionValue = okamiSetCushionValue;
+
+  function okamiApplyRecommended(weekIdx){
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return;
+    var rec = okamiRecommendCushion();
+    w.cushionMode = 'percent';
+    w.cushionValue = rec.percent;
+    okamiRenderDailyPanel(weekIdx);
+    okamiRenderSchedulePlanStrip();
+    _toast('Applied recommended cushion: ' + rec.percent + '%');
+  }
+  window.okamiApplyRecommended = okamiApplyRecommended;
+
+  function okamiApplyToSchedule(weekIdx){
+    okamiRenderSchedulePlanStrip();
+    _toast('Daily plan applied · Schedule will populate ' + okamiWeekTotalShifts(weekIdx) + ' shifts');
+  }
+  window.okamiApplyToSchedule = okamiApplyToSchedule;
+
+  // ─── SCHEDULE PLAN STRIP (above the calendar grid) ──────────────
+  function okamiRenderSchedulePlanStrip(){
+    var strip = document.getElementById('okami-plan-strip');
+    if (!strip) return;
+    // For now show the current week (W19 = index 0)
+    var weekIdx = 0;
+    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) { strip.style.display = 'none'; return; }
+    strip.style.display = 'block';
+    var totalRoutes = okamiWeekTotalRoutes(weekIdx);
+    var totalShifts = okamiWeekTotalShifts(weekIdx);
+    var unitLabel = w.cushionMode === 'percent' ? w.cushionValue + '% cushion' : '+' + w.cushionValue + ' shifts/day cushion';
+    // Scheduled count from the static schedule grid (used to flag short days)
+    // We don't have a real schedule here, so just compare shifts-needed vs assumed-driver-count (78)
+    strip.innerHTML =
+      '<div class="okami-plan-strip-head">'
+        + '<div class="okami-plan-strip-title">📋 Daily plan from OKAMI · ' + w.weekLabel + ' (' + w.dateLabel + ')</div>'
+        + '<div style="display:flex;gap:10px;font-size:11px;color:#0C4A6E"><span><strong>' + totalRoutes + '</strong> routes</span><span>→ <strong>' + totalShifts + '</strong> shifts</span><span>· ' + unitLabel + '</span><a style="cursor:pointer;color:#0369A1;font-weight:600;text-decoration:underline" onclick="goto(\'okami\')">Edit in OKAMI →</a></div>'
+      + '</div>'
+      + '<div class="okami-plan-strip-grid">'
+        + '<div>Daily target</div>'
+        + RR_OKAMI_DAY_KEYS.map(function(k, i){
+          var routes = w.daily[k] || 0;
+          var shifts = okamiCushionShiftsForRoutes(routes, w.cushionMode, w.cushionValue);
+          var isToday = i === 1; // mockup: Tue is "today" per cal-cell-head.today
+          return '<div class="' + (isToday ? 'today' : '') + '">'
+            + RR_OKAMI_DAY_LABELS[k]
+            + '<strong>' + routes + ' / ' + shifts + '</strong>'
+          + '</div>';
+        }).join('')
+      + '</div>'
+      + '<div style="font-size:10px;color:#0C4A6E;margin-top:6px;line-height:1.4">Daily target shows <strong>routes / shifts to schedule</strong>. Cushion absorbs callouts and no-shows.</div>';
+  }
+  window.okamiRenderSchedulePlanStrip = okamiRenderSchedulePlanStrip;
+
+  // Re-render strip whenever schedule view becomes active
+  if (typeof goto === 'function' && !goto._wrappedForOkami) {
+    var _origGotoForOkami = goto;
+    goto = function(view){
+      _origGotoForOkami(view);
+      if (view === 'schedule') setTimeout(okamiRenderSchedulePlanStrip, 50);
+    };
+    goto._wrappedForOkami = true;
+  }
+
+  // Initial paint of plan strip (in case schedule is the first view shown)
+  document.addEventListener('DOMContentLoaded', okamiRenderSchedulePlanStrip);
+  if (document.readyState !== 'loading') okamiRenderSchedulePlanStrip();
 
   // ─── HOOK: re-apply cascade after navigation (non-destructive wrap) ──
   if (typeof goto === 'function' && !goto._wrappedForSuspension) {
