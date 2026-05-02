@@ -213,8 +213,13 @@ window.goto = function (view) {
 };
 
 // ─── Add applicant ─────────────────────────────────────────────────────────
+//
+// We bind via event delegation on a data-attribute, not by overriding the
+// mockup's window.submitAddApplicant(). Module top-level await means the
+// global override happens later than DOM-paint, and inline onclick handlers
+// would fire the mockup stub if the user clicked early.
 
-window.submitAddApplicant = async function () {
+async function doAddApplicant() {
   const fn    = document.getElementById("aa-fn").value.trim();
   const ln    = document.getElementById("aa-ln").value.trim();
   const phone = document.getElementById("aa-phone").value.trim();
@@ -237,7 +242,6 @@ window.submitAddApplicant = async function () {
   const { data: applicant, error } = await sb.rpc("intake_applicant", { p_payload: payload });
   if (error) { toast("Add failed: " + error.message, "warn"); return; }
 
-  // Auto-send screening if they have a phone.
   if (applicant.phone && applicant.status === "applied") {
     await sb.rpc("send_screening_link", { p_id: applicant.id });
   }
@@ -245,7 +249,7 @@ window.submitAddApplicant = async function () {
   closeModal("modal-add-applicant");
   await loadPipeline("all");
   toast(`${applicant.full_name} added · screening SMS queued`, "success");
-};
+}
 
 // ─── Bulk ingest (paste from Indeed CSV/TSV) ───────────────────────────────
 //
@@ -336,7 +340,7 @@ function toE164(raw) {
   return digits ? "+" + digits : null;
 }
 
-window.submitBulkIngest = async function () {
+async function doBulkIngest() {
   const text = document.getElementById("bi-paste").value;
   const { rows, skipped } = parseBulkText(text);
   if (rows.length === 0) {
@@ -383,7 +387,27 @@ window.submitBulkIngest = async function () {
   await loadPipeline("all");
   toast(`Imported ${added} · ${dupes} duplicates · ${failed} failed${skipped ? ` · ${skipped} unparseable rows skipped` : ""}`,
     failed ? "warn" : "success");
-};
+}
+
+// Capture-phase delegate for the two import buttons. Capture phase
+// + stopImmediatePropagation guarantees we win even if the mockup's
+// inline onclick somehow re-attaches.
+document.addEventListener("click", (e) => {
+  const add = e.target.closest("[data-rr-add-applicant]");
+  if (add) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    doAddApplicant();
+    return;
+  }
+  const bulk = e.target.closest("[data-rr-bulk-ingest]");
+  if (bulk) {
+    if (bulk.disabled) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    doBulkIngest();
+  }
+}, true);
 
 // Sign-out hook: any element with [data-rr-signout] logs out.
 document.addEventListener("click", async (e) => {
