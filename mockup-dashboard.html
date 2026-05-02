@@ -3446,6 +3446,123 @@ a{color:inherit;text-decoration:none}
 
 .bb-section-title{font-size:14px;font-weight:600;color:var(--text);margin:0 0 var(--s-2) 0}
 .bb-section-sub{font-size:12px;color:var(--text-muted);margin:0 0 var(--s-3) 0}
+
+/* ─── DASHBOARD ACTION QUEUE ─────────────────────────────────── */
+/* Persistent health strip — small, calm, never demands action */
+.health-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+.health-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;display:flex;align-items:center;gap:12px;
+  transition:border-color .12s,box-shadow .12s;cursor:pointer;
+}
+.health-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+.health-icon{
+  width:34px;height:34px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--canvas);
+}
+.health-icon svg{width:16px;height:16px;stroke-width:2}
+.health-icon.green{background:rgba(34,197,94,.1);color:var(--green)}
+.health-icon.amber{background:var(--amber-soft);color:var(--amber)}
+.health-icon.red{background:var(--red-soft);color:var(--red)}
+.health-icon.blue{background:var(--accent-soft);color:var(--accent-text)}
+.health-label{font-size:11px;color:var(--text-muted);font-weight:500;letter-spacing:.02em;margin-bottom:2px}
+.health-value{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1}
+.health-value .frac{font-size:11px;font-weight:500;color:var(--text-subtle);margin-left:2px}
+.health-trend{font-size:11px;color:var(--text-subtle);margin-top:2px}
+.health-trend .up{color:var(--green);font-weight:600}
+.health-trend .down{color:var(--red);font-weight:600}
+
+/* Queue header */
+.queue-head{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  margin-bottom:var(--s-3);
+}
+.queue-title{font-size:15px;font-weight:600;color:var(--text);margin:0}
+.queue-progress{font-size:12px;color:var(--text-muted)}
+.queue-progress .num{font-weight:700;color:var(--text)}
+
+/* Queue grid */
+.action-queue{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+@media (max-width:1280px){.action-queue{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:680px){.action-queue{grid-template-columns:1fr}}
+
+.action-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:14px 14px 12px;
+  display:flex;flex-direction:column;gap:8px;
+  transition:border-color .12s,box-shadow .12s,opacity .25s;
+  position:relative;
+  min-height:138px;
+}
+.action-card:hover:not(.cleared){border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+.action-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.action-icon{
+  width:28px;height:28px;border-radius:7px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.action-icon svg{width:14px;height:14px;stroke-width:2}
+.action-icon.red{background:var(--red-soft);color:var(--red)}
+.action-icon.amber{background:var(--amber-soft);color:var(--amber)}
+.action-icon.blue{background:var(--accent-soft);color:var(--accent-text)}
+.action-icon.green{background:rgba(34,197,94,.1);color:var(--green)}
+.action-icon.purple{background:rgba(124,58,237,.12);color:#7C3AED}
+.action-count{
+  font-size:11px;font-weight:700;
+  padding:2px 7px;border-radius:10px;
+  background:var(--canvas);color:var(--text);
+  letter-spacing:.01em;
+}
+.action-count.red{background:var(--red-soft);color:var(--red)}
+.action-count.amber{background:var(--amber-soft);color:var(--amber)}
+.action-card-title{font-size:13px;font-weight:600;color:var(--text);margin:2px 0 0;line-height:1.3}
+.action-card-msg{font-size:12px;color:var(--text-muted);line-height:1.5;flex:1}
+.action-card-cta{
+  display:flex;align-items:center;gap:6px;justify-content:space-between;
+  margin-top:4px;
+}
+.action-card-cta .btn{padding:6px 12px;font-size:12px}
+.action-card-cta .clear-link{
+  font-size:11px;color:var(--text-subtle);cursor:pointer;
+  text-decoration:none;font-weight:500;
+}
+.action-card-cta .clear-link:hover{color:var(--text-muted);text-decoration:underline}
+
+/* Cleared state — greyed, smaller, with check */
+.action-card.cleared{
+  background:var(--canvas);border-color:var(--border);
+  opacity:.65;
+}
+.action-card.cleared .action-card-msg{display:none}
+.action-card.cleared .action-icon{background:rgba(34,197,94,.1);color:var(--green)}
+.action-card.cleared .action-count{background:rgba(34,197,94,.1);color:var(--green)}
+.action-card.cleared .action-count::before{content:"✓ "}
+.action-card.cleared .action-card-cta .btn{display:none}
+.action-card.cleared .action-card-cta::after{
+  content:"Cleared for today";
+  font-size:11px;color:var(--green);font-weight:600;margin-left:auto;
+}
+.action-card.cleared .clear-link{display:none}
+
+/* All-clear empty state */
+.all-clear{
+  display:none;
+  background:linear-gradient(135deg,#F0FDF4,#FFFFFF);
+  border:1px solid #86EFAC;border-radius:14px;
+  padding:36px 32px;text-align:center;
+  margin-bottom:var(--s-5);
+}
+.all-clear.show{display:block;animation:allClearIn .35s ease-out}
+@keyframes allClearIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.all-clear-icon{
+  width:52px;height:52px;border-radius:50%;
+  background:var(--green);color:#fff;
+  display:inline-flex;align-items:center;justify-content:center;
+  margin-bottom:14px;
+}
+.all-clear-icon svg{width:26px;height:26px;stroke-width:2.6}
+.all-clear-title{font-size:18px;font-weight:700;color:#14532D;margin:0 0 4px;letter-spacing:-.01em}
+.all-clear-sub{font-size:13px;color:#15803D;margin:0}
 </style>
 </head>
 <body>
@@ -3570,16 +3687,12 @@ a{color:inherit;text-decoration:none}
         <div class="page-header">
           <div>
             <h1 class="page-title">Good morning, Ryan</h1>
-            <p class="page-sub">Here's what needs your attention today.</p>
+            <p class="page-sub" id="dashboard-sub">8 decisions waiting · clear them and you're done for the day.</p>
           </div>
           <div class="page-actions">
-            <button class="btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export
-            </button>
-            <button class="btn btn-primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add applicant
+            <button class="btn btn-sm" onclick="resetActionQueue()" title="Restore queue (demo helper)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              Reset queue
             </button>
           </div>
         </div>
@@ -3600,214 +3713,181 @@ a{color:inherit;text-decoration:none}
           </button>
         </div>
 
-        <!-- KPI strip -->
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Net headcount this week</div>
-            <div class="kpi-value">+2<span class="kpi-value-fraction"> drivers</span></div>
-            <div class="kpi-sub"><span class="kpi-pip green"></span> 3 hired · 1 left · 1 onboarding</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Drivers available</div>
-            <div class="kpi-value">78<span class="kpi-value-fraction"> / 90</span></div>
-            <div class="kpi-sub"><span class="kpi-pip red"></span> Short 12 for next week</div>
-          </div>
-          <div class="kpi-card coverage warn" onclick="openCoverageDetail()" title="% of next week's routes covered by qualified, available drivers — accounting for callouts, attrition, and time-off">
-            <div class="kpi-label">
-              <span>Coverage confidence</span>
+        <!-- Persistent health strip — calm, never demands action -->
+        <div class="health-strip">
+          <div class="health-card" onclick="openCoverageDetail()" title="% of next week's routes covered by qualified, available drivers">
+            <div class="health-icon green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             </div>
-            <div class="coverage-meter">
-              <div class="coverage-ring">
-                <svg width="32" height="32" viewBox="0 0 32 32">
-                  <circle class="coverage-ring-bg" cx="16" cy="16" r="13"/>
-                  <circle class="coverage-ring-fg" cx="16" cy="16" r="13" stroke-dasharray="81.7" stroke-dashoffset="13"/>
-                </svg>
-              </div>
-              <div class="kpi-value">84%</div>
+            <div>
+              <div class="health-label">Coverage Confidence · next week</div>
+              <div class="health-value">84<span class="frac">%</span></div>
+              <div class="health-trend">11 of 15 gap covered · safe to act</div>
             </div>
-            <div class="coverage-status">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Safe to act on accountability
-            </div>
-            <div class="coverage-math">11 of 15 gap covered · 3 at-risk drivers tracked</div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-label">30-day retention</div>
-            <div class="kpi-value">87%</div>
-            <div class="kpi-sub"><span class="kpi-delta up">▲ 4%</span> vs prior 30 days</div>
+          <div class="health-card" onclick="goto('drivers')" title="Driver Composite Score · fleet average across safety, quality, attendance, scorecard">
+            <div class="health-icon blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+            </div>
+            <div>
+              <div class="health-label">Driver Composite Score · fleet avg</div>
+              <div class="health-value">81</div>
+              <div class="health-trend"><span class="up">▲ 2</span> vs last week · 5 below 75</div>
+            </div>
+          </div>
+          <div class="health-card" onclick="goto('drivers');setTimeout(function(){drSub('insights');},50)" title="Retention Propensity · forward-looking churn risk">
+            <div class="health-icon amber">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div>
+              <div class="health-label">Retention Propensity</div>
+              <div class="health-value">73<span class="frac"> / 78 healthy</span></div>
+              <div class="health-trend">5 at-risk · 3 high probability of leaving</div>
+            </div>
           </div>
         </div>
 
-        <!-- Requires Attention -->
-        <div class="section">
-          <div class="section-head">
-            <h2 class="section-title">Requires attention</h2>
-            <span class="section-sub">3 items</span>
+        <!-- Today's queue header -->
+        <div class="queue-head">
+          <div>
+            <h2 class="queue-title">Your queue today</h2>
+            <p class="bb-section-sub" style="margin:4px 0 0 0">Strategic decisions waiting on you. Clear each one to be done for the day.</p>
           </div>
-          <div class="attn-list">
+          <div class="queue-progress"><span class="num" id="queue-cleared">0</span> of <span class="num" id="queue-total">8</span> cleared</div>
+        </div>
 
-            <div class="attn-card sev-red">
-              <div class="attn-icon sev-red">
+        <!-- All-clear empty state (hidden until queue=0) -->
+        <div class="all-clear" id="all-clear-state">
+          <div class="all-clear-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="all-clear-title">All clear · You're done for the day.</div>
+          <div class="all-clear-sub">Coverage holds at 84%. Composite trending up. The team is in good hands — go home.</div>
+        </div>
+
+        <!-- 8-card action queue -->
+        <div class="action-queue" id="action-queue">
+
+          <div class="action-card" data-action="pipeline">
+            <div class="action-card-head">
+              <div class="action-icon purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <span class="action-count">7 items</span>
+            </div>
+            <div class="action-card-title">Pipeline decisions</div>
+            <div class="action-card-msg">7 applicants awaiting stage move. Cycle 14 closes in 5 days.</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="goto('pipeline')">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
+            </div>
+          </div>
+
+          <div class="action-card" data-action="underperformer">
+            <div class="action-card-head">
+              <div class="action-icon amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg>
+              </div>
+              <span class="action-count amber">5 drivers</span>
+            </div>
+            <div class="action-card-title">Underperformers · review</div>
+            <div class="action-card-msg">Davidson, Reyes, Whitfield, Beckett, Thornton — score below 75. Coaching window closes Friday.</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="goto('drivers');setTimeout(function(){drSub('insights');},50)">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
+            </div>
+          </div>
+
+          <div class="action-card" data-action="safety">
+            <div class="action-card-head">
+              <div class="action-icon red">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </div>
-              <div class="attn-body">
-                <div class="attn-title">Short 12 drivers for next week</div>
-                <div class="attn-msg">Confirmed routes 90, available drivers 78. Pipeline can cover 6 if interview day Friday goes well.</div>
-              </div>
-              <button class="btn btn-primary btn-sm">Plan hires</button>
+              <span class="action-count red">3 events</span>
             </div>
-
-            <div class="attn-card sev-amber">
-              <div class="attn-icon sev-amber">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              </div>
-              <div class="attn-body">
-                <div class="attn-title">3 drivers below performance threshold</div>
-                <div class="attn-msg">M. Davidson, T. Reyes, K. Whitfield — flagged this cycle. Coaching window closes in 5 days.</div>
-              </div>
-              <button class="btn btn-sm">Review</button>
+            <div class="action-card-title">Safety infractions</div>
+            <div class="action-card-msg">2 Mentor harsh-brake events · 1 minor accident report (VAN-08, 4/29). Acknowledge and coach.</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="toast('Safety queue — would open list of 3 events')">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
+          </div>
 
-            <div class="attn-card sev-blue">
-              <div class="attn-icon sev-blue">
+          <div class="action-card" data-action="quality">
+            <div class="action-card-head">
+              <div class="action-icon amber">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               </div>
-              <div class="attn-body">
-                <div class="attn-title">Pipeline thinning for cycle 15</div>
-                <div class="attn-msg">Only 14 applicants in screening — usual cadence is 22+. Bulk import from Indeed or boost throttle.</div>
-              </div>
-              <button class="btn btn-sm">Open ingest</button>
+              <span class="action-count amber">8 issues</span>
             </div>
-
-          </div>
-        </div>
-
-        <!-- Pipeline Health + Performance Risk -->
-        <div class="split">
-          <div class="card">
-            <div class="card-head">
-              <h3 class="card-title">Pipeline health · Cycle 14</h3>
-              <a class="card-link" onclick="goto('pipeline')">View pipeline →</a>
-            </div>
-            <div class="funnel">
-              <div class="funnel-row s1">
-                <div class="funnel-label">Applied</div>
-                <div class="funnel-bar"><div class="funnel-fill" style="width:100%">48</div></div>
-                <div class="funnel-count">48</div>
-              </div>
-              <div class="funnel-row s2">
-                <div class="funnel-label">Screened</div>
-                <div class="funnel-bar"><div class="funnel-fill" style="width:62%">30</div></div>
-                <div class="funnel-count">30</div>
-              </div>
-              <div class="funnel-row s3">
-                <div class="funnel-label">Booked</div>
-                <div class="funnel-bar"><div class="funnel-fill" style="width:35%">17</div></div>
-                <div class="funnel-count">17</div>
-              </div>
-              <div class="funnel-row s4">
-                <div class="funnel-label">Hired</div>
-                <div class="funnel-bar"><div class="funnel-fill" style="width:21%">10</div></div>
-                <div class="funnel-count">10</div>
-              </div>
+            <div class="action-card-title">Quality misses</div>
+            <div class="action-card-msg">5 DCR concessions · 2 POD photo issues · 1 scan compliance miss this week. Review for dispute or coach.</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="toast('Quality queue — would open list of 8 items')">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
 
-          <div class="card">
-            <div class="card-head">
-              <h3 class="card-title">Performance risk</h3>
-              <a class="card-link">All drivers →</a>
+          <div class="action-card" data-action="schedule">
+            <div class="action-card-head">
+              <div class="action-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+              </div>
+              <span class="action-count">5 pending</span>
             </div>
-            <div class="perf-list">
-              <div class="perf-row">
-                <div>
-                  <div class="perf-name">Marcus Davidson</div>
-                  <div class="perf-detail">Score 62 · 2 missed days · KMO1 route</div>
-                  <span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2 booked replacements ready</span>
-                </div>
-                <span class="flag safety">Safety</span>
-                <button class="coach-row-btn" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags this cycle')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  Coach
-                </button>
-              </div>
-              <div class="perf-row">
-                <div>
-                  <div class="perf-name">Tasha Reyes</div>
-                  <div class="perf-detail">Score 68 · 1 incident · KMO2 route</div>
-                  <span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 booked replacements ready</span>
-                </div>
-                <span class="flag attendance">Attendance</span>
-                <button class="coach-row-btn" onclick="openCoachDrawer('Tasha Reyes','attendance','1 attendance incident this cycle')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  Coach
-                </button>
-              </div>
-              <div class="perf-row">
-                <div>
-                  <div class="perf-name">Kerwin Whitfield</div>
-                  <div class="perf-detail">Score 71 · Scorecard slipping · KMO1</div>
-                  <span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>1 booked, 2 in screening</span>
-                </div>
-                <span class="flag scorecard">Scorecard</span>
-                <button class="coach-row-btn" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over last 2 weeks')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  Coach
-                </button>
-              </div>
-              <div class="perf-row">
-                <div>
-                  <div class="perf-name">Jordan Beckett</div>
-                  <div class="perf-detail">Score 73 · Late returns · KMO3</div>
-                  <span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>KMO3 bench thin · 1 in screening</span>
-                </div>
-                <span class="flag scorecard">Scorecard</span>
-                <button class="coach-row-btn" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns in last 7 days')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  Coach
-                </button>
-              </div>
-              <div class="perf-row">
-                <div>
-                  <div class="perf-name">Asha Thornton</div>
-                  <div class="perf-detail">Score 74 · 1 callout · KMO2</div>
-                  <span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 booked replacements ready</span>
-                </div>
-                <span class="flag attendance">Attendance</span>
-                <button class="coach-row-btn" onclick="openCoachDrawer('Asha Thornton','attendance','1 callout this cycle')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  Coach
-                </button>
-              </div>
+            <div class="action-card-title">Schedule approvals</div>
+            <div class="action-card-msg">3 time-off requests · 2 swap requests waiting on you. Next week's schedule still in draft.</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="goto('schedule')">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
-        </div>
 
-        <!-- Trends (collapsed) -->
-        <div class="trends" id="trends">
-          <div class="trends-head" onclick="document.getElementById('trends').classList.toggle('open')">
-            <div class="trends-title">30-day trends</div>
-            <div class="trends-toggle">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <div class="action-card" data-action="disputes">
+            <div class="action-card-head">
+              <div class="action-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <span class="action-count">$1,847</span>
+            </div>
+            <div class="action-card-title">Invoice disputes · review</div>
+            <div class="action-card-msg">6 auto-flagged disputes ready to file. Scan compliance, late returns, POD discrepancies.</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="goto('finances')">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
-          <div class="trends-body">
-            <div>
-              <div class="trend-item-label">Applicants per week</div>
-              <div class="trend-item-value">38</div>
-              <div class="trend-item-spark"></div>
+
+          <div class="action-card" data-action="coaching">
+            <div class="action-card-head">
+              <div class="action-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <span class="action-count">4 due</span>
             </div>
-            <div>
-              <div class="trend-item-label">Hire conversion</div>
-              <div class="trend-item-value">21%</div>
-              <div class="trend-item-spark"></div>
-            </div>
-            <div>
-              <div class="trend-item-label">Avg time to hire</div>
-              <div class="trend-item-value">9.2d</div>
-              <div class="trend-item-spark"></div>
+            <div class="action-card-title">Coaching follow-ups</div>
+            <div class="action-card-msg">4 drivers due for follow-up after this week's coaching. Did the behavior change?</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="openCoachDrawer()">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
             </div>
           </div>
+
+          <div class="action-card" data-action="documents">
+            <div class="action-card-head">
+              <div class="action-icon amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <span class="action-count amber">2 expiring</span>
+            </div>
+            <div class="action-card-title">Documents expiring</div>
+            <div class="action-card-msg">DOT inspection (VAN-14) expires in 6 days · 1 driver license renewal in 11 days.</div>
+            <div class="action-card-cta">
+              <button class="btn btn-sm btn-primary" onclick="goto('fleet')">Review</button>
+              <a class="clear-link" onclick="clearAction(this)">Mark cleared</a>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -9889,6 +9969,49 @@ Evidence attached:
 </aside>
 
 <script>
+  // ─── DASHBOARD ACTION QUEUE — clearable inbox pattern ─────
+  function clearAction(linkEl){
+    var card = linkEl.closest('.action-card');
+    if (!card || card.classList.contains('cleared')) return;
+    card.classList.add('cleared');
+    updateQueueProgress();
+    var name = card.querySelector('.action-card-title').textContent.trim();
+    toast(name + ' · cleared');
+  }
+  function updateQueueProgress(){
+    var queue = document.getElementById('action-queue');
+    if (!queue) return;
+    var total = queue.querySelectorAll('.action-card').length;
+    var cleared = queue.querySelectorAll('.action-card.cleared').length;
+    var clearedEl = document.getElementById('queue-cleared');
+    var totalEl = document.getElementById('queue-total');
+    var subEl = document.getElementById('dashboard-sub');
+    var allClear = document.getElementById('all-clear-state');
+    if (clearedEl) clearedEl.textContent = cleared;
+    if (totalEl) totalEl.textContent = total;
+    if (subEl) {
+      var pending = total - cleared;
+      if (pending === 0) {
+        subEl.textContent = 'All clear · You\'re done for the day.';
+      } else if (cleared === 0) {
+        subEl.textContent = pending + ' decisions waiting · clear them and you\'re done for the day.';
+      } else {
+        subEl.textContent = pending + ' waiting · ' + cleared + ' cleared so far today.';
+      }
+    }
+    if (allClear) {
+      if (cleared === total && total > 0) allClear.classList.add('show');
+      else allClear.classList.remove('show');
+    }
+  }
+  function resetActionQueue(){
+    document.querySelectorAll('#action-queue .action-card.cleared').forEach(function(c){
+      c.classList.remove('cleared');
+    });
+    updateQueueProgress();
+    toast('Queue reset · 8 decisions restored');
+  }
+
   function goto(view){
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     document.getElementById('view-' + view).classList.add('active');
