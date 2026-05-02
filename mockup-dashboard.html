@@ -3888,8 +3888,6 @@ a{color:inherit;text-decoration:none}
 
     <!-- Top bar -->
     <header class="topbar">
-      <div class="topbar-title" id="tb-title">Dashboard</div>
-      <div class="topbar-context" id="tb-context">Cycle 14 · Day 3 of 28</div>
       <div class="topbar-spacer"></div>
       <div style="position:relative">
         <div class="search" style="cursor:text" onclick="document.getElementById('topbar-search').focus()">
@@ -3902,12 +3900,6 @@ a{color:inherit;text-decoration:none}
       <button class="sd-trigger" onclick="openSmartDrop()" title="Smart Drop · Paste any messy file (CSV, PDF, payroll, scorecards). RouteReady extracts what each tool needs and ignores the rest.">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
         Smart Drop
-      </button>
-      <button class="cov-pill" onclick="openCoverageDetail()" title="Coverage Confidence · % of next week's routes you have qualified, available drivers for — accounting for callouts, attrition, and time-off. Click for breakdown.">
-        <span class="cov-pill-ring">
-          <svg width="14" height="14" viewBox="0 0 14 14"><circle class="ring-bg" cx="7" cy="7" r="5.5"/><circle class="ring-fg" cx="7" cy="7" r="5.5" stroke-dasharray="34.5" stroke-dashoffset="5.5"/></svg>
-        </span>
-        Coverage 84%
       </button>
       <button class="icon-btn" aria-label="Notifications" onclick="event.stopPropagation();togglePopover('popover-notif')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -4142,10 +4134,6 @@ a{color:inherit;text-decoration:none}
             <p class="page-sub">48 applicants in cycle 14 · last imported 2h ago</p>
           </div>
           <div class="page-actions">
-            <button class="btn" onclick="goto('interview')" style="border-color:rgba(34,197,94,.4);color:var(--green);font-weight:600">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              Interview day · 7 today →
-            </button>
             <button class="btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               Bulk ingest
@@ -4165,6 +4153,27 @@ a{color:inherit;text-decoration:none}
 
         <!-- FUNNEL SUB-VIEW -->
         <div class="pipe-subview active" id="pipe-sub-funnel">
+
+        <!-- Today's interviews banner — only when bookings are today -->
+        <style>
+          .iv-day-banner{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#F0FDF4,var(--surface) 70%);border:1px solid rgba(34,197,94,.25);border-radius:10px;padding:12px 16px;margin-bottom:var(--s-3)}
+          .iv-day-banner svg.icon{width:22px;height:22px;color:var(--green);flex-shrink:0}
+          .iv-day-banner-text{flex:1;font-size:13px;color:var(--text);line-height:1.5}
+          .iv-day-banner-text strong{color:var(--green);font-weight:700}
+          .iv-day-banner-cta{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:0;font-family:inherit;transition:background .15s}
+          .iv-day-banner-cta:hover{background:#15803D}
+          .iv-day-banner-cta svg{width:14px;height:14px}
+        </style>
+        <div class="iv-day-banner" id="iv-day-banner">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <div class="iv-day-banner-text">
+            <strong>7 interviews scheduled today</strong> · auto-SMS already fired confirmations · Interview Day mode locks down the rest of the dashboard so nothing distracts you.
+          </div>
+          <button class="iv-day-banner-cta" onclick="goto('interview')">
+            Open Interview Day
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </div>
 
         <!-- Throughput KPIs -->
         <div class="pipeline-kpis">
@@ -4202,19 +4211,20 @@ a{color:inherit;text-decoration:none}
           .pipe-coverage-verdict.bad{background:#FEE2E2;color:#991B1B}
           .pipe-coverage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:var(--s-3)}
           @media (max-width:920px){.pipe-coverage-grid{grid-template-columns:repeat(2,1fr)}}
-          .pipe-week-card{background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
-          .pipe-week-card.today{border-color:var(--accent);background:#3B82F60A}
-          .pipe-week-card.short{background:#FEE2E20D;border-color:#FECACA}
-          .pipe-week-card.critical{background:#FEE2E2;border-color:#FECACA}
+          .pipe-week-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;cursor:help;transition:border-color .15s}
+          .pipe-week-card:hover{border-color:var(--text-subtle)}
+          .pipe-week-card.today{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+          .pipe-week-card.critical{border-color:#FCA5A5}
           .pipe-week-head{display:flex;justify-content:space-between;align-items:baseline}
           .pipe-week-label{font-size:11px;font-weight:700;color:var(--text);letter-spacing:.04em;text-transform:uppercase}
-          .pipe-week-date{font-size:10px;color:var(--text-subtle)}
-          .pipe-week-row{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted)}
-          .pipe-week-row strong{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
-          .pipe-week-gap{margin-top:auto;padding:4px 8px;border-radius:5px;font-size:11px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
-          .pipe-week-gap.ok{background:var(--green-soft);color:var(--green)}
-          .pipe-week-gap.warn{background:var(--amber-soft);color:var(--amber)}
-          .pipe-week-gap.bad{background:#FEE2E2;color:#991B1B}
+          .pipe-week-date{font-size:10px;color:var(--text-subtle);font-weight:500}
+          .pipe-week-gap-big{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 0;border-radius:8px;text-align:center}
+          .pipe-week-gap-big .pipe-week-gap-num{font-size:28px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+          .pipe-week-gap-big .pipe-week-gap-lbl{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;opacity:.85}
+          .pipe-week-gap-big.ok{background:var(--green-soft);color:var(--green)}
+          .pipe-week-gap-big.warn{background:var(--amber-soft);color:var(--amber)}
+          .pipe-week-gap-big.bad{background:#FEE2E2;color:#991B1B}
+          .pipe-week-foot{font-size:10px;color:var(--text-subtle);text-align:center;font-variant-numeric:tabular-nums}
           .pipe-coverage-rec{background:linear-gradient(135deg,var(--accent-soft),var(--surface) 90%);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:10px 14px;font-size:12.5px;line-height:1.55;color:var(--text);display:flex;align-items:center;gap:10px}
           .pipe-coverage-rec svg{width:16px;height:16px;color:var(--accent);flex-shrink:0}
           .pipe-coverage-rec strong{color:var(--accent-text);font-weight:700}
@@ -4266,125 +4276,231 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <!-- Table -->
-        <div class="table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Applicant</th>
-                <th>Contact</th>
-                <th>Score</th>
-                <th>Stage</th>
-                <th>Source</th>
-                <th>Added</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <div class="cell-name">Alicia Monroe</div>
-                  <div class="cell-name-sub">Springfield, MO</div>
-                </td>
-                <td class="cell-contact">alicia.m@email.com<br>+1 417 555 0142</td>
-                <td><span class="cell-score tier-priority">8</span></td>
-                <td><span class="stage-pill screening"><span class="dot"></span>Screening</span></td>
-                <td class="cell-source">Indeed</td>
-                <td class="cell-time">2h ago</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="cell-name">Devon Patterson</div>
-                  <div class="cell-name-sub">Joplin, MO</div>
-                </td>
-                <td class="cell-contact">devon.p@email.com<br>+1 417 555 0193</td>
-                <td><span class="cell-score tier-standard">6</span></td>
-                <td><span class="stage-pill new"><span class="dot"></span>New</span></td>
-                <td class="cell-source">Indeed</td>
-                <td class="cell-time">3h ago</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="cell-name">Brianna Cole</div>
-                  <div class="cell-name-sub">Carthage, MO</div>
-                </td>
-                <td class="cell-contact">brianna.c@email.com<br>+1 417 555 0218</td>
-                <td><span class="cell-score tier-priority">9</span></td>
-                <td><span class="stage-pill passed"><span class="dot"></span>Passed</span></td>
-                <td class="cell-source">Referral</td>
-                <td class="cell-time">Yesterday</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="cell-name">Marcus Hill</div>
-                  <div class="cell-name-sub">Springfield, MO</div>
-                </td>
-                <td class="cell-contact">marcus.h@email.com<br>+1 417 555 0276</td>
-                <td><span class="cell-score tier-standard">5</span></td>
-                <td><span class="stage-pill booked"><span class="dot"></span>Booked Fri 9:00</span></td>
-                <td class="cell-source">Indeed</td>
-                <td class="cell-time">Yesterday</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="cell-name">Sasha Underwood</div>
-                  <div class="cell-name-sub">Nixa, MO</div>
-                </td>
-                <td class="cell-contact">sasha.u@email.com<br>+1 417 555 0341</td>
-                <td><span class="cell-score tier-low">3</span></td>
-                <td><span class="stage-pill new"><span class="dot"></span>New</span></td>
-                <td class="cell-source">Walk-in</td>
-                <td class="cell-time">2 days ago</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="cell-name">Camille Foster</div>
-                  <div class="cell-name-sub">Branson, MO</div>
-                </td>
-                <td class="cell-contact">camille.f@email.com<br>+1 417 555 0408</td>
-                <td><span class="cell-score tier-priority">7</span></td>
-                <td><span class="stage-pill screening"><span class="dot"></span>Screening</span></td>
-                <td class="cell-source">Indeed</td>
-                <td class="cell-time">2 days ago</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="cell-name">Trevor Anders</div>
-                  <div class="cell-name-sub">Springfield, MO</div>
-                </td>
-                <td class="cell-contact">trevor.a@email.com<br>+1 417 555 0512</td>
-                <td><span class="cell-score tier-priority">8</span></td>
-                <td><span class="stage-pill hired"><span class="dot"></span>Hired</span></td>
-                <td class="cell-source">Referral</td>
-                <td class="cell-time">3 days ago</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="cell-name">Lena Whitcomb</div>
-                  <div class="cell-name-sub">Joplin, MO</div>
-                </td>
-                <td class="cell-contact">lena.w@email.com<br>+1 417 555 0633</td>
-                <td><span class="cell-score tier-priority">9</span></td>
-                <td><span class="stage-pill hired"><span class="dot"></span>Hired</span></td>
-                <td class="cell-source">Indeed</td>
-                <td class="cell-time">4 days ago</td>
-                <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-              </tr>
-              <tr id="pipeline-empty-row" style="display:none">
-                <td colspan="7" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">
-                  <div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">No applicants in this stage</div>
-                  <div>Try a different stage tab.</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Applicant cards (mirrors Interview Day card layout) -->
+        <style>
+          .pipe-applicants{display:flex;flex-direction:column;gap:10px}
+          .pa-card{display:grid;grid-template-columns:130px 1fr auto;gap:var(--s-3);align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .15s,box-shadow .15s}
+          .pa-card:hover{border-color:var(--text-subtle);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+          .pa-card-stage{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+          .pa-card-stage-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+          .pa-card-stage-pill.new{background:var(--accent-soft);color:var(--accent-text)}
+          .pa-card-stage-pill.screening{background:#FEF3C7;color:#92400E}
+          .pa-card-stage-pill.passed{background:var(--green-soft);color:var(--green)}
+          .pa-card-stage-pill.booked{background:#DBEAFE;color:#1D4ED8}
+          .pa-card-stage-pill.hired{background:var(--green);color:#fff}
+          .pa-card-stage-pill.filtered{background:var(--canvas);color:var(--text-subtle)}
+          .pa-card-time{font-size:11px;color:var(--text-subtle)}
+          .pa-card-body{display:flex;flex-direction:column;gap:6px;min-width:0}
+          .pa-card-header{display:flex;align-items:center;gap:10px}
+          .pa-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0}
+          .pa-card-name{font-size:14px;font-weight:600;color:var(--text);line-height:1.25}
+          .pa-card-meta{font-size:11px;color:var(--text-subtle);margin-top:1px}
+          .pa-card-tags{display:flex;gap:6px;flex-wrap:wrap}
+          .pa-card-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-size:11px;background:var(--canvas);color:var(--text-muted);font-weight:500}
+          .pa-card-tag.score{background:var(--accent-soft);color:var(--accent-text);font-weight:700;font-variant-numeric:tabular-nums}
+          .pa-card-tag.score-low{background:#FEE2E2;color:#991B1B}
+          .pa-card-tag.score-mid{background:#FEF3C7;color:#92400E}
+          .pa-card-tag.referral{background:rgba(124,58,237,.12);color:#7C3AED;font-weight:600}
+          .pa-card-actions{display:flex;gap:6px;flex-shrink:0}
+        </style>
+
+        <div class="pipe-applicants">
+
+          <div class="pa-card" data-stage="screening">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill screening">Screening</span>
+              <span class="pa-card-time">2h ago</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-b">AM</div>
+                <div>
+                  <div class="pa-card-name">Alicia Monroe</div>
+                  <div class="pa-card-meta">Springfield, MO · alicia.m@email.com · +1 417 555 0142</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score">Score 8</span>
+                <span class="pa-card-tag">Indeed</span>
+                <span class="pa-card-tag">Resume on file</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm">View</button>
+            </div>
+          </div>
+
+          <div class="pa-card" data-stage="new">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill new">New</span>
+              <span class="pa-card-time">3h ago</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-c">DP</div>
+                <div>
+                  <div class="pa-card-name">Devon Patterson</div>
+                  <div class="pa-card-meta">Joplin, MO · devon.p@email.com · +1 417 555 0193</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score score-mid">Score 6</span>
+                <span class="pa-card-tag">Indeed</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm">View</button>
+            </div>
+          </div>
+
+          <div class="pa-card" data-stage="passed">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill passed">Passed</span>
+              <span class="pa-card-time">Yesterday</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-a">BC</div>
+                <div>
+                  <div class="pa-card-name">Brianna Cole</div>
+                  <div class="pa-card-meta">Carthage, MO · brianna.c@email.com · +1 417 555 0218</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score">Score 9</span>
+                <span class="pa-card-tag referral">⚡ Referral</span>
+                <span class="pa-card-tag">Resume on file</span>
+                <span class="pa-card-tag">Video screen ★★★★☆</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm btn-primary">Book interview</button>
+            </div>
+          </div>
+
+          <div class="pa-card" data-stage="booked">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill booked">Booked · Fri 9:00 AM</span>
+              <span class="pa-card-time">Yesterday</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-c">MH</div>
+                <div>
+                  <div class="pa-card-name">Marcus Hill</div>
+                  <div class="pa-card-meta">Springfield, MO · marcus.h@email.com · +1 417 555 0276</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score score-mid">Score 5</span>
+                <span class="pa-card-tag">Indeed</span>
+                <span class="pa-card-tag">Confirmed via SMS</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm" onclick="goto('interview')">Open Interview Day</button>
+            </div>
+          </div>
+
+          <div class="pa-card" data-stage="new">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill new">New</span>
+              <span class="pa-card-time">2 days ago</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-d">SU</div>
+                <div>
+                  <div class="pa-card-name">Sasha Underwood</div>
+                  <div class="pa-card-meta">Nixa, MO · sasha.u@email.com · +1 417 555 0341</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score score-low">Score 3</span>
+                <span class="pa-card-tag">Walk-in</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm">View</button>
+            </div>
+          </div>
+
+          <div class="pa-card" data-stage="screening">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill screening">Screening</span>
+              <span class="pa-card-time">2 days ago</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-b">CF</div>
+                <div>
+                  <div class="pa-card-name">Camille Foster</div>
+                  <div class="pa-card-meta">Branson, MO · camille.f@email.com · +1 417 555 0408</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score">Score 7</span>
+                <span class="pa-card-tag">Indeed</span>
+                <span class="pa-card-tag">Video pending</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm">View</button>
+            </div>
+          </div>
+
+          <div class="pa-card" data-stage="hired">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill hired">Hired</span>
+              <span class="pa-card-time">3 days ago</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-b">TA</div>
+                <div>
+                  <div class="pa-card-name">Trevor Anders</div>
+                  <div class="pa-card-meta">Springfield, MO · trevor.a@email.com · +1 417 555 0512</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score">Score 8</span>
+                <span class="pa-card-tag referral">⚡ Referred by Marcus Davidson</span>
+                <span class="pa-card-tag">Onboarding starts Mon</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm">View driver</button>
+            </div>
+          </div>
+
+          <div class="pa-card" data-stage="hired">
+            <div class="pa-card-stage">
+              <span class="pa-card-stage-pill hired">Hired</span>
+              <span class="pa-card-time">4 days ago</span>
+            </div>
+            <div class="pa-card-body">
+              <div class="pa-card-header">
+                <div class="pa-card-avatar tier-a">LW</div>
+                <div>
+                  <div class="pa-card-name">Lena Whitcomb</div>
+                  <div class="pa-card-meta">Joplin, MO · lena.w@email.com · +1 417 555 0633</div>
+                </div>
+              </div>
+              <div class="pa-card-tags">
+                <span class="pa-card-tag score">Score 9</span>
+                <span class="pa-card-tag">Indeed</span>
+                <span class="pa-card-tag">Onboarding in progress</span>
+              </div>
+            </div>
+            <div class="pa-card-actions">
+              <button class="btn btn-sm">View driver</button>
+            </div>
+          </div>
+
+          <div id="pipeline-empty-row" style="display:none;padding:48px;text-align:center;color:var(--text-subtle);font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+            <div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">No applicants in this stage</div>
+            <div>Try a different stage tab.</div>
+          </div>
         </div>
 
         </div><!-- /pipe-sub-funnel -->
@@ -5645,6 +5761,7 @@ a{color:inherit;text-decoration:none}
             <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
             <button class="settings-nav-item" data-set="integrations" onclick="setSettingsSection(this)">Integrations</button>
             <button class="settings-nav-item" data-set="hiring" onclick="setSettingsSection(this)">Hiring criteria</button>
+            <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Referral program</button>
             <button class="settings-nav-item" data-set="screening" onclick="setSettingsSection(this)">Screening questions</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="video" onclick="setSettingsSection(this)">Video screening</button>
@@ -5866,6 +5983,132 @@ a{color:inherit;text-decoration:none}
                 <div><div class="form-label">Storage</div><div class="form-help">Where video recordings live. Supabase Storage by default.</div></div>
                 <div style="font-size:12px;color:var(--text-muted)">Supabase Storage · 14 videos stored · ~280 MB used</div>
               </div>
+            </div>
+
+            <!-- REFERRAL PROGRAM SECTION -->
+            <div class="settings-section hidden" data-set="referrals">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Referral program</h2>
+                <p class="settings-section-sub">Set the dollar amounts paid to a referrer at each milestone. When you hire a referrer-attributed applicant, all four payouts are scheduled automatically. Edit anytime — changes affect future hires only.</p>
+              </div>
+
+              <div class="form-row">
+                <div><div class="form-label">Enable referral program</div><div class="form-help">When off, hiring an attributed applicant doesn't schedule payouts.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="ref-enabled" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <h4 style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-4) 0 8px 0">Payout milestones</h4>
+
+              <style>
+                .ref-milestone-row{display:grid;grid-template-columns:24px 1fr 140px 120px;gap:var(--s-3);align-items:center;padding:10px 0;border-top:1px solid var(--border)}
+                .ref-milestone-row:first-of-type{border-top:0}
+                .ref-milestone-num{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+                .ref-amt-input{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px}
+                .ref-amt-input span{color:var(--text-muted);font-weight:600}
+                .ref-amt-input input{border:0;background:transparent;font:inherit;font-size:13px;font-weight:600;width:80px;text-align:right;outline:none;font-variant-numeric:tabular-nums;color:var(--text)}
+              </style>
+
+              <div>
+                <div class="ref-milestone-row">
+                  <div class="ref-milestone-num">1</div>
+                  <div>
+                    <div style="font-weight:500">On hire</div>
+                    <div style="font-size:11px;color:var(--text-subtle)">Paid the same day the applicant is marked Hired in Interview Day.</div>
+                  </div>
+                  <div class="ref-amt-input"><span>$</span><input type="number" min="0" step="25" id="ref-amt-hire" value="500" /></div>
+                  <div style="font-size:11px;color:var(--text-subtle);text-align:right">at hire date</div>
+                </div>
+                <div class="ref-milestone-row">
+                  <div class="ref-milestone-num">2</div>
+                  <div>
+                    <div style="font-weight:500">30-day tenure</div>
+                    <div style="font-size:11px;color:var(--text-subtle)">Driver still active 30 days after hire date.</div>
+                  </div>
+                  <div class="ref-amt-input"><span>$</span><input type="number" min="0" step="25" id="ref-amt-30" value="250" /></div>
+                  <div style="font-size:11px;color:var(--text-subtle);text-align:right">+30 days</div>
+                </div>
+                <div class="ref-milestone-row">
+                  <div class="ref-milestone-num">3</div>
+                  <div>
+                    <div style="font-weight:500">60-day tenure</div>
+                    <div style="font-size:11px;color:var(--text-subtle)">Driver still active 60 days after hire.</div>
+                  </div>
+                  <div class="ref-amt-input"><span>$</span><input type="number" min="0" step="25" id="ref-amt-60" value="250" /></div>
+                  <div style="font-size:11px;color:var(--text-subtle);text-align:right">+60 days</div>
+                </div>
+                <div class="ref-milestone-row">
+                  <div class="ref-milestone-num">4</div>
+                  <div>
+                    <div style="font-weight:500">90-day tenure</div>
+                    <div style="font-size:11px;color:var(--text-subtle)">Driver still active 90 days after hire — end of probation period.</div>
+                  </div>
+                  <div class="ref-amt-input"><span>$</span><input type="number" min="0" step="25" id="ref-amt-90" value="500" /></div>
+                  <div style="font-size:11px;color:var(--text-subtle);text-align:right">+90 days</div>
+                </div>
+              </div>
+
+              <div style="margin-top:var(--s-4);background:var(--canvas);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);line-height:1.5;display:flex;align-items:flex-start;gap:10px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;color:var(--accent);flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <div>
+                  <strong style="color:var(--text)">Total per successful referral: <span id="ref-total">$1,500</span></strong>
+                  <div style="margin-top:4px">Paid via your existing payroll integration (Gusto / ADP / Paychex / manual). Tenure milestones fire automatically on the matching date if the driver is still active.</div>
+                </div>
+              </div>
+
+              <h4 style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-5) 0 8px 0">Eligibility rules</h4>
+
+              <div class="form-row">
+                <div><div class="form-label">Referrer must be active</div><div class="form-help">A referrer who left or was terminated before the milestone date forfeits that payout.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="ref-rule-active" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="form-row">
+                <div><div class="form-label">Referrer must be in good standing</div><div class="form-help">No active suspension or final warning at milestone date.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="ref-rule-standing" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="form-row" style="border-bottom:0">
+                <div><div class="form-label">Driver hire counts only once</div><div class="form-help">If a hired driver leaves and is later re-hired, no second payout cycle.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="ref-rule-once" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <div style="margin-top:var(--s-4);display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn" onclick="refResetAmounts()">Reset to defaults</button>
+                <button class="btn btn-primary" onclick="refSaveProgram()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Save program
+                </button>
+              </div>
+
+              <script>
+                (function(){
+                  function fmt(n){ return '$' + n.toLocaleString('en-US'); }
+                  function refTotal(){
+                    var h = parseInt(document.getElementById('ref-amt-hire').value, 10) || 0;
+                    var t30 = parseInt(document.getElementById('ref-amt-30').value, 10) || 0;
+                    var t60 = parseInt(document.getElementById('ref-amt-60').value, 10) || 0;
+                    var t90 = parseInt(document.getElementById('ref-amt-90').value, 10) || 0;
+                    var el = document.getElementById('ref-total');
+                    if (el) el.textContent = fmt(h + t30 + t60 + t90);
+                  }
+                  ['ref-amt-hire','ref-amt-30','ref-amt-60','ref-amt-90'].forEach(function(id){
+                    var el = document.getElementById(id);
+                    if (el) el.addEventListener('input', refTotal);
+                  });
+                  window.refResetAmounts = function(){
+                    document.getElementById('ref-amt-hire').value = 500;
+                    document.getElementById('ref-amt-30').value = 250;
+                    document.getElementById('ref-amt-60').value = 250;
+                    document.getElementById('ref-amt-90').value = 500;
+                    refTotal();
+                    if (window.toast) toast('Reset to defaults');
+                  };
+                  window.refSaveProgram = function(){
+                    refTotal();
+                    if (window.toast) toast('Referral program saved · effective for future hires');
+                  };
+                  document.addEventListener('DOMContentLoaded', refTotal);
+                  if (document.readyState !== 'loading') refTotal();
+                })();
+              </script>
             </div>
 
             <!-- LICENSE RENEWALS SECTION -->
@@ -12006,8 +12249,9 @@ Evidence attached:
       settings: 'Cardinal Logistics · KMO1',
       checkin: 'Tuesday, May 1 · 78 expected'
     };
-    document.getElementById('tb-title').textContent = titles[view] || '';
-    document.getElementById('tb-context').textContent = contexts[view] || '';
+    // tb-title / tb-context were removed from the topbar — page-level h1 carries the title now.
+    // (titles[] / contexts[] kept for future use, e.g. document.title updates.)
+    if (titles[view]) document.title = titles[view] + ' · RouteReady';
     window.scrollTo({top:0,behavior:'instant'});
   }
 
@@ -12280,19 +12524,25 @@ Evidence attached:
     var rows = pipeForecast();
 
     grid.innerHTML = rows.map(function(r, i){
-      var verdictClass = r.verdict === 'ok' ? 'ok' : r.verdict === 'warn' ? 'warn' : 'bad';
       var cardClass = i === 0 ? 'today' : (r.verdict === 'bad' || r.verdict === 'hve' ? 'critical' : (r.verdict === 'warn' ? 'short' : ''));
-      var gapTxt = r.gap >= 0 ? '+' + r.gap + ' covered' : (r.gap + ' short');
-      var gapLabel = r.hve ? 'HVE absorption' : gapTxt;
-      var gapCls = r.hve ? 'bad' : (r.gap >= 0 ? 'ok' : Math.abs(r.gap) <= 5 ? 'warn' : 'bad');
-      var weekLabel = i === 0 ? 'This week' : '+' + i + ' wk' + (i === 1 ? '' : 's');
-      return '<div class="pipe-week-card ' + cardClass + '">'
-        + '<div class="pipe-week-head"><span class="pipe-week-label">' + weekLabel + '</span><span class="pipe-week-date">' + r.label + ' · ' + r.dateLabel + '</span></div>'
-        + '<div class="pipe-week-row"><span>Routes (max)</span><strong>' + r.routesMax + '</strong></div>'
-        + '<div class="pipe-week-row"><span>Drivers needed</span><strong>' + r.driversNeeded + '</strong></div>'
-        + '<div class="pipe-week-row"><span>Active + projected</span><strong>' + r.projectedActive + '</strong></div>'
-        + '<div class="pipe-week-row"><span>Pipeline delivers</span><strong>+' + Math.round(r.projectedHires * 10)/10 + '</strong></div>'
-        + '<div class="pipe-week-gap ' + gapCls + '">' + gapLabel + '</div>'
+      var gapNum   = r.hve ? 'HVE'      : (r.gap >= 0 ? '+' + r.gap : r.gap.toString());
+      var gapLabel = r.hve ? 'absorb'   : (r.gap >= 0 ? 'covered'   : 'short');
+      var gapCls   = r.hve ? 'bad' : (r.gap >= 0 ? 'ok' : Math.abs(r.gap) <= 5 ? 'warn' : 'bad');
+      var weekLabel = i === 0 ? 'This week' : '+' + i + (i === 1 ? ' wk' : ' wks');
+      var tooltip = 'Routes max ' + r.routesMax
+                  + ' · drivers needed ' + r.driversNeeded
+                  + ' · active+projected ' + r.projectedActive
+                  + ' · pipeline delivers +' + (Math.round(r.projectedHires * 10) / 10);
+      return '<div class="pipe-week-card ' + cardClass + '" title="' + tooltip + '">'
+        + '<div class="pipe-week-head">'
+          + '<span class="pipe-week-label">' + weekLabel + '</span>'
+          + '<span class="pipe-week-date">' + r.label + '</span>'
+        + '</div>'
+        + '<div class="pipe-week-gap-big ' + gapCls + '">'
+          + '<div class="pipe-week-gap-num">' + gapNum + '</div>'
+          + '<div class="pipe-week-gap-lbl">' + gapLabel + '</div>'
+        + '</div>'
+        + '<div class="pipe-week-foot">' + r.driversNeeded + ' needed · ' + r.projectedActive + ' projected</div>'
       + '</div>';
     }).join('');
 
@@ -13394,18 +13644,15 @@ Evidence attached:
   // ─── PIPELINE STAGE FILTER ─────────────────────────────────
   function filterPipelineStage(btn){
     const stage = btn.getAttribute('data-stage');
-    // active state
     document.querySelectorAll('#pipeline-stage-tabs .stage-tab').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
-    // filter rows by checking their stage-pill class
-    const rows = document.querySelectorAll('#view-pipeline tbody tr');
+    // Card-based filter (replaces the prior table)
+    const cards = document.querySelectorAll('#view-pipeline .pa-card');
     let visible = 0;
-    rows.forEach(function(r){
-      if (r.id === 'pipeline-empty-row') return;
-      if (stage === 'all') { r.style.display = ''; visible++; return; }
-      const pill = r.querySelector('.stage-pill');
-      if (pill && pill.classList.contains(stage)) { r.style.display = ''; visible++; }
-      else { r.style.display = 'none'; }
+    cards.forEach(function(c){
+      if (stage === 'all') { c.style.display = ''; visible++; return; }
+      if (c.getAttribute('data-stage') === stage) { c.style.display = ''; visible++; }
+      else { c.style.display = 'none'; }
     });
     const empty = document.getElementById('pipeline-empty-row');
     if (empty) empty.style.display = (visible === 0 ? '' : 'none');
