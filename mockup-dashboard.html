@@ -15350,7 +15350,31 @@ Evidence attached:
       + '.okami-totals strong{color:var(--text);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}'
       // Schedule day-header shift count (driven by OKAMI daily targets + cushion)
       + '.cal-cell-head .day-shifts{display:block;font-size:10px;font-weight:600;color:var(--accent-text);margin-top:3px;letter-spacing:0;text-transform:none}'
-      + '.cal-cell-head:not(.today) .day-shifts{color:var(--text-muted)}';
+      + '.cal-cell-head:not(.today) .day-shifts{color:var(--text-muted)}'
+      // Lineup quality KPI per day header
+      + '.cal-cell-head .day-quality{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;margin-top:3px;letter-spacing:0;text-transform:none}'
+      + '.cal-cell-head .day-quality.q-good{background:var(--green-soft);color:var(--green)}'
+      + '.cal-cell-head .day-quality.q-mid{background:var(--amber-soft);color:var(--amber)}'
+      + '.cal-cell-head .day-quality.q-low{background:#FEE2E2;color:#991B1B}'
+      // Driver-score indicator on schedule rows
+      + '.cal-row-score{display:inline-flex;align-items:center;gap:4px;margin-top:3px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:0;text-transform:none}'
+      + '.cal-row-score.s-tier-a{background:var(--green-soft);color:var(--green)}'
+      + '.cal-row-score.s-tier-b{background:var(--accent-soft);color:var(--accent-text)}'
+      + '.cal-row-score.s-tier-c{background:var(--amber-soft);color:var(--amber)}'
+      + '.cal-row-score.s-tier-d{background:#FEE2E2;color:#991B1B}'
+      + '.cal-row-label.row-low-score::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red);border-radius:3px 0 0 3px}'
+      + '.cal-row-label{position:relative}'
+      // Pool sort toggle
+      + '.pool-sort-row{display:flex;gap:4px;margin:0 var(--s-3) 8px}'
+      + '.pool-sort-btn{flex:1;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);font:inherit;font-size:11px;font-weight:600;padding:5px 8px;border-radius:5px;cursor:pointer}'
+      + '.pool-sort-btn.active{background:var(--surface);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 2px #3B82F61F}'
+      + '.pool-driver .pool-driver-score{display:inline-block;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:6px;font-variant-numeric:tabular-nums}'
+      // VTO suggestion banner in check-in
+      + '#ci-vto-suggest{background:#F0F9FF;border:1px solid #BAE6FD;color:#0C4A6E;border-radius:8px;padding:10px 14px;margin:0 0 var(--s-3) 0;font-size:13px;display:flex;align-items:center;gap:10px}'
+      + '#ci-vto-suggest .vto-chips{display:flex;gap:4px;flex-wrap:wrap}'
+      + '#ci-vto-suggest .vto-chip{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #BAE6FD;color:#0369A1;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer}'
+      + '#ci-vto-suggest .vto-chip:hover{background:#E0F2FE}'
+      + '.checkin-row.vto-suggested{box-shadow:inset 4px 0 0 #0EA5E9}';
     var s = document.createElement('style');
     s.appendChild(document.createTextNode(css));
     document.head.appendChild(s);
@@ -15625,6 +15649,221 @@ Evidence attached:
   // Initial paint (in case schedule is the first view shown)
   document.addEventListener('DOMContentLoaded', okamiRenderScheduleDayHeaders);
   if (document.readyState !== 'loading') okamiRenderScheduleDayHeaders();
+
+  // ═══════════════════════════════════════════════════════════════
+  // SCORE-AWARE SCHEDULING — visual flags + driver-pool sort + VTO
+  //   - Color the cal-row-label score (A/B/C/D) so dispatchers see who
+  //     to nudge first when there's discretion
+  //   - Compute Lineup Quality (avg score of scheduled drivers per day)
+  //     and surface as a small badge in the day header
+  //   - Driver pool gets a Score↔Alphabetical sort toggle
+  //   - Check-in flow gets a VTO suggestion banner: when over-scheduled
+  //     today (per OKAMI), suggest VTO offers bottom-up by score
+  //
+  //   Hard rule (per design discussion): score never *blocks* a driver
+  //   from being scheduled — only orders positive choices. See PR
+  //   discussion for legal reasoning.
+  // ═══════════════════════════════════════════════════════════════
+
+  function _scoreBand(score){
+    if (score >= 85) return { tier: 'tier-a', label: 'Top' };
+    if (score >= 75) return { tier: 'tier-b', label: 'Strong' };
+    if (score >= 65) return { tier: 'tier-c', label: 'Coachable' };
+    return { tier: 'tier-d', label: 'At risk' };
+  }
+
+  // ─── Schedule grid: per-row score badge + lineup quality per day ──
+  function schedScoreOverlay(){
+    if (!window.RR_DRIVERS) return;
+    var rows = document.querySelectorAll('#sched-sub-week .cal-grid:not(.head)');
+    if (!rows.length) return;
+
+    // 7 day positions: Tue, Wed, Thu, Fri, Sat, Sun, Mon
+    var dayAgg = [0,0,0,0,0,0,0].map(function(){ return { sum:0, count:0 }; });
+
+    rows.forEach(function(row){
+      var labelEl = row.querySelector('.cal-row-label');
+      var nameEl = row.querySelector('.cal-row-label-name');
+      if (!labelEl || !nameEl) return;
+      var driver = RR_DRIVERS.find(function(d){ return d.name === nameEl.textContent.trim(); });
+      if (!driver || typeof driver.score !== 'number') return;
+
+      // Add or update the score badge in the row label
+      var existingBadge = labelEl.querySelector('.cal-row-score');
+      if (existingBadge) existingBadge.remove();
+      labelEl.classList.toggle('row-low-score', driver.score < 65);
+      var band = _scoreBand(driver.score);
+      var inner = labelEl.querySelector(':scope > div:last-child') || labelEl.lastElementChild;
+      if (inner && !inner.classList.contains('avatar-sm')) {
+        var badge = document.createElement('span');
+        badge.className = 'cal-row-score s-' + band.tier;
+        badge.textContent = driver.score + ' · ' + band.label;
+        badge.title = driver.name + ' · score ' + driver.score
+          + (driver.score < 65 ? ' (bottom band — flagged for coaching)' : '')
+          + (driver.score >= 85 ? ' (top performer — favorable assignment)' : '');
+        inner.appendChild(badge);
+      }
+
+      // Walk the 7 day cells; count this driver toward each day's avg
+      // when the cell has a real shift (not Off, not PTO).
+      var children = row.children;
+      // children[0] is the label, [1..7] are day cells
+      for (var i = 1; i <= 7 && i < children.length; i++) {
+        var cell = children[i];
+        var chip = cell.querySelector('.shift-chip');
+        if (!chip) continue;
+        if (chip.classList.contains('off')) continue;
+        if (chip.classList.contains('timeoff')) continue;
+        var dayIdx = i - 1;
+        if (dayAgg[dayIdx]) {
+          dayAgg[dayIdx].sum += driver.score;
+          dayAgg[dayIdx].count += 1;
+        }
+      }
+    });
+
+    // Render the lineup quality badge in each day header
+    var heads = document.querySelectorAll('#sched-sub-week .cal-cell-head');
+    // heads[0] is "Driver" col; heads[1..7] are day cells
+    dayAgg.forEach(function(agg, idx){
+      var head = heads[idx + 1];
+      if (!head) return;
+      var existing = head.querySelector('.day-quality');
+      if (existing) existing.remove();
+      if (agg.count === 0) return;
+      var avg = Math.round(agg.sum / agg.count);
+      var qClass = avg >= 80 ? 'q-good' : avg >= 70 ? 'q-mid' : 'q-low';
+      var span = document.createElement('span');
+      span.className = 'day-quality ' + qClass;
+      span.textContent = '⌀ ' + avg;
+      span.title = 'Lineup quality — average score of ' + agg.count + ' driver(s) scheduled this day';
+      head.appendChild(span);
+    });
+  }
+  window.schedScoreOverlay = schedScoreOverlay;
+
+  // ─── Driver pool: Score ↔ Alphabetical sort ─────────────────────
+  // Score sort uses tier classes on the avatar (a > b > c > d).
+  function poolInjectSortToggle(){
+    var pool = document.querySelector('.driver-pool');
+    if (!pool || pool.dataset.sortInjected === '1') return;
+    var head = pool.querySelector('.pool-head');
+    if (!head) return;
+    pool.dataset.sortInjected = '1';
+    var row = document.createElement('div');
+    row.className = 'pool-sort-row';
+    row.innerHTML = ''
+      + '<button class="pool-sort-btn active" data-sort="score" onclick="poolSort(\'score\')">Score (top first)</button>'
+      + '<button class="pool-sort-btn" data-sort="alpha" onclick="poolSort(\'alpha\')">Alphabetical</button>';
+    head.parentNode.insertBefore(row, head.nextSibling.nextSibling); // after pool-head + pool-search
+
+    // Initial sort
+    poolSort('score');
+  }
+  function poolSort(mode){
+    var pool = document.querySelector('.driver-pool');
+    if (!pool) return;
+    pool.querySelectorAll('.pool-sort-btn').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-sort') === mode);
+    });
+    var section = pool.querySelector('.pool-section-label') ? pool.querySelector('.pool-section-label').parentNode : null;
+    if (!section) return;
+    var drivers = Array.from(section.querySelectorAll('.pool-driver'));
+    if (mode === 'alpha') {
+      drivers.sort(function(a, b){
+        var an = (a.querySelector('.pool-driver-name') || {}).textContent || '';
+        var bn = (b.querySelector('.pool-driver-name') || {}).textContent || '';
+        return an.localeCompare(bn);
+      });
+    } else {
+      // Score: A > B > C > D, fall back to alpha within tier
+      var tierOrder = { 'tier-a':0, 'tier-b':1, 'tier-c':2, 'tier-d':3 };
+      drivers.sort(function(a, b){
+        var aTier = (a.querySelector('.avatar-sm') || {}).className || '';
+        var bTier = (b.querySelector('.avatar-sm') || {}).className || '';
+        var aRank = 9, bRank = 9;
+        Object.keys(tierOrder).forEach(function(k){ if (aTier.indexOf(k) >= 0) aRank = tierOrder[k]; });
+        Object.keys(tierOrder).forEach(function(k){ if (bTier.indexOf(k) >= 0) bRank = tierOrder[k]; });
+        if (aRank !== bRank) return aRank - bRank;
+        var an = (a.querySelector('.pool-driver-name') || {}).textContent || '';
+        var bn = (b.querySelector('.pool-driver-name') || {}).textContent || '';
+        return an.localeCompare(bn);
+      });
+    }
+    drivers.forEach(function(el){ section.appendChild(el); });
+  }
+  window.poolSort = poolSort;
+
+  // ─── VTO suggestion banner on check-in ──────────────────────────
+  // Shows when today is over-scheduled (OKAMI cushion ≥ shifts > today's
+  // routes). Suggested candidates are the bottom-N by score (positive
+  // selection — get-the-day-off, not deny-work).
+  function ciRenderVtoSuggestion(){
+    if (!window.RR_DRIVERS || !window.RR_OKAMI_DAILY) return;
+    var anchor = document.querySelector('#view-checkin .checkin-list');
+    if (!anchor) return;
+    var existing = document.getElementById('ci-vto-suggest');
+    if (existing) existing.remove();
+
+    // Today = Tue in the demo schedule (W19, day 0)
+    var w = RR_OKAMI_DAILY[0];
+    if (!w) return;
+    var routes = w.daily.tue || 0;
+    var shifts = okamiCushionShiftsForRoutes(routes, w.cushionMode, w.cushionValue);
+    var surplus = shifts - routes;
+    if (surplus <= 0) return; // No over-schedule, no VTO suggestion
+
+    // Bottom-N by score from the visible check-in roster
+    var visibleNames = Array.from(document.querySelectorAll('#view-checkin .checkin-row .checkin-driver-name')).map(function(el){ return el.textContent.trim(); });
+    var visibleDrivers = RR_DRIVERS.filter(function(d){ return visibleNames.indexOf(d.name) >= 0; });
+    if (!visibleDrivers.length) return;
+    var candidates = visibleDrivers.slice().sort(function(a, b){ return (a.score||0) - (b.score||0); }).slice(0, surplus);
+
+    var banner = document.createElement('div');
+    banner.id = 'ci-vto-suggest';
+    banner.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0;color:#0EA5E9"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 13 11 15 15 11"/></svg>'
+      + '<div style="flex:1"><strong>Over-scheduled by ' + surplus + ' today</strong> · ' + shifts + ' shifts vs ' + routes + ' routes (OKAMI plan + ' + (w.cushionMode === 'percent' ? w.cushionValue + '% cushion' : '+' + w.cushionValue + ' cushion') + '). Suggest VTO bottom-up by score:</div>'
+      + '<div class="vto-chips">'
+      + candidates.map(function(d){
+        return '<span class="vto-chip" onclick="ciHighlightVtoCandidate(\'' + d.name.replace(/\x27/g, "\\\x27") + '\')" title="Score ' + d.score + ' · click to highlight row">' + d.name + ' <span style="font-size:10px;font-weight:500;opacity:.7">' + d.score + '</span></span>';
+      }).join('')
+      + '</div>';
+    anchor.insertBefore(banner, anchor.firstChild);
+  }
+  function ciHighlightVtoCandidate(name){
+    document.querySelectorAll('#view-checkin .checkin-row.vto-suggested').forEach(function(r){ r.classList.remove('vto-suggested'); });
+    var rows = document.querySelectorAll('#view-checkin .checkin-row');
+    rows.forEach(function(row){
+      var nameEl = row.querySelector('.checkin-driver-name');
+      if (nameEl && nameEl.textContent.trim() === name) {
+        row.classList.add('vto-suggested');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Pulse the VTO button
+        var btn = row.querySelector('.status-btn[data-s="vto"]');
+        if (btn) {
+          btn.style.transition = 'transform .2s';
+          btn.style.transform = 'scale(1.3)';
+          setTimeout(function(){ btn.style.transform = ''; }, 250);
+        }
+      }
+    });
+  }
+  window.ciHighlightVtoCandidate = ciHighlightVtoCandidate;
+
+  // ─── HOOKS ──────────────────────────────────────────────────────
+  function _applyScoreUx(){
+    schedScoreOverlay();
+    poolInjectSortToggle();
+    ciRenderVtoSuggestion();
+  }
+  if (typeof goto === 'function' && !goto._wrappedForScoreUx) {
+    var _origGotoForScoreUx = goto;
+    goto = function(view){ _origGotoForScoreUx(view); setTimeout(_applyScoreUx, 60); };
+    goto._wrappedForScoreUx = true;
+  }
+  document.addEventListener('DOMContentLoaded', _applyScoreUx);
+  if (document.readyState !== 'loading') _applyScoreUx();
 
   // ─── HOOK: re-apply cascade after navigation (non-destructive wrap) ──
   if (typeof goto === 'function' && !goto._wrappedForSuspension) {
