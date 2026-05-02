@@ -4307,85 +4307,88 @@ a{color:inherit;text-decoration:none}
         <!-- FUNNEL SUB-VIEW -->
         <div class="pipe-subview active" id="pipe-sub-funnel">
 
-        <!-- ─── HEADER STRIP — Today's interviews + cycle stats in one slim row ─── -->
+        <!-- ─── Hiring KPI banner — mirrors Interview Day visual ─── -->
         <style>
-          .hp-header-strip{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s-3);font-size:12.5px;color:var(--text-muted);flex-wrap:wrap}
-          .hp-header-strip-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-          .hp-header-strip-iv{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:600}
-          .hp-header-strip-iv svg{width:14px;height:14px}
-          .hp-header-strip-iv strong{color:var(--green)}
-          .hp-header-strip-stat{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted)}
-          .hp-header-strip-stat strong{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
-          .hp-header-strip-divider{width:1px;height:14px;background:var(--border)}
-          .hp-header-strip-cta{font-size:12px;font-weight:600;color:var(--green);text-decoration:none;display:inline-flex;align-items:center;gap:4px;cursor:pointer}
-          .hp-header-strip-cta:hover{color:#15803D}
+          .hp-stats-banner{
+            position:relative;
+            display:grid;grid-template-columns:repeat(4,1fr);
+            background:var(--surface);border:1px solid var(--border);border-radius:12px;
+            padding:18px 0;margin-bottom:var(--s-3);overflow:hidden;
+          }
+          @media (max-width:760px){.hp-stats-banner{grid-template-columns:repeat(2,1fr)}}
+          .hp-stat{padding:0 22px;border-right:1px solid var(--border);position:relative}
+          .hp-stat:last-child{border-right:none}
+          .hp-stat-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+          .hp-stat-value{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+          .hp-stat-value .frac{font-size:14px;font-weight:600;color:var(--text-subtle);margin-left:4px}
+          .hp-stat-trend{font-size:11px;color:var(--text-subtle);margin-top:6px;display:flex;align-items:center;gap:5px}
+          .hp-stat-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;font-variant-numeric:tabular-nums}
+          .hp-stat-delta.ok{background:var(--green-soft);color:var(--green)}
+          .hp-stat-delta.warn{background:var(--amber-soft);color:var(--amber)}
+          .hp-stat-delta.bad{background:var(--red-soft);color:var(--red)}
+          .hp-stats-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--canvas)}
+          .hp-stats-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .3s;width:62%}
+
+          /* Tiny per-week breakdown — text only, no big colored cards */
+          .hp-weeks-strip{
+            display:flex;align-items:center;gap:0;
+            padding:10px 14px;margin-bottom:var(--s-4);
+            background:var(--canvas);border:1px solid var(--border);border-radius:10px;
+            font-size:12px;color:var(--text-muted);
+            overflow-x:auto;
+          }
+          .hp-weeks-strip-label{font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-right:14px;flex-shrink:0}
+          .hp-week-cell{display:inline-flex;align-items:baseline;gap:5px;padding:0 14px;border-right:1px dashed var(--border);white-space:nowrap}
+          .hp-week-cell:last-child{border-right:0}
+          .hp-week-cell .wk{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+          .hp-week-cell .gap{font-weight:700;font-variant-numeric:tabular-nums}
+          .hp-week-cell .gap.short{color:var(--red)}
+          .hp-week-cell .gap.tight{color:var(--amber)}
+          .hp-week-cell .gap.ok{color:var(--green)}
         </style>
 
-        <div class="hp-header-strip" id="hp-header-strip">
-          <div class="hp-header-strip-left">
-            <span class="hp-header-strip-iv" id="hp-iv-pill">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              <strong>7</strong> interviews today
-            </span>
-            <span class="hp-header-strip-divider"></span>
-            <span class="hp-header-strip-stat">Show <strong id="pipeline-kpi-show">72</strong>%</span>
-            <span class="hp-header-strip-stat">Hire <strong id="pipeline-kpi-hire">31</strong>%</span>
-            <span class="hp-header-strip-stat">Cycle <strong id="pipeline-kpi-velocity">9.2</strong>d</span>
-            <span class="hp-header-strip-stat">Predicted ~<strong id="pipeline-kpi-predicted">11</strong> / need 12</span>
+        <div class="hp-stats-banner">
+          <div class="hp-stat">
+            <div class="hp-stat-label">Show rate</div>
+            <div class="hp-stat-value"><span id="hp-show-rate">72</span>%</div>
+            <div class="hp-stat-trend">From this cycle's interviews</div>
           </div>
-          <a class="hp-header-strip-cta" onclick="goto('interview')">
-            Open Interview Day →
-          </a>
+          <div class="hp-stat">
+            <div class="hp-stat-label">Hire rate</div>
+            <div class="hp-stat-value"><span id="hp-hire-rate">31</span>%</div>
+            <div class="hp-stat-trend">Of candidates who showed</div>
+          </div>
+          <div class="hp-stat">
+            <div class="hp-stat-label">Active headcount</div>
+            <div class="hp-stat-value"><span id="hp-actual">78</span><span class="frac">drivers</span></div>
+            <div class="hp-stat-trend">After projected hires this cycle</div>
+          </div>
+          <div class="hp-stat">
+            <div class="hp-stat-label">Plan · next 5 wk</div>
+            <div class="hp-stat-value"><span id="hp-plan">82</span><span class="frac">avg</span></div>
+            <div class="hp-stat-trend">
+              <span class="hp-stat-delta bad" id="hp-gap-pill">−4 short</span>
+              <span>OKAMI 75 + cushion 7</span>
+            </div>
+          </div>
+          <div class="hp-stats-progress"><div class="hp-stats-progress-fill" id="hp-stats-fill"></div></div>
         </div>
 
-        <!-- ─── PIPELINE COVERAGE — slim 5-week strip ─── -->
-        <style>
-          .pipe-coverage{margin-bottom:var(--s-4)}
-          .pipe-coverage-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-3);margin-bottom:10px;flex-wrap:wrap}
-          .pipe-coverage-head h3{font-size:11px;font-weight:700;color:var(--text-muted);margin:0;letter-spacing:.06em;text-transform:uppercase}
-          .pipe-coverage-verdict{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
-          .pipe-coverage-verdict.ok{background:var(--green-soft);color:var(--green)}
-          .pipe-coverage-verdict.warn{background:var(--amber-soft);color:var(--amber)}
-          .pipe-coverage-verdict.bad{background:#FEE2E2;color:#991B1B}
-          .pipe-coverage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}
-          @media (max-width:920px){.pipe-coverage-grid{grid-template-columns:repeat(2,1fr)}}
-          .pipe-week-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 12px;display:flex;flex-direction:column;gap:10px;cursor:help;transition:border-color .15s}
-          .pipe-week-card:hover{border-color:var(--text-subtle)}
-          .pipe-week-card.today{border-color:var(--accent);box-shadow:0 0 0 1px rgba(59,130,246,.18)}
-          .pipe-week-head{display:flex;flex-direction:column;gap:1px}
-          .pipe-week-label{font-size:11px;font-weight:700;color:var(--text);letter-spacing:.02em}
-          .pipe-week-date{font-size:10px;color:var(--text-subtle);font-weight:500}
-          .pipe-week-gap-big{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0;border-radius:7px;text-align:center}
-          .pipe-week-gap-big .pipe-week-gap-num{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px}
-          .pipe-week-gap-big .pipe-week-gap-lbl{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:3px;opacity:.85}
-          .pipe-week-gap-big.ok{background:var(--green-soft);color:var(--green)}
-          .pipe-week-gap-big.warn{background:var(--amber-soft);color:var(--amber)}
-          .pipe-week-gap-big.bad{background:#FEE2E2;color:#991B1B}
-          .pipe-week-foot{font-size:10px;color:var(--text-subtle);text-align:center;font-variant-numeric:tabular-nums}
-          .pipe-coverage-rec{font-size:12px;line-height:1.5;color:var(--text-muted);padding:0 2px;display:flex;align-items:center;gap:8px}
-          .pipe-coverage-rec svg{width:14px;height:14px;color:var(--accent);flex-shrink:0}
-          .pipe-coverage-rec strong{color:var(--text);font-weight:600}
-        </style>
-
-        <div class="pipe-coverage" id="pipe-coverage-panel">
-          <div class="pipe-coverage-head">
-            <h3>Pipeline coverage · next 5 weeks</h3>
-            <span class="pipe-coverage-verdict warn" id="pipe-coverage-overall">— evaluating</span>
-          </div>
-          <div class="pipe-coverage-grid" id="pipe-coverage-grid"></div>
-          <div class="pipe-coverage-rec">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <div id="pipe-coverage-rec-text">Computing recommendation…</div>
-          </div>
-          <!-- math footer kept in DOM for the JS that updates it, but hidden -->
-          <div id="pipe-coverage-math" style="display:none"></div>
+        <!-- 5-week mini strip · subtle, no big colored cards -->
+        <div class="hp-weeks-strip" id="hp-weeks-strip">
+          <span class="hp-weeks-strip-label">Next 5 wk</span>
+          <span class="hp-week-cell"><span class="wk">W19</span> 78 / 80 <span class="gap tight">−2</span></span>
+          <span class="hp-week-cell"><span class="wk">W20</span> 78 / 82 <span class="gap short">−4</span></span>
+          <span class="hp-week-cell"><span class="wk">W21</span> 79 / 85 <span class="gap short">−6</span></span>
+          <span class="hp-week-cell"><span class="wk">W22</span> 80 / 87 <span class="gap short">−7</span></span>
+          <span class="hp-week-cell"><span class="wk">W23</span> 80 / 90 <span class="gap short">−10</span></span>
         </div>
 
-        <!-- Applicants list header — stage tabs + sort, single row -->
+        <!-- Applicants list header — stage tabs only -->
         <style>
           .hp-list-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap}
           .hp-stages{display:flex;gap:2px;background:var(--canvas);border-radius:8px;padding:3px}
-          .hp-stage-btn{appearance:none;background:transparent;border:0;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted);padding:6px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+          .hp-stage-btn{appearance:none;background:transparent;border:0;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted);padding:6px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
           .hp-stage-btn.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
           .hp-stage-btn:hover:not(.active){color:var(--text)}
           .hp-stage-btn-count{font-size:10px;font-weight:700;color:var(--text-subtle);font-variant-numeric:tabular-nums}
@@ -4395,31 +4398,40 @@ a{color:inherit;text-decoration:none}
 
         <div class="hp-list-head">
           <div class="hp-stages" id="pipeline-stage-tabs">
-            <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="hp-stage-btn-count stage-tab-count">48</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="new" onclick="filterPipelineStage(this)">New <span class="hp-stage-btn-count stage-tab-count">12</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="screening" onclick="filterPipelineStage(this)">Screening <span class="hp-stage-btn-count stage-tab-count">14</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="passed" onclick="filterPipelineStage(this)">Passed <span class="hp-stage-btn-count stage-tab-count">8</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="booked" onclick="filterPipelineStage(this)">Booked <span class="hp-stage-btn-count stage-tab-count">7</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">7</span></button>
+            <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="hp-stage-btn-count stage-tab-count">28</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="applied" onclick="filterPipelineStage(this)">Applied <span class="hp-stage-btn-count stage-tab-count">9</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="screened" onclick="filterPipelineStage(this)">Screened <span class="hp-stage-btn-count stage-tab-count">7</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="booking_pending" onclick="filterPipelineStage(this)">Booking pending <span class="hp-stage-btn-count stage-tab-count">5</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="booking_scheduled" onclick="filterPipelineStage(this)">Booking scheduled <span class="hp-stage-btn-count stage-tab-count">7</span></button>
           </div>
-          <div class="hp-list-tools">
-            Sort: Newest first
-          </div>
+          <div class="hp-list-tools">Sort: Newest first</div>
         </div>
 
-        <!-- Applicant cards (mirrors Interview Day card layout) -->
+        <!-- Applicant cards — single muted accent for stage; expandable detail -->
         <style>
           .pipe-applicants{display:flex;flex-direction:column;gap:10px}
-          .pa-card{display:grid;grid-template-columns:130px 1fr auto;gap:var(--s-3);align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .15s,box-shadow .15s}
+          .pa-card{
+            background:var(--surface);border:1px solid var(--border);border-radius:12px;
+            transition:border-color .15s,box-shadow .15s;
+            overflow:hidden;
+          }
           .pa-card:hover{border-color:var(--text-subtle);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+          .pa-card.expanded{border-color:var(--accent);box-shadow:0 0 0 1px rgba(59,130,246,.2)}
+          .pa-row{display:grid;grid-template-columns:160px 1fr auto;gap:var(--s-3);align-items:center;padding:14px 16px}
           .pa-card-stage{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
-          .pa-card-stage-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-          .pa-card-stage-pill.new{background:var(--accent-soft);color:var(--accent-text)}
-          .pa-card-stage-pill.screening{background:#FEF3C7;color:#92400E}
-          .pa-card-stage-pill.passed{background:var(--green-soft);color:var(--green)}
-          .pa-card-stage-pill.booked{background:#DBEAFE;color:#1D4ED8}
-          .pa-card-stage-pill.hired{background:var(--green);color:#fff}
-          .pa-card-stage-pill.filtered{background:var(--canvas);color:var(--text-subtle)}
+          .pa-stage-pill{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:3px 9px;border-radius:6px;
+            font-size:11px;font-weight:600;letter-spacing:.02em;
+            background:var(--canvas);color:var(--text-muted);
+            border:1px solid var(--border);
+          }
+          .pa-stage-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--text-subtle)}
+          .pa-stage-pill.applied::before{background:var(--text-subtle)}
+          .pa-stage-pill.screened::before{background:var(--amber)}
+          .pa-stage-pill.booking_pending::before{background:var(--accent)}
+          .pa-stage-pill.booking_scheduled{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          .pa-stage-pill.booking_scheduled::before{background:var(--accent)}
           .pa-card-time{font-size:11px;color:var(--text-subtle)}
           .pa-card-body{display:flex;flex-direction:column;gap:6px;min-width:0}
           .pa-card-header{display:flex;align-items:center;gap:10px}
@@ -4428,203 +4440,408 @@ a{color:inherit;text-decoration:none}
           .pa-card-meta{font-size:11px;color:var(--text-subtle);margin-top:1px}
           .pa-card-tags{display:flex;gap:6px;flex-wrap:wrap}
           .pa-card-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-size:11px;background:var(--canvas);color:var(--text-muted);font-weight:500}
-          .pa-card-tag.score{background:var(--accent-soft);color:var(--accent-text);font-weight:700;font-variant-numeric:tabular-nums}
-          .pa-card-tag.score-low{background:#FEE2E2;color:#991B1B}
-          .pa-card-tag.score-mid{background:#FEF3C7;color:#92400E}
-          .pa-card-tag.referral{background:rgba(124,58,237,.12);color:#7C3AED;font-weight:600}
+          .pa-card-tag.score{background:var(--canvas);color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--border)}
+          .pa-card-tag.score-low{color:var(--red);border-color:rgba(220,38,38,.25)}
+          .pa-card-tag.score-mid{color:var(--amber);border-color:rgba(245,158,11,.3)}
           .pa-card-actions{display:flex;gap:6px;flex-shrink:0}
+          .pa-view-btn{
+            display:inline-flex;align-items:center;gap:4px;
+            padding:7px 14px;background:transparent;color:var(--text);
+            border:1px solid var(--border);border-radius:7px;
+            font:inherit;font-size:12px;font-weight:600;cursor:pointer;
+            transition:all .12s;
+          }
+          .pa-view-btn:hover{background:var(--text);color:#fff;border-color:var(--text)}
+          .pa-view-btn svg{width:11px;height:11px;transition:transform .15s}
+          .pa-card.expanded .pa-view-btn svg{transform:rotate(180deg)}
+
+          /* Expanded detail panel */
+          .pa-detail{display:none;border-top:1px solid var(--border);padding:18px 20px;background:var(--canvas)}
+          .pa-card.expanded .pa-detail{display:block}
+          .pa-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+          @media (max-width:840px){.pa-detail-grid{grid-template-columns:1fr}}
+          .pa-detail-section-title{font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+
+          /* Timeline */
+          .pa-timeline{display:flex;flex-direction:column;gap:0;position:relative}
+          .pa-timeline-step{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:flex-start;padding:8px 0;position:relative}
+          .pa-timeline-step::before{content:"";position:absolute;left:11px;top:18px;bottom:-8px;width:2px;background:var(--border)}
+          .pa-timeline-step:last-child::before{display:none}
+          .pa-timeline-dot{width:24px;height:24px;border-radius:50%;background:var(--surface);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);position:relative;z-index:1}
+          .pa-timeline-dot svg{width:11px;height:11px;stroke-width:2.5}
+          .pa-timeline-step.done .pa-timeline-dot{background:var(--green);border-color:var(--green);color:#fff}
+          .pa-timeline-step.current .pa-timeline-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+          .pa-timeline-label{font-size:13px;color:var(--text);font-weight:500}
+          .pa-timeline-step.pending .pa-timeline-label{color:var(--text-subtle)}
+          .pa-timeline-time{font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+          /* Video player placeholder */
+          .pa-video{
+            position:relative;aspect-ratio:16/9;
+            background:linear-gradient(135deg,#1F2937,#0F172A);border-radius:8px;
+            display:flex;align-items:center;justify-content:center;
+            color:#fff;cursor:pointer;overflow:hidden;
+          }
+          .pa-video::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 20%, rgba(59,130,246,.2), transparent 50%)}
+          .pa-video-play{
+            position:relative;z-index:1;
+            width:48px;height:48px;border-radius:50%;
+            background:rgba(255,255,255,.95);color:var(--text);
+            display:flex;align-items:center;justify-content:center;
+            transition:transform .12s;
+          }
+          .pa-video:hover .pa-video-play{transform:scale(1.05)}
+          .pa-video-play svg{width:18px;height:18px;margin-left:2px}
+          .pa-video-meta{position:absolute;bottom:10px;left:12px;z-index:1;font-size:11px;color:rgba(255,255,255,.85);font-weight:500}
+          .pa-video-rating{position:absolute;top:10px;right:12px;z-index:1;font-size:11px;color:#FBBF24;font-weight:700;letter-spacing:1px}
+
+          /* Q&A list */
+          .pa-qa{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+          .pa-qa-item{display:flex;flex-direction:column;gap:2px}
+          .pa-qa-q{font-size:11px;color:var(--text-subtle);font-weight:600}
+          .pa-qa-a{font-size:13px;color:var(--text);line-height:1.4}
+          .pa-qa-a.fail{color:var(--red)}
+
+          /* Disposition action bar */
+          .pa-actions-bar{
+            display:flex;gap:8px;justify-content:flex-end;
+            margin-top:18px;padding-top:14px;border-top:1px solid var(--border);
+            flex-wrap:wrap;
+          }
+          .pa-disp-btn{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:9px 16px;border-radius:8px;
+            font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+            border:1px solid transparent;transition:all .12s;
+          }
+          .pa-disp-btn svg{width:13px;height:13px}
+          .pa-disp-btn.primary{background:var(--text);color:#fff;border-color:var(--text)}
+          .pa-disp-btn.primary:hover{background:#000}
+          .pa-disp-btn.ghost{background:transparent;color:var(--text);border-color:var(--border)}
+          .pa-disp-btn.ghost:hover{background:var(--canvas);border-color:var(--text-subtle)}
+          .pa-disp-btn.danger{background:transparent;color:var(--red);border-color:rgba(220,38,38,.3)}
+          .pa-disp-btn.danger:hover{background:var(--red-soft)}
         </style>
 
-        <div class="pipe-applicants">
+        <div class="pipe-applicants" id="pipe-applicants">
 
-          <div class="pa-card" data-stage="screening">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill screening">Screening</span>
-              <span class="pa-card-time">2h ago</span>
+          <!-- BOOKING SCHEDULED -->
+          <div class="pa-card" data-stage="booking_scheduled" data-applicant="marcus-hill">
+            <div class="pa-row">
+              <div class="pa-card-stage">
+                <span class="pa-stage-pill booking_scheduled">Booking scheduled · Fri 9:00 AM</span>
+                <span class="pa-card-time">Yesterday</span>
+              </div>
+              <div class="pa-card-body">
+                <div class="pa-card-header">
+                  <div class="pa-card-avatar tier-c">MH</div>
+                  <div>
+                    <div class="pa-card-name">Marcus Hill</div>
+                    <div class="pa-card-meta">Springfield, MO · marcus.h@email.com · +1 417 555 0276</div>
+                  </div>
+                </div>
+                <div class="pa-card-tags"><span class="pa-card-tag score score-mid">Score 5</span></div>
+              </div>
+              <div class="pa-card-actions">
+                <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
             </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-b">AM</div>
+            <div class="pa-detail">
+              <div class="pa-detail-grid">
                 <div>
-                  <div class="pa-card-name">Alicia Monroe</div>
-                  <div class="pa-card-meta">Springfield, MO · alicia.m@email.com · +1 417 555 0142</div>
+                  <div class="pa-detail-section-title">Steps</div>
+                  <div class="pa-timeline">
+                    <div class="pa-timeline-step done"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="pa-timeline-label">Applied</div><div class="pa-timeline-time">Apr 28 · 10:14 AM</div></div>
+                    <div class="pa-timeline-step done"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="pa-timeline-label">Screened</div><div class="pa-timeline-time">Apr 29 · 2:42 PM</div></div>
+                    <div class="pa-timeline-step done"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="pa-timeline-label">Booking link sent</div><div class="pa-timeline-time">Apr 30 · 9:08 AM</div></div>
+                    <div class="pa-timeline-step current"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div><div class="pa-timeline-label">Booking scheduled</div><div class="pa-timeline-time">May 1 · 8:14 AM</div></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="pa-detail-section-title">Video screen</div>
+                  <div class="pa-video" onclick="toast('Plays video answers')">
+                    <div class="pa-video-rating">★★★☆☆</div>
+                    <div class="pa-video-play"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+                    <div class="pa-video-meta">3 video answers · 2:14 total</div>
+                  </div>
+                  <div class="pa-detail-section-title" style="margin-top:14px">Screening answers</div>
+                  <div class="pa-qa">
+                    <div class="pa-qa-item"><div class="pa-qa-q">Days available</div><div class="pa-qa-a">Mon, Tue, Wed, Thu, Fri</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Earliest start</div><div class="pa-qa-a">Within 2 weeks</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Lift 50 lbs</div><div class="pa-qa-a">Yes</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Prior moving violations</div><div class="pa-qa-a">No</div></div>
+                  </div>
                 </div>
               </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score">Score 8</span>
-                <span class="pa-card-tag">Indeed</span>
-                <span class="pa-card-tag">Resume on file</span>
+              <div class="pa-actions-bar">
+                <button class="pa-disp-btn ghost" type="button" onclick="paAction(this,'call','Marcus Hill')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+                <button class="pa-disp-btn danger" type="button" onclick="paAction(this,'decline','Marcus Hill')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Decline</button>
+                <button class="pa-disp-btn primary" type="button" onclick="goto('interview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Open Interview Day</button>
               </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm">View</button>
             </div>
           </div>
 
-          <div class="pa-card" data-stage="new">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill new">New</span>
-              <span class="pa-card-time">3h ago</span>
+          <!-- BOOKING PENDING -->
+          <div class="pa-card" data-stage="booking_pending" data-applicant="brianna-cole">
+            <div class="pa-row">
+              <div class="pa-card-stage">
+                <span class="pa-stage-pill booking_pending">Booking pending</span>
+                <span class="pa-card-time">Yesterday</span>
+              </div>
+              <div class="pa-card-body">
+                <div class="pa-card-header">
+                  <div class="pa-card-avatar tier-a">BC</div>
+                  <div>
+                    <div class="pa-card-name">Brianna Cole</div>
+                    <div class="pa-card-meta">Carthage, MO · brianna.c@email.com · +1 417 555 0218</div>
+                  </div>
+                </div>
+                <div class="pa-card-tags"><span class="pa-card-tag score">Score 9</span></div>
+              </div>
+              <div class="pa-card-actions">
+                <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
             </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-c">DP</div>
+            <div class="pa-detail">
+              <div class="pa-detail-grid">
                 <div>
-                  <div class="pa-card-name">Devon Patterson</div>
-                  <div class="pa-card-meta">Joplin, MO · devon.p@email.com · +1 417 555 0193</div>
+                  <div class="pa-detail-section-title">Steps</div>
+                  <div class="pa-timeline">
+                    <div class="pa-timeline-step done"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="pa-timeline-label">Applied</div><div class="pa-timeline-time">Apr 27 · 6:02 PM</div></div>
+                    <div class="pa-timeline-step done"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="pa-timeline-label">Screened</div><div class="pa-timeline-time">Apr 28 · 11:30 AM</div></div>
+                    <div class="pa-timeline-step current"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div><div class="pa-timeline-label">Booking link sent · awaiting selection</div><div class="pa-timeline-time">Apr 30 · 4:18 PM</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking scheduled</div><div class="pa-timeline-time">—</div></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="pa-detail-section-title">Video screen</div>
+                  <div class="pa-video" onclick="toast('Plays video answers')">
+                    <div class="pa-video-rating">★★★★☆</div>
+                    <div class="pa-video-play"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+                    <div class="pa-video-meta">3 video answers · 2:38 total</div>
+                  </div>
+                  <div class="pa-detail-section-title" style="margin-top:14px">Screening answers</div>
+                  <div class="pa-qa">
+                    <div class="pa-qa-item"><div class="pa-qa-q">Days available</div><div class="pa-qa-a">All 7 days</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Earliest start</div><div class="pa-qa-q">Immediately</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Lift 50 lbs</div><div class="pa-qa-a">Yes</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Prior moving violations</div><div class="pa-qa-a">No</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Background check consent</div><div class="pa-qa-a">Yes</div></div>
+                  </div>
                 </div>
               </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score score-mid">Score 6</span>
-                <span class="pa-card-tag">Indeed</span>
+              <div class="pa-actions-bar">
+                <button class="pa-disp-btn ghost" type="button" onclick="paAction(this,'call','Brianna Cole')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+                <button class="pa-disp-btn danger" type="button" onclick="paAction(this,'decline','Brianna Cole')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Decline</button>
+                <button class="pa-disp-btn primary" type="button" onclick="paAction(this,'resend_link','Brianna Cole')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Resend booking link</button>
               </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm">View</button>
             </div>
           </div>
 
-          <div class="pa-card" data-stage="passed">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill passed">Passed</span>
-              <span class="pa-card-time">Yesterday</span>
+          <!-- SCREENED -->
+          <div class="pa-card" data-stage="screened" data-applicant="alicia-monroe">
+            <div class="pa-row">
+              <div class="pa-card-stage">
+                <span class="pa-stage-pill screened">Screened</span>
+                <span class="pa-card-time">2h ago</span>
+              </div>
+              <div class="pa-card-body">
+                <div class="pa-card-header">
+                  <div class="pa-card-avatar tier-b">AM</div>
+                  <div>
+                    <div class="pa-card-name">Alicia Monroe</div>
+                    <div class="pa-card-meta">Springfield, MO · alicia.m@email.com · +1 417 555 0142</div>
+                  </div>
+                </div>
+                <div class="pa-card-tags"><span class="pa-card-tag score">Score 8</span></div>
+              </div>
+              <div class="pa-card-actions">
+                <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
             </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-a">BC</div>
+            <div class="pa-detail">
+              <div class="pa-detail-grid">
                 <div>
-                  <div class="pa-card-name">Brianna Cole</div>
-                  <div class="pa-card-meta">Carthage, MO · brianna.c@email.com · +1 417 555 0218</div>
+                  <div class="pa-detail-section-title">Steps</div>
+                  <div class="pa-timeline">
+                    <div class="pa-timeline-step done"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="pa-timeline-label">Applied</div><div class="pa-timeline-time">May 1 · 7:14 AM</div></div>
+                    <div class="pa-timeline-step current"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div><div class="pa-timeline-label">Screened · awaiting your review</div><div class="pa-timeline-time">May 1 · 9:02 AM</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking link sent</div><div class="pa-timeline-time">—</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking scheduled</div><div class="pa-timeline-time">—</div></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="pa-detail-section-title">Video screen</div>
+                  <div class="pa-video" onclick="toast('Plays video answers')">
+                    <div class="pa-video-rating">★★★★☆</div>
+                    <div class="pa-video-play"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+                    <div class="pa-video-meta">3 video answers · 2:51 total</div>
+                  </div>
+                  <div class="pa-detail-section-title" style="margin-top:14px">Screening answers</div>
+                  <div class="pa-qa">
+                    <div class="pa-qa-item"><div class="pa-qa-q">Days available</div><div class="pa-qa-a">Mon–Fri + Sat</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Earliest start</div><div class="pa-qa-a">Within 1 week</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Lift 50 lbs</div><div class="pa-qa-a">Yes</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Prior moving violations</div><div class="pa-qa-a">No</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Background check consent</div><div class="pa-qa-a">Yes</div></div>
+                  </div>
                 </div>
               </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score">Score 9</span>
-                <span class="pa-card-tag referral">⚡ Referral</span>
-                <span class="pa-card-tag">Resume on file</span>
-                <span class="pa-card-tag">Video screen ★★★★☆</span>
+              <div class="pa-actions-bar">
+                <button class="pa-disp-btn ghost" type="button" onclick="paAction(this,'call','Alicia Monroe')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+                <button class="pa-disp-btn danger" type="button" onclick="paAction(this,'decline','Alicia Monroe')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Decline</button>
+                <button class="pa-disp-btn primary" type="button" onclick="paAction(this,'send_link','Alicia Monroe')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Send booking link</button>
               </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm btn-primary">Book interview</button>
             </div>
           </div>
 
-          <div class="pa-card" data-stage="booked">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill booked">Booked · Fri 9:00 AM</span>
-              <span class="pa-card-time">Yesterday</span>
+          <!-- APPLIED -->
+          <div class="pa-card" data-stage="applied" data-applicant="devon-patterson">
+            <div class="pa-row">
+              <div class="pa-card-stage">
+                <span class="pa-stage-pill applied">Applied</span>
+                <span class="pa-card-time">3h ago</span>
+              </div>
+              <div class="pa-card-body">
+                <div class="pa-card-header">
+                  <div class="pa-card-avatar tier-c">DP</div>
+                  <div>
+                    <div class="pa-card-name">Devon Patterson</div>
+                    <div class="pa-card-meta">Joplin, MO · devon.p@email.com · +1 417 555 0193</div>
+                  </div>
+                </div>
+                <div class="pa-card-tags"><span class="pa-card-tag score score-mid">Score 6</span></div>
+              </div>
+              <div class="pa-card-actions">
+                <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
             </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-c">MH</div>
+            <div class="pa-detail">
+              <div class="pa-detail-grid">
                 <div>
-                  <div class="pa-card-name">Marcus Hill</div>
-                  <div class="pa-card-meta">Springfield, MO · marcus.h@email.com · +1 417 555 0276</div>
+                  <div class="pa-detail-section-title">Steps</div>
+                  <div class="pa-timeline">
+                    <div class="pa-timeline-step current"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div><div class="pa-timeline-label">Applied · screening form sent</div><div class="pa-timeline-time">May 1 · 6:02 AM</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Screened</div><div class="pa-timeline-time">—</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking link sent</div><div class="pa-timeline-time">—</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking scheduled</div><div class="pa-timeline-time">—</div></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="pa-detail-section-title">Video screen</div>
+                  <div style="font-size:12px;color:var(--text-subtle);padding:14px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;text-align:center">Awaiting screening submission</div>
+                  <div class="pa-detail-section-title" style="margin-top:14px">Screening answers</div>
+                  <div style="font-size:12px;color:var(--text-subtle);padding:14px 0">Form sent · not yet returned</div>
                 </div>
               </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score score-mid">Score 5</span>
-                <span class="pa-card-tag">Indeed</span>
-                <span class="pa-card-tag">Confirmed via SMS</span>
+              <div class="pa-actions-bar">
+                <button class="pa-disp-btn ghost" type="button" onclick="paAction(this,'call','Devon Patterson')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+                <button class="pa-disp-btn danger" type="button" onclick="paAction(this,'decline','Devon Patterson')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Decline</button>
+                <button class="pa-disp-btn primary" type="button" onclick="paAction(this,'resend_screening','Devon Patterson')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Resend screening</button>
               </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm" onclick="goto('interview')">Open Interview Day</button>
             </div>
           </div>
 
-          <div class="pa-card" data-stage="new">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill new">New</span>
-              <span class="pa-card-time">2 days ago</span>
+          <!-- SCREENED -->
+          <div class="pa-card" data-stage="screened" data-applicant="camille-foster">
+            <div class="pa-row">
+              <div class="pa-card-stage">
+                <span class="pa-stage-pill screened">Screened</span>
+                <span class="pa-card-time">2 days ago</span>
+              </div>
+              <div class="pa-card-body">
+                <div class="pa-card-header">
+                  <div class="pa-card-avatar tier-b">CF</div>
+                  <div>
+                    <div class="pa-card-name">Camille Foster</div>
+                    <div class="pa-card-meta">Branson, MO · camille.f@email.com · +1 417 555 0408</div>
+                  </div>
+                </div>
+                <div class="pa-card-tags"><span class="pa-card-tag score">Score 7</span></div>
+              </div>
+              <div class="pa-card-actions">
+                <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
             </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-d">SU</div>
+            <div class="pa-detail">
+              <div class="pa-detail-grid">
                 <div>
-                  <div class="pa-card-name">Sasha Underwood</div>
-                  <div class="pa-card-meta">Nixa, MO · sasha.u@email.com · +1 417 555 0341</div>
+                  <div class="pa-detail-section-title">Steps</div>
+                  <div class="pa-timeline">
+                    <div class="pa-timeline-step done"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="pa-timeline-label">Applied</div><div class="pa-timeline-time">Apr 29 · 3:48 PM</div></div>
+                    <div class="pa-timeline-step current"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div><div class="pa-timeline-label">Screened · awaiting your review</div><div class="pa-timeline-time">Apr 30 · 10:24 AM</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking link sent</div><div class="pa-timeline-time">—</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking scheduled</div><div class="pa-timeline-time">—</div></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="pa-detail-section-title">Video screen</div>
+                  <div class="pa-video" onclick="toast('Plays video answers')">
+                    <div class="pa-video-rating">★★★★★</div>
+                    <div class="pa-video-play"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+                    <div class="pa-video-meta">3 video answers · 3:08 total</div>
+                  </div>
+                  <div class="pa-detail-section-title" style="margin-top:14px">Screening answers</div>
+                  <div class="pa-qa">
+                    <div class="pa-qa-item"><div class="pa-qa-q">Days available</div><div class="pa-qa-a">Mon–Fri</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Earliest start</div><div class="pa-qa-a">Within 2 weeks</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Lift 50 lbs</div><div class="pa-qa-a">Yes</div></div>
+                    <div class="pa-qa-item"><div class="pa-qa-q">Prior moving violations</div><div class="pa-qa-a">No</div></div>
+                  </div>
                 </div>
               </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score score-low">Score 3</span>
-                <span class="pa-card-tag">Walk-in</span>
+              <div class="pa-actions-bar">
+                <button class="pa-disp-btn ghost" type="button" onclick="paAction(this,'call','Camille Foster')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+                <button class="pa-disp-btn danger" type="button" onclick="paAction(this,'decline','Camille Foster')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Decline</button>
+                <button class="pa-disp-btn primary" type="button" onclick="paAction(this,'send_link','Camille Foster')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Send booking link</button>
               </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm">View</button>
             </div>
           </div>
 
-          <div class="pa-card" data-stage="screening">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill screening">Screening</span>
-              <span class="pa-card-time">2 days ago</span>
+          <!-- APPLIED -->
+          <div class="pa-card" data-stage="applied" data-applicant="sasha-underwood">
+            <div class="pa-row">
+              <div class="pa-card-stage">
+                <span class="pa-stage-pill applied">Applied</span>
+                <span class="pa-card-time">2 days ago</span>
+              </div>
+              <div class="pa-card-body">
+                <div class="pa-card-header">
+                  <div class="pa-card-avatar tier-d">SU</div>
+                  <div>
+                    <div class="pa-card-name">Sasha Underwood</div>
+                    <div class="pa-card-meta">Nixa, MO · sasha.u@email.com · +1 417 555 0341</div>
+                  </div>
+                </div>
+                <div class="pa-card-tags"><span class="pa-card-tag score score-low">Score 3</span></div>
+              </div>
+              <div class="pa-card-actions">
+                <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
             </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-b">CF</div>
+            <div class="pa-detail">
+              <div class="pa-detail-grid">
                 <div>
-                  <div class="pa-card-name">Camille Foster</div>
-                  <div class="pa-card-meta">Branson, MO · camille.f@email.com · +1 417 555 0408</div>
+                  <div class="pa-detail-section-title">Steps</div>
+                  <div class="pa-timeline">
+                    <div class="pa-timeline-step current"><div class="pa-timeline-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div><div class="pa-timeline-label">Applied · screening form sent</div><div class="pa-timeline-time">Apr 29 · 9:18 AM</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Screened</div><div class="pa-timeline-time">—</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking link sent</div><div class="pa-timeline-time">—</div></div>
+                    <div class="pa-timeline-step pending"><div class="pa-timeline-dot"></div><div class="pa-timeline-label">Booking scheduled</div><div class="pa-timeline-time">—</div></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="pa-detail-section-title">Video screen</div>
+                  <div style="font-size:12px;color:var(--text-subtle);padding:14px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;text-align:center">Awaiting screening submission</div>
+                  <div class="pa-detail-section-title" style="margin-top:14px">Screening answers</div>
+                  <div style="font-size:12px;color:var(--text-subtle);padding:14px 0">Form sent · not yet returned (2 days)</div>
                 </div>
               </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score">Score 7</span>
-                <span class="pa-card-tag">Indeed</span>
-                <span class="pa-card-tag">Video pending</span>
+              <div class="pa-actions-bar">
+                <button class="pa-disp-btn ghost" type="button" onclick="paAction(this,'call','Sasha Underwood')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+                <button class="pa-disp-btn danger" type="button" onclick="paAction(this,'decline','Sasha Underwood')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Decline</button>
+                <button class="pa-disp-btn primary" type="button" onclick="paAction(this,'resend_screening','Sasha Underwood')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Resend screening</button>
               </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm">View</button>
-            </div>
-          </div>
-
-          <div class="pa-card" data-stage="hired">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill hired">Hired</span>
-              <span class="pa-card-time">3 days ago</span>
-            </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-b">TA</div>
-                <div>
-                  <div class="pa-card-name">Trevor Anders</div>
-                  <div class="pa-card-meta">Springfield, MO · trevor.a@email.com · +1 417 555 0512</div>
-                </div>
-              </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score">Score 8</span>
-                <span class="pa-card-tag referral">⚡ Referred by Marcus Davidson</span>
-                <span class="pa-card-tag">Onboarding starts Mon</span>
-              </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm">View driver</button>
-            </div>
-          </div>
-
-          <div class="pa-card" data-stage="hired">
-            <div class="pa-card-stage">
-              <span class="pa-card-stage-pill hired">Hired</span>
-              <span class="pa-card-time">4 days ago</span>
-            </div>
-            <div class="pa-card-body">
-              <div class="pa-card-header">
-                <div class="pa-card-avatar tier-a">LW</div>
-                <div>
-                  <div class="pa-card-name">Lena Whitcomb</div>
-                  <div class="pa-card-meta">Joplin, MO · lena.w@email.com · +1 417 555 0633</div>
-                </div>
-              </div>
-              <div class="pa-card-tags">
-                <span class="pa-card-tag score">Score 9</span>
-                <span class="pa-card-tag">Indeed</span>
-                <span class="pa-card-tag">Onboarding in progress</span>
-              </div>
-            </div>
-            <div class="pa-card-actions">
-              <button class="btn btn-sm">View driver</button>
             </div>
           </div>
 
@@ -12831,13 +13048,13 @@ Evidence attached:
   }
 
   function pipeReadRates(){
-    var s = document.getElementById('pipeline-kpi-show');
-    var h = document.getElementById('pipeline-kpi-hire');
-    var v = document.getElementById('pipeline-kpi-velocity');
+    // New banner IDs (post-redesign); old IDs removed.
+    var s = document.getElementById('hp-show-rate');
+    var h = document.getElementById('hp-hire-rate');
     return {
       showPct: (s ? parseFloat(s.textContent) : 72) / 100,
       hirePct: (h ? parseFloat(h.textContent) : 31) / 100,
-      cycleDays: v ? parseFloat(v.textContent) : 9.2
+      cycleDays: 9.2
     };
   }
 
@@ -14038,6 +14255,77 @@ Evidence attached:
     if (empty) empty.style.display = (visible === 0 ? '' : 'none');
   }
 
+  // ─── PIPELINE APPLICANT EXPAND/COLLAPSE ───────────────────────
+  function paToggle(btn){
+    var card = btn.closest('.pa-card');
+    if (!card) return;
+    var wasOpen = card.classList.contains('expanded');
+    // Collapse any other open cards (one-at-a-time keeps the page calm)
+    document.querySelectorAll('#view-pipeline .pa-card.expanded').forEach(function(c){
+      if (c !== card) c.classList.remove('expanded');
+    });
+    card.classList.toggle('expanded', !wasOpen);
+    if (!wasOpen) {
+      // Smooth scroll the card into view if expanding pushes it off-screen
+      setTimeout(function(){ card.scrollIntoView({behavior:'smooth', block:'nearest'}); }, 50);
+    }
+  }
+
+  // ─── PIPELINE APPLICANT DISPOSITION ACTIONS ───────────────────
+  // Mockup: each action shows a toast and visually progresses the card stage.
+  function paAction(btn, action, name){
+    var card = btn.closest('.pa-card');
+    var msgs = {
+      send_link: 'Booking link sent · ' + name,
+      resend_link: 'Booking link resent · ' + name,
+      resend_screening: 'Screening form resent · ' + name,
+      decline: name + ' declined · removed from pipeline',
+      call: 'Calling ' + name + '…'
+    };
+    toast(msgs[action] || action, action === 'decline' ? 'warn' : 'success');
+    if (action === 'send_link' && card) {
+      // applied → screened → booking_pending visual progression
+      card.setAttribute('data-stage', 'booking_pending');
+      var pill = card.querySelector('.pa-stage-pill');
+      if (pill) { pill.className = 'pa-stage-pill booking_pending'; pill.textContent = 'Booking pending'; }
+      card.classList.remove('expanded');
+    } else if (action === 'decline' && card) {
+      // Rejected applicants leave the list entirely
+      card.style.transition = 'opacity .25s, transform .25s';
+      card.style.opacity = '0';
+      card.style.transform = 'translateX(20px)';
+      setTimeout(function(){ card.remove(); }, 260);
+    }
+  }
+
+  // ─── HIRING PIPELINE KPI RECOMPUTE ────────────────────────────
+  // Show rate = (booked - noShow) / booked
+  // Hire rate = hired / (hired + noHire)   ← of those who showed
+  // Falls back to hardcoded values if interview day hasn't run.
+  function recomputePipelineKPIs(){
+    var booked = parseInt((document.getElementById('iv-booked')||{}).textContent, 10) || 0;
+    var noshow = parseInt((document.getElementById('iv-noshow')||{}).textContent, 10) || 0;
+    var hired  = parseInt((document.getElementById('iv-hired')||{}).textContent, 10) || 0;
+    var nohire = parseInt((document.getElementById('iv-nohire')||{}).textContent, 10) || 0;
+    var showRate, hireRate;
+    if (booked > 0 && (hired + nohire + noshow) > 0) {
+      showRate = Math.round(((booked - noshow) / booked) * 100);
+      var showed = hired + nohire;
+      hireRate = showed > 0 ? Math.round((hired / showed) * 100) : 0;
+    } else {
+      // Cycle baseline (no actions logged yet today)
+      showRate = 72; hireRate = 31;
+    }
+    var srEl = document.getElementById('hp-show-rate'); if (srEl) srEl.textContent = showRate;
+    var hrEl = document.getElementById('hp-hire-rate'); if (hrEl) hrEl.textContent = hireRate;
+    // Coverage progress bar fill: actual / plan
+    var actual = parseInt((document.getElementById('hp-actual')||{}).textContent, 10) || 78;
+    var plan = parseInt((document.getElementById('hp-plan')||{}).textContent, 10) || 82;
+    var fill = document.getElementById('hp-stats-fill');
+    if (fill) fill.style.width = Math.min(100, Math.round(actual / plan * 100)) + '%';
+  }
+  document.addEventListener('DOMContentLoaded', recomputePipelineKPIs);
+
   // ─── DRIVERS STAGE FILTER (Roster sub-view) ────────────────
   function filterDriversStage(btn){
     const stage = btn.getAttribute('data-stage');
@@ -14417,6 +14705,8 @@ Evidence attached:
     } else if (action === 'No Show') {
       toast(candidateName + ' marked No Show · "missed your interview, want to rebook?" SMS sent');
     }
+    // Refresh hiring pipeline Show/Hire rate KPIs from updated counts
+    if (typeof recomputePipelineKPIs === 'function') recomputePipelineKPIs();
     // Day done check
     if (rem === 0) {
       setTimeout(function(){
