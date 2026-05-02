@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Apply · RouteReady</title>
+<link rel="icon" href="data:," />
+<style>
+  :root { --accent:#2563eb; --bg:#0b0e14; --card:#11151d; --text:#e6e9ef; --muted:#8b94a7; --border:#1f2531; --ok:#3ddc97; --err:#ff6b6b; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Inter",Segoe UI,sans-serif}
+  .wrap{max-width:520px;margin:0 auto;padding:36px 20px 80px}
+  h1{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+  p.sub{color:var(--muted);font-size:14px;margin:0 0 24px;line-height:1.5}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin:14px 0 6px}
+  input,select{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:11px 12px;font:inherit;font-size:14px}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  button{margin-top:24px;width:100%;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:14px;font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+  button[disabled]{opacity:.5}
+  .msg{margin-top:14px;font-size:13px}
+  .msg.ok{color:var(--ok)}
+  .msg.err{color:var(--err)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .legal{margin-top:14px;font-size:11px;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Drive with RouteReady</h1>
+  <p class="sub">Apply in 60 seconds. We'll text you a 2-minute screening — if you're a fit you'll be on the road within the week.</p>
+
+  <form id="f">
+    <div class="row">
+      <div><label for="first_name">First name</label><input id="first_name" required autocomplete="given-name" /></div>
+      <div><label for="last_name">Last name</label><input id="last_name" required autocomplete="family-name" /></div>
+    </div>
+    <label for="phone">Mobile phone</label>
+    <input id="phone" type="tel" required autocomplete="tel" placeholder="(555) 555-1234" />
+    <label for="email">Email (optional)</label>
+    <input id="email" type="email" autocomplete="email" />
+    <label for="source">How did you hear about us?</label>
+    <select id="source">
+      <option value="web">RouteReady website</option>
+      <option value="indeed">Indeed</option>
+      <option value="ziprecruiter">ZipRecruiter</option>
+      <option value="referral">Friend / referral</option>
+      <option value="walkin">Walk-in</option>
+      <option value="other">Other</option>
+    </select>
+    <button id="submit" type="submit">Submit application</button>
+    <p class="msg" id="msg"></p>
+    <p class="legal">By submitting, you agree to receive SMS updates about your application. Msg & data rates may apply. Reply STOP to opt out at any time. See <a href="/privacy.html" style="color:var(--muted)">Privacy</a>.</p>
+  </form>
+</div>
+
+<script src="./config.js"></script>
+<script type="module">
+  const cfg = window.RR_CONFIG;
+  const url = `${cfg.SUPABASE_URL}/functions/v1/webhook-apply`;
+
+  document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("msg");
+    const btn = document.getElementById("submit");
+    btn.disabled = true; msg.className = "msg"; msg.textContent = "Submitting…";
+
+    const payload = {
+      dsp_short_code: "DEMO",
+      first_name: document.getElementById("first_name").value.trim(),
+      last_name:  document.getElementById("last_name").value.trim(),
+      phone:      document.getElementById("phone").value.trim(),
+      email:      document.getElementById("email").value.trim() || null,
+      source:     document.getElementById("source").value,
+    };
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "apikey": cfg.SUPABASE_ANON_KEY },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      btn.disabled = false;
+      msg.className = "msg err";
+      msg.textContent = data.error ?? "Submission failed. Please try again.";
+      return;
+    }
+    msg.className = "msg ok";
+    msg.textContent = "Got it! Watch your phone for a screening text in the next minute.";
+    btn.disabled = true;
+  });
+</script>
+</body>
+</html>

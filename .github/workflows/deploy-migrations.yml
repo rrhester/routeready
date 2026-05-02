@@ -1,24 +1,27 @@
-name: Deploy Supabase migrations
+name: Deploy Supabase
 
-# Runs `supabase db push` against the live project whenever a migration
-# file changes on main. Also runnable manually from the Actions tab.
+# Pushes migrations + edge functions to the live project whenever something
+# under supabase/ changes on main. Also runnable manually.
 #
-# Required repo secrets (add once at Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN  - personal access token from https://supabase.com/dashboard/account/tokens
-#   SUPABASE_DB_PASSWORD   - the database password you set when you created the project
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  - https://supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD   - DB password set when project was created
 #   SUPABASE_PROJECT_REF   - doiwrhkirgblcvuskhno
+#
+# Edge function runtime secrets are set separately via
+#   `supabase secrets set --project-ref … KEY=VAL`
+# or the dashboard. See supabase/SECRETS.md for the full list.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'supabase/migrations/**'
-      - 'supabase/config.toml'
+      - 'supabase/**'
       - '.github/workflows/deploy-migrations.yml'
   workflow_dispatch:
 
 concurrency:
-  group: supabase-migrations
+  group: supabase-deploy
   cancel-in-progress: false
 
 jobs:
@@ -40,3 +43,17 @@ jobs:
 
       - name: Push migrations
         run: supabase db push --include-all
+
+      - name: Deploy edge functions (JWT-gated)
+        run: |
+          for fn in send-sms send-email; do
+            echo "▶ deploying $fn (auth required)"
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
+          done
+
+      - name: Deploy edge functions (public webhooks)
+        run: |
+          for fn in webhook-twilio webhook-cal webhook-apply; do
+            echo "▶ deploying $fn (no jwt)"
+            supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"
+          done

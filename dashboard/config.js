@@ -1,0 +1,15 @@
+// Public Supabase config for the operator dashboard.
+//
+// The anon key is safe to ship to the browser — it has no power beyond
+// the RLS policies + RPC grants we configured in migrations 0001-0005.
+// Replace ANON_KEY below with the value from
+//   Supabase Dashboard → Project Settings → API → anon public.
+//
+// To rotate: regenerate in Supabase, then update this file.
+
+window.RR_CONFIG = Object.freeze({
+  SUPABASE_URL:     "https://doiwrhkirgblcvuskhno.supabase.co",
+  SUPABASE_ANON_KEY: "REPLACE_WITH_ANON_PUBLIC_KEY",
+  ALLOWED_SIGNUP_DOMAINS: ["gorouteready.com"],
+  PUBLIC_BASE_URL:  "https://gorouteready.com",
+});

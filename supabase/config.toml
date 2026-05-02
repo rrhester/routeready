@@ -41,17 +41,24 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://gorouteready.com", "http://localhost:3000"]
+site_url = "https://gorouteready.com/dashboard/"
+additional_redirect_urls = [
+  "https://gorouteready.com/dashboard/",
+  "https://gorouteready.com/dashboard/index.html",
+  "https://gorouteready.com/dashboard/login.html",
+  "http://localhost:3000",
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
-enable_signup = false
+# Self-serve magic-link signup is open; the on_auth_user_created trigger
+# (migration 0005) rejects emails outside ALLOWED_SIGNUP_DOMAINS.
+enable_signup = true
 enable_anonymous_sign_ins = false
 enable_manual_linking = false
 
 [auth.email]
-enable_signup = false
+enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 

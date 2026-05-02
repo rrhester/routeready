@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sign in · RouteReady</title>
+<link rel="icon" href="data:," />
+<style>
+  :root { --accent:#2563eb; --bg:#0b0e14; --card:#11151d; --text:#e6e9ef; --muted:#8b94a7; --border:#1f2531; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Inter",Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+  .wrap{min-height:100%;display:grid;place-items:center;padding:32px}
+  .card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:32px}
+  h1{margin:0 0 8px;font-size:20px;font-weight:600;letter-spacing:-.01em}
+  p{margin:0 0 24px;color:var(--muted);font-size:14px;line-height:1.5}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:.04em;text-transform:uppercase}
+  input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font:inherit;font-size:14px}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{width:100%;margin-top:18px;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:11px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  button[disabled]{opacity:.6;cursor:not-allowed}
+  .msg{margin-top:14px;font-size:13px;line-height:1.5}
+  .msg.ok{color:#3ddc97}
+  .msg.err{color:#ff6b6b}
+  .footer{margin-top:24px;font-size:12px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>RouteReady</h1>
+    <p>Enter your work email and we'll send you a magic-link to sign in. Only addresses on allowed domains can sign in.</p>
+    <form id="f">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@gorouteready.com" />
+      <button type="submit" id="submit">Send magic link</button>
+      <div id="msg" class="msg"></div>
+    </form>
+    <div class="footer">© RouteReady · <a href="/" style="color:var(--muted)">Back to home</a></div>
+  </div>
+</div>
+
+<script src="./config.js"></script>
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+  const cfg = window.RR_CONFIG;
+  const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
+
+  const params = new URLSearchParams(location.search);
+  const next   = params.get("next") || "./index.html";
+  const errCode = params.get("err");
+
+  const msg = document.getElementById("msg");
+  if (errCode === "no_profile") {
+    msg.className = "msg err";
+    msg.textContent = "Your account isn't linked to a tenant yet. Contact your administrator.";
+  }
+
+  // If already signed in, bounce to next.
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) location.replace(next);
+
+  document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email").value.trim().toLowerCase();
+    const btn   = document.getElementById("submit");
+    const allowed = (cfg.ALLOWED_SIGNUP_DOMAINS || []).some(d => email.endsWith("@" + d));
+    if (!allowed) {
+      msg.className = "msg err";
+      msg.textContent = "That email domain isn't allowed.";
+      return;
+    }
+    btn.disabled = true;
+    msg.className = "msg";
+    msg.textContent = "Sending…";
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: location.origin + location.pathname.replace(/[^/]+$/, "") + "index.html" },
+    });
+    if (error) {
+      btn.disabled = false;
+      msg.className = "msg err";
+      msg.textContent = error.message;
+    } else {
+      msg.className = "msg ok";
+      msg.textContent = "Check your inbox for the sign-in link.";
+    }
+  });
+</script>
+</body>
+</html>
