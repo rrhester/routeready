@@ -14312,6 +14312,7 @@ Evidence attached:
 
   // Initial render
   document.addEventListener('DOMContentLoaded', function(){ attRender(); });
+  // Also render now in case DOMContentLoaded already fired (script is at end of body)
   if (document.readyState !== 'loading') attRender();
 
   // ═══════════════════════════════════════════════════════════════
