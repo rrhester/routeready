@@ -1,0 +1,110 @@
+// webhook-twilio · Handles status callbacks AND inbound SMS in one fn.
+//
+// Configure both in the Twilio console pointing at the same URL:
+//   - Messaging Service → Inbound webhook
+//   - Messaging Service → Status callback
+// The Twilio body distinguishes them: status callbacks include
+// MessageStatus, inbound includes Body + From.
+//
+// Env:
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//   TWILIO_AUTH_TOKEN  (for signature verification)
+//   PUBLIC_BASE_URL    (e.g. https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-twilio)
+import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+
+async function verifyTwilioSignature(req: Request, rawBody: string): Promise<boolean> {
+  const token = Deno.env.get("TWILIO_AUTH_TOKEN");
+  const sig   = req.headers.get("x-twilio-signature");
+  if (!token || !sig) return false;
+
+  // Twilio's signature: HMAC-SHA1 of (URL + concatenated sorted POST params).
+  const url = Deno.env.get("PUBLIC_BASE_URL") ?? new URL(req.url).toString();
+  const params = new URLSearchParams(rawBody);
+  const sortedKeys = [...params.keys()].sort();
+  let payload = url;
+  for (const k of sortedKeys) payload += k + (params.get(k) ?? "");
+
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(token), { name: "HMAC", hash: "SHA-1" }, false, ["sign"],
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  const macB64 = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  return macB64 === sig;
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== "POST") return badRequest("method_not_allowed", 405);
+  const raw = await req.text();
+  const ok  = await verifyTwilioSignature(req, raw);
+  if (!ok) return badRequest("bad_signature", 403);
+
+  const params = new URLSearchParams(raw);
+  const supa = serviceClient();
+
+  // Inbound message?
+  if (params.get("Body") && params.get("From")) {
+    const from = params.get("From")!;
+    const to   = params.get("To") ?? null;
+    const body = params.get("Body")!;
+    const sid  = params.get("MessageSid") ?? null;
+
+    // Find the most recent applicant we've messaged at this number.
+    const { data: prior } = await supa.from("sms_messages")
+      .select("dsp_id, applicant_id")
+      .eq("to_phone", from)
+      .eq("direction", "outbound")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const dsp_id = prior?.[0]?.dsp_id ?? null;
+    const applicant_id = prior?.[0]?.applicant_id ?? null;
+
+    if (dsp_id) {
+      await supa.from("sms_messages").insert({
+        dsp_id, applicant_id, direction: "inbound", status: "received",
+        to_phone: to ?? "", from_phone: from, body,
+        provider: "twilio", provider_sid: sid,
+      });
+    }
+
+    // Auto-reply for STOP / HELP, per CTIA / TCPA.
+    const upper = body.trim().toUpperCase();
+    let reply: string | null = null;
+    if (upper === "STOP" || upper === "STOPALL" || upper === "UNSUBSCRIBE" || upper === "CANCEL" || upper === "QUIT" || upper === "END") {
+      reply = "You're unsubscribed and won't receive further RouteReady messages. Reply START to opt back in.";
+    } else if (upper === "HELP" || upper === "INFO") {
+      reply = "RouteReady · Driver hiring updates. Msg & data rates may apply. Reply STOP to opt out. support@gorouteready.com";
+    }
+    if (reply) {
+      // TwiML response — Twilio will dispatch this back to the sender.
+      return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>${reply}</Message></Response>`, {
+        headers: { "content-type": "text/xml" },
+      });
+    }
+    return new Response("<Response/>", { headers: { "content-type": "text/xml" } });
+  }
+
+  // Status callback?
+  const status = params.get("MessageStatus");
+  const sid    = params.get("MessageSid");
+  if (status && sid) {
+    const map: Record<string, string> = {
+      queued: "queued", sending: "sending", sent: "sent",
+      delivered: "delivered", undelivered: "failed", failed: "failed",
+    };
+    const next = map[status] ?? null;
+    if (next) {
+      const update: Record<string, unknown> = { status: next };
+      if (next === "delivered") update.delivered_at = new Date().toISOString();
+      if (next === "failed") {
+        update.error_code = params.get("ErrorCode") ?? null;
+        update.error_message = params.get("ErrorMessage") ?? null;
+      }
+      await supa.from("sms_messages").update(update)
+        .eq("provider", "twilio").eq("provider_sid", sid);
+    }
+  }
+
+  return jsonResponse({ ok: true });
+});
