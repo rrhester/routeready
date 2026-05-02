@@ -1,14 +1,27 @@
 -- ─────────────────────────────────────────────────────────────────────────
 -- Migration 0011 · Surface video_url through pipeline_list
 --
--- 0010 added applicants.video_url. The operator dashboard's pipeline
--- view needs that column on every card render so it can show a "watch
--- intro" affordance. applicant_detail returns to_jsonb(a) which already
--- includes new columns automatically — only pipeline_list has to be
--- regenerated to pick up the new field.
+-- 0010 added applicants.video_url. The applicants_pipeline view from
+-- 0003 was created with `select a.*`, but Postgres expands * at view-
+-- creation time and freezes the column list — it does NOT pick up new
+-- columns added to the underlying table later. We have to drop and
+-- recreate the view (CREATE OR REPLACE VIEW can append columns but
+-- not when the underlying source is `a.*` since the column set has
+-- changed). Then we drop and recreate pipeline_list with the new
+-- video_url field in its return shape.
 -- ─────────────────────────────────────────────────────────────────────────
 
 drop function if exists public.pipeline_list(text, int);
+drop view if exists public.applicants_pipeline;
+
+create or replace view public.applicants_pipeline as
+  select
+    a.*,
+    public.applicant_pipeline_stage(a.status) as pipeline_stage
+  from public.applicants a;
+
+grant select on public.applicants_pipeline to authenticated;
+
 
 create or replace function public.pipeline_list(p_stage text default 'all', p_limit int default 200)
 returns table (
