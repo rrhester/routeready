@@ -5231,6 +5231,18 @@ a{color:inherit;text-decoration:none}
             </div>
           </div>
 
+          <!-- ─── LICENSE RENEWALS PANEL ──────────────────────── -->
+          <div class="di-section" style="margin-top:var(--s-5)" id="lic-renewals-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-3)">
+              <div>
+                <h3 class="di-section-title" style="margin:0">Upcoming license renewals</h3>
+                <p style="font-size:11px;color:var(--text-subtle);margin:2px 0 0 0">Drivers with CDL / DOT-required licenses expiring soon. Auto-SMS fires per <a style="color:var(--accent-text);cursor:pointer" onclick="goto('settings');setTimeout(function(){var b=document.querySelector('.settings-nav-item[data-set=&quot;renewals&quot;]');if(b)b.click();},50)">License renewals settings</a>.</p>
+              </div>
+              <span id="lic-panel-status" style="font-size:11px;color:var(--text-subtle)">—</span>
+            </div>
+            <div id="lic-renewals-body"><!-- populated by renderRenewalsPanel() --></div>
+          </div>
+
         </div><!-- /dr-sub-insights -->
 
         <!-- ═══════════════════════════════════════════════════════
@@ -5578,6 +5590,7 @@ a{color:inherit;text-decoration:none}
             <button class="settings-nav-item" data-set="screening" onclick="setSettingsSection(this)">Screening questions</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="video" onclick="setSettingsSection(this)">Video screening</button>
+            <button class="settings-nav-item" data-set="renewals" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
@@ -5794,6 +5807,51 @@ a{color:inherit;text-decoration:none}
               <div class="form-row">
                 <div><div class="form-label">Storage</div><div class="form-help">Where video recordings live. Supabase Storage by default.</div></div>
                 <div style="font-size:12px;color:var(--text-muted)">Supabase Storage · 14 videos stored · ~280 MB used</div>
+              </div>
+            </div>
+
+            <!-- LICENSE RENEWALS SECTION -->
+            <div class="settings-section hidden" data-set="renewals">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">License renewals</h2>
+                <p class="settings-section-sub">Auto-text drivers before their CDL / DOT-required license expires. Daily background job checks every driver against your reminder schedule and fires the SMS once per threshold per renewal cycle.</p>
+              </div>
+
+              <div class="form-row">
+                <div><div class="form-label">Enable auto-reminders</div><div class="form-help">When off, no SMS fires regardless of expiry. Renewals still surface in Drivers → Insights and on the Schedule.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="lic-enabled" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <div class="form-row">
+                <div><div class="form-label">Reminder days before expiry</div><div class="form-help">A separate SMS fires the day each threshold is hit. Comma-separated. Most DSPs use 30 + 14 + 3.</div></div>
+                <div><input class="form-input" id="lic-days" value="30, 14" style="max-width:160px" /></div>
+              </div>
+
+              <div class="form-row">
+                <div><div class="form-label">SMS template</div><div class="form-help">Variables: {{name}}, {{days}}, {{date}}. Sent via Twilio. Keep under 160 chars to avoid multipart billing.</div></div>
+                <div style="flex:1;max-width:480px"><textarea class="form-input" id="lic-template" style="min-height:72px;width:100%">Hi {{name}} — your driver license expires in {{days}} days ({{date}}). Please renew ASAP and send a photo of your new license. Reply HELP if you need help. — Cardinal Logistics</textarea></div>
+              </div>
+
+              <div class="form-row">
+                <div><div class="form-label">Also notify owner</div><div class="form-help">Add to dashboard action queue + email digest when a reminder fires.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="lic-notify-owner" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <div class="form-row" style="border-bottom:0">
+                <div><div class="form-label">Auto-block scheduling past expiry</div><div class="form-help">Hard rule: drivers with expired licenses cannot be assigned to upcoming shifts. Recommended on for DOT compliance.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="lic-block-scheduling" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--text-muted);line-height:1.5">
+                <strong style="color:var(--text)">How this works in production:</strong> A daily cron job (3 AM local) reads each driver's <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:10px">license_expiry</code> date, computes days remaining, and fires the SMS for each threshold not yet sent for the current renewal cycle. Cycle resets when you upload a new license document. All sends are logged to the driver's HR file.
+              </div>
+
+              <div style="margin-top:var(--s-4);display:flex;gap:8px">
+                <button class="btn" onclick="licResetSettings()">Reset to defaults</button>
+                <button class="btn btn-primary" onclick="licSaveSettings()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Save changes
+                </button>
               </div>
             </div>
 
@@ -13880,14 +13938,17 @@ Evidence attached:
   // Data source: ciMark() in Today's check-in writes to RR_ATTENDANCE_LOG.
   // Report is computed live from policy + log.
   // ═══════════════════════════════════════════════════════════════
+  function _isoFromNow(n){ var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); }
   var RR_DRIVERS = [
-    { id:'MD', name:'Marcus Davidson',  station:'KMO1', tier:'tier-d', scheduled30:22 },
-    { id:'TR', name:'Tasha Reyes',      station:'KMO2', tier:'tier-d', scheduled30:21 },
-    { id:'KW', name:'Kerwin Whitfield', station:'KMO1', tier:'tier-c', scheduled30:22 },
-    { id:'JB', name:'Jordan Beckett',   station:'KMO3', tier:'tier-c', scheduled30:20 },
-    { id:'DP', name:'Devon Patterson',  station:'KMO3', tier:'tier-b', scheduled30:22 },
-    { id:'AT', name:'Asha Thornton',    station:'KMO2', tier:'tier-c', scheduled30:21 },
-    { id:'CF', name:'Camille Foster',   station:'KMO1', tier:'tier-a', scheduled30:22 }
+    // licenseExpiry is a real DOT/CDL expiration date — seeded relative to today so the
+    // 30d / 14d auto-text and schedule flag render visibly in the demo
+    { id:'MD', name:'Marcus Davidson',  station:'KMO1', tier:'tier-d', scheduled30:22, licenseExpiry:_isoFromNow(4)   }, // expires this week
+    { id:'TR', name:'Tasha Reyes',      station:'KMO2', tier:'tier-d', scheduled30:21, licenseExpiry:_isoFromNow(28)  }, // 30d window
+    { id:'KW', name:'Kerwin Whitfield', station:'KMO1', tier:'tier-c', scheduled30:22, licenseExpiry:_isoFromNow(6)   }, // expires this week
+    { id:'JB', name:'Jordan Beckett',   station:'KMO3', tier:'tier-c', scheduled30:20, licenseExpiry:_isoFromNow(12)  }, // 14d window
+    { id:'DP', name:'Devon Patterson',  station:'KMO3', tier:'tier-b', scheduled30:22, licenseExpiry:_isoFromNow(90)  },
+    { id:'AT', name:'Asha Thornton',    station:'KMO2', tier:'tier-c', scheduled30:21, licenseExpiry:_isoFromNow(22)  }, // 30d window
+    { id:'CF', name:'Camille Foster',   station:'KMO1', tier:'tier-a', scheduled30:22, licenseExpiry:_isoFromNow(200) }
   ];
 
   function _daysAgo(n){ var d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0,10); }
@@ -14684,6 +14745,357 @@ Evidence attached:
     openModal('modal-hr-file');
   }
   window.openHrFile = openHrFile;
+
+  // ═══════════════════════════════════════════════════════════════
+  // LICENSE RENEWALS — auto-text + schedule flag + Insights panel
+  // ═══════════════════════════════════════════════════════════════
+  var RR_LICENSE_POLICY = {
+    enabled: true,
+    daysBefore: [30, 14],
+    template: 'Hi {{name}} — your driver license expires in {{days}} days ({{date}}). Please renew ASAP and send a photo of your new license. Reply HELP if you need help. — Cardinal Logistics',
+    notifyOwner: true,
+    blockScheduling: true
+  };
+  var RR_LICENSE_REMINDERS = []; // {id, driverId, threshold, sentDate, expiryDate, channel:'sms'}
+  var _licSeq = 0;
+
+  function _daysUntil(iso){
+    if (!iso) return Infinity;
+    var d = new Date(iso + 'T12:00:00');
+    return Math.ceil((d.getTime() - Date.now()) / 86400000);
+  }
+  function _expiryStatus(days){
+    if (days < 0) return 'expired';
+    if (days <= 14) return 'urgent';
+    if (days <= 30) return 'soon';
+    return 'ok';
+  }
+  function _expiryLabel(days){
+    if (days < 0) return 'Expired ' + Math.abs(days) + 'd ago';
+    if (days === 0) return 'Expires today';
+    if (days === 1) return 'Expires tomorrow';
+    return 'Expires in ' + days + 'd';
+  }
+  function _renderTemplate(tpl, vars){
+    return tpl.replace(/\{\{(\w+)\}\}/g, function(_, k){ return vars[k] != null ? vars[k] : ''; });
+  }
+
+  // ─── DAILY SCHEDULER (simulated on load) ────────────────────────
+  // Seeds reminders that "should have already fired" based on each driver's current
+  // expiry date and the configured thresholds. In production this is a daily cron.
+  function licSeedRemindersHistory(){
+    RR_LICENSE_REMINDERS = [];
+    if (!window.RR_DRIVERS) return;
+    RR_DRIVERS.forEach(function(d){
+      if (!d.licenseExpiry) return;
+      var daysToExpiry = _daysUntil(d.licenseExpiry);
+      RR_LICENSE_POLICY.daysBefore.forEach(function(threshold){
+        // If we're past this threshold (i.e. days remaining <= threshold), it has fired
+        if (daysToExpiry <= threshold) {
+          var firedDaysAgo = threshold - daysToExpiry; // 0 = fired today
+          _licSeq++;
+          RR_LICENSE_REMINDERS.push({
+            id: 'lic_' + _licSeq,
+            driverId: d.id,
+            threshold: threshold,
+            sentDate: _isoFromNow(-firedDaysAgo),
+            expiryDate: d.licenseExpiry,
+            channel: 'sms'
+          });
+        }
+      });
+    });
+  }
+
+  function licFireRemindersToday(){
+    // For any driver whose days-to-expiry equals a threshold today AND no reminder logged for that threshold yet, fire it.
+    if (!RR_LICENSE_POLICY.enabled || !window.RR_DRIVERS) return [];
+    var fired = [];
+    RR_DRIVERS.forEach(function(d){
+      if (!d.licenseExpiry) return;
+      var daysToExpiry = _daysUntil(d.licenseExpiry);
+      RR_LICENSE_POLICY.daysBefore.forEach(function(threshold){
+        if (daysToExpiry !== threshold) return;
+        var alreadyFired = RR_LICENSE_REMINDERS.some(function(r){
+          return r.driverId === d.id && r.threshold === threshold && r.expiryDate === d.licenseExpiry;
+        });
+        if (alreadyFired) return;
+        _licSeq++;
+        var rem = {
+          id: 'lic_' + _licSeq, driverId: d.id, threshold: threshold,
+          sentDate: _isoFromNow(0), expiryDate: d.licenseExpiry, channel: 'sms'
+        };
+        RR_LICENSE_REMINDERS.push(rem);
+        // Add to HR file (informational)
+        if (window.RR_HR_EVENTS) {
+          RR_HR_EVENTS.push({
+            id: 'hr_lic_' + Date.now() + '_' + _licSeq,
+            driverId: d.id,
+            type: 'warning',
+            severity: 'info',
+            date: _isoFromNow(0),
+            by: 'System (auto)',
+            summary: 'License renewal reminder sent (' + threshold + 'd before expiry)',
+            detail: _renderTemplate(RR_LICENSE_POLICY.template, { name: d.name.split(' ')[0], days: threshold, date: _fmtDate(d.licenseExpiry) }),
+            links: { reminderId: rem.id },
+            immutable: true,
+            timestamp: Date.now()
+          });
+        }
+        fired.push({ driver: d, threshold: threshold });
+      });
+    });
+    if (fired.length > 0) {
+      _toast('Auto-text sent to ' + fired.length + ' driver(s) re: license renewal');
+    }
+    return fired;
+  }
+
+  // ─── SETTINGS HANDLERS ──────────────────────────────────────────
+  function licReadSettingsFromDom(){
+    var en = document.getElementById('lic-enabled');
+    if (!en) return;
+    RR_LICENSE_POLICY.enabled = en.checked;
+    var daysStr = (document.getElementById('lic-days').value || '').trim();
+    var days = daysStr.split(/[, ]+/).map(function(s){ return parseInt(s, 10); }).filter(function(n){ return !isNaN(n) && n > 0; });
+    if (days.length) RR_LICENSE_POLICY.daysBefore = days.sort(function(a, b){ return b - a; });
+    RR_LICENSE_POLICY.template = document.getElementById('lic-template').value;
+    RR_LICENSE_POLICY.notifyOwner = document.getElementById('lic-notify-owner').checked;
+    RR_LICENSE_POLICY.blockScheduling = document.getElementById('lic-block-scheduling').checked;
+  }
+  function licWriteSettingsToDom(){
+    var en = document.getElementById('lic-enabled'); if (!en) return;
+    en.checked = RR_LICENSE_POLICY.enabled;
+    document.getElementById('lic-days').value = RR_LICENSE_POLICY.daysBefore.join(', ');
+    document.getElementById('lic-template').value = RR_LICENSE_POLICY.template;
+    document.getElementById('lic-notify-owner').checked = RR_LICENSE_POLICY.notifyOwner;
+    document.getElementById('lic-block-scheduling').checked = RR_LICENSE_POLICY.blockScheduling;
+  }
+  function licSaveSettings(){
+    licReadSettingsFromDom();
+    licSeedRemindersHistory();   // recompute history with new thresholds
+    licApplyAll();
+    _toast('License renewal settings saved');
+  }
+  function licResetSettings(){
+    RR_LICENSE_POLICY = {
+      enabled: true,
+      daysBefore: [30, 14],
+      template: 'Hi {{name}} — your driver license expires in {{days}} days ({{date}}). Please renew ASAP and send a photo of your new license. Reply HELP if you need help. — Cardinal Logistics',
+      notifyOwner: true,
+      blockScheduling: true
+    };
+    licWriteSettingsToDom();
+    licSeedRemindersHistory();
+    licApplyAll();
+    _toast('Reset to defaults');
+  }
+  window.licSaveSettings = licSaveSettings;
+  window.licResetSettings = licResetSettings;
+
+  // ─── RENEWALS PANEL (Drivers → Insights) ────────────────────────
+  function renderRenewalsPanel(){
+    var body = document.getElementById('lic-renewals-body');
+    if (!body || !window.RR_DRIVERS) return;
+    var rows = RR_DRIVERS.map(function(d){
+      return { driver: d, days: _daysUntil(d.licenseExpiry) };
+    }).filter(function(r){ return r.days <= 60; })
+      .sort(function(a, b){ return a.days - b.days; });
+
+    var status = document.getElementById('lic-panel-status');
+    var firedCount = RR_LICENSE_REMINDERS.filter(function(r){ return r.sentDate === _isoFromNow(0); }).length;
+    if (status) {
+      status.innerHTML = (firedCount > 0)
+        ? '<span style="color:var(--accent-text)">●</span> ' + firedCount + ' auto-SMS sent today'
+        : 'No auto-SMS due today · ' + RR_LICENSE_REMINDERS.length + ' total this cycle';
+    }
+
+    if (rows.length === 0) {
+      body.innerHTML = '<div style="padding:var(--s-3);color:var(--text-subtle);font-size:13px;font-style:italic">No drivers expiring in the next 60 days. ✓</div>';
+      return;
+    }
+
+    body.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">'
+      + '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr auto;gap:12px;padding:8px 14px;background:var(--canvas);font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">'
+      + '<span>Driver</span><span>License expires</span><span>Days remaining</span><span>Reminders sent</span><span></span>'
+      + '</div>'
+      + rows.map(function(r){
+        var d = r.driver;
+        var st = _expiryStatus(r.days);
+        var color = st === 'expired' ? 'var(--red)' : st === 'urgent' ? 'var(--red)' : st === 'soon' ? 'var(--amber)' : 'var(--text-muted)';
+        var bg = st === 'expired' ? '#FEE2E2' : st === 'urgent' ? '#FEE2E2' : st === 'soon' ? '#FEF3C7' : 'transparent';
+        var sentReminders = RR_LICENSE_REMINDERS
+          .filter(function(rem){ return rem.driverId === d.id && rem.expiryDate === d.licenseExpiry; })
+          .sort(function(a, b){ return b.threshold - a.threshold; });
+        var sentTxt = sentReminders.length === 0
+          ? '<span style="color:var(--text-subtle)">none yet</span>'
+          : sentReminders.map(function(rem){
+              return '<span style="font-size:11px;color:var(--text-muted)" title="Sent ' + _fmtRel(rem.sentDate) + '">' + rem.threshold + 'd ✓</span>';
+            }).join(' · ');
+        return '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr auto;gap:12px;padding:10px 14px;border-top:1px solid var(--border);align-items:center;background:' + bg + '">'
+          + '<div style="display:flex;align-items:center;gap:8px"><div class="avatar-sm ' + d.tier + '">' + d.id + '</div><div><div style="font-weight:600;font-size:13px">' + d.name + '</div><div style="font-size:11px;color:var(--text-subtle)">' + d.station + '</div></div></div>'
+          + '<div style="font-size:13px;color:var(--text);font-variant-numeric:tabular-nums">' + _fmtDate(d.licenseExpiry) + '</div>'
+          + '<div style="font-weight:600;font-size:13px;color:' + color + '">' + _expiryLabel(r.days) + '</div>'
+          + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + sentTxt + '</div>'
+          + '<div style="display:flex;gap:6px"><button class="btn btn-sm" onclick="licResendNow(\'' + d.id + '\')">Resend</button><button class="btn btn-sm btn-primary" onclick="licMarkRenewed(\'' + d.id + '\')">Mark renewed</button></div>'
+          + '</div>';
+      }).join('') + '</div>';
+  }
+
+  function licResendNow(driverId){
+    var d = _findDriver && _findDriver(driverId);
+    if (!d || !d.licenseExpiry) return;
+    var days = _daysUntil(d.licenseExpiry);
+    _licSeq++;
+    var rem = { id: 'lic_' + _licSeq, driverId: d.id, threshold: 'manual', sentDate: _isoFromNow(0), expiryDate: d.licenseExpiry, channel: 'sms' };
+    RR_LICENSE_REMINDERS.push(rem);
+    if (window.RR_HR_EVENTS) {
+      RR_HR_EVENTS.push({
+        id: 'hr_lic_m_' + Date.now(), driverId: d.id, type: 'warning', severity: 'info',
+        date: _isoFromNow(0), by: 'You (Owner)',
+        summary: 'License renewal reminder sent manually',
+        detail: _renderTemplate(RR_LICENSE_POLICY.template, { name: d.name.split(' ')[0], days: days, date: _fmtDate(d.licenseExpiry) }),
+        links: { reminderId: rem.id }, immutable: true, timestamp: Date.now()
+      });
+    }
+    _toast('SMS sent to ' + d.name);
+    renderRenewalsPanel();
+  }
+  window.licResendNow = licResendNow;
+
+  function licMarkRenewed(driverId){
+    var d = _findDriver && _findDriver(driverId);
+    if (!d) return;
+    // Move expiry out 1 year (typical CDL renewal)
+    d.licenseExpiry = _isoFromNow(365);
+    if (window.RR_HR_EVENTS) {
+      RR_HR_EVENTS.push({
+        id: 'hr_lic_r_' + Date.now(), driverId: d.id, type: 'reinstate', severity: 'info',
+        date: _isoFromNow(0), by: 'You (Owner)',
+        summary: 'License renewed · new expiry on file',
+        detail: 'New license uploaded and verified. New expiry: ' + _fmtDate(d.licenseExpiry) + '. Reminder cycle reset.',
+        links: {}, immutable: true, timestamp: Date.now()
+      });
+    }
+    // Reset reminders for this driver
+    RR_LICENSE_REMINDERS = RR_LICENSE_REMINDERS.filter(function(r){ return r.driverId !== d.id; });
+    _toast(d.name + ' license renewed · new expiry ' + _fmtDate(d.licenseExpiry));
+    licApplyAll();
+  }
+  window.licMarkRenewed = licMarkRenewed;
+
+  // ─── SCHEDULE FLAG (driver row badges in week grid) ─────────────
+  function licApplyToSchedule(){
+    var rows = document.querySelectorAll('#sched-sub-week .cal-row-label');
+    if (!rows.length) return;
+    // Determine the schedule's visible week (read from header label)
+    var wkLabelEl = document.querySelector('#sched-sub-week .sched-week-label');
+    // Default: assume the visible week is "today + 7 days"
+    var weekStart = _isoFromNow(0);
+    var weekEnd = _isoFromNow(7);
+    rows.forEach(function(row){
+      var nameEl = row.querySelector('.cal-row-label-name');
+      if (!nameEl) return;
+      var driver = _findDriver && _findDriver(nameEl.textContent.trim());
+      if (!driver || !driver.licenseExpiry) return;
+      // Remove any previous badge
+      var existing = row.querySelector('.lic-sched-badge');
+      if (existing) existing.remove();
+      var days = _daysUntil(driver.licenseExpiry);
+      // Flag if expiry is within the visible 7-day window
+      if (driver.licenseExpiry >= weekStart && driver.licenseExpiry <= weekEnd) {
+        var badge = document.createElement('div');
+        badge.className = 'lic-sched-badge';
+        badge.title = 'License expires ' + _fmtDate(driver.licenseExpiry) + ' — auto-block-scheduling ' + (RR_LICENSE_POLICY.blockScheduling ? 'ON' : 'OFF');
+        badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;margin-top:4px;cursor:help';
+        badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:10px;height:10px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>License expires ' + _fmtDate(driver.licenseExpiry);
+        var inner = row.querySelector(':scope > div:last-child') || row.lastElementChild;
+        if (inner && inner.classList && !inner.classList.contains('avatar-sm')) inner.appendChild(badge);
+        else row.appendChild(badge);
+      }
+    });
+    // Also: top-of-week banner if anyone expires this week
+    var anchor = document.querySelector('#sched-sub-week');
+    if (!anchor) return;
+    var existingBanner = document.getElementById('sched-license-banner');
+    var inWeek = RR_DRIVERS.filter(function(d){
+      return d.licenseExpiry && d.licenseExpiry >= weekStart && d.licenseExpiry <= weekEnd;
+    });
+    if (inWeek.length === 0) {
+      if (existingBanner) existingBanner.remove();
+      return;
+    }
+    if (!existingBanner) {
+      existingBanner = document.createElement('div');
+      existingBanner.id = 'sched-license-banner';
+      existingBanner.style.cssText = 'background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:13px;display:flex;align-items:center;gap:10px';
+      // Insert AFTER suspended banner if present, else at top
+      var susBanner = document.getElementById('sched-suspended-banner');
+      if (susBanner) susBanner.parentNode.insertBefore(existingBanner, susBanner.nextSibling);
+      else anchor.insertBefore(existingBanner, anchor.firstChild);
+    }
+    var names = inWeek.map(function(d){ return d.name + ' (' + _fmtDate(d.licenseExpiry) + ')'; }).join(', ');
+    existingBanner.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>'
+      + '<div style="flex:1"><strong>' + inWeek.length + ' license(s) expire this week:</strong> ' + names + (RR_LICENSE_POLICY.blockScheduling ? ' · scheduling will be blocked past expiry date' : '') + '</div>'
+      + '<button class="btn btn-sm" onclick="goto(\'drivers\');setTimeout(function(){drSub(\'insights\');document.getElementById(\'lic-renewals-panel\').scrollIntoView({behavior:\'smooth\'});},80)" style="background:#fff;color:#92400E;border-color:#FCD34D">View renewals</button>';
+  }
+
+  // ─── ROSTER INDICATOR (small license pill on rows expiring ≤30d) ──
+  function licApplyToRoster(){
+    var tbody = document.querySelector('#dr-sub-roster .table tbody');
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(function(tr){
+      var nameEl = tr.querySelector('.cell-name');
+      if (!nameEl) return;
+      var existing = tr.querySelector('.lic-roster-pill');
+      if (existing) existing.remove();
+      var driver = _findDriver && _findDriver(nameEl.textContent.trim());
+      if (!driver || !driver.licenseExpiry) return;
+      var days = _daysUntil(driver.licenseExpiry);
+      if (days > 30) return;
+      var pill = document.createElement('span');
+      pill.className = 'lic-roster-pill';
+      var st = _expiryStatus(days);
+      var bg = st === 'expired' || st === 'urgent' ? '#FEE2E2' : '#FEF3C7';
+      var fg = st === 'expired' || st === 'urgent' ? '#991B1B' : '#92400E';
+      pill.style.cssText = 'display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:2px 6px;border-radius:6px;margin-left:6px;background:' + bg + ';color:' + fg;
+      pill.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:9px;height:9px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>License ' + _expiryLabel(days);
+      pill.title = 'License expires ' + _fmtDate(driver.licenseExpiry);
+      var nameWrap = tr.querySelector('.cell-driver');
+      if (nameWrap) nameWrap.appendChild(pill);
+    });
+  }
+
+  // ─── APPLY ALL ──────────────────────────────────────────────────
+  function licApplyAll(){
+    licApplyToSchedule();
+    licApplyToRoster();
+    renderRenewalsPanel();
+  }
+  window.licApplyAll = licApplyAll;
+
+  // ─── HOOKS ──────────────────────────────────────────────────────
+  if (typeof goto === 'function' && !goto._wrappedForLicense) {
+    var _origGotoForLic = goto;
+    goto = function(view){ _origGotoForLic(view); setTimeout(licApplyAll, 50); };
+    goto._wrappedForLicense = true;
+  }
+  if (typeof drSub === 'function' && !drSub._wrappedForLicense) {
+    var _origDrSubForLic = drSub;
+    drSub = function(sub){ _origDrSubForLic(sub); setTimeout(licApplyAll, 50); };
+    drSub._wrappedForLicense = true;
+  }
+
+  // ─── INIT (seed reminder history → fire today's due reminders → render) ──
+  function licInit(){
+    licWriteSettingsToDom();        // hydrate settings UI from policy
+    licSeedRemindersHistory();      // back-fill all should-have-fired entries
+    licFireRemindersToday();        // fire any threshold hit today (toast)
+    licApplyAll();
+  }
+  document.addEventListener('DOMContentLoaded', licInit);
+  if (document.readyState !== 'loading') licInit();
 
   // ─── HOOK: re-apply cascade after navigation (non-destructive wrap) ──
   if (typeof goto === 'function' && !goto._wrappedForSuspension) {
