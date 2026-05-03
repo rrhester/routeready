@@ -598,6 +598,11 @@ async function loadDashboardWeather() {
     const points = await pointsRes.json();
     const forecastUrl = points?.properties?.forecast;
     const hourlyUrl   = points?.properties?.forecastHourly;
+    const locName = (() => {
+      const rl = points?.properties?.relativeLocation?.properties;
+      if (!rl) return "";
+      return [rl.city, rl.state].filter(Boolean).join(", ");
+    })();
     if (!forecastUrl) throw new Error("no forecast URL from NWS");
 
     const [fRes, alertsRes, hRes] = await Promise.all([
@@ -613,16 +618,71 @@ async function loadDashboardWeather() {
     if (periods.length === 0) throw new Error("no forecast periods");
 
     const now = periods[0];
-    const today = periods.slice(0, 8); // up to 4 days (day + night × 4)
-    const days = [];
-    for (const p of periods) {
-      if (p.isDaytime) days.push({ label: p.name, temp: p.temperature, unit: p.temperatureUnit, icon: p.icon, short: p.shortForecast, precip: p.probabilityOfPrecipitation?.value });
-      if (days.length >= 5) break;
+    const dayPairs = [];
+    for (let i = 0; i < periods.length && dayPairs.length < 3; i++) {
+      const p = periods[i];
+      if (p.isDaytime) {
+        const next = periods[i + 1];
+        dayPairs.push({
+          label: p.name,
+          hi: p.temperature,
+          lo: next && !next.isDaytime ? next.temperature : null,
+          unit: p.temperatureUnit,
+          short: p.shortForecast,
+          precip: p.probabilityOfPrecipitation?.value || 0,
+          wind: p.windSpeed,
+          windDir: p.windDirection,
+        });
+      }
     }
 
-    const rainNext12h = (hourly?.properties?.periods || []).slice(0, 12)
-      .map(h => h.probabilityOfPrecipitation?.value || 0);
-    const peakRain = rainNext12h.length ? Math.max(...rainNext12h) : 0;
+    const hourlyPeriods = (hourly?.properties?.periods || []).slice(0, 14);
+    const peakRain = hourlyPeriods.reduce((m, h) => Math.max(m, h.probabilityOfPrecipitation?.value || 0), 0);
+    const peakWindMph = hourlyPeriods.reduce((m, h) => {
+      const v = parseInt(String(h.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
+      return Math.max(m, v);
+    }, 0);
+    const peakTemp = hourlyPeriods.reduce((m, h) => Math.max(m, h.temperature ?? -999), -999);
+    const minTemp  = hourlyPeriods.reduce((m, h) => Math.min(m, h.temperature ??  999),  999);
+
+    const fmtHour = (iso) => {
+      try { const d = new Date(iso); const h = d.getHours(); return (h%12||12) + (h<12?"a":"p"); } catch { return ""; }
+    };
+    const tempColor = (t) => {
+      if (t >= 95) return "var(--red)";
+      if (t >= 85) return "var(--amber)";
+      if (t <= 32) return "#5b8def";
+      return "var(--text)";
+    };
+    const precipColor = (pct) => {
+      if (pct >= 60) return "var(--red)";
+      if (pct >= 30) return "var(--amber)";
+      return "var(--text-subtle)";
+    };
+    const hourlyHtml = hourlyPeriods.map(h => {
+      const pct = h.probabilityOfPrecipitation?.value || 0;
+      const wind = parseInt(String(h.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 5px;border-radius:4px;min-width:42px;background:var(--canvas)">
+        <div style="font-size:10px;color:var(--text-muted);font-weight:600">${fmtHour(h.startTime)}</div>
+        <div style="font-size:13px;font-weight:700;color:${tempColor(h.temperature)};font-variant-numeric:tabular-nums;line-height:1">${h.temperature}°</div>
+        <div style="font-size:9px;font-weight:600;color:${precipColor(pct)};line-height:1">${pct}%</div>
+        ${wind >= 15 ? `<div style="font-size:9px;color:var(--amber);font-weight:600;line-height:1">${wind}</div>` : ""}
+      </div>`;
+    }).join("");
+
+    const advisories = [];
+    if (peakWindMph >= 25) advisories.push(`High wind to <strong>${peakWindMph} mph</strong> next 14h — secure cargo doors, watch high-profile vehicles.`);
+    else if (peakWindMph >= 18) advisories.push(`Gusty wind to <strong>${peakWindMph} mph</strong> next 14h.`);
+    if (peakTemp >= 95) advisories.push(`Heat to <strong>${peakTemp}°F</strong> — push hydration breaks, watch for heat stress.`);
+    else if (peakTemp >= 88) advisories.push(`Warm <strong>${peakTemp}°F</strong> peak — stock water in vans.`);
+    if (minTemp <= 32 && minTemp !== 999) advisories.push(`Freezing temps (<strong>${minTemp}°F</strong>) — black-ice risk on early routes.`);
+    if (peakRain >= 60) {
+      const wettest = hourlyPeriods.reduce((b, h) => ((h.probabilityOfPrecipitation?.value||0) > (b?.probabilityOfPrecipitation?.value||0) ? h : b), null);
+      const when = wettest ? fmtHour(wettest.startTime) : "";
+      advisories.push(`<strong>${peakRain}%</strong> precip${when ? ` near <strong>${when}</strong>` : ""} — pad route times, plan covered handoffs.`);
+    } else if (peakRain >= 40) {
+      advisories.push(`<strong>${peakRain}%</strong> precip in delivery window.`);
+    }
 
     const activeAlerts = (alerts?.features || [])
       .map(f => f?.properties)
@@ -631,26 +691,46 @@ async function loadDashboardWeather() {
 
     const alertHtml = activeAlerts.length === 0
       ? ""
-      : activeAlerts.map(a => {
-          const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : "var(--amber)";
-          return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:${sev};font-weight:600;margin-top:4px"><span style="width:6px;height:6px;border-radius:50%;background:${sev}"></span>${escapeHtml(a.event || "Alert")}${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 80))}` : ""}</div>`;
-        }).join("");
+      : `<div style="display:flex;flex-direction:column;gap:3px;margin-top:8px;padding:6px 8px;background:rgba(229,62,62,.06);border-left:2px solid var(--red);border-radius:3px">
+          ${activeAlerts.map(a => {
+            const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : "var(--amber)";
+            return `<div style="font-size:11px;color:${sev};line-height:1.3"><strong>${escapeHtml(a.event || "Alert")}</strong>${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 110))}` : ""}</div>`;
+          }).join("")}
+        </div>`;
 
-    const dayChips = days.map(d => `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 8px;background:var(--canvas);border-radius:6px;min-width:64px">
-        <div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${escapeHtml(d.label.slice(0, 3))}</div>
-        <div style="font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${d.temp}°${escapeHtml(d.unit || "F")}</div>
-        <div style="font-size:10px;color:var(--text-subtle);text-align:center;line-height:1.2;max-width:80px">${escapeHtml((d.short || "").slice(0, 22))}</div>
-        ${d.precip ? `<div style="font-size:10px;color:var(--accent-text);font-weight:600">${d.precip}%</div>` : ""}
-      </div>`).join("");
+    const advisoryHtml = advisories.length === 0
+      ? ""
+      : `<div style="margin-top:8px"><div class="task-eyebrow" style="margin-bottom:3px">Driver advisory</div>
+          ${advisories.map(a => `<div style="font-size:11px;color:var(--text);line-height:1.4;margin:1px 0">• ${a}</div>`).join("")}
+        </div>`;
+
+    const nowWind = parseInt(String(now.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
+    const nowDir = now.windDirection || "";
+    const today    = dayPairs[0];
+    const tomorrow = dayPairs[1];
+    const dayLine = (d) => d
+      ? `<div style="font-size:11px;color:var(--text-subtle);line-height:1.4">
+           <strong style="color:var(--text)">${escapeHtml(d.label)}</strong>
+           Hi <strong style="color:var(--text);font-variant-numeric:tabular-nums">${d.hi}°</strong>${d.lo!=null ? ` / Lo <strong style="color:var(--text);font-variant-numeric:tabular-nums">${d.lo}°</strong>` : ""}
+           · ${escapeHtml(d.short || "")}${d.precip ? ` · <strong style="color:${precipColor(d.precip)}">${d.precip}%</strong>` : ""}
+         </div>`
+      : "";
 
     body.innerHTML = `
-      <div class="task-eyebrow" style="margin-bottom:2px">Weather · ${escapeHtml(now.name || "Now")}</div>
-      <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px">
-        <div style="font-size:24px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1">${now.temperature}°${escapeHtml(now.temperatureUnit || "F")}</div>
-        <div style="font-size:12px;color:var(--text-subtle);line-height:1.3">${escapeHtml(now.shortForecast || "")}${peakRain > 20 ? ` · <strong style="color:var(--accent-text)">${peakRain}% rain next 12h</strong>` : ""}</div>
+      <div class="task-eyebrow" style="margin-bottom:2px">Weather${locName ? ` · ${escapeHtml(locName)}` : ""}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;flex-wrap:wrap">
+        <div style="font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums">${now.temperature}°${escapeHtml(now.temperatureUnit || "F")}</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.3;font-weight:600">${escapeHtml(now.shortForecast || "")}</div>
       </div>
-      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${dayChips}</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">
+        ${nowWind ? `Wind ${nowWind} mph${nowDir ? ` ${escapeHtml(nowDir)}` : ""}` : ""}${peakRain ? `${nowWind ? " · " : ""}${peakRain}% peak precip next 14h` : ""}
+      </div>
+      <div style="display:flex;gap:3px;margin-top:8px;overflow-x:auto;padding-bottom:2px">${hourlyHtml}</div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px">
+        ${dayLine(today)}
+        ${dayLine(tomorrow)}
+      </div>
+      ${advisoryHtml}
       ${alertHtml}`;
   } catch (err) {
     console.warn("weather load failed:", err);
