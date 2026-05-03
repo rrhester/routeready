@@ -1871,9 +1871,9 @@ document.addEventListener("click", (e) => {
 
 // ─── Dynamic 5-week strip ──────────────────────────────────────────────────
 //
-// Replaces the mockup's hardcoded W19–W23 labels with current ISO week +
-// next four. Demand/supply numbers stay TBD until OKAMI lands; we just
-// render the week labels so the strip starts from the current week.
+// Renders the next five upcoming weeks (does NOT include the current week —
+// that belongs to the Schedule view). Auto-refreshes at the Sunday→Monday
+// rollover so dashboards left open across midnight don't drift.
 
 function isoWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -1882,14 +1882,33 @@ function isoWeek(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
+let _weeksStripRolloverTimer = null;
+function _scheduleWeeksStripRollover() {
+  if (_weeksStripRolloverTimer) clearTimeout(_weeksStripRolloverTimer);
+  const now = new Date();
+  const next = new Date(now);
+  const day = now.getDay();
+  const daysUntilMonday = day === 1 ? 7 : (8 - day) % 7 || 7;
+  next.setDate(now.getDate() + daysUntilMonday);
+  next.setHours(0, 0, 1, 0);
+  const ms = Math.max(60_000, next - now);
+  _weeksStripRolloverTimer = setTimeout(() => {
+    _weeksStripRolloverTimer = null;
+    if (document.getElementById("hp-weeks-strip")) renderWeeksStrip();
+  }, ms);
+}
+
 async function renderWeeksStrip() {
   const strip = document.getElementById("hp-weeks-strip");
   if (!strip) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
-  const monday = startOfWeekMonday(new Date());
+  // Start from NEXT Monday — current week lives in the Schedule view.
+  const thisMonday = startOfWeekMonday(new Date());
+  const monday = addDays(thisMonday, 7);
   const startIso = fmtIsoDate(monday);
+  _scheduleWeeksStripRollover();
 
   // Build placeholders first so the strip never shows mockup data while
   // the live query is in flight.
