@@ -4253,6 +4253,9 @@ async function loadSchedulingSettings() {
     const waves = Array.isArray(s.waves) && s.waves.length ? s.waves : [{ start: "07:00" }];
     wavesEl.innerHTML = waves.map(w => _renderWaveRow(w.start)).join("");
   }
+  // Cache finalized state for guard checks.
+  window._rrWeekFinalized = !!s.finalized;
+  _updateFinalizeButton();
   if (statusEl) {
     statusEl.style.color = "var(--text-subtle)";
     statusEl.textContent = s.is_inherited
@@ -4356,6 +4359,48 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+// ─── Schedule · Finalize-and-push + live-edit guard ────────────────────
+
+function _updateFinalizeButton() {
+  const btn = document.getElementById("schedule-cta");
+  if (!btn) return;
+  const isFinal = !!window._rrWeekFinalized;
+  btn.innerHTML = isFinal
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Live · Unfinalize`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Finalize &amp; push to drivers`;
+  btn.style.background = isFinal ? "var(--green)" : "";
+  btn.style.borderColor = isFinal ? "var(--green)" : "";
+  btn.title = isFinal ? "This week is live · drivers see it" : "Push this week's schedule to drivers";
+}
+
+async function _setWeekFinalized(target) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return;
+  const { error } = await sb.rpc("set_schedule_finalized", { p_week_start: _schedStart, p_finalized: target });
+  if (error) { toast("Failed: " + error.message, "warn"); return; }
+  window._rrWeekFinalized = target;
+  _updateFinalizeButton();
+  toast(target ? "Schedule finalized · drivers can see it" : "Unfinalized · back to draft", "success");
+}
+
+// Returns true if the operator confirms editing a live schedule. Always true
+// when the week isn't finalized.
+function _confirmLiveScheduleEdit() {
+  if (!window._rrWeekFinalized) return true;
+  return confirm("This week's schedule is LIVE — drivers may have already seen it.\n\nMake the change anyway?");
+}
+
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("#schedule-cta")) {
+    e.preventDefault();
+    const target = !window._rrWeekFinalized;
+    if (target) {
+      if (!confirm("Finalize this week and mark it as live for drivers? Edits after this will trigger a warning prompt.")) return;
+    }
+    await _setWeekFinalized(target);
+  }
+});
+
 async function loadScheduleView() {
   // Force-clear the mockup HTML the moment the view opens so static
   // rows like 'Marcus Davidson' / 'Tasha Reyes' can't flash through
@@ -4406,6 +4451,7 @@ async function autoFillScheduleWeek() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded", "warn"); return; }
   if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_confirmLiveScheduleEdit()) return;
 
   // Use generate_shifts_for_date instead of raw create_shift — this both
   // FILLS gaps and TRIMS excess, so the schedule mirrors OKAMI exactly
@@ -5136,6 +5182,7 @@ function bindSchedWeekNav() {
       e.stopPropagation();
       const id = assignedChip.dataset.rrShiftId;
       if (!id) return;
+      if (!_confirmLiveScheduleEdit()) return;
       if (!confirm("Remove this shift?")) return;
       sb.from("shifts").delete().eq("id", id).then(({ error }) => {
         if (error) { toast("Delete failed: " + error.message, "warn"); return; }
@@ -5204,6 +5251,7 @@ function bindSchedWeekNav() {
     e.preventDefault();
     const dspId = window.RR?.dsp?.id;
     if (!dspId || !_schedStart) return;
+    if (!_confirmLiveScheduleEdit()) return;
     const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
     if (!confirm(`Unassign every driver from every shift between ${_schedStart} and ${weekEndIso}?\n\nShifts stay; only the driver assignments are cleared.`)) return;
     e.target.disabled = true;
@@ -5498,6 +5546,7 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId) {
 }
 
 async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) {
+  if (!_confirmLiveScheduleEdit()) return;
   const violations = await _checkAssignViolations(shiftId, shiftDate, driverId);
   if (violations.length > 0) {
     const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
@@ -5542,6 +5591,7 @@ function openAddShiftModal(date, stationId, prefDriverId) {
         driver_id: document.getElementById("rr-sh-driver").value || null,
         route_code: document.getElementById("rr-sh-route").value.trim() || null,
       };
+      if (!_confirmLiveScheduleEdit()) return;
       const { error } = await sb.rpc("create_shift", { p_payload: payload });
       if (error) { toast("Save failed: " + error.message, "warn"); return; }
       m.remove();
@@ -5572,6 +5622,7 @@ function openAssignShiftModal(shiftId) {
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-as-cancel]") || e.target === m) { m.remove(); return; }
     if (e.target.closest("[data-rr-as-save]")) {
+      if (!_confirmLiveScheduleEdit()) return;
       const did = document.getElementById("rr-as-driver").value;
       const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: did });
       if (error) { toast("Assign failed: " + error.message, "warn"); return; }
