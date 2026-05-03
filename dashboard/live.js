@@ -2900,3 +2900,543 @@ if (document.readyState === "loading") {
 const _styleEl = document.createElement("style");
 _styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none}`;
 document.head.appendChild(_styleEl);
+
+
+// ─── OKAMI (demand) + Schedule (supply) ───────────────────────────────────
+//
+// OKAMI: 3-week per-day per-station route TARGET grid. Editable.
+// Schedule: 3-week per-day per-station coverage view (filled vs needed),
+// plus time-off and open-shifts panels.
+
+const RR_SCHED_WEEKS = 3;
+const RR_DAY_SHORT   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+function startOfWeekMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();             // 0=Sun, 1=Mon, ...
+  const diff = day === 0 ? -6 : 1 - day; // shift back to Monday
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+function fmtIsoDate(d) { return d.toISOString().slice(0, 10); }
+function fmtMD(d) { return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
+
+// ─── OKAMI editor (view-okami) ────────────────────────────────────────────
+
+let _okamiStations = [];
+let _okamiStart = null;
+
+async function loadOkamiView() {
+  const tbody = document.getElementById("okami-tbody");
+  if (!tbody) return;
+  if (!_okamiStart) _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  // Pre-fetch stations once.
+  if (_okamiStations.length === 0) {
+    const { data: stations } = await sb.from("stations").select("id, code").eq("dsp_id", window.RR.dsp.id).order("code");
+    _okamiStations = stations || [];
+  }
+
+  const { data: grid, error } = await sb.rpc("okami_grid", {
+    p_start: _okamiStart, p_weeks: RR_SCHED_WEEKS,
+  });
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="20" style="padding:16px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
+
+  // Build a lookup so we can query (date, station) → row.
+  const lookup = new Map();
+  for (const r of grid ?? []) lookup.set(`${r.date}|${r.station_id}`, r);
+
+  const cushionPct = (grid?.[0]?.cushion_pct) ?? 10;
+
+  // Replace the entire OKAMI table with our per-day editor.
+  const table = tbody.parentElement;
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="text-align:left;width:130px">Date</th>
+        ${_okamiStations.map(s => `<th>${escapeHtml(s.code)}</th>`).join("")}
+        <th>Day total</th>
+        <th>Needed (+${Math.round(cushionPct)}%)</th>
+      </tr>
+    </thead>
+    <tbody id="okami-tbody"></tbody>`;
+  const newBody = document.getElementById("okami-tbody");
+
+  const html = [];
+  for (let i = 0; i < RR_SCHED_WEEKS * 7; i++) {
+    const date = fmtIsoDate(addDays(new Date(_okamiStart), i));
+    const dt = new Date(date + "T12:00:00");
+    let dayTotal = 0, dayNeeded = 0;
+    const cells = _okamiStations.map(s => {
+      const row = lookup.get(`${date}|${s.id}`);
+      const target = row?.target_routes ?? 0;
+      const needed = row?.needed ?? 0;
+      dayTotal  += target;
+      dayNeeded += needed;
+      return `<td><input type="number" min="0" data-rr-okami-cell data-date="${date}" data-station="${s.id}" value="${target}" style="width:60px;background:var(--canvas);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font:inherit;font-size:13px;text-align:right;color:var(--text)"/></td>`;
+    }).join("");
+    const isMonday = dt.getDay() === 1;
+    html.push(`
+      <tr ${isMonday ? 'style="border-top:2px solid var(--border)"' : ""}>
+        <td style="font-size:12px;font-weight:600">${RR_DAY_SHORT[dt.getDay()]} ${fmtMD(dt)}</td>
+        ${cells}
+        <td style="font-weight:600">${dayTotal}</td>
+        <td style="font-weight:600;color:var(--accent-text)">${dayNeeded}</td>
+      </tr>`);
+  }
+  newBody.innerHTML = html.join("");
+
+  // Inject a header row with cushion control + week nav.
+  const header = document.querySelector("#view-okami .page-header");
+  if (header && !document.getElementById("rr-okami-controls")) {
+    const ctrl = document.createElement("div");
+    ctrl.id = "rr-okami-controls";
+    ctrl.style.cssText = "display:flex;align-items:center;gap:14px;margin-bottom:var(--s-3);flex-wrap:wrap";
+    ctrl.innerHTML = `
+      <button class="btn btn-sm" data-rr-okami-prev>← Prev</button>
+      <button class="btn btn-sm" data-rr-okami-next>Next →</button>
+      <span style="font-size:12px;color:var(--text-subtle);margin-left:8px" id="rr-okami-window"></span>
+      <span style="margin-left:auto;font-size:12px;color:var(--text-subtle)">Cushion %:</span>
+      <input id="rr-okami-cushion" type="number" min="0" max="100" value="${cushionPct}" style="width:80px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font:inherit;font-size:13px;text-align:right;color:var(--text)"/>
+      <button class="btn btn-sm" data-rr-okami-save-cushion>Save</button>`;
+    header.parentNode.insertBefore(ctrl, header.nextSibling);
+  }
+  const winLabel = document.getElementById("rr-okami-window");
+  if (winLabel) {
+    const startD = new Date(_okamiStart + "T12:00:00");
+    const endD   = addDays(startD, RR_SCHED_WEEKS * 7 - 1);
+    winLabel.textContent = `${fmtMD(startD)} → ${fmtMD(endD)}`;
+  }
+}
+
+
+// Capture-phase delegate for OKAMI cell edits + nav + cushion.
+let _okamiSaveTimer = null;
+document.addEventListener("input", (e) => {
+  const cell = e.target.closest("[data-rr-okami-cell]");
+  if (!cell) return;
+  // Debounce per-cell saves so fast typing doesn't fire one RPC per keystroke.
+  clearTimeout(cell._saveTimer);
+  cell._saveTimer = setTimeout(async () => {
+    const date = cell.getAttribute("data-date");
+    const station = cell.getAttribute("data-station");
+    const target = parseInt(cell.value, 10) || 0;
+    const { error } = await sb.rpc("okami_set_target", {
+      p_date: date, p_station_id: station, p_target: target,
+    });
+    if (error) { toast("Save failed: " + error.message, "warn"); cell.style.borderColor = "var(--red)"; }
+    else cell.style.borderColor = "var(--green)";
+    setTimeout(() => { cell.style.borderColor = "var(--border)"; }, 800);
+  }, 350);
+}, true);
+
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("[data-rr-okami-prev]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    _okamiStart = fmtIsoDate(addDays(new Date(_okamiStart), -7));
+    loadOkamiView();
+  }
+  if (e.target.closest("[data-rr-okami-next]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    _okamiStart = fmtIsoDate(addDays(new Date(_okamiStart), 7));
+    loadOkamiView();
+  }
+  if (e.target.closest("[data-rr-okami-save-cushion]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const pct = parseFloat(document.getElementById("rr-okami-cushion").value || "10");
+    const { error } = await sb.rpc("okami_set_cushion", { p_pct: pct });
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    // Refresh both OKAMI + Schedule so the new cushion propagates.
+    if (window.RR.dsp.metadata) {
+      window.RR.dsp.metadata.scheduling = window.RR.dsp.metadata.scheduling || {};
+      window.RR.dsp.metadata.scheduling.cushion_pct = pct;
+    }
+    toast("Cushion saved", "success");
+    loadOkamiView();
+  }
+}, true);
+
+
+// ─── Schedule grid (view-schedule, sched-sub-week) ───────────────────────
+
+let _schedStart = null;
+let _schedDriverList = [];
+
+async function loadScheduleView() {
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  // Pull driver list once for the assign picker.
+  if (_schedDriverList.length === 0) {
+    const { data: drivers } = await sb.from("drivers").select("id, full_name").eq("dsp_id", window.RR.dsp.id).in("status", ["active","onboarding"]).order("full_name");
+    _schedDriverList = drivers || [];
+  }
+  if (_okamiStations.length === 0) {
+    const { data: stations } = await sb.from("stations").select("id, code").eq("dsp_id", window.RR.dsp.id).order("code");
+    _okamiStations = stations || [];
+  }
+
+  const { data, error } = await sb.rpc("schedule_grid", {
+    p_start: _schedStart, p_weeks: RR_SCHED_WEEKS,
+  });
+
+  const sub = document.getElementById("sched-sub-week");
+  if (!sub) return;
+  if (error) { sub.innerHTML = `<div style="padding:24px;color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
+
+  renderScheduleGrid(sub, data);
+}
+
+function renderScheduleGrid(sub, data) {
+  const coverage = data.coverage || [];
+  const shifts = data.shifts || [];
+
+  // index coverage and shifts
+  const covMap = new Map();
+  for (const c of coverage) covMap.set(`${c.date}|${c.station_id}`, c);
+  const shiftsByDay = new Map();
+  for (const s of shifts) {
+    const key = `${s.date}|${s.station_id}`;
+    if (!shiftsByDay.has(key)) shiftsByDay.set(key, []);
+    shiftsByDay.get(key).push(s);
+  }
+
+  const startDate = new Date(_schedStart + "T12:00:00");
+  const endDate   = addDays(startDate, RR_SCHED_WEEKS * 7 - 1);
+
+  const cellHtml = (date, station) => {
+    const cov = covMap.get(`${date}|${station.id}`) || { needed: 0, filled: 0, target_routes: 0, open_count: 0 };
+    let bg = "var(--surface)";
+    let txtColor = "var(--text)";
+    if (cov.needed > 0) {
+      if (cov.filled >= cov.needed) bg = "rgba(34,197,94,.10)";
+      else if (cov.filled >= cov.needed * 0.8) bg = "rgba(245,158,11,.12)";
+      else bg = "rgba(220,38,38,.12)";
+    }
+    const dayShifts = shiftsByDay.get(`${date}|${station.id}`) || [];
+    const chips = dayShifts.slice(0, 3).map(s => {
+      const open = !s.driver_id;
+      const style = open
+        ? "background:var(--canvas);color:var(--text-subtle);border:1px dashed var(--border)"
+        : "background:var(--accent-soft);color:var(--accent-text);border:1px solid var(--border)";
+      return `<button class="rr-shift-chip" data-rr-shift-id="${s.id}" style="${style};font-size:10px;padding:1px 6px;border-radius:4px;margin:1px 1px 0 0;cursor:pointer;font:inherit">${open ? "open" : escapeHtml(s.driver_name?.split(" ")[0] || "?")}</button>`;
+    }).join("");
+    const more = dayShifts.length > 3 ? ` +${dayShifts.length - 3}` : "";
+    return `
+      <td style="padding:6px;background:${bg};vertical-align:top;min-width:90px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;color:${txtColor};display:flex;justify-content:space-between">
+          <span>${cov.filled}/${cov.needed}</span>
+          <button class="btn btn-sm" data-rr-add-shift data-date="${date}" data-station="${station.id}" style="font-size:9px;padding:1px 4px">+</button>
+        </div>
+        <div style="margin-top:4px">${chips}${more ? `<span style="font-size:10px;color:var(--text-subtle)">${more}</span>` : ""}</div>
+      </td>`;
+  };
+
+  const rows = [];
+  for (let w = 0; w < RR_SCHED_WEEKS; w++) {
+    rows.push(`<tr><td colspan="${1 + _okamiStations.length}" style="padding:6px 0;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Week of ${fmtMD(addDays(startDate, w * 7))}</td></tr>`);
+    rows.push(`<tr style="background:var(--canvas)">
+      <th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text-muted)">Day</th>
+      ${_okamiStations.map(s => `<th style="font-size:11px;color:var(--text-muted);padding:6px 4px">${escapeHtml(s.code)}</th>`).join("")}
+    </tr>`);
+    for (let d = 0; d < 7; d++) {
+      const date = fmtIsoDate(addDays(startDate, w * 7 + d));
+      const dt = new Date(date + "T12:00:00");
+      rows.push(`<tr>
+        <td style="padding:6px 8px;font-size:12px;font-weight:600;border:1px solid var(--border)">${RR_DAY_SHORT[dt.getDay()]} ${fmtMD(dt)}</td>
+        ${_okamiStations.map(s => cellHtml(date, s)).join("")}
+      </tr>`);
+    }
+  }
+
+  sub.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:var(--s-3);flex-wrap:wrap">
+      <button class="btn btn-sm" data-rr-sched-prev>← Prev 3w</button>
+      <button class="btn btn-sm" data-rr-sched-next>Next 3w →</button>
+      <span style="font-size:12px;color:var(--text-subtle);margin-left:8px">${fmtMD(startDate)} → ${fmtMD(endDate)}</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--text-subtle);display:flex;align-items:center;gap:8px">
+        <span style="display:inline-block;width:10px;height:10px;background:rgba(34,197,94,.4);border-radius:2px"></span> covered
+        <span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.5);border-radius:2px"></span> tight
+        <span style="display:inline-block;width:10px;height:10px;background:rgba(220,38,38,.4);border-radius:2px"></span> short
+      </span>
+    </div>
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:10px">
+      <table style="width:100%;border-collapse:collapse;background:var(--surface)">${rows.join("")}</table>
+    </div>`;
+
+  loadOpenShifts();
+  loadTimeOffList();
+}
+
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("[data-rr-sched-prev]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    _schedStart = fmtIsoDate(addDays(new Date(_schedStart), -RR_SCHED_WEEKS * 7));
+    loadScheduleView();
+  }
+  if (e.target.closest("[data-rr-sched-next]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    _schedStart = fmtIsoDate(addDays(new Date(_schedStart), RR_SCHED_WEEKS * 7));
+    loadScheduleView();
+  }
+  const addBtn = e.target.closest("[data-rr-add-shift]");
+  if (addBtn) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    openAddShiftModal(addBtn.getAttribute("data-date"), addBtn.getAttribute("data-station"));
+  }
+  const chip = e.target.closest("[data-rr-shift-id]");
+  if (chip) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    openAssignShiftModal(chip.getAttribute("data-rr-shift-id"));
+  }
+}, true);
+
+function openAddShiftModal(date, stationId) {
+  let m = document.getElementById("rr-shift-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-shift-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:440px;width:100%">
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Add shift</h3>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Date</label>
+      <input type="date" id="rr-sh-date" class="form-input" style="width:100%;margin-bottom:10px" value="${date}"/>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver (optional · leave blank for open shift)</label>
+      <select id="rr-sh-driver" class="form-input" style="width:100%;margin-bottom:10px">
+        <option value="">— Open shift —</option>
+        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(d.full_name)}</option>`).join("")}
+      </select>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
+      <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. KMO1-14B"/>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" data-rr-sh-cancel>Cancel</button>
+        <button class="btn btn-primary" data-rr-sh-save>Add shift</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-sh-cancel]") || e.target === m) { m.remove(); return; }
+    if (e.target.closest("[data-rr-sh-save]")) {
+      const payload = {
+        date: document.getElementById("rr-sh-date").value,
+        station_id: stationId,
+        driver_id: document.getElementById("rr-sh-driver").value || null,
+        route_code: document.getElementById("rr-sh-route").value.trim() || null,
+      };
+      const { error } = await sb.rpc("create_shift", { p_payload: payload });
+      if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      m.remove();
+      toast("Shift added", "success");
+      loadScheduleView();
+    }
+  });
+}
+
+function openAssignShiftModal(shiftId) {
+  let m = document.getElementById("rr-shift-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-shift-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:380px;width:100%">
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Assign shift</h3>
+      <select id="rr-as-driver" class="form-input" style="width:100%;margin-bottom:14px">
+        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(d.full_name)}</option>`).join("")}
+      </select>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" data-rr-as-cancel>Cancel</button>
+        <button class="btn btn-primary" data-rr-as-save>Assign</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-as-cancel]") || e.target === m) { m.remove(); return; }
+    if (e.target.closest("[data-rr-as-save]")) {
+      const did = document.getElementById("rr-as-driver").value;
+      const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: did });
+      if (error) { toast("Assign failed: " + error.message, "warn"); return; }
+      m.remove();
+      toast("Shift assigned", "success");
+      loadScheduleView();
+    }
+  });
+}
+
+
+// ─── Time off ─────────────────────────────────────────────────────────────
+
+async function loadTimeOffList() {
+  const sub = document.getElementById("sched-sub-timeoff");
+  if (!sub) return;
+  const { data: rows, error } = await sb.from("time_off_requests")
+    .select("id, driver_id, start_date, end_date, reason, status, decided_at, drivers:driver_id (full_name)")
+    .eq("dsp_id", window.RR.dsp.id)
+    .order("start_date", { ascending: false })
+    .limit(200);
+  if (error) { sub.innerHTML = `<div style="padding:24px;color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
+
+  const pending = (rows || []).filter(r => r.status === "pending");
+  const past    = (rows || []).filter(r => r.status !== "pending");
+
+  sub.innerHTML = `
+    <div style="margin-bottom:var(--s-3);display:flex;align-items:center;justify-content:space-between">
+      <h3 style="margin:0;font-size:15px;font-weight:600">Time off</h3>
+      <button class="btn btn-sm btn-primary" data-rr-add-time-off>+ Add request</button>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Pending (${pending.length})</div>
+      ${pending.length === 0 ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No pending requests.</div>` : pending.map(timeOffRow).join("")}
+      <div style="padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);border-top:1px solid var(--border)">Past (${past.length})</div>
+      ${past.length === 0 ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No past requests.</div>` : past.map(timeOffRow).join("")}
+    </div>`;
+}
+
+function timeOffRow(r) {
+  const range = r.start_date === r.end_date
+    ? new Date(r.start_date + "T12:00:00").toLocaleDateString()
+    : `${new Date(r.start_date + "T12:00:00").toLocaleDateString()} → ${new Date(r.end_date + "T12:00:00").toLocaleDateString()}`;
+  const statusColor = {
+    pending:   "color:#B45309",
+    approved:  "color:var(--green)",
+    denied:    "color:var(--red)",
+    cancelled: "color:var(--text-subtle)",
+  }[r.status];
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr 100px 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
+      <div><div style="font-size:13px;font-weight:600">${escapeHtml(r.drivers?.full_name || "—")}</div></div>
+      <div style="font-size:12px">${range}</div>
+      <div style="font-size:11px;font-weight:700;${statusColor};text-transform:uppercase">${r.status}</div>
+      <div style="font-size:12px;color:var(--text-subtle)">${escapeHtml(r.reason || "")}</div>
+      <div>${r.status === "pending" ? `
+        <button class="btn btn-sm" data-rr-time-off-decide="${r.id}" data-decision="approve">Approve</button>
+        <button class="btn btn-sm" data-rr-time-off-decide="${r.id}" data-decision="deny" style="color:var(--red)">Deny</button>
+      ` : ""}</div>
+    </div>`;
+}
+
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("[data-rr-add-time-off]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    openTimeOffModal();
+  }
+  const dec = e.target.closest("[data-rr-time-off-decide]");
+  if (dec) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const id = dec.getAttribute("data-rr-time-off-decide");
+    const d  = dec.getAttribute("data-decision");
+    const { error } = await sb.rpc("decide_time_off", { p_id: id, p_decision: d, p_notes: null });
+    if (error) { toast("Update failed: " + error.message, "warn"); return; }
+    toast(`Marked ${d}d`, "success");
+    loadTimeOffList();
+  }
+}, true);
+
+function openTimeOffModal() {
+  let m = document.getElementById("rr-shift-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-shift-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:440px;width:100%">
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Time off request</h3>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver</label>
+      <select id="rr-to-driver" class="form-input" style="width:100%;margin-bottom:10px">
+        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(d.full_name)}</option>`).join("")}
+      </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Start</label><input type="date" id="rr-to-start" class="form-input" style="width:100%"/></div>
+        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">End</label><input type="date" id="rr-to-end" class="form-input" style="width:100%"/></div>
+      </div>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Reason</label>
+      <input id="rr-to-reason" class="form-input" style="width:100%;margin-bottom:14px" placeholder="Vacation / personal / sick / …"/>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" data-rr-to-cancel>Cancel</button>
+        <button class="btn btn-primary" data-rr-to-save>Save request</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-to-cancel]") || e.target === m) { m.remove(); return; }
+    if (e.target.closest("[data-rr-to-save]")) {
+      const payload = {
+        driver_id: document.getElementById("rr-to-driver").value,
+        start_date: document.getElementById("rr-to-start").value,
+        end_date:   document.getElementById("rr-to-end").value,
+        reason:     document.getElementById("rr-to-reason").value.trim() || null,
+      };
+      if (!payload.start_date || !payload.end_date) { toast("Pick a date range", "warn"); return; }
+      const { error } = await sb.rpc("request_time_off", { p_payload: payload });
+      if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      m.remove();
+      toast("Time off saved", "success");
+      loadTimeOffList();
+    }
+  });
+}
+
+
+// ─── Open shifts ─────────────────────────────────────────────────────────
+
+async function loadOpenShifts() {
+  const sub = document.getElementById("sched-sub-open");
+  if (!sub) return;
+  const today = fmtIsoDate(new Date());
+  const { data: rows, error } = await sb.from("shifts")
+    .select("id, date, station_id, route_code, status, station:station_id (code)")
+    .eq("dsp_id", window.RR.dsp.id)
+    .is("driver_id", null)
+    .gte("date", today)
+    .order("date", { ascending: true })
+    .limit(500);
+  if (error) { sub.innerHTML = `<div style="padding:24px;color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
+
+  if (!rows || rows.length === 0) {
+    sub.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No open shifts</strong>Add shifts from the Week view, or leave the driver picker blank when adding to create one.</div>`;
+    return;
+  }
+  sub.innerHTML = `
+    <h3 style="margin:0 0 var(--s-3);font-size:15px;font-weight:600">Open shifts (${rows.length})</h3>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
+        <div>Date</div><div>Station</div><div>Route</div><div></div>
+      </div>
+      ${rows.map(r => `
+        <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600">${new Date(r.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div>
+          <div style="font-size:13px">${escapeHtml(r.station?.code || "—")}</div>
+          <div style="font-size:13px;font-family:'SF Mono',Menlo,monospace;color:var(--text-muted)">${escapeHtml(r.route_code || "—")}</div>
+          <div><button class="btn btn-sm btn-primary" data-rr-shift-id="${r.id}">Assign</button></div>
+        </div>`).join("")}
+    </div>`;
+}
+
+
+// Hook view + sub-view loaders.
+const _origGotoForSched = window.goto;
+window.goto = function (view) {
+  if (typeof _origGotoForSched === "function") _origGotoForSched(view);
+  if (view === "schedule") loadScheduleView();
+  if (view === "okami")    loadOkamiView();
+};
+
+const _origRefreshSched = refreshActiveView;
+function refreshActiveViewWithSched() {
+  _origRefreshSched();
+  const v = document.querySelector(".view.active")?.id;
+  if (v === "view-schedule") loadScheduleView();
+  if (v === "view-okami")    loadOkamiView();
+}
+// Replace the inner loop's reference too: we monkey-patch by re-binding.
+window.addEventListener("focus", () => {
+  const v = document.querySelector(".view.active")?.id;
+  if (v === "view-schedule") loadScheduleView();
+  if (v === "view-okami")    loadOkamiView();
+});
