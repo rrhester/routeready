@@ -444,9 +444,412 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+// ─── Pipeline KPIs ─────────────────────────────────────────────────────────
+//
+// Hits the pipeline_kpis RPC and updates the Pipeline page's hp-show-rate /
+// hp-hire-rate cells. RPC returns 0.75 / 0.75 fallback until the first
+// interview day is closed; after that, rolling 30-day actuals.
+
+async function loadPipelineKpis() {
+  const { data, error } = await sb.rpc("pipeline_kpis", { p_window_days: 30 });
+  if (error || !data) return;
+  const showEl = document.getElementById("hp-show-rate");
+  const hireEl = document.getElementById("hp-hire-rate");
+  if (showEl) showEl.textContent = Math.round(Number(data.show_rate ?? 0) * 100);
+  if (hireEl) hireEl.textContent = Math.round(Number(data.hire_rate ?? 0) * 100);
+}
+
+
+// ─── Interview Day ─────────────────────────────────────────────────────────
+
+async function loadInterviewDay() {
+  const list = document.getElementById("iv-candidates");
+  if (!list) return;
+
+  const { data: day, error: openErr } = await sb.rpc("open_interview_day", {});
+  if (openErr) { toast("Couldn't open interview day: " + openErr.message, "warn"); return; }
+
+  const { data: roster, error: rErr } = await sb.rpc("interview_day_roster", { p_day_id: day.id });
+  if (rErr) { toast("Roster load failed: " + rErr.message, "warn"); return; }
+  renderInterviewDay(day, roster ?? []);
+}
+
+function renderInterviewDay(day, rows) {
+  const list = document.getElementById("iv-candidates");
+  if (!list) return;
+
+  const booked   = rows.length;
+  const hired    = rows.filter(r => r.outcome === "hired").length;
+  const noHire   = rows.filter(r => r.outcome === "no_hire").length;
+  const noShow   = rows.filter(r => r.outcome === "no_show").length;
+  const remaining = booked - hired - noHire - noShow;
+
+  setText("iv-booked",    booked);
+  setText("iv-hired",     hired);
+  setText("iv-nohire",    noHire);
+  setText("iv-noshow",    noShow);
+  setText("iv-remaining", remaining);
+
+  const fill = document.getElementById("iv-progress-fill");
+  if (fill) fill.style.width = booked === 0
+    ? "0%"
+    : Math.round(((booked - remaining) / booked) * 100) + "%";
+
+  if (rows.length === 0) {
+    list.innerHTML = `
+      <div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+        <strong style="color:var(--text-muted);display:block;margin-bottom:4px">No interviews booked for ${day.date}</strong>
+        When applicants book via Cal.com, they'll show up here.
+      </div>`;
+  } else {
+    list.innerHTML = rows.map(renderInterviewCard).join("");
+  }
+
+  // Inject a Close-day button after the candidate list. Idempotent.
+  const wrap = list.parentNode;
+  let closeBtn = wrap.querySelector("[data-rr-close-day]");
+  if (!closeBtn) {
+    closeBtn = document.createElement("button");
+    closeBtn.className = "btn btn-primary";
+    closeBtn.style.cssText = "margin-top:18px;width:100%;padding:14px;font-size:14px;font-weight:600";
+    closeBtn.dataset.rrCloseDay = "1";
+    wrap.insertBefore(closeBtn, list.nextSibling);
+  }
+  closeBtn.disabled = day.closed_at != null;
+  closeBtn.textContent = day.closed_at
+    ? `Day closed · ${new Date(day.closed_at).toLocaleString()}`
+    : "Close interview day";
+
+  // Show "done" state once everyone is decided + day is closed.
+  const done = document.getElementById("iv-done");
+  if (done) {
+    if (day.closed_at) {
+      done.style.display = "";
+      const sub = document.getElementById("iv-done-sub");
+      if (sub) sub.textContent = `${hired} hired · ${noHire} no-hire · ${noShow} no-show`;
+    } else {
+      done.style.display = "none";
+    }
+  }
+}
+
+function renderInterviewCard(r) {
+  const initials = (r.full_name || "")
+    .split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+  const time = r.starts_at
+    ? new Date(r.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "—";
+  const outcome = r.outcome;
+  const sourceColors = {
+    hired:   "background:rgba(22,163,74,.12);color:#16A34A",
+    no_hire: "background:rgba(220,38,38,.12);color:#DC2626",
+    no_show: "background:rgba(245,158,11,.18);color:#B45309",
+  };
+  const badge = outcome
+    ? `<span class="iv-card-source" style="${sourceColors[outcome]}">${outcome.replace("_"," ")}</span>`
+    : `<span class="iv-card-source" style="background:var(--accent-soft);color:var(--accent-text)">${r.source ?? "Indeed"}</span>`;
+
+  const tags = [];
+  if (r.score != null) tags.push(`<span class="iv-card-tag">Score ${r.score}</span>`);
+  if (r.video_url) tags.push(
+    `<span class="iv-card-tag" data-rr-action="play_video" data-video-url="${encodeURI(r.video_url)}" style="cursor:pointer">▶ Watch intro</span>`
+  );
+
+  return `
+    <div class="iv-card" data-applicant-id="${r.applicant_id}" ${outcome ? `data-outcome="${outcome}"` : ""}>
+      <div class="iv-card-time">${time}</div>
+      <div class="iv-card-body">
+        <div class="iv-card-header">
+          <div class="iv-card-avatar tier-b">${initials}</div>
+          <div>
+            <div class="iv-card-name">${r.full_name ?? ""}</div>
+            <div class="iv-card-meta">${[r.phone, r.email].filter(Boolean).join(" · ")}</div>
+          </div>
+          ${badge}
+        </div>
+        ${tags.length ? `<div class="iv-card-tags">${tags.join("")}</div>` : ""}
+      </div>
+      <div class="iv-card-actions">
+        <button class="iv-action-btn nohire" data-rr-outcome="no_hire" ${outcome === "no_hire" ? "disabled" : ""}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No Hire
+        </button>
+        <button class="iv-action-btn noshow" data-rr-outcome="no_show" ${outcome === "no_show" ? "disabled" : ""}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No Show
+        </button>
+        <button class="iv-action-btn hired" data-rr-outcome="hired" ${outcome === "hired" ? "disabled" : ""}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hired
+        </button>
+      </div>
+    </div>`;
+}
+
+function setText(id, txt) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = txt;
+}
+
+// Capture-phase delegate for outcome + close-day buttons.
+document.addEventListener("click", async (e) => {
+  const outcomeBtn = e.target.closest("[data-rr-outcome]");
+  if (outcomeBtn && !outcomeBtn.disabled) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const card = outcomeBtn.closest(".iv-card");
+    if (!card) return;
+    const id = card.getAttribute("data-applicant-id");
+    const outcome = outcomeBtn.getAttribute("data-rr-outcome");
+    outcomeBtn.disabled = true;
+    const { error } = await sb.rpc("record_outcome", {
+      p_applicant_id: id, p_outcome: outcome, p_notes: null,
+    });
+    if (error) {
+      toast("Action failed: " + error.message, "warn");
+      outcomeBtn.disabled = false;
+      return;
+    }
+    toast(
+      outcome === "hired" ? "Hired ✓ · driver record created"
+      : outcome === "no_hire" ? "Marked no hire"
+      : "Marked no show",
+      outcome === "hired" ? "success" : "warn",
+    );
+    await loadInterviewDay();
+    await loadPipelineKpis();
+    return;
+  }
+
+  const closeBtn = e.target.closest("[data-rr-close-day]");
+  if (closeBtn && !closeBtn.disabled) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (!confirm("Close interview day? Anyone booked but not yet acted on will be marked No Show.")) return;
+    closeBtn.disabled = true;
+    const { error } = await sb.rpc("close_interview_day", {});
+    if (error) {
+      toast("Close failed: " + error.message, "warn");
+      closeBtn.disabled = false;
+      return;
+    }
+    toast("Interview day closed · KPIs updated", "success");
+    await loadInterviewDay();
+    await loadPipelineKpis();
+    await loadPipeline(getActiveStage());
+  }
+}, true);
+
+// Hook pipeSub so switching to the Interview Day tab loads live data.
+const _legacyPipeSub = window.pipeSub;
+window.pipeSub = function (sub) {
+  if (typeof _legacyPipeSub === "function") _legacyPipeSub(sub);
+  if (sub === "interview") loadInterviewDay();
+};
+
+
+// ─── Settings → Screening Questions ────────────────────────────────────────
+//
+// The mockup has a static `.settings-section[data-set="screening"]` panel
+// with hardcoded `<div class="question-row">` rows. We replace the row
+// container with a live-rendered list backed by public.screening_questions
+// CRUD. Inline edit toggles between a read row and a tiny form.
+
+async function loadScreeningQuestionsList() {
+  const section = document.querySelector('.settings-section[data-set="screening"]');
+  if (!section) return;
+
+  // Find or create the rows container; the mockup wrapper for rows is
+  // the first inner div containing all .question-row elements.
+  let container = section.querySelector("[data-rr-questions]");
+  if (!container) {
+    const firstInner = section.querySelector("div:has(> .question-row)");
+    if (firstInner) {
+      container = firstInner;
+      container.setAttribute("data-rr-questions", "1");
+    } else {
+      container = document.createElement("div");
+      container.setAttribute("data-rr-questions", "1");
+      section.appendChild(container);
+    }
+  }
+
+  const { data: rows, error } = await sb.from("screening_questions")
+    .select("id, prompt, field_type, options, required, hard_filter, scoring, display_order, active")
+    .eq("dsp_id", window.RR.dsp.id)
+    .order("display_order", { ascending: true });
+  if (error) { toast("Couldn't load questions: " + error.message, "warn"); return; }
+
+  // Sub-text under the title.
+  const sub = section.querySelector(".settings-section-sub");
+  if (sub) sub.textContent = `Library of ${(rows ?? []).length} questions sent via SMS or email.`;
+
+  container.innerHTML = (rows ?? []).map(renderScreeningQuestionRow).join("");
+
+  // Replace the bottom controls with a live "Add question" button.
+  let footer = section.querySelector("[data-rr-questions-footer]");
+  if (!footer) {
+    footer = document.createElement("div");
+    footer.setAttribute("data-rr-questions-footer", "1");
+    footer.style.cssText = "margin-top:var(--s-3);display:flex;gap:8px";
+    footer.innerHTML = `<button class="btn" data-rr-add-question>+ Add question</button>`;
+    // Remove any sibling with the original "+ Add question / Browse library" buttons.
+    const oldFooter = section.querySelector('div[style*="margin-top"]:has(> .btn)');
+    if (oldFooter && oldFooter !== footer) oldFooter.remove();
+    section.appendChild(footer);
+  }
+}
+
+function renderScreeningQuestionRow(q) {
+  const reqPill = q.required ? "Required" : "Optional";
+  const subBits = [];
+  subBits.push(({ yes_no: "Yes/No", single: "Single-select", multi: "Multi-select", text: "Text", number: "Number", date: "Date" })[q.field_type] || q.field_type);
+  if (q.hard_filter && q.hard_filter.answer != null) subBits.push(`auto-fail if "${q.hard_filter.answer}"`);
+  if (q.scoring) subBits.push("scoring");
+  if (!q.active) subBits.push("disabled");
+
+  return `
+    <div class="question-row" data-question-id="${q.id}" ${q.active ? "" : 'style="opacity:.5"'}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+      <div class="question-text">${escapeHtml(q.prompt)}<small>${subBits.join(" · ")}</small></div>
+      <span class="role-pill">${reqPill}</span>
+      <button class="btn btn-sm" data-rr-edit-question="${q.id}">Edit</button>
+      <button class="btn btn-sm" data-rr-toggle-question="${q.id}" data-active="${q.active}">${q.active ? "Disable" : "Enable"}</button>
+      <button class="btn btn-sm" data-rr-delete-question="${q.id}" style="color:var(--red)">Delete</button>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function openQuestionEditor(question) {
+  const isEdit = !!question;
+  const q = question || {
+    prompt: "", field_type: "yes_no",
+    options: ["Yes","No"], required: true,
+    hard_filter: null, scoring: null,
+    display_order: 99, active: true,
+  };
+
+  // Build a tiny modal inline (no need to add it to the static HTML).
+  let m = document.getElementById("rr-question-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-question-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <h3 style="margin:0;font-size:17px;font-weight:600">${isEdit ? "Edit question" : "Add question"}</h3>
+        <button data-rr-q-cancel style="background:none;border:0;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
+      </div>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Prompt</label>
+      <textarea data-rr-q-prompt class="form-input" style="width:100%;min-height:60px;margin-bottom:14px">${escapeHtml(q.prompt)}</textarea>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Type</label>
+      <select data-rr-q-type class="form-input" style="width:100%;margin-bottom:14px">
+        ${["yes_no","single","multi","text","number","date"].map(v => `<option value="${v}" ${q.field_type === v ? "selected" : ""}>${v}</option>`).join("")}
+      </select>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Options (one per line — only for single / multi)</label>
+      <textarea data-rr-q-options class="form-input" style="width:100%;min-height:70px;margin-bottom:14px;font-family:monospace">${(q.options || []).join("\n")}</textarea>
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Auto-decline if answer equals (leave blank for none)</label>
+      <input data-rr-q-hardfail class="form-input" style="width:100%;margin-bottom:14px" value="${escapeHtml(q.hard_filter?.answer ?? "")}" placeholder="e.g. No" />
+      <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><input type="checkbox" data-rr-q-required ${q.required ? "checked" : ""}/>Required</label>
+      <label style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><input type="checkbox" data-rr-q-active ${q.active ? "checked" : ""}/>Active (shown to applicants)</label>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" data-rr-q-cancel>Cancel</button>
+        <button class="btn btn-primary" data-rr-q-save>${isEdit ? "Save changes" : "Add question"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-q-cancel]")) { m.remove(); return; }
+    if (e.target.closest("[data-rr-q-save]")) {
+      const prompt = m.querySelector("[data-rr-q-prompt]").value.trim();
+      if (!prompt) { toast("Prompt is required", "warn"); return; }
+      const fieldType = m.querySelector("[data-rr-q-type]").value;
+      const optsText  = m.querySelector("[data-rr-q-options]").value.trim();
+      const opts = optsText ? optsText.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : null;
+      const hardAns = m.querySelector("[data-rr-q-hardfail]").value.trim();
+      const required = m.querySelector("[data-rr-q-required]").checked;
+      const active = m.querySelector("[data-rr-q-active]").checked;
+
+      const payload = {
+        dsp_id: window.RR.dsp.id,
+        prompt,
+        field_type: fieldType,
+        options: opts && (fieldType === "single" || fieldType === "multi") ? opts : null,
+        required,
+        hard_filter: hardAns ? { answer: hardAns } : null,
+        scoring: q.scoring ?? null,
+        display_order: q.display_order ?? 99,
+        active,
+      };
+      if (isEdit) {
+        const { error } = await sb.from("screening_questions").update(payload).eq("id", q.id);
+        if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      } else {
+        const { error } = await sb.from("screening_questions").insert(payload);
+        if (error) { toast("Add failed: " + error.message, "warn"); return; }
+      }
+      m.remove();
+      await loadScreeningQuestionsList();
+      toast(isEdit ? "Question saved" : "Question added", "success");
+    }
+  });
+}
+
+// Capture-phase delegate for the question editor / toggle / delete / add.
+document.addEventListener("click", async (e) => {
+  const editBtn = e.target.closest("[data-rr-edit-question]");
+  if (editBtn) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const id = editBtn.getAttribute("data-rr-edit-question");
+    const { data: q, error } = await sb.from("screening_questions").select("*").eq("id", id).single();
+    if (error) { toast("Couldn't load question", "warn"); return; }
+    openQuestionEditor(q);
+    return;
+  }
+  const delBtn = e.target.closest("[data-rr-delete-question]");
+  if (delBtn) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!confirm("Delete this question? Existing responses will be removed.")) return;
+    const id = delBtn.getAttribute("data-rr-delete-question");
+    const { error } = await sb.from("screening_questions").delete().eq("id", id);
+    if (error) { toast("Delete failed: " + error.message, "warn"); return; }
+    await loadScreeningQuestionsList();
+    toast("Question deleted", "warn");
+    return;
+  }
+  const togBtn = e.target.closest("[data-rr-toggle-question]");
+  if (togBtn) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const id = togBtn.getAttribute("data-rr-toggle-question");
+    const wasActive = togBtn.getAttribute("data-active") === "true";
+    const { error } = await sb.from("screening_questions").update({ active: !wasActive }).eq("id", id);
+    if (error) { toast("Update failed: " + error.message, "warn"); return; }
+    await loadScreeningQuestionsList();
+    return;
+  }
+  const addBtn = e.target.closest("[data-rr-add-question]");
+  if (addBtn) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    openQuestionEditor(null);
+  }
+}, true);
+
+// Hook the Settings nav so loading the Screening Questions section refreshes.
+const _legacySettings = window.setSettingsSection;
+window.setSettingsSection = function (btn) {
+  if (typeof _legacySettings === "function") _legacySettings(btn);
+  if (btn && btn.getAttribute("data-set") === "screening") {
+    loadScreeningQuestionsList();
+  }
+};
+
+
 // ─── Boot: if pipeline view is the default, populate immediately ──────────
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => loadPipeline("all"));
+  document.addEventListener("DOMContentLoaded", () => { loadPipeline("all"); loadPipelineKpis(); });
 } else {
   loadPipeline("all");
+  loadPipelineKpis();
 }
