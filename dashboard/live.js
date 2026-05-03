@@ -3634,9 +3634,11 @@ async function loadSchedulingSettings() {
   const sched = (data?.metadata?.scheduling) || {};
   const blockEl  = document.getElementById("rr-set-block-hours");
   const cushEl   = document.getElementById("rr-set-cushion-pct");
+  const maxDaysEl = document.getElementById("rr-set-max-days");
   const wavesEl  = document.getElementById("rr-set-waves");
-  if (blockEl) blockEl.value = sched.default_block_hours ?? 10;
-  if (cushEl)  cushEl.value  = sched.cushion_pct ?? 10;
+  if (blockEl)   blockEl.value   = sched.default_block_hours ?? 10;
+  if (cushEl)    cushEl.value    = sched.cushion_pct ?? 10;
+  if (maxDaysEl) maxDaysEl.value = sched.max_days_per_week ?? 5;
   if (wavesEl) {
     const waves = Array.isArray(sched.waves) && sched.waves.length
       ? sched.waves
@@ -3685,6 +3687,7 @@ document.addEventListener("click", async (e) => {
     if (!dspId) return;
     const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
     const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
+    const maxDays = Math.max(1, Math.min(7, parseInt(document.getElementById("rr-set-max-days")?.value, 10) || 5));
     const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
       .map(inp => ({ start: inp.value || "07:00" }))
       .filter(w => w.start);
@@ -3706,6 +3709,7 @@ document.addEventListener("click", async (e) => {
         ...sched,
         default_block_hours: block,
         cushion_pct: cushion,
+        max_days_per_week: maxDays,
         waves,
         timezone: tz,
       },
@@ -3805,6 +3809,7 @@ async function autoAssignDriversForWeek() {
 
   const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
   const weekEndIso = fmtIsoDate(weekEnd);
+  const maxDays = Math.max(1, Math.min(7, window.RR?.dsp?.metadata?.scheduling?.max_days_per_week ?? 5));
 
   // Query shifts directly (instead of via schedule_grid) so we always get
   // the is_cushion column even on DBs that haven't run migration 0027.
@@ -3898,6 +3903,8 @@ async function autoAssignDriversForWeek() {
       if (!days.includes(dow)) return false;
       if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
       if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
+      // Cap: don't schedule a driver more than max_days this week
+      if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
       return true;
     });
 
