@@ -452,12 +452,32 @@ document.addEventListener("click", async (e) => {
 // interview day is closed; after that, rolling 30-day actuals.
 
 async function loadPipelineKpis() {
-  const { data, error } = await sb.rpc("pipeline_kpis", { p_window_days: 30 });
-  if (error || !data) return;
-  const showEl = document.getElementById("hp-show-rate");
-  const hireEl = document.getElementById("hp-hire-rate");
-  if (showEl) showEl.textContent = Math.round(Number(data.show_rate ?? 0) * 100);
-  if (hireEl) hireEl.textContent = Math.round(Number(data.hire_rate ?? 0) * 100);
+  // Run both calls in parallel.
+  const [{ data: kpi }, { data: funnel }] = await Promise.all([
+    sb.rpc("pipeline_kpis", { p_window_days: 30 }),
+    sb.rpc("pipeline_funnel_kpis"),
+  ]);
+
+  // Show / hire — from cycle-aware kpi RPC (75% defaults until first close).
+  if (kpi) {
+    setText("hp-show-rate", Math.round(Number(kpi.show_rate ?? 0) * 100));
+    setText("hp-hire-rate", Math.round(Number(kpi.hire_rate ?? 0) * 100));
+  }
+
+  // Funnel-conversion tiles.
+  if (funnel) {
+    setText("hp-uncontacted",     funnel.not_contacted ?? 0);
+    setText("hp-uncontacted-pct", (funnel.not_contacted_pct ?? 0) + "%");
+    setText("hp-passed",          funnel.passed ?? 0);
+    setText("hp-passed-pct",      (funnel.passed_pct ?? 0) + "%");
+    setText("hp-failed",          funnel.failed ?? 0);
+    setText("hp-failed-pct",      (funnel.failed_pct ?? 0) + "%");
+    setText("hp-booked",          funnel.booked ?? 0);
+    setText("hp-booked-pct",      (funnel.booked_rate ?? 0) + "%");
+    const sub = document.getElementById("hp-booked-sub");
+    if (sub) sub.textContent = `${funnel.booked ?? 0} of ${funnel.invited ?? 0} sent a booking link`;
+    setText("hp-actual",          funnel.active_drivers ?? 0);
+  }
 }
 
 

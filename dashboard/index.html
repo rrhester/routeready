@@ -4303,7 +4303,7 @@ a{color:inherit;text-decoration:none}
           <button class="subnav-item active" data-pipesub="funnel" onclick="pipeSub('funnel')">Funnel</button>
           <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
           <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
-          <button class="subnav-item" data-pipesub="referrals" onclick="pipeSub('referrals')">Referrals <span style="background:#7C3AED;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">9 active</span></button>
+          <button class="subnav-item" data-pipesub="referrals" onclick="pipeSub('referrals')">Referrals</button>
         </div>
 
         <!-- FUNNEL SUB-VIEW -->
@@ -4313,16 +4313,17 @@ a{color:inherit;text-decoration:none}
         <style>
           .hp-stats-banner{
             position:relative;
-            display:grid;grid-template-columns:repeat(4,1fr);
+            display:grid;grid-template-columns:repeat(7,1fr);
             background:var(--surface);border:1px solid var(--border);border-radius:12px;
             padding:18px 0;margin-bottom:var(--s-3);overflow:hidden;
           }
+          @media (max-width:1180px){.hp-stats-banner{grid-template-columns:repeat(4,1fr)}}
           @media (max-width:760px){.hp-stats-banner{grid-template-columns:repeat(2,1fr)}}
-          .hp-stat{padding:0 22px;border-right:1px solid var(--border);position:relative}
+          .hp-stat{padding:0 16px;border-right:1px solid var(--border);position:relative}
           .hp-stat:last-child{border-right:none}
           .hp-stat-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
-          .hp-stat-value{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
-          .hp-stat-value .frac{font-size:14px;font-weight:600;color:var(--text-subtle);margin-left:4px}
+          .hp-stat-value{font-size:24px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+          .hp-stat-value .frac{font-size:13px;font-weight:600;color:var(--text-subtle);margin-left:4px}
           .hp-stat-trend{font-size:11px;color:var(--text-subtle);margin-top:6px;display:flex;align-items:center;gap:5px}
           .hp-stat-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;font-variant-numeric:tabular-nums}
           .hp-stat-delta.ok{background:var(--green-soft);color:var(--green)}
@@ -4351,27 +4352,39 @@ a{color:inherit;text-decoration:none}
 
         <div class="hp-stats-banner">
           <div class="hp-stat">
+            <div class="hp-stat-label">Not contacted</div>
+            <div class="hp-stat-value"><span id="hp-uncontacted">0</span><span class="frac" id="hp-uncontacted-pct">0%</span></div>
+            <div class="hp-stat-trend">Applied · screening not yet sent</div>
+          </div>
+          <div class="hp-stat">
+            <div class="hp-stat-label">Screening passed</div>
+            <div class="hp-stat-value"><span id="hp-passed">0</span><span class="frac" id="hp-passed-pct">0%</span></div>
+            <div class="hp-stat-trend">Cleared screening + still active</div>
+          </div>
+          <div class="hp-stat">
+            <div class="hp-stat-label">Screening failed</div>
+            <div class="hp-stat-value"><span id="hp-failed">0</span><span class="frac" id="hp-failed-pct">0%</span></div>
+            <div class="hp-stat-trend">Hard-filter declined</div>
+          </div>
+          <div class="hp-stat">
+            <div class="hp-stat-label">Booked rate</div>
+            <div class="hp-stat-value"><span id="hp-booked">0</span><span class="frac" id="hp-booked-pct">0%</span></div>
+            <div class="hp-stat-trend" id="hp-booked-sub">Of those sent a booking link</div>
+          </div>
+          <div class="hp-stat">
             <div class="hp-stat-label">Show rate</div>
-            <div class="hp-stat-value"><span id="hp-show-rate">72</span>%</div>
-            <div class="hp-stat-trend">From this cycle's interviews</div>
+            <div class="hp-stat-value"><span id="hp-show-rate">75</span>%</div>
+            <div class="hp-stat-trend">Of those who booked</div>
           </div>
           <div class="hp-stat">
             <div class="hp-stat-label">Hire rate</div>
-            <div class="hp-stat-value"><span id="hp-hire-rate">31</span>%</div>
+            <div class="hp-stat-value"><span id="hp-hire-rate">75</span>%</div>
             <div class="hp-stat-trend">Of candidates who showed</div>
           </div>
           <div class="hp-stat">
             <div class="hp-stat-label">Active headcount</div>
-            <div class="hp-stat-value"><span id="hp-actual">78</span><span class="frac">drivers</span></div>
-            <div class="hp-stat-trend">After projected hires this cycle</div>
-          </div>
-          <div class="hp-stat">
-            <div class="hp-stat-label">Plan · next 5 wk</div>
-            <div class="hp-stat-value"><span id="hp-plan">82</span><span class="frac">avg</span></div>
-            <div class="hp-stat-trend">
-              <span class="hp-stat-delta bad" id="hp-gap-pill">−4 short</span>
-              <span>OKAMI 75 + cushion 7</span>
-            </div>
+            <div class="hp-stat-value"><span id="hp-actual">0</span><span class="frac">drivers</span></div>
+            <div class="hp-stat-trend">Currently driving</div>
           </div>
           <div class="hp-stats-progress"><div class="hp-stats-progress-fill" id="hp-stats-fill"></div></div>
         </div>
@@ -5235,7 +5248,7 @@ a{color:inherit;text-decoration:none}
                   <div class="ref-set-label">Payout per successful referral</div>
                   <div class="ref-set-help">In US dollars. Set 0 to track referrals without paying out.</div>
                 </div>
-                <input type="number" min="0" step="50" class="ref-set-input" id="ref-payout-input" value="0" />
+                <input type="number" min="0" step="25" class="ref-set-input" id="ref-payout-input" value="0" />
               </div>
             </div>
           </div>
