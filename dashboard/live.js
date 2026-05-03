@@ -256,6 +256,7 @@ window.goto = function (view) {
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline") loadPipeline(getActiveStage());
   if (view === "drivers")  loadDriversRoster();
+  if (view === "checkin")  loadCheckinView();
 };
 
 
@@ -493,13 +494,13 @@ async function loadAttendanceLive() {
     }
   }
 
-  // Default policy weights — operator can override later via Policy builder.
-  const POLICY = { callout: 1, noshow: 3, threshold_warn: 3, threshold_action: 6 };
+  // Pull policy from saved DSP metadata (operator-editable in Policy tab).
+  const POLICY = _getAttPolicy();
 
   let totalScheduled = 0, totalPresent = 0, totalIncidents = 0, inAction = 0;
   const rows = drivers.map(d => {
     const a = acc.get(d.id) || { scheduled: 0, present: 0, callouts: 0, noshows: 0, last: null };
-    const points = a.callouts * POLICY.callout + a.noshows * POLICY.noshow;
+    const points = a.callouts * POLICY.points_per_callout + a.noshows * POLICY.points_per_noshow;
     const occ = a.callouts + a.noshows;
     let statusLabel = "Good";
     let statusKind  = "ok";
@@ -565,6 +566,304 @@ async function loadAttendanceLive() {
     else { badge.style.display = "none"; }
   }
 }
+
+// ─── Today's check-in (live) ───────────────────────────────────────────────
+
+const _CI_TO_STATUS = { present: "completed", late: "late", callout: "called_off", noshow: "no_show" };
+const _STATUS_TO_CI = Object.fromEntries(Object.entries(_CI_TO_STATUS).map(([k, v]) => [v, k]));
+
+async function loadCheckinView() {
+  const list = document.querySelector("#view-checkin .checkin-list");
+  if (!list) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const todayIso = fmtIsoDate(new Date());
+
+  const [driversRes, shiftsRes] = await Promise.all([
+    sb.from("drivers")
+      .select("id, full_name, first_name, last_name, preferred_name, phone, station:station_id (code), tier")
+      .eq("dsp_id", dspId)
+      .eq("status", "active"),
+    sb.from("shifts")
+      .select("id, driver_id, status")
+      .eq("dsp_id", dspId)
+      .eq("date", todayIso),
+  ]);
+
+  if (driversRes.error || shiftsRes.error) {
+    console.warn("checkin load:", driversRes.error || shiftsRes.error);
+    return;
+  }
+  const drivers = driversRes.data || [];
+  const shifts  = shiftsRes.data  || [];
+
+  const driverShift = new Map(); // driver_id -> shift row
+  for (const sh of shifts) {
+    if (sh.driver_id) driverShift.set(sh.driver_id, sh);
+  }
+
+  // Update head sub line + progress meta with today's actuals.
+  const sub = document.querySelector("#view-checkin .page-sub");
+  if (sub) {
+    const expected = drivers.filter(d => driverShift.has(d.id)).length;
+    sub.textContent = `${new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} · ${expected} drivers expected`;
+  }
+
+  const rows = drivers
+    .filter(d => driverShift.has(d.id))
+    .map(d => {
+      const display = displayDriverName(d);
+      const initials = displayDriverInitials(d);
+      const station = d.station?.code || "—";
+      const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+      const sh = driverShift.get(d.id);
+      const ciKey = _STATUS_TO_CI[sh.status]; // present / late / callout / noshow / undefined
+      const markedClass = ciKey ? ` marked marked-${ciKey === "callout" ? "callout" : ciKey === "noshow" ? "noshow" : ciKey}` : "";
+      const btn = (key, title, svg) => {
+        const active = ciKey === key ? " active" : "";
+        return `<button type="button" class="status-btn s-${key}${active}" data-rr-ci-shift="${sh.id}" data-rr-ci-status="${key}" title="${title}">${svg}</button>`;
+      };
+      return `<div class="checkin-row${markedClass}" data-name="${escapeHtml(initials)}">
+        <div class="checkin-driver">
+          <div class="avatar-sm ${tier}">${initials}</div>
+          <div>
+            <div class="checkin-driver-name">${escapeHtml(display)}</div>
+            <div class="checkin-driver-meta">${escapeHtml(d.phone || "")}</div>
+          </div>
+        </div>
+        <div class="checkin-station">${escapeHtml(station)}</div>
+        <div class="status-row">
+          ${btn("present", "Present", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')}
+          ${btn("late",    "Late",    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>')}
+          ${btn("callout", "Callout", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>')}
+          ${btn("noshow",  "No-show", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>')}
+        </div>
+      </div>`;
+    });
+
+  list.innerHTML = rows.length === 0
+    ? `<div style="padding:32px;text-align:center;color:var(--text-subtle)">No shifts scheduled for today.</div>`
+    : rows.join("");
+
+  _updateCheckinProgress();
+}
+
+function _updateCheckinProgress() {
+  const list = document.querySelector("#view-checkin .checkin-list");
+  if (!list) return;
+  const total = list.querySelectorAll(".checkin-row").length;
+  const marked = list.querySelectorAll(".checkin-row.marked").length;
+  const pct = total > 0 ? Math.round(marked / total * 100) : 0;
+  const fill = document.getElementById("ci-progress");
+  if (fill) fill.style.width = `${pct}%`;
+  const m = document.getElementById("ci-marked");
+  if (m) m.textContent = String(marked);
+  const meta = document.querySelector("#view-checkin .checkin-progress-meta span:first-child");
+  if (meta) meta.textContent = `${marked} of ${total} marked`;
+}
+
+// Click handler: write the status to public.shifts and toggle UI.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-ci-shift][data-rr-ci-status]");
+  if (!btn) return;
+  e.preventDefault();
+  const shiftId = btn.dataset.rrCiShift;
+  const ciKey   = btn.dataset.rrCiStatus;
+  const newStatus = _CI_TO_STATUS[ciKey];
+  if (!shiftId || !newStatus) return;
+
+  const row = btn.closest(".checkin-row");
+  const { error } = await sb.from("shifts").update({ status: newStatus }).eq("id", shiftId);
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+
+  // Visual: clear sibling active states, mark row, add active to clicked.
+  if (row) {
+    row.classList.remove("marked-present", "marked-late", "marked-callout", "marked-noshow");
+    row.classList.add("marked", `marked-${ciKey === "noshow" ? "noshow" : ciKey === "callout" ? "callout" : ciKey}`);
+    row.querySelectorAll(".status-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  }
+  _updateCheckinProgress();
+});
+
+
+// ─── Drivers · Attendance · Policy + Event log ──────────────────────────
+
+const _ATT_DEFAULT_POLICY = {
+  mode: "points",            // points | occurrence | hybrid
+  decay_days: 90,
+  points_per_callout: 1,
+  points_per_noshow: 3,
+  threshold_warn: 3,
+  threshold_action: 6,
+};
+
+function _getAttPolicy() {
+  const p = window.RR?.dsp?.metadata?.attendance?.policy || {};
+  return { ..._ATT_DEFAULT_POLICY, ...p };
+}
+
+async function loadAttendancePolicy() {
+  const pane = document.getElementById("att-pane-policy");
+  if (!pane) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const { data, error } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+  if (error) { console.warn("policy load:", error.message); return; }
+  const meta = data?.metadata || {};
+  if (window.RR?.dsp) window.RR.dsp.metadata = meta;
+  const p = { ..._ATT_DEFAULT_POLICY, ...(meta?.attendance?.policy || {}) };
+
+  // Re-render the Policy pane with editable inputs (operator-friendly,
+  // not the elaborate mockup variant — just the values that matter for
+  // computation).
+  pane.innerHTML = `
+    <div class="pol-section">
+      <h3 class="pol-section-title">Mode</h3>
+      <p class="pol-section-sub">Most DSPs use <strong>Points-based</strong>: each event has a point value, thresholds trigger an action.</p>
+      <div class="pol-mode-row">
+        ${["points","occurrence","hybrid"].map(m => `
+          <button class="pol-mode-btn${p.mode === m ? " active" : ""}" type="button" data-rr-att-mode="${m}">
+            <div class="pol-mode-title">${m === "points" ? "Points-based" : m === "occurrence" ? "Occurrence-based" : "Hybrid"}</div>
+          </button>`).join("")}
+      </div>
+    </div>
+    <div class="pol-section">
+      <h3 class="pol-section-title">Point values</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:520px">
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Callout</span>
+          <input type="number" min="0" max="20" step="0.5" class="form-input" data-rr-att-field="points_per_callout" value="${p.points_per_callout}"/></label>
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">No-show</span>
+          <input type="number" min="0" max="20" step="0.5" class="form-input" data-rr-att-field="points_per_noshow" value="${p.points_per_noshow}"/></label>
+      </div>
+    </div>
+    <div class="pol-section">
+      <h3 class="pol-section-title">Thresholds</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;max-width:760px">
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Warn at</span>
+          <input type="number" min="1" max="40" step="1" class="form-input" data-rr-att-field="threshold_warn" value="${p.threshold_warn}"/></label>
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Action at</span>
+          <input type="number" min="1" max="40" step="1" class="form-input" data-rr-att-field="threshold_action" value="${p.threshold_action}"/></label>
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Decay window (days)</span>
+          <input type="number" min="14" max="365" step="1" class="form-input" data-rr-att-field="decay_days" value="${p.decay_days}"/></label>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-primary" type="button" id="rr-att-policy-save">Save policy</button>
+      <span id="rr-att-policy-status" style="font-size:12px;color:var(--text-subtle)"></span>
+    </div>`;
+}
+
+document.addEventListener("click", async (e) => {
+  // Mode selector click
+  const modeBtn = e.target.closest("[data-rr-att-mode]");
+  if (modeBtn) {
+    document.querySelectorAll("[data-rr-att-mode]").forEach(b => b.classList.toggle("active", b === modeBtn));
+    return;
+  }
+  // Save policy
+  if (e.target.id === "rr-att-policy-save") {
+    e.preventDefault();
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return;
+    const status = document.getElementById("rr-att-policy-status");
+    const fields = {};
+    document.querySelectorAll("[data-rr-att-field]").forEach(el => {
+      fields[el.dataset.rrAttField] = Number(el.value);
+    });
+    const mode = document.querySelector("[data-rr-att-mode].active")?.dataset.rrAttMode || "points";
+    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields, mode };
+
+    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
+    const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    const meta = row?.metadata || {};
+    const newMeta = { ...meta, attendance: { ...(meta.attendance || {}), policy: newPolicy } };
+    const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
+    if (upErr) { if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; } return; }
+    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
+    if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
+    toast("Attendance policy saved", "success");
+    // Refresh report tab to use new policy thresholds.
+    if (typeof loadAttendanceLive === "function") loadAttendanceLive();
+  }
+});
+
+
+async function loadAttendanceEventLog() {
+  const pane = document.getElementById("att-pane-log");
+  if (!pane) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const policy = _getAttPolicy();
+  const since = new Date(); since.setDate(since.getDate() - policy.decay_days);
+  const sinceIso = fmtIsoDate(since);
+
+  const [shiftsRes, driversRes] = await Promise.all([
+    sb.from("shifts")
+      .select("id, date, status, driver_id")
+      .eq("dsp_id", dspId)
+      .in("status", ["called_off", "no_show", "late"])
+      .gte("date", sinceIso)
+      .order("date", { ascending: false }),
+    sb.from("drivers")
+      .select("id, full_name, first_name, last_name, preferred_name, station:station_id (code), tier")
+      .eq("dsp_id", dspId),
+  ]);
+
+  if (shiftsRes.error || driversRes.error) {
+    console.warn("event log load:", shiftsRes.error || driversRes.error);
+    return;
+  }
+
+  const drvById = new Map((driversRes.data || []).map(d => [d.id, d]));
+  const events = (shiftsRes.data || []).filter(sh => sh.driver_id);
+
+  const countEl = document.getElementById("att-log-count");
+  if (countEl) countEl.textContent = String(events.length);
+
+  if (events.length === 0) {
+    pane.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No callouts, no-shows, or late events in the last ${policy.decay_days} days.</div>`;
+    return;
+  }
+
+  const eventLabel = { called_off: "Callout", no_show: "No-show", late: "Late" };
+  const eventColor = { called_off: "var(--amber)", no_show: "var(--red)", late: "var(--text-muted)" };
+
+  pane.innerHTML = `
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Points</th></tr></thead>
+      <tbody>
+        ${events.map(ev => {
+          const d = drvById.get(ev.driver_id);
+          const display = d ? displayDriverName(d) : "—";
+          const station = d?.station?.code || "—";
+          const initials = d ? displayDriverInitials(d) : "?";
+          const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+          const points = ev.status === "no_show" ? policy.points_per_noshow : ev.status === "called_off" ? policy.points_per_callout : 0;
+          return `<tr>
+            <td>${new Date(ev.date + "T12:00:00").toLocaleDateString()}</td>
+            <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
+            <td>${escapeHtml(station)}</td>
+            <td><span style="color:${eventColor[ev.status]};font-weight:600">${eventLabel[ev.status]}</span></td>
+            <td style="text-align:right;font-weight:600">${points}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table></div>`;
+}
+
+// Hook attTab — operator clicks Report / Policy / Log inside the
+// Drivers → Attendance subview. The mockup defines window.attTab on
+// load; wrap it so we can also fire our live loaders.
+const _legacyAttTab = window.attTab;
+window.attTab = function (name) {
+  if (typeof _legacyAttTab === "function") _legacyAttTab(name);
+  if (name === "report") loadAttendanceLive();
+  if (name === "policy") loadAttendancePolicy();
+  if (name === "log")    loadAttendanceEventLog();
+};
 
 
 async function loadDriverLicensesView() {
