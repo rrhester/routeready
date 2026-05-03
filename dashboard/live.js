@@ -2924,175 +2924,29 @@ function fmtMD(d) { return d.toLocaleDateString(undefined, { month: "short", day
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
 
-// ─── OKAMI editor (view-okami) ────────────────────────────────────────────
+// NOTE — earlier iteration of this code overwrote the OKAMI table and
+// Schedule subview innerHTML, replacing the polished mockup layout with
+// a generic grid. Operator pushed back; mockup design is the source of
+// truth. Wiring live data INTO the mockup elements (without touching
+// the structure) is queued as a follow-up.
+//
+// For now: leave the mockup OKAMI + Schedule views untouched. Schema
+// (0025) and RPCs are still deployed and usable from SQL / future UI.
 
 let _okamiStations = [];
-let _okamiStart = null;
-
-async function loadOkamiView() {
-  const tbody = document.getElementById("okami-tbody");
-  if (!tbody) return;
-  if (!_okamiStart) _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
-
-  // Pre-fetch stations once.
-  if (_okamiStations.length === 0) {
-    const { data: stations } = await sb.from("stations").select("id, code").eq("dsp_id", window.RR.dsp.id).order("code");
-    _okamiStations = stations || [];
-  }
-
-  const { data: grid, error } = await sb.rpc("okami_grid", {
-    p_start: _okamiStart, p_weeks: RR_SCHED_WEEKS,
-  });
-  if (error) {
-    tbody.innerHTML = `<tr><td colspan="20" style="padding:16px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
-    return;
-  }
-
-  // Build a lookup so we can query (date, station) → row.
-  const lookup = new Map();
-  for (const r of grid ?? []) lookup.set(`${r.date}|${r.station_id}`, r);
-
-  const cushionPct = (grid?.[0]?.cushion_pct) ?? 10;
-
-  // Replace the entire OKAMI table with our per-day editor.
-  const table = tbody.parentElement;
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th style="text-align:left;width:130px">Date</th>
-        ${_okamiStations.map(s => `<th>${escapeHtml(s.code)}</th>`).join("")}
-        <th>Day total</th>
-        <th>Needed (+${Math.round(cushionPct)}%)</th>
-      </tr>
-    </thead>
-    <tbody id="okami-tbody"></tbody>`;
-  const newBody = document.getElementById("okami-tbody");
-
-  const html = [];
-  for (let i = 0; i < RR_SCHED_WEEKS * 7; i++) {
-    const date = fmtIsoDate(addDays(new Date(_okamiStart), i));
-    const dt = new Date(date + "T12:00:00");
-    let dayTotal = 0, dayNeeded = 0;
-    const cells = _okamiStations.map(s => {
-      const row = lookup.get(`${date}|${s.id}`);
-      const target = row?.target_routes ?? 0;
-      const needed = row?.needed ?? 0;
-      dayTotal  += target;
-      dayNeeded += needed;
-      return `<td><input type="number" min="0" data-rr-okami-cell data-date="${date}" data-station="${s.id}" value="${target}" style="width:60px;background:var(--canvas);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font:inherit;font-size:13px;text-align:right;color:var(--text)"/></td>`;
-    }).join("");
-    const isMonday = dt.getDay() === 1;
-    html.push(`
-      <tr ${isMonday ? 'style="border-top:2px solid var(--border)"' : ""}>
-        <td style="font-size:12px;font-weight:600">${RR_DAY_SHORT[dt.getDay()]} ${fmtMD(dt)}</td>
-        ${cells}
-        <td style="font-weight:600">${dayTotal}</td>
-        <td style="font-weight:600;color:var(--accent-text)">${dayNeeded}</td>
-      </tr>`);
-  }
-  newBody.innerHTML = html.join("");
-
-  // Inject a header row with cushion control + week nav.
-  const header = document.querySelector("#view-okami .page-header");
-  if (header && !document.getElementById("rr-okami-controls")) {
-    const ctrl = document.createElement("div");
-    ctrl.id = "rr-okami-controls";
-    ctrl.style.cssText = "display:flex;align-items:center;gap:14px;margin-bottom:var(--s-3);flex-wrap:wrap";
-    ctrl.innerHTML = `
-      <button class="btn btn-sm" data-rr-okami-prev>← Prev</button>
-      <button class="btn btn-sm" data-rr-okami-next>Next →</button>
-      <span style="font-size:12px;color:var(--text-subtle);margin-left:8px" id="rr-okami-window"></span>
-      <span style="margin-left:auto;font-size:12px;color:var(--text-subtle)">Cushion %:</span>
-      <input id="rr-okami-cushion" type="number" min="0" max="100" value="${cushionPct}" style="width:80px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font:inherit;font-size:13px;text-align:right;color:var(--text)"/>
-      <button class="btn btn-sm" data-rr-okami-save-cushion>Save</button>`;
-    header.parentNode.insertBefore(ctrl, header.nextSibling);
-  }
-  const winLabel = document.getElementById("rr-okami-window");
-  if (winLabel) {
-    const startD = new Date(_okamiStart + "T12:00:00");
-    const endD   = addDays(startD, RR_SCHED_WEEKS * 7 - 1);
-    winLabel.textContent = `${fmtMD(startD)} → ${fmtMD(endD)}`;
-  }
-}
-
-
-// Capture-phase delegate for OKAMI cell edits + nav + cushion.
-let _okamiSaveTimer = null;
-document.addEventListener("input", (e) => {
-  const cell = e.target.closest("[data-rr-okami-cell]");
-  if (!cell) return;
-  // Debounce per-cell saves so fast typing doesn't fire one RPC per keystroke.
-  clearTimeout(cell._saveTimer);
-  cell._saveTimer = setTimeout(async () => {
-    const date = cell.getAttribute("data-date");
-    const station = cell.getAttribute("data-station");
-    const target = parseInt(cell.value, 10) || 0;
-    const { error } = await sb.rpc("okami_set_target", {
-      p_date: date, p_station_id: station, p_target: target,
-    });
-    if (error) { toast("Save failed: " + error.message, "warn"); cell.style.borderColor = "var(--red)"; }
-    else cell.style.borderColor = "var(--green)";
-    setTimeout(() => { cell.style.borderColor = "var(--border)"; }, 800);
-  }, 350);
-}, true);
-
-document.addEventListener("click", async (e) => {
-  if (e.target.closest("[data-rr-okami-prev]")) {
-    e.preventDefault(); e.stopImmediatePropagation();
-    _okamiStart = fmtIsoDate(addDays(new Date(_okamiStart), -7));
-    loadOkamiView();
-  }
-  if (e.target.closest("[data-rr-okami-next]")) {
-    e.preventDefault(); e.stopImmediatePropagation();
-    _okamiStart = fmtIsoDate(addDays(new Date(_okamiStart), 7));
-    loadOkamiView();
-  }
-  if (e.target.closest("[data-rr-okami-save-cushion]")) {
-    e.preventDefault(); e.stopImmediatePropagation();
-    const pct = parseFloat(document.getElementById("rr-okami-cushion").value || "10");
-    const { error } = await sb.rpc("okami_set_cushion", { p_pct: pct });
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
-    // Refresh both OKAMI + Schedule so the new cushion propagates.
-    if (window.RR.dsp.metadata) {
-      window.RR.dsp.metadata.scheduling = window.RR.dsp.metadata.scheduling || {};
-      window.RR.dsp.metadata.scheduling.cushion_pct = pct;
-    }
-    toast("Cushion saved", "success");
-    loadOkamiView();
-  }
-}, true);
-
-
-// ─── Schedule grid (view-schedule, sched-sub-week) ───────────────────────
-
-let _schedStart = null;
 let _schedDriverList = [];
+let _okamiStart = null;
+let _schedStart = null;
 
+async function loadOkamiView() { /* re-wire planned, no-op for now */ }
 async function loadScheduleView() {
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
-
-  // Pull driver list once for the assign picker.
-  if (_schedDriverList.length === 0) {
-    const { data: drivers } = await sb.from("drivers").select("id, full_name").eq("dsp_id", window.RR.dsp.id).in("status", ["active","onboarding"]).order("full_name");
-    _schedDriverList = drivers || [];
-  }
-  if (_okamiStations.length === 0) {
-    const { data: stations } = await sb.from("stations").select("id, code").eq("dsp_id", window.RR.dsp.id).order("code");
-    _okamiStations = stations || [];
-  }
-
-  const { data, error } = await sb.rpc("schedule_grid", {
-    p_start: _schedStart, p_weeks: RR_SCHED_WEEKS,
-  });
-
-  const sub = document.getElementById("sched-sub-week");
-  if (!sub) return;
-  if (error) { sub.innerHTML = `<div style="padding:24px;color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
-
-  renderScheduleGrid(sub, data);
+  // Still populate Time off + Open shifts panels — those mockup
+  // sections were placeholders, not polished designs.
+  loadTimeOffList();
+  loadOpenShifts();
 }
 
-function renderScheduleGrid(sub, data) {
+function renderScheduleGrid() { /* removed */ }
   const coverage = data.coverage || [];
   const shifts = data.shifts || [];
 
@@ -3173,28 +3027,8 @@ function renderScheduleGrid(sub, data) {
   loadTimeOffList();
 }
 
-document.addEventListener("click", async (e) => {
-  if (e.target.closest("[data-rr-sched-prev]")) {
-    e.preventDefault(); e.stopImmediatePropagation();
-    _schedStart = fmtIsoDate(addDays(new Date(_schedStart), -RR_SCHED_WEEKS * 7));
-    loadScheduleView();
-  }
-  if (e.target.closest("[data-rr-sched-next]")) {
-    e.preventDefault(); e.stopImmediatePropagation();
-    _schedStart = fmtIsoDate(addDays(new Date(_schedStart), RR_SCHED_WEEKS * 7));
-    loadScheduleView();
-  }
-  const addBtn = e.target.closest("[data-rr-add-shift]");
-  if (addBtn) {
-    e.preventDefault(); e.stopImmediatePropagation();
-    openAddShiftModal(addBtn.getAttribute("data-date"), addBtn.getAttribute("data-station"));
-  }
-  const chip = e.target.closest("[data-rr-shift-id]");
-  if (chip) {
-    e.preventDefault(); e.stopImmediatePropagation();
-    openAssignShiftModal(chip.getAttribute("data-rr-shift-id"));
-  }
-}, true);
+// Schedule-grid prev/next/add/assign handlers removed pending mockup
+// re-wire. Time-off + open-shifts panels still wire below.
 
 function openAddShiftModal(date, stationId) {
   let m = document.getElementById("rr-shift-modal");
