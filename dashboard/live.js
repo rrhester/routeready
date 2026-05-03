@@ -91,7 +91,9 @@ function renderApplicantCard(a) {
     : "";
 
   return `
-    <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
+    <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}"
+         data-rr-pinnable data-rr-pin-kind="applicant" data-rr-pin-ref="${a.id}"
+         data-rr-pin-label="${escapeHtml(a.full_name ?? "Applicant")}">
       <div class="pa-row">
         <div class="pa-id">
           <div class="pa-name">${a.full_name ?? ""}</div>
@@ -373,7 +375,9 @@ function renderDriverRow(d) {
   const contact = d.phone || d.email || "";
   const statusBadge = renderDriverStatusBadge(d.status);
   return `
-    <tr data-driver-id="${d.id}" data-rr-open-driver>
+    <tr data-driver-id="${d.id}" data-rr-open-driver
+        data-rr-pinnable data-rr-pin-kind="driver" data-rr-pin-ref="${d.id}"
+        data-rr-pin-label="${escapeHtml(d.full_name ?? "Driver")}">
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(d.full_name ?? "")}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
@@ -2358,3 +2362,231 @@ function wireSidebarDrag() {
 
 applyStoredNavOrder();
 wireSidebarDrag();
+
+
+// ─── Pin to Dashboard ─────────────────────────────────────────────────────
+//
+// Generalized pinning. Any element marked with the data attributes
+//
+//   data-rr-pinnable
+//   data-rr-pin-kind="kpi" | "applicant" | "driver"
+//   data-rr-pin-ref="<id-or-key>"
+//   data-rr-pin-label="<friendly label>"
+//
+// becomes pinnable. Long-press (~500ms mousedown / touchstart) reveals
+// a small floating "📌 Pin" button. Click it to pin / unpin. Pinned
+// items render as cards on the Dashboard view.
+//
+// Storage: localStorage 'rr-pins-v2' = [{kind, ref, label}, …].
+// Cross-device persistence (per app_user) lands in a follow-up.
+
+const RR_PINS_KEY = "rr-pins-v2";
+function readPins() {
+  try { return JSON.parse(localStorage.getItem(RR_PINS_KEY) || "[]"); }
+  catch { return []; }
+}
+function writePins(pins) {
+  localStorage.setItem(RR_PINS_KEY, JSON.stringify(pins));
+}
+function isPinned(kind, ref) {
+  return readPins().some(p => p.kind === kind && p.ref === ref);
+}
+function togglePin(kind, ref, label) {
+  const pins = readPins();
+  const idx = pins.findIndex(p => p.kind === kind && p.ref === ref);
+  if (idx >= 0) pins.splice(idx, 1);
+  else          pins.push({ kind, ref, label, pinned_at: new Date().toISOString() });
+  writePins(pins);
+  renderPinnedDashboard();
+  return idx < 0;
+}
+
+let _pressTimer = null;
+let _pressTarget = null;
+
+function startPress(e, target) {
+  _pressTarget = target;
+  _pressTimer = setTimeout(() => {
+    if (_pressTarget) showPinOverlay(_pressTarget);
+  }, 500);
+}
+function cancelPress() {
+  if (_pressTimer) { clearTimeout(_pressTimer); _pressTimer = null; }
+  _pressTarget = null;
+}
+
+document.addEventListener("mousedown", (e) => {
+  if (e.button !== 0) return;
+  // Don't long-press on actual buttons / form fields inside pinnables.
+  if (e.target.closest("button, input, select, textarea, a")) return;
+  const target = e.target.closest("[data-rr-pinnable]");
+  if (target) startPress(e, target);
+});
+document.addEventListener("mouseup", cancelPress);
+document.addEventListener("mouseleave", cancelPress);
+document.addEventListener("touchstart", (e) => {
+  if (e.target.closest("button, input, select, textarea, a")) return;
+  const target = e.target.closest("[data-rr-pinnable]");
+  if (target) startPress(e, target);
+}, { passive: true });
+document.addEventListener("touchend", cancelPress);
+document.addEventListener("touchcancel", cancelPress);
+
+function showPinOverlay(target) {
+  const kind  = target.getAttribute("data-rr-pin-kind");
+  const ref   = target.getAttribute("data-rr-pin-ref");
+  const label = target.getAttribute("data-rr-pin-label");
+  if (!kind || !ref) return;
+
+  // Remove any existing overlay.
+  document.getElementById("rr-pin-overlay")?.remove();
+
+  const rect = target.getBoundingClientRect();
+  const pinned = isPinned(kind, ref);
+
+  const ov = document.createElement("div");
+  ov.id = "rr-pin-overlay";
+  ov.style.cssText = `
+    position:fixed; z-index:9998;
+    left:${Math.min(rect.right - 140, window.innerWidth - 160)}px;
+    top:${rect.top - 4}px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:6px 8px;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);
+    display:flex; align-items:center; gap:6px;
+    animation:rr-pop .12s ease-out;
+  `;
+  ov.innerHTML = `
+    <button class="btn btn-sm" style="font-size:12px;display:flex;align-items:center;gap:6px">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>
+      ${pinned ? "Unpin" : "Pin to dashboard"}
+    </button>`;
+  document.body.appendChild(ov);
+
+  const close = () => { ov.remove(); document.removeEventListener("click", clickOff, true); };
+  const clickOff = (ev) => { if (!ov.contains(ev.target)) close(); };
+  // Defer click-off binding so the same click that started the long-press doesn't immediately close.
+  setTimeout(() => document.addEventListener("click", clickOff, true), 0);
+
+  ov.querySelector("button").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const nowPinned = togglePin(kind, ref, label);
+    toast(nowPinned ? `Pinned "${label}"` : `Unpinned "${label}"`, "success");
+    close();
+  });
+}
+
+
+// ─── Dashboard pinned cards ──────────────────────────────────────────────
+
+function renderPinnedDashboard() {
+  const queue = document.getElementById("action-queue");
+  if (!queue) return;
+  // Wipe previously-rendered RR pinned cards (idempotent re-render).
+  queue.querySelectorAll(".task-card.rr-pinned").forEach(c => c.remove());
+
+  const pins = readPins();
+  if (pins.length === 0) return;
+
+  for (const p of pins) {
+    const card = buildPinnedCard(p);
+    if (card) queue.insertBefore(card, queue.firstChild);
+  }
+}
+
+function buildPinnedCard(p) {
+  const card = document.createElement("div");
+  card.className = "task-card rr-pinned";
+  card.dataset.sev = "info";
+  card.dataset.rrPinKind = p.kind;
+  card.dataset.rrPinRef  = p.ref;
+
+  card.innerHTML = `
+    <div class="task-tools">
+      <button class="task-tool" type="button" aria-label="Unpin"
+              onclick="event.stopPropagation();window.RR_unpin('${p.kind}','${p.ref}');">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="task-head">
+      <div class="task-eyebrow">${p.kind === "kpi" ? "Pipeline KPI" : p.kind === "applicant" ? "Applicant" : p.kind === "driver" ? "Driver" : p.kind}</div>
+      <div class="task-title">${escapeHtml(p.label || p.ref)}</div>
+    </div>
+    <div class="task-msg" data-rr-pin-body>Loading…</div>
+  `;
+  // Async hydrate the card body based on kind.
+  hydratePinnedCard(card, p);
+  return card;
+}
+
+window.RR_unpin = function (kind, ref) {
+  const pins = readPins().filter(p => !(p.kind === kind && p.ref === ref));
+  writePins(pins);
+  renderPinnedDashboard();
+  toast("Unpinned", "warn");
+};
+
+async function hydratePinnedCard(card, p) {
+  const body = card.querySelector("[data-rr-pin-body]");
+  if (!body) return;
+
+  if (p.kind === "kpi") {
+    const [{ data: k }, { data: f }] = await Promise.all([
+      sb.rpc("pipeline_kpis",        { p_window_days: 28 }),
+      sb.rpc("pipeline_funnel_kpis", { p_window_days: 28 }),
+    ]);
+    const map = {
+      contacted_pct: f?.contacted_pct,
+      passed_pct:    f?.passed_pct,
+      booked_rate:   f?.booked_rate,
+      e2e_pct:       f?.e2e_pct,
+      show_rate:     k ? Math.round(Number(k.show_rate ?? 0) * 100) : 0,
+      hire_rate:     k ? Math.round(Number(k.hire_rate ?? 0) * 100) : 0,
+    };
+    const v = map[p.ref];
+    body.innerHTML = `<span style="font-size:32px;font-weight:700;color:var(--text);letter-spacing:-.02em">${v ?? "—"}%</span>`;
+    return;
+  }
+
+  if (p.kind === "applicant") {
+    const { data: a } = await sb.from("applicants")
+      .select("id, full_name, status, phone, email")
+      .eq("id", p.ref).maybeSingle();
+    if (!a) { body.innerHTML = `<span style="color:var(--text-subtle)">Removed.</span>`; return; }
+    body.innerHTML = `<strong>${escapeHtml(a.full_name)}</strong> · ${a.status}<br/><span style="color:var(--text-subtle);font-size:12px">${a.phone || a.email || ""}</span>`;
+    return;
+  }
+
+  if (p.kind === "driver") {
+    const { data: d } = await sb.from("drivers")
+      .select("id, full_name, status, hire_date")
+      .eq("id", p.ref).maybeSingle();
+    if (!d) { body.innerHTML = `<span style="color:var(--text-subtle)">Removed.</span>`; return; }
+    const days = d.hire_date ? Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000) : null;
+    body.innerHTML = `<strong>${escapeHtml(d.full_name)}</strong> · ${d.status}${days != null ? ` · ${days}d` : ""}`;
+    return;
+  }
+
+  body.innerHTML = `<span style="color:var(--text-subtle)">Pinned (${p.kind})</span>`;
+}
+
+// Re-render pinned dashboard cards on dashboard view + on data change.
+const _origRefresh = refreshActiveView;
+function refreshWithPins() {
+  _origRefresh();
+  if (document.querySelector(".view.active")?.id === "view-dashboard") renderPinnedDashboard();
+}
+window.addEventListener("focus", () => { if (document.querySelector(".view.active")?.id === "view-dashboard") renderPinnedDashboard(); });
+
+// Initial render on load.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", renderPinnedDashboard);
+} else {
+  renderPinnedDashboard();
+}
+
+// Pop animation
+const _styleEl = document.createElement("style");
+_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none}`;
+document.head.appendChild(_styleEl);
