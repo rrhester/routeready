@@ -4077,7 +4077,7 @@ a{color:inherit;text-decoration:none}
             <span class="db-meta-divider"></span>
             <span><strong id="queue-cleared">0</strong> cleared</span>
             <span class="db-meta-divider"></span>
-            <span>Coverage <strong>84%</strong></span>
+            <span>Coverage <strong id="dash-coverage">—</strong></span>
             <button class="db-restore" id="db-restore" type="button" onclick="restoreTaskCards()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
               Restore (<span id="db-deleted-n">0</span>)
@@ -4104,12 +4104,12 @@ a{color:inherit;text-decoration:none}
             <div class="ac-body">
               <div class="task-eyebrow" style="margin-bottom:2px">Attendance · check in with your team</div>
               <div class="ac-headline">
-                <span class="ac-stat"><span id="dash-pip-checkin">0</span> / 78</span>
+                <span class="ac-stat"><span id="dash-pip-checkin">0</span> / <span id="dash-pip-total">0</span></span>
                 <span class="ac-stat-lbl action-card-title">drivers checked in today</span>
               </div>
               <div class="ac-meta">
-                <span>Loadout 4:00 AM · KMO1, KMO2, KMO3</span>
-                <span class="ac-flag"><span class="ac-flag-dot"></span>3 callout patterns flagged</span>
+                <span id="dash-pip-meta">No shifts today</span>
+                <span class="ac-flag" id="dash-pip-flag" style="display:none"><span class="ac-flag-dot"></span><span id="dash-pip-flag-text"></span></span>
               </div>
             </div>
             <button class="ac-cta" onclick="goto('checkin')" type="button">
