@@ -667,6 +667,88 @@ async function doAddApplicant() {
   toast(`${applicant.full_name} added · screening invite queued`, "success");
 }
 
+// ─── Add driver ────────────────────────────────────────────────────────────
+//
+// Mockup's submitAddDriver() just appended a fake row to the table. We
+// override it to write to public.drivers and refresh the live roster. We
+// also wrap openModal so the station <select> gets populated from real
+// stations the moment the modal opens (instead of hardcoded KMO1/2/3).
+
+async function _populateAddDriverStations() {
+  const sel = document.getElementById("ad-station");
+  if (!sel) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const { data, error } = await sb.from("stations")
+    .select("id, code, name, active")
+    .eq("dsp_id", dspId)
+    .eq("active", true)
+    .order("code");
+  if (error) { console.warn("stations load:", error.message); return; }
+  const stations = data || [];
+  if (stations.length === 0) {
+    sel.innerHTML = `<option value="">— No stations configured —</option>`;
+    return;
+  }
+  sel.innerHTML = stations.map(s => `<option value="${s.id}">${escapeHtml(s.code)}${s.name ? ` · ${escapeHtml(s.name)}` : ""}</option>`).join("");
+  // Default hire-date to today if blank.
+  const hd = document.getElementById("ad-hiredate");
+  if (hd && !hd.value) hd.value = fmtIsoDate(new Date());
+}
+
+async function doAddDriver() {
+  const fn      = document.getElementById("ad-fn").value.trim();
+  const ln      = document.getElementById("ad-ln").value.trim();
+  const phone   = document.getElementById("ad-phone").value.trim();
+  const email   = document.getElementById("ad-email").value.trim();
+  const stationSel = document.getElementById("ad-station");
+  const stationId  = stationSel?.value || null;
+  const hireDate   = document.getElementById("ad-hiredate")?.value || fmtIsoDate(new Date());
+  const status     = document.getElementById("ad-status")?.value || "onboarding";
+
+  if (!fn && !ln) { toast("Add a name first", "warn"); return; }
+  if (!phone && !email) { toast("Phone or email required", "warn"); return; }
+  if (!stationId) { toast("Pick a station (or add one in Settings)", "warn"); return; }
+
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast("DSP not loaded — refresh and try again", "warn"); return; }
+
+  const fullName = `${fn} ${ln}`.trim();
+  const payload = {
+    dsp_id:     dspId,
+    station_id: stationId,
+    first_name: fn || null,
+    last_name:  ln || null,
+    full_name:  fullName,
+    phone:      phone ? toE164(phone) : null,
+    email:      email || null,
+    hire_date:  hireDate,
+    status,
+  };
+
+  const { error } = await sb.from("drivers").insert(payload);
+  if (error) { toast("Add failed: " + error.message, "warn"); return; }
+
+  closeModal("modal-add-driver");
+  // Reset the form so the next open is empty.
+  ["ad-fn", "ad-ln", "ad-phone", "ad-email", "ad-payrate"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  await loadDriversRoster();
+  toast(`${fullName} added`, "success");
+}
+
+window.submitAddDriver = doAddDriver;
+
+// Wrap openModal so the add-driver modal's station <select> gets real
+// stations the moment it opens (without changing the mockup HTML).
+const _originalOpenModal = window.openModal;
+window.openModal = function (id) {
+  if (typeof _originalOpenModal === "function") _originalOpenModal(id);
+  if (id === "modal-add-driver") _populateAddDriverStations();
+};
+
 // ─── Bulk ingest (paste from Indeed CSV/TSV) ───────────────────────────────
 //
 // Accepts tab-OR comma-delimited paste with a header row. Maps any of
