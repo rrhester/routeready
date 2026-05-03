@@ -3708,8 +3708,26 @@ document.addEventListener("click", async (e) => {
     };
     const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
     if (upErr) { if (status) status.textContent = "Failed: " + upErr.message; return; }
-    if (status) status.textContent = "Saved · regenerate the schedule to pick up the changes";
-    toast("Scheduling settings saved", "success");
+    if (status) status.textContent = "Saved · syncing schedule…";
+
+    // Push the new settings into existing shifts: assigned shifts get
+    // their block_hours / ends_at refreshed; unassigned shifts are
+    // wiped and regenerated at the new wave times with the new cushion.
+    const { error: regenErr } = await sb.rpc("regenerate_all_shifts");
+    if (regenErr) {
+      if (status) status.textContent = "Saved · sync failed: " + regenErr.message;
+      toast("Scheduling settings saved · sync failed: " + regenErr.message, "warn");
+      return;
+    }
+
+    if (status) status.textContent = "Saved · schedule synced ✓";
+    setTimeout(() => { if (status) status.textContent = ""; }, 3000);
+    toast("Scheduling settings saved · schedule synced", "success");
+    // Refresh the schedule view if it's currently open.
+    if (typeof renderScheduleWeek === "function") {
+      const sub = document.getElementById("sched-sub-week");
+      if (sub) renderScheduleWeek();
+    }
     return;
   }
 });
