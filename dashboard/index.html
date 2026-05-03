@@ -4307,6 +4307,8 @@ a{color:inherit;text-decoration:none}
 
         <!-- ─── Hiring KPI banner — mirrors Interview Day visual ─── -->
         <style>
+          .hp-window-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+          .hp-window-btn:hover:not(.active){color:var(--text)}
           .hp-stats-banner{
             position:relative;
             display:grid;grid-template-columns:repeat(6,1fr);
@@ -4346,11 +4348,19 @@ a{color:inherit;text-decoration:none}
           .hp-week-cell .gap.ok{color:var(--green)}
         </style>
 
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:-2px 0 6px 0">
+          <div id="hp-window-toggle" style="display:inline-flex;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:2px;font-size:11px;font-weight:600;color:var(--text-subtle)">
+            <button class="hp-window-btn" data-rr-window="7"   style="background:transparent;border:0;font:inherit;padding:4px 10px;border-radius:6px;color:inherit;cursor:pointer">This week</button>
+            <button class="hp-window-btn" data-rr-window="28"  style="background:transparent;border:0;font:inherit;padding:4px 10px;border-radius:6px;color:inherit;cursor:pointer">4 wk</button>
+            <button class="hp-window-btn" data-rr-window="3650" style="background:transparent;border:0;font:inherit;padding:4px 10px;border-radius:6px;color:inherit;cursor:pointer">All time</button>
+          </div>
+        </div>
+
         <div class="hp-stats-banner">
           <div class="hp-stat">
-            <div class="hp-stat-label">Not contacted</div>
-            <div class="hp-stat-value"><span id="hp-uncontacted-pct">0</span>%</div>
-            <div class="hp-stat-trend">Applied · screening not yet sent</div>
+            <div class="hp-stat-label">Contacted</div>
+            <div class="hp-stat-value"><span id="hp-contacted-pct">0</span>%</div>
+            <div class="hp-stat-trend">Sent a screening invite</div>
           </div>
           <div class="hp-stat">
             <div class="hp-stat-label">Screening passed</div>
@@ -4373,9 +4383,9 @@ a{color:inherit;text-decoration:none}
             <div class="hp-stat-trend">Of candidates who showed</div>
           </div>
           <div class="hp-stat">
-            <div class="hp-stat-label">Active headcount</div>
-            <div class="hp-stat-value"><span id="hp-actual">0</span><span class="frac">drivers</span></div>
-            <div class="hp-stat-trend">Currently driving</div>
+            <div class="hp-stat-label">End-to-end</div>
+            <div class="hp-stat-value"><span id="hp-e2e">0</span>%</div>
+            <div class="hp-stat-trend" id="hp-e2e-sub">Hired ÷ total applicants</div>
           </div>
           <div class="hp-stats-progress"><div class="hp-stats-progress-fill" id="hp-stats-fill"></div></div>
         </div>
