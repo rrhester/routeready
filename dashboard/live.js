@@ -4615,8 +4615,45 @@ async function renderScheduleWeek() {
   }
   const subLineEl = sub.querySelector(".sched-week-sub");
   if (subLineEl) {
-    subLineEl.innerHTML = `${pct}% filled (${totalFilled}/${totalNeeded} shifts) · <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-okami>Adjust in OKAMI →</span>`;
+    subLineEl.innerHTML = `<span style="color:var(--accent-text);cursor:pointer" data-rr-goto-okami>Adjust in OKAMI →</span>`;
   }
+
+  // ── KPI strip (hours, coverage, open shifts, violations) + per-day status
+  // computed from the same data as the grid below.
+  const totalHoursWeek = Array.from(hoursPerDriver.values()).reduce((s, n) => s + n, 0);
+  // Per-day fill: needed (from coverageByDate), filled (visible-driver shifts).
+  const fillByDate = new Map();
+  for (const iso of days) {
+    const c = coverageByDate.get(iso) || { needed: 0, filled: 0 };
+    fillByDate.set(iso, c);
+  }
+  // Rule violations across assigned shifts in the week.
+  const violations = await _computeWeekViolations(grid.shifts || [], drivers, timeOff, _schedStart, fmtIsoDate(weekEnd));
+
+  let kpis = sub.querySelector("#rr-sched-kpis");
+  if (!kpis) {
+    kpis = document.createElement("div");
+    kpis.id = "rr-sched-kpis";
+    kpis.style.cssText = "display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:var(--s-3)";
+    const toolbar = sub.querySelector(".sched-toolbar");
+    if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
+  }
+  const kpiCard = (label, value, sublabel, tone) => {
+    const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "var(--text)";
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+      <div style="font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">${label}</div>
+      <div style="font-size:18px;font-weight:700;color:${c};letter-spacing:-.02em;margin-top:2px;line-height:1.2">${value}</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:1px">${sublabel}</div>
+    </div>`;
+  };
+  const coverageTone = pct >= 100 ? "ok" : pct >= 90 ? "warn" : "bad";
+  const violationsTone = violations.length === 0 ? "ok" : violations.length <= 3 ? "warn" : "bad";
+  kpis.innerHTML =
+    kpiCard("Hours scheduled", `${Math.round(totalHoursWeek)}h`, `${shiftCountPerDriver.size} driver${shiftCountPerDriver.size === 1 ? "" : "s"}`, "default") +
+    kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
+    kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
+    kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone);
+  kpis.dataset.rrViolations = JSON.stringify(violations);
 
   // ── Day headers (skip first cell which is "Driver")
   const headRow = sub.querySelector(".cal-grid.head");
@@ -4627,8 +4664,18 @@ async function renderScheduleWeek() {
       if (!cellHead) break;
       const dt = addDays(weekStart, i);
       const iso = fmtIsoDate(dt);
+      const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       cellHead.classList.toggle("today", iso === todayIso);
-      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>`;
+      let status = "";
+      if (c.needed > 0) {
+        if (c.filled >= c.needed) {
+          status = `<div style="font-size:10px;font-weight:600;color:var(--green);margin-top:2px">✓ Complete</div>`;
+        } else {
+          const tone = c.filled === 0 ? "var(--red)" : "var(--amber)";
+          status = `<div style="font-size:10px;font-weight:600;color:${tone};margin-top:2px">${c.filled} / ${c.needed}</div>`;
+        }
+      }
+      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${status}`;
     }
   }
 
@@ -4914,6 +4961,33 @@ function bindSchedWeekNav() {
     }
   });
 
+  // ── KPI: clicking the Rule violations card opens a list modal.
+  sub.addEventListener("click", (e) => {
+    const kpiHost = document.getElementById("rr-sched-kpis");
+    if (!kpiHost) return;
+    if (!e.target.closest("#rr-sched-kpis > div:nth-child(4)")) return;
+    let v = [];
+    try { v = JSON.parse(kpiHost.dataset.rrViolations || "[]"); } catch {}
+    let m = document.getElementById("rr-violations-modal");
+    if (m) m.remove();
+    m = document.createElement("div");
+    m.id = "rr-violations-modal";
+    m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+    const list = v.length === 0
+      ? '<div style="padding:24px;text-align:center;color:var(--text-subtle)">No rule violations this week ✓</div>'
+      : v.map(x => `<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:12px;align-items:center"><div style="flex:1"><div style="font-size:13px;font-weight:600">${escapeHtml(x.driver)}</div><div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(x.note)}</div></div><span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
+    m.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:14px;font-weight:600">Rule violations</div><div style="font-size:12px;color:var(--text-subtle)">${v.length} this week</div></div>
+          <button type="button" id="rr-vio-close" style="background:none;border:0;font-size:22px;cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        </div>
+        <div>${list}</div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-vio-close") m.remove(); });
+  });
+
   // ── Pool sort toggle (Day / Wave time)
   sub.addEventListener("click", (e) => {
     const sortBtn = e.target.closest("[data-rr-pool-sort]");
@@ -4992,6 +5066,81 @@ function bindSchedWeekNav() {
 
 // Pre-assign rule check. Returns a list of human-readable violation
 // strings; empty means clear to assign.
+// Per-week violation summary for the KPI strip. Walks every assigned shift
+// and surfaces issues operators care about: PTO conflicts, double-booking,
+// over the max-days cap, and (when override is off) availability mismatches.
+async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, weekEndIso) {
+  const violations = [];
+
+  // Per-week settings.
+  let maxDays = 5;
+  let allowOverride = false;
+  try {
+    const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: weekStartIso });
+    if (ws) {
+      maxDays = Math.max(1, Math.min(7, ws.max_days_per_week ?? 5));
+      allowOverride = !!ws.allow_availability_override;
+    }
+  } catch (_) {}
+
+  const drvById = new Map(drivers.map(d => [d.id, d]));
+  const ptoByDriver = new Map();
+  for (const t of timeOff) {
+    if (!ptoByDriver.has(t.driver_id)) ptoByDriver.set(t.driver_id, []);
+    ptoByDriver.get(t.driver_id).push(t);
+  }
+
+  // Group assigned shifts per driver to detect over-cap and double-booking.
+  const datesByDriver = new Map();
+  for (const sh of shifts) {
+    if (!sh.driver_id || sh.status !== "scheduled") continue;
+    if (!datesByDriver.has(sh.driver_id)) datesByDriver.set(sh.driver_id, []);
+    datesByDriver.get(sh.driver_id).push(sh);
+  }
+
+  const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+  for (const [driverId, list] of datesByDriver) {
+    const d = drvById.get(driverId);
+    if (!d) continue;
+    const display = displayDriverName(d);
+
+    // Over max-days
+    const distinctDates = new Set(list.map(sh => sh.date));
+    if (distinctDates.size > maxDays) {
+      violations.push({ driver: display, date: null, kind: "max_days", note: `${distinctDates.size} shifts (cap ${maxDays})` });
+    }
+
+    // Double-bookings + PTO + availability per shift
+    const seenDates = new Set();
+    for (const sh of list) {
+      if (seenDates.has(sh.date)) {
+        violations.push({ driver: display, date: sh.date, kind: "double_book", note: `Two shifts on ${sh.date}` });
+      }
+      seenDates.add(sh.date);
+
+      // PTO
+      const ptos = ptoByDriver.get(driverId) || [];
+      if (ptos.some(t => sh.date >= t.start_date && sh.date <= t.end_date)) {
+        violations.push({ driver: display, date: sh.date, kind: "pto", note: `Approved PTO on ${sh.date}` });
+      }
+
+      // Availability (skipped when override on)
+      if (!allowOverride) {
+        const days = (d.metadata?.availability?.days) || [];
+        if (days.length > 0) {
+          const dt = new Date(sh.date + "T12:00:00");
+          if (!days.includes(DOW[dt.getDay()])) {
+            violations.push({ driver: display, date: sh.date, kind: "availability", note: `Not available on ${dt.toLocaleDateString(undefined, { weekday: "long" })}` });
+          }
+        }
+      }
+    }
+  }
+
+  return violations;
+}
+
 async function _checkAssignViolations(shiftId, shiftDate, driverId) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return [];
