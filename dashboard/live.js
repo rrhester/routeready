@@ -3119,7 +3119,14 @@ _styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to
 /* Kill HVE row highlights + the tag pills on week labels */
 .okami-table tr.hve, .okami-table tr.hve > td { background: transparent !important; }
 .okami-week-tag, .okami-week-tag.hve, .okami-week-tag.peak, .okami-week-tag.cycle { display: none !important; }
-.plan-calc-sub { display: none !important; }`;
+.plan-calc-sub { display: none !important; }
+/* Hide the Strategy / Hire by / Status columns (operator: not needed) */
+.okami-table th:nth-child(6),
+.okami-table th:nth-child(7),
+.okami-table th:nth-child(8),
+.okami-table tr:not(.okami-detail) > td:nth-child(6),
+.okami-table tr:not(.okami-detail) > td:nth-child(7),
+.okami-table tr:not(.okami-detail) > td:nth-child(8) { display: none !important; }`;
 document.head.appendChild(_styleEl);
 
 
