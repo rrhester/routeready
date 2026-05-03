@@ -5987,6 +5987,7 @@ a{color:inherit;text-decoration:none}
             <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
             <button class="settings-nav-item" data-set="integrations" onclick="setSettingsSection(this)">Integrations</button>
             <button class="settings-nav-item" data-set="hiring" onclick="setSettingsSection(this)">Hiring criteria</button>
+            <button class="settings-nav-item" data-set="scheduling" onclick="setSettingsSection(this)">Scheduling</button>
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Referral program</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
@@ -6165,6 +6166,46 @@ a{color:inherit;text-decoration:none}
             </div>
 
             <!-- SCREENING QUESTIONS SECTION -->
+
+            <!-- SCHEDULING SECTION -->
+            <div class="settings-section hidden" data-set="scheduling">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Scheduling</h2>
+                <p class="settings-section-sub">Block length, cushion, and the daily wave start times. Changes apply when OKAMI demand is set or when you click Regenerate on the Schedule page.</p>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Default block length</div>
+                  <div class="form-help">Hours per shift. Most DSPs run 10h blocks; some use 8h or 4h for short shifts.</div>
+                </div>
+                <div><input class="form-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1"/></div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Cushion %</div>
+                  <div class="form-help">Extra shifts above OKAMI demand to absorb callouts and no-shows. Set once; rarely changes.</div>
+                </div>
+                <div><input class="form-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1"/></div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Wave start times</div>
+                  <div class="form-help">When drivers leave the station. Add as many as you need — shifts fill waves in order.</div>
+                </div>
+                <div>
+                  <div id="rr-set-waves" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+                  <button class="btn btn-sm" id="rr-set-add-wave" type="button">+ Add wave</button>
+                </div>
+              </div>
+              <div class="form-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+                <div></div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <button class="btn btn-primary" id="rr-set-sched-save" type="button">Save scheduling settings</button>
+                  <span id="rr-set-sched-status" style="font-size:12px;color:var(--text-subtle)"></span>
+                </div>
+              </div>
+            </div>
+
             <!-- REFERRAL PROGRAM SECTION -->
             <div class="settings-section hidden" data-set="referrals">
               <div class="settings-section-head">
