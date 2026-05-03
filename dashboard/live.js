@@ -3806,7 +3806,9 @@ async function autoAssignDriversForWeek() {
   const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
   const weekEndIso = fmtIsoDate(weekEnd);
 
-  const [driversRes, ptoRes, gridRes] = await Promise.all([
+  // Query shifts directly (instead of via schedule_grid) so we always get
+  // the is_cushion column even on DBs that haven't run migration 0027.
+  const [driversRes, ptoRes, shiftsRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, metadata")
       .eq("dsp_id", dspId)
@@ -3817,17 +3819,21 @@ async function autoAssignDriversForWeek() {
       .eq("status", "approved")
       .lte("start_date", weekEndIso)
       .gte("end_date", _schedStart),
-    sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
+    sb.from("shifts")
+      .select("id, date, station_id, driver_id, status, starts_at, ends_at, is_cushion")
+      .eq("dsp_id", dspId)
+      .gte("date", _schedStart)
+      .lte("date", weekEndIso),
   ]);
 
-  if (driversRes.error || gridRes.error) {
-    console.warn("auto-assign load failed:", driversRes.error || gridRes.error);
+  if (driversRes.error || shiftsRes.error) {
+    console.warn("auto-assign load failed:", driversRes.error || shiftsRes.error);
     return 0;
   }
 
   const drivers = driversRes.data || [];
   const pto     = ptoRes.data     || [];
-  const shifts  = (gridRes.data || {}).shifts || [];
+  const shifts  = shiftsRes.data  || [];
 
   const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
