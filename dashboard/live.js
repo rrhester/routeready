@@ -2898,7 +2898,7 @@ if (document.readyState === "loading") {
 
 // Pop animation
 const _styleEl = document.createElement("style");
-_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none}`;
+_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none} [data-rr-pool-driver]{cursor:grab} [data-rr-pool-driver].rr-dragging{opacity:.5} .cal-cell.rr-drop-active{background:var(--accent-soft) !important;outline:2px dashed var(--accent);outline-offset:-2px}`;
 document.head.appendChild(_styleEl);
 
 
@@ -3519,12 +3519,13 @@ async function renderScheduleWeek() {
     const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
+      const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
       if (ptoOn(d.id, iso))
-        return `<div class="${cls}"><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>`;
+        return `<div class="${cls}" ${data}><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>`;
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
       if (list.length === 0)
-        return `<div class="${cls}"><div class="shift-chip off">Off</div></div>`;
-      return `<div class="${cls}">${list.map(_schedShiftChip).join("")}</div>`;
+        return `<div class="${cls}" ${data}><div class="shift-chip off">Off</div></div>`;
+      return `<div class="${cls}" ${data}>${list.map(_schedShiftChip).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid">
       <div class="cal-row-label"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cal-row-label-name">${escapeHtml(d.full_name || "")}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)}</div></div></div>
@@ -3539,7 +3540,7 @@ async function renderScheduleWeek() {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const list = openShiftsByDate.get(iso) || [];
       if (list.length === 0) return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
-      return `<div class="${cls}">${list.map(sh => `<div class="shift-chip open">+ ${escapeHtml(sh.route_code || "open")}</div>`).join("")}</div>`;
+      return `<div class="${cls}" data-rr-cell="open" data-rr-cell-date="${iso}">${list.map(sh => `<div class="shift-chip open" data-rr-shift-id="${sh.id}">+ ${escapeHtml(sh.route_code || "open")}</div>`).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid" style="background:var(--canvas)">
       <div class="cal-row-label" style="background:var(--canvas)"><div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><div><div class="cal-row-label-name" style="color:var(--text-muted)">Unassigned</div><div class="cal-row-label-meta">${totalOpen} route${totalOpen === 1 ? "" : "s"} need a driver</div></div></div>
@@ -3584,11 +3585,14 @@ function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalO
   const offSection   = labelDivs[1];
   if (!availSection || !offSection) return;
 
-  const driverRowHtml = (d, hoursLabel, metaSuffix) => {
+  const driverRowHtml = (d, hoursLabel, metaSuffix, draggable = true) => {
     const initials = _schedDriverInitials(d.full_name);
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
     const station = d.station?.code || "—";
-    return `<div class="pool-driver">
+    const dragAttrs = draggable
+      ? `draggable="true" data-rr-pool-driver="${d.id}" data-rr-pool-driver-name="${escapeHtml(d.full_name || "")}"${d.station_id ? ` data-rr-pool-driver-station="${d.station_id}"` : ""}`
+      : "";
+    return `<div class="pool-driver" ${dragAttrs}>
       <div class="avatar-sm ${tier}">${initials}</div>
       <div><div class="pool-driver-name">${escapeHtml(d.full_name || "")}</div><div class="pool-driver-meta">${escapeHtml(station)}${metaSuffix ? ` · ${escapeHtml(metaSuffix)}` : ""}</div></div>
       <span class="pool-driver-hours">${escapeHtml(hoursLabel)}</span>
@@ -3614,7 +3618,7 @@ function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalO
       : offDrivers.map(d => {
           const t = (ptoByDriver.get(d.id) || [])[0];
           const range = t ? `PTO ${t.start_date.slice(5)}–${t.end_date.slice(5)}` : "Off";
-          return driverRowHtml(d, "PTO", range);
+          return driverRowHtml(d, "PTO", range, false);
         }).join("")}`;
 
   const openCountEl = aside.querySelector('div[style*="padding-top"] div[style*="font-size:10px"]');
@@ -3646,10 +3650,95 @@ function bindSchedWeekNav() {
     }
     if (e.target.closest("[data-rr-goto-okami]"))   { if (typeof window.goto === "function") window.goto("okami"); return; }
     if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
+
+    // Click empty driver-row cell → open add-shift modal pre-filled.
+    const cell = e.target.closest('[data-rr-cell="driver-day"]');
+    if (cell) {
+      const hasShift = cell.querySelector(".shift-chip:not(.off):not(.timeoff)");
+      if (hasShift) return;
+      const date = cell.dataset.rrCellDate;
+      const stationId = cell.dataset.rrCellStation;
+      const driverId = cell.dataset.rrCellDriver;
+      if (!date || !stationId) {
+        toast(stationId ? "" : "Driver has no station — assign one in the Drivers page", "warn");
+        return;
+      }
+      openAddShiftModal(date, stationId, driverId);
+    }
+  });
+
+  // ── Drag-and-drop: pool driver → cell
+  sub.addEventListener("dragstart", (e) => {
+    const pd = e.target.closest("[data-rr-pool-driver]");
+    if (!pd) return;
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("application/x-rr-driver", JSON.stringify({
+      id: pd.dataset.rrPoolDriver,
+      name: pd.dataset.rrPoolDriverName || "",
+      stationId: pd.dataset.rrPoolDriverStation || "",
+    }));
+    pd.classList.add("rr-dragging");
+  });
+  sub.addEventListener("dragend", (e) => {
+    const pd = e.target.closest("[data-rr-pool-driver]");
+    if (pd) pd.classList.remove("rr-dragging");
+    sub.querySelectorAll(".rr-drop-active").forEach(el => el.classList.remove("rr-drop-active"));
+  });
+  sub.addEventListener("dragover", (e) => {
+    const cell = e.target.closest("[data-rr-cell]");
+    if (!cell) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    cell.classList.add("rr-drop-active");
+  });
+  sub.addEventListener("dragleave", (e) => {
+    const cell = e.target.closest("[data-rr-cell]");
+    if (cell) cell.classList.remove("rr-drop-active");
+  });
+  sub.addEventListener("drop", async (e) => {
+    const cell = e.target.closest("[data-rr-cell]");
+    if (!cell) return;
+    e.preventDefault();
+    cell.classList.remove("rr-drop-active");
+    const raw = e.dataTransfer.getData("application/x-rr-driver");
+    if (!raw) return;
+    let payload;
+    try { payload = JSON.parse(raw); } catch { return; }
+    if (!payload?.id) return;
+
+    const kind = cell.dataset.rrCell;
+    if (kind === "open") {
+      const chip = cell.querySelector(".shift-chip.open[data-rr-shift-id]");
+      if (!chip) return;
+      const { error } = await sb.rpc("assign_shift", { p_id: chip.dataset.rrShiftId, p_driver_id: payload.id });
+      if (error) { toast("Assign failed: " + error.message, "warn"); return; }
+      toast(`Assigned to ${payload.name || "driver"}`, "success");
+      renderScheduleWeek();
+      return;
+    }
+    if (kind === "driver-day") {
+      // Refuse if cell already has a non-Off, non-PTO shift — avoid silent overwrites.
+      if (cell.querySelector(".shift-chip:not(.off):not(.timeoff)")) {
+        toast("Cell already has a shift — remove it first", "warn");
+        return;
+      }
+      const date = cell.dataset.rrCellDate;
+      const stationId = cell.dataset.rrCellStation || payload.stationId;
+      if (!date || !stationId) {
+        toast("Need a station — assign one to the driver first", "warn");
+        return;
+      }
+      const { error } = await sb.rpc("create_shift", {
+        p_payload: { date, station_id: stationId, driver_id: payload.id },
+      });
+      if (error) { toast("Add failed: " + error.message, "warn"); return; }
+      toast(`Shift added · ${payload.name || "driver"}`, "success");
+      renderScheduleWeek();
+    }
   });
 }
 
-function openAddShiftModal(date, stationId) {
+function openAddShiftModal(date, stationId, prefDriverId) {
   let m = document.getElementById("rr-shift-modal");
   if (m) m.remove();
   m = document.createElement("div");
@@ -3663,7 +3752,7 @@ function openAddShiftModal(date, stationId) {
       <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver (optional · leave blank for open shift)</label>
       <select id="rr-sh-driver" class="form-input" style="width:100%;margin-bottom:10px">
         <option value="">— Open shift —</option>
-        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(d.full_name)}</option>`).join("")}
+        ${_schedDriverList.map(d => `<option value="${d.id}"${prefDriverId === d.id ? " selected" : ""}>${escapeHtml(d.full_name)}</option>`).join("")}
       </select>
       <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
       <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. KMO1-14B"/>
