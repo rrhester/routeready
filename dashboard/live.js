@@ -4221,11 +4221,34 @@ document.addEventListener("click", async (e) => {
 });
 
 async function loadScheduleView() {
+  // Force-clear the mockup HTML the moment the view opens so static
+  // rows like 'Marcus Davidson' / 'Tasha Reyes' can't flash through
+  // while the live render is in flight.
+  _clearScheduleMockup();
   loadTimeOffList();
   loadOpenShifts();
   await renderScheduleWeek();
   bindSchedWeekNav();
   loadSchedulingSettings();
+}
+
+function _clearScheduleMockup() {
+  const sub = document.getElementById("sched-sub-week");
+  if (!sub) return;
+  const wrap = sub.querySelector(".cal-wrap");
+  if (wrap) {
+    Array.from(wrap.children).forEach(el => {
+      if (!el.classList.contains("head")) el.remove();
+    });
+  }
+  // Mockup also seeds the driver-pool aside with hardcoded names. Wipe
+  // its non-head children so the live pool render starts clean.
+  const aside = sub.querySelector("aside.driver-pool");
+  if (aside) {
+    Array.from(aside.children).forEach(el => {
+      if (!el.classList.contains("pool-head") && el.tagName !== "INPUT") el.remove();
+    });
+  }
 }
 
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
