@@ -575,9 +575,20 @@ const _STATUS_TO_CI = Object.fromEntries(Object.entries(_CI_TO_STATUS).map(([k, 
 
 // ─── Dashboard · Weather (NWS forecast + alerts) ──────────────────────
 
+let _weatherRefreshTimer = null;
+function _scheduleWeatherRefresh() {
+  if (_weatherRefreshTimer) return;
+  _weatherRefreshTimer = setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (!document.getElementById("rr-weather-body")) return;
+    loadDashboardWeather();
+  }, 5 * 60 * 1000);
+}
+
 async function loadDashboardWeather() {
   const body = document.getElementById("rr-weather-body");
   if (!body) return;
+  _scheduleWeatherRefresh();
   const meta = window.RR?.dsp?.metadata?.weather || {};
   const lat = Number(meta.lat);
   const lon = Number(meta.lon);
@@ -647,7 +658,7 @@ async function loadDashboardWeather() {
 
     const now = periods[0];
     const dayPairs = [];
-    for (let i = 0; i < periods.length && dayPairs.length < 3; i++) {
+    for (let i = 0; i < periods.length && dayPairs.length < 8; i++) {
       const p = periods[i];
       if (p.isDaytime) {
         const next = periods[i + 1];
@@ -660,6 +671,7 @@ async function loadDashboardWeather() {
           precip: p.probabilityOfPrecipitation?.value || 0,
           wind: p.windSpeed,
           windDir: p.windDirection,
+          startTime: p.startTime,
         });
       }
     }
@@ -714,15 +726,34 @@ async function loadDashboardWeather() {
 
     const activeAlerts = (alerts?.features || [])
       .map(f => f?.properties)
-      .filter(p => p && (p.severity === "Severe" || p.severity === "Extreme" || p.severity === "Moderate"))
-      .slice(0, 3);
+      .filter(p => p && p.event)
+      .sort((a, b) => {
+        const rank = { Extreme: 0, Severe: 1, Moderate: 2, Minor: 3, Unknown: 4 };
+        return (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9);
+      })
+      .slice(0, 5);
+
+    const fmtExpires = (iso) => {
+      try {
+        const d = new Date(iso);
+        const mins = Math.round((d - new Date()) / 60000);
+        if (mins <= 0) return "expired";
+        if (mins < 60) return `expires in ${mins}m`;
+        const h = Math.floor(mins / 60), m = mins % 60;
+        if (h < 24) return `expires in ${h}h${m ? ` ${m}m` : ""}`;
+        const days = Math.floor(h / 24);
+        return `expires in ${days}d`;
+      } catch { return ""; }
+    };
 
     const alertHtml = activeAlerts.length === 0
       ? ""
-      : `<div style="display:flex;flex-direction:column;gap:3px;margin-top:8px;padding:6px 8px;background:rgba(229,62,62,.06);border-left:2px solid var(--red);border-radius:3px">
+      : `<div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;padding:6px 8px;background:rgba(229,62,62,.06);border-left:2px solid var(--red);border-radius:3px">
+          <div class="task-eyebrow" style="margin-bottom:1px">${activeAlerts.length} active alert${activeAlerts.length > 1 ? "s" : ""}</div>
           ${activeAlerts.map(a => {
-            const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : "var(--amber)";
-            return `<div style="font-size:11px;color:${sev};line-height:1.3"><strong>${escapeHtml(a.event || "Alert")}</strong>${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 110))}` : ""}</div>`;
+            const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : a.severity === "Moderate" ? "var(--amber)" : "var(--text-muted)";
+            const exp = a.expires ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(fmtExpires(a.expires))}</span>` : "";
+            return `<div style="font-size:11px;color:${sev};line-height:1.35"><strong>${escapeHtml(a.event || "Alert")}</strong>${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 130))}` : ""}${exp}</div>`;
           }).join("")}
         </div>`;
 
@@ -827,6 +858,24 @@ async function loadDashboardWeather() {
          </div>`
       : "";
 
+    // 7-day at-a-glance
+    const weeklyHtml = dayPairs.slice(0, 7).map((d, idx) => {
+      const wd = idx === 0 ? "Today" : (() => {
+        try { return new Date(d.startTime).toLocaleDateString([], { weekday: "short" }); }
+        catch { return d.label.slice(0, 3); }
+      })();
+      const summary = (d.short || "").slice(0, 18);
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 6px;border-radius:5px;min-width:62px;background:var(--canvas)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${escapeHtml(wd)}</div>
+        <div style="display:flex;align-items:baseline;gap:3px">
+          <span style="font-size:13px;font-weight:700;color:${tempColor(d.hi)};font-variant-numeric:tabular-nums;line-height:1">${d.hi}°</span>
+          ${d.lo!=null ? `<span style="font-size:10px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${d.lo}°</span>` : ""}
+        </div>
+        <div style="font-size:9px;color:var(--text-subtle);text-align:center;line-height:1.15;max-width:72px">${escapeHtml(summary)}</div>
+        ${d.precip ? `<div style="font-size:9px;font-weight:600;color:${precipColor(d.precip)};line-height:1">${d.precip}%</div>` : `<div style="height:9px"></div>`}
+      </div>`;
+    }).join("");
+
     body.innerHTML = `
       <div class="task-eyebrow" style="margin-bottom:2px">Weather${locName ? ` · ${escapeHtml(locName)}` : ""}${obsTimestamp ? ` · obs ${fmtTime(obsTimestamp)}` : ""}</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;flex-wrap:wrap">
@@ -839,7 +888,10 @@ async function loadDashboardWeather() {
       </div>
       ${obsLine}
       ${sunLine}
-      <div style="display:flex;gap:3px;margin-top:8px;overflow-x:auto;padding-bottom:2px">${hourlyHtml}</div>
+      <div class="task-eyebrow" style="margin-top:10px;margin-bottom:4px">Next 14 hours</div>
+      <div style="display:flex;gap:3px;overflow-x:auto;padding-bottom:2px">${hourlyHtml}</div>
+      <div class="task-eyebrow" style="margin-top:10px;margin-bottom:4px">7-day outlook</div>
+      <div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:2px">${weeklyHtml}</div>
       <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px">
         ${dayLine(today)}
         ${dayLine(tomorrow)}
