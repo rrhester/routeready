@@ -3487,7 +3487,7 @@ async function renderOkamiDailyPanel(weekIdx) {
   const headerLabel = `W${isoWeekNumber(weekStart)} · ${fmtMD(weekStart)}–${addDays(weekStart, 6).getDate()}`;
 
   container.innerHTML = `
-    <div class="okami-daily-panel">
+    <div class="okami-daily-panel" style="grid-template-columns:1fr">
       <div class="okami-daily-grid">
         <div class="okami-daily-grid-head">
           <div>${escapeHtml(headerLabel)}</div>
@@ -3505,30 +3505,13 @@ async function renderOkamiDailyPanel(weekIdx) {
           <div class="okami-daily-label">Shifts to schedule</div>
           ${days.map((_, i) => {
             const diff = dailyShifts[i] - dailyRoutes[i];
-            return `<div class="okami-daily-cell"><div class="okami-daily-cell-shifts">${dailyShifts[i]}<span class="frac">+${diff}</span></div></div>`;
+            return `<div class="okami-daily-cell"><div class="okami-daily-cell-shifts">${dailyShifts[i]}${diff > 0 ? `<span class="frac">+${diff}</span>` : ""}</div></div>`;
           }).join("")}
         </div>
       </div>
-
-      <div class="okami-cushion-card">
-        <h4>Over-plan cushion</h4>
-        <div style="font-size:11px;color:var(--text-subtle);line-height:1.4;margin-top:-4px">Schedule extra shifts above route count to absorb callouts and no-shows. DSP-wide setting.</div>
-        <div class="okami-cushion-input-row">
-          <input type="number" min="0" max="50" value="${Math.round(cushionPct)}" data-rr-okami-cushion-pct/>
-          <span class="unit">% over routes</span>
-        </div>
-        <div class="okami-recommend">
-          <strong>Recommended: ${recommendation.percent}%</strong><br>
-          <span style="font-size:10px;line-height:1.4">${escapeHtml(recommendation.source)}</span>
-          ${Math.round(cushionPct) !== recommendation.percent
-            ? `<button class="apply-link" data-rr-okami-apply-rec="${recommendation.percent}">Apply ${recommendation.percent}%</button>`
-            : `<span style="display:inline-block;margin-top:6px;font-size:10px;color:var(--accent-text)">✓ Following recommendation</span>`}
-        </div>
-        <div class="okami-totals">
-          <span>Week total <strong>${totalRoutes}</strong> routes</span>
-          <span>→ <strong>${totalShifts}</strong> shifts (+${extraTotal})</span>
-        </div>
-        <div style="font-size:10px;color:var(--text-subtle);line-height:1.4">Peak day: <strong style="color:var(--text)">${peakRoutes} routes</strong> · matches OKAMI Routes (max) cell</div>
+      <div style="grid-column:1 / -1;display:flex;justify-content:space-between;font-size:11px;color:var(--text-subtle);padding:10px 4px 0">
+        <span>Week total <strong style="color:var(--text)">${totalRoutes}</strong> routes → <strong style="color:var(--text)">${totalShifts}</strong> shifts (+${extraTotal})</span>
+        <span>Peak day <strong style="color:var(--text)">${peakRoutes} routes</strong> · cushion ${Math.round(cushionPct)}% — change in Schedule settings</span>
       </div>
     </div>`;
 
