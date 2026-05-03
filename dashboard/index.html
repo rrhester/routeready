@@ -7245,9 +7245,9 @@ a{color:inherit;text-decoration:none}
             <p class="page-sub">Routes vs. staffing vs. risk · drawn from your real history</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Save plan
+            <button class="btn" onclick="goto('schedule')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="15 18 9 12 15 6"/></svg>
+              Back to Schedule
             </button>
           </div>
         </div>
@@ -7291,46 +7291,6 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
         </details>
-
-        <!-- Insights bar -->
-        <div class="okami-insights">
-          <div class="okami-insights-head">
-            <span>Plan insights</span>
-            <span style="text-transform:none;letter-spacing:0;font-weight:500;color:rgba(255,255,255,.5)">Updated nightly</span>
-          </div>
-          <div class="okami-insights-grid">
-            <div class="okami-insight">
-              <div class="okami-insight-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg></div>
-              <div class="okami-insight-title">Turnover · 27% annualized</div>
-              <div class="okami-insight-msg">12 drivers left in last 90 days. Bake <strong>~5 attrition</strong> into next 13 weeks.</div>
-            </div>
-            <div class="okami-insight">
-              <div class="okami-insight-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div>
-              <div class="okami-insight-title">3 at-risk drivers</div>
-              <div class="okami-insight-msg">Davidson, Reyes, Whitfield. Probability of leaving within 30 days: <strong>62%</strong>. Plan for replacement.</div>
-            </div>
-            <div class="okami-insight">
-              <div class="okami-insight-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/></svg></div>
-              <div class="okami-insight-title">HVE detected · Week 23</div>
-              <div class="okami-insight-msg">Routes jump <strong>50 → 72</strong> for 2 weeks then return to 50. Recommend ADW bump + OT, not hires.</div>
-            </div>
-            <div class="okami-insight">
-              <div class="okami-insight-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-              <div class="okami-insight-title">Callouts · 4/week avg</div>
-              <div class="okami-insight-msg">Effective ADW <strong>4.6</strong> not 5.0. Plan accordingly or coach pattern-callout drivers.</div>
-            </div>
-            <div class="okami-insight">
-              <div class="okami-insight-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-              <div class="okami-insight-title">Pipeline · 14 in screening</div>
-              <div class="okami-insight-msg">At your <strong>21% screen→hire rate</strong>, ~3 hires likely. Friday's 7 booked + 5 likely = 12 net for cycle 14.</div>
-            </div>
-            <div class="okami-insight">
-              <div class="okami-insight-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-              <div class="okami-insight-title">Peak season · 22 weeks out</div>
-              <div class="okami-insight-msg">Holiday volume Nov 6 – Dec 25. Start <strong>seasonal hiring</strong> Oct 15. Avg DSP needs <strong>+18 seasonal drivers</strong>.</div>
-            </div>
-          </div>
-        </div>
 
         <!-- 13-week table -->
         <div class="plan-table-wrap">
@@ -7484,30 +7444,6 @@ a{color:inherit;text-decoration:none}
               </tr>
             </tbody>
           </table>
-        </div>
-
-        <!-- Summary cards -->
-        <div class="okami-summary-grid">
-          <div class="okami-sum">
-            <div class="okami-sum-label">Permanent hires needed</div>
-            <div class="okami-sum-value">28</div>
-            <div class="okami-sum-sub">across 13 weeks · ~62 applicants at 21% screen→hire</div>
-          </div>
-          <div class="okami-sum warn">
-            <div class="okami-sum-label">HVE weeks · ADW + OT</div>
-            <div class="okami-sum-value">3</div>
-            <div class="okami-sum-sub">W23, W24, W29 · absorbing without hiring saves $$$$</div>
-          </div>
-          <div class="okami-sum">
-            <div class="okami-sum-label">Seasonal hires recommended</div>
-            <div class="okami-sum-value">+18</div>
-            <div class="okami-sum-sub">Oct 15 – Jan 5 · auto-end after peak</div>
-          </div>
-          <div class="okami-sum bad">
-            <div class="okami-sum-label">Plan health</div>
-            <div class="okami-sum-value" style="color:var(--red)">Hire ahead</div>
-            <div class="okami-sum-sub">Pipeline covers 54% of need · import 60+ applicants now</div>
-          </div>
         </div>
 
       </div>

@@ -3617,6 +3617,31 @@ async function renderScheduleWeek() {
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
   const pct = totalNeeded ? Math.round(totalFilled / totalNeeded * 100) : 0;
 
+  // Virtual open shifts: for each (date, station), needed − filled minus
+  // any real unassigned shift rows already in the DB. We surface those as
+  // dashed chips in the Unassigned row so the operator sees the full demand
+  // even without records yet.
+  const realOpenByDateStation = new Map();
+  for (const sh of (grid.shifts || [])) {
+    if (!sh.driver_id) {
+      const k = `${sh.date}|${sh.station_id}`;
+      realOpenByDateStation.set(k, (realOpenByDateStation.get(k) || 0) + 1);
+    }
+  }
+  const virtualByDate = new Map(); // iso -> [{station_id, station_code}, …]
+  for (const c of (grid.coverage || [])) {
+    const k = `${c.date}|${c.station_id}`;
+    const real = realOpenByDateStation.get(k) || 0;
+    const v = Math.max(0, (c.needed || 0) - (c.filled || 0) - real);
+    if (v > 0) {
+      const list = virtualByDate.get(c.date) || [];
+      for (let i = 0; i < v; i++) list.push({ station_id: c.station_id, station_code: c.station_code });
+      virtualByDate.set(c.date, list);
+    }
+  }
+  let totalVirtual = 0;
+  for (const list of virtualByDate.values()) totalVirtual += list.length;
+
   // ── Toolbar
   const labelEl = sub.querySelector(".sched-week-label");
   if (labelEl) {
@@ -3655,6 +3680,8 @@ async function renderScheduleWeek() {
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
     const station = d.station?.code || "—";
     const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
+    const shifts = hoursPerDriver.get(d.id) || 0;
+    const hoursLabel = shifts > 0 ? `${shifts * 8}h scheduled` : "0h scheduled";
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
@@ -3666,22 +3693,30 @@ async function renderScheduleWeek() {
       return `<div class="${cls}" ${data}>${list.map(_schedShiftChip).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cal-row-label-name">${escapeHtml(d.full_name || "")}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cal-row-label-name">${escapeHtml(d.full_name || "")}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
 
-  // Unassigned row (open shifts).
-  const totalOpen = Array.from(openShiftsByDate.values()).reduce((s, a) => s + a.length, 0);
-  const unassignedHtml = totalOpen ? (() => {
+  // Unassigned row (open shifts) — real DB rows + virtual chips computed
+  // from OKAMI demand minus filled minus existing real-open. Always show
+  // when there's any need so demand is visible without manual auto-fill.
+  const totalRealOpen = Array.from(openShiftsByDate.values()).reduce((s, a) => s + a.length, 0);
+  const totalAllOpen  = totalRealOpen + totalVirtual;
+  const unassignedHtml = totalAllOpen ? (() => {
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
-      const list = openShiftsByDate.get(iso) || [];
-      if (list.length === 0) return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
-      return `<div class="${cls}" data-rr-cell="open" data-rr-cell-date="${iso}">${list.map(sh => `<div class="shift-chip open" data-rr-shift-id="${sh.id}">+ ${escapeHtml(sh.route_code || "open")}</div>`).join("")}</div>`;
+      const realList = openShiftsByDate.get(iso) || [];
+      const virtList = virtualByDate.get(iso) || [];
+      if (realList.length === 0 && virtList.length === 0) {
+        return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
+      }
+      const realChips = realList.map(sh => `<div class="shift-chip open" data-rr-shift-id="${sh.id}">+ ${escapeHtml(sh.route_code || "open")}</div>`).join("");
+      const virtChips = virtList.map(v => `<div class="shift-chip open" data-rr-virtual-station="${v.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(v.station_code || "open")}</div>`).join("");
+      return `<div class="${cls}" data-rr-cell="open" data-rr-cell-date="${iso}">${realChips}${virtChips}</div>`;
     }).join("");
     return `<div class="cal-grid" style="background:var(--canvas)">
-      <div class="cal-row-label" style="background:var(--canvas)"><div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><div><div class="cal-row-label-name" style="color:var(--text-muted)">Unassigned</div><div class="cal-row-label-meta">${totalOpen} route${totalOpen === 1 ? "" : "s"} need a driver</div></div></div>
+      <div class="cal-row-label" style="background:var(--canvas)"><div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><div><div class="cal-row-label-name" style="color:var(--text-muted)">Unassigned</div><div class="cal-row-label-meta">${totalAllOpen} route${totalAllOpen === 1 ? "" : "s"} need a driver${totalVirtual ? ` · ${totalVirtual} from OKAMI` : ""}</div></div></div>
       ${cells}
     </div>`;
   })() : "";
@@ -3850,12 +3885,26 @@ function bindSchedWeekNav() {
 
     const kind = cell.dataset.rrCell;
     if (kind === "open") {
-      const chip = cell.querySelector(".shift-chip.open[data-rr-shift-id]");
-      if (!chip) return;
-      const { error } = await sb.rpc("assign_shift", { p_id: chip.dataset.rrShiftId, p_driver_id: payload.id });
-      if (error) { toast("Assign failed: " + error.message, "warn"); return; }
-      toast(`Assigned to ${payload.name || "driver"}`, "success");
-      renderScheduleWeek();
+      // Prefer assigning to a real open shift first; if none left, fill the
+      // first virtual chip by creating a real shift for the driver.
+      const realChip = cell.querySelector(".shift-chip.open[data-rr-shift-id]");
+      if (realChip) {
+        const { error } = await sb.rpc("assign_shift", { p_id: realChip.dataset.rrShiftId, p_driver_id: payload.id });
+        if (error) { toast("Assign failed: " + error.message, "warn"); return; }
+        toast(`Assigned to ${payload.name || "driver"}`, "success");
+        renderScheduleWeek();
+        return;
+      }
+      const virtChip = cell.querySelector(".shift-chip.open[data-rr-virtual-station]");
+      if (virtChip) {
+        const stationId = virtChip.dataset.rrVirtualStation;
+        const date = cell.dataset.rrCellDate;
+        const { error } = await sb.rpc("create_shift", { p_payload: { date, station_id: stationId, driver_id: payload.id } });
+        if (error) { toast("Add failed: " + error.message, "warn"); return; }
+        toast(`Shift added · ${payload.name || "driver"}`, "success");
+        renderScheduleWeek();
+        return;
+      }
       return;
     }
     if (kind === "driver-day") {
