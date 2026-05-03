@@ -637,12 +637,99 @@ document.addEventListener("click", async (e) => {
   }
 }, true);
 
-// Hook pipeSub so switching to the Interview Day tab loads live data.
+// Hook pipeSub so switching to a tab kicks off the right load.
 const _legacyPipeSub = window.pipeSub;
 window.pipeSub = function (sub) {
   if (typeof _legacyPipeSub === "function") _legacyPipeSub(sub);
   if (sub === "interview") loadInterviewDay();
+  if (sub === "calendar")  loadCalendarTab();
 };
+
+
+// ─── Calendar tab ──────────────────────────────────────────────────────────
+//
+// Two pieces:
+//   1. List of upcoming bookings (cal_events for this DSP, future events,
+//      both interview + orientation kinds). Joined to applicants for names.
+//   2. Embedded Cal.com page so the operator can manage availability /
+//      grab the public booking link without leaving the dashboard. The
+//      iframe src is set lazily on first tab activation so we don't pay
+//      the load cost upfront.
+
+let _calIframeLoaded = false;
+
+async function loadCalendarTab() {
+  // Lazy-init the iframe.
+  if (!_calIframeLoaded) {
+    const iframe = document.getElementById("cal-iframe");
+    if (iframe) {
+      const username = window.RR?.dsp?.metadata?.cal?.username || "Routeready";
+      iframe.src = `https://cal.com/${username}`;
+      _calIframeLoaded = true;
+    }
+  }
+  await loadCalBookingsList();
+}
+
+async function loadCalBookingsList() {
+  const list = document.getElementById("cal-bookings-list");
+  if (!list) return;
+  list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+
+  const { data: rows, error } = await sb.from("cal_events")
+    .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, applicants:applicant_id (full_name, email, phone)")
+    .eq("dsp_id", window.RR.dsp.id)
+    .gte("starts_at", new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString())
+    .in("status", ["scheduled", "rescheduled"])
+    .order("starts_at", { ascending: true })
+    .limit(100);
+
+  if (error) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:13px">Couldn't load bookings: ${error.message}</div>`;
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No upcoming bookings</strong>Once applicants book through your Cal.com link, their slots will land here.</div>`;
+    return;
+  }
+
+  // Group by date so the list reads like a schedule.
+  const byDate = new Map();
+  for (const r of rows) {
+    const d = new Date(r.starts_at);
+    const key = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key).push(r);
+  }
+
+  const html = [];
+  for (const [date, items] of byDate) {
+    html.push(`<div style="padding:10px 16px;background:var(--canvas);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);border-top:1px solid var(--border)">${date}</div>`);
+    for (const r of items) {
+      const start = new Date(r.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const end = r.ends_at ? new Date(r.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      const a = r.applicants || {};
+      const kindBadge = r.kind === "orientation"
+        ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(124,58,237,.12);color:#7C3AED;letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
+        : `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent-text);letter-spacing:.04em;text-transform:uppercase">Interview</span>`;
+      const statusBadge = r.status === "rescheduled"
+        ? `<span style="font-size:10px;font-weight:600;color:#B45309;margin-left:6px">rescheduled</span>`
+        : "";
+
+      html.push(`
+        <div style="display:grid;grid-template-columns:90px 1fr auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid var(--border)">
+          <div style="font-variant-numeric:tabular-nums;font-size:13px;font-weight:600">${start}<div style="font-size:11px;color:var(--text-subtle);font-weight:400">${end}</div></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:2px">${escapeHtml(a.full_name || "Unknown")}</div>
+            <div style="font-size:11px;color:var(--text-subtle)">${[a.phone, a.email].filter(Boolean).join(" · ") || "no contact on file"}</div>
+            <div style="margin-top:6px">${kindBadge}${statusBadge}</div>
+          </div>
+          <div>${r.meeting_url ? `<a class="btn btn-sm" href="${r.meeting_url}" target="_blank" rel="noreferrer">Join</a>` : ""}</div>
+        </div>`);
+    }
+  }
+  list.innerHTML = html.join("");
+}
 
 
 // ─── Settings → Screening Questions ────────────────────────────────────────
