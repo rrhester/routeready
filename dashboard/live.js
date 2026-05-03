@@ -430,6 +430,143 @@ window.licApplyAll         = function () { /* superseded */ };
   if (body) body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
 }
 
+// ─── Drivers · Attendance (live) ───────────────────────────────────────────
+
+let _attLiveWindow = 30; // days; mirrors the mockup's filter chip
+
+// Window cycle chip: keep the mockup's 30/60/90 cycle but refresh live data.
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest("#att-window-chip");
+  if (!chip) return;
+  const txt = chip.textContent || "";
+  const match = txt.match(/(\d+)/);
+  const cur = match ? parseInt(match[1], 10) : 30;
+  const seq = [30, 60, 90];
+  _attLiveWindow = seq[(seq.indexOf(cur) + 1) % seq.length];
+  chip.textContent = `Window: ${_attLiveWindow} days`;
+  loadAttendanceLive();
+});
+
+
+async function loadAttendanceLive() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const sinceDate = new Date(); sinceDate.setDate(sinceDate.getDate() - _attLiveWindow);
+  const sinceIso  = fmtIsoDate(sinceDate);
+  const todayIso  = fmtIsoDate(new Date());
+
+  const [driversRes, shiftsRes] = await Promise.all([
+    sb.from("drivers")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station:station_id (code)")
+      .eq("dsp_id", dspId)
+      .order("full_name"),
+    sb.from("shifts")
+      .select("driver_id, status, date")
+      .eq("dsp_id", dspId)
+      .gte("date", sinceIso)
+      .lte("date", todayIso),
+  ]);
+
+  if (driversRes.error || shiftsRes.error) {
+    console.warn("attendance load:", driversRes.error || shiftsRes.error);
+    return;
+  }
+
+  const drivers = driversRes.data || [];
+  const shifts  = shiftsRes.data  || [];
+
+  // Per-driver aggregate. status === 'completed' counts as Present;
+  // 'called_off' = Callout; 'no_show' = No-show. 'scheduled' is in-progress
+  // (counts toward scheduled total but not present until completed).
+  const acc = new Map(); // driver_id -> { scheduled, present, callouts, noshows, last }
+  for (const sh of shifts) {
+    if (!sh.driver_id) continue;
+    let a = acc.get(sh.driver_id);
+    if (!a) { a = { scheduled: 0, present: 0, callouts: 0, noshows: 0, last: null }; acc.set(sh.driver_id, a); }
+    a.scheduled += 1;
+    if (sh.status === "completed")      a.present  += 1;
+    else if (sh.status === "called_off") a.callouts += 1;
+    else if (sh.status === "no_show")    a.noshows  += 1;
+    if (sh.status === "called_off" || sh.status === "no_show") {
+      if (!a.last || sh.date > a.last) a.last = sh.date;
+    }
+  }
+
+  // Default policy weights — operator can override later via Policy builder.
+  const POLICY = { callout: 1, noshow: 3, threshold_warn: 3, threshold_action: 6 };
+
+  let totalScheduled = 0, totalPresent = 0, totalIncidents = 0, inAction = 0;
+  const rows = drivers.map(d => {
+    const a = acc.get(d.id) || { scheduled: 0, present: 0, callouts: 0, noshows: 0, last: null };
+    const points = a.callouts * POLICY.callout + a.noshows * POLICY.noshow;
+    const occ = a.callouts + a.noshows;
+    let statusLabel = "Good";
+    let statusKind  = "ok";
+    if (points >= POLICY.threshold_action) { statusLabel = "Action"; statusKind = "bad"; }
+    else if (points >= POLICY.threshold_warn) { statusLabel = "Warn"; statusKind = "warn"; }
+    totalScheduled += a.scheduled;
+    totalPresent   += a.present;
+    totalIncidents += occ;
+    if (statusKind !== "ok") inAction += 1;
+    return { d, a, points, occ, statusLabel, statusKind };
+  }).sort((x, y) => (y.points - x.points) || (y.occ - x.occ));
+
+  // KPIs
+  const avgRate = totalScheduled > 0 ? Math.round(totalPresent / totalScheduled * 100) : 100;
+  const setKpi = (id, text, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (cls) el.className = `di-val ${cls}`;
+  };
+  setKpi("att-kpi-rate", `${avgRate}%`, avgRate >= 95 ? "ok" : avgRate >= 90 ? "warn" : "bad");
+  setKpi("att-kpi-action", String(inAction), inAction === 0 ? "ok" : inAction <= 2 ? "warn" : "bad");
+  setKpi("att-kpi-incidents", String(totalIncidents));
+  const rateSubEl = document.getElementById("att-kpi-rate-sub");
+  if (rateSubEl) rateSubEl.textContent = `${totalPresent} / ${totalScheduled} shifts · last ${_attLiveWindow}d`;
+  const incSubEl = document.getElementById("att-kpi-incidents-sub");
+  if (incSubEl) incSubEl.textContent = `Last ${_attLiveWindow} days`;
+
+  // Table
+  const tbody = document.getElementById("att-report-body");
+  if (!tbody) return;
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="13" style="padding:24px;text-align:center;color:var(--text-subtle)">No drivers yet</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const display = displayDriverName(r.d);
+    const initials = displayDriverInitials(r.d);
+    const station = r.d.station?.code || "—";
+    const last = r.a.last ? new Date(r.a.last + "T12:00:00").toLocaleDateString() : "—";
+    const statusColor = r.statusKind === "bad" ? "var(--red)" : r.statusKind === "warn" ? "var(--amber)" : "var(--green)";
+    return `<tr>
+      <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
+      <td>${escapeHtml(station)}</td>
+      <td style="text-align:right">${r.a.scheduled}</td>
+      <td style="text-align:right">${r.a.present}</td>
+      <td style="text-align:right">—</td>
+      <td style="text-align:right">${r.a.callouts}</td>
+      <td style="text-align:right">${r.a.noshows}</td>
+      <td style="text-align:right">—</td>
+      <td style="text-align:right;font-weight:600">${r.points}</td>
+      <td style="text-align:right">${r.occ}</td>
+      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusColor}1A;color:${statusColor}">${r.statusLabel}</span></td>
+      <td>${last}</td>
+      <td></td>
+    </tr>`;
+  }).join("");
+
+  // Subnav badge — number of drivers in warn/action.
+  const badge = document.getElementById("att-subnav-badge");
+  if (badge) {
+    if (inAction > 0) { badge.textContent = String(inAction); badge.style.display = "inline-block"; }
+    else { badge.style.display = "none"; }
+  }
+}
+
+
 async function loadDriverLicensesView() {
   const body = document.getElementById("lic-renewals-body");
   const status = document.getElementById("lic-panel-status");
@@ -523,8 +660,9 @@ function renderLicenseRow(d) {
 const _legacyDrSub = window.drSub;
 window.drSub = function (sub) {
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
-  if (sub === "licenses") loadDriverLicensesView();
-  if (sub === "roster")   loadDriversRoster();
+  if (sub === "licenses")   loadDriverLicensesView();
+  if (sub === "roster")     loadDriversRoster();
+  if (sub === "attendance") loadAttendanceLive();
 };
 
 
