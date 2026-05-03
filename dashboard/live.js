@@ -267,6 +267,10 @@ async function loadDriversRoster() {
     .order("hire_date", { ascending: false })
     .limit(500);
 
+  // Update the four mini-stat tiles at the top of the roster, regardless
+  // of whether rows came back, so cleared data shows zeros.
+  refreshDriverStatRow(rows ?? []);
+
   if (error) {
     tbody.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
     return;
@@ -325,6 +329,42 @@ function renderDriverStatusBadge(s) {
   };
   const v = map[s] || { label: s, style: "" };
   return `<span class="tag" style="${v.style}">${v.label}</span>`;
+}
+
+async function refreshDriverStatRow(rows) {
+  // Active / onboarding / inactive counts.
+  const counts = { active: 0, onboarding: 0, leave: 0, inactive: 0, terminated: 0 };
+  for (const r of rows) counts[r.status] = (counts[r.status] || 0) + 1;
+  const inactiveTotal = (counts.inactive || 0) + (counts.leave || 0) + (counts.terminated || 0);
+
+  // Coachings in last 7 days.
+  const sevenAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const { count: coachedCount } = await sb.from("coachings")
+    .select("*", { count: "exact", head: true })
+    .eq("dsp_id", window.RR.dsp.id)
+    .gte("occurred_at", sevenAgo);
+
+  // Avg score (over rows that have a score).
+  const scored = rows.filter(r => r.score != null);
+  const avgScore = scored.length === 0
+    ? "—"
+    : Math.round(scored.reduce((s, r) => s + Number(r.score), 0) / scored.length);
+
+  // "At risk" doesn't have a model yet — show 0 placeholder.
+  const tiles = document.querySelectorAll(".driver-stat-row .stat-mini");
+  if (tiles.length >= 4) {
+    setStatTile(tiles[0], "Active",  counts.active,  `${counts.onboarding} onboarding · ${inactiveTotal} inactive`);
+    setStatTile(tiles[1], "Avg score", avgScore,     "Per-driver score, latest");
+    setStatTile(tiles[2], "At risk", 0,              "Below threshold");
+    setStatTile(tiles[3], "Coached this week", coachedCount ?? 0, "From the coachings log");
+  }
+}
+
+function setStatTile(tile, label, value, sub) {
+  tile.querySelector(".stat-mini-label").textContent = label;
+  tile.querySelector(".stat-mini-value").textContent = value;
+  const s = tile.querySelector(".stat-mini-sub");
+  if (s) s.textContent = sub;
 }
 
 function tenureLabel(hireDate) {
@@ -1394,6 +1434,8 @@ async function loadScreeningQuestionsList() {
   // pre-rendered in the static HTML; we just fill the row list.
   const subview = document.getElementById("pipe-sub-screening");
   if (!subview) return;
+  // Also rehydrate the video settings card.
+  loadVideoScreeningSettings();
   const container = subview.querySelector("[data-rr-questions]");
   if (!container) return;
 
@@ -1557,6 +1599,64 @@ document.addEventListener("click", async (e) => {
 
 // (Settings → Screening Questions was relocated to Pipeline → Screening.
 //  No setSettingsSection hook needed.)
+
+
+// ─── Video screening settings (Pipeline → Screening, lower card) ──────────
+
+async function loadVideoScreeningSettings() {
+  // Read straight from the cached dsp metadata (loaded at boot in window.RR.dsp).
+  const v = window.RR?.dsp?.metadata?.video || {};
+  const tg = document.getElementById("rr-video-enabled-toggle");
+  if (tg) tg.classList.toggle("on", v.enabled !== false);
+  const prompt = document.getElementById("rr-video-prompt");
+  if (prompt) prompt.value = v.prompt || "Tell us about yourself and why you'd be a great fit for our team.";
+  const max = document.getElementById("rr-video-max-seconds");
+  if (max) max.value = v.max_seconds || 60;
+}
+
+async function saveVideoScreeningSettings() {
+  const status = document.getElementById("rr-video-status");
+  const enabled = document.getElementById("rr-video-enabled-toggle")?.classList.contains("on");
+  const prompt  = document.getElementById("rr-video-prompt")?.value.trim() || "";
+  const maxStr  = document.getElementById("rr-video-max-seconds")?.value;
+  const max     = Math.min(180, Math.max(15, parseInt(maxStr || "60", 10)));
+
+  status.className = "cal-edit-status";
+  status.textContent = "Saving…";
+
+  // Read current metadata, deep-merge the video block, write back.
+  const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
+  if (rErr) { status.className = "cal-edit-status err"; status.textContent = rErr.message; return; }
+  const md = dsp.metadata || {};
+  md.video = { enabled, prompt, max_seconds: max };
+
+  const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
+  if (wErr) { status.className = "cal-edit-status err"; status.textContent = wErr.message; return; }
+
+  // Refresh the cached copy so subsequent loads see the new settings.
+  window.RR.dsp.metadata = md;
+  status.className = "cal-edit-status ok";
+  status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+}
+
+// Capture-phase delegate for the video toggle + save.
+document.addEventListener("click", async (e) => {
+  const tgBtn = e.target.closest("[data-rr-video-toggle]");
+  if (tgBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    tgBtn.classList.toggle("on");
+    return;
+  }
+  const saveBtn = e.target.closest("[data-rr-video-save]");
+  if (saveBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    saveBtn.disabled = true;
+    try { await saveVideoScreeningSettings(); }
+    finally { saveBtn.disabled = false; }
+  }
+}, true);
 
 
 // ─── Messages tab ─────────────────────────────────────────────────────────
