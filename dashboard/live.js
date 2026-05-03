@@ -1739,9 +1739,13 @@ async function saveVideoScreeningSettings() {
 // Capture-phase delegate for the video toggle + save.
 // ─── Driver detail drawer ─────────────────────────────────────────────────
 //
-// Opens when an operator clicks a row in the Drivers tab. Three internal
-// tabs: Overview (record fields editor), Coaching (log + add), Documents
-// (list + upload to driver-documents bucket).
+// Opens when an operator clicks a row in the Drivers tab. Four internal
+// tabs: Overview · License · Coaching · Documents.
+//
+// We also stub out the legacy mockup `openDriverDetail` so the old
+// hardcoded "Marcus Davidson" aside drawer doesn't fire alongside ours.
+
+window.openDriverDetail = function () { /* superseded by openDriverDrawer */ };
 
 let _ddDriver = null;
 let _ddTab = "overview";
@@ -1783,6 +1787,7 @@ async function openDriverDrawer(driverId) {
       </div>
       <div class="dd-tabs">
         <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
+        <button class="dd-tab" data-rr-dd-tab="license">License</button>
         <button class="dd-tab" data-rr-dd-tab="coaching">Coaching</button>
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
@@ -1821,6 +1826,7 @@ function renderDriverDrawerTab() {
   });
   const body = document.getElementById("rr-dd-body");
   if (_ddTab === "overview")  body.innerHTML = renderOverviewForm(_ddDriver.driver);
+  if (_ddTab === "license")   renderLicenseTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")  body.innerHTML = renderCoachingTab(_ddDriver.coachings);
   if (_ddTab === "documents") body.innerHTML = renderDocumentsTab(_ddDriver.documents);
 }
@@ -1844,12 +1850,62 @@ function renderOverviewForm(d) {
     </div>
     <div class="dd-row"><label>Emergency contact</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(d.emergency_contact_name)}"/></div>
     <div class="dd-row"><label>Emergency phone</label><input data-rr-dd-field="emergency_contact_phone" placeholder="Phone" value="${v(d.emergency_contact_phone)}"/></div>
-    <div class="dd-row"><label>DL number</label><input data-rr-dd-field="dl_number" value="${v(d.dl_number)}"/></div>
-    <div class="dd-row"><label>DL expires</label><input type="date" data-rr-dd-field="dl_expires_on" value="${v(d.dl_expires_on)}"/></div>
     <div class="dd-row"><label>Background check</label><input type="datetime-local" data-rr-dd-field="background_check_completed_at" value="${v((d.background_check_completed_at || '').slice(0,16))}"/></div>
     <div class="dd-row"><label>Drug test</label><input type="datetime-local" data-rr-dd-field="drug_test_completed_at" value="${v((d.drug_test_completed_at || '').slice(0,16))}"/></div>
     <div class="dd-row"><label>Training scheduled</label><input type="datetime-local" data-rr-dd-field="training_scheduled_at" value="${v((d.training_scheduled_at || '').slice(0,16))}"/></div>
     <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(d.training_date)}"/></div>
+    <div class="dd-foot"><button class="btn btn-primary" data-rr-dd-save>Save record</button></div>`;
+}
+
+async function renderLicenseTab(body, d) {
+  const v = (s) => escapeHtml(s ?? "");
+  // Resolve a viewable URL for the stored DL image, if any.
+  let imgUrl = null;
+  if (d.dl_image_path) {
+    const { data: signed } = await sb.storage.from("driver-documents")
+      .createSignedUrl(d.dl_image_path, 60 * 60);
+    imgUrl = signed?.signedUrl || null;
+  }
+
+  // Expiry visual: pill colors past = red, ≤30 days = amber, else neutral.
+  let expiryPill = '<span style="color:var(--text-subtle);font-size:12px">No expiry on file</span>';
+  if (d.dl_expires_on) {
+    const exp = new Date(d.dl_expires_on);
+    const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
+    let style = "background:var(--canvas);color:var(--text-muted)";
+    let suffix = `${days} days from today`;
+    if (days < 0)        { style = "background:var(--red-soft);color:var(--red)";   suffix = `Expired ${-days} days ago`; }
+    else if (days <= 30) { style = "background:var(--amber-soft);color:var(--amber)"; suffix = `Expires in ${days} days`; }
+    expiryPill = `<span class="tag" style="${style}">${exp.toLocaleDateString()} · ${suffix}</span>`;
+  }
+
+  body.innerHTML = `
+    <div class="dd-row"><label>License number</label><input data-rr-dd-field="dl_number" placeholder="DL number" value="${v(d.dl_number)}"/></div>
+    <div class="dd-row"><label>Expiration</label>
+      <div>
+        <input type="date" data-rr-dd-field="dl_expires_on" value="${v(d.dl_expires_on)}" style="margin-bottom:6px"/>
+        ${expiryPill}
+      </div>
+    </div>
+
+    <div style="margin-top:18px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">License image</div>
+      ${imgUrl
+        ? `<a href="${imgUrl}" target="_blank" rel="noreferrer" style="display:block">
+             <img src="${imgUrl}" style="max-width:100%;max-height:280px;border:1px solid var(--border);border-radius:8px;background:var(--canvas)" alt="Drivers license"/>
+           </a>
+           <div style="margin-top:8px;display:flex;gap:8px">
+             <input type="file" id="rr-dl-file" accept="image/*" />
+             <button class="btn btn-sm" data-rr-dl-upload>Replace</button>
+             <button class="btn btn-sm" data-rr-dl-remove style="color:var(--red)">Remove</button>
+           </div>`
+        : `<div style="border:1px dashed var(--border);border-radius:8px;padding:24px;text-align:center;color:var(--text-subtle);font-size:13px;margin-bottom:10px">No image uploaded yet.</div>
+           <div style="display:flex;gap:8px;align-items:center">
+             <input type="file" id="rr-dl-file" accept="image/*" />
+             <button class="btn btn-primary btn-sm" data-rr-dl-upload>Upload license image</button>
+           </div>`}
+    </div>
+
     <div class="dd-foot"><button class="btn btn-primary" data-rr-dd-save>Save record</button></div>`;
 }
 
@@ -1933,6 +1989,41 @@ document.addEventListener("click", async (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
     openCoachingForm(_ddDriver.driver.id);
+    return;
+  }
+
+  // License-tab upload
+  if (e.target.closest("[data-rr-dl-upload]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const file = document.getElementById("rr-dl-file")?.files?.[0];
+    if (!file) { toast("Choose an image first", "warn"); return; }
+    const path = `${window.RR.dsp.id}/${_ddDriver.driver.id}/license-${Date.now()}-${file.name}`;
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, {
+      contentType: file.type, upsert: false,
+    });
+    if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+    // Remove any previous DL image from storage so we don't accumulate.
+    if (_ddDriver.driver.dl_image_path) {
+      sb.storage.from("driver-documents").remove([_ddDriver.driver.dl_image_path]).catch(() => {});
+    }
+    const { error: updErr } = await sb.from("drivers")
+      .update({ dl_image_path: path }).eq("id", _ddDriver.driver.id);
+    if (updErr) { toast("Save failed: " + updErr.message, "warn"); return; }
+    toast("License image saved", "success");
+    await loadDriverDrawer(_ddDriver.driver.id);
+    return;
+  }
+  if (e.target.closest("[data-rr-dl-remove]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (!confirm("Remove the license image?")) return;
+    if (_ddDriver.driver.dl_image_path) {
+      await sb.storage.from("driver-documents").remove([_ddDriver.driver.dl_image_path]).catch(() => {});
+    }
+    await sb.from("drivers").update({ dl_image_path: null }).eq("id", _ddDriver.driver.id);
+    toast("License image removed", "warn");
+    await loadDriverDrawer(_ddDriver.driver.id);
     return;
   }
 
