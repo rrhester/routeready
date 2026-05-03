@@ -267,7 +267,7 @@ async function loadDriversRoster() {
   if (!tbody) return;
 
   const { data: rows, error } = await sb.from("drivers")
-    .select(`id, full_name, first_name, last_name, email, phone, status, hire_date, tier, score,
+    .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score,
              background_check_completed_at, drug_test_completed_at,
              training_scheduled_at, training_date,
              station:station_id (code)`)
@@ -343,7 +343,8 @@ function pillCheck(when) {
 }
 
 function renderOnboardingRow(d) {
-  const initials = (d.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+  const initials = displayDriverInitials(d);
+  const display = displayDriverName(d);
   const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
   const contact = d.phone || d.email || "";
   const days = d.hire_date
@@ -355,7 +356,7 @@ function renderOnboardingRow(d) {
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(d.full_name ?? "")}</div>
+        <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${daysCell}</td>
       <td>${pillCheck(d.background_check_completed_at)}</td>
@@ -368,7 +369,8 @@ function renderOnboardingRow(d) {
 }
 
 function renderDriverRow(d) {
-  const initials = (d.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+  const initials = displayDriverInitials(d);
+  const display = displayDriverName(d);
   const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
   const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
   const station = d.station?.code || "—";
@@ -377,9 +379,9 @@ function renderDriverRow(d) {
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver
         data-rr-pinnable data-rr-pin-kind="driver" data-rr-pin-ref="${d.id}"
-        data-rr-pin-label="${escapeHtml(d.full_name ?? "Driver")}">
+        data-rr-pin-label="${escapeHtml(display || "Driver")}">
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(d.full_name ?? "")}</div>
+        <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
       <td>${tenure}</td>
@@ -497,12 +499,12 @@ function renderLicenseRow(d) {
     pillStyle = "color:#B45309;font-weight:700";
     label = `Expires in ${days}d`;
   }
-  const initials = (d.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
+  const initials = displayDriverInitials(d);
   return `
     <div data-driver-id="${d.id}" data-rr-open-driver style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;cursor:pointer;${bg}">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="avatar-sm tier-c">${initials}</div>
-        <div><div style="font-size:13px;font-weight:600">${escapeHtml(d.full_name)}</div></div>
+        <div><div style="font-size:13px;font-weight:600">${escapeHtml(displayDriverName(d))}</div></div>
       </div>
       <div style="font-size:13px">${escapeHtml(d.station?.code || "—")}</div>
       <div style="font-size:13px;font-family:'SF Mono',Menlo,monospace">${escapeHtml(d.dl_number || "—")}</div>
@@ -626,6 +628,27 @@ function tenureLabel(hireDate) {
     return `${days}d`;
   }
   return `${months} mo`;
+}
+
+// Show the driver's preferred first name (when set) followed by last_name.
+// Falls back to first_name → full_name. Used everywhere drivers are listed.
+function displayDriverName(d) {
+  const pref = (d?.preferred_name || "").trim();
+  const first = pref || (d?.first_name || "").trim();
+  const last  = (d?.last_name || "").trim();
+  if (first && last) return `${first} ${last}`;
+  return (first || last || (d?.full_name || "")).trim();
+}
+function displayDriverInitials(d) {
+  const pref = (d?.preferred_name || "").trim();
+  const first = pref || (d?.first_name || "").trim();
+  const last  = (d?.last_name || "").trim();
+  if (first || last) {
+    const a = first[0] || "";
+    const b = last[0]  || "";
+    return (a + b).toUpperCase() || "?";
+  }
+  return (d?.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 }
 
 // ─── Add applicant ─────────────────────────────────────────────────────────
@@ -2005,7 +2028,7 @@ async function loadDriverDrawer(driverId) {
   _ddDriver = data;
 
   const drv = data.driver;
-  document.getElementById("rr-dd-title").textContent = drv.full_name || "—";
+  document.getElementById("rr-dd-title").textContent = displayDriverName(drv) || "—";
   const sub = [
     drv.station_id ? "Station —" : "No station",
     drv.hire_date ? `Hired ${new Date(drv.hire_date).toLocaleDateString()}` : null,
@@ -3020,7 +3043,7 @@ async function hydratePinnedCard(card, p) {
       .eq("id", p.ref).maybeSingle();
     if (!d) { body.innerHTML = `<span style="color:var(--text-subtle)">Removed.</span>`; return; }
     const days = d.hire_date ? Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000) : null;
-    body.innerHTML = `<strong>${escapeHtml(d.full_name)}</strong> · ${d.status}${days != null ? ` · ${days}d` : ""}`;
+    body.innerHTML = `<strong>${escapeHtml(displayDriverName(d))}</strong> · ${d.status}${days != null ? ` · ${days}d` : ""}`;
     return;
   }
 
@@ -3606,7 +3629,7 @@ async function renderScheduleWeek() {
   const [gridRes, driversRes, toRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, status, station_id, hire_date, tier, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .order("full_name"),
@@ -3723,7 +3746,8 @@ async function renderScheduleWeek() {
   const days = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(weekStart, i)));
 
   const driverRowsHtml = drivers.map(d => {
-    const initials = _schedDriverInitials(d.full_name);
+    const initials = displayDriverInitials(d);
+    const display = displayDriverName(d);
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
     const station = d.station?.code || "—";
     const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
@@ -3740,7 +3764,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}" ${data}>${list.map(_schedShiftChip).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cal-row-label-name">${escapeHtml(d.full_name || "")}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cal-row-label-name">${escapeHtml(display)}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
@@ -3841,15 +3865,16 @@ function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalO
   if (!availSection || !offSection) return;
 
   const driverRowHtml = (d, hoursLabel, metaSuffix, draggable = true) => {
-    const initials = _schedDriverInitials(d.full_name);
+    const initials = displayDriverInitials(d);
+    const display = displayDriverName(d);
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
     const station = d.station?.code || "—";
     const dragAttrs = draggable
-      ? `draggable="true" data-rr-pool-driver="${d.id}" data-rr-pool-driver-name="${escapeHtml(d.full_name || "")}"${d.station_id ? ` data-rr-pool-driver-station="${d.station_id}"` : ""}`
+      ? `draggable="true" data-rr-pool-driver="${d.id}" data-rr-pool-driver-name="${escapeHtml(display)}"${d.station_id ? ` data-rr-pool-driver-station="${d.station_id}"` : ""}`
       : "";
     return `<div class="pool-driver" ${dragAttrs}>
       <div class="avatar-sm ${tier}">${initials}</div>
-      <div><div class="pool-driver-name">${escapeHtml(d.full_name || "")}</div><div class="pool-driver-meta">${escapeHtml(station)}${metaSuffix ? ` · ${escapeHtml(metaSuffix)}` : ""}</div></div>
+      <div><div class="pool-driver-name">${escapeHtml(display)}</div><div class="pool-driver-meta">${escapeHtml(station)}${metaSuffix ? ` · ${escapeHtml(metaSuffix)}` : ""}</div></div>
       <span class="pool-driver-hours">${escapeHtml(hoursLabel)}</span>
     </div>`;
   };
@@ -4021,7 +4046,7 @@ function openAddShiftModal(date, stationId, prefDriverId) {
       <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver (optional · leave blank for open shift)</label>
       <select id="rr-sh-driver" class="form-input" style="width:100%;margin-bottom:10px">
         <option value="">— Open shift —</option>
-        ${_schedDriverList.map(d => `<option value="${d.id}"${prefDriverId === d.id ? " selected" : ""}>${escapeHtml(d.full_name)}</option>`).join("")}
+        ${_schedDriverList.map(d => `<option value="${d.id}"${prefDriverId === d.id ? " selected" : ""}>${escapeHtml(displayDriverName(d))}</option>`).join("")}
       </select>
       <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
       <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. KMO1-14B"/>
@@ -4059,7 +4084,7 @@ function openAssignShiftModal(shiftId) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:380px;width:100%">
       <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Assign shift</h3>
       <select id="rr-as-driver" class="form-input" style="width:100%;margin-bottom:14px">
-        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(d.full_name)}</option>`).join("")}
+        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(displayDriverName(d))}</option>`).join("")}
       </select>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn" data-rr-as-cancel>Cancel</button>
@@ -4160,7 +4185,7 @@ function openTimeOffModal() {
       <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Time off request</h3>
       <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver</label>
       <select id="rr-to-driver" class="form-input" style="width:100%;margin-bottom:10px">
-        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(d.full_name)}</option>`).join("")}
+        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(displayDriverName(d))}</option>`).join("")}
       </select>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Start</label><input type="date" id="rr-to-start" class="form-input" style="width:100%"/></div>
