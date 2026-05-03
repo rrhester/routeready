@@ -3629,9 +3629,9 @@ a{color:inherit;text-decoration:none}
 .iv-stat:last-child{border-right:none}
 .iv-stat-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
 .iv-stat-value{font-size:24px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
-.iv-stat.ok .iv-stat-value{color:var(--green)}
-.iv-stat.warn .iv-stat-value{color:var(--amber)}
-.iv-stat.bad .iv-stat-value{color:var(--red)}
+.iv-stat.ok .iv-stat-value,
+.iv-stat.warn .iv-stat-value,
+.iv-stat.bad .iv-stat-value{color:var(--text)}
 .iv-stats-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--canvas)}
 .iv-stats-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .3s}
 
@@ -4865,12 +4865,6 @@ a{color:inherit;text-decoration:none}
               Interview Day
             </h1>
             <p class="page-sub">Friday, May 4 · process today's bookings · auto-SMS fires on every action</p>
-          </div>
-          <div class="page-actions">
-            <button class="btn" onclick="goto('pipeline')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-              Back to pipeline
-            </button>
           </div>
         </div>
 

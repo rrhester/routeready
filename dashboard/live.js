@@ -138,12 +138,13 @@ async function loadPipeline(stage = "all") {
     return;
   }
 
-  // Update tab counts.
+  // Update tab counts. Always set (including 0) so the mockup defaults
+  // don't bleed through when a stage is empty.
   const countMap = Object.fromEntries((counts ?? []).map(r => [r.stage, r.count]));
   $$("#pipeline-stage-tabs .stage-tab").forEach(btn => {
     const s = btn.getAttribute("data-stage");
     const el = btn.querySelector(".stage-tab-count");
-    if (el && countMap[s] != null) el.textContent = countMap[s];
+    if (el) el.textContent = countMap[s] ?? 0;
   });
 
   list.innerHTML = (rows ?? []).map(renderApplicantCard).join("")
@@ -505,13 +506,14 @@ function renderInterviewDay(day, rows) {
     list.innerHTML = rows.map(renderInterviewCard).join("");
   }
 
-  // Inject a Close-day button after the candidate list. Idempotent.
+  // Inject a Close-day link after the candidate list. Subtle by design —
+  // operators close once at end of day, not a primary action.
   const wrap = list.parentNode;
   let closeBtn = wrap.querySelector("[data-rr-close-day]");
   if (!closeBtn) {
     closeBtn = document.createElement("button");
-    closeBtn.className = "btn btn-primary";
-    closeBtn.style.cssText = "margin-top:18px;width:100%;padding:14px;font-size:14px;font-weight:600";
+    closeBtn.className = "btn btn-sm";
+    closeBtn.style.cssText = "margin-top:14px;font-size:12px;color:var(--text-subtle);background:transparent;border:1px solid var(--border)";
     closeBtn.dataset.rrCloseDay = "1";
     wrap.insertBefore(closeBtn, list.nextSibling);
   }
@@ -928,7 +930,7 @@ async function loadCalBookingsList() {
     return;
   }
   if (!rows || rows.length === 0) {
-    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No upcoming bookings</strong>Once applicants book through your Cal.com link, their slots will land here.</div>`;
+    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No upcoming bookings</strong>Once applicants book a slot, their interview will land here.</div>`;
     return;
   }
 
