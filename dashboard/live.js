@@ -257,7 +257,7 @@ window.goto = function (view) {
   if (view === "pipeline")  loadPipeline(getActiveStage());
   if (view === "drivers")   loadDriversRoster();
   if (view === "checkin")   loadCheckinView();
-  if (view === "dashboard") loadDashboardTasks();
+  if (view === "dashboard") { loadDashboardTasks(); loadDashboardWeather(); }
 };
 
 
@@ -572,6 +572,128 @@ async function loadAttendanceLive() {
 
 const _CI_TO_STATUS = { present: "completed", late: "late", callout: "called_off", noshow: "no_show" };
 const _STATUS_TO_CI = Object.fromEntries(Object.entries(_CI_TO_STATUS).map(([k, v]) => [v, k]));
+
+// ─── Dashboard · Weather (NWS forecast + alerts) ──────────────────────
+
+async function loadDashboardWeather() {
+  const body = document.getElementById("rr-weather-body");
+  if (!body) return;
+  const meta = window.RR?.dsp?.metadata?.weather || {};
+  const lat = Number(meta.lat);
+  const lon = Number(meta.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
+      <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:2px">Set your station location</div>
+      <div style="font-size:11px;color:var(--text-subtle);line-height:1.4">Paste lat/lon from Google Maps in Settings → Workspace to enable the local weather forecast and severe-weather alerts.</div>`;
+    return;
+  }
+
+  body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
+    <div style="font-size:13px;color:var(--text-subtle)">Loading…</div>`;
+
+  try {
+    const headers = { "User-Agent": "RouteReady/1.0 (dashboard)", "Accept": "application/geo+json" };
+    const pointsRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`, { headers });
+    if (!pointsRes.ok) throw new Error(`points HTTP ${pointsRes.status}`);
+    const points = await pointsRes.json();
+    const forecastUrl = points?.properties?.forecast;
+    const hourlyUrl   = points?.properties?.forecastHourly;
+    if (!forecastUrl) throw new Error("no forecast URL from NWS");
+
+    const [fRes, alertsRes, hRes] = await Promise.all([
+      fetch(forecastUrl, { headers }),
+      fetch(`https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`, { headers }),
+      hourlyUrl ? fetch(hourlyUrl, { headers }) : Promise.resolve(null),
+    ]);
+    const forecast = await fRes.json();
+    const alerts   = await alertsRes.json();
+    const hourly   = hRes ? await hRes.json() : null;
+
+    const periods = forecast?.properties?.periods || [];
+    if (periods.length === 0) throw new Error("no forecast periods");
+
+    const now = periods[0];
+    const today = periods.slice(0, 8); // up to 4 days (day + night × 4)
+    const days = [];
+    for (const p of periods) {
+      if (p.isDaytime) days.push({ label: p.name, temp: p.temperature, unit: p.temperatureUnit, icon: p.icon, short: p.shortForecast, precip: p.probabilityOfPrecipitation?.value });
+      if (days.length >= 5) break;
+    }
+
+    const rainNext12h = (hourly?.properties?.periods || []).slice(0, 12)
+      .map(h => h.probabilityOfPrecipitation?.value || 0);
+    const peakRain = rainNext12h.length ? Math.max(...rainNext12h) : 0;
+
+    const activeAlerts = (alerts?.features || [])
+      .map(f => f?.properties)
+      .filter(p => p && (p.severity === "Severe" || p.severity === "Extreme" || p.severity === "Moderate"))
+      .slice(0, 3);
+
+    const alertHtml = activeAlerts.length === 0
+      ? ""
+      : activeAlerts.map(a => {
+          const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : "var(--amber)";
+          return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:${sev};font-weight:600;margin-top:4px"><span style="width:6px;height:6px;border-radius:50%;background:${sev}"></span>${escapeHtml(a.event || "Alert")}${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 80))}` : ""}</div>`;
+        }).join("");
+
+    const dayChips = days.map(d => `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 8px;background:var(--canvas);border-radius:6px;min-width:64px">
+        <div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${escapeHtml(d.label.slice(0, 3))}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${d.temp}°${escapeHtml(d.unit || "F")}</div>
+        <div style="font-size:10px;color:var(--text-subtle);text-align:center;line-height:1.2;max-width:80px">${escapeHtml((d.short || "").slice(0, 22))}</div>
+        ${d.precip ? `<div style="font-size:10px;color:var(--accent-text);font-weight:600">${d.precip}%</div>` : ""}
+      </div>`).join("");
+
+    body.innerHTML = `
+      <div class="task-eyebrow" style="margin-bottom:2px">Weather · ${escapeHtml(now.name || "Now")}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px">
+        <div style="font-size:24px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1">${now.temperature}°${escapeHtml(now.temperatureUnit || "F")}</div>
+        <div style="font-size:12px;color:var(--text-subtle);line-height:1.3">${escapeHtml(now.shortForecast || "")}${peakRain > 20 ? ` · <strong style="color:var(--accent-text)">${peakRain}% rain next 12h</strong>` : ""}</div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${dayChips}</div>
+      ${alertHtml}`;
+  } catch (err) {
+    console.warn("weather load failed:", err);
+    body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
+      <div style="font-size:13px;color:var(--text-subtle)">Could not load forecast (${escapeHtml(err.message || String(err))}). Verify lat/lon in Settings.</div>`;
+  }
+}
+
+// Settings: Save station location → write to dsps.metadata.weather, refresh card.
+document.addEventListener("click", async (e) => {
+  if (e.target.id !== "rr-set-weather-save") return;
+  e.preventDefault();
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const lat = Number(document.getElementById("rr-set-weather-lat")?.value);
+  const lon = Number(document.getElementById("rr-set-weather-lon")?.value);
+  const status = document.getElementById("rr-set-weather-status");
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    if (status) { status.style.color = "var(--red)"; status.textContent = "Enter valid lat/lon"; }
+    return;
+  }
+  if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
+  const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+  const meta = row?.metadata || {};
+  const newMeta = { ...meta, weather: { ...(meta.weather || {}), lat, lon } };
+  const { error } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
+  if (error) { if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + error.message; } return; }
+  if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
+  if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
+  toast("Station location saved", "success");
+  loadDashboardWeather();
+});
+
+// Pre-fill the settings inputs when Settings → Workspace becomes visible.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest('.settings-nav-item[data-set="workspace"]')) return;
+  const meta = window.RR?.dsp?.metadata?.weather || {};
+  const latEl = document.getElementById("rr-set-weather-lat");
+  const lonEl = document.getElementById("rr-set-weather-lon");
+  if (latEl && Number.isFinite(Number(meta.lat))) latEl.value = meta.lat;
+  if (lonEl && Number.isFinite(Number(meta.lon))) lonEl.value = meta.lon;
+});
+
 
 // ─── Dashboard · Today's tasks (Attendance card + header counts) ───────
 
@@ -3670,18 +3792,20 @@ function refreshWithPins() {
   if (document.querySelector(".view.active")?.id === "view-dashboard") {
     renderPinnedDashboard();
     if (typeof loadDashboardTasks === "function") loadDashboardTasks();
+    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
   }
 }
 window.addEventListener("focus", () => {
   if (document.querySelector(".view.active")?.id === "view-dashboard") {
     renderPinnedDashboard();
     if (typeof loadDashboardTasks === "function") loadDashboardTasks();
+    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
   }
 });
 
 // Initial load: if the dashboard is the active view at boot, populate the tasks card.
 if (document.querySelector(".view.active")?.id === "view-dashboard") {
-  setTimeout(() => loadDashboardTasks?.(), 0);
+  setTimeout(() => { loadDashboardTasks?.(); loadDashboardWeather?.(); }, 0);
 }
 
 // Initial render on load.
