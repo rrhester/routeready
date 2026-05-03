@@ -3137,10 +3137,14 @@ function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalO
   const headSpans = aside.querySelectorAll(".pool-head span");
   if (headSpans[1]) headSpans[1].textContent = `${drivers.length} driver${drivers.length === 1 ? "" : "s"}`;
 
-  const sections = aside.querySelectorAll(":scope > div");
-  if (sections.length < 2) return;
-  const availSection = sections[0];
-  const offSection   = sections[1];
+  // Locate the Available + Off sections by their child .pool-section-label,
+  // not by direct-child index — the aside has pool-head + input + 2 sections
+  // + footer, so position-based indexing overwrote the wrong elements.
+  const labelDivs = Array.from(aside.querySelectorAll(":scope > div"))
+    .filter(div => div.querySelector(":scope > .pool-section-label"));
+  const availSection = labelDivs[0];
+  const offSection   = labelDivs[1];
+  if (!availSection || !offSection) return;
 
   const driverRowHtml = (d, hoursLabel, metaSuffix) => {
     const initials = _schedDriverInitials(d.full_name);
