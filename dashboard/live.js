@@ -3254,9 +3254,20 @@ async function renderOkamiLive() {
     if (labelEl) labelEl.textContent = `W${isoWeekNumber(weekStart)}`;
     if (datesEl) datesEl.textContent = `${fmtMD(weekStart)}–${weekEnd.getDate()}`;
 
-    // Routes-max input — only overwrite if user is not currently focused on it.
+    // Routes (max) is now READ-ONLY — operator edits per-day in the
+    // daily drill-down panel and Routes (max) reflects the peak day.
+    // Editing the cell directly used to overwrite all 7 days, which
+    // destroyed per-day variation. Set readOnly + light styling so it
+    // looks like a display value, not an input.
     const input = row.querySelector(".plan-route-input");
-    if (input && document.activeElement !== input) input.value = routesMax;
+    if (input) {
+      input.value = routesMax;
+      input.readOnly = true;
+      input.style.background = "transparent";
+      input.style.border = "0";
+      input.style.cursor = "default";
+      input.title = "Edit per-day values in the drill-down panel";
+    }
 
     const tdCells = row.querySelectorAll("td");
     // [0]=Week, [1]=Routes input, [2]=Needed, [3]=Available, [4]=Gap, [5]=Strategy, [6]=Hire by, [7]=Status
@@ -3317,36 +3328,31 @@ function bindOkamiHandlers() {
   if (_okamiBound) return;
   _okamiBound = true;
 
-  const tbody = document.getElementById("okami-tbody");
-  if (tbody) {
-    tbody.addEventListener("input", (e) => {
-      const input = e.target.closest(".plan-route-input");
-      if (!input) return;
-      const w = parseInt(input.dataset.w, 10);
-      if (!Number.isFinite(w)) return;
-      _okamiDirtyWeeks.add(w);
-      _setOkamiSaveStatus("Unsaved changes", "warn");
-    });
-  }
-
+  // Save plan button now triggers a full regenerate of schedule shifts
+  // from the current OKAMI demand. Daily values auto-save in the
+  // drilldown panel; this button is the explicit "sync schedule with
+  // plan" action that also trims any drift.
   const saveBtn = document.getElementById("rr-okami-save-plan");
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
-      if (_okamiDirtyWeeks.size === 0) { _setOkamiSaveStatus("No changes to save"); return; }
+      const dspId = window.RR?.dsp?.id;
+      if (!dspId) { _setOkamiSaveStatus("DSP not loaded", "warn"); return; }
       saveBtn.disabled = true;
-      _setOkamiSaveStatus("Saving…");
-      const weeks = Array.from(_okamiDirtyWeeks);
+      _setOkamiSaveStatus("Regenerating shifts…");
       try {
-        for (const w of weeks) {
-          const inp = document.querySelector(`.plan-route-input[data-w="${w}"]`);
-          if (!inp) continue;
-          await saveOkamiWeek(w, parseInt(inp.value, 10) || 0);
+        const { data: rows, error } = await sb.from("okami_demand")
+          .select("date, station_id")
+          .eq("dsp_id", dspId);
+        if (error) throw error;
+        for (const r of (rows || [])) {
+          const { error: gErr } = await sb.rpc("generate_shifts_for_date", { p_date: r.date, p_station_id: r.station_id });
+          if (gErr) throw gErr;
         }
-        _okamiDirtyWeeks.clear();
-        _setOkamiSaveStatus("Saved ✓", "ok");
+        _setOkamiSaveStatus(`Synced ${rows?.length || 0} day${rows?.length === 1 ? "" : "s"} ✓`, "ok");
         setTimeout(() => _setOkamiSaveStatus(""), 2500);
+        await renderOkamiLive();
       } catch (err) {
-        _setOkamiSaveStatus("Save failed: " + (err.message || err), "warn");
+        _setOkamiSaveStatus("Failed: " + (err.message || err), "warn");
       } finally {
         saveBtn.disabled = false;
       }
@@ -3725,30 +3731,33 @@ async function autoFillScheduleWeek() {
   if (!dspId) { toast("DSP not loaded", "warn"); return; }
   if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
 
+  // Use generate_shifts_for_date instead of raw create_shift — this both
+  // FILLS gaps and TRIMS excess, so the schedule mirrors OKAMI exactly
+  // and any drifted-up counts get cleaned up.
   const { data: cells, error } = await sb.rpc("okami_grid", { p_start: _schedStart, p_weeks: 1 });
-  if (error) { toast("Auto-fill failed: " + error.message, "warn"); return; }
+  if (error) { toast("Sync failed: " + error.message, "warn"); return; }
 
-  // okami_grid already returns open_count = needed - filled per (date, station).
-  const calls = [];
+  const dateStations = new Map();
   for (const c of (cells || [])) {
-    for (let i = 0; i < (c.open_count || 0); i++) {
-      calls.push(sb.rpc("create_shift", {
-        p_payload: { date: c.date, station_id: c.station_id },
-      }));
-    }
+    if (!c.station_id) continue;
+    dateStations.set(`${c.date}|${c.station_id}`, { date: c.date, station_id: c.station_id });
   }
-  if (calls.length === 0) { toast("All shifts already covered", "success"); return; }
+  if (dateStations.size === 0) { toast("No OKAMI demand for this week", "warn"); return; }
+
+  const calls = Array.from(dateStations.values()).map(d =>
+    sb.rpc("generate_shifts_for_date", { p_date: d.date, p_station_id: d.station_id })
+  );
 
   const results = await Promise.all(calls);
   const failed = results.filter(r => r.error);
   if (failed.length === calls.length) {
-    toast("Auto-fill failed: " + (failed[0].error?.message || "unknown error"), "warn");
+    toast("Sync failed: " + (failed[0].error?.message || "unknown error"), "warn");
     return;
   }
   if (failed.length > 0) {
-    toast(`${calls.length - failed.length} of ${calls.length} open shifts created · ${failed.length} failed`, "warn");
+    toast(`Synced ${calls.length - failed.length} of ${calls.length} day-stations · ${failed.length} failed`, "warn");
   } else {
-    toast(`${calls.length} open shift${calls.length === 1 ? "" : "s"} created`, "success");
+    toast("Schedule synced with OKAMI plan", "success");
   }
   await renderScheduleWeek();
 }
