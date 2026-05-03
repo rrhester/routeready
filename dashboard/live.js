@@ -4121,17 +4121,10 @@ async function renderOkamiDailyPanel(weekIdx) {
             return `<div class="okami-daily-cell${isToday ? " is-today" : ""}"><input type="number" min="0" max="200" value="${dailyRoutes[i]}" data-rr-okami-daily="${weekIdx}" data-iso="${iso}"/></div>`;
           }).join("")}
         </div>
-        <div class="okami-daily-row">
-          <div class="okami-daily-label">Shifts to schedule</div>
-          ${days.map((_, i) => {
-            const diff = dailyShifts[i] - dailyRoutes[i];
-            return `<div class="okami-daily-cell"><div class="okami-daily-cell-shifts">${dailyShifts[i]}</div></div>`;
-          }).join("")}
-        </div>
       </div>
       <div style="grid-column:1 / -1;display:flex;justify-content:space-between;font-size:11px;color:var(--text-subtle);padding:10px 4px 0">
-        <span>Week total <strong style="color:var(--text)">${totalRoutes}</strong> routes → <strong style="color:var(--text)">${totalShifts}</strong> shifts (+${extraTotal})</span>
-        <span>Peak day <strong style="color:var(--text)">${peakRoutes} routes</strong> · cushion ${Math.round(cushionPct)}% — change in Schedule settings</span>
+        <span>Week total <strong style="color:var(--text)">${totalRoutes}</strong> routes</span>
+        <span>Peak day <strong style="color:var(--text)">${peakRoutes} routes</strong> · cushion applied in Schedule</span>
       </div>
     </div>`;
 
