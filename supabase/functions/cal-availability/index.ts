@@ -9,7 +9,6 @@
 //   CAL_API_KEY          Cal.com personal API key (cal_live_… / cal_test_…)
 //   CAL_USERNAME         Cal username, e.g. "Routeready"  (defaults to that)
 //   CAL_INTERVIEW_SLUG   slug of the event type to manage (defaults to "interview")
-import { jsonResponse, badRequest } from "../_shared/supabase.ts";
 
 const CAL_API_BASE = "https://api.cal.com/v2";
 const CAL_API_VERSION = "2024-06-14";
