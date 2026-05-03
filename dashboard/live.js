@@ -401,6 +401,91 @@ window.filterDriversStage = function (btn) {
   loadDriversRoster();
 };
 
+
+// ─── Drivers → Licenses tab ──────────────────────────────────────────────
+
+async function loadDriverLicensesView() {
+  const body = document.getElementById("lic-renewals-body");
+  const status = document.getElementById("lic-panel-status");
+  if (!body) return;
+
+  const { data: rows, error } = await sb.from("drivers")
+    .select("id, full_name, station:station_id (code), dl_number, dl_expires_on, status")
+    .eq("dsp_id", window.RR.dsp.id)
+    .not("dl_expires_on", "is", null)
+    .order("dl_expires_on", { ascending: true })
+    .limit(500);
+
+  if (error) {
+    body.innerHTML = `<div style="padding:16px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    body.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">
+      <strong style="color:var(--text-muted);display:block;margin-bottom:4px">No license dates on file</strong>
+      Open a driver record → License tab to add a license number and expiration.
+    </div>`;
+    if (status) status.textContent = "0 drivers with licenses";
+    return;
+  }
+
+  const today = Date.now();
+  const expired = rows.filter(r => new Date(r.dl_expires_on).getTime() < today).length;
+  const within30 = rows.filter(r => {
+    const t = new Date(r.dl_expires_on).getTime();
+    return t >= today && t < today + 30 * 86400000;
+  }).length;
+  if (status) status.textContent = `${expired} expired · ${within30} within 30 days · ${rows.length} total`;
+
+  body.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:10px 16px;background:var(--canvas);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
+        <div>Driver</div>
+        <div>Station</div>
+        <div>DL number</div>
+        <div>Expires</div>
+        <div></div>
+      </div>
+      ${rows.map(renderLicenseRow).join("")}
+    </div>`;
+}
+
+function renderLicenseRow(d) {
+  const exp = new Date(d.dl_expires_on);
+  const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
+  let bg = "";
+  let pillStyle = "color:var(--text-subtle)";
+  let label = `Expires in ${days}d`;
+  if (days < 0) {
+    bg = "background:rgba(220,38,38,.08)";
+    pillStyle = "color:var(--red);font-weight:700";
+    label = `Expired ${-days}d ago`;
+  } else if (days <= 30) {
+    bg = "background:rgba(245,158,11,.08)";
+    pillStyle = "color:#B45309;font-weight:700";
+    label = `Expires in ${days}d`;
+  }
+  const initials = (d.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
+  return `
+    <div data-driver-id="${d.id}" data-rr-open-driver style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;cursor:pointer;${bg}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="avatar-sm tier-c">${initials}</div>
+        <div><div style="font-size:13px;font-weight:600">${escapeHtml(d.full_name)}</div></div>
+      </div>
+      <div style="font-size:13px">${escapeHtml(d.station?.code || "—")}</div>
+      <div style="font-size:13px;font-family:'SF Mono',Menlo,monospace">${escapeHtml(d.dl_number || "—")}</div>
+      <div style="font-size:13px">${exp.toLocaleDateString()}<div style="font-size:11px;${pillStyle}">${label}</div></div>
+      <div><button class="btn btn-sm" data-rr-open-driver data-driver-id="${d.id}">Edit</button></div>
+    </div>`;
+}
+
+const _legacyDrSub = window.drSub;
+window.drSub = function (sub) {
+  if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
+  if (sub === "licenses") loadDriverLicensesView();
+  if (sub === "roster")   loadDriversRoster();
+};
+
 function renderDriverStatusBadge(s) {
   const map = {
     onboarding: { label: "Onboarding", style: "background:rgba(124,58,237,.14);color:#7C3AED" },
@@ -2360,7 +2445,9 @@ function refreshActiveView() {
     else if (sub === "pipe-sub-messages")     loadMessagesTab();
     else if (sub === "pipe-sub-referrals")    loadReferralsTab();
   } else if (activeView === "view-drivers") {
-    loadDriversRoster();
+    const subActive = document.querySelector(".dr-subview.active")?.id;
+    if (subActive === "dr-sub-licenses") loadDriverLicensesView();
+    else loadDriversRoster();
   }
 }
 
