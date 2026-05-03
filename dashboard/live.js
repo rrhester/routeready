@@ -550,28 +550,81 @@ document.addEventListener("click", async (e) => {
 // hp-hire-rate cells. RPC returns 0.75 / 0.75 fallback until the first
 // interview day is closed; after that, rolling 30-day actuals.
 
+// Selected lookback window for the KPI strip. Defaults to 4 weeks; the
+// segmented control above the strip toggles between 7 / 28 / 3650.
+let _kpiWindowDays = 28;
+
 async function loadPipelineKpis() {
-  // Run both calls in parallel.
+  syncKpiWindowToggle();
+
   const [{ data: kpi }, { data: funnel }] = await Promise.all([
-    sb.rpc("pipeline_kpis", { p_window_days: 30 }),
-    sb.rpc("pipeline_funnel_kpis"),
+    sb.rpc("pipeline_kpis",        { p_window_days: _kpiWindowDays }),
+    sb.rpc("pipeline_funnel_kpis", { p_window_days: _kpiWindowDays }),
   ]);
 
-  // Show / hire — from cycle-aware kpi RPC (75% defaults until first close).
   if (kpi) {
     setText("hp-show-rate", Math.round(Number(kpi.show_rate ?? 0) * 100));
     setText("hp-hire-rate", Math.round(Number(kpi.hire_rate ?? 0) * 100));
   }
 
-  // Funnel-conversion tiles. Just percentages — drop counts per request.
   if (funnel) {
-    setText("hp-uncontacted-pct", funnel.not_contacted_pct ?? 0);
-    setText("hp-passed-pct",      funnel.passed_pct ?? 0);
-    setText("hp-booked-pct",      funnel.booked_rate ?? 0);
-    const sub = document.getElementById("hp-booked-sub");
-    if (sub) sub.textContent = `${funnel.booked ?? 0} of ${funnel.invited ?? 0} sent a booking link`;
-    setText("hp-actual", funnel.active_drivers ?? 0);
+    setText("hp-contacted-pct", funnel.contacted_pct ?? 0);
+    setText("hp-passed-pct",    funnel.passed_pct ?? 0);
+    setText("hp-booked-pct",    funnel.booked_rate ?? 0);
+    setText("hp-e2e",           funnel.e2e_pct ?? 0);
+    const bsub = document.getElementById("hp-booked-sub");
+    if (bsub) bsub.textContent = `${funnel.booked ?? 0} of ${funnel.invited ?? 0} sent a booking link`;
+    const esub = document.getElementById("hp-e2e-sub");
+    if (esub) esub.textContent = `${funnel.hired ?? 0} hired ÷ ${funnel.total ?? 0} applicants`;
   }
+
+  renderWeeksStrip();
+}
+
+function syncKpiWindowToggle() {
+  document.querySelectorAll("[data-rr-window]").forEach((b) => {
+    b.classList.toggle("active", parseInt(b.getAttribute("data-rr-window"), 10) === _kpiWindowDays);
+  });
+}
+
+// Capture-phase delegate for the window toggle.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-rr-window]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  _kpiWindowDays = parseInt(btn.getAttribute("data-rr-window"), 10) || 28;
+  loadPipelineKpis();
+}, true);
+
+
+// ─── Dynamic 5-week strip ──────────────────────────────────────────────────
+//
+// Replaces the mockup's hardcoded W19–W23 labels with current ISO week +
+// next four. Demand/supply numbers stay TBD until OKAMI lands; we just
+// render the week labels so the strip starts from the current week.
+
+function isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function renderWeeksStrip() {
+  const strip = document.getElementById("hp-weeks-strip");
+  if (!strip) return;
+  const today = new Date();
+  const weeks = [];
+  for (let i = 0; i < 5; i++) {
+    const dt = new Date(today.getTime() + i * 7 * 86400000);
+    weeks.push({ n: isoWeek(dt) });
+  }
+  strip.innerHTML = `
+    <span class="hp-weeks-strip-label">Next 5 wk</span>
+    ${weeks.map(w => `
+      <span class="hp-week-cell"><span class="wk">W${w.n}</span> <span style="color:var(--text-subtle)">— / —</span></span>
+    `).join("")}`;
 }
 
 
@@ -586,6 +639,7 @@ async function loadPipelineKpis() {
 // header. State is held in module-scope `_ivDate` so re-renders survive.
 
 let _ivDate = null;            // YYYY-MM-DD currently displayed
+let _ivDayId = null;           // interview_days.id for the displayed date
 let _ivDatesWithBookings = []; // sorted YYYY-MM-DD strings (today + future)
 
 function dspTz() {
@@ -622,6 +676,7 @@ async function loadInterviewDay() {
 
   const { data: day, error: openErr } = await sb.rpc("open_interview_day", { p_date: _ivDate });
   if (openErr) { toast("Couldn't open interview day: " + openErr.message, "warn"); return; }
+  _ivDayId = day.id;
 
   const { data: roster, error: rErr } = await sb.rpc("interview_day_roster", { p_day_id: day.id });
   if (rErr) { toast("Roster load failed: " + rErr.message, "warn"); return; }
@@ -707,8 +762,17 @@ function renderInterviewDayNav(day) {
   }
 
   const idx = _ivDatesWithBookings.indexOf(_ivDate);
-  const prev = idx > 0 ? _ivDatesWithBookings[idx - 1] : null;
-  const next = idx >= 0 && idx < _ivDatesWithBookings.length - 1 ? _ivDatesWithBookings[idx + 1] : null;
+  let prev, next;
+  if (idx >= 0) {
+    prev = idx > 0 ? _ivDatesWithBookings[idx - 1] : null;
+    next = idx < _ivDatesWithBookings.length - 1 ? _ivDatesWithBookings[idx + 1] : null;
+  } else {
+    // Operator is viewing a date that has no bookings (e.g. today is empty
+    // but they explicitly clicked Today). Fall back to nearest neighbors
+    // on either side from the booked-dates list.
+    prev = [..._ivDatesWithBookings].reverse().find(d => d < _ivDate) || null;
+    next = _ivDatesWithBookings.find(d => d > _ivDate) || null;
+  }
 
   const dt = new Date(_ivDate + "T12:00:00");
   const label = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
@@ -816,14 +880,16 @@ document.addEventListener("click", async (e) => {
   if (navBtn && !navBtn.disabled) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    const idx = _ivDatesWithBookings.indexOf(_ivDate);
-    if (navBtn.hasAttribute("data-rr-iv-prev") && idx > 0) {
-      _ivDate = _ivDatesWithBookings[idx - 1];
-    } else if (navBtn.hasAttribute("data-rr-iv-next") && idx >= 0 && idx < _ivDatesWithBookings.length - 1) {
-      _ivDate = _ivDatesWithBookings[idx + 1];
+    if (navBtn.hasAttribute("data-rr-iv-prev")) {
+      const candidates = _ivDatesWithBookings.filter(d => d < _ivDate);
+      _ivDate = candidates[candidates.length - 1] || _ivDate;
+    } else if (navBtn.hasAttribute("data-rr-iv-next")) {
+      const candidates = _ivDatesWithBookings.filter(d => d > _ivDate);
+      _ivDate = candidates[0] || _ivDate;
     } else if (navBtn.hasAttribute("data-rr-iv-today")) {
       _ivDate = localDate(new Date());
     }
+    _ivDayId = null;
     await loadInterviewDay();
     return;
   }
@@ -834,13 +900,22 @@ document.addEventListener("click", async (e) => {
     e.stopImmediatePropagation();
     if (!confirm("Close interview day? Anyone booked but not yet acted on will be marked No Show.")) return;
     closeBtn.disabled = true;
-    const { error } = await sb.rpc("close_interview_day", {});
+    // Close the DAY THE OPERATOR IS VIEWING, not whatever's "currently open"
+    // server-side. Without p_day_id, the RPC defaults to today's open day,
+    // which is empty if the operator was looking at a future booking.
+    const { error } = await sb.rpc("close_interview_day", { p_day_id: _ivDayId });
     if (error) {
       toast("Close failed: " + error.message, "warn");
       closeBtn.disabled = false;
       return;
     }
     toast("Interview day closed · KPIs updated", "success");
+    // After close, jump forward to the next future day with bookings (or
+    // today if there isn't one) so the closed day stops monopolizing the view.
+    const today = localDate(new Date());
+    const futureBookings = _ivDatesWithBookings.filter(d => d > _ivDate);
+    _ivDate = futureBookings[0] || today;
+    _ivDayId = null;
     await loadInterviewDay();
     await loadPipelineKpis();
     await loadPipeline(getActiveStage());
