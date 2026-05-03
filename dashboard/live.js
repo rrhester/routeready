@@ -2106,8 +2106,8 @@ async function renderOverviewForm(body, d) {
   const stationOptions = `<option value="">— No station —</option>` +
     stations.map(s => `<option value="${s.id}" ${s.id === d.station_id ? "selected" : ""}>${escapeHtml(s.code)}${s.name ? ` · ${escapeHtml(s.name)}` : ""}</option>`).join("");
   body.innerHTML = `
-    <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" value="${v(d.full_name)}"/></div>
-    <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" value="${v(d.preferred_name)}"/></div>
+    <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" data-rr-capitalize autocapitalize="words" value="${v(d.full_name)}"/></div>
+    <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" data-rr-capitalize autocapitalize="words" value="${v(d.preferred_name)}"/></div>
     ${showPronouns ? `<div class="dd-row"><label>Pronouns</label><input data-rr-dd-field="pronouns" placeholder="he/him · she/her · they/them" value="${v(d.pronouns)}"/></div>` : ""}
     <div class="dd-row"><label>Phone</label><input data-rr-dd-field="phone" value="${v(d.phone)}"/></div>
     <div class="dd-row"><label>Email</label><input data-rr-dd-field="email" value="${v(d.email)}"/></div>
@@ -2213,6 +2213,21 @@ function renderDocumentsTab(docs) {
     </div>
     <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No documents on file.</div>`}</div>`;
 }
+
+// Title-case name fields when the operator leaves the input. Marked via
+// data-rr-capitalize. Splits on whitespace, uppercases each word's first
+// char, leaves the rest untouched (so 'McNeil' stays 'McNeil' if typed,
+// but 'mcneil' becomes 'Mcneil' — operators can fix surname casing manually).
+document.addEventListener("focusout", (e) => {
+  const el = e.target;
+  if (!el || !el.matches || !el.matches("[data-rr-capitalize]")) return;
+  const raw = (el.value || "").trim();
+  if (!raw) return;
+  const titled = raw.split(/\s+/).map(w =>
+    w.length === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)
+  ).join(" ");
+  if (titled !== el.value) el.value = titled;
+});
 
 // Click delegate for the drawer (tabs, save, coaching log, doc upload).
 document.addEventListener("click", async (e) => {
