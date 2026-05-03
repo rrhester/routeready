@@ -4301,6 +4301,7 @@ a{color:inherit;text-decoration:none}
         <!-- Pipeline sub-nav -->
         <div class="subnav">
           <button class="subnav-item active" data-pipesub="funnel" onclick="pipeSub('funnel')">Funnel</button>
+          <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
           <button class="subnav-item" data-pipesub="referrals" onclick="pipeSub('referrals')">Referrals <span style="background:#7C3AED;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">9 active</span></button>
         </div>
 
@@ -4853,190 +4854,8 @@ a{color:inherit;text-decoration:none}
 
         </div><!-- /pipe-sub-funnel -->
 
-        <!-- REFERRALS SUB-VIEW -->
-        <div class="pipe-subview" id="pipe-sub-referrals" style="display:none">
-
-          <!-- Program summary KPIs -->
-          <div class="pipeline-kpis">
-            <div class="pipeline-kpi">
-              <div class="pipeline-kpi-label">Active referrals</div>
-              <div class="pipeline-kpi-value"><span>9</span><span class="frac"> in flight</span></div>
-              <div class="pipeline-kpi-trend">5 in screening · 2 booked · 2 hired this cycle</div>
-            </div>
-            <div class="pipeline-kpi">
-              <div class="pipeline-kpi-label">Referral hire rate</div>
-              <div class="pipeline-kpi-value"><span>56</span><span class="frac">% · vs 31% non-referral</span></div>
-              <div class="pipeline-kpi-trend"><span class="up">▲ 25 pts</span> better than open sourcing</div>
-            </div>
-            <div class="pipeline-kpi">
-              <div class="pipeline-kpi-label">Payouts this quarter</div>
-              <div class="pipeline-kpi-value">$<span>3,250</span><span class="frac"> paid · $1,500 queued</span></div>
-              <div class="pipeline-kpi-trend">13 hire-bonus · 4 tenure-bonus</div>
-            </div>
-            <div class="pipeline-kpi" style="background:linear-gradient(135deg,rgba(124,58,237,.1),var(--surface) 80%);border-color:rgba(124,58,237,.3)">
-              <div class="pipeline-kpi-label">Top referrer</div>
-              <div class="pipeline-kpi-value">Camille Foster</div>
-              <div class="pipeline-kpi-trend">3 hires · $750 earned · 22 mo tenure</div>
-            </div>
-          </div>
-
-          <!-- Active referrals table -->
-          <div class="ref-section">
-            <div class="ref-section-head">
-              <h3 class="ref-section-title">Active referrals</h3>
-              <span class="ref-section-meta">9 in flight · sorted by stage</span>
-            </div>
-            <table class="ref-table">
-              <thead><tr>
-                <th>Candidate</th><th>Referred by</th><th>Stage</th><th>Days in pipe</th><th>Payout status</th><th></th>
-              </tr></thead>
-              <tbody>
-                <tr>
-                  <td><div class="ref-name">Trevor Anders</div><div class="ref-meta">+1 417 555 0188</div></td>
-                  <td><span class="ref-referrer"><span class="avatar-sm tier-d">MD</span> Marcus Davidson</span></td>
-                  <td><span class="ref-stage booked">Booked · today 9 AM</span></td>
-                  <td>4 days</td>
-                  <td><span class="ref-payout pending">$250 on hire</span></td>
-                  <td><button class="btn btn-sm" onclick="goto('interview')">View interview →</button></td>
-                </tr>
-                <tr>
-                  <td><div class="ref-name">Lena Whitcomb</div><div class="ref-meta">+1 417 555 0240</div></td>
-                  <td><span class="ref-referrer"><span class="avatar-sm tier-a">CF</span> Camille Foster</span></td>
-                  <td><span class="ref-stage booked">Booked · today 10 AM</span></td>
-                  <td>6 days</td>
-                  <td><span class="ref-payout pending">$250 on hire</span></td>
-                  <td><button class="btn btn-sm" onclick="goto('interview')">View interview →</button></td>
-                </tr>
-                <tr>
-                  <td><div class="ref-name">Riley Thompkins</div><div class="ref-meta">+1 417 555 0314</div></td>
-                  <td><span class="ref-referrer"><span class="avatar-sm tier-c">TR</span> Tasha Reyes</span></td>
-                  <td><span class="ref-stage booked">Booked · today 11:30 AM</span></td>
-                  <td>3 days</td>
-                  <td><span class="ref-payout pending">$250 on hire</span></td>
-                  <td><button class="btn btn-sm" onclick="goto('interview')">View interview →</button></td>
-                </tr>
-                <tr>
-                  <td><div class="ref-name">Marcus Lopez</div><div class="ref-meta">+1 417 555 0345</div></td>
-                  <td><span class="ref-referrer"><span class="avatar-sm tier-a">CF</span> Camille Foster</span></td>
-                  <td><span class="ref-stage screening">Screening</span></td>
-                  <td>2 days</td>
-                  <td><span class="ref-payout queued">$250 queued</span></td>
-                  <td><button class="btn btn-sm" onclick="toast('Opens applicant detail')">View →</button></td>
-                </tr>
-                <tr>
-                  <td><div class="ref-name">Aisha Nguyen</div><div class="ref-meta">+1 417 555 0398</div></td>
-                  <td><span class="ref-referrer"><span class="avatar-sm tier-b">DP</span> Devon Patterson</span></td>
-                  <td><span class="ref-stage screening">Screening</span></td>
-                  <td>5 days</td>
-                  <td><span class="ref-payout queued">$250 queued</span></td>
-                  <td><button class="btn btn-sm" onclick="toast('Opens applicant detail')">View →</button></td>
-                </tr>
-                <tr>
-                  <td><div class="ref-name">Tomas Reyes</div><div class="ref-meta">Hired Apr 18 · 60d milestone Jun 17</div></td>
-                  <td><span class="ref-referrer"><span class="avatar-sm tier-c">TR</span> Tasha Reyes</span></td>
-                  <td><span class="ref-stage hired">Hired · 14 days tenure</span></td>
-                  <td>—</td>
-                  <td><span class="ref-payout earned">$250 paid · $250 at 90d</span></td>
-                  <td><button class="btn btn-sm" onclick="openDriverDetail('Tomas Reyes','KMO2','14 days','—','100%')">View driver</button></td>
-                </tr>
-                <tr>
-                  <td><div class="ref-name">Brittany Chen</div><div class="ref-meta">Hired Apr 25 · 30d milestone May 25</div></td>
-                  <td><span class="ref-referrer"><span class="avatar-sm tier-a">CF</span> Camille Foster</span></td>
-                  <td><span class="ref-stage hired">Hired · 7 days tenure</span></td>
-                  <td>—</td>
-                  <td><span class="ref-payout earned">$250 paid · $250 at 30d</span></td>
-                  <td><button class="btn btn-sm" onclick="openDriverDetail('Brittany Chen','KMO1','7 days','—','100%')">View driver</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Leaderboard + Program rules side-by-side -->
-          <div class="split">
-            <div class="card">
-              <div class="card-head">
-                <h3 class="card-title">Driver leaderboard · YTD</h3>
-                <span class="ref-section-meta">Top referrers</span>
-              </div>
-              <div class="ref-leaderboard">
-                <div class="ref-leader-row">
-                  <div class="ref-leader-rank">1</div>
-                  <div class="avatar-sm tier-a">CF</div>
-                  <div><div class="ref-leader-name">Camille Foster</div><div class="ref-leader-meta">3 hires · 1 in pipeline · 22 mo tenure</div></div>
-                  <div class="ref-leader-earn">$750</div>
-                </div>
-                <div class="ref-leader-row">
-                  <div class="ref-leader-rank">2</div>
-                  <div class="avatar-sm tier-c">TR</div>
-                  <div><div class="ref-leader-name">Tasha Reyes</div><div class="ref-leader-meta">2 hires · 2 in pipeline · 9 mo tenure</div></div>
-                  <div class="ref-leader-earn">$500</div>
-                </div>
-                <div class="ref-leader-row">
-                  <div class="ref-leader-rank">3</div>
-                  <div class="avatar-sm tier-d">MD</div>
-                  <div><div class="ref-leader-name">Marcus Davidson</div><div class="ref-leader-meta">2 hires · 1 in pipeline · 18 mo tenure</div></div>
-                  <div class="ref-leader-earn">$500</div>
-                </div>
-                <div class="ref-leader-row">
-                  <div class="ref-leader-rank">4</div>
-                  <div class="avatar-sm tier-b">DP</div>
-                  <div><div class="ref-leader-name">Devon Patterson</div><div class="ref-leader-meta">1 hire · 1 in pipeline · 11 mo tenure</div></div>
-                  <div class="ref-leader-earn">$250</div>
-                </div>
-                <div class="ref-leader-row">
-                  <div class="ref-leader-rank">5</div>
-                  <div class="avatar-sm tier-c">KW</div>
-                  <div><div class="ref-leader-name">Kerwin Whitfield</div><div class="ref-leader-meta">1 hire · 24 mo tenure</div></div>
-                  <div class="ref-leader-earn">$500</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-head">
-                <h3 class="card-title">Program rules</h3>
-                <button class="btn btn-sm" onclick="toast('Edit program rules — would open editor')">Edit</button>
-              </div>
-              <div class="ref-rules">
-                <div class="ref-rule-row">
-                  <div class="ref-rule-label">On hire</div>
-                  <div class="ref-rule-value">$250 to referrer</div>
-                  <div class="ref-rule-meta">Paid in next payroll cycle</div>
-                </div>
-                <div class="ref-rule-row">
-                  <div class="ref-rule-label">At 30 days tenure</div>
-                  <div class="ref-rule-value">$250 to referrer</div>
-                  <div class="ref-rule-meta">If new hire still active</div>
-                </div>
-                <div class="ref-rule-row">
-                  <div class="ref-rule-label">At 90 days tenure</div>
-                  <div class="ref-rule-value">$500 to referrer</div>
-                  <div class="ref-rule-meta">Largest payout · loyalty milestone</div>
-                </div>
-                <div class="ref-rule-row">
-                  <div class="ref-rule-label">Total per successful hire</div>
-                  <div class="ref-rule-value" style="color:var(--green);font-weight:700">$1,000 max</div>
-                  <div class="ref-rule-meta">Across all 3 milestones</div>
-                </div>
-                <div class="ref-rule-row" style="border-top:1px dashed var(--border);padding-top:12px;margin-top:6px">
-                  <div class="ref-rule-label">Program status</div>
-                  <div class="ref-rule-value"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label> Active</div>
-                  <div class="ref-rule-meta">Drivers see referral link in app</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div><!-- /pipe-sub-referrals -->
-
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════
-         INTERVIEW DAY — focused mode for processing today's bookings
-         ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-interview">
-      <div class="page">
+        <!-- INTERVIEW DAY SUB-VIEW -->
+        <div class="pipe-subview" id="pipe-sub-interview" style="display:none">
 
         <div class="page-header">
           <div>
@@ -5265,6 +5084,184 @@ a{color:inherit;text-decoration:none}
           <div class="iv-done-sub" id="iv-done-sub"></div>
           <button class="btn btn-primary" onclick="goto('pipeline')">Back to pipeline</button>
         </div>
+        </div><!-- /pipe-sub-interview -->
+
+
+        <!-- REFERRALS SUB-VIEW -->
+        <div class="pipe-subview" id="pipe-sub-referrals" style="display:none">
+
+          <!-- Program summary KPIs -->
+          <div class="pipeline-kpis">
+            <div class="pipeline-kpi">
+              <div class="pipeline-kpi-label">Active referrals</div>
+              <div class="pipeline-kpi-value"><span>9</span><span class="frac"> in flight</span></div>
+              <div class="pipeline-kpi-trend">5 in screening · 2 booked · 2 hired this cycle</div>
+            </div>
+            <div class="pipeline-kpi">
+              <div class="pipeline-kpi-label">Referral hire rate</div>
+              <div class="pipeline-kpi-value"><span>56</span><span class="frac">% · vs 31% non-referral</span></div>
+              <div class="pipeline-kpi-trend"><span class="up">▲ 25 pts</span> better than open sourcing</div>
+            </div>
+            <div class="pipeline-kpi">
+              <div class="pipeline-kpi-label">Payouts this quarter</div>
+              <div class="pipeline-kpi-value">$<span>3,250</span><span class="frac"> paid · $1,500 queued</span></div>
+              <div class="pipeline-kpi-trend">13 hire-bonus · 4 tenure-bonus</div>
+            </div>
+            <div class="pipeline-kpi" style="background:linear-gradient(135deg,rgba(124,58,237,.1),var(--surface) 80%);border-color:rgba(124,58,237,.3)">
+              <div class="pipeline-kpi-label">Top referrer</div>
+              <div class="pipeline-kpi-value">Camille Foster</div>
+              <div class="pipeline-kpi-trend">3 hires · $750 earned · 22 mo tenure</div>
+            </div>
+          </div>
+
+          <!-- Active referrals table -->
+          <div class="ref-section">
+            <div class="ref-section-head">
+              <h3 class="ref-section-title">Active referrals</h3>
+              <span class="ref-section-meta">9 in flight · sorted by stage</span>
+            </div>
+            <table class="ref-table">
+              <thead><tr>
+                <th>Candidate</th><th>Referred by</th><th>Stage</th><th>Days in pipe</th><th>Payout status</th><th></th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="ref-name">Trevor Anders</div><div class="ref-meta">+1 417 555 0188</div></td>
+                  <td><span class="ref-referrer"><span class="avatar-sm tier-d">MD</span> Marcus Davidson</span></td>
+                  <td><span class="ref-stage booked">Booked · today 9 AM</span></td>
+                  <td>4 days</td>
+                  <td><span class="ref-payout pending">$250 on hire</span></td>
+                  <td><button class="btn btn-sm" onclick="goto('interview')">View interview →</button></td>
+                </tr>
+                <tr>
+                  <td><div class="ref-name">Lena Whitcomb</div><div class="ref-meta">+1 417 555 0240</div></td>
+                  <td><span class="ref-referrer"><span class="avatar-sm tier-a">CF</span> Camille Foster</span></td>
+                  <td><span class="ref-stage booked">Booked · today 10 AM</span></td>
+                  <td>6 days</td>
+                  <td><span class="ref-payout pending">$250 on hire</span></td>
+                  <td><button class="btn btn-sm" onclick="goto('interview')">View interview →</button></td>
+                </tr>
+                <tr>
+                  <td><div class="ref-name">Riley Thompkins</div><div class="ref-meta">+1 417 555 0314</div></td>
+                  <td><span class="ref-referrer"><span class="avatar-sm tier-c">TR</span> Tasha Reyes</span></td>
+                  <td><span class="ref-stage booked">Booked · today 11:30 AM</span></td>
+                  <td>3 days</td>
+                  <td><span class="ref-payout pending">$250 on hire</span></td>
+                  <td><button class="btn btn-sm" onclick="goto('interview')">View interview →</button></td>
+                </tr>
+                <tr>
+                  <td><div class="ref-name">Marcus Lopez</div><div class="ref-meta">+1 417 555 0345</div></td>
+                  <td><span class="ref-referrer"><span class="avatar-sm tier-a">CF</span> Camille Foster</span></td>
+                  <td><span class="ref-stage screening">Screening</span></td>
+                  <td>2 days</td>
+                  <td><span class="ref-payout queued">$250 queued</span></td>
+                  <td><button class="btn btn-sm" onclick="toast('Opens applicant detail')">View →</button></td>
+                </tr>
+                <tr>
+                  <td><div class="ref-name">Aisha Nguyen</div><div class="ref-meta">+1 417 555 0398</div></td>
+                  <td><span class="ref-referrer"><span class="avatar-sm tier-b">DP</span> Devon Patterson</span></td>
+                  <td><span class="ref-stage screening">Screening</span></td>
+                  <td>5 days</td>
+                  <td><span class="ref-payout queued">$250 queued</span></td>
+                  <td><button class="btn btn-sm" onclick="toast('Opens applicant detail')">View →</button></td>
+                </tr>
+                <tr>
+                  <td><div class="ref-name">Tomas Reyes</div><div class="ref-meta">Hired Apr 18 · 60d milestone Jun 17</div></td>
+                  <td><span class="ref-referrer"><span class="avatar-sm tier-c">TR</span> Tasha Reyes</span></td>
+                  <td><span class="ref-stage hired">Hired · 14 days tenure</span></td>
+                  <td>—</td>
+                  <td><span class="ref-payout earned">$250 paid · $250 at 90d</span></td>
+                  <td><button class="btn btn-sm" onclick="openDriverDetail('Tomas Reyes','KMO2','14 days','—','100%')">View driver</button></td>
+                </tr>
+                <tr>
+                  <td><div class="ref-name">Brittany Chen</div><div class="ref-meta">Hired Apr 25 · 30d milestone May 25</div></td>
+                  <td><span class="ref-referrer"><span class="avatar-sm tier-a">CF</span> Camille Foster</span></td>
+                  <td><span class="ref-stage hired">Hired · 7 days tenure</span></td>
+                  <td>—</td>
+                  <td><span class="ref-payout earned">$250 paid · $250 at 30d</span></td>
+                  <td><button class="btn btn-sm" onclick="openDriverDetail('Brittany Chen','KMO1','7 days','—','100%')">View driver</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Leaderboard + Program rules side-by-side -->
+          <div class="split">
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">Driver leaderboard · YTD</h3>
+                <span class="ref-section-meta">Top referrers</span>
+              </div>
+              <div class="ref-leaderboard">
+                <div class="ref-leader-row">
+                  <div class="ref-leader-rank">1</div>
+                  <div class="avatar-sm tier-a">CF</div>
+                  <div><div class="ref-leader-name">Camille Foster</div><div class="ref-leader-meta">3 hires · 1 in pipeline · 22 mo tenure</div></div>
+                  <div class="ref-leader-earn">$750</div>
+                </div>
+                <div class="ref-leader-row">
+                  <div class="ref-leader-rank">2</div>
+                  <div class="avatar-sm tier-c">TR</div>
+                  <div><div class="ref-leader-name">Tasha Reyes</div><div class="ref-leader-meta">2 hires · 2 in pipeline · 9 mo tenure</div></div>
+                  <div class="ref-leader-earn">$500</div>
+                </div>
+                <div class="ref-leader-row">
+                  <div class="ref-leader-rank">3</div>
+                  <div class="avatar-sm tier-d">MD</div>
+                  <div><div class="ref-leader-name">Marcus Davidson</div><div class="ref-leader-meta">2 hires · 1 in pipeline · 18 mo tenure</div></div>
+                  <div class="ref-leader-earn">$500</div>
+                </div>
+                <div class="ref-leader-row">
+                  <div class="ref-leader-rank">4</div>
+                  <div class="avatar-sm tier-b">DP</div>
+                  <div><div class="ref-leader-name">Devon Patterson</div><div class="ref-leader-meta">1 hire · 1 in pipeline · 11 mo tenure</div></div>
+                  <div class="ref-leader-earn">$250</div>
+                </div>
+                <div class="ref-leader-row">
+                  <div class="ref-leader-rank">5</div>
+                  <div class="avatar-sm tier-c">KW</div>
+                  <div><div class="ref-leader-name">Kerwin Whitfield</div><div class="ref-leader-meta">1 hire · 24 mo tenure</div></div>
+                  <div class="ref-leader-earn">$500</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">Program rules</h3>
+                <button class="btn btn-sm" onclick="toast('Edit program rules — would open editor')">Edit</button>
+              </div>
+              <div class="ref-rules">
+                <div class="ref-rule-row">
+                  <div class="ref-rule-label">On hire</div>
+                  <div class="ref-rule-value">$250 to referrer</div>
+                  <div class="ref-rule-meta">Paid in next payroll cycle</div>
+                </div>
+                <div class="ref-rule-row">
+                  <div class="ref-rule-label">At 30 days tenure</div>
+                  <div class="ref-rule-value">$250 to referrer</div>
+                  <div class="ref-rule-meta">If new hire still active</div>
+                </div>
+                <div class="ref-rule-row">
+                  <div class="ref-rule-label">At 90 days tenure</div>
+                  <div class="ref-rule-value">$500 to referrer</div>
+                  <div class="ref-rule-meta">Largest payout · loyalty milestone</div>
+                </div>
+                <div class="ref-rule-row">
+                  <div class="ref-rule-label">Total per successful hire</div>
+                  <div class="ref-rule-value" style="color:var(--green);font-weight:700">$1,000 max</div>
+                  <div class="ref-rule-meta">Across all 3 milestones</div>
+                </div>
+                <div class="ref-rule-row" style="border-top:1px dashed var(--border);padding-top:12px;margin-top:6px">
+                  <div class="ref-rule-label">Program status</div>
+                  <div class="ref-rule-value"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label> Active</div>
+                  <div class="ref-rule-meta">Drivers see referral link in app</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /pipe-sub-referrals -->
 
       </div>
     </div>
@@ -12805,8 +12802,15 @@ Evidence attached:
   });
 
   function goto(view){
+    // Interview Day is now a sub-tab inside the Pipeline view.
+    if (view === 'interview') {
+      goto('pipeline');
+      if (typeof pipeSub === 'function') pipeSub('interview');
+      return;
+    }
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
-    document.getElementById('view-' + view).classList.add('active');
+    var target = document.getElementById('view-' + view);
+    if (target) target.classList.add('active');
     document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
     var navBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
     if (navBtn) navBtn.classList.add('active');
