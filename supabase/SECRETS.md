@@ -44,6 +44,9 @@ edge runtime — you do **not** set them yourself.
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | `send-email` | All email sends fail with `resend_credentials_missing`. |
 | `RESEND_REPLY_TO` | `send-email` | Optional. |
 | `CAL_WEBHOOK_SECRET` | `webhook-cal` | Cal webhooks rejected with `cal_secret_missing`. Set this to the secret you configure in Cal.com → Settings → Webhooks. |
+| `CAL_API_KEY` | `cal-availability` | The dashboard's Calendar tab availability editor calls Cal's REST API. Generate at app.cal.com → Settings → Developer → API keys. Format `cal_live_…` (or `cal_test_…`). |
+| `CAL_USERNAME` | `cal-availability` | Cal username we manage (default `Routeready`). |
+| `CAL_INTERVIEW_SLUG` | `cal-availability` | Slug of the event type the editor manages (default `interview`). |
 | `APPLY_SHARED_SECRET` | `webhook-apply` | If unset, the function accepts any caller. Set + send `x-apply-secret: <value>` from external integrations. |
 | `PUBLIC_BASE_URL` | `webhook-twilio` (signature check) | Twilio signatures verify against the URL Twilio called; set to the function's public URL. |
 
