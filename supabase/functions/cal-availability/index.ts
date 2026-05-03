@@ -50,18 +50,39 @@ Deno.serve(async (req) => {
 
   try {
     // ── Resolve the event type by slug ────────────────────────────────────
-    const evtList = await callCal(`/event-types?username=${encodeURIComponent(username)}`);
-    // v2 response shape varies between releases; handle both
-    const evtArray =
-      evtList?.data?.eventTypeGroups?.[0]?.eventTypes ??
-      evtList?.data?.eventTypes ??
-      evtList?.data ?? [];
+    //
+    // We try a couple of endpoint shapes because Cal's v2 API has shifted
+    // a few times. /event-types alone (no username) returns the API key
+    // owner's event types — usually what we want — and is the most stable.
+    let evtList = await callCal(`/event-types`);
+    const flatten = (resp: any) =>
+      resp?.data?.eventTypeGroups?.flatMap?.((g: any) => g.eventTypes ?? []) ??
+      resp?.data?.eventTypes ??
+      resp?.data ?? [];
+    let evtArray: any[] = flatten(evtList);
+
+    // Fallback: also try the username-scoped endpoint if the first call
+    // came back empty (some Cal accounts behave that way).
+    if (!Array.isArray(evtArray) || evtArray.length === 0) {
+      try {
+        evtList = await callCal(`/event-types?username=${encodeURIComponent(username)}`);
+        evtArray = flatten(evtList);
+      } catch { /* keep the first attempt's empty list */ }
+    }
+
+    const slugLower = interviewSlug.toLowerCase();
     const evt = (Array.isArray(evtArray) ? evtArray : []).find(
-      (e: any) => e.slug === interviewSlug,
+      (e: any) => (e.slug || "").toLowerCase() === slugLower,
     );
     if (!evt) {
-      // 200 with {error} so supabase-js surfaces the body in data.
-      return cors({ error: `Cal event type "${interviewSlug}" not found under username "${username}"` });
+      const found = (Array.isArray(evtArray) ? evtArray : [])
+        .map((e: any) => `"${e.slug}" (${e.title})`)
+        .slice(0, 8)
+        .join(", ");
+      return cors({
+        error: `Cal event type "${interviewSlug}" not found. Cal returned ${evtArray.length} event type(s)${found ? ": " + found : ""}.`,
+        found_slugs: (Array.isArray(evtArray) ? evtArray : []).map((e: any) => e.slug),
+      });
     }
 
     if (req.method === "GET") {
