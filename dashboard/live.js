@@ -682,18 +682,17 @@ async function loadCalAvailabilityEditor() {
   });
 
   if (error || data?.error) {
-    const msg = error?.message || data?.error || "Couldn't reach Cal.com";
+    const msg = error?.message || data?.error || "Couldn't load availability";
     card.innerHTML = `
       <div style="padding:24px">
-        <div style="font-size:13px;color:var(--red);font-weight:600;margin-bottom:8px">Couldn't load Cal.com availability</div>
+        <div style="font-size:13px;color:var(--red);font-weight:600;margin-bottom:8px">Couldn't load availability</div>
         <div style="font-size:12px;color:var(--text-subtle);line-height:1.5">${escapeHtml(msg)}</div>
-        <div style="font-size:11px;color:var(--text-subtle);margin-top:12px">If this is your first time using the editor, the project needs <code>CAL_API_KEY</code> set in the Supabase function secrets. See supabase/SECRETS.md.</div>
       </div>`;
     return;
   }
 
   renderCalAvailabilityEditor(data);
-  if (meta) meta.textContent = `Connected to ${data.username || "Cal.com"} · event "${data.eventType?.title || ""}" · ${data.eventType?.length ?? 30} min`;
+  if (meta) meta.textContent = `Event "${data.eventType?.title || ""}" · ${data.eventType?.length ?? 30} min`;
 }
 
 function renderCalAvailabilityEditor(payload) {
@@ -704,20 +703,23 @@ function renderCalAvailabilityEditor(payload) {
   const avail = payload.schedule?.availability || [];
   const locations = payload.eventType?.locations || [];
 
-  // Collapse Cal availability into one window per day for the simple UI.
-  // Cal stores arrays of { days:[0..6], startTime, endTime }; we pick the
-  // first window per day.
-  const perDay = {};
+  // Collect ALL windows for each day. Each schedule block is shaped like
+  //   { days: [0..6], startTime: "HH:MM:SS", endTime: "HH:MM:SS" }
+  // and may apply to multiple days at once. We expand into per-day arrays
+  // so the editor can surface (and re-edit) every window independently.
+  const perDay = { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] };
   for (const block of avail) {
     const start = (block.startTime || "09:00:00").slice(0, 5);
     const end   = (block.endTime   || "17:00:00").slice(0, 5);
     for (const d of (block.days || [])) {
-      if (perDay[d] === undefined) perDay[d] = { start, end };
+      if (perDay[d]) perDay[d].push({ start, end });
     }
   }
+  // Sort each day's windows by start time for predictable rendering.
+  for (const d of Object.keys(perDay)) {
+    perDay[d].sort((a, b) => a.start.localeCompare(b.start));
+  }
 
-  // Pick the location to show. Cal supports multiple; for the simple UI
-  // we surface the first one and let the operator edit the address/url.
   const loc = locations[0] || { type: "inPerson", address: "" };
   const isVideo = (loc.type || "").startsWith("integrations:") || loc.type === "link";
   const locDetail = loc.address || loc.link || "";
@@ -726,21 +728,7 @@ function renderCalAvailabilityEditor(payload) {
     .map(z => `<option value="${z}" ${z === tz ? "selected" : ""}>${z.replace("_"," ")}</option>`)
     .join("");
 
-  const dayRows = Array.from({ length: 7 }, (_, d) => {
-    const slot = perDay[d];
-    const on = !!slot;
-    return `
-      <div class="cal-day-row ${on ? "" : "off"}" data-day="${d}">
-        <label>
-          <input type="checkbox" data-rr-day-on ${on ? "checked" : ""} />
-          ${CAL_DAY_LABELS[d]}
-        </label>
-        <input type="time" data-rr-day-start value="${slot?.start || "09:00"}" ${on ? "" : "disabled"} step="900" />
-        <span class="cal-day-sep">to</span>
-        <input type="time" data-rr-day-end value="${slot?.end || "17:00"}" ${on ? "" : "disabled"} step="900" />
-        <span></span>
-      </div>`;
-  }).join("");
+  const dayRows = Array.from({ length: 7 }, (_, d) => renderDayRow(d, perDay[d])).join("");
 
   card.innerHTML = `
     <div class="cal-edit-section">
@@ -766,19 +754,98 @@ function renderCalAvailabilityEditor(payload) {
 
     <div class="cal-edit-foot">
       <div class="cal-edit-status" id="cal-edit-status"></div>
-      <button class="btn btn-primary" data-rr-cal-save>Save &amp; sync to Cal.com</button>
+      <button class="btn btn-primary" data-rr-cal-save>Save availability</button>
     </div>`;
 
-  // Wire per-day on/off toggle (enables/disables the time inputs).
+  wireDayRowEvents(card);
+}
+
+// Renders a single day row. `windows` is an array of { start, end }; if
+// empty, the day is "off" and we render a single hidden window with
+// default values so the user can flip the checkbox to enable it.
+function renderDayRow(d, windows) {
+  const on = windows.length > 0;
+  const items = on ? windows : [{ start: "09:00", end: "17:00" }];
+  const winHtml = items.map(w => renderDayWindow(w)).join("");
+  return `
+    <div class="cal-day-row ${on ? "" : "off"}" data-day="${d}">
+      <label>
+        <input type="checkbox" data-rr-day-on ${on ? "checked" : ""} />
+        ${CAL_DAY_LABELS[d]}
+      </label>
+      <div class="cal-day-windows">
+        ${winHtml}
+        <button type="button" class="cal-add-window" data-rr-add-window ${on ? "" : "disabled"}>+ Add window</button>
+      </div>
+    </div>`;
+}
+
+function renderDayWindow(w, removable) {
+  // The first window per day is always present; only extras get a remove
+  // button. We render the remove button on every window and let the
+  // wiring decide whether to actually remove (kept simple for now: any
+  // window can be removed; if all are gone, the day flips to "off").
+  return `
+    <div class="cal-day-window">
+      <input type="time" data-rr-day-start value="${w.start}" step="900" />
+      <span class="cal-day-sep">to</span>
+      <input type="time" data-rr-day-end value="${w.end}" step="900" />
+      <button type="button" class="cal-remove-window" data-rr-remove-window aria-label="Remove">×</button>
+    </div>`;
+}
+
+function wireDayRowEvents(card) {
+  // Day-level on/off toggles enable/disable all the day's time inputs.
   card.querySelectorAll("[data-rr-day-on]").forEach((cb) => {
     cb.addEventListener("change", (e) => {
       const row = e.target.closest(".cal-day-row");
-      const on = e.target.checked;
+      const on  = e.target.checked;
       row.classList.toggle("off", !on);
       row.querySelectorAll('input[type=time]').forEach(t => { t.disabled = !on; });
+      const addBtn = row.querySelector("[data-rr-add-window]");
+      if (addBtn) addBtn.disabled = !on;
     });
   });
 }
+
+// Click delegate: add window / remove window inside a day row.
+document.addEventListener("click", (e) => {
+  const addBtn = e.target.closest("[data-rr-add-window]");
+  if (addBtn && !addBtn.disabled) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const row = addBtn.closest(".cal-day-row");
+    if (!row) return;
+    const wrap = row.querySelector(".cal-day-windows");
+    const tmp = document.createElement("div");
+    tmp.innerHTML = renderDayWindow({ start: "09:00", end: "17:00" });
+    const newWin = tmp.firstElementChild;
+    wrap.insertBefore(newWin, addBtn);
+    return;
+  }
+  const remBtn = e.target.closest("[data-rr-remove-window]");
+  if (remBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const win = remBtn.closest(".cal-day-window");
+    const row = remBtn.closest(".cal-day-row");
+    if (!win || !row) return;
+    win.remove();
+    // If no windows remain, flip the day to off so the layout stays sane.
+    if (row.querySelectorAll(".cal-day-window").length === 0) {
+      const cb = row.querySelector("[data-rr-day-on]");
+      if (cb) { cb.checked = false; cb.dispatchEvent(new Event("change", { bubbles: true })); }
+      // Re-add an empty default window so the user can re-enable the day.
+      const wrap = row.querySelector(".cal-day-windows");
+      const addBtn = wrap.querySelector("[data-rr-add-window]");
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderDayWindow({ start: "09:00", end: "17:00" });
+      const def = tmp.firstElementChild;
+      def.querySelectorAll('input[type=time]').forEach(t => { t.disabled = true; });
+      wrap.insertBefore(def, addBtn);
+    }
+  }
+}, true);
 
 async function saveCalAvailability() {
   const card = document.getElementById("cal-edit-card");
@@ -791,13 +858,15 @@ async function saveCalAvailability() {
     const on = row.querySelector("[data-rr-day-on]").checked;
     if (!on) return;
     const day = parseInt(row.getAttribute("data-day"), 10);
-    const start = row.querySelector("[data-rr-day-start]").value;
-    const end   = row.querySelector("[data-rr-day-end]").value;
-    if (!start || !end || start >= end) return;
-    availability.push({
-      days: [day],
-      startTime: start.length === 5 ? start + ":00" : start,
-      endTime:   end.length   === 5 ? end   + ":00" : end,
+    row.querySelectorAll(".cal-day-window").forEach((win) => {
+      const start = win.querySelector("[data-rr-day-start]").value;
+      const end   = win.querySelector("[data-rr-day-end]").value;
+      if (!start || !end || start >= end) return;
+      availability.push({
+        days:      [day],
+        startTime: start.length === 5 ? start + ":00" : start,
+        endTime:   end.length   === 5 ? end   + ":00" : end,
+      });
     });
   });
 
@@ -826,7 +895,7 @@ async function saveCalAvailability() {
   }
 
   status.className = "cal-edit-status ok";
-  status.textContent = `Saved · synced to Cal.com at ${new Date().toLocaleTimeString()}`;
+  status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
   await loadCalBookingsList();
 }
 
