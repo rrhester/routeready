@@ -3708,6 +3708,8 @@ document.addEventListener("click", async (e) => {
     };
     const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
     if (upErr) { if (status) status.textContent = "Failed: " + upErr.message; return; }
+    // Refresh local cache so subsequent renders use the new waves/cushion immediately.
+    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
     if (status) status.textContent = "Saved · syncing schedule…";
 
     // Push the new settings into existing shifts: assigned shifts get
@@ -3791,6 +3793,19 @@ function fmtTimeShort(iso) {
   try {
     return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
   } catch { return ""; }
+}
+
+// Format a 'HH:MM' wave-time string as e.g. '1:00pm'. Used when we don't
+// have a full timestamp — only a configured wave start.
+function fmtWaveTime(hhmm) {
+  if (!hhmm) return "";
+  const parts = String(hhmm).split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+  if (!Number.isFinite(h)) return hhmm;
+  const hour12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+  const ampm = h >= 12 ? "pm" : "am";
+  return `${hour12}:${String(m || 0).padStart(2, "0")}${ampm}`;
 }
 
 function _schedShiftChip(sh) {
@@ -3908,7 +3923,11 @@ async function renderScheduleWeek() {
       visibleFilledByDateStation.set(k, (visibleFilledByDateStation.get(k) || 0) + 1);
     }
   }
-  const virtualByDate = new Map(); // iso -> [{station_id, station_code}, …]
+  // Virtual chips get the wave time at their position in the day's lineup.
+  // Single-wave config → every virtual chip shows the same wave time.
+  const wavesArr = (window.RR?.dsp?.metadata?.scheduling?.waves) || [{ start: "07:00" }];
+  const waveCount = Math.max(1, wavesArr.length);
+  const virtualByDate = new Map();
   for (const c of (grid.coverage || [])) {
     const k = `${c.date}|${c.station_id}`;
     const real = realOpenByDateStation.get(k) || 0;
@@ -3916,7 +3935,12 @@ async function renderScheduleWeek() {
     const v = Math.max(0, (c.needed || 0) - filled - real);
     if (v > 0) {
       const list = virtualByDate.get(c.date) || [];
-      for (let i = 0; i < v; i++) list.push({ station_id: c.station_id, station_code: c.station_code });
+      const startPos = (filled + real);
+      for (let i = 0; i < v; i++) {
+        const pos = startPos + i;
+        const waveStart = wavesArr[pos % waveCount]?.start || "07:00";
+        list.push({ station_id: c.station_id, station_code: c.station_code, wave_start: waveStart });
+      }
       virtualByDate.set(c.date, list);
     }
   }
@@ -4003,7 +4027,7 @@ async function renderScheduleWeek() {
       });
     }
     for (const v of (virtualByDate.get(iso) || [])) {
-      slots.push({ kind: "virtual", station_id: v.station_id, station_code: v.station_code });
+      slots.push({ kind: "virtual", station_id: v.station_id, station_code: v.station_code, wave_start: v.wave_start });
     }
     openSlotsByDate.set(iso, slots);
   }
@@ -4029,7 +4053,8 @@ async function renderScheduleWeek() {
         const style = slot.is_cushion ? ' style="border-color:#FCD34D"' : "";
         return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
       }
-      return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(slot.station_code || "open")}</div></div>`;
+      const virtLabel = fmtWaveTime(slot.wave_start) || "open";
+      return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(virtLabel)}</div></div>`;
     }).join("");
     const pdNum = r + 1;
     return `<div class="cal-grid" style="background:var(--canvas)">
