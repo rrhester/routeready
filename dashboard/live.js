@@ -3484,6 +3484,45 @@ async function loadScheduleView() {
   bindSchedWeekNav();
 }
 
+// Override the mockup AI-schedule modal — replace with a real auto-fill that
+// creates open shifts wherever OKAMI demand exceeds current shift count.
+window.openAiSchedule = async function () {
+  await autoFillScheduleWeek();
+};
+
+async function autoFillScheduleWeek() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast("DSP not loaded", "warn"); return; }
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  const { data: cells, error } = await sb.rpc("okami_grid", { p_start: _schedStart, p_weeks: 1 });
+  if (error) { toast("Auto-fill failed: " + error.message, "warn"); return; }
+
+  // okami_grid already returns open_count = needed - filled per (date, station).
+  const calls = [];
+  for (const c of (cells || [])) {
+    for (let i = 0; i < (c.open_count || 0); i++) {
+      calls.push(sb.rpc("create_shift", {
+        p_payload: { date: c.date, station_id: c.station_id },
+      }));
+    }
+  }
+  if (calls.length === 0) { toast("All shifts already covered", "success"); return; }
+
+  const results = await Promise.all(calls);
+  const failed = results.filter(r => r.error);
+  if (failed.length === calls.length) {
+    toast("Auto-fill failed: " + (failed[0].error?.message || "unknown error"), "warn");
+    return;
+  }
+  if (failed.length > 0) {
+    toast(`${calls.length - failed.length} of ${calls.length} open shifts created · ${failed.length} failed`, "warn");
+  } else {
+    toast(`${calls.length} open shift${calls.length === 1 ? "" : "s"} created`, "success");
+  }
+  await renderScheduleWeek();
+}
+
 function renderScheduleGrid() { /* removed */ }
 
 // ─── Schedule · Week view (read-only render) ───────────────────────────────
@@ -3664,6 +3703,10 @@ async function renderScheduleWeek() {
     : "";
 
   wrap.insertAdjacentHTML("beforeend", driverRowsHtml + unassignedHtml + coverageStripHtml + emptyHtml);
+
+  // Strip mockup-injected banners that reference fake RR_DRIVERS data.
+  const lic = document.getElementById("sched-license-banner");
+  if (lic) lic.remove();
 
   renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalOpen);
 }
