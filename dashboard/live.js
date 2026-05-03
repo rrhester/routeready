@@ -3627,9 +3627,12 @@ function fmtTimeShort(iso) {
 }
 
 function _schedShiftChip(sh) {
-  const r = sh.route_code ? escapeHtml(sh.route_code) : "shift";
+  const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
-  return `<div class="shift-chip"><div class="shift-chip-route">${r}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  const ex = sh.is_cushion
+    ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+    : "";
+  return `<div class="shift-chip"${sh.is_cushion ? ' style="border-color:#FCD34D"' : ''}><div class="shift-chip-route">${r}${ex}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -3809,6 +3812,8 @@ async function renderScheduleWeek() {
         shift_id: sh.id,
         route_code: sh.route_code,
         station_code: stationCodeById.get(sh.station_id) || "open",
+        starts_at: sh.starts_at,
+        is_cushion: sh.is_cushion,
       });
     }
     for (const v of (virtualByDate.get(iso) || [])) {
@@ -3831,7 +3836,12 @@ async function renderScheduleWeek() {
       const slot = slots[r];
       const data = `data-rr-cell="open" data-rr-cell-date="${iso}"`;
       if (slot.kind === "real") {
-        return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}">+ ${escapeHtml(slot.route_code || "open")}</div></div>`;
+        const label = slot.starts_at ? fmtTimeShort(slot.starts_at) : (slot.route_code || "open");
+        const ex = slot.is_cushion
+          ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+          : "";
+        const style = slot.is_cushion ? ' style="border-color:#FCD34D"' : "";
+        return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
       }
       return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(slot.station_code || "open")}</div></div>`;
     }).join("");
