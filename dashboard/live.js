@@ -3725,7 +3725,10 @@ aside.driver-pool::-webkit-scrollbar-thumb:hover { background: var(--text-subtle
 .okami-table th:nth-child(8),
 .okami-table tr:not(.okami-detail) > td:nth-child(6),
 .okami-table tr:not(.okami-detail) > td:nth-child(7),
-.okami-table tr:not(.okami-detail) > td:nth-child(8) { display: none !important; }`;
+.okami-table tr:not(.okami-detail) > td:nth-child(8) { display: none !important; }
+/* Kill mockup row decorations: cycle-end blue underline + HVE yellow stripe. */
+.okami-table tbody tr.cycle-end { border-bottom: 1px solid var(--border) !important; background: transparent !important; }
+.okami-table tbody tr.hve { background: transparent !important; }`;
 document.head.appendChild(_styleEl);
 
 
@@ -3791,7 +3794,10 @@ async function renderOkamiLive() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
-  if (!_okamiStart) _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  // Always anchor OKAMI to the actual current week so the 13-week planner
+  // rolls forward as the calendar advances. Operator's schedule view has
+  // prev/next navigation; OKAMI is always 'this week + 12'.
+  _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
   const start = new Date(_okamiStart + "T12:00:00");
 
   const [gridRes, drvRes] = await Promise.all([
@@ -3827,8 +3833,17 @@ async function renderOkamiLive() {
 
   const dpr = parseFloat(document.getElementById("okami-dpr")?.value) || 2.0;
 
+  // Mockup only assigned id='okami-row-N' to the first three rows; rows
+  // 3..12 had no id, so the older lookup silently skipped them and W21
+  // through W30 never got their labels rewritten. Use every non-detail
+  // row inside #okami-tbody in document order instead.
+  const okTbody = document.getElementById("okami-tbody");
+  const allOkamiRows = okTbody
+    ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
+    : [];
+
   for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
-    const row = document.getElementById(`okami-row-${w}`);
+    const row = allOkamiRows[w];
     if (!row) continue;
     const weekStart = addDays(start, w * 7);
     const weekEnd   = addDays(weekStart, 6);
@@ -3902,7 +3917,7 @@ async function renderOkamiLive() {
   // Update top hires-needed summary cell, if present.
   let totalHires = 0;
   for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
-    const row = document.getElementById(`okami-row-${w}`);
+    const row = allOkamiRows[w];
     const gapEl = row?.querySelectorAll("td")[4]?.querySelector(".plan-gap");
     if (!gapEl) continue;
     const g = parseInt(gapEl.textContent, 10);
