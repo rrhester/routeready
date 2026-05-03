@@ -669,85 +669,32 @@ async function doAddApplicant() {
 
 // ─── Add driver ────────────────────────────────────────────────────────────
 //
-// Mockup's submitAddDriver() just appended a fake row to the table. We
-// override it to write to public.drivers and refresh the live roster. We
-// also wrap openModal so the station <select> gets populated from real
-// stations the moment the modal opens (instead of hardcoded KMO1/2/3).
+// Mockup's submitAddDriver() and modal-add-driver were a simple form. We
+// route the Drivers-page "Add driver" button to the same rich driver-record
+// drawer used for editing — but in CREATE mode (no driverId). On save we
+// insert directly into public.drivers (the update_driver_record RPC doesn't
+// accept station_id today, so create mode bypasses it).
 
-async function _populateAddDriverStations() {
-  const sel = document.getElementById("ad-station");
-  if (!sel) return;
+const _originalOpenModal = window.openModal;
+window.openModal = function (id) {
+  if (id === "modal-add-driver") { openDriverDrawer(null); return; }
+  if (typeof _originalOpenModal === "function") _originalOpenModal(id);
+};
+
+let _driverStationsCache = null;
+async function getDriverStationsCached() {
+  if (_driverStationsCache) return _driverStationsCache;
   const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
+  if (!dspId) return [];
   const { data, error } = await sb.from("stations")
     .select("id, code, name, active")
     .eq("dsp_id", dspId)
     .eq("active", true)
     .order("code");
-  if (error) { console.warn("stations load:", error.message); return; }
-  const stations = data || [];
-  if (stations.length === 0) {
-    sel.innerHTML = `<option value="">— No stations configured —</option>`;
-    return;
-  }
-  sel.innerHTML = stations.map(s => `<option value="${s.id}">${escapeHtml(s.code)}${s.name ? ` · ${escapeHtml(s.name)}` : ""}</option>`).join("");
-  // Default hire-date to today if blank.
-  const hd = document.getElementById("ad-hiredate");
-  if (hd && !hd.value) hd.value = fmtIsoDate(new Date());
+  if (error) { console.warn("stations load:", error.message); return []; }
+  _driverStationsCache = data || [];
+  return _driverStationsCache;
 }
-
-async function doAddDriver() {
-  const fn      = document.getElementById("ad-fn").value.trim();
-  const ln      = document.getElementById("ad-ln").value.trim();
-  const phone   = document.getElementById("ad-phone").value.trim();
-  const email   = document.getElementById("ad-email").value.trim();
-  const stationSel = document.getElementById("ad-station");
-  const stationId  = stationSel?.value || null;
-  const hireDate   = document.getElementById("ad-hiredate")?.value || fmtIsoDate(new Date());
-  const status     = document.getElementById("ad-status")?.value || "onboarding";
-
-  if (!fn && !ln) { toast("Add a name first", "warn"); return; }
-  if (!phone && !email) { toast("Phone or email required", "warn"); return; }
-  if (!stationId) { toast("Pick a station (or add one in Settings)", "warn"); return; }
-
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) { toast("DSP not loaded — refresh and try again", "warn"); return; }
-
-  const fullName = `${fn} ${ln}`.trim();
-  const payload = {
-    dsp_id:     dspId,
-    station_id: stationId,
-    first_name: fn || null,
-    last_name:  ln || null,
-    full_name:  fullName,
-    phone:      phone ? toE164(phone) : null,
-    email:      email || null,
-    hire_date:  hireDate,
-    status,
-  };
-
-  const { error } = await sb.from("drivers").insert(payload);
-  if (error) { toast("Add failed: " + error.message, "warn"); return; }
-
-  closeModal("modal-add-driver");
-  // Reset the form so the next open is empty.
-  ["ad-fn", "ad-ln", "ad-phone", "ad-email", "ad-payrate"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
-  await loadDriversRoster();
-  toast(`${fullName} added`, "success");
-}
-
-window.submitAddDriver = doAddDriver;
-
-// Wrap openModal so the add-driver modal's station <select> gets real
-// stations the moment it opens (without changing the mockup HTML).
-const _originalOpenModal = window.openModal;
-window.openModal = function (id) {
-  if (typeof _originalOpenModal === "function") _originalOpenModal(id);
-  if (id === "modal-add-driver") _populateAddDriverStations();
-};
 
 // ─── Bulk ingest (paste from Indeed CSV/TSV) ───────────────────────────────
 //
@@ -2035,7 +1982,20 @@ async function openDriverDrawer(driverId) {
   });
 
   _ddTab = "overview";
-  await loadDriverDrawer(driverId);
+  if (driverId) {
+    await loadDriverDrawer(driverId);
+  } else {
+    // CREATE mode — empty placeholders, no fetch.
+    _ddDriver = { driver: { id: null, status: "onboarding", hire_date: fmtIsoDate(new Date()) }, coachings: [], documents: [] };
+    document.getElementById("rr-dd-title").textContent = "Add driver";
+    document.getElementById("rr-dd-sub").textContent = "New record";
+    // License / Coaching / Documents tabs need an existing driver — disable.
+    drawer.querySelectorAll(".dd-tab").forEach(t => {
+      const k = t.getAttribute("data-rr-dd-tab");
+      if (k !== "overview") { t.disabled = true; t.style.opacity = "0.4"; t.style.cursor = "not-allowed"; }
+    });
+    renderDriverDrawerTab();
+  }
 }
 
 async function loadDriverDrawer(driverId) {
@@ -2060,16 +2020,19 @@ function renderDriverDrawerTab() {
     t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
   });
   const body = document.getElementById("rr-dd-body");
-  if (_ddTab === "overview")  body.innerHTML = renderOverviewForm(_ddDriver.driver);
+  if (_ddTab === "overview")  renderOverviewForm(body, _ddDriver.driver);
   if (_ddTab === "license")   renderLicenseTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")  body.innerHTML = renderCoachingTab(_ddDriver.coachings);
   if (_ddTab === "documents") body.innerHTML = renderDocumentsTab(_ddDriver.documents);
 }
 
-function renderOverviewForm(d) {
+async function renderOverviewForm(body, d) {
   const showPronouns = window.RR.dsp?.metadata?.drivers?.show_pronouns !== false;
   const v = (s) => escapeHtml(s ?? "");
-  return `
+  const stations = await getDriverStationsCached();
+  const stationOptions = `<option value="">— No station —</option>` +
+    stations.map(s => `<option value="${s.id}" ${s.id === d.station_id ? "selected" : ""}>${escapeHtml(s.code)}${s.name ? ` · ${escapeHtml(s.name)}` : ""}</option>`).join("");
+  body.innerHTML = `
     <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" value="${v(d.full_name)}"/></div>
     <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" value="${v(d.preferred_name)}"/></div>
     ${showPronouns ? `<div class="dd-row"><label>Pronouns</label><input data-rr-dd-field="pronouns" placeholder="he/him · she/her · they/them" value="${v(d.pronouns)}"/></div>` : ""}
@@ -2077,6 +2040,9 @@ function renderOverviewForm(d) {
     <div class="dd-row"><label>Email</label><input data-rr-dd-field="email" value="${v(d.email)}"/></div>
     <div class="dd-row"><label>Address</label><input data-rr-dd-field="address" value="${v(d.address)}"/></div>
     <div class="dd-row"><label>Birthday</label><input type="date" data-rr-dd-field="birthday" value="${v(d.birthday)}"/></div>
+    <div class="dd-row"><label>Station</label>
+      <select data-rr-dd-field="station_id">${stationOptions}</select>
+    </div>
     <div class="dd-row"><label>Hire date</label><input type="date" data-rr-dd-field="hire_date" value="${v(d.hire_date)}"/></div>
     <div class="dd-row"><label>Status</label>
       <select data-rr-dd-field="status">
@@ -2207,12 +2173,63 @@ document.addEventListener("click", async (e) => {
       payload[el.getAttribute("data-rr-dd-field")] = el.value;
     });
     if (payload.first_name === undefined && payload.full_name) {
-      const parts = payload.full_name.split(/\s+/);
+      const parts = (payload.full_name || "").split(/\s+/);
       payload.first_name = parts[0] || null;
       payload.last_name  = parts.slice(1).join(" ") || null;
     }
-    const { error } = await sb.rpc("update_driver_record", { p_id: _ddDriver.driver.id, p_payload: payload });
+
+    const isCreate = !_ddDriver?.driver?.id;
+    if (isCreate) {
+      // Validation
+      if (!payload.full_name || !payload.full_name.trim()) { toast("Full name required", "warn"); return; }
+      if (!payload.phone && !payload.email) { toast("Phone or email required", "warn"); return; }
+      const dspId = window.RR?.dsp?.id;
+      if (!dspId) { toast("DSP not loaded — refresh and try again", "warn"); return; }
+
+      // Build INSERT row, normalizing empty strings to null for typed columns.
+      const blank = (v) => (v === "" || v == null ? null : v);
+      const insertRow = {
+        dsp_id:                  dspId,
+        station_id:              blank(payload.station_id),
+        full_name:               payload.full_name.trim(),
+        first_name:              blank(payload.first_name),
+        last_name:               blank(payload.last_name),
+        preferred_name:          blank(payload.preferred_name),
+        pronouns:                blank(payload.pronouns),
+        phone:                   payload.phone ? toE164(payload.phone) : null,
+        email:                   blank(payload.email),
+        address:                 blank(payload.address),
+        birthday:                blank(payload.birthday),
+        emergency_contact_name:  blank(payload.emergency_contact_name),
+        emergency_contact_phone: blank(payload.emergency_contact_phone),
+        hire_date:               blank(payload.hire_date) || fmtIsoDate(new Date()),
+        status:                  blank(payload.status) || "onboarding",
+        background_check_completed_at: blank(payload.background_check_completed_at),
+        drug_test_completed_at:        blank(payload.drug_test_completed_at),
+        training_scheduled_at:         blank(payload.training_scheduled_at),
+        training_date:                 blank(payload.training_date),
+      };
+      const { error } = await sb.from("drivers").insert(insertRow);
+      if (error) { toast("Add failed: " + error.message, "warn"); return; }
+      const drawer = document.getElementById("rr-dd-drawer");
+      if (drawer) drawer.remove();
+      await loadDriversRoster();
+      toast(`${insertRow.full_name} added`, "success");
+      return;
+    }
+
+    // EDIT — RPC doesn't include station_id; handle that via a direct update.
+    const stationId = payload.station_id;
+    const rpcPayload = { ...payload };
+    delete rpcPayload.station_id;
+    const { error } = await sb.rpc("update_driver_record", { p_id: _ddDriver.driver.id, p_payload: rpcPayload });
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    if (stationId !== undefined && stationId !== _ddDriver.driver.station_id) {
+      const { error: stErr } = await sb.from("drivers")
+        .update({ station_id: stationId || null })
+        .eq("id", _ddDriver.driver.id);
+      if (stErr) { toast("Station save failed: " + stErr.message, "warn"); return; }
+    }
     toast("Driver record saved", "success");
     await loadDriverDrawer(_ddDriver.driver.id);
     await loadDriversRoster();
