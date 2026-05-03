@@ -654,8 +654,12 @@ async function loadDashboardWeather() {
       ${alertHtml}`;
   } catch (err) {
     console.warn("weather load failed:", err);
+    const isOutsideUS = String(err.message || "").includes("404");
+    const detail = isOutsideUS
+      ? `Saved coords <strong>${lat}, ${lon}</strong> aren't covered by NWS (US only). Common cause: longitude sign flipped — west of the prime meridian should be negative (e.g. <strong>-76.910</strong>).`
+      : `Could not load forecast (${escapeHtml(err.message || String(err))}). Saved: <strong>${lat}, ${lon}</strong>.`;
     body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
-      <div style="font-size:13px;color:var(--text-subtle)">Could not load forecast (${escapeHtml(err.message || String(err))}). Verify lat/lon in Settings.</div>`;
+      <div style="font-size:13px;color:var(--text-subtle);line-height:1.5">${detail}</div>`;
   }
 }
 
@@ -701,22 +705,37 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// Pre-fill the settings inputs when the Settings page is opened or the
-// Workspace section is selected.
+// Pre-fill the settings inputs and show what's currently stored so the
+// operator never has to guess whether their save took.
 function _prefillWeatherInputs() {
   const meta = window.RR?.dsp?.metadata?.weather || {};
   const latEl = document.getElementById("rr-set-weather-lat");
   const lonEl = document.getElementById("rr-set-weather-lon");
-  if (latEl && !latEl.value && Number.isFinite(Number(meta.lat))) latEl.value = meta.lat;
-  if (lonEl && !lonEl.value && Number.isFinite(Number(meta.lon))) lonEl.value = meta.lon;
+  if (latEl && Number.isFinite(Number(meta.lat))) latEl.value = meta.lat;
+  if (lonEl && Number.isFinite(Number(meta.lon))) lonEl.value = meta.lon;
+  const status = document.getElementById("rr-set-weather-status");
+  if (status && (Number.isFinite(Number(meta.lat)) || Number.isFinite(Number(meta.lon)))) {
+    status.style.color = "var(--text-subtle)";
+    status.textContent = `Currently saved: ${meta.lat}, ${meta.lon}`;
+  }
 }
 document.addEventListener("click", (e) => {
-  if (e.target.closest('.settings-nav-item[data-set="workspace"]') ||
-      e.target.closest('[data-rr-nav-item="settings"]') ||
-      e.target.closest('a[href="#settings"]')) {
+  // Settings nav button (sidebar) or the Workspace section pill.
+  if (e.target.closest('[data-rr-nav-item="settings"]') ||
+      e.target.closest('a[href="#settings"]') ||
+      e.target.closest('.settings-nav-item[data-set="workspace"]')) {
     setTimeout(_prefillWeatherInputs, 0);
   }
 });
+// Wrap the existing goto so navigating to settings also prefills.
+const _legacyGotoForWeather = window.goto;
+if (typeof _legacyGotoForWeather === "function") {
+  window.goto = function (view) {
+    const r = _legacyGotoForWeather(view);
+    if (view === "settings") setTimeout(_prefillWeatherInputs, 0);
+    return r;
+  };
+}
 
 
 // ─── Dashboard · Today's tasks (Attendance card + header counts) ───────
