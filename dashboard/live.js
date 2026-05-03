@@ -3833,7 +3833,24 @@ async function autoAssignDriversForWeek() {
 
   const drivers = driversRes.data || [];
   const pto     = ptoRes.data     || [];
-  const shifts  = shiftsRes.data  || [];
+  let   shifts  = shiftsRes.data  || [];
+
+  // Pre-step: a previous Auto-fill run may have placed a driver on a
+  // CUSHION shift while a regular shift was available. Free up those
+  // cushion assignments so this pass can put the driver on a regular
+  // shift first (per the operator's "regular before EX" rule).
+  const cushionAssigned = shifts.filter(sh => sh.driver_id && sh.is_cushion && sh.status === "scheduled");
+  if (cushionAssigned.length > 0) {
+    const ids = cushionAssigned.map(sh => sh.id);
+    const { error: clearErr } = await sb.from("shifts")
+      .update({ driver_id: null })
+      .in("id", ids);
+    if (!clearErr) {
+      // Mirror the change in our local copy so we don't refetch.
+      const cleared = new Set(ids);
+      shifts = shifts.map(sh => cleared.has(sh.id) ? { ...sh, driver_id: null } : sh);
+    }
+  }
 
   const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
