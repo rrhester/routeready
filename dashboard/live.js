@@ -3104,7 +3104,18 @@ if (document.readyState === "loading") {
 
 // Pop animation
 const _styleEl = document.createElement("style");
-_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none} [data-rr-pool-driver]{cursor:grab} [data-rr-pool-driver].rr-dragging{opacity:.5} .cal-cell.rr-drop-active{background:var(--accent-soft) !important;outline:2px dashed var(--accent);outline-offset:-2px}`;
+_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none} [data-rr-pool-driver]{cursor:grab} [data-rr-pool-driver].rr-dragging{opacity:.5} .cal-cell.rr-drop-active{background:var(--accent-soft) !important;outline:2px dashed var(--accent);outline-offset:-2px}
+/* OKAMI table — strip mockup colors and pills (operator wanted less noise) */
+.plan-gap, .plan-gap.ok, .plan-gap.warn, .plan-gap.bad { color: var(--text-muted) !important; }
+.plan-status-pill, .plan-status-pill.ok, .plan-status-pill.warn, .plan-status-pill.bad {
+  background: transparent !important; color: var(--text-muted) !important; border: 0 !important;
+  font-weight: 500 !important; padding: 0 !important;
+}
+.plan-status-pill .dot { display: none !important; }
+.strategy-pill, .strategy-pill.active, .strategy-pill.active.hire, .strategy-pill.active.adw, .strategy-pill.active.ot, .strategy-pill.active.seasonal {
+  background: transparent !important; color: var(--text-muted) !important; border-color: transparent !important;
+  font-weight: 500 !important;
+}`;
 document.head.appendChild(_styleEl);
 
 
@@ -3608,13 +3619,6 @@ function _renderWaveRow(start) {
 }
 
 document.addEventListener("click", async (e) => {
-  // Lazy-load when user opens the Scheduling settings tab.
-  const navBtn = e.target.closest('.settings-nav-item[data-set="scheduling"]');
-  if (navBtn) {
-    setTimeout(loadSchedulingSettings, 0);
-    return;
-  }
-
   // Add a wave row.
   if (e.target.id === "rr-set-add-wave") {
     e.preventDefault();
@@ -3681,6 +3685,7 @@ async function loadScheduleView() {
   loadOpenShifts();
   await renderScheduleWeek();
   bindSchedWeekNav();
+  loadSchedulingSettings();
 }
 
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
