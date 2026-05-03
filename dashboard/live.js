@@ -2105,6 +2105,7 @@ async function renderOverviewForm(body, d) {
   const stations = await getDriverStationsCached();
   const stationOptions = `<option value="">— No station —</option>` +
     stations.map(s => `<option value="${s.id}" ${s.id === d.station_id ? "selected" : ""}>${escapeHtml(s.code)}${s.name ? ` · ${escapeHtml(s.name)}` : ""}</option>`).join("");
+  const payRate = d.metadata?.pay?.hourly_rate ?? "";
   body.innerHTML = `
     <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" data-rr-capitalize autocapitalize="words" value="${v(d.full_name)}"/></div>
     <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" data-rr-capitalize autocapitalize="words" value="${v(d.preferred_name)}"/></div>
@@ -2121,6 +2122,13 @@ async function renderOverviewForm(body, d) {
       <select data-rr-dd-field="status">
         ${["onboarding","active","leave","inactive","terminated"].map(s => `<option value="${s}" ${s === d.status ? "selected" : ""}>${s}</option>`).join("")}
       </select>
+    </div>
+    <div class="dd-row"><label>Pay rate</label>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="color:var(--text-subtle)">$</span>
+        <input type="number" min="0" max="200" step="0.01" data-rr-dd-field="pay_hourly" placeholder="22.50" value="${v(payRate)}" style="max-width:120px"/>
+        <span style="color:var(--text-subtle);font-size:12px">/ hour</span>
+      </div>
     </div>
     <div class="dd-row"><label>Emergency contact</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(d.emergency_contact_name)}"/></div>
     <div class="dd-row"><label>Emergency phone</label><input data-rr-dd-field="emergency_contact_phone" placeholder="Phone" value="${v(d.emergency_contact_phone)}"/></div>
@@ -2294,6 +2302,7 @@ document.addEventListener("click", async (e) => {
 
       // Build INSERT row, normalizing empty strings to null for typed columns.
       const blank = (v) => (v === "" || v == null ? null : v);
+      const payHourly = payload.pay_hourly === "" || payload.pay_hourly == null ? null : Number(payload.pay_hourly);
       const insertRow = {
         dsp_id:                  dspId,
         station_id:              blank(payload.station_id),
@@ -2314,6 +2323,7 @@ document.addEventListener("click", async (e) => {
         drug_test_completed_at:        blank(payload.drug_test_completed_at),
         training_scheduled_at:         blank(payload.training_scheduled_at),
         training_date:                 blank(payload.training_date),
+        metadata:                Number.isFinite(payHourly) ? { pay: { hourly_rate: payHourly } } : {},
       };
       const { error } = await sb.from("drivers").insert(insertRow);
       if (error) { toast("Add failed: " + error.message, "warn"); return; }
@@ -2324,10 +2334,12 @@ document.addEventListener("click", async (e) => {
       return;
     }
 
-    // EDIT — RPC doesn't include station_id; handle that via a direct update.
+    // EDIT — RPC doesn't include station_id or metadata; handle those via direct update.
     const stationId = payload.station_id;
+    const payHourlyRaw = payload.pay_hourly;
     const rpcPayload = { ...payload };
     delete rpcPayload.station_id;
+    delete rpcPayload.pay_hourly;
     const { error } = await sb.rpc("update_driver_record", { p_id: _ddDriver.driver.id, p_payload: rpcPayload });
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
     if (stationId !== undefined && stationId !== _ddDriver.driver.station_id) {
@@ -2335,6 +2347,18 @@ document.addEventListener("click", async (e) => {
         .update({ station_id: stationId || null })
         .eq("id", _ddDriver.driver.id);
       if (stErr) { toast("Station save failed: " + stErr.message, "warn"); return; }
+    }
+    if (payHourlyRaw !== undefined) {
+      const newRate = payHourlyRaw === "" ? null : Number(payHourlyRaw);
+      const existingRate = _ddDriver.driver.metadata?.pay?.hourly_rate ?? null;
+      if (newRate !== existingRate) {
+        const newMeta = { ..._ddDriver.driver.metadata || {}, pay: { ...(_ddDriver.driver.metadata?.pay || {}), hourly_rate: newRate } };
+        const { error: payErr } = await sb.from("drivers")
+          .update({ metadata: newMeta })
+          .eq("id", _ddDriver.driver.id);
+        if (payErr) { toast("Pay rate save failed: " + payErr.message, "warn"); return; }
+        _ddDriver.driver.metadata = newMeta;
+      }
     }
     toast("Driver record saved", "success");
     const drawer2 = document.getElementById("rr-dd-drawer");
