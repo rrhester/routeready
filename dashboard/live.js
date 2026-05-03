@@ -3783,9 +3783,112 @@ async function autoFillScheduleWeek() {
   if (failed.length > 0) {
     toast(`Synced ${calls.length - failed.length} of ${calls.length} day-stations · ${failed.length} failed`, "warn");
   } else {
-    toast("Schedule synced with OKAMI plan", "success");
+    // Now try to auto-assign drivers to the freshly-generated open shifts
+    // based on each driver's availability metadata.
+    const assigned = await autoAssignDriversForWeek();
+    if (assigned > 0) {
+      toast(`Schedule synced · ${assigned} shift${assigned === 1 ? "" : "s"} auto-assigned`, "success");
+    } else {
+      toast("Schedule synced with OKAMI plan", "success");
+    }
   }
   await renderScheduleWeek();
+}
+
+// Auto-assign drivers to open shifts in the current week based on each
+// driver's metadata.availability.days (mon/tue/wed/...). Skips drivers who
+// are on approved PTO that day or already have a shift on that date.
+// Picks the least-loaded eligible driver each round so workload spreads.
+async function autoAssignDriversForWeek() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return 0;
+
+  const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
+  const weekEndIso = fmtIsoDate(weekEnd);
+
+  const [driversRes, ptoRes, gridRes] = await Promise.all([
+    sb.from("drivers")
+      .select("id, full_name, metadata")
+      .eq("dsp_id", dspId)
+      .eq("status", "active"),
+    sb.from("time_off_requests")
+      .select("driver_id, start_date, end_date")
+      .eq("dsp_id", dspId)
+      .eq("status", "approved")
+      .lte("start_date", weekEndIso)
+      .gte("end_date", _schedStart),
+    sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
+  ]);
+
+  if (driversRes.error || gridRes.error) {
+    console.warn("auto-assign load failed:", driversRes.error || gridRes.error);
+    return 0;
+  }
+
+  const drivers = driversRes.data || [];
+  const pto     = ptoRes.data     || [];
+  const shifts  = (gridRes.data || {}).shifts || [];
+
+  const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+  // Per-driver: dates already booked (so we don't double-assign one driver
+  // to two shifts on the same day).
+  const driverShiftDates = new Map();
+  for (const sh of shifts) {
+    if (!sh.driver_id) continue;
+    if (!driverShiftDates.has(sh.driver_id)) driverShiftDates.set(sh.driver_id, new Set());
+    driverShiftDates.get(sh.driver_id).add(sh.date);
+  }
+
+  // PTO map: driver_id -> Set<iso>.
+  const driverPtoDates = new Map();
+  for (const t of pto) {
+    if (!driverPtoDates.has(t.driver_id)) driverPtoDates.set(t.driver_id, new Set());
+    let cur = new Date(t.start_date + "T12:00:00");
+    const end = new Date(t.end_date + "T12:00:00");
+    while (cur <= end) {
+      driverPtoDates.get(t.driver_id).add(fmtIsoDate(cur));
+      cur = addDays(cur, 1);
+    }
+  }
+
+  const openShifts = shifts.filter(sh => !sh.driver_id && sh.status === "scheduled")
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (a.starts_at || "").localeCompare(b.starts_at || "");
+    });
+
+  let assigned = 0;
+  for (const sh of openShifts) {
+    const dt = new Date(sh.date + "T12:00:00");
+    const dow = DOW[dt.getDay()];
+
+    const candidates = drivers.filter(d => {
+      const days = (d.metadata?.availability?.days) || [];
+      if (!days.includes(dow)) return false;
+      if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
+      if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
+      return true;
+    });
+
+    if (candidates.length === 0) continue;
+
+    candidates.sort((a, b) => {
+      const ac = driverShiftDates.get(a.id)?.size || 0;
+      const bc = driverShiftDates.get(b.id)?.size || 0;
+      return ac - bc;
+    });
+    const driver = candidates[0];
+
+    const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: driver.id });
+    if (error) continue;
+
+    if (!driverShiftDates.has(driver.id)) driverShiftDates.set(driver.id, new Set());
+    driverShiftDates.get(driver.id).add(sh.date);
+    assigned += 1;
+  }
+
+  return assigned;
 }
 
 function renderScheduleGrid() { /* removed */ }
