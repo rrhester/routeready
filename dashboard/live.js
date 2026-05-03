@@ -482,12 +482,51 @@ async function loadPipelineKpis() {
 
 
 // ─── Interview Day ─────────────────────────────────────────────────────────
+//
+// `loadInterviewDay()` picks WHICH day to show:
+//   1. If today has bookings, show today.
+//   2. Otherwise, jump to the soonest future date that has bookings.
+//   3. If no future bookings exist anywhere, default to today (empty).
+//
+// Operators can also navigate prev/next via buttons rendered in the
+// header. State is held in module-scope `_ivDate` so re-renders survive.
+
+let _ivDate = null;            // YYYY-MM-DD currently displayed
+let _ivDatesWithBookings = []; // sorted YYYY-MM-DD strings (today + future)
+
+function dspTz() {
+  return window.RR?.dsp?.timezone || "America/New_York";
+}
+function localDate(d) {
+  return new Date(d).toLocaleDateString("en-CA", { timeZone: dspTz() });
+}
 
 async function loadInterviewDay() {
   const list = document.getElementById("iv-candidates");
   if (!list) return;
 
-  const { data: day, error: openErr } = await sb.rpc("open_interview_day", {});
+  // Pull all interview cal_events from yesterday onward to map out the
+  // dates that have bookings. Used both for choosing the default date
+  // and for prev/next navigation.
+  const { data: events } = await sb.from("cal_events")
+    .select("starts_at")
+    .eq("dsp_id", window.RR.dsp.id)
+    .eq("kind", "interview")
+    .gte("starts_at", new Date(Date.now() - 86400000).toISOString())
+    .in("status", ["scheduled","rescheduled","completed","no_show"])
+    .order("starts_at", { ascending: true });
+
+  const datesSet = new Set();
+  for (const e of events ?? []) datesSet.add(localDate(e.starts_at));
+  _ivDatesWithBookings = [...datesSet].sort();
+
+  const today = localDate(new Date());
+  if (!_ivDate) {
+    if (_ivDatesWithBookings.includes(today)) _ivDate = today;
+    else _ivDate = _ivDatesWithBookings[0] || today;
+  }
+
+  const { data: day, error: openErr } = await sb.rpc("open_interview_day", { p_date: _ivDate });
   if (openErr) { toast("Couldn't open interview day: " + openErr.message, "warn"); return; }
 
   const { data: roster, error: rErr } = await sb.rpc("interview_day_roster", { p_day_id: day.id });
@@ -498,6 +537,9 @@ async function loadInterviewDay() {
 function renderInterviewDay(day, rows) {
   const list = document.getElementById("iv-candidates");
   if (!list) return;
+
+  // Date navigator + label injected just above the stat banner.
+  renderInterviewDayNav(day);
 
   const booked   = rows.length;
   const hired    = rows.filter(r => r.outcome === "hired").length;
@@ -553,6 +595,42 @@ function renderInterviewDay(day, rows) {
       done.style.display = "none";
     }
   }
+}
+
+function renderInterviewDayNav(day) {
+  // Find or create the nav row inside the Interview Day subview, just
+  // before the iv-stats-banner.
+  const subview = document.getElementById("pipe-sub-interview");
+  const banner  = subview?.querySelector(".iv-stats-banner");
+  if (!subview || !banner) return;
+
+  let nav = subview.querySelector("[data-rr-iv-nav]");
+  if (!nav) {
+    nav = document.createElement("div");
+    nav.setAttribute("data-rr-iv-nav", "1");
+    nav.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--s-3);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px";
+    banner.parentNode.insertBefore(nav, banner);
+  }
+
+  const idx = _ivDatesWithBookings.indexOf(_ivDate);
+  const prev = idx > 0 ? _ivDatesWithBookings[idx - 1] : null;
+  const next = idx >= 0 && idx < _ivDatesWithBookings.length - 1 ? _ivDatesWithBookings[idx + 1] : null;
+
+  const dt = new Date(_ivDate + "T12:00:00");
+  const label = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const today = localDate(new Date());
+  const relative = _ivDate === today ? "Today" : (_ivDate < today ? "Past" : "Upcoming");
+
+  nav.innerHTML = `
+    <div>
+      <div style="font-size:13px;font-weight:600">${label}</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${relative}${day.closed_at ? " · day closed" : ""}</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm" data-rr-iv-prev ${prev ? "" : "disabled"} style="font-size:11px">← Prev day</button>
+      <button class="btn btn-sm" data-rr-iv-today style="font-size:11px">Today</button>
+      <button class="btn btn-sm" data-rr-iv-next ${next ? "" : "disabled"} style="font-size:11px">Next day →</button>
+    </div>`;
 }
 
 function renderInterviewCard(r) {
@@ -637,6 +715,23 @@ document.addEventListener("click", async (e) => {
     );
     await loadInterviewDay();
     await loadPipelineKpis();
+    return;
+  }
+
+  // Interview Day prev/next/today
+  const navBtn = e.target.closest("[data-rr-iv-prev],[data-rr-iv-next],[data-rr-iv-today]");
+  if (navBtn && !navBtn.disabled) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const idx = _ivDatesWithBookings.indexOf(_ivDate);
+    if (navBtn.hasAttribute("data-rr-iv-prev") && idx > 0) {
+      _ivDate = _ivDatesWithBookings[idx - 1];
+    } else if (navBtn.hasAttribute("data-rr-iv-next") && idx >= 0 && idx < _ivDatesWithBookings.length - 1) {
+      _ivDate = _ivDatesWithBookings[idx + 1];
+    } else if (navBtn.hasAttribute("data-rr-iv-today")) {
+      _ivDate = localDate(new Date());
+    }
+    await loadInterviewDay();
     return;
   }
 
