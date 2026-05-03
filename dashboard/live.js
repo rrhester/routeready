@@ -257,44 +257,106 @@ window.goto = function (view) {
 // so the columns the mockup defined for Score / Attendance / Coach show
 // "—" until a future migration fills them in.
 
+// Driver stage state — what the operator has filtered to.
+let _driverStage = "active";
+
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
 
   const { data: rows, error } = await sb.from("drivers")
-    .select("id, full_name, first_name, last_name, email, phone, status, hire_date, tier, score, station:station_id (code)")
+    .select(`id, full_name, first_name, last_name, email, phone, status, hire_date, tier, score,
+             background_check_completed_at, drug_test_completed_at,
+             training_scheduled_at, training_date,
+             station:station_id (code)`)
     .eq("dsp_id", window.RR.dsp.id)
     .order("hire_date", { ascending: false })
     .limit(500);
 
-  // Update the four mini-stat tiles at the top of the roster, regardless
-  // of whether rows came back, so cleared data shows zeros.
   refreshDriverStatRow(rows ?? []);
+  renderDriverTable(rows ?? [], error);
+}
+
+function visibleDriversForStage(rows, stage) {
+  switch (stage) {
+    case "onboarding": return rows.filter(r => r.status === "onboarding");
+    case "active":     return rows.filter(r => r.status === "active");
+    case "atrisk":     return rows.filter(r => r.status === "active" && (r.score ?? 999) < 70);
+    case "inactive":   return rows.filter(r => ["leave","inactive","terminated"].includes(r.status));
+    default:           return rows;
+  }
+}
+
+function renderDriverTable(rows, error) {
+  const tbody = document.getElementById("drivers-tbody");
+  const thead = tbody?.parentElement?.querySelector("thead tr");
+  if (!tbody || !thead) return;
+
+  // Swap headers per stage. Onboarding shows the new milestone columns.
+  if (_driverStage === "onboarding") {
+    thead.innerHTML = `
+      <th>Driver</th>
+      <th>Background check</th>
+      <th>Drug test</th>
+      <th>Training scheduled</th>
+      <th>Status</th>
+      <th>Training date</th>
+      <th></th>
+      <th></th>`;
+  } else {
+    thead.innerHTML = `
+      <th>Driver</th>
+      <th>Station</th>
+      <th>Tenure</th>
+      <th>Score</th>
+      <th>Attendance · 30d</th>
+      <th>Status</th>
+      <th>Last coached</th>
+      <th></th>`;
+  }
 
   if (error) {
     tbody.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
     return;
   }
 
-  if (!rows || rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No drivers yet</strong>When you mark an applicant Hired in Interview Day, they show up here.</td></tr>`;
-    // Reset the stage tab counts.
-    document.querySelectorAll('.dr-subview .stage-tab .stage-tab-count').forEach(el => el.textContent = "0");
+  const visible = visibleDriversForStage(rows, _driverStage);
+  if (visible.length === 0) {
+    const empty = _driverStage === "onboarding"
+      ? "No drivers in onboarding right now."
+      : _driverStage === "active"
+      ? "No active drivers yet. Hire someone in Interview Day to fill this list."
+      : "No drivers in this stage.";
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">${empty}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = rows.map(renderDriverRow).join("");
+  const renderer = _driverStage === "onboarding" ? renderOnboardingRow : renderDriverRow;
+  tbody.innerHTML = visible.map(renderer).join("");
+}
 
-  // Update the stage-tab counts on the drivers subview if those tabs exist.
-  const counts = { active: 0, onboarding: 0, atrisk: 0, inactive: 0 };
-  for (const r of rows) {
-    if (counts[r.status] != null) counts[r.status]++;
-    else if (r.status === "leave" || r.status === "terminated") counts.inactive++;
-  }
-  Object.entries(counts).forEach(([stage, n]) => {
-    const el = document.querySelector(`.dr-subview .stage-tab[data-stage="${stage}"] .stage-tab-count`);
-    if (el) el.textContent = n;
-  });
+function pillCheck(when) {
+  if (when) return `<span class="tag" style="background:var(--green-soft);color:var(--green)">Done · ${new Date(when).toLocaleDateString()}</span>`;
+  return `<span class="tag" style="background:var(--canvas);color:var(--text-subtle)">Pending</span>`;
+}
+
+function renderOnboardingRow(d) {
+  const initials = (d.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+  const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+  const contact = d.phone || d.email || "";
+  return `
+    <tr data-driver-id="${d.id}" data-rr-open-driver>
+      <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
+        <div><div class="cell-name">${escapeHtml(d.full_name ?? "")}</div>
+        <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
+      <td>${pillCheck(d.background_check_completed_at)}</td>
+      <td>${pillCheck(d.drug_test_completed_at)}</td>
+      <td>${d.training_scheduled_at ? new Date(d.training_scheduled_at).toLocaleString() : '<span style="color:var(--text-subtle)">—</span>'}</td>
+      <td>${renderDriverStatusBadge(d.status)}</td>
+      <td class="cell-time">${d.training_date ? new Date(d.training_date).toLocaleDateString() : "—"}</td>
+      <td></td>
+      <td></td>
+    </tr>`;
 }
 
 function renderDriverRow(d) {
@@ -305,7 +367,7 @@ function renderDriverRow(d) {
   const contact = d.phone || d.email || "";
   const statusBadge = renderDriverStatusBadge(d.status);
   return `
-    <tr data-driver-id="${d.id}">
+    <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(d.full_name ?? "")}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
@@ -318,6 +380,16 @@ function renderDriverRow(d) {
       <td></td>
     </tr>`;
 }
+
+// Override the mockup's filterDriversStage so it actually filters the
+// roster against live data. Auto-hides at-risk + inactive when empty
+// since we don't yet have the data model for at-risk.
+const _legacyFilterDrivers = window.filterDriversStage;
+window.filterDriversStage = function (btn) {
+  if (typeof _legacyFilterDrivers === "function") _legacyFilterDrivers(btn);
+  _driverStage = btn.getAttribute("data-stage") || "active";
+  loadDriversRoster();
+};
 
 function renderDriverStatusBadge(s) {
   const map = {
@@ -1640,6 +1712,290 @@ async function saveVideoScreeningSettings() {
 }
 
 // Capture-phase delegate for the video toggle + save.
+// ─── Driver detail drawer ─────────────────────────────────────────────────
+//
+// Opens when an operator clicks a row in the Drivers tab. Three internal
+// tabs: Overview (record fields editor), Coaching (log + add), Documents
+// (list + upload to driver-documents bucket).
+
+let _ddDriver = null;
+let _ddTab = "overview";
+
+async function openDriverDrawer(driverId) {
+  let drawer = document.getElementById("rr-dd-drawer");
+  if (drawer) drawer.remove();
+  drawer = document.createElement("div");
+  drawer.id = "rr-dd-drawer";
+  drawer.innerHTML = `
+    <style>
+      #rr-dd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
+      #rr-dd-panel{width:560px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
+      .dd-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+      .dd-head h3{margin:0;font-size:18px;font-weight:600}
+      .dd-head .sub{font-size:12px;color:var(--text-subtle);margin-top:2px}
+      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:8px;margin:14px 22px 0}
+      .dd-tab{flex:1;background:transparent;border:0;font:inherit;font-size:12px;font-weight:600;color:var(--text-subtle);padding:8px 12px;border-radius:6px;cursor:pointer}
+      .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+      .dd-body{padding:18px 22px;flex:1}
+      .dd-row{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--border)}
+      .dd-row:first-of-type{border-top:0}
+      .dd-row label{font-size:12px;color:var(--text-muted);font-weight:500}
+      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:13px;color:var(--text)}
+      .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent)}
+      .dd-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);position:sticky;bottom:0}
+      .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+      .dd-list-row:first-of-type{border-top:0}
+      .dd-list-title{font-size:13px;font-weight:600}
+      .dd-list-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+    </style>
+    <div id="rr-dd-panel">
+      <div class="dd-head">
+        <div>
+          <h3 id="rr-dd-title">Driver record</h3>
+          <div class="sub" id="rr-dd-sub"></div>
+        </div>
+        <button id="rr-dd-close" style="background:none;border:0;font-size:22px;cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+      </div>
+      <div class="dd-tabs">
+        <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
+        <button class="dd-tab" data-rr-dd-tab="coaching">Coaching</button>
+        <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
+      </div>
+      <div class="dd-body" id="rr-dd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
+    </div>`;
+  document.body.appendChild(drawer);
+
+  drawer.addEventListener("click", (e) => {
+    if (e.target === drawer || e.target.id === "rr-dd-close") drawer.remove();
+  });
+
+  _ddTab = "overview";
+  await loadDriverDrawer(driverId);
+}
+
+async function loadDriverDrawer(driverId) {
+  const { data, error } = await sb.rpc("driver_record", { p_id: driverId });
+  if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
+  _ddDriver = data;
+
+  const drv = data.driver;
+  document.getElementById("rr-dd-title").textContent = drv.full_name || "—";
+  const sub = [
+    drv.station_id ? "Station —" : "No station",
+    drv.hire_date ? `Hired ${new Date(drv.hire_date).toLocaleDateString()}` : null,
+    drv.tier ? `Tier ${drv.tier}` : null,
+  ].filter(Boolean).join(" · ");
+  document.getElementById("rr-dd-sub").textContent = sub;
+
+  renderDriverDrawerTab();
+}
+
+function renderDriverDrawerTab() {
+  document.querySelectorAll("#rr-dd-drawer .dd-tab").forEach(t => {
+    t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
+  });
+  const body = document.getElementById("rr-dd-body");
+  if (_ddTab === "overview")  body.innerHTML = renderOverviewForm(_ddDriver.driver);
+  if (_ddTab === "coaching")  body.innerHTML = renderCoachingTab(_ddDriver.coachings);
+  if (_ddTab === "documents") body.innerHTML = renderDocumentsTab(_ddDriver.documents);
+}
+
+function renderOverviewForm(d) {
+  const showPronouns = window.RR.dsp?.metadata?.drivers?.show_pronouns !== false;
+  const v = (s) => escapeHtml(s ?? "");
+  return `
+    <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" value="${v(d.full_name)}"/></div>
+    <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" value="${v(d.preferred_name)}"/></div>
+    ${showPronouns ? `<div class="dd-row"><label>Pronouns</label><input data-rr-dd-field="pronouns" placeholder="he/him · she/her · they/them" value="${v(d.pronouns)}"/></div>` : ""}
+    <div class="dd-row"><label>Phone</label><input data-rr-dd-field="phone" value="${v(d.phone)}"/></div>
+    <div class="dd-row"><label>Email</label><input data-rr-dd-field="email" value="${v(d.email)}"/></div>
+    <div class="dd-row"><label>Address</label><input data-rr-dd-field="address" value="${v(d.address)}"/></div>
+    <div class="dd-row"><label>Birthday</label><input type="date" data-rr-dd-field="birthday" value="${v(d.birthday)}"/></div>
+    <div class="dd-row"><label>Hire date</label><input type="date" data-rr-dd-field="hire_date" value="${v(d.hire_date)}"/></div>
+    <div class="dd-row"><label>Status</label>
+      <select data-rr-dd-field="status">
+        ${["onboarding","active","leave","inactive","terminated"].map(s => `<option value="${s}" ${s === d.status ? "selected" : ""}>${s}</option>`).join("")}
+      </select>
+    </div>
+    <div class="dd-row"><label>Emergency contact</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(d.emergency_contact_name)}"/></div>
+    <div class="dd-row"><label>Emergency phone</label><input data-rr-dd-field="emergency_contact_phone" placeholder="Phone" value="${v(d.emergency_contact_phone)}"/></div>
+    <div class="dd-row"><label>DL number</label><input data-rr-dd-field="dl_number" value="${v(d.dl_number)}"/></div>
+    <div class="dd-row"><label>DL expires</label><input type="date" data-rr-dd-field="dl_expires_on" value="${v(d.dl_expires_on)}"/></div>
+    <div class="dd-row"><label>Background check</label><input type="datetime-local" data-rr-dd-field="background_check_completed_at" value="${v((d.background_check_completed_at || '').slice(0,16))}"/></div>
+    <div class="dd-row"><label>Drug test</label><input type="datetime-local" data-rr-dd-field="drug_test_completed_at" value="${v((d.drug_test_completed_at || '').slice(0,16))}"/></div>
+    <div class="dd-row"><label>Training scheduled</label><input type="datetime-local" data-rr-dd-field="training_scheduled_at" value="${v((d.training_scheduled_at || '').slice(0,16))}"/></div>
+    <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(d.training_date)}"/></div>
+    <div class="dd-foot"><button class="btn btn-primary" data-rr-dd-save>Save record</button></div>`;
+}
+
+function renderCoachingTab(coachings) {
+  const list = (coachings || []).map(c => `
+    <div class="dd-list-row">
+      <div>
+        <div class="dd-list-title">${escapeHtml(c.summary || c.topic)}</div>
+        <div class="dd-list-sub">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${new Date(c.occurred_at).toLocaleDateString()}</div>
+        ${c.notes ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5">${escapeHtml(c.notes)}</div>` : ""}
+      </div>
+    </div>`).join("");
+  return `
+    <button class="btn btn-primary" data-rr-add-coaching style="margin-bottom:14px">+ Log coaching</button>
+    <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No coachings logged yet.</div>`}</div>`;
+}
+
+function renderDocumentsTab(docs) {
+  const list = (docs || []).map(x => `
+    <div class="dd-list-row">
+      <div>
+        <div class="dd-list-title">${escapeHtml(x.label || x.kind.replace(/_/g," "))}</div>
+        <div class="dd-list-sub">${(x.kind || "").replace(/_/g," ")} · ${x.expires_on ? "Expires " + new Date(x.expires_on).toLocaleDateString() : "No expiry"}</div>
+      </div>
+      <div><button class="btn btn-sm" data-rr-doc-open="${escapeHtml(x.file_path)}">Open</button></div>
+    </div>`).join("");
+  return `
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:13px">
+        ${["drivers_license","mvr","dot_medical","background_check","social_security","i9","w4","direct_deposit","vehicle_registration","insurance","other"].map(k => `<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}
+      </select>
+      <input type="file" id="rr-doc-file" />
+      <button class="btn btn-primary" data-rr-doc-upload>Upload</button>
+    </div>
+    <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No documents on file.</div>`}</div>`;
+}
+
+// Click delegate for the drawer (tabs, save, coaching log, doc upload).
+document.addEventListener("click", async (e) => {
+  // Open drawer from row
+  const row = e.target.closest("[data-rr-open-driver]");
+  if (row) {
+    const id = row.getAttribute("data-driver-id");
+    if (id) await openDriverDrawer(id);
+    return;
+  }
+
+  // Tab switch inside drawer
+  const tab = e.target.closest("#rr-dd-drawer [data-rr-dd-tab]");
+  if (tab) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    _ddTab = tab.getAttribute("data-rr-dd-tab");
+    renderDriverDrawerTab();
+    return;
+  }
+
+  // Save record
+  if (e.target.closest("[data-rr-dd-save]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const payload = {};
+    document.querySelectorAll("#rr-dd-drawer [data-rr-dd-field]").forEach(el => {
+      payload[el.getAttribute("data-rr-dd-field")] = el.value;
+    });
+    if (payload.first_name === undefined && payload.full_name) {
+      const parts = payload.full_name.split(/\s+/);
+      payload.first_name = parts[0] || null;
+      payload.last_name  = parts.slice(1).join(" ") || null;
+    }
+    const { error } = await sb.rpc("update_driver_record", { p_id: _ddDriver.driver.id, p_payload: payload });
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    toast("Driver record saved", "success");
+    await loadDriverDrawer(_ddDriver.driver.id);
+    await loadDriversRoster();
+    return;
+  }
+
+  // Add coaching
+  if (e.target.closest("[data-rr-add-coaching]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openCoachingForm(_ddDriver.driver.id);
+    return;
+  }
+
+  // Open document — fetch a signed URL
+  const docBtn = e.target.closest("[data-rr-doc-open]");
+  if (docBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const path = docBtn.getAttribute("data-rr-doc-open");
+    const { data: signed } = await sb.storage.from("driver-documents").createSignedUrl(path, 60 * 60);
+    if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+    return;
+  }
+
+  // Upload document
+  if (e.target.closest("[data-rr-doc-upload]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const file = document.getElementById("rr-doc-file")?.files?.[0];
+    const kind = document.getElementById("rr-doc-kind")?.value;
+    if (!file) { toast("Choose a file first", "warn"); return; }
+    const path = `${window.RR.dsp.id}/${_ddDriver.driver.id}/${Date.now()}-${file.name}`;
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, {
+      contentType: file.type, upsert: false,
+    });
+    if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+    const { error: insErr } = await sb.from("driver_documents").insert({
+      dsp_id: window.RR.dsp.id,
+      driver_id: _ddDriver.driver.id,
+      kind, label: file.name, file_path: path,
+      file_size: file.size, mime_type: file.type,
+    });
+    if (insErr) { toast("Save failed: " + insErr.message, "warn"); return; }
+    toast("Document uploaded", "success");
+    await loadDriverDrawer(_ddDriver.driver.id);
+  }
+}, true);
+
+function openCoachingForm(driverId) {
+  let m = document.getElementById("rr-coach-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-coach-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:480px;width:100%">
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Log a coaching</h3>
+      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Topic</label>
+      <select id="rr-coach-topic" class="form-input" style="width:100%;margin-bottom:10px">
+        ${["safety","performance","attendance","behavior","recognition","other"].map(t => `<option value="${t}">${t}</option>`).join("")}
+      </select>
+      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Type</label>
+      <select id="rr-coach-type" class="form-input" style="width:100%;margin-bottom:10px">
+        ${["in_person","sms","email","phone_call","video_call","documented_warning"].map(t => `<option value="${t}">${t.replace(/_/g," ")}</option>`).join("")}
+      </select>
+      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Summary</label>
+      <input id="rr-coach-summary" class="form-input" style="width:100%;margin-bottom:10px" placeholder="One-line headline" />
+      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Notes</label>
+      <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:90px;margin-bottom:14px"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" data-rr-coach-cancel>Cancel</button>
+        <button class="btn btn-primary" data-rr-coach-save>Log it</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-coach-cancel]") || e.target === m) { m.remove(); return; }
+    if (e.target.closest("[data-rr-coach-save]")) {
+      const payload = {
+        dsp_id: window.RR.dsp.id,
+        driver_id: driverId,
+        coach_user_id: window.RR.user.id,
+        topic: document.getElementById("rr-coach-topic").value,
+        type:  document.getElementById("rr-coach-type").value,
+        summary: document.getElementById("rr-coach-summary").value.trim() || null,
+        notes:   document.getElementById("rr-coach-notes").value.trim() || null,
+      };
+      if (!payload.summary && !payload.notes) { toast("Add a summary or notes", "warn"); return; }
+      const { error } = await sb.from("coachings").insert(payload);
+      if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      m.remove();
+      toast("Coaching logged", "success");
+      await loadDriverDrawer(driverId);
+    }
+  });
+}
+
+
 document.addEventListener("click", async (e) => {
   const tgBtn = e.target.closest("[data-rr-video-toggle]");
   if (tgBtn) {
