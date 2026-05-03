@@ -598,6 +598,7 @@ async function loadDashboardWeather() {
     const points = await pointsRes.json();
     const forecastUrl = points?.properties?.forecast;
     const hourlyUrl   = points?.properties?.forecastHourly;
+    const stationsUrl = points?.properties?.observationStations;
     const locName = (() => {
       const rl = points?.properties?.relativeLocation?.properties;
       if (!rl) return "";
@@ -605,14 +606,41 @@ async function loadDashboardWeather() {
     })();
     if (!forecastUrl) throw new Error("no forecast URL from NWS");
 
-    const [fRes, alertsRes, hRes] = await Promise.all([
+    const [fRes, alertsRes, hRes, stationsRes, sunRes] = await Promise.all([
       fetch(forecastUrl, { headers }),
       fetch(`https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`, { headers }),
       hourlyUrl ? fetch(hourlyUrl, { headers }) : Promise.resolve(null),
+      stationsUrl ? fetch(stationsUrl, { headers }).catch(() => null) : Promise.resolve(null),
+      fetch(`https://api.sunrise-sunset.org/json?lat=${lat.toFixed(4)}&lng=${lon.toFixed(4)}&formatted=0`).catch(() => null),
     ]);
     const forecast = await fRes.json();
     const alerts   = await alertsRes.json();
     const hourly   = hRes ? await hRes.json() : null;
+
+    // Latest observation from nearest station (gust, pressure, visibility, real humidity)
+    let obs = null;
+    try {
+      if (stationsRes && stationsRes.ok) {
+        const stations = await stationsRes.json();
+        const stationId = stations?.features?.[0]?.properties?.stationIdentifier;
+        if (stationId) {
+          const obsRes = await fetch(`https://api.weather.gov/stations/${stationId}/observations/latest`, { headers });
+          if (obsRes.ok) {
+            const o = await obsRes.json();
+            obs = o?.properties || null;
+          }
+        }
+      }
+    } catch (e) { /* obs is optional */ }
+
+    // Sunrise / sunset (UTC ISO → browser local)
+    let sun = null;
+    try {
+      if (sunRes && sunRes.ok) {
+        const sj = await sunRes.json();
+        if (sj?.status === "OK") sun = sj.results;
+      }
+    } catch (e) { /* optional */ }
 
     const periods = forecast?.properties?.periods || [];
     if (periods.length === 0) throw new Error("no forecast periods");
@@ -706,6 +734,89 @@ async function loadDashboardWeather() {
 
     const nowWind = parseInt(String(now.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
     const nowDir = now.windDirection || "";
+
+    // Live observation conversions
+    const cToF = (c) => c == null ? null : Math.round(c * 9/5 + 32);
+    const kphToMph = (k) => k == null ? null : Math.round(k * 0.621371);
+    const paToInHg = (p) => p == null ? null : (p * 0.0002953).toFixed(2);
+    const mToMi = (m) => m == null ? null : (m / 1609.344).toFixed(1);
+    const obsTempF = obs ? cToF(obs.temperature?.value) : null;
+    const obsHumidity = obs ? Math.round(obs.relativeHumidity?.value ?? -1) : -1;
+    const obsGustMph = obs ? kphToMph(obs.windGust?.value) : null;
+    const obsPressureInHg = obs ? paToInHg(obs.barometricPressure?.value) : null;
+    const obsVisibilityMi = obs ? mToMi(obs.visibility?.value) : null;
+    const obsTimestamp = obs?.timestamp || null;
+
+    // Hourly humidity for index 0 (right now-ish) for "feels like" fallback
+    const h0 = hourlyPeriods[0] || {};
+    const rhNow = obsHumidity > 0 ? obsHumidity : (h0.relativeHumidity?.value ?? null);
+    const tNow = obsTempF != null ? obsTempF : now.temperature;
+    const windNow = obsGustMph != null ? obsGustMph : nowWind;
+
+    // Heat index (Rothfusz) — valid when T >= 80°F and RH >= 40
+    const heatIndex = (T, RH) => {
+      if (T < 80 || RH < 40) return null;
+      const HI = -42.379 + 2.04901523*T + 10.14333127*RH - 0.22475541*T*RH
+                - 0.00683783*T*T - 0.05481717*RH*RH + 0.00122874*T*T*RH
+                + 0.00085282*T*RH*RH - 0.00000199*T*T*RH*RH;
+      return Math.round(HI);
+    };
+    // Wind chill — valid when T <= 50°F and V >= 3 mph
+    const windChill = (T, V) => {
+      if (T > 50 || V < 3) return null;
+      const WC = 35.74 + 0.6215*T - 35.75*Math.pow(V, 0.16) + 0.4275*T*Math.pow(V, 0.16);
+      return Math.round(WC);
+    };
+    let feelsLike = null;
+    let feelsKind = "";
+    if (rhNow != null) {
+      const hi = heatIndex(tNow, rhNow);
+      if (hi != null && hi !== tNow) { feelsLike = hi; feelsKind = "Feels like"; }
+    }
+    if (feelsLike == null) {
+      const wc = windChill(tNow, windNow);
+      if (wc != null && wc !== tNow) { feelsLike = wc; feelsKind = "Feels like"; }
+    }
+
+    // Heat-index advisory (highest takes priority of existing peakTemp checks)
+    if (feelsLike != null && feelsLike >= 100 && peakTemp < 95) {
+      advisories.unshift(`Heat index <strong>${feelsLike}°F</strong> right now — push hydration breaks, watch for heat stress.`);
+    }
+
+    // Sunrise/sunset (display in browser local time)
+    const fmtTime = (iso) => {
+      try {
+        const d = new Date(iso);
+        return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
+      } catch { return ""; }
+    };
+    const sunLine = sun
+      ? (() => {
+          const sr = fmtTime(sun.sunrise);
+          const ss = fmtTime(sun.sunset);
+          // Headlight cutoff context — civil twilight end
+          const ct = fmtTime(sun.civil_twilight_end);
+          const now = new Date();
+          const sunsetD = new Date(sun.sunset);
+          const minsToSunset = Math.round((sunsetD - now) / 60000);
+          let cutoffNote = "";
+          if (minsToSunset > 0 && minsToSunset < 180) {
+            cutoffNote = ` · <strong style="color:var(--amber)">${minsToSunset >= 60 ? Math.floor(minsToSunset/60)+"h " : ""}${minsToSunset%60}m to sunset</strong>`;
+          }
+          return `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">☀ Sunrise <strong style="color:var(--text)">${sr}</strong> · Sunset <strong style="color:var(--text)">${ss}</strong>${ct ? ` · Headlights ${ct}` : ""}${cutoffNote}</div>`;
+        })()
+      : "";
+
+    // "Right now" detail line — humidity, gust, pressure, visibility
+    const obsBits = [];
+    if (rhNow != null && rhNow >= 0) obsBits.push(`Humidity <strong style="color:var(--text)">${rhNow}%</strong>`);
+    if (obsGustMph && obsGustMph > nowWind) obsBits.push(`Gust <strong style="color:${obsGustMph >= 25 ? "var(--red)" : obsGustMph >= 18 ? "var(--amber)" : "var(--text)"}">${obsGustMph} mph</strong>`);
+    if (obsPressureInHg) obsBits.push(`Pressure <strong style="color:var(--text)">${obsPressureInHg} inHg</strong>`);
+    if (obsVisibilityMi && parseFloat(obsVisibilityMi) < 5) obsBits.push(`Vis <strong style="color:var(--amber)">${obsVisibilityMi} mi</strong>`);
+    const obsLine = obsBits.length
+      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${obsBits.join(" · ")}</div>`
+      : "";
+
     const today    = dayPairs[0];
     const tomorrow = dayPairs[1];
     const dayLine = (d) => d
@@ -717,14 +828,17 @@ async function loadDashboardWeather() {
       : "";
 
     body.innerHTML = `
-      <div class="task-eyebrow" style="margin-bottom:2px">Weather${locName ? ` · ${escapeHtml(locName)}` : ""}</div>
+      <div class="task-eyebrow" style="margin-bottom:2px">Weather${locName ? ` · ${escapeHtml(locName)}` : ""}${obsTimestamp ? ` · obs ${fmtTime(obsTimestamp)}` : ""}</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;flex-wrap:wrap">
-        <div style="font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums">${now.temperature}°${escapeHtml(now.temperatureUnit || "F")}</div>
+        <div style="font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums">${tNow}°F</div>
         <div style="font-size:12px;color:var(--text);line-height:1.3;font-weight:600">${escapeHtml(now.shortForecast || "")}</div>
+        ${feelsLike != null ? `<div style="font-size:11px;color:${feelsLike >= 100 ? "var(--red)" : feelsLike >= 90 ? "var(--amber)" : feelsLike <= 20 ? "#5b8def" : "var(--text-subtle)"};font-weight:600">${feelsKind} <span style="font-variant-numeric:tabular-nums">${feelsLike}°F</span></div>` : ""}
       </div>
       <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">
         ${nowWind ? `Wind ${nowWind} mph${nowDir ? ` ${escapeHtml(nowDir)}` : ""}` : ""}${peakRain ? `${nowWind ? " · " : ""}${peakRain}% peak precip next 14h` : ""}
       </div>
+      ${obsLine}
+      ${sunLine}
       <div style="display:flex;gap:3px;margin-top:8px;overflow-x:auto;padding-bottom:2px">${hourlyHtml}</div>
       <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px">
         ${dayLine(today)}
