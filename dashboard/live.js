@@ -1969,6 +1969,7 @@ async function openDriverDrawer(driverId) {
       </div>
       <div class="dd-tabs">
         <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
+        <button class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button class="dd-tab" data-rr-dd-tab="license">License</button>
         <button class="dd-tab" data-rr-dd-tab="coaching">Coaching</button>
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
@@ -2020,10 +2021,37 @@ function renderDriverDrawerTab() {
     t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
   });
   const body = document.getElementById("rr-dd-body");
-  if (_ddTab === "overview")  renderOverviewForm(body, _ddDriver.driver);
-  if (_ddTab === "license")   renderLicenseTab(body, _ddDriver.driver);
-  if (_ddTab === "coaching")  body.innerHTML = renderCoachingTab(_ddDriver.coachings);
-  if (_ddTab === "documents") body.innerHTML = renderDocumentsTab(_ddDriver.documents);
+  if (_ddTab === "overview")     renderOverviewForm(body, _ddDriver.driver);
+  if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
+  if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
+  if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings);
+  if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
+}
+
+function renderAvailabilityTab(body, d) {
+  const v = (s) => escapeHtml(s ?? "");
+  const meta = d.metadata || {};
+  const avail = meta.availability || {};
+  const days = avail.days || [];
+  const notes = avail.notes || "";
+  const isAvail = (k) => days.includes(k);
+  const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
+  const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const checkboxes = dayKey.map(k => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
+      <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
+      <span style="font-weight:600">${dayLabel[k]}</span>
+    </label>`).join("");
+  body.innerHTML = `
+    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
+      <label>Available days</label>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${checkboxes}</div>
+    </div>
+    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
+      <label>Notes</label>
+      <textarea data-rr-avail-notes rows="3" placeholder="e.g. school pickup Wed afternoons · prefers AM routes" style="resize:vertical;min-height:64px">${v(notes)}</textarea>
+    </div>
+    <div class="dd-foot"><button class="btn btn-primary" data-rr-avail-save>Save availability</button></div>`;
 }
 
 async function renderOverviewForm(body, d) {
@@ -2161,6 +2189,25 @@ document.addEventListener("click", async (e) => {
     e.stopImmediatePropagation();
     _ddTab = tab.getAttribute("data-rr-dd-tab");
     renderDriverDrawerTab();
+    return;
+  }
+
+  // Availability save (own button — writes drivers.metadata.availability)
+  if (e.target.closest("[data-rr-avail-save]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const driverId = _ddDriver?.driver?.id;
+    if (!driverId) { toast("Save the driver first, then set availability", "warn"); return; }
+    const days = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-day]"))
+      .filter(el => el.checked)
+      .map(el => el.dataset.rrAvailDay);
+    const notes = document.querySelector("#rr-dd-drawer [data-rr-avail-notes]")?.value || "";
+    const meta = _ddDriver.driver.metadata || {};
+    const newMeta = { ...meta, availability: { days, notes } };
+    const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", driverId);
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    _ddDriver.driver.metadata = newMeta;
+    toast("Availability saved", "success");
     return;
   }
 
@@ -3561,7 +3608,7 @@ async function renderScheduleWeek() {
     sb.from("drivers")
       .select("id, full_name, status, station_id, hire_date, tier, station:station_id (code)")
       .eq("dsp_id", dspId)
-      .in("status", ["active", "onboarding"])
+      .eq("status", "active")
       .order("full_name"),
     sb.from("time_off_requests")
       .select("id, driver_id, start_date, end_date, status")
@@ -3698,28 +3745,59 @@ async function renderScheduleWeek() {
     </div>`;
   }).join("");
 
-  // Unassigned row (open shifts) — real DB rows + virtual chips computed
-  // from OKAMI demand minus filled minus existing real-open. Always show
-  // when there's any need so demand is visible without manual auto-fill.
-  const totalRealOpen = Array.from(openShiftsByDate.values()).reduce((s, a) => s + a.length, 0);
-  const totalAllOpen  = totalRealOpen + totalVirtual;
-  const unassignedHtml = totalAllOpen ? (() => {
+  // Unassigned slots → one row per Potential Driver (PD). Total PD rows
+  // equal the peak unfilled day across the week. For each PD row r, each
+  // day cell shows an open chip if that day still has unfilled demand at
+  // slot index r — real open shifts first, then virtual chips computed
+  // from OKAMI demand.
+  const stationCodeById = new Map();
+  for (const c of (grid.coverage || [])) {
+    if (c.station_id) stationCodeById.set(c.station_id, c.station_code);
+  }
+  const openSlotsByDate = new Map();
+  for (const iso of days) {
+    const slots = [];
+    for (const sh of (openShiftsByDate.get(iso) || [])) {
+      slots.push({
+        kind: "real",
+        shift_id: sh.id,
+        route_code: sh.route_code,
+        station_code: stationCodeById.get(sh.station_id) || "open",
+      });
+    }
+    for (const v of (virtualByDate.get(iso) || [])) {
+      slots.push({ kind: "virtual", station_id: v.station_id, station_code: v.station_code });
+    }
+    openSlotsByDate.set(iso, slots);
+  }
+  let peakUnfilled = 0;
+  let totalAllOpen = 0;
+  for (const slots of openSlotsByDate.values()) {
+    if (slots.length > peakUnfilled) peakUnfilled = slots.length;
+    totalAllOpen += slots.length;
+  }
+
+  const pdRowsHtml = peakUnfilled === 0 ? "" : Array.from({ length: peakUnfilled }, (_, r) => {
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
-      const realList = openShiftsByDate.get(iso) || [];
-      const virtList = virtualByDate.get(iso) || [];
-      if (realList.length === 0 && virtList.length === 0) {
-        return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
+      const slots = openSlotsByDate.get(iso) || [];
+      if (r >= slots.length) return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
+      const slot = slots[r];
+      const data = `data-rr-cell="open" data-rr-cell-date="${iso}"`;
+      if (slot.kind === "real") {
+        return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}">+ ${escapeHtml(slot.route_code || "open")}</div></div>`;
       }
-      const realChips = realList.map(sh => `<div class="shift-chip open" data-rr-shift-id="${sh.id}">+ ${escapeHtml(sh.route_code || "open")}</div>`).join("");
-      const virtChips = virtList.map(v => `<div class="shift-chip open" data-rr-virtual-station="${v.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(v.station_code || "open")}</div>`).join("");
-      return `<div class="${cls}" data-rr-cell="open" data-rr-cell-date="${iso}">${realChips}${virtChips}</div>`;
+      return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(slot.station_code || "open")}</div></div>`;
     }).join("");
+    const pdNum = r + 1;
     return `<div class="cal-grid" style="background:var(--canvas)">
-      <div class="cal-row-label" style="background:var(--canvas)"><div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><div><div class="cal-row-label-name" style="color:var(--text-muted)">Unassigned</div><div class="cal-row-label-meta">${totalAllOpen} route${totalAllOpen === 1 ? "" : "s"} need a driver${totalVirtual ? ` · ${totalVirtual} from OKAMI` : ""}</div></div></div>
+      <div class="cal-row-label" style="background:var(--canvas)">
+        <div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong);font-weight:700;font-size:11px">PD</div>
+        <div><div class="cal-row-label-name" style="color:var(--text-muted)">PD ${pdNum}</div><div class="cal-row-label-meta">Potential driver slot</div></div>
+      </div>
       ${cells}
     </div>`;
-  })() : "";
+  }).join("");
 
   // Coverage strip.
   const covCellCls = (filled, needed) => {
@@ -3737,13 +3815,13 @@ async function renderScheduleWeek() {
     ? `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet. <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-drivers>Add drivers →</span></div>`
     : "";
 
-  wrap.insertAdjacentHTML("beforeend", driverRowsHtml + unassignedHtml + coverageStripHtml + emptyHtml);
+  wrap.insertAdjacentHTML("beforeend", driverRowsHtml + pdRowsHtml + coverageStripHtml + emptyHtml);
 
   // Strip mockup-injected banners that reference fake RR_DRIVERS data.
   const lic = document.getElementById("sched-license-banner");
   if (lic) lic.remove();
 
-  renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalOpen);
+  renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalAllOpen);
 }
 
 function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalOpen) {
