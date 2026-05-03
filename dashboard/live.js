@@ -3852,9 +3852,15 @@ async function autoAssignDriversForWeek() {
     }
   }
 
+  // Sort: date asc → regular shifts before cushion (extras) → starts_at asc.
+  // Default rule per the operator: fill non-cushion before EX shifts so the
+  // buffer only gets a driver after all the planned routes are covered.
   const openShifts = shifts.filter(sh => !sh.driver_id && sh.status === "scheduled")
     .sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      const ac = a.is_cushion ? 1 : 0;
+      const bc = b.is_cushion ? 1 : 0;
+      if (ac !== bc) return ac - bc;
       return (a.starts_at || "").localeCompare(b.starts_at || "");
     });
 
