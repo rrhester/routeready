@@ -4825,6 +4825,10 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       <span>Open shifts</span>
       <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${openShifts.length} open</span>
     </div>
+    <button type="button" id="rr-unassign-week"
+      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
+      Unassign all shifts this week
+    </button>
     <div style="display:flex;gap:4px;background:var(--canvas);padding:3px;border-radius:6px;margin-bottom:8px">
       <button type="button" class="rr-pool-sort-btn" data-rr-pool-sort="day"
         style="flex:1;border:0;background:${_poolSortMode === 'day' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:11px;font-weight:600;color:${_poolSortMode === 'day' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Day</button>
@@ -4917,6 +4921,29 @@ function bindSchedWeekNav() {
     const mode = sortBtn.dataset.rrPoolSort;
     if (!mode || mode === _poolSortMode) return;
     _poolSortMode = mode;
+    renderScheduleWeek();
+  });
+
+  // ── Unassign all shifts this week
+  sub.addEventListener("click", async (e) => {
+    if (e.target.id !== "rr-unassign-week") return;
+    e.preventDefault();
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId || !_schedStart) return;
+    const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+    if (!confirm(`Unassign every driver from every shift between ${_schedStart} and ${weekEndIso}?\n\nShifts stay; only the driver assignments are cleared.`)) return;
+    e.target.disabled = true;
+    e.target.textContent = "Unassigning…";
+    const { error, count } = await sb.from("shifts")
+      .update({ driver_id: null }, { count: "exact" })
+      .eq("dsp_id", dspId)
+      .gte("date", _schedStart)
+      .lte("date", weekEndIso)
+      .not("driver_id", "is", null);
+    e.target.disabled = false;
+    e.target.textContent = "Unassign all shifts this week";
+    if (error) { toast("Unassign failed: " + error.message, "warn"); return; }
+    toast(`Unassigned ${count ?? "all"} shifts for the week`, "success");
     renderScheduleWeek();
   });
 
