@@ -961,11 +961,11 @@ async function loadWeatherRadar() {
   // First-time map setup
   if (!_weatherRadarState || !_weatherRadarState.map) {
     const map = L.map(mapEl, {
-      center: [lat, lon],
-      zoom: 8,
       zoomControl: true,
       scrollWheelZoom: false,
       attributionControl: false,
+      minZoom: 5,
+      maxZoom: 11,
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
@@ -975,18 +975,21 @@ async function loadWeatherRadar() {
     }).addTo(map).bindTooltip('Station', { permanent: false });
 
     // 2hr drive ring (~120 mi at typical highway speeds)
-    L.circle([lat, lon], {
+    const ring = L.circle([lat, lon], {
       radius: 193121, color: '#3b82f6', weight: 1.5, dashArray: '6 4',
       fillColor: '#3b82f6', fillOpacity: 0.04,
     }).addTo(map).bindTooltip('2hr drive zone (~120 mi)', { permanent: false });
 
+    // Fit to the full 2hr ring + padding so the operator sees weather
+    // approaching from outside the coverage zone too.
+    map.fitBounds(ring.getBounds().pad(0.15));
+
     _weatherRadarState = {
       map, frames: [], currentIdx: 0, layers: new Map(),
-      playing: true, timer: null, host: '', pastCount: 0, color: 2,
+      playing: true, timer: null, host: '', pastCount: 0, color: 2, ring,
     };
 
-    // Recompute size after layout settles
-    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => { map.invalidateSize(); map.fitBounds(ring.getBounds().pad(0.15)); }, 150);
   }
 
   // Refresh frame catalog
@@ -1046,8 +1049,10 @@ function setRadarFrame(idx) {
 
   if (!s.layers.has(idx)) {
     const f = s.frames[idx];
-    const url = `${s.host}${f.path}/256/{z}/{x}/{y}/${s.color}/1_1.png`;
-    const layer = L.tileLayer(url, { opacity: 0, tileSize: 256, zIndex: 100 + idx });
+    // 512px tiles cover the full zoom range we use; 256px versions return
+    // "Zoom Level Not Supported" tiles for some color/smooth/snow combos.
+    const url = `${s.host}${f.path}/512/{z}/{x}/{y}/${s.color}/1_1.png`;
+    const layer = L.tileLayer(url, { opacity: 0, tileSize: 512, zoomOffset: -1, zIndex: 100 + idx });
     layer.addTo(s.map);
     s.layers.set(idx, layer);
   }
