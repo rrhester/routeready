@@ -6378,6 +6378,13 @@ a{color:inherit;text-decoration:none}
                 <input class="form-input" id="rr-set-max-days" type="number" min="1" max="7" step="1" style="width:120px"/>
                 <span style="font-size:11px;color:var(--text-subtle);margin-left:6px">per driver · auto-assign cap</span>
               </div>
+              <div style="grid-column:1 / -1;display:flex;align-items:flex-start;gap:10px;background:var(--canvas);padding:10px 12px;border-radius:8px">
+                <input type="checkbox" id="rr-set-availability-override" style="margin-top:3px;cursor:pointer"/>
+                <label for="rr-set-availability-override" style="cursor:pointer">
+                  <div style="font-size:12px;font-weight:600;color:var(--text)">Allow availability override</div>
+                  <div style="font-size:11px;color:var(--text-subtle);line-height:1.4;margin-top:2px">Auto-fill ignores each driver's availability when no eligible driver matches a day. Use this on tight weeks when you need every shift filled.</div>
+                </label>
+              </div>
               <div style="grid-column:1 / -1">
                 <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Wave start times</div>
                 <div id="rr-set-waves" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>

@@ -4105,6 +4105,10 @@ async function loadSchedulingSettings() {
   if (blockEl)   blockEl.value   = s.default_block_hours ?? 10;
   if (cushEl)    cushEl.value    = s.cushion_pct ?? 10;
   if (maxDaysEl) maxDaysEl.value = s.max_days_per_week ?? 5;
+  const overrideEl = document.getElementById("rr-set-availability-override");
+  if (overrideEl) overrideEl.checked = !!s.allow_availability_override;
+  // Cache the effective settings so auto-assign reads the per-week values.
+  window._rrEffectiveSettings = s;
   if (wavesEl) {
     const waves = Array.isArray(s.waves) && s.waves.length ? s.waves : [{ start: "07:00" }];
     wavesEl.innerHTML = waves.map(w => _renderWaveRow(w.start)).join("");
@@ -4160,6 +4164,7 @@ document.addEventListener("click", async (e) => {
     const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
     const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
     const maxDays = Math.max(1, Math.min(7, parseInt(document.getElementById("rr-set-max-days")?.value, 10) || 5));
+    const allowOverride = !!document.getElementById("rr-set-availability-override")?.checked;
     const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
       .map(inp => ({ start: inp.value || "07:00" }))
       .filter(w => w.start);
@@ -4175,6 +4180,7 @@ document.addEventListener("click", async (e) => {
         default_block_hours: block,
         cushion_pct: cushion,
         max_days_per_week: maxDays,
+        allow_availability_override: allowOverride,
         waves,
         timezone: tz,
       },
@@ -4277,7 +4283,18 @@ async function autoAssignDriversForWeek() {
 
   const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
   const weekEndIso = fmtIsoDate(weekEnd);
-  const maxDays = Math.max(1, Math.min(7, window.RR?.dsp?.metadata?.scheduling?.max_days_per_week ?? 5));
+
+  // Read the per-week settings (max days + override) so the cap and
+  // override flag come from the visible week, not stale DSP metadata.
+  let maxDays = 5;
+  let allowOverride = false;
+  try {
+    const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
+    if (ws) {
+      maxDays = Math.max(1, Math.min(7, ws.max_days_per_week ?? 5));
+      allowOverride = !!ws.allow_availability_override;
+    }
+  } catch (_) { /* fall back to defaults */ }
 
   // Query shifts directly (instead of via schedule_grid) so we always get
   // the is_cushion column even on DBs that haven't run migration 0027.
@@ -4366,15 +4383,23 @@ async function autoAssignDriversForWeek() {
     const dt = new Date(sh.date + "T12:00:00");
     const dow = DOW[dt.getDay()];
 
-    const candidates = drivers.filter(d => {
-      const days = (d.metadata?.availability?.days) || [];
-      if (!days.includes(dow)) return false;
+    // Try strict-availability candidates first; if override is allowed
+    // and none match, fall through to "any active non-PTO driver".
+    const baseFilter = (d) => {
       if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
       if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
-      // Cap: don't schedule a driver more than max_days this week
       if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
       return true;
+    };
+    let candidates = drivers.filter(d => {
+      const days = (d.metadata?.availability?.days) || [];
+      if (!days.includes(dow)) return false;
+      return baseFilter(d);
     });
+    if (candidates.length === 0 && allowOverride) {
+      candidates = drivers.filter(baseFilter);
+    }
+
 
     if (candidates.length === 0) continue;
 
