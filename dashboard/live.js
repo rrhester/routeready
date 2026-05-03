@@ -2448,34 +2448,98 @@ function showPinOverlay(target) {
   ov.id = "rr-pin-overlay";
   ov.style.cssText = `
     position:fixed; z-index:9998;
-    left:${Math.min(rect.right - 140, window.innerWidth - 160)}px;
-    top:${rect.top - 4}px;
+    left:${Math.min(rect.right - 180, window.innerWidth - 200)}px;
+    top:${Math.max(8, rect.top - 44)}px;
     background:var(--surface); border:1px solid var(--border);
-    border-radius:10px; padding:6px 8px;
+    border-radius:10px; padding:6px 6px 6px 10px;
     box-shadow:0 6px 20px rgba(0,0,0,.25);
-    display:flex; align-items:center; gap:6px;
+    display:flex; align-items:center; gap:8px;
     animation:rr-pop .12s ease-out;
+    font-size:12px;
   `;
   ov.innerHTML = `
-    <button class="btn btn-sm" style="font-size:12px;display:flex;align-items:center;gap:6px">
+    <button class="btn btn-sm btn-primary" data-rr-pin-confirm style="font-size:12px;display:flex;align-items:center;gap:6px;margin:0">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>
       ${pinned ? "Unpin" : "Pin to dashboard"}
-    </button>`;
+    </button>
+    <button data-rr-pin-cancel aria-label="Cancel" style="background:none;border:0;font-size:18px;line-height:1;padding:2px 6px;cursor:pointer;color:var(--text-muted)">×</button>`;
   document.body.appendChild(ov);
 
-  const close = () => { ov.remove(); document.removeEventListener("click", clickOff, true); };
-  const clickOff = (ev) => { if (!ov.contains(ev.target)) close(); };
-  // Defer click-off binding so the same click that started the long-press doesn't immediately close.
-  setTimeout(() => document.addEventListener("click", clickOff, true), 0);
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
 
-  ov.querySelector("button").addEventListener("click", (e) => {
+  ov.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const nowPinned = togglePin(kind, ref, label);
-    toast(nowPinned ? `Pinned "${label}"` : `Unpinned "${label}"`, "success");
-    close();
+    if (e.target.closest("[data-rr-pin-cancel]")) { close(); return; }
+    if (e.target.closest("[data-rr-pin-confirm]")) {
+      const nowPinned = togglePin(kind, ref, label);
+      toast(nowPinned ? `Pinned "${label}"` : `Unpinned "${label}"`, "success");
+      close();
+    }
   });
 }
+
+
+// ─── Hover pin icon (the easy desktop path) ──────────────────────────────
+//
+// In addition to the long-press gesture, every pinnable element gets a
+// small floating pin icon visible on hover. One click toggles. This is
+// the primary desktop interaction; long-press is the touch fallback.
+
+function ensurePinIcon(el) {
+  if (el.querySelector(":scope > .rr-pin-icon")) return;
+  const kind = el.getAttribute("data-rr-pin-kind");
+  const ref  = el.getAttribute("data-rr-pin-ref");
+  if (!kind || !ref) return;
+
+  // Position the icon absolutely; only show on hover. Inline styles so
+  // we don't need extra CSS edits in the static HTML.
+  if (getComputedStyle(el).position === "static") el.style.position = "relative";
+  const icon = document.createElement("button");
+  icon.className = "rr-pin-icon";
+  icon.type = "button";
+  icon.setAttribute("aria-label", "Pin to dashboard");
+  icon.setAttribute("title", "Pin to dashboard");
+  icon.style.cssText = `
+    position:absolute; top:6px; right:6px; z-index:5;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:6px; padding:4px;
+    width:24px; height:24px; cursor:pointer;
+    display:none; align-items:center; justify-content:center;
+    color:var(--text-muted);
+  `;
+  icon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>`;
+  el.appendChild(icon);
+
+  el.addEventListener("mouseenter", () => { icon.style.display = "flex"; updatePinIconState(icon, kind, ref); });
+  el.addEventListener("mouseleave", () => { icon.style.display = "none"; });
+  icon.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const lab = el.getAttribute("data-rr-pin-label");
+    const nowPinned = togglePin(kind, ref, lab);
+    updatePinIconState(icon, kind, ref);
+    toast(nowPinned ? `Pinned "${lab}"` : `Unpinned "${lab}"`, "success");
+  });
+}
+
+function updatePinIconState(icon, kind, ref) {
+  const on = isPinned(kind, ref);
+  icon.style.color      = on ? "var(--accent-text)" : "var(--text-muted)";
+  icon.style.background = on ? "var(--accent-soft)" : "var(--surface)";
+  icon.style.borderColor = on ? "var(--accent)"     : "var(--border)";
+}
+
+// Walk the DOM whenever a render changes things, to ensure all pinnable
+// elements have their hover icon. MutationObserver handles dynamic
+// renders (loadPipeline, loadDriversRoster, etc.).
+function syncPinIcons() {
+  document.querySelectorAll("[data-rr-pinnable]").forEach(ensurePinIcon);
+}
+syncPinIcons();
+new MutationObserver(syncPinIcons).observe(document.body, { childList: true, subtree: true });
 
 
 // ─── Dashboard pinned cards ──────────────────────────────────────────────
