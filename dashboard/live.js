@@ -2938,7 +2938,220 @@ let _schedDriverList = [];
 let _okamiStart = null;
 let _schedStart = null;
 
-async function loadOkamiView() { /* re-wire planned, no-op for now */ }
+async function loadOkamiView() {
+  await renderOkamiLive();
+  bindOkamiHandlers();
+}
+
+// ─── OKAMI · 13-week list (live render + save) ─────────────────────────────
+
+const RR_OKAMI_WEEKS = 13;
+const RR_OKAMI_HIRE_LEAD_DAYS = 28; // training/onboarding lead time
+
+function isoWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+let _okamiActiveCount = 0;
+let _okamiCushionPct = 10;
+
+async function renderOkamiLive() {
+  const tbody = document.getElementById("okami-tbody");
+  if (!tbody) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  if (!_okamiStart) _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  const start = new Date(_okamiStart + "T12:00:00");
+
+  const [gridRes, drvRes] = await Promise.all([
+    sb.rpc("okami_grid", { p_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
+    sb.from("drivers")
+      .select("id, status", { count: "exact", head: true })
+      .eq("dsp_id", dspId)
+      .in("status", ["active", "onboarding"]),
+  ]);
+
+  if (gridRes.error) { console.warn("okami_grid:", gridRes.error.message); return; }
+  if (drvRes.error)  { console.warn("driver count:", drvRes.error.message); return; }
+
+  const cells = gridRes.data || [];
+  _okamiActiveCount = drvRes.count || 0;
+  if (cells.length && cells[0].cushion_pct != null) {
+    _okamiCushionPct = Number(cells[0].cushion_pct) || 10;
+  }
+
+  // Sum target_routes per ISO date across all stations.
+  const totalsByDate = new Map();
+  for (const c of cells) {
+    totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
+  }
+
+  // Reflect real cushion into the knob if its value differs.
+  const cushionInput = document.getElementById("okami-cushion");
+  const cushionVal   = document.getElementById("okami-cushion-val");
+  if (cushionInput && Number(cushionInput.value) !== Math.round(_okamiCushionPct)) {
+    cushionInput.value = Math.round(_okamiCushionPct);
+    if (cushionVal) cushionVal.innerHTML = `${Math.round(_okamiCushionPct)}<span class="frac">%</span>`;
+  }
+
+  const dpr = parseFloat(document.getElementById("okami-dpr")?.value) || 2.0;
+
+  for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
+    const row = document.getElementById(`okami-row-${w}`);
+    if (!row) continue;
+    const weekStart = addDays(start, w * 7);
+    const weekEnd   = addDays(weekStart, 6);
+
+    // Routes per day across the week, then peak.
+    let routesMax = 0;
+    for (let d = 0; d < 7; d++) {
+      const iso = fmtIsoDate(addDays(weekStart, d));
+      const t = totalsByDate.get(iso) || 0;
+      if (t > routesMax) routesMax = t;
+    }
+
+    const base    = Math.round(routesMax * dpr);
+    const cushion = (_okamiCushionPct || 0) / 100;
+    const needed  = base + Math.ceil(base * cushion);
+    const gap     = _okamiActiveCount - needed;
+    const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
+
+    // Update week label + dates (without disturbing the expand button or tags).
+    const labelEl = row.querySelector(".plan-week-label");
+    const datesEl = row.querySelector(".plan-week-dates");
+    if (labelEl) labelEl.textContent = `W${isoWeekNumber(weekStart)}`;
+    if (datesEl) datesEl.textContent = `${fmtMD(weekStart)}–${weekEnd.getDate()}`;
+
+    // Routes-max input — only overwrite if user is not currently focused on it.
+    const input = row.querySelector(".plan-route-input");
+    if (input && document.activeElement !== input) input.value = routesMax;
+
+    const tdCells = row.querySelectorAll("td");
+    // [0]=Week, [1]=Routes input, [2]=Needed, [3]=Available, [4]=Gap, [5]=Strategy, [6]=Hire by, [7]=Status
+    if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
+    if (tdCells[3]) tdCells[3].innerHTML = `<div class="plan-calc">${_okamiActiveCount}</div>`;
+
+    const gapEl = tdCells[4]?.querySelector(".plan-gap");
+    if (gapEl) {
+      gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
+      gapEl.classList.remove("ok", "warn", "bad");
+      gapEl.classList.add(gap >= 0 ? "ok" : (gap >= -10 ? "warn" : "bad"));
+    }
+
+    const stratEl = tdCells[5]?.querySelector(".strategy-pills");
+    if (stratEl) {
+      const pill = gap >= 0
+        ? '<span class="strategy-pill active" style="background:var(--green-soft);color:var(--green);border-color:#86EFAC">Hold</span>'
+        : (gap >= -10
+            ? '<span class="strategy-pill active adw">+8h OT</span>'
+            : '<span class="strategy-pill active hire">Hire</span>');
+      stratEl.innerHTML = pill;
+    }
+
+    const hireByEl = tdCells[6]?.querySelector(".plan-calc");
+    if (hireByEl) {
+      hireByEl.textContent = gap >= 0 ? "—" : fmtMD(hireBy);
+    }
+
+    const statusPill = tdCells[7]?.querySelector(".plan-status-pill");
+    if (statusPill) {
+      statusPill.classList.remove("ok", "warn", "bad");
+      if (gap >= 0)        { statusPill.classList.add("ok");   statusPill.innerHTML = '<span class="dot"></span>On track'; }
+      else if (gap >= -10) { statusPill.classList.add("warn"); statusPill.innerHTML = '<span class="dot"></span>Tight'; }
+      else                 { statusPill.classList.add("bad");  statusPill.innerHTML = '<span class="dot"></span>Critical'; }
+    }
+  }
+
+  // Update top hires-needed summary cell, if present.
+  let totalHires = 0;
+  for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
+    const row = document.getElementById(`okami-row-${w}`);
+    const gapEl = row?.querySelectorAll("td")[4]?.querySelector(".plan-gap");
+    if (!gapEl) continue;
+    const g = parseInt(gapEl.textContent, 10);
+    if (Number.isFinite(g) && g < 0) totalHires += -g;
+  }
+  const sumValue = document.querySelector(".okami-summary-grid .okami-sum:first-child .okami-sum-value");
+  if (sumValue) sumValue.textContent = totalHires;
+}
+
+let _okamiBound = false;
+let _okamiSaveTimers = new Map();
+function bindOkamiHandlers() {
+  if (_okamiBound) return;
+  _okamiBound = true;
+
+  const tbody = document.getElementById("okami-tbody");
+  if (tbody) {
+    tbody.addEventListener("input", (e) => {
+      const input = e.target.closest(".plan-route-input");
+      if (!input) return;
+      const w = parseInt(input.dataset.w, 10);
+      if (!Number.isFinite(w)) return;
+      // Debounce per-row save: 400ms after the last keystroke.
+      const prev = _okamiSaveTimers.get(w);
+      if (prev) clearTimeout(prev);
+      _okamiSaveTimers.set(w, setTimeout(() => saveOkamiWeek(w, parseInt(input.value, 10) || 0), 400));
+    });
+  }
+
+  // Cushion slider — save on commit (mouseup/keyup), not every drag tick.
+  const cushion = document.getElementById("okami-cushion");
+  if (cushion) {
+    cushion.addEventListener("change", async () => {
+      const pct = parseInt(cushion.value, 10) || 0;
+      const { error } = await sb.rpc("okami_set_cushion", { p_pct: pct });
+      if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      _okamiCushionPct = pct;
+      await renderOkamiLive();
+    });
+  }
+  // DPR + ADW + OT are UI-only (no storage yet); recalc on change.
+  ["okami-dpr", "okami-adw", "okami-ot"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", () => renderOkamiLive());
+  });
+}
+
+async function saveOkamiWeek(w, routesMax) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  if (!_okamiStart) return;
+  const weekStart = addDays(new Date(_okamiStart + "T12:00:00"), w * 7);
+
+  // Need station list — fetch once and cache on _okamiStations.
+  if (!_okamiStations || _okamiStations.length === 0) {
+    const { data, error } = await sb.from("stations")
+      .select("id, code, active")
+      .eq("dsp_id", dspId)
+      .eq("active", true);
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    _okamiStations = data || [];
+  }
+  if (_okamiStations.length === 0) {
+    toast("No stations configured — add a station before setting OKAMI", "warn");
+    return;
+  }
+
+  // Split the week's routes_max evenly across stations (single station today
+  // gets the full value; multi-station DSPs get even split for now).
+  const perStation = Math.round(routesMax / _okamiStations.length);
+  const calls = [];
+  for (let d = 0; d < 7; d++) {
+    const iso = fmtIsoDate(addDays(weekStart, d));
+    for (const s of _okamiStations) {
+      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: perStation }));
+    }
+  }
+  const results = await Promise.all(calls);
+  const firstErr = results.find(r => r.error);
+  if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
+  await renderOkamiLive();
+}
 
 async function loadScheduleView() {
   loadTimeOffList();
