@@ -3297,6 +3297,15 @@ async function renderOkamiLive() {
 
 let _okamiBound = false;
 let _okamiSaveTimers = new Map();
+const _okamiDirtyWeeks = new Set();
+
+function _setOkamiSaveStatus(text, kind) {
+  const el = document.getElementById("rr-okami-save-status");
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+}
+
 function bindOkamiHandlers() {
   if (_okamiBound) return;
   _okamiBound = true;
@@ -3308,10 +3317,32 @@ function bindOkamiHandlers() {
       if (!input) return;
       const w = parseInt(input.dataset.w, 10);
       if (!Number.isFinite(w)) return;
-      // Debounce per-row save: 400ms after the last keystroke.
-      const prev = _okamiSaveTimers.get(w);
-      if (prev) clearTimeout(prev);
-      _okamiSaveTimers.set(w, setTimeout(() => saveOkamiWeek(w, parseInt(input.value, 10) || 0), 400));
+      _okamiDirtyWeeks.add(w);
+      _setOkamiSaveStatus("Unsaved changes", "warn");
+    });
+  }
+
+  const saveBtn = document.getElementById("rr-okami-save-plan");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      if (_okamiDirtyWeeks.size === 0) { _setOkamiSaveStatus("No changes to save"); return; }
+      saveBtn.disabled = true;
+      _setOkamiSaveStatus("Saving…");
+      const weeks = Array.from(_okamiDirtyWeeks);
+      try {
+        for (const w of weeks) {
+          const inp = document.querySelector(`.plan-route-input[data-w="${w}"]`);
+          if (!inp) continue;
+          await saveOkamiWeek(w, parseInt(inp.value, 10) || 0);
+        }
+        _okamiDirtyWeeks.clear();
+        _setOkamiSaveStatus("Saved ✓", "ok");
+        setTimeout(() => _setOkamiSaveStatus(""), 2500);
+      } catch (err) {
+        _setOkamiSaveStatus("Save failed: " + (err.message || err), "warn");
+      } finally {
+        saveBtn.disabled = false;
+      }
     });
   }
 
@@ -3446,7 +3477,8 @@ async function renderOkamiDailyPanel(weekIdx) {
 
   const cushionPct = _okamiCushionPct || 10;
   const dailyRoutes = days.map(d => totalsByDate.get(fmtIsoDate(d)) || 0);
-  const dailyShifts = dailyRoutes.map(r => Math.round(r * (1 + cushionPct / 100)));
+  // ceil to match generate_shifts on the server — shifts-to-schedule = shifts created.
+  const dailyShifts = dailyRoutes.map(r => Math.ceil(r * (1 + cushionPct / 100)));
   const totalRoutes = dailyRoutes.reduce((s, n) => s + n, 0);
   const totalShifts = dailyShifts.reduce((s, n) => s + n, 0);
   const peakRoutes  = dailyRoutes.reduce((m, n) => n > m ? n : m, 0);
