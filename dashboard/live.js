@@ -3241,21 +3241,17 @@ async function renderOkamiLive() {
     if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
     if (tdCells[3]) tdCells[3].innerHTML = `<div class="plan-calc">${_okamiActiveCount}</div>`;
 
+    // Plain numbers — no color codes / pills (operator wanted less noise).
     const gapEl = tdCells[4]?.querySelector(".plan-gap");
     if (gapEl) {
       gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
       gapEl.classList.remove("ok", "warn", "bad");
-      gapEl.classList.add(gap >= 0 ? "ok" : (gap >= -10 ? "warn" : "bad"));
     }
 
     const stratEl = tdCells[5]?.querySelector(".strategy-pills");
     if (stratEl) {
-      const pill = gap >= 0
-        ? '<span class="strategy-pill active" style="background:var(--green-soft);color:var(--green);border-color:#86EFAC">Hold</span>'
-        : (gap >= -10
-            ? '<span class="strategy-pill active adw">+8h OT</span>'
-            : '<span class="strategy-pill active hire">Hire</span>');
-      stratEl.innerHTML = pill;
+      const text = gap >= 0 ? "Hold" : (gap >= -10 ? "+8h OT" : "Hire");
+      stratEl.innerHTML = `<span style="font-size:12px;color:var(--text-muted)">${text}</span>`;
     }
 
     const hireByEl = tdCells[6]?.querySelector(".plan-calc");
@@ -3266,9 +3262,8 @@ async function renderOkamiLive() {
     const statusPill = tdCells[7]?.querySelector(".plan-status-pill");
     if (statusPill) {
       statusPill.classList.remove("ok", "warn", "bad");
-      if (gap >= 0)        { statusPill.classList.add("ok");   statusPill.innerHTML = '<span class="dot"></span>On track'; }
-      else if (gap >= -10) { statusPill.classList.add("warn"); statusPill.innerHTML = '<span class="dot"></span>Tight'; }
-      else                 { statusPill.classList.add("bad");  statusPill.innerHTML = '<span class="dot"></span>Critical'; }
+      const text = gap >= 0 ? "On track" : (gap >= -10 ? "Tight" : "Critical");
+      statusPill.outerHTML = `<span style="font-size:12px;color:var(--text-muted)">${text}</span>`;
     }
   }
 
@@ -3584,6 +3579,103 @@ async function saveOkamiDaily(weekIdx, iso, routes) {
   renderOkamiLive();
 }
 
+// ─── Settings · Scheduling (block hours, cushion, waves) ───────────────────
+
+async function loadSchedulingSettings() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const { data, error } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+  if (error) { console.warn("scheduling settings load:", error.message); return; }
+  const sched = (data?.metadata?.scheduling) || {};
+  const blockEl  = document.getElementById("rr-set-block-hours");
+  const cushEl   = document.getElementById("rr-set-cushion-pct");
+  const wavesEl  = document.getElementById("rr-set-waves");
+  if (blockEl) blockEl.value = sched.default_block_hours ?? 10;
+  if (cushEl)  cushEl.value  = sched.cushion_pct ?? 10;
+  if (wavesEl) {
+    const waves = Array.isArray(sched.waves) && sched.waves.length
+      ? sched.waves
+      : [{ start: sched.wave_start || "07:00" }];
+    wavesEl.innerHTML = waves.map(w => _renderWaveRow(w.start)).join("");
+  }
+}
+
+function _renderWaveRow(start) {
+  return `<div data-rr-wave style="display:flex;gap:6px;align-items:center">
+    <input type="time" class="form-input" data-rr-wave-time value="${escapeHtml(start || "07:00")}" style="max-width:140px"/>
+    <button type="button" class="btn btn-sm" data-rr-remove-wave style="color:var(--red)">Remove</button>
+  </div>`;
+}
+
+document.addEventListener("click", async (e) => {
+  // Lazy-load when user opens the Scheduling settings tab.
+  const navBtn = e.target.closest('.settings-nav-item[data-set="scheduling"]');
+  if (navBtn) {
+    setTimeout(loadSchedulingSettings, 0);
+    return;
+  }
+
+  // Add a wave row.
+  if (e.target.id === "rr-set-add-wave") {
+    e.preventDefault();
+    const wavesEl = document.getElementById("rr-set-waves");
+    if (!wavesEl) return;
+    // Suggest the next slot 25 min after the last wave.
+    const lastInput = wavesEl.querySelector("[data-rr-wave]:last-child [data-rr-wave-time]");
+    let next = "07:00";
+    if (lastInput?.value) {
+      const [h, m] = lastInput.value.split(":").map(n => parseInt(n, 10));
+      const total = h * 60 + m + 25;
+      next = `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    }
+    wavesEl.insertAdjacentHTML("beforeend", _renderWaveRow(next));
+    return;
+  }
+
+  // Remove a wave row.
+  if (e.target.matches?.("[data-rr-remove-wave]")) {
+    e.preventDefault();
+    const row = e.target.closest("[data-rr-wave]");
+    if (row) row.remove();
+    return;
+  }
+
+  // Save scheduling settings.
+  if (e.target.id === "rr-set-sched-save") {
+    e.preventDefault();
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return;
+    const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
+    const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
+    const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
+      .map(inp => ({ start: inp.value || "07:00" }))
+      .filter(w => w.start);
+    if (waves.length === 0) waves.push({ start: "07:00" });
+
+    const status = document.getElementById("rr-set-sched-status");
+    if (status) status.textContent = "Saving…";
+
+    const { data: row, error: readErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (readErr) { if (status) status.textContent = "Failed: " + readErr.message; return; }
+    const meta = row?.metadata || {};
+    const sched = meta.scheduling || {};
+    const newMeta = {
+      ...meta,
+      scheduling: {
+        ...sched,
+        default_block_hours: block,
+        cushion_pct: cushion,
+        waves,
+      },
+    };
+    const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
+    if (upErr) { if (status) status.textContent = "Failed: " + upErr.message; return; }
+    if (status) status.textContent = "Saved · regenerate the schedule to pick up the changes";
+    toast("Scheduling settings saved", "success");
+    return;
+  }
+});
+
 async function loadScheduleView() {
   loadTimeOffList();
   loadOpenShifts();
@@ -3647,7 +3739,8 @@ function _schedShiftChip(sh) {
   const ex = sh.is_cushion
     ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
-  return `<div class="shift-chip"${sh.is_cushion ? ' style="border-color:#FCD34D"' : ''}><div class="shift-chip-route">${r}${ex}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : '';
+  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to remove shift"><div class="shift-chip-route">${r}${ex}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -3977,6 +4070,24 @@ function bindSchedWeekNav() {
     }
     if (e.target.closest("[data-rr-goto-okami]"))   { if (typeof window.goto === "function") window.goto("okami"); return; }
     if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
+
+    // Click an ASSIGNED shift chip (not open, off, or timeoff) → confirm + delete.
+    const assignedChip = e.target.closest(".shift-chip[data-rr-shift-id]");
+    if (assignedChip
+        && !assignedChip.classList.contains("open")
+        && !assignedChip.classList.contains("off")
+        && !assignedChip.classList.contains("timeoff")) {
+      e.stopPropagation();
+      const id = assignedChip.dataset.rrShiftId;
+      if (!id) return;
+      if (!confirm("Remove this shift?")) return;
+      sb.from("shifts").delete().eq("id", id).then(({ error }) => {
+        if (error) { toast("Delete failed: " + error.message, "warn"); return; }
+        toast("Shift removed", "success");
+        renderScheduleWeek();
+      });
+      return;
+    }
 
     // Click empty driver-row cell → open add-shift modal pre-filled.
     const cell = e.target.closest('[data-rr-cell="driver-day"]');
