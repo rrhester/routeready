@@ -83,7 +83,8 @@ function renderApplicantCard(a) {
     primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="resend_link">Resend booking link</button>`;
   } else if (stage === "booking_scheduled") {
     const when = a.next_event_starts_at ? `Booked ${fmtDate(a.next_event_starts_at)}` : "Booked";
-    primaryBtn = `<button class="pa-disp-btn ghost" type="button" disabled>${when}</button>`;
+    primaryBtn = `<button class="pa-disp-btn ghost" type="button" disabled>${when}</button>
+                  <button class="pa-disp-btn danger" type="button" data-rr-action="cancel_interview">Cancel interview</button>`;
   }
 
   const videoBtn = a.video_url
@@ -183,6 +184,12 @@ async function handleAction(btn) {
       const { error } = await sb.rpc("decline_applicant", { p_id: id, p_reason: "Manual decline" });
       if (error) throw error;
       toast("Applicant declined", "warn");
+    } else if (action === "cancel_interview") {
+      const reason = prompt("Cancellation reason? (optional · stays internal)");
+      if (reason === null) { btn.disabled = false; return; }
+      const { error } = await sb.rpc("cancel_interview", { p_applicant_id: id, p_reason: reason || null });
+      if (error) throw error;
+      toast("Interview cancelled · applicant texted a new booking link", "success");
     } else if (action === "call") {
       // Dial via tel: link; no backend call.
       const { data } = await sb.from("applicants").select("phone").eq("id", id).single();
@@ -1998,11 +2005,12 @@ async function openDriverDrawer(driverId) {
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
       <div class="dd-body" id="rr-dd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
+      <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
   document.body.appendChild(drawer);
 
   drawer.addEventListener("click", (e) => {
-    if (e.target === drawer || e.target.id === "rr-dd-close") drawer.remove();
+    if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) drawer.remove();
   });
 
   _ddTab = "overview";
@@ -2049,6 +2057,21 @@ function renderDriverDrawerTab() {
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
+  setDriverDrawerFoot();
+}
+
+function setDriverDrawerFoot() {
+  const foot = document.getElementById("rr-dd-foot");
+  if (!foot) return;
+  if (_ddTab === "overview" || _ddTab === "license") {
+    foot.innerHTML = `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`;
+  } else if (_ddTab === "availability") {
+    foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
+  } else {
+    // Coaching / Documents add items inline; offer just a Close in the foot
+    // so the layout is identical across tabs.
+    foot.innerHTML = `<button class="btn" data-rr-dd-close>Close</button>`;
+  }
 }
 
 function renderAvailabilityTab(body, d) {
@@ -2073,8 +2096,7 @@ function renderAvailabilityTab(body, d) {
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
       <label>Notes</label>
       <textarea data-rr-avail-notes rows="3" placeholder="e.g. school pickup Wed afternoons · prefers AM routes" style="resize:vertical;min-height:64px">${v(notes)}</textarea>
-    </div>
-    <div class="dd-foot"><button class="btn btn-primary" data-rr-avail-save>Save availability</button></div>`;
+    </div>`;
 }
 
 async function renderOverviewForm(body, d) {
@@ -2105,8 +2127,7 @@ async function renderOverviewForm(body, d) {
     <div class="dd-row"><label>Background check</label><input type="datetime-local" data-rr-dd-field="background_check_completed_at" value="${v((d.background_check_completed_at || '').slice(0,16))}"/></div>
     <div class="dd-row"><label>Drug test</label><input type="datetime-local" data-rr-dd-field="drug_test_completed_at" value="${v((d.drug_test_completed_at || '').slice(0,16))}"/></div>
     <div class="dd-row"><label>Training scheduled</label><input type="datetime-local" data-rr-dd-field="training_scheduled_at" value="${v((d.training_scheduled_at || '').slice(0,16))}"/></div>
-    <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(d.training_date)}"/></div>
-    <div class="dd-foot"><button class="btn btn-primary" data-rr-dd-save>Save record</button></div>`;
+    <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(d.training_date)}"/></div>`;
 }
 
 async function renderLicenseTab(body, d) {
@@ -2156,9 +2177,7 @@ async function renderLicenseTab(body, d) {
              <input type="file" id="rr-dl-file" accept="image/*" />
              <button class="btn btn-primary btn-sm" data-rr-dl-upload>Upload license image</button>
            </div>`}
-    </div>
-
-    <div class="dd-foot"><button class="btn btn-primary" data-rr-dd-save>Save record</button></div>`;
+    </div>`;
 }
 
 function renderCoachingTab(coachings) {
@@ -2231,6 +2250,8 @@ document.addEventListener("click", async (e) => {
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
     _ddDriver.driver.metadata = newMeta;
     toast("Availability saved", "success");
+    const drawer3 = document.getElementById("rr-dd-drawer");
+    if (drawer3) drawer3.remove();
     return;
   }
 
@@ -2301,7 +2322,8 @@ document.addEventListener("click", async (e) => {
       if (stErr) { toast("Station save failed: " + stErr.message, "warn"); return; }
     }
     toast("Driver record saved", "success");
-    await loadDriverDrawer(_ddDriver.driver.id);
+    const drawer2 = document.getElementById("rr-dd-drawer");
+    if (drawer2) drawer2.remove();
     await loadDriversRoster();
     return;
   }
