@@ -771,7 +771,7 @@ window.loadScreeningConfig = async function (token) {
     firstName: data.applicant.first_name || "",
     lastName: data.applicant.last_name || "",
     fullName: data.applicant.full_name || "",
-    videoEnabled: true,
+    videoEnabled: data.video?.enabled !== false,
     formQuestions: (data.questions || []).map((q) => ({
       id: q.id,
       type: fieldTypeMap[q.field_type] || "text",
@@ -780,7 +780,10 @@ window.loadScreeningConfig = async function (token) {
       required: q.required !== false,
     })),
     prompts: [
-      { text: "Tell us about yourself, your driving experience, and why you'd be a great fit for our team.", maxSeconds: 60 },
+      {
+        text: data.video?.prompt || "Tell us about yourself, your driving experience, and why you'd be a great fit for our team.",
+        maxSeconds: data.video?.max_seconds || 60,
+      },
     ],
   };
 };

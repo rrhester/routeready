@@ -4992,6 +4992,34 @@ a{color:inherit;text-decoration:none}
               <button class="btn" data-rr-add-question>+ Add question</button>
             </div>
           </div>
+
+          <div style="margin-top:var(--s-5);margin-bottom:var(--s-3)">
+            <h3 style="margin:0;font-size:15px;font-weight:600">Video screening</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--text-subtle)">Optional 60-second intro video the applicant records after passing the question screen.</p>
+          </div>
+          <div class="cal-edit-card">
+            <div class="cal-edit-section">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                <div>
+                  <div class="cal-edit-label" style="margin-bottom:0">Enable video screening</div>
+                  <div style="font-size:11px;color:var(--text-subtle);margin-top:4px">When on, the screening page also asks the applicant to record a short intro.</div>
+                </div>
+                <button class="ref-toggle" id="rr-video-enabled-toggle" data-rr-video-toggle></button>
+              </div>
+            </div>
+            <div class="cal-edit-section">
+              <div class="cal-edit-label">Video prompt shown to the applicant</div>
+              <textarea id="rr-video-prompt" class="cal-edit-input" style="min-height:64px;font-family:inherit" placeholder="In 60 seconds, tell us why you'd be a great fit for our team."></textarea>
+            </div>
+            <div class="cal-edit-section">
+              <div class="cal-edit-label">Maximum recording length (seconds)</div>
+              <input id="rr-video-max-seconds" type="number" min="15" max="180" step="15" class="cal-edit-input" style="max-width:120px" value="60" />
+            </div>
+            <div class="cal-edit-foot">
+              <div class="cal-edit-status" id="rr-video-status"></div>
+              <button class="btn btn-primary" data-rr-video-save>Save video settings</button>
+            </div>
+          </div>
         </div><!-- /pipe-sub-screening -->
 
 
@@ -5913,7 +5941,6 @@ a{color:inherit;text-decoration:none}
             <button class="settings-nav-item" data-set="hiring" onclick="setSettingsSection(this)">Hiring criteria</button>
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Referral program</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
-            <button class="settings-nav-item" data-set="video" onclick="setSettingsSection(this)">Video screening</button>
             <button class="settings-nav-item" data-set="renewals" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
@@ -6091,31 +6118,6 @@ a{color:inherit;text-decoration:none}
             </div>
 
             <!-- SCREENING QUESTIONS SECTION -->
-
-            <!-- VIDEO SCREENING SECTION -->
-            <div class="settings-section hidden" data-set="video">
-              <div class="settings-section-head">
-                <h2 class="settings-section-title">Video screening</h2>
-                <p class="settings-section-sub">Optional 60-second video introduction from applicants. Helps you screen demeanor before interview.</p>
-              </div>
-              <div class="form-row">
-                <div><div class="form-label">Enable video screening</div><div class="form-help">Applicants who pass screening get a Cal.com link AND a video record link.</div></div>
-                <div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-              <div class="form-row">
-                <div><div class="form-label">Video prompt</div><div class="form-help">Question shown to applicant before they record. Keep it 1–2 sentences.</div></div>
-                <div><textarea class="form-input" style="max-width:380px;min-height:60px">In 60 seconds, tell us why you'd be a good fit for Cardinal Logistics and what makes you reliable.</textarea></div>
-              </div>
-              <div class="form-row">
-                <div><div class="form-label">Video duration limit</div><div class="form-help">Maximum recording length, in seconds.</div></div>
-                <div><input class="form-input" value="60" style="max-width:80px" /></div>
-              </div>
-              <div class="form-row">
-                <div><div class="form-label">Storage</div><div class="form-help">Where video recordings live. Supabase Storage by default.</div></div>
-                <div style="font-size:12px;color:var(--text-muted)">Supabase Storage · 14 videos stored · ~280 MB used</div>
-              </div>
-            </div>
-
             <!-- REFERRAL PROGRAM SECTION -->
             <div class="settings-section hidden" data-set="referrals">
               <div class="settings-section-head">
