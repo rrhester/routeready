@@ -586,11 +586,16 @@ function _scheduleWeatherRefresh() {
 }
 
 async function loadDashboardWeather() {
+  const card = document.getElementById("rr-weather-card");
   const body = document.getElementById("rr-weather-body");
   if (!body) return;
+  const meta = window.RR?.dsp?.metadata?.weather || {};
+  // Per-DSP toggle. Default true so existing installs don't lose the card.
+  const showCard = meta.show_card !== false;
+  if (card) card.style.display = showCard ? "" : "none";
+  if (!showCard) return;
   _scheduleWeatherRefresh();
   loadWeatherRadar();
-  const meta = window.RR?.dsp?.metadata?.weather || {};
   const lat = Number(meta.lat);
   const lon = Number(meta.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -948,9 +953,18 @@ async function loadWeatherRadar() {
   const card = document.getElementById('rr-weather-radar-card');
   if (!card) return;
   const meta = window.RR?.dsp?.metadata?.weather || {};
+  const showRadar = meta.show_radar !== false;
   const lat = Number(meta.lat);
   const lon = Number(meta.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) { card.style.display = 'none'; return; }
+  if (!showRadar || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+    card.style.display = 'none';
+    // Free up the map + animation timers when the operator turns radar off.
+    if (_weatherRadarState?.timer) clearInterval(_weatherRadarState.timer);
+    if (_weatherRadarState?.map) { _weatherRadarState.map.remove(); }
+    if (_weatherRadarRefreshTimer) { clearInterval(_weatherRadarRefreshTimer); _weatherRadarRefreshTimer = null; }
+    _weatherRadarState = null;
+    return;
+  }
   card.style.display = 'flex';
 
   try { await _ensureLeaflet(); } catch (e) { console.warn('leaflet load:', e); return; }
@@ -1173,7 +1187,37 @@ function _prefillWeatherInputs() {
     status.style.color = "var(--text-subtle)";
     status.textContent = `Currently saved: ${meta.lat}, ${meta.lon}`;
   }
+  const cardEl  = document.getElementById("rr-set-weather-show-card");
+  const radarEl = document.getElementById("rr-set-weather-show-radar");
+  if (cardEl)  cardEl.checked  = meta.show_card  !== false;
+  if (radarEl) radarEl.checked = meta.show_radar !== false;
 }
+
+// Persist the weather card/radar toggles to dsps.metadata.weather.
+async function _saveWeatherToggle(field, value) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const status = document.getElementById("rr-set-weather-toggle-status");
+  if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
+  try {
+    const { data: dsp } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    const meta = dsp?.metadata || {};
+    const newWeather = { ...(meta.weather || {}), [field]: value };
+    const newMeta = { ...meta, weather: newWeather };
+    const { error } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
+    if (error) throw error;
+    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
+    if (status) { status.style.color = "var(--green, #22c55e)"; status.textContent = "Saved"; setTimeout(() => { if (status) status.textContent = ""; }, 1500); }
+    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
+  } catch (err) {
+    console.error("weather toggle save:", err);
+    if (status) { status.style.color = "var(--red)"; status.textContent = "Save failed"; }
+  }
+}
+document.addEventListener("change", (e) => {
+  if (e.target.id === "rr-set-weather-show-card")  _saveWeatherToggle("show_card",  !!e.target.checked);
+  if (e.target.id === "rr-set-weather-show-radar") _saveWeatherToggle("show_radar", !!e.target.checked);
+});
 document.addEventListener("click", (e) => {
   // Settings nav button (sidebar) or the Workspace section pill.
   if (e.target.closest('[data-rr-nav-item="settings"]') ||
