@@ -5102,11 +5102,40 @@ a{color:inherit;text-decoration:none}
           </div>
 
           <div style="margin-top:var(--s-5);margin-bottom:var(--s-3)">
-            <h3 style="margin:0;font-size:15px;font-weight:600">Your Cal.com page</h3>
-            <p style="margin:2px 0 0;font-size:12px;color:var(--text-subtle)">Embedded for quick access. Use this to share availability or grab a booking link manually.</p>
+            <h3 style="margin:0;font-size:15px;font-weight:600">Manage in Cal.com</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--text-subtle)">Cal.com blocks iframing of management pages, so these open in a new tab.</p>
+          </div>
+          <div id="cal-actions" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:var(--s-5)">
+            <a class="cal-action-card" data-cal-action="availability" href="https://app.cal.com/availability" target="_blank" rel="noreferrer">
+              <div class="cal-action-title">Set my availability</div>
+              <div class="cal-action-sub">Hours, time zone, weekly working schedule, blocks.</div>
+            </a>
+            <a class="cal-action-card" data-cal-action="event-types" href="https://app.cal.com/event-types" target="_blank" rel="noreferrer">
+              <div class="cal-action-title">Edit event types</div>
+              <div class="cal-action-sub">Length, buffer time, location, advance notice for "interview" and "orientation-day".</div>
+            </a>
+            <a class="cal-action-card" data-cal-action="bookings" href="https://app.cal.com/bookings" target="_blank" rel="noreferrer">
+              <div class="cal-action-title">All bookings</div>
+              <div class="cal-action-sub">Master view of past + upcoming bookings on Cal.com.</div>
+            </a>
+            <button type="button" class="cal-action-card" data-rr-copy-cal-link>
+              <div class="cal-action-title">Copy public booking link</div>
+              <div class="cal-action-sub" id="cal-link-preview">cal.com/Routeready/interview</div>
+            </button>
+          </div>
+          <style>
+            .cal-action-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;text-decoration:none;color:inherit;text-align:left;font:inherit;transition:all .15s}
+            .cal-action-card:hover{border-color:var(--accent);box-shadow:var(--shadow-sm);transform:translateY(-1px)}
+            .cal-action-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
+            .cal-action-sub{font-size:11px;color:var(--text-subtle);line-height:1.5}
+          </style>
+
+          <div style="margin-bottom:var(--s-3)">
+            <h3 style="margin:0;font-size:15px;font-weight:600">Preview · what applicants see</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--text-subtle)">Read-only embed of your public booking page. To change times shown, edit your availability above.</p>
           </div>
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-            <iframe id="cal-iframe" loading="lazy" style="width:100%;height:760px;border:0;display:block"></iframe>
+            <iframe id="cal-iframe" loading="lazy" style="width:100%;height:640px;border:0;display:block"></iframe>
           </div>
         </div><!-- /pipe-sub-calendar -->
 
