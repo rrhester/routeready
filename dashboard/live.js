@@ -4608,7 +4608,7 @@ async function renderScheduleWeek() {
   const [gridRes, driversRes, toRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .order("full_name"),
@@ -4759,16 +4759,31 @@ async function renderScheduleWeek() {
     const c = coverageByDate.get(iso) || { needed: 0, filled: 0 };
     fillByDate.set(iso, c);
   }
-  // Rule violations across assigned shifts in the week.
+  // Overtime hours per driver: hours-scheduled-this-week beyond 40, billed
+  // at time-and-a-half. Pay rate comes from drivers.metadata.pay.hourly_rate.
+  let totalOvertimeHrs = 0;
+  let estimatedOvertimeCost = 0;
+  for (const d of drivers) {
+    const hrs = hoursPerDriver.get(d.id) || 0;
+    const ot  = Math.max(0, hrs - 40);
+    if (ot <= 0) continue;
+    totalOvertimeHrs += ot;
+    const rate = Number(d.metadata?.pay?.hourly_rate) || 0;
+    estimatedOvertimeCost += ot * rate * 1.5;
+  }
+
+  // Rule violations across assigned shifts in the week (now includes WOC).
   const violations = await _computeWeekViolations(grid.shifts || [], drivers, timeOff, _schedStart, fmtIsoDate(weekEnd));
 
   let kpis = sub.querySelector("#rr-sched-kpis");
   if (!kpis) {
     kpis = document.createElement("div");
     kpis.id = "rr-sched-kpis";
-    kpis.style.cssText = "display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:var(--s-3)";
+    kpis.style.cssText = "display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:var(--s-3)";
     const toolbar = sub.querySelector(".sched-toolbar");
     if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
+  } else {
+    kpis.style.gridTemplateColumns = "repeat(5,minmax(0,1fr))";
   }
   const kpiCard = (label, value, sublabel, tone) => {
     const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "var(--text)";
@@ -4780,8 +4795,14 @@ async function renderScheduleWeek() {
   };
   const coverageTone = pct >= 100 ? "ok" : pct >= 90 ? "warn" : "bad";
   const violationsTone = violations.length === 0 ? "ok" : violations.length <= 3 ? "warn" : "bad";
+  const otTone = totalOvertimeHrs === 0 ? "ok" : totalOvertimeHrs <= 10 ? "warn" : "bad";
+  const otValue = totalOvertimeHrs === 0 ? "0h" : `${Math.round(totalOvertimeHrs * 10) / 10}h`;
+  const otSub = totalOvertimeHrs === 0
+    ? "no OT"
+    : (estimatedOvertimeCost > 0 ? `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5×` : "above 40h/week");
   kpis.innerHTML =
     kpiCard("Hours scheduled", `${Math.round(totalHoursWeek)}h`, `${shiftCountPerDriver.size} driver${shiftCountPerDriver.size === 1 ? "" : "s"}`, "default") +
+    kpiCard("Overtime", otValue, otSub, otTone) +
     kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
     kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
     kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone);
@@ -4927,7 +4948,9 @@ async function renderScheduleWeek() {
     ? `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet. <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-drivers>Add drivers →</span></div>`
     : "";
 
-  wrap.insertAdjacentHTML("beforeend", driverRowsHtml + pdRowsHtml + coverageStripHtml + emptyHtml);
+  // PD rows removed — Open Shifts pool on the right covers the same need
+  // without taking grid real estate. Coverage strip stays.
+  wrap.insertAdjacentHTML("beforeend", driverRowsHtml + coverageStripHtml + emptyHtml);
 
   // Strip mockup-injected banners that reference fake RR_DRIVERS data.
   const lic = document.getElementById("sched-license-banner");
@@ -5093,7 +5116,7 @@ function bindSchedWeekNav() {
   sub.addEventListener("click", (e) => {
     const kpiHost = document.getElementById("rr-sched-kpis");
     if (!kpiHost) return;
-    if (!e.target.closest("#rr-sched-kpis > div:nth-child(4)")) return;
+    if (!e.target.closest("#rr-sched-kpis > div:nth-child(5)")) return;
     let v = [];
     try { v = JSON.parse(kpiHost.dataset.rrViolations || "[]"); } catch {}
     let m = document.getElementById("rr-violations-modal");
@@ -5264,6 +5287,51 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
         }
       }
     }
+
+    // ── Working hours compliance (WOC) ────────────────────────────────
+    const WOC = { max_hours_per_week: 55, max_consecutive_days: 6, min_rest_hours: 10 };
+
+    // Total hours this week
+    const totalHrs = list.reduce((s, sh) => {
+      if (sh.starts_at && sh.ends_at) return s + Math.max(0, (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000);
+      return s + (Number(sh.block_hours) || 10);
+    }, 0);
+    if (totalHrs > WOC.max_hours_per_week) {
+      violations.push({ driver: display, date: null, kind: "woc_max_hours",
+        note: `${Math.round(totalHrs)}h scheduled (cap ${WOC.max_hours_per_week}h)` });
+    }
+
+    // Max consecutive days — sort dates, find longest run.
+    const sortedDates = [...new Set(list.map(sh => sh.date))].sort();
+    let runStart = null, runLen = 0, maxRun = 0;
+    for (const iso of sortedDates) {
+      if (!runStart) { runStart = iso; runLen = 1; }
+      else {
+        const prev = new Date(runStart + "T12:00:00");
+        const cur  = new Date(iso + "T12:00:00");
+        const diff = Math.round((cur - prev) / 86400000);
+        if (diff === runLen) runLen += 1;
+        else { if (runLen > maxRun) maxRun = runLen; runStart = iso; runLen = 1; }
+      }
+    }
+    if (runLen > maxRun) maxRun = runLen;
+    if (maxRun > WOC.max_consecutive_days) {
+      violations.push({ driver: display, date: null, kind: "woc_consecutive",
+        note: `${maxRun} days in a row (cap ${WOC.max_consecutive_days})` });
+    }
+
+    // Min rest between consecutive shifts.
+    const sortedShifts = [...list].filter(sh => sh.starts_at && sh.ends_at)
+      .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+    for (let i = 1; i < sortedShifts.length; i++) {
+      const prev = sortedShifts[i - 1];
+      const curr = sortedShifts[i];
+      const gap = (new Date(curr.starts_at) - new Date(prev.ends_at)) / 3600000;
+      if (gap >= 0 && gap < WOC.min_rest_hours) {
+        violations.push({ driver: display, date: curr.date, kind: "woc_rest",
+          note: `Only ${gap.toFixed(1)}h rest before ${curr.date} (min ${WOC.min_rest_hours}h)` });
+      }
+    }
   }
 
   return violations;
@@ -5288,14 +5356,16 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId) {
   const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
   const weekEndIso = fmtIsoDate(weekEnd);
 
-  const [drvRes, ptoRes, shiftsRes] = await Promise.all([
+  const [drvRes, ptoRes, shiftsRes, candidateRes] = await Promise.all([
     sb.from("drivers").select("id, full_name, metadata").eq("id", driverId).single(),
     sb.from("time_off_requests").select("start_date, end_date")
       .eq("dsp_id", dspId).eq("driver_id", driverId).eq("status", "approved")
       .lte("start_date", weekEndIso).gte("end_date", _schedStart),
-    sb.from("shifts").select("id, date, status, driver_id")
+    sb.from("shifts").select("id, date, status, driver_id, starts_at, ends_at, block_hours")
       .eq("dsp_id", dspId).eq("driver_id", driverId)
       .gte("date", _schedStart).lte("date", weekEndIso),
+    // The candidate shift itself (need its start/end to evaluate WOC).
+    sb.from("shifts").select("id, date, starts_at, ends_at, block_hours").eq("id", shiftId).single(),
   ]);
 
   const driver = drvRes.data;
@@ -5330,6 +5400,48 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId) {
       violations.push("Driver has no availability set");
     } else if (!days.includes(dow)) {
       violations.push(`Driver isn't available on ${dt.toLocaleDateString(undefined, { weekday: "long" })}`);
+    }
+  }
+
+  // ── Working hours compliance (WOC) on the proposed assignment.
+  const WOC = { max_hours_per_week: 55, max_consecutive_days: 6, min_rest_hours: 10 };
+  const candShift = candidateRes?.data;
+  const existing = (shiftsRes.data || []).filter(sh => sh.status === "scheduled" && sh.id !== shiftId);
+  const allShifts = [...existing, candShift].filter(Boolean);
+  const shiftHours = (sh) => {
+    if (sh.starts_at && sh.ends_at) return Math.max(0, (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000);
+    return Number(sh.block_hours) || 10;
+  };
+  // Total hours
+  const totalHrs = allShifts.reduce((s, sh) => s + shiftHours(sh), 0);
+  if (totalHrs > WOC.max_hours_per_week) {
+    violations.push(`Would push driver to ${Math.round(totalHrs)}h this week (cap ${WOC.max_hours_per_week}h)`);
+  }
+  // Consecutive days
+  const sortedDates = [...new Set(allShifts.map(sh => sh.date))].sort();
+  let runStart = null, runLen = 0, maxRun = 0;
+  for (const iso of sortedDates) {
+    if (!runStart) { runStart = iso; runLen = 1; }
+    else {
+      const prev = new Date(runStart + "T12:00:00");
+      const cur  = new Date(iso + "T12:00:00");
+      const diff = Math.round((cur - prev) / 86400000);
+      if (diff === runLen) runLen += 1;
+      else { if (runLen > maxRun) maxRun = runLen; runStart = iso; runLen = 1; }
+    }
+  }
+  if (runLen > maxRun) maxRun = runLen;
+  if (maxRun > WOC.max_consecutive_days) {
+    violations.push(`Would put driver on ${maxRun} consecutive days (cap ${WOC.max_consecutive_days})`);
+  }
+  // Min rest between adjacent shifts
+  const sortedShifts = allShifts.filter(sh => sh.starts_at && sh.ends_at)
+    .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+  for (let i = 1; i < sortedShifts.length; i++) {
+    const gap = (new Date(sortedShifts[i].starts_at) - new Date(sortedShifts[i - 1].ends_at)) / 3600000;
+    if (gap >= 0 && gap < WOC.min_rest_hours) {
+      violations.push(`Less than ${WOC.min_rest_hours}h rest between shifts (${gap.toFixed(1)}h)`);
+      break;
     }
   }
 
