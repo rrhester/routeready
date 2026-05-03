@@ -645,7 +645,131 @@ window.pipeSub = function (sub) {
   if (typeof _legacyPipeSub === "function") _legacyPipeSub(sub);
   if (sub === "interview") loadInterviewDay();
   if (sub === "calendar")  loadCalendarTab();
+  if (sub === "referrals") loadReferralsTab();
 };
+
+
+// ─── Referrals tab ─────────────────────────────────────────────────────────
+
+let _refsLoaded = false;
+
+async function loadReferralsTab() {
+  await Promise.all([loadReferralsSummary(), loadReferralsLeaderboard()]);
+
+  // First-load: wire settings inputs to autosave.
+  if (!_refsLoaded) {
+    _refsLoaded = true;
+    document.getElementById("ref-toggle-enabled")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const btn = e.currentTarget;
+      btn.classList.toggle("on");
+      await saveReferralSettings();
+    });
+    ["ref-weeks","ref-payout-input"].forEach(id => {
+      document.getElementById(id)?.addEventListener("change", saveReferralSettings);
+    });
+  }
+
+  // Set the master link preview from any first leaderboard row's link.
+  const masterEl = document.getElementById("ref-master-link");
+  if (masterEl) {
+    const baseUrl = window.RR.dsp?.metadata?.public_base_url || "https://gorouteready.com";
+    masterEl.textContent = `${baseUrl}/dashboard/refer.html?r=<driver-token>`;
+  }
+}
+
+async function loadReferralsSummary() {
+  const { data, error } = await sb.rpc("referral_summary");
+  if (error || !data) return;
+  setText("ref-active", data.active ?? 0);
+  setText("ref-hired",  data.hired  ?? 0);
+  setText("ref-payout", Math.round((data.payout_cents ?? 0) / 100));
+
+  const tg = document.getElementById("ref-toggle-enabled");
+  if (tg) tg.classList.toggle("on", !!data.enabled);
+  setText("ref-auto-status", data.enabled ? "On" : "Off");
+  const sub = document.getElementById("ref-auto-sub");
+  if (sub) sub.textContent = data.enabled
+    ? `Each new driver gets a referral SMS ${data.weeks ?? 4} week${data.weeks === 1 ? "" : "s"} after their hire date.`
+    : "New hires don't get a referral SMS automatically.";
+
+  const weeksEl = document.getElementById("ref-weeks");
+  if (weeksEl) weeksEl.value = data.weeks ?? 4;
+  const payIn = document.getElementById("ref-payout-input");
+  if (payIn) payIn.value = Math.round((data.payout_cents ?? 0) / 100);
+}
+
+async function loadReferralsLeaderboard() {
+  const list = document.getElementById("ref-leaderboard");
+  if (!list) return;
+  const { data: rows, error } = await sb.rpc("referral_leaderboard");
+  if (error) {
+    list.innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No referrals yet</strong>Send drivers their links and the leaderboard fills in.</div>`;
+    return;
+  }
+  list.innerHTML = rows.map((r, i) => `
+    <div class="ref-leader-row">
+      <div class="ref-leader-rank">${i + 1}</div>
+      <div>
+        <div class="ref-leader-name">${escapeHtml(r.full_name)}</div>
+        <div class="ref-leader-meta">${r.hired_count} hired · ${r.active_count} active</div>
+      </div>
+      <button class="ref-action-btn ghost" data-rr-send-ref="${r.driver_id}">Send link</button>
+    </div>`).join("");
+}
+
+async function saveReferralSettings() {
+  const enabled = document.getElementById("ref-toggle-enabled")?.classList.contains("on");
+  const weeks   = parseInt(document.getElementById("ref-weeks")?.value || "4", 10);
+  const payout  = Math.round(parseFloat(document.getElementById("ref-payout-input")?.value || "0") * 100);
+  const { error } = await sb.rpc("referral_settings_save", {
+    p_payload: { enabled, weeks, payout_cents: payout },
+  });
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  toast("Referral settings saved", "success");
+  loadReferralsSummary();
+}
+
+// Capture-phase delegate for referral actions.
+document.addEventListener("click", async (e) => {
+  const sendBtn = e.target.closest("[data-rr-send-ref]");
+  if (sendBtn && !sendBtn.disabled) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const id = sendBtn.getAttribute("data-rr-send-ref");
+    sendBtn.disabled = true;
+    const { error } = await sb.rpc("send_referral_link", { p_driver_id: id });
+    sendBtn.disabled = false;
+    if (error) { toast("Send failed: " + error.message, "warn"); return; }
+    toast("Referral link sent", "success");
+    return;
+  }
+  const campBtn = e.target.closest("[data-rr-send-campaign]");
+  if (campBtn && !campBtn.disabled) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (!confirm("Send the referral link to ALL active + onboarding drivers right now?")) return;
+    campBtn.disabled = true;
+    const { data, error } = await sb.rpc("send_referral_campaign");
+    campBtn.disabled = false;
+    if (error) { toast("Campaign failed: " + error.message, "warn"); return; }
+    toast(`Campaign sent · ${data?.sent ?? 0} drivers`, "success");
+    return;
+  }
+  const copyBtn = e.target.closest("[data-rr-copy-master-ref]");
+  if (copyBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const txt = document.getElementById("ref-master-link")?.textContent;
+    if (!txt) return;
+    try { await navigator.clipboard.writeText(txt); toast("Link copied", "success"); }
+    catch { toast("Couldn't copy — " + txt, "warn"); }
+  }
+}, true);
 
 
 // ─── Calendar tab ──────────────────────────────────────────────────────────
