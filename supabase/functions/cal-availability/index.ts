@@ -61,7 +61,8 @@ Deno.serve(async (req) => {
       (e: any) => e.slug === interviewSlug,
     );
     if (!evt) {
-      return cors({ error: `Cal event type "${interviewSlug}" not found under username "${username}"` }, 404);
+      // 200 with {error} so supabase-js surfaces the body in data.
+      return cors({ error: `Cal event type "${interviewSlug}" not found under username "${username}"` });
     }
 
     if (req.method === "GET") {
@@ -123,9 +124,10 @@ Deno.serve(async (req) => {
       return cors({ ok: true });
     }
 
-    return badRequest("method_not_allowed", 405);
+    return cors({ error: "method_not_allowed" });
   } catch (e: any) {
-    return cors({ error: String(e?.message ?? e) }, 500);
+    // Always 200 so the frontend can read the error body.
+    return cors({ error: String(e?.message ?? e) });
   }
 });
 
