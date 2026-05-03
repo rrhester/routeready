@@ -661,37 +661,61 @@ async function loadDashboardWeather() {
 
 // Settings: Save station location → write to dsps.metadata.weather, refresh card.
 document.addEventListener("click", async (e) => {
-  if (e.target.id !== "rr-set-weather-save") return;
+  if (!e.target.closest("#rr-set-weather-save")) return;
   e.preventDefault();
   const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-  const lat = Number(document.getElementById("rr-set-weather-lat")?.value);
-  const lon = Number(document.getElementById("rr-set-weather-lon")?.value);
   const status = document.getElementById("rr-set-weather-status");
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
-    if (status) { status.style.color = "var(--red)"; status.textContent = "Enter valid lat/lon"; }
+  const setStatus = (text, kind) => {
+    if (!status) return;
+    status.style.color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+    status.textContent = text;
+  };
+  if (!dspId) { setStatus("DSP not loaded — refresh the page", "warn"); return; }
+
+  const latRaw = (document.getElementById("rr-set-weather-lat")?.value || "").trim();
+  const lonRaw = (document.getElementById("rr-set-weather-lon")?.value || "").trim();
+  const lat = Number(latRaw);
+  const lon = Number(lonRaw);
+  if (latRaw === "" || lonRaw === "" || !Number.isFinite(lat) || !Number.isFinite(lon)
+      || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    setStatus("Enter valid lat/lon (e.g. 38.886, -76.910)", "warn");
     return;
   }
-  if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
-  const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
-  const meta = row?.metadata || {};
-  const newMeta = { ...meta, weather: { ...(meta.weather || {}), lat, lon } };
-  const { error } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
-  if (error) { if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + error.message; } return; }
-  if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
-  if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
-  toast("Station location saved", "success");
-  loadDashboardWeather();
+
+  setStatus("Saving…");
+  try {
+    const { data: row, error: readErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (readErr) throw readErr;
+    const meta = row?.metadata || {};
+    const newMeta = { ...meta, weather: { ...(meta.weather || {}), lat, lon } };
+    const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
+    if (upErr) throw upErr;
+    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
+    setStatus(`Saved ✓ (${lat}, ${lon})`, "ok");
+    setTimeout(() => setStatus(""), 4000);
+    toast("Station location saved", "success");
+    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
+  } catch (err) {
+    console.error("weather save failed:", err);
+    setStatus("Failed: " + (err.message || String(err)), "warn");
+  }
 });
 
-// Pre-fill the settings inputs when Settings → Workspace becomes visible.
-document.addEventListener("click", (e) => {
-  if (!e.target.closest('.settings-nav-item[data-set="workspace"]')) return;
+// Pre-fill the settings inputs when the Settings page is opened or the
+// Workspace section is selected.
+function _prefillWeatherInputs() {
   const meta = window.RR?.dsp?.metadata?.weather || {};
   const latEl = document.getElementById("rr-set-weather-lat");
   const lonEl = document.getElementById("rr-set-weather-lon");
-  if (latEl && Number.isFinite(Number(meta.lat))) latEl.value = meta.lat;
-  if (lonEl && Number.isFinite(Number(meta.lon))) lonEl.value = meta.lon;
+  if (latEl && !latEl.value && Number.isFinite(Number(meta.lat))) latEl.value = meta.lat;
+  if (lonEl && !lonEl.value && Number.isFinite(Number(meta.lon))) lonEl.value = meta.lon;
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest('.settings-nav-item[data-set="workspace"]') ||
+      e.target.closest('[data-rr-nav-item="settings"]') ||
+      e.target.closest('a[href="#settings"]')) {
+    setTimeout(_prefillWeatherInputs, 0);
+  }
 });
 
 
