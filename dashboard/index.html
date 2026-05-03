@@ -5592,6 +5592,48 @@ a{color:inherit;text-decoration:none}
             </div>
             <div id="lic-renewals-body"><div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div></div>
           </div>
+
+          <!-- Renewal-reminder settings (relocated from Settings → License renewals) -->
+          <div class="di-section" style="margin-top:var(--s-5)">
+            <div style="margin-bottom:var(--s-3)">
+              <h3 class="di-section-title" style="margin:0">Renewal reminders</h3>
+              <p style="font-size:11px;color:var(--text-subtle);margin:2px 0 0 0">Auto-text drivers before their license expires. A daily background job checks every driver against your reminder schedule and fires the SMS once per threshold per renewal cycle.</p>
+            </div>
+            <div class="cal-edit-card">
+              <div class="cal-edit-section">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <div>
+                    <div class="cal-edit-label" style="margin-bottom:0">Auto-reminders enabled</div>
+                    <div style="font-size:11px;color:var(--text-subtle);margin-top:4px">When off, no SMS fires regardless of expiry. Renewals still surface in the list above.</div>
+                  </div>
+                  <button class="ref-toggle" id="rr-lic-toggle" data-rr-lic-toggle></button>
+                </div>
+              </div>
+              <div class="cal-edit-section">
+                <div class="cal-edit-label">Reminder days before expiry</div>
+                <input id="rr-lic-days" class="cal-edit-input" style="max-width:240px" value="30, 14" placeholder="e.g. 30, 14, 3" />
+                <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Comma-separated. A separate SMS fires the day each threshold is hit.</div>
+              </div>
+              <div class="cal-edit-section">
+                <div class="cal-edit-label">SMS template</div>
+                <textarea id="rr-lic-template" class="cal-edit-input" style="min-height:88px;font-family:inherit">Hi {{name}} — your driver license expires in {{days}} days ({{date}}). Please renew ASAP and send a photo of your new license.</textarea>
+                <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Tokens: <code>{{name}}</code>, <code>{{days}}</code>, <code>{{date}}</code>. Keep under 160 chars when possible.</div>
+              </div>
+              <div class="cal-edit-section">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <div>
+                    <div class="cal-edit-label" style="margin-bottom:0">Block scheduling past expiry</div>
+                    <div style="font-size:11px;color:var(--text-subtle);margin-top:4px">Hard rule: drivers with expired licenses can't be assigned to upcoming shifts (recommended for DOT compliance).</div>
+                  </div>
+                  <button class="ref-toggle" id="rr-lic-block" data-rr-lic-block></button>
+                </div>
+              </div>
+              <div class="cal-edit-foot">
+                <div class="cal-edit-status" id="rr-lic-status"></div>
+                <button class="btn btn-primary" data-rr-lic-save>Save settings</button>
+              </div>
+            </div>
+          </div>
         </div><!-- /dr-sub-licenses -->
 
 
@@ -5947,7 +5989,6 @@ a{color:inherit;text-decoration:none}
             <button class="settings-nav-item" data-set="hiring" onclick="setSettingsSection(this)">Hiring criteria</button>
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Referral program</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
-            <button class="settings-nav-item" data-set="renewals" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
@@ -6251,49 +6292,6 @@ a{color:inherit;text-decoration:none}
             </div>
 
             <!-- LICENSE RENEWALS SECTION -->
-            <div class="settings-section hidden" data-set="renewals">
-              <div class="settings-section-head">
-                <h2 class="settings-section-title">License renewals</h2>
-                <p class="settings-section-sub">Auto-text drivers before their CDL / DOT-required license expires. Daily background job checks every driver against your reminder schedule and fires the SMS once per threshold per renewal cycle.</p>
-              </div>
-
-              <div class="form-row">
-                <div><div class="form-label">Enable auto-reminders</div><div class="form-help">When off, no SMS fires regardless of expiry. Renewals still surface in Drivers → Insights and on the Schedule.</div></div>
-                <div><label class="toggle"><input type="checkbox" id="lic-enabled" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-
-              <div class="form-row">
-                <div><div class="form-label">Reminder days before expiry</div><div class="form-help">A separate SMS fires the day each threshold is hit. Comma-separated. Most DSPs use 30 + 14 + 3.</div></div>
-                <div><input class="form-input" id="lic-days" value="30, 14" style="max-width:160px" /></div>
-              </div>
-
-              <div class="form-row">
-                <div><div class="form-label">SMS template</div><div class="form-help">Variables: {{name}}, {{days}}, {{date}}. Sent via Twilio. Keep under 160 chars to avoid multipart billing.</div></div>
-                <div style="flex:1;max-width:480px"><textarea class="form-input" id="lic-template" style="min-height:72px;width:100%">Hi {{name}} — your driver license expires in {{days}} days ({{date}}). Please renew ASAP and send a photo of your new license. Reply HELP if you need help. — Cardinal Logistics</textarea></div>
-              </div>
-
-              <div class="form-row">
-                <div><div class="form-label">Also notify owner</div><div class="form-help">Add to dashboard action queue + email digest when a reminder fires.</div></div>
-                <div><label class="toggle"><input type="checkbox" id="lic-notify-owner" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-
-              <div class="form-row" style="border-bottom:0">
-                <div><div class="form-label">Auto-block scheduling past expiry</div><div class="form-help">Hard rule: drivers with expired licenses cannot be assigned to upcoming shifts. Recommended on for DOT compliance.</div></div>
-                <div><label class="toggle"><input type="checkbox" id="lic-block-scheduling" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-
-              <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--text-muted);line-height:1.5">
-                <strong style="color:var(--text)">How this works in production:</strong> A daily cron job (3 AM local) reads each driver's <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:10px">license_expiry</code> date, computes days remaining, and fires the SMS for each threshold not yet sent for the current renewal cycle. Cycle resets when you upload a new license document. All sends are logged to the driver's HR file.
-              </div>
-
-              <div style="margin-top:var(--s-4);display:flex;gap:8px">
-                <button class="btn" onclick="licResetSettings()">Reset to defaults</button>
-                <button class="btn btn-primary" onclick="licSaveSettings()">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  Save changes
-                </button>
-              </div>
-            </div>
 
             <!-- BILLING SECTION -->
             <div class="settings-section hidden" data-set="billing">

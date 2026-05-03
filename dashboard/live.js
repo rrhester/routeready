@@ -409,6 +409,17 @@ async function loadDriverLicensesView() {
   const status = document.getElementById("lic-panel-status");
   if (!body) return;
 
+  // Hydrate the renewal-reminders settings card from dsp.metadata.licenses.
+  const lic = window.RR?.dsp?.metadata?.licenses || {};
+  const tg = document.getElementById("rr-lic-toggle");
+  if (tg) tg.classList.toggle("on", lic.auto_reminders !== false);
+  const blk = document.getElementById("rr-lic-block");
+  if (blk) blk.classList.toggle("on", lic.block_past_expiry !== false);
+  const days = document.getElementById("rr-lic-days");
+  if (days) days.value = Array.isArray(lic.reminder_days) ? lic.reminder_days.join(", ") : "30, 14";
+  const tpl = document.getElementById("rr-lic-template");
+  if (tpl && lic.sms_template) tpl.value = lic.sms_template;
+
   const { data: rows, error } = await sb.from("drivers")
     .select("id, full_name, station:station_id (code), dl_number, dl_expires_on, status")
     .eq("dsp_id", window.RR.dsp.id)
@@ -485,6 +496,42 @@ window.drSub = function (sub) {
   if (sub === "licenses") loadDriverLicensesView();
   if (sub === "roster")   loadDriversRoster();
 };
+
+
+// Capture-phase delegate for renewal-reminder settings (Drivers → Licenses).
+document.addEventListener("click", async (e) => {
+  const tg = e.target.closest("[data-rr-lic-toggle], [data-rr-lic-block]");
+  if (tg) { e.preventDefault(); e.stopImmediatePropagation(); tg.classList.toggle("on"); return; }
+
+  if (e.target.closest("[data-rr-lic-save]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const status = document.getElementById("rr-lic-status");
+    const enabled  = document.getElementById("rr-lic-toggle")?.classList.contains("on");
+    const block    = document.getElementById("rr-lic-block")?.classList.contains("on");
+    const daysRaw  = document.getElementById("rr-lic-days")?.value || "";
+    const template = document.getElementById("rr-lic-template")?.value || "";
+    const days = daysRaw.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0);
+
+    status.className = "cal-edit-status";
+    status.textContent = "Saving…";
+
+    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
+    if (rErr) { status.className = "cal-edit-status err"; status.textContent = rErr.message; return; }
+    const md = dsp.metadata || {};
+    md.licenses = {
+      auto_reminders:    !!enabled,
+      block_past_expiry: !!block,
+      reminder_days:     days,
+      sms_template:      template,
+    };
+    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
+    if (wErr) { status.className = "cal-edit-status err"; status.textContent = wErr.message; return; }
+    window.RR.dsp.metadata = md;
+    status.className = "cal-edit-status ok";
+    status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+  }
+}, true);
 
 function renderDriverStatusBadge(s) {
   const map = {
