@@ -3119,19 +3119,7 @@ _styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to
 /* Kill HVE row highlights + the tag pills on week labels */
 .okami-table tr.hve, .okami-table tr.hve > td { background: transparent !important; }
 .okami-week-tag, .okami-week-tag.hve, .okami-week-tag.peak, .okami-week-tag.cycle { display: none !important; }
-.plan-calc-sub { display: none !important; }
-/* New shift chip — color-coded, larger, clearer time + hours badge */
-.rr-chip { padding: 7px 9px; border-radius: 8px; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; min-height: 44px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
-.rr-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.08); }
-.rr-chip-title { font-size: 12px; font-weight: 600; line-height: 1.2; display: flex; align-items: center; gap: 4px; }
-.rr-chip-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; opacity: .85; }
-.rr-chip-time { font-variant-numeric: tabular-nums; }
-.rr-chip-hours { background: rgba(255,255,255,.55); padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
-.rr-chip-ex { font-size: 9px; padding: 0 4px; border-radius: 3px; background: rgba(0,0,0,.08); font-weight: 700; letter-spacing: .04em; }
-.rr-chip-open { font-style: normal; }
-/* Cell padding so chips have breathing room and rows feel less cramped */
-#sched-sub-week .cal-cell { padding: 4px; min-height: 56px; vertical-align: middle; }
-#sched-sub-week .cal-row-label { padding: 10px 12px; }`;
+.plan-calc-sub { display: none !important; }`;
 document.head.appendChild(_styleEl);
 
 
@@ -3754,41 +3742,14 @@ function fmtTimeShort(iso) {
   } catch { return ""; }
 }
 
-// Soft pastel palette — chip color is hashed off route_code (or wave time
-// when no route is set) so the same route uses the same color across the
-// week. Operator scans the row at a glance.
-const _SCHED_PALETTE = [
-  { bg: "#DBEAFE", border: "#BFDBFE", text: "#1E40AF" }, // blue
-  { bg: "#FED7AA", border: "#FDBA74", text: "#9A3412" }, // peach
-  { bg: "#FCE7F3", border: "#F9A8D4", text: "#9D174D" }, // pink
-  { bg: "#D1FAE5", border: "#A7F3D0", text: "#065F46" }, // green
-  { bg: "#E9D5FF", border: "#DDD6FE", text: "#5B21B6" }, // purple
-  { bg: "#FEF9C3", border: "#FDE68A", text: "#854D0E" }, // yellow
-  { bg: "#CFFAFE", border: "#A5F3FC", text: "#155E75" }, // cyan
-];
-function _schedPalette(key) {
-  if (!key) return _SCHED_PALETTE[0];
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
-  return _SCHED_PALETTE[Math.abs(h) % _SCHED_PALETTE.length];
-}
-
 function _schedShiftChip(sh) {
-  const label = sh.route_code ? escapeHtml(sh.route_code) : "Shift";
+  const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
-  const hours = sh.block_hours ? `${sh.block_hours}h` : "";
-  const c = _schedPalette(sh.route_code || sh.starts_at || sh.id);
   const ex = sh.is_cushion
-    ? `<span class="rr-chip-ex">EX</span>`
+    ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
-  return `<div class="rr-chip" data-rr-shift-id="${sh.id}" title="Click to remove shift"
-       style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">
-    <div class="rr-chip-title">${label}${ex}</div>
-    <div class="rr-chip-row">
-      ${time ? `<span class="rr-chip-time">${time}</span>` : '<span></span>'}
-      ${hours ? `<span class="rr-chip-hours">${hours}</span>` : ""}
-    </div>
-  </div>`;
+  const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : '';
+  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to remove shift"><div class="shift-chip-route">${r}${ex}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -3938,10 +3899,10 @@ async function renderScheduleWeek() {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
       if (ptoOn(d.id, iso))
-        return `<div class="${cls}" ${data}><div class="rr-chip" style="background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B"><div class="rr-chip-title">PTO</div></div></div>`;
+        return `<div class="${cls}" ${data}><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>`;
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
       if (list.length === 0)
-        return `<div class="${cls}" ${data}></div>`;
+        return `<div class="${cls}" ${data}><div class="shift-chip off">Off</div></div>`;
       return `<div class="${cls}" ${data}>${list.map(_schedShiftChip).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid">
@@ -3984,51 +3945,50 @@ async function renderScheduleWeek() {
     totalAllOpen += slots.length;
   }
 
-  const pdRowsBodyHtml = peakUnfilled === 0 ? "" : Array.from({ length: peakUnfilled }, (_, r) => {
+  const pdRowsHtml = peakUnfilled === 0 ? "" : Array.from({ length: peakUnfilled }, (_, r) => {
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const slots = openSlotsByDate.get(iso) || [];
-      if (r >= slots.length) return `<div class="${cls}"></div>`;
+      if (r >= slots.length) return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
       const slot = slots[r];
       const data = `data-rr-cell="open" data-rr-cell-date="${iso}"`;
       if (slot.kind === "real") {
-        const label = slot.route_code || (slot.starts_at ? "Open" : "Open");
-        const time = slot.starts_at ? fmtTimeShort(slot.starts_at) : "";
-        const c = _schedPalette(slot.route_code || slot.starts_at || slot.shift_id);
-        const ex = slot.is_cushion ? `<span class="rr-chip-ex">EX</span>` : "";
-        return `<div class="${cls}" ${data}>
-          <div class="rr-chip rr-chip-open" data-rr-shift-id="${slot.shift_id}"
-               style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">
-            <div class="rr-chip-title">${escapeHtml(label)}${ex}</div>
-            ${time ? `<div class="rr-chip-row"><span class="rr-chip-time">${time}</span></div>` : ""}
-          </div></div>`;
+        const label = slot.starts_at ? fmtTimeShort(slot.starts_at) : (slot.route_code || "open");
+        const ex = slot.is_cushion
+          ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+          : "";
+        const style = slot.is_cushion ? ' style="border-color:#FCD34D"' : "";
+        return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
       }
-      return `<div class="${cls}" ${data}>
-        <div class="rr-chip rr-chip-open" data-rr-virtual-station="${slot.station_id}"
-             style="background:#F8FAFC;border:1px dashed var(--border-strong);color:var(--text-subtle)"
-             title="From OKAMI demand · drag a driver to fill">
-          <div class="rr-chip-title">Open</div>
-        </div></div>`;
+      return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(slot.station_code || "open")}</div></div>`;
     }).join("");
-    return `<div class="cal-grid" style="background:#FAFBFC">
-      <div class="cal-row-label" style="background:#FAFBFC">
-        <div></div>
-        <div><div class="cal-row-label-name" style="color:var(--text-subtle);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">${r === 0 ? "Open shifts" : ""}</div></div>
+    const pdNum = r + 1;
+    return `<div class="cal-grid" style="background:var(--canvas)">
+      <div class="cal-row-label" style="background:var(--canvas)">
+        <div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong);font-weight:700;font-size:11px">PD</div>
+        <div><div class="cal-row-label-name" style="color:var(--text-muted)">PD ${pdNum}</div><div class="cal-row-label-meta">Potential driver slot</div></div>
       </div>
       ${cells}
     </div>`;
   }).join("");
 
-  // Don't show the legacy 7-cell coverage strip when PD rows already
-  // communicate unfilled demand. Operator wanted the cleaner layout.
-  const pdRowsHtml = pdRowsBodyHtml;
+  // Coverage strip.
+  const covCellCls = (filled, needed) => {
+    if (needed === 0) return "coverage-cell full";
+    if (filled >= needed) return "coverage-cell full";
+    if (filled >= needed * 0.95) return "coverage-cell partial";
+    return "coverage-cell gap";
+  };
+  const coverageStripHtml = `<div class="coverage-strip">
+    <div class="coverage-cell">Coverage</div>
+    ${days.map(iso => { const a = coverageByDate.get(iso) || { needed: 0, filled: 0 }; return `<div class="${covCellCls(a.filled, a.needed)}">${a.filled} / ${a.needed}</div>`; }).join("")}
+  </div>`;
 
   const emptyHtml = drivers.length === 0
     ? `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet. <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-drivers>Add drivers →</span></div>`
     : "";
 
-  // Open shifts at TOP, drivers below — matches the reference layout.
-  wrap.insertAdjacentHTML("beforeend", pdRowsHtml + driverRowsHtml + emptyHtml);
+  wrap.insertAdjacentHTML("beforeend", driverRowsHtml + pdRowsHtml + coverageStripHtml + emptyHtml);
 
   // Strip mockup-injected banners that reference fake RR_DRIVERS data.
   const lic = document.getElementById("sched-license-banner");
@@ -4120,9 +4080,12 @@ function bindSchedWeekNav() {
     if (e.target.closest("[data-rr-goto-okami]"))   { if (typeof window.goto === "function") window.goto("okami"); return; }
     if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
 
-    // Click an ASSIGNED shift chip (not open) → confirm + delete.
-    const assignedChip = e.target.closest(".rr-chip[data-rr-shift-id]:not(.rr-chip-open)");
-    if (assignedChip) {
+    // Click an ASSIGNED shift chip (not open, off, or timeoff) → confirm + delete.
+    const assignedChip = e.target.closest(".shift-chip[data-rr-shift-id]");
+    if (assignedChip
+        && !assignedChip.classList.contains("open")
+        && !assignedChip.classList.contains("off")
+        && !assignedChip.classList.contains("timeoff")) {
       e.stopPropagation();
       const id = assignedChip.dataset.rrShiftId;
       if (!id) return;
