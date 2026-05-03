@@ -3835,18 +3835,19 @@ async function autoAssignDriversForWeek() {
   const pto     = ptoRes.data     || [];
   let   shifts  = shiftsRes.data  || [];
 
-  // Pre-step: a previous Auto-fill run may have placed a driver on a
-  // CUSHION shift while a regular shift was available. Free up those
-  // cushion assignments so this pass can put the driver on a regular
-  // shift first (per the operator's "regular before EX" rule).
-  const cushionAssigned = shifts.filter(sh => sh.driver_id && sh.is_cushion && sh.status === "scheduled");
-  if (cushionAssigned.length > 0) {
-    const ids = cushionAssigned.map(sh => sh.id);
+  // Aggressive reset: unassign EVERY driver from EVERY shift so the
+  // priority sort (regular → cushion) runs from a clean slate. Anything
+  // good will be re-assigned identically in the loop below; anything
+  // misplaced gets re-prioritized.
+  const allAssigned = shifts.filter(sh => sh.driver_id && sh.status === "scheduled");
+  if (allAssigned.length > 0) {
+    const ids = allAssigned.map(sh => sh.id);
     const { error: clearErr } = await sb.from("shifts")
       .update({ driver_id: null })
       .in("id", ids);
-    if (!clearErr) {
-      // Mirror the change in our local copy so we don't refetch.
+    if (clearErr) {
+      console.warn("auto-assign clear failed:", clearErr);
+    } else {
       const cleared = new Set(ids);
       shifts = shifts.map(sh => cleared.has(sh.id) ? { ...sh, driver_id: null } : sh);
     }
