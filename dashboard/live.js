@@ -659,17 +659,40 @@ window.pipeSub = function (sub) {
 let _calIframeLoaded = false;
 
 async function loadCalendarTab() {
-  // Lazy-init the iframe.
+  const username = window.RR?.dsp?.metadata?.cal?.username || "Routeready";
+  const interviewSlug = window.RR?.dsp?.metadata?.cal?.interview_slug || "interview";
+
+  // Update the link-preview display + cache the URL on the button.
+  const preview = document.getElementById("cal-link-preview");
+  if (preview) preview.textContent = `cal.com/${username}/${interviewSlug}`;
+  const copyBtn = document.querySelector("[data-rr-copy-cal-link]");
+  if (copyBtn) copyBtn.dataset.url = `https://cal.com/${username}/${interviewSlug}`;
+
+  // Lazy-init the iframe (only the preview embed).
   if (!_calIframeLoaded) {
     const iframe = document.getElementById("cal-iframe");
     if (iframe) {
-      const username = window.RR?.dsp?.metadata?.cal?.username || "Routeready";
-      iframe.src = `https://cal.com/${username}`;
+      iframe.src = `https://cal.com/${username}/${interviewSlug}`;
       _calIframeLoaded = true;
     }
   }
   await loadCalBookingsList();
 }
+
+// Capture-phase delegate for the "copy public booking link" button.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-copy-cal-link]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const url = btn.dataset.url || "https://cal.com/Routeready/interview";
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("Booking link copied", "success");
+  } catch {
+    toast("Couldn't copy — " + url, "warn");
+  }
+}, true);
 
 async function loadCalBookingsList() {
   const list = document.getElementById("cal-bookings-list");
