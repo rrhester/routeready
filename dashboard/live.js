@@ -589,6 +589,7 @@ async function loadDashboardWeather() {
   const body = document.getElementById("rr-weather-body");
   if (!body) return;
   _scheduleWeatherRefresh();
+  loadWeatherRadar();
   const meta = window.RR?.dsp?.metadata?.weather || {};
   const lat = Number(meta.lat);
   const lon = Number(meta.lon);
@@ -908,6 +909,201 @@ async function loadDashboardWeather() {
       <div style="font-size:13px;color:var(--text-subtle);line-height:1.5">${detail}</div>`;
   }
 }
+
+// ─── Dashboard · Live radar (RainViewer + Leaflet + 2hr drive overlay) ─
+
+let _weatherRadarState = null;
+let _weatherRadarRefreshTimer = null;
+
+function _ensureLeaflet() {
+  if (window.L) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-rr-leaflet]')) {
+      const css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      css.crossOrigin = '';
+      css.dataset.rrLeaflet = '1';
+      document.head.appendChild(css);
+    }
+    const existing = document.querySelector('script[data-rr-leaflet]');
+    if (existing) {
+      const wait = setInterval(() => {
+        if (window.L) { clearInterval(wait); resolve(); }
+      }, 50);
+      setTimeout(() => { clearInterval(wait); if (!window.L) reject(new Error('leaflet timeout')); }, 10000);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.crossOrigin = '';
+    script.dataset.rrLeaflet = '1';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('leaflet load failed'));
+    document.head.appendChild(script);
+  });
+}
+
+async function loadWeatherRadar() {
+  const card = document.getElementById('rr-weather-radar-card');
+  if (!card) return;
+  const meta = window.RR?.dsp?.metadata?.weather || {};
+  const lat = Number(meta.lat);
+  const lon = Number(meta.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) { card.style.display = 'none'; return; }
+  card.style.display = 'flex';
+
+  try { await _ensureLeaflet(); } catch (e) { console.warn('leaflet load:', e); return; }
+
+  const mapEl = document.getElementById('rr-radar-map');
+  if (!mapEl) return;
+
+  // First-time map setup
+  if (!_weatherRadarState || !_weatherRadarState.map) {
+    const map = L.map(mapEl, {
+      center: [lat, lon],
+      zoom: 8,
+      zoomControl: true,
+      scrollWheelZoom: false,
+      attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+
+    L.circleMarker([lat, lon], {
+      radius: 6, color: '#fff', weight: 2, fillColor: '#e53e3e', fillOpacity: 1,
+    }).addTo(map).bindTooltip('Station', { permanent: false });
+
+    // 2hr drive ring (~120 mi at typical highway speeds)
+    L.circle([lat, lon], {
+      radius: 193121, color: '#3b82f6', weight: 1.5, dashArray: '6 4',
+      fillColor: '#3b82f6', fillOpacity: 0.04,
+    }).addTo(map).bindTooltip('2hr drive zone (~120 mi)', { permanent: false });
+
+    _weatherRadarState = {
+      map, frames: [], currentIdx: 0, layers: new Map(),
+      playing: true, timer: null, host: '', pastCount: 0, color: 2,
+    };
+
+    // Recompute size after layout settles
+    setTimeout(() => map.invalidateSize(), 100);
+  }
+
+  // Refresh frame catalog
+  try {
+    const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    if (!res.ok) throw new Error(`rainviewer HTTP ${res.status}`);
+    const data = await res.json();
+    const past    = data.radar?.past || [];
+    const nowcast = data.radar?.nowcast || [];
+    const frames  = [...past, ...nowcast];
+    if (!frames.length) return;
+
+    const s = _weatherRadarState;
+    // Drop stale layers from previous fetch
+    for (const layer of s.layers.values()) s.map.removeLayer(layer);
+    s.layers.clear();
+    s.frames = frames;
+    s.host   = data.host;
+    s.pastCount = past.length;
+
+    // Set scrubber max
+    const scrub = document.getElementById('rr-radar-scrub');
+    if (scrub) {
+      scrub.max = String(frames.length - 1);
+      scrub.value = String(past.length - 1);
+    }
+
+    setRadarFrame(past.length - 1);
+
+    // Restart auto-play
+    if (s.timer) clearInterval(s.timer);
+    s.playing = true;
+    const playBtn = document.getElementById('rr-radar-playpause');
+    if (playBtn) playBtn.textContent = '⏸';
+    s.timer = setInterval(() => {
+      if (!s.playing) return;
+      const next = (s.currentIdx + 1) % s.frames.length;
+      setRadarFrame(next);
+    }, 700);
+  } catch (e) {
+    console.warn('radar fetch:', e);
+  }
+
+  // Auto-refresh frame catalog every 5 min
+  if (!_weatherRadarRefreshTimer) {
+    _weatherRadarRefreshTimer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (!document.getElementById('rr-radar-map')) return;
+      loadWeatherRadar();
+    }, 5 * 60 * 1000);
+  }
+}
+
+function setRadarFrame(idx) {
+  const s = _weatherRadarState;
+  if (!s || !s.frames[idx]) return;
+
+  if (!s.layers.has(idx)) {
+    const f = s.frames[idx];
+    const url = `${s.host}${f.path}/256/{z}/{x}/{y}/${s.color}/1_1.png`;
+    const layer = L.tileLayer(url, { opacity: 0, tileSize: 256, zIndex: 100 + idx });
+    layer.addTo(s.map);
+    s.layers.set(idx, layer);
+  }
+
+  for (const [i, layer] of s.layers.entries()) {
+    layer.setOpacity(i === idx ? 0.7 : 0);
+  }
+
+  s.currentIdx = idx;
+
+  const tl = document.getElementById('rr-radar-timeline');
+  if (tl) {
+    const f = s.frames[idx];
+    const t = new Date(f.time * 1000);
+    const isLast = idx === s.pastCount - 1;
+    const isPast = idx < s.pastCount;
+    const offsetMin = Math.round((t.getTime() - Date.now()) / 60000);
+    const label = isLast ? 'Now' : (isPast ? `${offsetMin}m` : `+${offsetMin}m`);
+    const time = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const color = isPast ? (isLast ? 'var(--text)' : 'var(--text-subtle)') : 'var(--accent-text)';
+    tl.style.color = color;
+    tl.textContent = `${label} · ${time}`;
+  }
+
+  const scrub = document.getElementById('rr-radar-scrub');
+  if (scrub && parseInt(scrub.value, 10) !== idx) scrub.value = String(idx);
+}
+
+// Radar controls — play/pause, scrub, color scheme
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#rr-radar-playpause')) {
+    if (!_weatherRadarState) return;
+    _weatherRadarState.playing = !_weatherRadarState.playing;
+    const btn = document.getElementById('rr-radar-playpause');
+    if (btn) btn.textContent = _weatherRadarState.playing ? '⏸' : '▶';
+  }
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'rr-radar-scrub') {
+    if (!_weatherRadarState) return;
+    _weatherRadarState.playing = false;
+    const btn = document.getElementById('rr-radar-playpause');
+    if (btn) btn.textContent = '▶';
+    setRadarFrame(parseInt(e.target.value, 10));
+  }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'rr-radar-style') {
+    if (!_weatherRadarState) return;
+    _weatherRadarState.color = parseInt(e.target.value, 10) || 2;
+    // Drop cached layers so new color takes effect
+    for (const layer of _weatherRadarState.layers.values()) _weatherRadarState.map.removeLayer(layer);
+    _weatherRadarState.layers.clear();
+    setRadarFrame(_weatherRadarState.currentIdx);
+  }
+});
 
 // Settings: Save station location → write to dsps.metadata.weather, refresh card.
 document.addEventListener("click", async (e) => {
