@@ -5193,6 +5193,7 @@ a{color:inherit;text-decoration:none}
         <div class="subnav">
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
           <button class="subnav-item" data-sub="insights" onclick="drSub('insights')">Insights</button>
+          <button class="subnav-item" data-sub="licenses" onclick="drSub('licenses')">Licenses</button>
           <button class="subnav-item" data-sub="attendance" onclick="drSub('attendance')">Attendance <span id="att-subnav-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
         </div>
 
@@ -5574,20 +5575,25 @@ a{color:inherit;text-decoration:none}
               <strong style="color:var(--text)">Insight:</strong> Three of the four flagged drivers have route-related patterns (last stop is on the far edge of route). Consider re-balancing KMO2-08C and KMO3-04D — recovers ~$700/cycle.
             </div>
           </div>
+        </div><!-- /dr-sub-insights -->
 
-          <!-- ─── LICENSE RENEWALS PANEL ──────────────────────── -->
-          <div class="di-section" style="margin-top:var(--s-5)" id="lic-renewals-panel">
+
+        <!-- ═══════════════════════════════════════════════════════
+             LICENSES SUB-VIEW — DL renewals (live)
+             ═══════════════════════════════════════════════════════ -->
+        <div class="dr-subview" id="dr-sub-licenses">
+          <div class="di-section" id="lic-renewals-panel">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-3)">
               <div>
-                <h3 class="di-section-title" style="margin:0">Upcoming license renewals</h3>
-                <p style="font-size:11px;color:var(--text-subtle);margin:2px 0 0 0">Drivers with CDL / DOT-required licenses expiring soon. Auto-SMS fires per <a style="color:var(--accent-text);cursor:pointer" onclick="goto('settings');setTimeout(function(){var b=document.querySelector('.settings-nav-item[data-set=&quot;renewals&quot;]');if(b)b.click();},50)">License renewals settings</a>.</p>
+                <h3 class="di-section-title" style="margin:0">Driver licenses</h3>
+                <p style="font-size:11px;color:var(--text-subtle);margin:2px 0 0 0">Drivers with a license on file. Rows highlight when the license is within the next 30 days or already expired.</p>
               </div>
               <span id="lic-panel-status" style="font-size:11px;color:var(--text-subtle)">—</span>
             </div>
-            <div id="lic-renewals-body"><!-- populated by renderRenewalsPanel() --></div>
+            <div id="lic-renewals-body"><div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div></div>
           </div>
+        </div><!-- /dr-sub-licenses -->
 
-        </div><!-- /dr-sub-insights -->
 
         <!-- ═══════════════════════════════════════════════════════
              ATTENDANCE SUB-VIEW — Report + Policy Builder + Log
