@@ -17,12 +17,14 @@ import { serviceClient, jsonResponse, badRequest, isWithinQuietHours } from "../
 
 const TWILIO_BASE = "https://api.twilio.com/2010-04-01";
 
+interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
   id: string;
   dsp_id: string;
   applicant_id: string | null;
   to_phone: string;
   body: string;
+  attachments: Attachment[] | null;
 }
 
 Deno.serve(async (req) => {
@@ -40,7 +42,7 @@ Deno.serve(async (req) => {
   const limit = Math.min(payload?.limit ?? 50, 200);
 
   let q = supa.from("sms_messages")
-    .select("id, dsp_id, applicant_id, to_phone, body")
+    .select("id, dsp_id, applicant_id, to_phone, body, attachments")
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -95,6 +97,11 @@ Deno.serve(async (req) => {
     form.set("Body", row.body);
     if (messagingService) form.set("MessagingServiceSid", messagingService);
     else form.set("From", fromNumber!);
+    // Twilio supports up to 10 MediaUrl params per MMS message.
+    const attachments = Array.isArray(row.attachments) ? row.attachments : [];
+    for (const a of attachments.slice(0, 10)) {
+      if (a?.url) form.append("MediaUrl", a.url);
+    }
 
     const resp = await fetch(`${TWILIO_BASE}/Accounts/${sid}/Messages.json`, {
       method: "POST",

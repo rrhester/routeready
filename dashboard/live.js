@@ -296,12 +296,12 @@ function renderDriverTable(rows, error) {
   if (_driverStage === "onboarding") {
     thead.innerHTML = `
       <th>Driver</th>
+      <th>Days since hire</th>
       <th>Background check</th>
       <th>Drug test</th>
       <th>Training scheduled</th>
       <th>Status</th>
       <th>Training date</th>
-      <th></th>
       <th></th>`;
   } else {
     thead.innerHTML = `
@@ -344,17 +344,23 @@ function renderOnboardingRow(d) {
   const initials = (d.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
   const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
   const contact = d.phone || d.email || "";
+  const days = d.hire_date
+    ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000))
+    : null;
+  const daysCell = days != null
+    ? `<span style="font-weight:600">${days}</span> <span style="font-size:11px;color:var(--text-subtle)">day${days === 1 ? "" : "s"}</span>`
+    : '<span style="color:var(--text-subtle)">—</span>';
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(d.full_name ?? "")}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
+      <td>${daysCell}</td>
       <td>${pillCheck(d.background_check_completed_at)}</td>
       <td>${pillCheck(d.drug_test_completed_at)}</td>
       <td>${d.training_scheduled_at ? new Date(d.training_scheduled_at).toLocaleString() : '<span style="color:var(--text-subtle)">—</span>'}</td>
       <td>${renderDriverStatusBadge(d.status)}</td>
       <td class="cell-time">${d.training_date ? new Date(d.training_date).toLocaleDateString() : "—"}</td>
-      <td></td>
       <td></td>
     </tr>`;
 }
@@ -409,6 +415,22 @@ async function refreshDriverStatRow(rows) {
   for (const r of rows) counts[r.status] = (counts[r.status] || 0) + 1;
   const inactiveTotal = (counts.inactive || 0) + (counts.leave || 0) + (counts.terminated || 0);
 
+  // At-risk: drivers with status='active' AND score < 70 (placeholder
+  // until the at-risk model lands).
+  const atRiskCount = rows.filter(r => r.status === "active" && (r.score ?? 999) < 70).length;
+
+  // Update the stage-tab badges (Active / Onboarding / At risk / Inactive).
+  const tabCounts = {
+    active:     counts.active,
+    onboarding: counts.onboarding,
+    atrisk:     atRiskCount,
+    inactive:   inactiveTotal,
+  };
+  Object.entries(tabCounts).forEach(([stage, n]) => {
+    const el = document.querySelector(`.dr-subview .stage-tab[data-stage="${stage}"] .stage-tab-count`);
+    if (el) el.textContent = n;
+  });
+
   // Coachings in last 7 days.
   const sevenAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   const { count: coachedCount } = await sb.from("coachings")
@@ -422,12 +444,11 @@ async function refreshDriverStatRow(rows) {
     ? "—"
     : Math.round(scored.reduce((s, r) => s + Number(r.score), 0) / scored.length);
 
-  // "At risk" doesn't have a model yet — show 0 placeholder.
   const tiles = document.querySelectorAll(".driver-stat-row .stat-mini");
   if (tiles.length >= 4) {
     setStatTile(tiles[0], "Active",  counts.active,  `${counts.onboarding} onboarding · ${inactiveTotal} inactive`);
     setStatTile(tiles[1], "Avg score", avgScore,     "Per-driver score, latest");
-    setStatTile(tiles[2], "At risk", 0,              "Below threshold");
+    setStatTile(tiles[2], "At risk", atRiskCount,    "Active drivers below 70");
     setStatTile(tiles[3], "Coached this week", coachedCount ?? 0, "From the coachings log");
   }
 }
@@ -2075,12 +2096,37 @@ function renderMessageRow(t) {
 function openMessageEditor(template) {
   const t = template;
   const isEmail = t.channel === "email";
+  // Local working copy of the attachments array — lets the operator
+  // upload + remove files before saving.
+  let attachments = Array.isArray(t.attachments) ? [...t.attachments] : [];
 
   let m = document.getElementById("rr-msg-modal");
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-msg-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+
+  function attachmentsHtml() {
+    if (attachments.length === 0) {
+      return `<div style="font-size:12px;color:var(--text-subtle);padding:8px 0">No attachments yet.</div>`;
+    }
+    return attachments.map((a, i) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;margin-top:6px">
+        <div style="min-width:0">
+          <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.name || "attachment")}</div>
+          <div style="font-size:10px;color:var(--text-subtle)">${a.content_type || ""} · ${a.size ? Math.round(a.size/1024)+" KB" : ""}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <a class="btn btn-sm" href="${a.url}" target="_blank" rel="noreferrer">Open</a>
+          <button class="btn btn-sm" data-rr-att-remove="${i}" style="color:var(--red)">Remove</button>
+        </div>
+      </div>`).join("");
+  }
+  function rerenderAttachments() {
+    const wrap = m.querySelector("[data-rr-att-list]");
+    if (wrap) wrap.innerHTML = attachmentsHtml();
+  }
+
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:640px;width:100%;max-height:90vh;overflow:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -2103,7 +2149,21 @@ function openMessageEditor(template) {
         ${!isEmail ? `<br/><strong style="color:var(--text-muted)">Keep SMS under 160 chars when possible</strong> — longer messages split into multiple texts.` : ""}
       </div>
 
-      <label style="display:flex;align-items:center;gap:10px;margin:14px 0 4px"><input type="checkbox" data-rr-msg-active ${t.active !== false ? "checked" : ""}/>Active (used for outgoing sends)</label>
+      <div style="margin-top:18px">
+        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Attachments</label>
+        <div style="font-size:11px;color:var(--text-subtle);margin-bottom:8px">
+          ${isEmail
+            ? `Email attachments are sent as files (Resend fetches the URL)`
+            : `SMS attachments turn the text into MMS — Twilio fetches each file. Up to 10 per message.`}
+        </div>
+        <div data-rr-att-list>${attachmentsHtml()}</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+          <input type="file" data-rr-att-file />
+          <button class="btn btn-sm" data-rr-att-upload>Upload</button>
+        </div>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:10px;margin:18px 0 4px"><input type="checkbox" data-rr-msg-active ${t.active !== false ? "checked" : ""}/>Active (used for outgoing sends)</label>
 
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
         <button class="btn" data-rr-msg-cancel>Cancel</button>
@@ -2114,13 +2174,42 @@ function openMessageEditor(template) {
 
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-msg-cancel]")) { m.remove(); return; }
+
+    const removeBtn = e.target.closest("[data-rr-att-remove]");
+    if (removeBtn) {
+      const idx = parseInt(removeBtn.getAttribute("data-rr-att-remove"), 10);
+      attachments.splice(idx, 1);
+      rerenderAttachments();
+      return;
+    }
+
+    if (e.target.closest("[data-rr-att-upload]")) {
+      const input = m.querySelector("[data-rr-att-file]");
+      const file = input?.files?.[0];
+      if (!file) { toast("Choose a file first", "warn"); return; }
+      const path = `${window.RR.dsp.id}/${t.id}/${Date.now()}-${file.name}`;
+      const { error: upErr } = await sb.storage.from("message-attachments").upload(path, file, {
+        contentType: file.type, upsert: false,
+      });
+      if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+      const { data: pub } = sb.storage.from("message-attachments").getPublicUrl(path);
+      attachments.push({
+        name: file.name, url: pub.publicUrl,
+        content_type: file.type, size: file.size,
+      });
+      input.value = "";
+      rerenderAttachments();
+      toast("Attachment uploaded", "success");
+      return;
+    }
+
     if (e.target.closest("[data-rr-msg-save]")) {
       const body = m.querySelector("[data-rr-msg-body]").value;
       if (!body.trim()) { toast("Body is required", "warn"); return; }
       const subject = isEmail ? m.querySelector("[data-rr-msg-subject]").value : t.subject;
       const active = m.querySelector("[data-rr-msg-active]").checked;
       const { error } = await sb.from("message_templates")
-        .update({ body, subject, active })
+        .update({ body, subject, active, attachments })
         .eq("id", t.id);
       if (error) { toast("Save failed: " + error.message, "warn"); return; }
       m.remove();

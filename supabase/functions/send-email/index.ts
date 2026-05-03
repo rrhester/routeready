@@ -7,9 +7,11 @@
 //   RESEND_REPLY_TO            (optional)
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 
+interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
   id: string; dsp_id: string; applicant_id: string | null;
   to_email: string; subject: string; body_text: string | null; body_html: string | null;
+  attachments: Attachment[] | null;
 }
 
 Deno.serve(async (req) => {
@@ -25,7 +27,7 @@ Deno.serve(async (req) => {
   const limit = Math.min(payload?.limit ?? 50, 200);
 
   let q = supa.from("email_messages")
-    .select("id, dsp_id, applicant_id, to_email, subject, body_text, body_html")
+    .select("id, dsp_id, applicant_id, to_email, subject, body_text, body_html, attachments")
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -45,6 +47,18 @@ Deno.serve(async (req) => {
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
     if (replyTo) body.reply_to = replyTo;
+    // Resend supports `attachments: [{filename, path}]` where `path` is a
+    // public URL it fetches at send time.
+    const att = Array.isArray(row.attachments) ? row.attachments : [];
+    if (att.length > 0) {
+      body.attachments = att
+        .filter((a) => a?.url)
+        .map((a) => ({
+          filename: a.name || "attachment",
+          path:     a.url,
+          content_type: a.content_type,
+        }));
+    }
 
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
