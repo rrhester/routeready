@@ -2939,17 +2939,273 @@ let _okamiStart = null;
 let _schedStart = null;
 
 async function loadOkamiView() { /* re-wire planned, no-op for now */ }
+
 async function loadScheduleView() {
-  // Still populate Time off + Open shifts panels — those mockup
-  // sections were placeholders, not polished designs.
   loadTimeOffList();
   loadOpenShifts();
+  await renderScheduleWeek();
+  bindSchedWeekNav();
 }
 
 function renderScheduleGrid() { /* removed */ }
 
-// Schedule-grid prev/next/add/assign handlers removed pending mockup
-// re-wire. Time-off + open-shifts panels still wire below.
+// ─── Schedule · Week view (read-only render) ───────────────────────────────
+
+function fmtTimeShort(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
+  } catch { return ""; }
+}
+
+function _schedShiftChip(sh) {
+  const r = sh.route_code ? escapeHtml(sh.route_code) : "shift";
+  const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
+  return `<div class="shift-chip"><div class="shift-chip-route">${r}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+}
+
+function _schedDriverInitials(name) {
+  return (name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+}
+
+async function renderScheduleWeek() {
+  const sub = document.getElementById("sched-sub-week");
+  if (!sub) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  const weekStart = new Date(_schedStart + "T12:00:00");
+  const weekEnd   = addDays(weekStart, 6);
+  const weekEndIso = fmtIsoDate(weekEnd);
+  const todayIso  = fmtIsoDate(new Date());
+
+  const [gridRes, driversRes, toRes] = await Promise.all([
+    sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
+    sb.from("drivers")
+      .select("id, full_name, status, station_id, hire_date, tier, station:station_id (code)")
+      .eq("dsp_id", dspId)
+      .in("status", ["active", "onboarding"])
+      .order("full_name"),
+    sb.from("time_off_requests")
+      .select("id, driver_id, start_date, end_date, status")
+      .eq("dsp_id", dspId)
+      .eq("status", "approved")
+      .lte("start_date", weekEndIso)
+      .gte("end_date", _schedStart),
+  ]);
+
+  if (gridRes.error)    { console.warn("schedule_grid:", gridRes.error.message); return; }
+  if (driversRes.error) { console.warn("drivers load:", driversRes.error.message); return; }
+  if (toRes.error)      { console.warn("time_off load:", toRes.error.message); return; }
+
+  const grid    = gridRes.data    || { coverage: [], shifts: [] };
+  const drivers = driversRes.data || [];
+  const timeOff = toRes.data      || [];
+
+  _schedDriverList = drivers; // existing add-shift modal reads this list
+
+  // Index shifts by driver/date and collect open shifts by date.
+  const shiftsByDriverDate = new Map();
+  const openShiftsByDate = new Map();
+  const hoursPerDriver = new Map();
+  for (const sh of (grid.shifts || [])) {
+    if (sh.driver_id) {
+      const k = `${sh.driver_id}|${sh.date}`;
+      if (!shiftsByDriverDate.has(k)) shiftsByDriverDate.set(k, []);
+      shiftsByDriverDate.get(k).push(sh);
+      hoursPerDriver.set(sh.driver_id, (hoursPerDriver.get(sh.driver_id) || 0) + 1);
+    } else {
+      if (!openShiftsByDate.has(sh.date)) openShiftsByDate.set(sh.date, []);
+      openShiftsByDate.get(sh.date).push(sh);
+    }
+  }
+
+  // Index PTO by driver.
+  const ptoByDriver = new Map();
+  for (const t of timeOff) {
+    if (!ptoByDriver.has(t.driver_id)) ptoByDriver.set(t.driver_id, []);
+    ptoByDriver.get(t.driver_id).push(t);
+  }
+  const ptoOn = (driverId, iso) => (ptoByDriver.get(driverId) || []).some(t => iso >= t.start_date && iso <= t.end_date);
+
+  // Coverage rolled up by date.
+  const coverageByDate = new Map();
+  for (const c of (grid.coverage || [])) {
+    const a = coverageByDate.get(c.date) || { needed: 0, filled: 0 };
+    a.needed += (c.needed || 0);
+    a.filled += (c.filled || 0);
+    coverageByDate.set(c.date, a);
+  }
+  let totalNeeded = 0, totalFilled = 0;
+  for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
+  const pct = totalNeeded ? Math.round(totalFilled / totalNeeded * 100) : 0;
+
+  // ── Toolbar
+  const labelEl = sub.querySelector(".sched-week-label");
+  if (labelEl) {
+    labelEl.textContent = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+  }
+  const subLineEl = sub.querySelector(".sched-week-sub");
+  if (subLineEl) {
+    subLineEl.innerHTML = `${pct}% filled (${totalFilled}/${totalNeeded} shifts) · <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-okami>Adjust in OKAMI →</span>`;
+  }
+
+  // ── Day headers (skip first cell which is "Driver")
+  const headRow = sub.querySelector(".cal-grid.head");
+  if (headRow) {
+    const heads = headRow.querySelectorAll(".cal-cell-head");
+    for (let i = 0; i < 7; i++) {
+      const cellHead = heads[i + 1];
+      if (!cellHead) break;
+      const dt = addDays(weekStart, i);
+      const iso = fmtIsoDate(dt);
+      cellHead.classList.toggle("today", iso === todayIso);
+      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>`;
+    }
+  }
+
+  // ── Driver rows + Unassigned + Coverage strip
+  const wrap = sub.querySelector(".cal-wrap");
+  if (!wrap) return;
+  Array.from(wrap.children).forEach(el => {
+    if (!el.classList.contains("head")) el.remove();
+  });
+
+  const days = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(weekStart, i)));
+
+  const driverRowsHtml = drivers.map(d => {
+    const initials = _schedDriverInitials(d.full_name);
+    const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+    const station = d.station?.code || "—";
+    const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
+    const cells = days.map(iso => {
+      const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
+      if (ptoOn(d.id, iso))
+        return `<div class="${cls}"><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>`;
+      const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
+      if (list.length === 0)
+        return `<div class="${cls}"><div class="shift-chip off">Off</div></div>`;
+      return `<div class="${cls}">${list.map(_schedShiftChip).join("")}</div>`;
+    }).join("");
+    return `<div class="cal-grid">
+      <div class="cal-row-label"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cal-row-label-name">${escapeHtml(d.full_name || "")}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)}</div></div></div>
+      ${cells}
+    </div>`;
+  }).join("");
+
+  // Unassigned row (open shifts).
+  const totalOpen = Array.from(openShiftsByDate.values()).reduce((s, a) => s + a.length, 0);
+  const unassignedHtml = totalOpen ? (() => {
+    const cells = days.map(iso => {
+      const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
+      const list = openShiftsByDate.get(iso) || [];
+      if (list.length === 0) return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
+      return `<div class="${cls}">${list.map(sh => `<div class="shift-chip open">+ ${escapeHtml(sh.route_code || "open")}</div>`).join("")}</div>`;
+    }).join("");
+    return `<div class="cal-grid" style="background:var(--canvas)">
+      <div class="cal-row-label" style="background:var(--canvas)"><div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><div><div class="cal-row-label-name" style="color:var(--text-muted)">Unassigned</div><div class="cal-row-label-meta">${totalOpen} route${totalOpen === 1 ? "" : "s"} need a driver</div></div></div>
+      ${cells}
+    </div>`;
+  })() : "";
+
+  // Coverage strip.
+  const covCellCls = (filled, needed) => {
+    if (needed === 0) return "coverage-cell full";
+    if (filled >= needed) return "coverage-cell full";
+    if (filled >= needed * 0.95) return "coverage-cell partial";
+    return "coverage-cell gap";
+  };
+  const coverageStripHtml = `<div class="coverage-strip">
+    <div class="coverage-cell">Coverage</div>
+    ${days.map(iso => { const a = coverageByDate.get(iso) || { needed: 0, filled: 0 }; return `<div class="${covCellCls(a.filled, a.needed)}">${a.filled} / ${a.needed}</div>`; }).join("")}
+  </div>`;
+
+  const emptyHtml = drivers.length === 0
+    ? `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet. <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-drivers>Add drivers →</span></div>`
+    : "";
+
+  wrap.insertAdjacentHTML("beforeend", driverRowsHtml + unassignedHtml + coverageStripHtml + emptyHtml);
+
+  renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalOpen);
+}
+
+function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalOpen) {
+  const aside = sub.querySelector("aside.driver-pool");
+  if (!aside) return;
+
+  const headSpans = aside.querySelectorAll(".pool-head span");
+  if (headSpans[1]) headSpans[1].textContent = `${drivers.length} driver${drivers.length === 1 ? "" : "s"}`;
+
+  const sections = aside.querySelectorAll(":scope > div");
+  if (sections.length < 2) return;
+  const availSection = sections[0];
+  const offSection   = sections[1];
+
+  const driverRowHtml = (d, hoursLabel, metaSuffix) => {
+    const initials = _schedDriverInitials(d.full_name);
+    const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+    const station = d.station?.code || "—";
+    return `<div class="pool-driver">
+      <div class="avatar-sm ${tier}">${initials}</div>
+      <div><div class="pool-driver-name">${escapeHtml(d.full_name || "")}</div><div class="pool-driver-meta">${escapeHtml(station)}${metaSuffix ? ` · ${escapeHtml(metaSuffix)}` : ""}</div></div>
+      <span class="pool-driver-hours">${escapeHtml(hoursLabel)}</span>
+    </div>`;
+  };
+
+  const availDrivers = drivers
+    .filter(d => !ptoByDriver.has(d.id))
+    .sort((a, b) => (hoursPerDriver.get(a.id) || 0) - (hoursPerDriver.get(b.id) || 0));
+  const offDrivers = drivers.filter(d => ptoByDriver.has(d.id));
+
+  availSection.innerHTML = `<div class="pool-section-label">Available · click to assign</div>
+    ${availDrivers.length === 0
+      ? '<div style="padding:8px;font-size:12px;color:var(--text-subtle)">No drivers available</div>'
+      : availDrivers.map(d => {
+          const shifts = hoursPerDriver.get(d.id) || 0;
+          return driverRowHtml(d, `${shifts}`, `${shifts} shift${shifts === 1 ? "" : "s"}`);
+        }).join("")}`;
+
+  offSection.innerHTML = `<div class="pool-section-label">Off / time off</div>
+    ${offDrivers.length === 0
+      ? '<div style="padding:8px;font-size:12px;color:var(--text-subtle)">No PTO this week</div>'
+      : offDrivers.map(d => {
+          const t = (ptoByDriver.get(d.id) || [])[0];
+          const range = t ? `PTO ${t.start_date.slice(5)}–${t.end_date.slice(5)}` : "Off";
+          return driverRowHtml(d, "PTO", range);
+        }).join("")}`;
+
+  const openCountEl = aside.querySelector('div[style*="padding-top"] div[style*="font-size:10px"]');
+  if (openCountEl) openCountEl.textContent = `${totalOpen} open shift${totalOpen === 1 ? "" : "s"} need${totalOpen === 1 ? "s" : ""} a driver`;
+}
+
+let _schedNavBound = false;
+function bindSchedWeekNav() {
+  if (_schedNavBound) return;
+  const sub = document.getElementById("sched-sub-week");
+  if (!sub) return;
+  _schedNavBound = true;
+
+  sub.addEventListener("click", (e) => {
+    const arrow = e.target.closest(".sched-week-arrow");
+    if (arrow) {
+      const arrows = sub.querySelectorAll(".sched-week-nav .sched-week-arrow");
+      const isPrev = arrows[0] === arrow;
+      const cur = new Date((_schedStart || fmtIsoDate(startOfWeekMonday(new Date()))) + "T12:00:00");
+      _schedStart = fmtIsoDate(addDays(cur, isPrev ? -7 : 7));
+      renderScheduleWeek();
+      return;
+    }
+    const todayBtn = e.target.closest(".sched-week-nav .btn");
+    if (todayBtn && todayBtn.textContent.trim() === "Today") {
+      _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+      renderScheduleWeek();
+      return;
+    }
+    if (e.target.closest("[data-rr-goto-okami]"))   { if (typeof window.goto === "function") window.goto("okami"); return; }
+    if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
+  });
+}
 
 function openAddShiftModal(date, stationId) {
   let m = document.getElementById("rr-shift-modal");
