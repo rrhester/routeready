@@ -71,7 +71,6 @@ function renderApplicantCard(a) {
   const slug  = (a.full_name || "").toLowerCase().replace(/\s+/g, "-");
   const subtitle = [
     a.station_code ? `Station ${a.station_code}` : null,
-    a.score != null ? `Score ${a.score}` : null,
     a.source ? `via ${a.source}` : null,
   ].filter(Boolean).join(" · ");
 
@@ -203,6 +202,16 @@ async function handleAction(btn) {
 }
 
 document.addEventListener("click", (e) => {
+  // Watch-video pill works on both .pa-card and .iv-card — handle as a
+  // standalone action that doesn't need a parent card lookup.
+  const playBtn = e.target.closest("[data-rr-play-video]");
+  if (playBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const url = playBtn.getAttribute("data-video-url");
+    if (url) openVideoModal(url);
+    return;
+  }
   const btn = e.target.closest("[data-rr-action]");
   if (btn) {
     e.preventDefault();
@@ -237,7 +246,97 @@ const _legacyGoto = window.goto;
 window.goto = function (view) {
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline") loadPipeline(getActiveStage());
+  if (view === "drivers")  loadDriversRoster();
 };
+
+
+// ─── Drivers roster ────────────────────────────────────────────────────────
+//
+// Replaces the mockup roster rows with live rows from public.drivers.
+// Records are minimal today (name, contact, station, hire_date, status)
+// so the columns the mockup defined for Score / Attendance / Coach show
+// "—" until a future migration fills them in.
+
+async function loadDriversRoster() {
+  const tbody = document.getElementById("drivers-tbody");
+  if (!tbody) return;
+
+  const { data: rows, error } = await sb.from("drivers")
+    .select("id, full_name, first_name, last_name, email, phone, status, hire_date, tier, score, station:station_id (code)")
+    .eq("dsp_id", window.RR.dsp.id)
+    .order("hire_date", { ascending: false })
+    .limit(500);
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
+
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No drivers yet</strong>When you mark an applicant Hired in Interview Day, they show up here.</td></tr>`;
+    // Reset the stage tab counts.
+    document.querySelectorAll('.dr-subview .stage-tab .stage-tab-count').forEach(el => el.textContent = "0");
+    return;
+  }
+
+  tbody.innerHTML = rows.map(renderDriverRow).join("");
+
+  // Update the stage-tab counts on the drivers subview if those tabs exist.
+  const counts = { active: 0, onboarding: 0, atrisk: 0, inactive: 0 };
+  for (const r of rows) {
+    if (counts[r.status] != null) counts[r.status]++;
+    else if (r.status === "leave" || r.status === "terminated") counts.inactive++;
+  }
+  Object.entries(counts).forEach(([stage, n]) => {
+    const el = document.querySelector(`.dr-subview .stage-tab[data-stage="${stage}"] .stage-tab-count`);
+    if (el) el.textContent = n;
+  });
+}
+
+function renderDriverRow(d) {
+  const initials = (d.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+  const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+  const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
+  const station = d.station?.code || "—";
+  const contact = d.phone || d.email || "";
+  const statusBadge = renderDriverStatusBadge(d.status);
+  return `
+    <tr data-driver-id="${d.id}">
+      <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
+        <div><div class="cell-name">${escapeHtml(d.full_name ?? "")}</div>
+        <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
+      <td>${escapeHtml(station)}</td>
+      <td>${tenure}</td>
+      <td>—</td>
+      <td>—</td>
+      <td>${statusBadge}</td>
+      <td class="cell-time">—</td>
+      <td></td>
+    </tr>`;
+}
+
+function renderDriverStatusBadge(s) {
+  const map = {
+    onboarding: { label: "Onboarding", style: "background:rgba(124,58,237,.14);color:#7C3AED" },
+    active:     { label: "Active",     style: "background:var(--green-soft);color:var(--green)" },
+    leave:      { label: "On leave",   style: "background:var(--amber-soft);color:var(--amber)" },
+    inactive:   { label: "Inactive",   style: "background:var(--canvas);color:var(--text-subtle)" },
+    terminated: { label: "Terminated", style: "background:var(--red-soft);color:var(--red)" },
+  };
+  const v = map[s] || { label: s, style: "" };
+  return `<span class="tag" style="${v.style}">${v.label}</span>`;
+}
+
+function tenureLabel(hireDate) {
+  const d = new Date(hireDate);
+  if (isNaN(d)) return "—";
+  const months = Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+  if (months < 1) {
+    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)));
+    return `${days}d`;
+  }
+  return `${months} mo`;
+}
 
 // ─── Add applicant ─────────────────────────────────────────────────────────
 //
@@ -464,19 +563,14 @@ async function loadPipelineKpis() {
     setText("hp-hire-rate", Math.round(Number(kpi.hire_rate ?? 0) * 100));
   }
 
-  // Funnel-conversion tiles.
+  // Funnel-conversion tiles. Just percentages — drop counts per request.
   if (funnel) {
-    setText("hp-uncontacted",     funnel.not_contacted ?? 0);
-    setText("hp-uncontacted-pct", (funnel.not_contacted_pct ?? 0) + "%");
-    setText("hp-passed",          funnel.passed ?? 0);
-    setText("hp-passed-pct",      (funnel.passed_pct ?? 0) + "%");
-    setText("hp-failed",          funnel.failed ?? 0);
-    setText("hp-failed-pct",      (funnel.failed_pct ?? 0) + "%");
-    setText("hp-booked",          funnel.booked ?? 0);
-    setText("hp-booked-pct",      (funnel.booked_rate ?? 0) + "%");
+    setText("hp-uncontacted-pct", funnel.not_contacted_pct ?? 0);
+    setText("hp-passed-pct",      funnel.passed_pct ?? 0);
+    setText("hp-booked-pct",      funnel.booked_rate ?? 0);
     const sub = document.getElementById("hp-booked-sub");
     if (sub) sub.textContent = `${funnel.booked ?? 0} of ${funnel.invited ?? 0} sent a booking link`;
-    setText("hp-actual",          funnel.active_drivers ?? 0);
+    setText("hp-actual", funnel.active_drivers ?? 0);
   }
 }
 
@@ -650,9 +744,8 @@ function renderInterviewCard(r) {
     : `<span class="iv-card-source" style="background:var(--accent-soft);color:var(--accent-text)">${r.source ?? "Indeed"}</span>`;
 
   const tags = [];
-  if (r.score != null) tags.push(`<span class="iv-card-tag">Score ${r.score}</span>`);
   if (r.video_url) tags.push(
-    `<span class="iv-card-tag" data-rr-action="play_video" data-video-url="${encodeURI(r.video_url)}" style="cursor:pointer">▶ Watch intro</span>`
+    `<span class="iv-card-tag" data-rr-play-video data-video-url="${encodeURI(r.video_url)}" style="cursor:pointer">▶ Watch intro</span>`
   );
 
   return `

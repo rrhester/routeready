@@ -4313,11 +4313,11 @@ a{color:inherit;text-decoration:none}
         <style>
           .hp-stats-banner{
             position:relative;
-            display:grid;grid-template-columns:repeat(7,1fr);
+            display:grid;grid-template-columns:repeat(6,1fr);
             background:var(--surface);border:1px solid var(--border);border-radius:12px;
             padding:18px 0;margin-bottom:var(--s-3);overflow:hidden;
           }
-          @media (max-width:1180px){.hp-stats-banner{grid-template-columns:repeat(4,1fr)}}
+          @media (max-width:1100px){.hp-stats-banner{grid-template-columns:repeat(3,1fr)}}
           @media (max-width:760px){.hp-stats-banner{grid-template-columns:repeat(2,1fr)}}
           .hp-stat{padding:0 16px;border-right:1px solid var(--border);position:relative}
           .hp-stat:last-child{border-right:none}
@@ -4353,22 +4353,17 @@ a{color:inherit;text-decoration:none}
         <div class="hp-stats-banner">
           <div class="hp-stat">
             <div class="hp-stat-label">Not contacted</div>
-            <div class="hp-stat-value"><span id="hp-uncontacted">0</span><span class="frac" id="hp-uncontacted-pct">0%</span></div>
+            <div class="hp-stat-value"><span id="hp-uncontacted-pct">0</span>%</div>
             <div class="hp-stat-trend">Applied · screening not yet sent</div>
           </div>
           <div class="hp-stat">
             <div class="hp-stat-label">Screening passed</div>
-            <div class="hp-stat-value"><span id="hp-passed">0</span><span class="frac" id="hp-passed-pct">0%</span></div>
+            <div class="hp-stat-value"><span id="hp-passed-pct">0</span>%</div>
             <div class="hp-stat-trend">Cleared screening + still active</div>
           </div>
           <div class="hp-stat">
-            <div class="hp-stat-label">Screening failed</div>
-            <div class="hp-stat-value"><span id="hp-failed">0</span><span class="frac" id="hp-failed-pct">0%</span></div>
-            <div class="hp-stat-trend">Hard-filter declined</div>
-          </div>
-          <div class="hp-stat">
             <div class="hp-stat-label">Booked rate</div>
-            <div class="hp-stat-value"><span id="hp-booked">0</span><span class="frac" id="hp-booked-pct">0%</span></div>
+            <div class="hp-stat-value"><span id="hp-booked-pct">0</span>%</div>
             <div class="hp-stat-trend" id="hp-booked-sub">Of those sent a booking link</div>
           </div>
           <div class="hp-stat">
@@ -5342,76 +5337,8 @@ a{color:inherit;text-decoration:none}
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td><div class="cell-driver"><div class="avatar-sm tier-d">MD</div><div><div class="cell-name">Marcus Davidson</div><div class="cell-name-sub">+1 417 555 0100</div></div></div></td>
-                <td>KMO1</td>
-                <td>18 mo</td>
-                <td><span class="score-bar"><span class="score-bar-fill red" style="width:62%"></span></span><span style="font-weight:600">62</span></td>
-                <td><span class="att-pill bad"><span class="att-pill-dot"></span><strong>3 callouts</strong> · 88%</span></td>
-                <td><span class="flag safety">Safety</span><br><span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2 ready</span></td>
-                <td class="cell-time">3 days ago</td>
-                <td><button class="coach-row-btn" onclick="openCoachDrawer('Marcus Davidson','safety','2 missed safety flags this cycle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
-              </tr>
-              <tr>
-                <td><div class="cell-driver"><div class="avatar-sm tier-d">TR</div><div><div class="cell-name">Tasha Reyes</div><div class="cell-name-sub">+1 417 555 0142</div></div></div></td>
-                <td>KMO2</td>
-                <td>9 mo</td>
-                <td><span class="score-bar"><span class="score-bar-fill amber" style="width:68%"></span></span><span style="font-weight:600">68</span></td>
-                <td><span class="att-pill warn"><span class="att-pill-dot"></span><strong>2 callouts</strong> · 92%</span></td>
-                <td><span class="flag attendance">Attendance</span><br><span class="coverage-badge" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 ready</span></td>
-                <td class="cell-time">Yesterday</td>
-                <td><button class="coach-row-btn" onclick="openCoachDrawer('Tasha Reyes','attendance','1 attendance incident this cycle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
-              </tr>
-              <tr>
-                <td><div class="cell-driver"><div class="avatar-sm tier-c">KW</div><div><div class="cell-name">Kerwin Whitfield</div><div class="cell-name-sub">+1 417 555 0193</div></div></div></td>
-                <td>KMO1</td>
-                <td>24 mo</td>
-                <td><span class="score-bar"><span class="score-bar-fill amber" style="width:71%"></span></span><span style="font-weight:600">71</span></td>
-                <td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>
-                <td><span class="flag scorecard">Scorecard</span><br><span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>1 ready, 2 screening</span></td>
-                <td class="cell-time">5 days ago</td>
-                <td><button class="coach-row-btn" onclick="openCoachDrawer('Kerwin Whitfield','quality','Scorecard slipping over last 2 weeks')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
-              </tr>
-              <tr>
-                <td><div class="cell-driver"><div class="avatar-sm tier-c">JB</div><div><div class="cell-name">Jordan Beckett</div><div class="cell-name-sub">+1 417 555 0218</div></div></div></td>
-                <td>KMO3</td>
-                <td>6 mo</td>
-                <td><span class="score-bar"><span class="score-bar-fill amber" style="width:73%"></span></span><span style="font-weight:600">73</span></td>
-                <td><span class="att-pill warn"><span class="att-pill-dot"></span><strong>1 callout</strong> · 96%</span></td>
-                <td><span class="flag scorecard">Scorecard</span><br><span class="coverage-badge warn" style="margin-top:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>KMO3 thin</span></td>
-                <td class="cell-time">Today</td>
-                <td><button class="coach-row-btn" onclick="openCoachDrawer('Jordan Beckett','quality','3 late returns in last 7 days')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
-              </tr>
-              <tr>
-                <td><div class="cell-driver"><div class="avatar-sm tier-b">DP</div><div><div class="cell-name">Devon Patterson</div><div class="cell-name-sub">+1 417 555 0276</div></div></div></td>
-                <td>KMO3</td>
-                <td>11 mo</td>
-                <td><span class="score-bar"><span class="score-bar-fill" style="width:79%"></span></span><span style="font-weight:600">79</span></td>
-                <td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>
-                <td><span class="tag">On track</span></td>
-                <td class="cell-time">2 wks ago</td>
-                <td><button class="coach-row-btn" onclick="openCoachDrawer('Devon Patterson','quality','')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
-              </tr>
-              <tr>
-                <td><div class="cell-driver"><div class="avatar-sm tier-c">AT</div><div><div class="cell-name">Asha Thornton</div><div class="cell-name-sub">+1 417 555 0312</div></div></div></td>
-                <td>KMO2</td>
-                <td>14 mo</td>
-                <td><span class="score-bar"><span class="score-bar-fill" style="width:74%;background:var(--amber)"></span></span><span style="font-weight:600">74</span></td>
-                <td><span class="att-pill"><span class="att-pill-dot" style="background:var(--amber)"></span><strong>1 callout</strong> · 96%</span></td>
-                <td><span class="tag" style="background:var(--amber-soft);color:var(--amber)">At risk</span></td>
-                <td class="cell-time">5d ago</td>
-                <td><button class="coach-row-btn" onclick="openCoachDrawer('Asha Thornton','attendance','1 callout this cycle · retention risk 50%')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
-              </tr>
-              <tr>
-                <td><div class="cell-driver"><div class="avatar-sm tier-a">CF</div><div><div class="cell-name">Camille Foster</div><div class="cell-name-sub">+1 417 555 0341</div></div></div></td>
-                <td>KMO1</td>
-                <td>22 mo</td>
-                <td><span class="score-bar"><span class="score-bar-fill" style="width:88%"></span></span><span style="font-weight:600">88</span></td>
-                <td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>
-                <td><span class="tag" style="background:var(--green-soft);color:var(--green)">Top tier</span></td>
-                <td class="cell-time">Never</td>
-                <td><button class="coach-row-btn" onclick="openCoachDrawer('Camille Foster','behavior','Top performer — recognition opportunity')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>
-              </tr>
+            <tbody id="drivers-tbody">
+              <tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading drivers…</td></tr>
             </tbody>
           </table>
         </div>
