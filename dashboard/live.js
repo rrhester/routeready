@@ -960,7 +960,11 @@ async function loadWeatherRadar() {
 
   // First-time map setup
   if (!_weatherRadarState || !_weatherRadarState.map) {
+    // Initial view at zoom 7 (~150mi span) so OSM tiles request immediately;
+    // fitBounds in the layout-ready callback below tightens to the 2hr ring.
     const map = L.map(mapEl, {
+      center: [lat, lon],
+      zoom: 7,
       zoomControl: true,
       scrollWheelZoom: false,
       attributionControl: false,
@@ -968,7 +972,10 @@ async function loadWeatherRadar() {
       maxZoom: 11,
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      crossOrigin: true,
+    }).addTo(map);
 
     L.circleMarker([lat, lon], {
       radius: 6, color: '#fff', weight: 2, fillColor: '#e53e3e', fillOpacity: 1,
@@ -980,16 +987,17 @@ async function loadWeatherRadar() {
       fillColor: '#3b82f6', fillOpacity: 0.04,
     }).addTo(map).bindTooltip('2hr drive zone (~120 mi)', { permanent: false });
 
-    // Fit to the full 2hr ring + padding so the operator sees weather
-    // approaching from outside the coverage zone too.
-    map.fitBounds(ring.getBounds().pad(0.15));
-
     _weatherRadarState = {
       map, frames: [], currentIdx: 0, layers: new Map(),
       playing: true, timer: null, host: '', pastCount: 0, color: 2, ring,
     };
 
-    setTimeout(() => { map.invalidateSize(); map.fitBounds(ring.getBounds().pad(0.15)); }, 150);
+    // Wait for layout to settle, then fit to the ring + padding so the
+    // operator sees the full coverage zone with a buffer for incoming weather.
+    requestAnimationFrame(() => {
+      map.invalidateSize();
+      try { map.fitBounds(ring.getBounds().pad(0.15)); } catch (e) { /* fallback to initial view */ }
+    });
   }
 
   // Refresh frame catalog
