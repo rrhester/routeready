@@ -4024,13 +4024,22 @@ async function renderScheduleWeek() {
   // Index shifts by driver/date and collect open shifts by date.
   const shiftsByDriverDate = new Map();
   const openShiftsByDate = new Map();
-  const hoursPerDriver = new Map();
+  const hoursPerDriver = new Map(); // driver_id -> total HOURS this week
+  const shiftCountPerDriver = new Map(); // driver_id -> shift count (for least-loaded sort)
+  const _shiftHours = (sh) => {
+    if (sh.starts_at && sh.ends_at) {
+      const h = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
+      if (h > 0 && h <= 24) return h;
+    }
+    return Number(sh.block_hours) || 10;
+  };
   for (const sh of (grid.shifts || [])) {
     if (sh.driver_id) {
       const k = `${sh.driver_id}|${sh.date}`;
       if (!shiftsByDriverDate.has(k)) shiftsByDriverDate.set(k, []);
       shiftsByDriverDate.get(k).push(sh);
-      hoursPerDriver.set(sh.driver_id, (hoursPerDriver.get(sh.driver_id) || 0) + 1);
+      hoursPerDriver.set(sh.driver_id, (hoursPerDriver.get(sh.driver_id) || 0) + _shiftHours(sh));
+      shiftCountPerDriver.set(sh.driver_id, (shiftCountPerDriver.get(sh.driver_id) || 0) + 1);
     } else {
       if (!openShiftsByDate.has(sh.date)) openShiftsByDate.set(sh.date, []);
       openShiftsByDate.get(sh.date).push(sh);
@@ -4148,8 +4157,11 @@ async function renderScheduleWeek() {
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
     const station = d.station?.code || "—";
     const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
-    const shifts = hoursPerDriver.get(d.id) || 0;
-    const hoursLabel = shifts > 0 ? `${shifts * 8}h scheduled` : "0h scheduled";
+    const totalHours = hoursPerDriver.get(d.id) || 0;
+    const shiftCount = shiftCountPerDriver.get(d.id) || 0;
+    const hoursLabel = totalHours > 0
+      ? `${Math.round(totalHours * 10) / 10}h scheduled · ${shiftCount} shift${shiftCount === 1 ? "" : "s"}`
+      : "0h scheduled";
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
@@ -4256,10 +4268,10 @@ async function renderScheduleWeek() {
   const lic = document.getElementById("sched-license-banner");
   if (lic) lic.remove();
 
-  renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalAllOpen);
+  renderSchedDriverPool(sub, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, totalAllOpen);
 }
 
-function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalOpen) {
+function renderSchedDriverPool(sub, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, totalOpen) {
   const aside = sub.querySelector("aside.driver-pool");
   if (!aside) return;
 
@@ -4299,8 +4311,9 @@ function renderSchedDriverPool(sub, drivers, hoursPerDriver, ptoByDriver, totalO
     ${availDrivers.length === 0
       ? '<div style="padding:8px;font-size:12px;color:var(--text-subtle)">No drivers available</div>'
       : availDrivers.map(d => {
-          const shifts = hoursPerDriver.get(d.id) || 0;
-          return driverRowHtml(d, `${shifts}`, `${shifts} shift${shifts === 1 ? "" : "s"}`);
+          const hrs = hoursPerDriver.get(d.id) || 0;
+          const cnt = shiftCountPerDriver?.get(d.id) || 0;
+          return driverRowHtml(d, `${Math.round(hrs * 10) / 10}h`, `${cnt} shift${cnt === 1 ? "" : "s"}`);
         }).join("")}`;
 
   offSection.innerHTML = `<div class="pool-section-label">Off / time off</div>
