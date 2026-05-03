@@ -3698,6 +3698,12 @@ _styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to
 [data-rr-pool-shift]:hover{box-shadow:0 1px 4px rgba(0,0,0,.06);transform:translateY(-1px)}
 [data-rr-pool-shift].rr-dragging{opacity:.5}
 .cal-cell.rr-drop-active{background:var(--accent-soft) !important;outline:2px dashed var(--accent);outline-offset:-2px}
+/* Slim, subtle scrollbar on the Open Shifts pool so it doesn't read as a 'gray band' */
+aside.driver-pool { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+aside.driver-pool::-webkit-scrollbar { width: 6px; }
+aside.driver-pool::-webkit-scrollbar-track { background: transparent; }
+aside.driver-pool::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+aside.driver-pool::-webkit-scrollbar-thumb:hover { background: var(--text-subtle); }
 /* OKAMI table — strip every mockup pill/color (operator wanted plain table) */
 .plan-gap, .plan-gap.ok, .plan-gap.warn, .plan-gap.bad { color: var(--text-muted) !important; }
 .plan-status-pill, .plan-status-pill.ok, .plan-status-pill.warn, .plan-status-pill.bad {
@@ -5078,20 +5084,22 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   };
 
-  const shiftItem = (sh) => {
+  const shiftItem = (sh, opts) => {
+    const showDayLabel = !opts || opts.includeDay !== false;
     const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
     const ex = sh.is_cushion
       ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
     const route = sh.route_code ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
+    const headLine = showDayLabel
+      ? `<div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}</div>
+         <div style="font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>`
+      : `<div style="font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}</div>${route ? `<div style="font-size:11px;color:var(--text-subtle)">${route}</div>` : ""}`;
     return `<div class="rr-pool-shift" draggable="true"
         data-rr-pool-shift="${sh.id}" data-rr-pool-shift-date="${sh.date}"
-        style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:grab;margin-bottom:6px"
+        style="display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:grab;margin-bottom:4px"
         title="Drag onto a driver to assign">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}</div>
-        <div style="font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>
-      </div>
+      <div style="flex:1;min-width:0">${headLine}</div>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-subtle);flex-shrink:0"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
     </div>`;
   };
@@ -5107,7 +5115,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       byDay.get(sh.date).push(sh);
     }
     listHtml = Array.from(byDay.entries()).map(([d, list]) =>
-      `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:8px 0 6px">${dayLabel(d)} · ${list.length}</div>${list.map(shiftItem).join("")}</div>`
+      `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:8px 0 6px">${dayLabel(d)} · ${list.length}</div>${list.map(sh => shiftItem(sh, { includeDay: false })).join("")}</div>`
     ).join("");
   } else {
     listHtml = sorted.map(shiftItem).join("");
