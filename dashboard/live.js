@@ -4660,7 +4660,12 @@ async function renderScheduleWeek() {
 
   // ── KPI strip (hours, coverage, open shifts, violations) + per-day status
   // computed from the same data as the grid below.
+  const days = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(weekStart, i)));
   const totalHoursWeek = Array.from(hoursPerDriver.values()).reduce((s, n) => s + n, 0);
+  // Real open shifts (unassigned scheduled rows) — sum across all dates.
+  let totalRealOpen = 0;
+  for (const list of openShiftsByDate.values()) totalRealOpen += list.length;
+  const totalAllOpen = totalRealOpen + totalVirtual;
   // Per-day fill: needed (from coverageByDate), filled (visible-driver shifts).
   const fillByDate = new Map();
   for (const iso of days) {
@@ -4726,8 +4731,6 @@ async function renderScheduleWeek() {
     if (!el.classList.contains("head")) el.remove();
   });
 
-  const days = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(weekStart, i)));
-
   const driverRowsHtml = drivers.map(d => {
     const initials = displayDriverInitials(d);
     const display = displayDriverName(d);
@@ -4784,10 +4787,8 @@ async function renderScheduleWeek() {
     openSlotsByDate.set(iso, slots);
   }
   let peakUnfilled = 0;
-  let totalAllOpen = 0;
   for (const slots of openSlotsByDate.values()) {
     if (slots.length > peakUnfilled) peakUnfilled = slots.length;
-    totalAllOpen += slots.length;
   }
 
   const pdRowsHtml = peakUnfilled === 0 ? "" : Array.from({ length: peakUnfilled }, (_, r) => {
