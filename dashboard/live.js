@@ -3840,33 +3840,51 @@ async function renderScheduleWeek() {
   const ptoOn = (driverId, iso) => (ptoByDriver.get(driverId) || []).some(t => iso >= t.start_date && iso <= t.end_date);
 
   // Coverage rolled up by date.
+  // needed comes from okami_grid (source of truth). filled is computed
+  // CLIENT-SIDE from shifts assigned to drivers we actually render
+  // (status='active'); the server's grid.filled also counts shifts
+  // assigned to inactive / terminated drivers that don't appear in the
+  // grid, which made coverage display ghost-filled cells.
+  const visibleDriverIds = new Set(drivers.map(d => d.id));
   const coverageByDate = new Map();
   for (const c of (grid.coverage || [])) {
     const a = coverageByDate.get(c.date) || { needed: 0, filled: 0 };
     a.needed += (c.needed || 0);
-    a.filled += (c.filled || 0);
     coverageByDate.set(c.date, a);
+  }
+  for (const sh of (grid.shifts || [])) {
+    if (!sh.driver_id) continue;
+    if (!visibleDriverIds.has(sh.driver_id)) continue;
+    if (!["scheduled", "completed"].includes(sh.status)) continue;
+    const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0 };
+    a.filled += 1;
+    coverageByDate.set(sh.date, a);
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
   const pct = totalNeeded ? Math.round(totalFilled / totalNeeded * 100) : 0;
 
   // Virtual open shifts: for each (date, station), needed − filled minus
-  // any real unassigned shift rows already in the DB. We surface those as
-  // dashed chips in the Unassigned row so the operator sees the full demand
-  // even without records yet.
+  // any real unassigned shift rows already in the DB. Filled here only
+  // counts shifts assigned to VISIBLE active drivers (matches the
+  // coverage-strip math), so orphan shifts assigned to inactive drivers
+  // don't suppress legitimate virtual open chips.
   const realOpenByDateStation = new Map();
+  const visibleFilledByDateStation = new Map();
   for (const sh of (grid.shifts || [])) {
+    const k = `${sh.date}|${sh.station_id}`;
     if (!sh.driver_id) {
-      const k = `${sh.date}|${sh.station_id}`;
       realOpenByDateStation.set(k, (realOpenByDateStation.get(k) || 0) + 1);
+    } else if (visibleDriverIds.has(sh.driver_id) && ["scheduled", "completed"].includes(sh.status)) {
+      visibleFilledByDateStation.set(k, (visibleFilledByDateStation.get(k) || 0) + 1);
     }
   }
   const virtualByDate = new Map(); // iso -> [{station_id, station_code}, …]
   for (const c of (grid.coverage || [])) {
     const k = `${c.date}|${c.station_id}`;
     const real = realOpenByDateStation.get(k) || 0;
-    const v = Math.max(0, (c.needed || 0) - (c.filled || 0) - real);
+    const filled = visibleFilledByDateStation.get(k) || 0;
+    const v = Math.max(0, (c.needed || 0) - filled - real);
     if (v > 0) {
       const list = virtualByDate.get(c.date) || [];
       for (let i = 0; i < v; i++) list.push({ station_id: c.station_id, station_code: c.station_code });
