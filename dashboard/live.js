@@ -648,50 +648,197 @@ window.pipeSub = function (sub) {
 
 // ─── Calendar tab ──────────────────────────────────────────────────────────
 //
-// Two pieces:
-//   1. List of upcoming bookings (cal_events for this DSP, future events,
-//      both interview + orientation kinds). Joined to applicants for names.
-//   2. Embedded Cal.com page so the operator can manage availability /
-//      grab the public booking link without leaving the dashboard. The
-//      iframe src is set lazily on first tab activation so we don't pay
-//      the load cost upfront.
+// Top half  → upcoming bookings list (live cal_events).
+// Bottom    → RouteReady-branded availability editor that pushes changes
+//             through to Cal.com via the cal-availability edge function.
 
-let _calIframeLoaded = false;
+const CAL_DAY_LABELS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+const CAL_TZS = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Phoenix",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "Etc/UTC",
+];
 
 async function loadCalendarTab() {
-  const username = window.RR?.dsp?.metadata?.cal?.username || "Routeready";
-  const interviewSlug = window.RR?.dsp?.metadata?.cal?.interview_slug || "interview";
+  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor()]);
+}
 
-  // Update the link-preview display + cache the URL on the button.
-  const preview = document.getElementById("cal-link-preview");
-  if (preview) preview.textContent = `cal.com/${username}/${interviewSlug}`;
-  const copyBtn = document.querySelector("[data-rr-copy-cal-link]");
-  if (copyBtn) copyBtn.dataset.url = `https://cal.com/${username}/${interviewSlug}`;
+async function loadCalAvailabilityEditor() {
+  const card = document.getElementById("cal-edit-card");
+  const meta = document.getElementById("cal-edit-meta");
+  if (!card) return;
+  card.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading availability…</div>`;
+  if (meta) meta.textContent = "";
 
-  // Lazy-init the iframe (only the preview embed).
-  if (!_calIframeLoaded) {
-    const iframe = document.getElementById("cal-iframe");
-    if (iframe) {
-      iframe.src = `https://cal.com/${username}/${interviewSlug}`;
-      _calIframeLoaded = true;
+  // Call the edge function. JWT-gated → uses the user's session.
+  const { data, error } = await sb.functions.invoke("cal-availability", {
+    method: "GET",
+  });
+
+  if (error || data?.error) {
+    const msg = error?.message || data?.error || "Couldn't reach Cal.com";
+    card.innerHTML = `
+      <div style="padding:24px">
+        <div style="font-size:13px;color:var(--red);font-weight:600;margin-bottom:8px">Couldn't load Cal.com availability</div>
+        <div style="font-size:12px;color:var(--text-subtle);line-height:1.5">${escapeHtml(msg)}</div>
+        <div style="font-size:11px;color:var(--text-subtle);margin-top:12px">If this is your first time using the editor, the project needs <code>CAL_API_KEY</code> set in the Supabase function secrets. See supabase/SECRETS.md.</div>
+      </div>`;
+    return;
+  }
+
+  renderCalAvailabilityEditor(data);
+  if (meta) meta.textContent = `Connected to ${data.username || "Cal.com"} · event "${data.eventType?.title || ""}" · ${data.eventType?.length ?? 30} min`;
+}
+
+function renderCalAvailabilityEditor(payload) {
+  const card = document.getElementById("cal-edit-card");
+  if (!card) return;
+
+  const tz = payload.schedule?.timeZone || "America/New_York";
+  const avail = payload.schedule?.availability || [];
+  const locations = payload.eventType?.locations || [];
+
+  // Collapse Cal availability into one window per day for the simple UI.
+  // Cal stores arrays of { days:[0..6], startTime, endTime }; we pick the
+  // first window per day.
+  const perDay = {};
+  for (const block of avail) {
+    const start = (block.startTime || "09:00:00").slice(0, 5);
+    const end   = (block.endTime   || "17:00:00").slice(0, 5);
+    for (const d of (block.days || [])) {
+      if (perDay[d] === undefined) perDay[d] = { start, end };
     }
   }
+
+  // Pick the location to show. Cal supports multiple; for the simple UI
+  // we surface the first one and let the operator edit the address/url.
+  const loc = locations[0] || { type: "inPerson", address: "" };
+  const isVideo = (loc.type || "").startsWith("integrations:") || loc.type === "link";
+  const locDetail = loc.address || loc.link || "";
+
+  const tzOptions = (CAL_TZS.includes(tz) ? CAL_TZS : [tz, ...CAL_TZS])
+    .map(z => `<option value="${z}" ${z === tz ? "selected" : ""}>${z.replace("_"," ")}</option>`)
+    .join("");
+
+  const dayRows = Array.from({ length: 7 }, (_, d) => {
+    const slot = perDay[d];
+    const on = !!slot;
+    return `
+      <div class="cal-day-row ${on ? "" : "off"}" data-day="${d}">
+        <label>
+          <input type="checkbox" data-rr-day-on ${on ? "checked" : ""} />
+          ${CAL_DAY_LABELS[d]}
+        </label>
+        <input type="time" data-rr-day-start value="${slot?.start || "09:00"}" ${on ? "" : "disabled"} step="900" />
+        <span class="cal-day-sep">to</span>
+        <input type="time" data-rr-day-end value="${slot?.end || "17:00"}" ${on ? "" : "disabled"} step="900" />
+        <span></span>
+      </div>`;
+  }).join("");
+
+  card.innerHTML = `
+    <div class="cal-edit-section">
+      <div class="cal-edit-label">Time zone</div>
+      <select id="cal-tz" class="cal-edit-input" style="max-width:280px">${tzOptions}</select>
+    </div>
+
+    <div class="cal-edit-section">
+      <div class="cal-edit-label">Days &amp; times</div>
+      <div id="cal-day-grid">${dayRows}</div>
+    </div>
+
+    <div class="cal-edit-section">
+      <div class="cal-edit-label">Location</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="cal-loc-type" class="cal-edit-input" style="max-width:200px">
+          <option value="inPerson" ${!isVideo ? "selected" : ""}>In-person address</option>
+          <option value="link"     ${isVideo  ? "selected" : ""}>Video / meeting link</option>
+        </select>
+      </div>
+      <input id="cal-loc-detail" class="cal-edit-input cal-loc-detail" placeholder="${isVideo ? "https://meet.google.com/…" : "1234 Main St, City, State 00000"}" value="${escapeHtml(locDetail)}" />
+    </div>
+
+    <div class="cal-edit-foot">
+      <div class="cal-edit-status" id="cal-edit-status"></div>
+      <button class="btn btn-primary" data-rr-cal-save>Save &amp; sync to Cal.com</button>
+    </div>`;
+
+  // Wire per-day on/off toggle (enables/disables the time inputs).
+  card.querySelectorAll("[data-rr-day-on]").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const row = e.target.closest(".cal-day-row");
+      const on = e.target.checked;
+      row.classList.toggle("off", !on);
+      row.querySelectorAll('input[type=time]').forEach(t => { t.disabled = !on; });
+    });
+  });
+}
+
+async function saveCalAvailability() {
+  const card = document.getElementById("cal-edit-card");
+  const status = document.getElementById("cal-edit-status");
+  if (!card) return;
+
+  const tz = card.querySelector("#cal-tz").value;
+  const availability = [];
+  card.querySelectorAll(".cal-day-row").forEach((row) => {
+    const on = row.querySelector("[data-rr-day-on]").checked;
+    if (!on) return;
+    const day = parseInt(row.getAttribute("data-day"), 10);
+    const start = row.querySelector("[data-rr-day-start]").value;
+    const end   = row.querySelector("[data-rr-day-end]").value;
+    if (!start || !end || start >= end) return;
+    availability.push({
+      days: [day],
+      startTime: start.length === 5 ? start + ":00" : start,
+      endTime:   end.length   === 5 ? end   + ":00" : end,
+    });
+  });
+
+  const locType = card.querySelector("#cal-loc-type").value;
+  const locDetail = card.querySelector("#cal-loc-detail").value.trim();
+  const locations = [];
+  if (locType === "link" && locDetail) {
+    locations.push({ type: "link", link: locDetail });
+  } else if (locType === "inPerson" && locDetail) {
+    locations.push({ type: "inPerson", address: locDetail, displayLocationPublicly: true });
+  }
+
+  status.className = "cal-edit-status";
+  status.textContent = "Saving…";
+
+  const { data, error } = await sb.functions.invoke("cal-availability", {
+    method: "POST",
+    body: { timeZone: tz, availability, locations },
+  });
+
+  if (error || data?.error) {
+    const msg = error?.message || data?.error || "Save failed";
+    status.className = "cal-edit-status err";
+    status.textContent = msg;
+    return;
+  }
+
+  status.className = "cal-edit-status ok";
+  status.textContent = `Saved · synced to Cal.com at ${new Date().toLocaleTimeString()}`;
   await loadCalBookingsList();
 }
 
-// Capture-phase delegate for the "copy public booking link" button.
+// Capture-phase delegate for the save button.
 document.addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-rr-copy-cal-link]");
+  const btn = e.target.closest("[data-rr-cal-save]");
   if (!btn) return;
   e.preventDefault();
   e.stopImmediatePropagation();
-  const url = btn.dataset.url || "https://cal.com/Routeready/interview";
-  try {
-    await navigator.clipboard.writeText(url);
-    toast("Booking link copied", "success");
-  } catch {
-    toast("Couldn't copy — " + url, "warn");
-  }
+  btn.disabled = true;
+  try { await saveCalAvailability(); }
+  finally { btn.disabled = false; }
 }, true);
 
 async function loadCalBookingsList() {
