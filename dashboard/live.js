@@ -3565,7 +3565,11 @@ if (document.readyState === "loading") {
 
 // Pop animation
 const _styleEl = document.createElement("style");
-_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none} [data-rr-pool-driver]{cursor:grab} [data-rr-pool-driver].rr-dragging{opacity:.5} .cal-cell.rr-drop-active{background:var(--accent-soft) !important;outline:2px dashed var(--accent);outline-offset:-2px}
+_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none}
+[data-rr-pool-shift]{cursor:grab}
+[data-rr-pool-shift]:hover{box-shadow:0 1px 4px rgba(0,0,0,.06);transform:translateY(-1px)}
+[data-rr-pool-shift].rr-dragging{opacity:.5}
+.cal-cell.rr-drop-active{background:var(--accent-soft) !important;outline:2px dashed var(--accent);outline-offset:-2px}
 /* OKAMI table — strip every mockup pill/color (operator wanted plain table) */
 .plan-gap, .plan-gap.ok, .plan-gap.warn, .plan-gap.bad { color: var(--text-muted) !important; }
 .plan-status-pill, .plan-status-pill.ok, .plan-status-pill.warn, .plan-status-pill.bad {
@@ -4754,65 +4758,94 @@ async function renderScheduleWeek() {
   const lic = document.getElementById("sched-license-banner");
   if (lic) lic.remove();
 
-  renderSchedDriverPool(sub, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, totalAllOpen);
+  renderSchedOpenShiftsPool(sub, grid.shifts || [], drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver);
 }
 
-function renderSchedDriverPool(sub, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, totalOpen) {
+let _poolSortMode = "day"; // 'day' | 'wave'
+
+function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver) {
   const aside = sub.querySelector("aside.driver-pool");
   if (!aside) return;
 
-  const headSpans = aside.querySelectorAll(".pool-head span");
-  if (headSpans[1]) headSpans[1].textContent = `${drivers.length} driver${drivers.length === 1 ? "" : "s"}`;
+  // Open shifts = unassigned scheduled shifts in the visible week.
+  const openShifts = (allShifts || []).filter(sh => !sh.driver_id && sh.status === "scheduled");
+  const sorted = [...openShifts].sort((a, b) => {
+    if (_poolSortMode === "wave") {
+      const at = (a.starts_at || "").slice(11, 16);
+      const bt = (b.starts_at || "").slice(11, 16);
+      if (at !== bt) return at < bt ? -1 : 1;
+      return a.date < b.date ? -1 : 1;
+    }
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return (a.starts_at || "").localeCompare(b.starts_at || "");
+  });
 
-  // Locate the Available + Off sections by their child .pool-section-label,
-  // not by direct-child index — the aside has pool-head + input + 2 sections
-  // + footer, so position-based indexing overwrote the wrong elements.
-  const labelDivs = Array.from(aside.querySelectorAll(":scope > div"))
-    .filter(div => div.querySelector(":scope > .pool-section-label"));
-  const availSection = labelDivs[0];
-  const offSection   = labelDivs[1];
-  if (!availSection || !offSection) return;
+  const dayLabel = (iso) => {
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  };
 
-  const driverRowHtml = (d, hoursLabel, metaSuffix, draggable = true) => {
-    const initials = displayDriverInitials(d);
-    const display = displayDriverName(d);
-    const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
-    const station = d.station?.code || "—";
-    const dragAttrs = draggable
-      ? `draggable="true" data-rr-pool-driver="${d.id}" data-rr-pool-driver-name="${escapeHtml(display)}"${d.station_id ? ` data-rr-pool-driver-station="${d.station_id}"` : ""}`
+  const shiftItem = (sh) => {
+    const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
+    const ex = sh.is_cushion
+      ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
-    return `<div class="pool-driver" ${dragAttrs}>
-      <div class="avatar-sm ${tier}">${initials}</div>
-      <div><div class="pool-driver-name">${escapeHtml(display)}</div><div class="pool-driver-meta">${escapeHtml(station)}${metaSuffix ? ` · ${escapeHtml(metaSuffix)}` : ""}</div></div>
-      <span class="pool-driver-hours">${escapeHtml(hoursLabel)}</span>
+    const route = sh.route_code ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
+    return `<div class="rr-pool-shift" draggable="true"
+        data-rr-pool-shift="${sh.id}" data-rr-pool-shift-date="${sh.date}"
+        style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:grab;margin-bottom:6px"
+        title="Drag onto a driver to assign">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}</div>
+        <div style="font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>
+      </div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-subtle);flex-shrink:0"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
     </div>`;
   };
 
-  const availDrivers = drivers
-    .filter(d => !ptoByDriver.has(d.id))
-    .sort((a, b) => (hoursPerDriver.get(a.id) || 0) - (hoursPerDriver.get(b.id) || 0));
-  const offDrivers = drivers.filter(d => ptoByDriver.has(d.id));
+  // Group by day when sortMode === 'day' (more legible).
+  let listHtml;
+  if (sorted.length === 0) {
+    listHtml = '<div style="padding:14px;font-size:12px;color:var(--text-subtle);text-align:center">All shifts assigned</div>';
+  } else if (_poolSortMode === "day") {
+    const byDay = new Map();
+    for (const sh of sorted) {
+      if (!byDay.has(sh.date)) byDay.set(sh.date, []);
+      byDay.get(sh.date).push(sh);
+    }
+    listHtml = Array.from(byDay.entries()).map(([d, list]) =>
+      `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:8px 0 6px">${dayLabel(d)} · ${list.length}</div>${list.map(shiftItem).join("")}</div>`
+    ).join("");
+  } else {
+    listHtml = sorted.map(shiftItem).join("");
+  }
 
-  availSection.innerHTML = `<div class="pool-section-label">Available · click to assign</div>
-    ${availDrivers.length === 0
-      ? '<div style="padding:8px;font-size:12px;color:var(--text-subtle)">No drivers available</div>'
-      : availDrivers.map(d => {
-          const hrs = hoursPerDriver.get(d.id) || 0;
-          const cnt = shiftCountPerDriver?.get(d.id) || 0;
-          return driverRowHtml(d, `${Math.round(hrs * 10) / 10}h`, `${cnt} shift${cnt === 1 ? "" : "s"}`);
-        }).join("")}`;
-
-  offSection.innerHTML = `<div class="pool-section-label">Off / time off</div>
-    ${offDrivers.length === 0
-      ? '<div style="padding:8px;font-size:12px;color:var(--text-subtle)">No PTO this week</div>'
-      : offDrivers.map(d => {
-          const t = (ptoByDriver.get(d.id) || [])[0];
-          const range = t ? `PTO ${t.start_date.slice(5)}–${t.end_date.slice(5)}` : "Off";
-          return driverRowHtml(d, "PTO", range, false);
-        }).join("")}`;
-
-  const openCountEl = aside.querySelector('div[style*="padding-top"] div[style*="font-size:10px"]');
-  if (openCountEl) openCountEl.textContent = `${totalOpen} open shift${totalOpen === 1 ? "" : "s"} need${totalOpen === 1 ? "s" : ""} a driver`;
+  aside.innerHTML = `
+    <div class="pool-head">
+      <span>Open shifts</span>
+      <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${openShifts.length} open</span>
+    </div>
+    <div style="display:flex;gap:4px;background:var(--canvas);padding:3px;border-radius:6px;margin-bottom:8px">
+      <button type="button" class="rr-pool-sort-btn" data-rr-pool-sort="day"
+        style="flex:1;border:0;background:${_poolSortMode === 'day' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:11px;font-weight:600;color:${_poolSortMode === 'day' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Day</button>
+      <button type="button" class="rr-pool-sort-btn" data-rr-pool-sort="wave"
+        style="flex:1;border:0;background:${_poolSortMode === 'wave' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:11px;font-weight:600;color:${_poolSortMode === 'wave' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Wave time</button>
+    </div>
+    <div>${listHtml}</div>
+    ${(() => {
+      const ptoDrivers = drivers.filter(d => ptoByDriver?.has(d.id));
+      if (ptoDrivers.length === 0) return "";
+      const item = (d) => {
+        const t = (ptoByDriver.get(d.id) || [])[0];
+        const range = t ? `PTO ${t.start_date.slice(5)}–${t.end_date.slice(5)}` : "Off";
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:11px;color:var(--text-subtle)"><span>${escapeHtml(displayDriverName(d))}</span><span style="margin-left:auto">${escapeHtml(range)}</span></div>`;
+      };
+      return `<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">PTO this week</div>
+        ${ptoDrivers.map(item).join("")}
+      </div>`;
+    })()}
+  `;
 }
 
 let _schedNavBound = false;
@@ -4877,89 +4910,138 @@ function bindSchedWeekNav() {
     }
   });
 
-  // ── Drag-and-drop: pool driver → cell
+  // ── Pool sort toggle (Day / Wave time)
+  sub.addEventListener("click", (e) => {
+    const sortBtn = e.target.closest("[data-rr-pool-sort]");
+    if (!sortBtn) return;
+    const mode = sortBtn.dataset.rrPoolSort;
+    if (!mode || mode === _poolSortMode) return;
+    _poolSortMode = mode;
+    renderScheduleWeek();
+  });
+
+  // ── Drag-and-drop: pool SHIFT → driver-day cell.
   sub.addEventListener("dragstart", (e) => {
-    const pd = e.target.closest("[data-rr-pool-driver]");
-    if (!pd) return;
-    e.dataTransfer.effectAllowed = "copy";
-    e.dataTransfer.setData("application/x-rr-driver", JSON.stringify({
-      id: pd.dataset.rrPoolDriver,
-      name: pd.dataset.rrPoolDriverName || "",
-      stationId: pd.dataset.rrPoolDriverStation || "",
+    const ps = e.target.closest("[data-rr-pool-shift]");
+    if (!ps) return;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("application/x-rr-shift", JSON.stringify({
+      id: ps.dataset.rrPoolShift,
+      date: ps.dataset.rrPoolShiftDate,
     }));
-    pd.classList.add("rr-dragging");
+    ps.classList.add("rr-dragging");
   });
   sub.addEventListener("dragend", (e) => {
-    const pd = e.target.closest("[data-rr-pool-driver]");
-    if (pd) pd.classList.remove("rr-dragging");
+    const ps = e.target.closest("[data-rr-pool-shift]");
+    if (ps) ps.classList.remove("rr-dragging");
     sub.querySelectorAll(".rr-drop-active").forEach(el => el.classList.remove("rr-drop-active"));
   });
   sub.addEventListener("dragover", (e) => {
-    const cell = e.target.closest("[data-rr-cell]");
+    const cell = e.target.closest('[data-rr-cell="driver-day"]');
     if (!cell) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
+    e.dataTransfer.dropEffect = "move";
     cell.classList.add("rr-drop-active");
   });
   sub.addEventListener("dragleave", (e) => {
-    const cell = e.target.closest("[data-rr-cell]");
+    const cell = e.target.closest('[data-rr-cell="driver-day"]');
     if (cell) cell.classList.remove("rr-drop-active");
   });
   sub.addEventListener("drop", async (e) => {
-    const cell = e.target.closest("[data-rr-cell]");
+    const cell = e.target.closest('[data-rr-cell="driver-day"]');
     if (!cell) return;
     e.preventDefault();
     cell.classList.remove("rr-drop-active");
-    const raw = e.dataTransfer.getData("application/x-rr-driver");
+    const raw = e.dataTransfer.getData("application/x-rr-shift");
     if (!raw) return;
     let payload;
     try { payload = JSON.parse(raw); } catch { return; }
     if (!payload?.id) return;
-
-    const kind = cell.dataset.rrCell;
-    if (kind === "open") {
-      // Prefer assigning to a real open shift first; if none left, fill the
-      // first virtual chip by creating a real shift for the driver.
-      const realChip = cell.querySelector(".shift-chip.open[data-rr-shift-id]");
-      if (realChip) {
-        const { error } = await sb.rpc("assign_shift", { p_id: realChip.dataset.rrShiftId, p_driver_id: payload.id });
-        if (error) { toast("Assign failed: " + error.message, "warn"); return; }
-        toast(`Assigned to ${payload.name || "driver"}`, "success");
-        renderScheduleWeek();
-        return;
-      }
-      const virtChip = cell.querySelector(".shift-chip.open[data-rr-virtual-station]");
-      if (virtChip) {
-        const stationId = virtChip.dataset.rrVirtualStation;
-        const date = cell.dataset.rrCellDate;
-        const { error } = await sb.rpc("create_shift", { p_payload: { date, station_id: stationId, driver_id: payload.id } });
-        if (error) { toast("Add failed: " + error.message, "warn"); return; }
-        toast(`Shift added · ${payload.name || "driver"}`, "success");
-        renderScheduleWeek();
-        return;
-      }
-      return;
-    }
-    if (kind === "driver-day") {
-      // Refuse if cell already has a non-Off, non-PTO shift — avoid silent overwrites.
-      if (cell.querySelector(".shift-chip:not(.off):not(.timeoff)")) {
-        toast("Cell already has a shift — remove it first", "warn");
-        return;
-      }
-      const date = cell.dataset.rrCellDate;
-      const stationId = cell.dataset.rrCellStation || payload.stationId;
-      if (!date || !stationId) {
-        toast("Need a station — assign one to the driver first", "warn");
-        return;
-      }
-      const { error } = await sb.rpc("create_shift", {
-        p_payload: { date, station_id: stationId, driver_id: payload.id },
-      });
-      if (error) { toast("Add failed: " + error.message, "warn"); return; }
-      toast(`Shift added · ${payload.name || "driver"}`, "success");
-      renderScheduleWeek();
-    }
+    const driverId = cell.dataset.rrCellDriver;
+    if (!driverId) return;
+    await assignShiftToDriverWithRules(payload.id, payload.date, driverId, cell);
   });
+}
+
+// Pre-assign rule check. Returns a list of human-readable violation
+// strings; empty means clear to assign.
+async function _checkAssignViolations(shiftId, shiftDate, driverId) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return [];
+  const violations = [];
+
+  // Per-week settings (max-days + override flag).
+  let maxDays = 5;
+  let allowOverride = false;
+  try {
+    const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
+    if (ws) {
+      maxDays = Math.max(1, Math.min(7, ws.max_days_per_week ?? 5));
+      allowOverride = !!ws.allow_availability_override;
+    }
+  } catch (_) {}
+
+  const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
+  const weekEndIso = fmtIsoDate(weekEnd);
+
+  const [drvRes, ptoRes, shiftsRes] = await Promise.all([
+    sb.from("drivers").select("id, full_name, metadata").eq("id", driverId).single(),
+    sb.from("time_off_requests").select("start_date, end_date")
+      .eq("dsp_id", dspId).eq("driver_id", driverId).eq("status", "approved")
+      .lte("start_date", weekEndIso).gte("end_date", _schedStart),
+    sb.from("shifts").select("id, date, status, driver_id")
+      .eq("dsp_id", dspId).eq("driver_id", driverId)
+      .gte("date", _schedStart).lte("date", weekEndIso),
+  ]);
+
+  const driver = drvRes.data;
+  if (!driver) { violations.push("Driver not found"); return violations; }
+
+  // PTO check
+  for (const t of (ptoRes.data || [])) {
+    if (shiftDate >= t.start_date && shiftDate <= t.end_date) {
+      violations.push(`Driver has approved PTO on ${shiftDate}`);
+      break;
+    }
+  }
+
+  // Already-shifted-that-day check
+  const sameDay = (shiftsRes.data || []).find(sh => sh.date === shiftDate && sh.id !== shiftId && sh.status === "scheduled");
+  if (sameDay) violations.push(`Driver already has a shift on ${shiftDate}`);
+
+  // Max-days check (count distinct dates assigned this week, excluding the
+  // shift being moved if it's already assigned to this driver — not the case here).
+  const datesThisWeek = new Set((shiftsRes.data || []).filter(sh => sh.status === "scheduled").map(sh => sh.date));
+  if (!datesThisWeek.has(shiftDate) && datesThisWeek.size >= maxDays) {
+    violations.push(`Driver already has ${datesThisWeek.size} shifts this week (cap: ${maxDays})`);
+  }
+
+  // Availability check (skip if override is on)
+  if (!allowOverride) {
+    const days = (driver.metadata?.availability?.days) || [];
+    const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const dt = new Date(shiftDate + "T12:00:00");
+    const dow = DOW[dt.getDay()];
+    if (days.length === 0) {
+      violations.push("Driver has no availability set");
+    } else if (!days.includes(dow)) {
+      violations.push(`Driver isn't available on ${dt.toLocaleDateString(undefined, { weekday: "long" })}`);
+    }
+  }
+
+  return violations;
+}
+
+async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) {
+  const violations = await _checkAssignViolations(shiftId, shiftDate, driverId);
+  if (violations.length > 0) {
+    const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
+    if (!confirm(msg)) return;
+  }
+  const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
+  if (error) { toast("Assign failed: " + error.message, "warn"); return; }
+  toast(violations.length > 0 ? "Assigned (override)" : "Shift assigned", "success");
+  renderScheduleWeek();
 }
 
 function openAddShiftModal(date, stationId, prefDriverId) {
