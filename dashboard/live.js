@@ -3697,6 +3697,9 @@ document.addEventListener("click", async (e) => {
     if (readErr) { if (status) status.textContent = "Failed: " + readErr.message; return; }
     const meta = row?.metadata || {};
     const sched = meta.scheduling || {};
+    // Capture the operator's IANA timezone so SQL can interpret wave
+    // times like '11:20' as their wall clock instead of UTC.
+    const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || sched.timezone || "UTC";
     const newMeta = {
       ...meta,
       scheduling: {
@@ -3704,6 +3707,7 @@ document.addEventListener("click", async (e) => {
         default_block_hours: block,
         cushion_pct: cushion,
         waves,
+        timezone: tz,
       },
     };
     const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
