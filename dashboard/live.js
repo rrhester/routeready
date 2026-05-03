@@ -2239,3 +2239,122 @@ if (document.readyState === "loading") {
   loadPipeline("all");
   loadPipelineKpis();
 }
+
+
+// ─── Live freshness: Realtime + window focus + interval ──────────────────
+//
+// Three layers so the operator never has to F5 to see new data:
+//
+//   1. Supabase Realtime channel — pushed updates from postgres on
+//      tables enabled in the supabase_realtime publication (0024).
+//      Debounced so a burst of writes doesn't hammer the renders.
+//   2. window 'focus' — when the operator tabs back in.
+//   3. setInterval — every 30s as a safety net for the rare case
+//      Realtime drops (websocket disconnect).
+
+function refreshActiveView() {
+  const activeView = document.querySelector(".view.active")?.id || "";
+  if (activeView === "view-pipeline") {
+    const sub = document.querySelector("#view-pipeline .pipe-subview.active, #view-pipeline .pipe-subview[style*='display: \"\"']")?.id || "pipe-sub-funnel";
+    if (sub === "pipe-sub-funnel" || !sub) {
+      loadPipeline(getActiveStage());
+      loadPipelineKpis();
+    } else if (sub === "pipe-sub-interview")  loadInterviewDay();
+    else if (sub === "pipe-sub-calendar")     loadCalendarTab();
+    else if (sub === "pipe-sub-screening")    loadScreeningQuestionsList();
+    else if (sub === "pipe-sub-messages")     loadMessagesTab();
+    else if (sub === "pipe-sub-referrals")    loadReferralsTab();
+  } else if (activeView === "view-drivers") {
+    loadDriversRoster();
+  }
+}
+
+let _refreshDebounce = null;
+function scheduleRefresh() {
+  clearTimeout(_refreshDebounce);
+  _refreshDebounce = setTimeout(refreshActiveView, 600);
+}
+
+// Realtime subscriptions — one channel covers all the tables we care about.
+sb.channel("rr-dashboard")
+  .on("postgres_changes", { event: "*", schema: "public", table: "applicants" },          scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "cal_events" },          scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "sms_messages" },        scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "email_messages" },      scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "interview_outcomes" }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "interview_days" },     scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "drivers" },             scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "coachings" },           scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "driver_documents" },    scheduleRefresh)
+  .subscribe();
+
+window.addEventListener("focus", refreshActiveView);
+setInterval(refreshActiveView, 30 * 1000);
+
+
+// ─── Drag-to-reorder sidebar nav ─────────────────────────────────────────
+//
+// HTML5 drag-and-drop on .nav-item buttons. Final order saved to
+// localStorage (per-user) and re-applied on every page load.
+
+const RR_NAV_ORDER_KEY = "rr-nav-order-v1";
+
+function applyStoredNavOrder() {
+  const raw = localStorage.getItem(RR_NAV_ORDER_KEY);
+  if (!raw) return;
+  let order;
+  try { order = JSON.parse(raw); } catch { return; }
+  if (!Array.isArray(order)) return;
+
+  const nav = document.querySelector(".sidebar nav, nav.sidebar-nav, nav") || document.querySelector(".nav-item")?.parentElement;
+  if (!nav) return;
+
+  const byView = new Map();
+  nav.querySelectorAll(".nav-item[data-view]").forEach(el => byView.set(el.getAttribute("data-view"), el));
+  for (const view of order) {
+    const el = byView.get(view);
+    if (el) nav.appendChild(el);  // appendChild moves the existing node
+  }
+}
+
+function persistNavOrder() {
+  const items = document.querySelectorAll(".nav-item[data-view]");
+  const order = [...items].map(el => el.getAttribute("data-view"));
+  localStorage.setItem(RR_NAV_ORDER_KEY, JSON.stringify(order));
+}
+
+function wireSidebarDrag() {
+  const items = document.querySelectorAll(".nav-item[data-view]");
+  if (items.length === 0) return;
+  let dragged = null;
+
+  items.forEach((el) => {
+    el.setAttribute("draggable", "true");
+    el.style.cursor = "grab";
+
+    el.addEventListener("dragstart", (e) => {
+      dragged = el;
+      el.style.opacity = "0.4";
+      e.dataTransfer.effectAllowed = "move";
+      // Required for Firefox to fire the drag.
+      try { e.dataTransfer.setData("text/plain", el.getAttribute("data-view") || ""); } catch { /* */ }
+    });
+
+    el.addEventListener("dragend", () => {
+      el.style.opacity = "";
+      dragged = null;
+      persistNavOrder();
+    });
+
+    el.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (!dragged || dragged === el) return;
+      const rect = el.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < (rect.height / 2);
+      el.parentNode.insertBefore(dragged, before ? el : el.nextSibling);
+    });
+  });
+}
+
+applyStoredNavOrder();
+wireSidebarDrag();
