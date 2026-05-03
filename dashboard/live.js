@@ -4233,6 +4233,12 @@ async function loadScheduleView() {
 }
 
 function _clearScheduleMockup() {
+  // Neutralize the mockup OKAMI day-shifts injector — it runs 50ms after
+  // view switch and stamps 'ø XX shifts' onto every cell head, undoing
+  // our live render.
+  if (typeof window !== "undefined") {
+    window.okamiRenderScheduleDayHeaders = function () {};
+  }
   const sub = document.getElementById("sched-sub-week");
   if (!sub) return;
   const wrap = sub.querySelector(".cal-wrap");
@@ -4240,15 +4246,18 @@ function _clearScheduleMockup() {
     Array.from(wrap.children).forEach(el => {
       if (!el.classList.contains("head")) el.remove();
     });
+    // Strip any leftover .day-shifts spans on heads.
+    wrap.querySelectorAll(".cal-cell-head .day-shifts").forEach(el => el.remove());
   }
-  // Mockup also seeds the driver-pool aside with hardcoded names. Wipe
-  // its non-head children so the live pool render starts clean.
   const aside = sub.querySelector("aside.driver-pool");
   if (aside) {
     Array.from(aside.children).forEach(el => {
       if (!el.classList.contains("pool-head") && el.tagName !== "INPUT") el.remove();
     });
   }
+  // Remove the dynamically-injected mockup license banner if present.
+  const lic = document.getElementById("sched-license-banner");
+  if (lic) lic.remove();
 }
 
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
@@ -4639,6 +4648,14 @@ async function renderScheduleWeek() {
   const subLineEl = sub.querySelector(".sched-week-sub");
   if (subLineEl) {
     subLineEl.innerHTML = `<span style="color:var(--accent-text);cursor:pointer" data-rr-goto-okami>Adjust in OKAMI →</span>`;
+  }
+
+  // Page-sub line in the header (Schedule view) — replace the mockup
+  // 'Week of May 1–7 · 78 drivers · ...' with live numbers.
+  const pageSub = document.getElementById("rr-sched-page-sub");
+  if (pageSub) {
+    const wkRange = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    pageSub.textContent = `Week of ${wkRange} · ${drivers.length} active driver${drivers.length === 1 ? "" : "s"}`;
   }
 
   // ── KPI strip (hours, coverage, open shifts, violations) + per-day status
