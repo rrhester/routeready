@@ -3880,6 +3880,14 @@ function bindOkamiHandlers() {
   if (_okamiBound) return;
   _okamiBound = true;
 
+  // The mockup's recalcOkami fires on every DPR / ADW / OT / cushion
+  // slider tick and writes hardcoded okamiAvail values to every row's
+  // cells, overwriting our live render. Neutralize it so only our
+  // renderOkamiLive controls the table.
+  window.recalcOkami = function () {
+    if (typeof renderOkamiLive === "function") renderOkamiLive();
+  };
+
   // Save plan button now triggers a full regenerate of schedule shifts
   // from the current OKAMI demand. Daily values auto-save in the
   // drilldown panel; this button is the explicit "sync schedule with
