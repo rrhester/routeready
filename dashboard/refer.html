@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Refer a driver · RouteReady</title>
+<link rel="icon" href="data:," />
+<style>
+  :root { --accent:#2563eb; --bg:#0b0e14; --card:#11151d; --text:#e6e9ef; --muted:#8b94a7; --border:#1f2531; --ok:#3ddc97; --err:#ff6b6b; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Inter",Segoe UI,sans-serif}
+  .wrap{max-width:520px;margin:0 auto;padding:36px 20px 80px}
+  .ribbon{font-size:12px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:18px}
+  .ribbon strong{color:var(--text)}
+  h1{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+  p.sub{color:var(--muted);font-size:14px;margin:0 0 24px;line-height:1.5}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin:14px 0 6px}
+  input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:11px 12px;font:inherit;font-size:14px}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{margin-top:24px;width:100%;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:14px;font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+  button[disabled]{opacity:.5}
+  .msg{margin-top:14px;font-size:13px}
+  .msg.ok{color:var(--ok)}
+  .msg.err{color:var(--err)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .legal{margin-top:14px;font-size:11px;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="root">Loading…</div>
+</div>
+
+<script src="./config.js"></script>
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+  const cfg = window.RR_CONFIG;
+  const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  const root = document.getElementById("root");
+
+  const token = new URLSearchParams(location.search).get("r");
+  if (!token) {
+    root.innerHTML = `<h1>Invalid link</h1><p class="sub">This referral link is missing the driver code. Please use the link your friend shared with you.</p>`;
+    throw new Error("no token");
+  }
+
+  const { data: ref, error: refErr } = await sb.rpc("referrer_lookup", { p_token: token });
+  if (refErr || !ref || ref.error) {
+    root.innerHTML = `<h1>Link expired</h1><p class="sub">This referral link is no longer valid. Ask the friend who sent it for a fresh link.</p>`;
+    throw new Error("invalid token");
+  }
+
+  const referrer = ref.first_name || ref.full_name || "your friend";
+
+  root.innerHTML = `
+    <div class="ribbon"><strong>Referred by ${referrer}</strong> — finish this 60-second form and we'll text you next steps.</div>
+    <h1>Drive with RouteReady</h1>
+    <p class="sub">Apply now. We'll text you a 2-minute screening — if you're a fit you'll be on the road within the week.</p>
+    <form id="f">
+      <div class="row">
+        <div><label for="first_name">First name</label><input id="first_name" required autocomplete="given-name" /></div>
+        <div><label for="last_name">Last name</label><input id="last_name" required autocomplete="family-name" /></div>
+      </div>
+      <label for="phone">Mobile phone</label>
+      <input id="phone" type="tel" autocomplete="tel" placeholder="(555) 555-1234" />
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="optional if you provide a phone" />
+      <button id="submit" type="submit">Submit application</button>
+      <p class="msg" id="msg"></p>
+      <p class="legal">By submitting, you agree to receive SMS updates about your application. Msg & data rates may apply. Reply STOP to opt out at any time.</p>
+    </form>`;
+
+  document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("msg");
+    const btn = document.getElementById("submit");
+    const phone = document.getElementById("phone").value.trim();
+    const email = document.getElementById("email").value.trim();
+    if (!phone && !email) {
+      msg.className = "msg err";
+      msg.textContent = "We need either a phone number or an email so we can reach you.";
+      return;
+    }
+    btn.disabled = true; msg.className = "msg"; msg.textContent = "Submitting…";
+
+    const payload = {
+      first_name: document.getElementById("first_name").value.trim(),
+      last_name:  document.getElementById("last_name").value.trim(),
+      phone:      phone || null,
+      email:      email || null,
+    };
+
+    const { error } = await sb.rpc("intake_referral", { p_token: token, p_payload: payload });
+    if (error) {
+      btn.disabled = false;
+      msg.className = "msg err";
+      msg.textContent = error.message || "Submission failed. Please try again.";
+      return;
+    }
+    document.getElementById("f").innerHTML = `
+      <h1 style="margin-top:24px">Got it!</h1>
+      <p class="sub">Watch your phone or email for a screening link in the next minute.</p>`;
+  });
+</script>
+</body>
+</html>
