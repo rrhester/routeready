@@ -3407,15 +3407,15 @@ async function saveOkamiWeek(w, routesMax) {
     return;
   }
 
-  // Split the week's routes_max evenly across stations (single station today
-  // gets the full value; multi-station DSPs get even split for now).
-  const perStation = Math.round(routesMax / _okamiStations.length);
+  // Single-station mode: full value to the first station, zero out the
+  // rest. Splitting across stations introduced rounding drift when the
+  // value couldn't be divided evenly.
   const calls = [];
   for (let d = 0; d < 7; d++) {
     const iso = fmtIsoDate(addDays(weekStart, d));
-    for (const s of _okamiStations) {
-      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: perStation }));
-    }
+    _okamiStations.forEach((s, idx) => {
+      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? routesMax : 0 }));
+    });
   }
   const results = await Promise.all(calls);
   const firstErr = results.find(r => r.error);
@@ -3609,9 +3609,11 @@ async function saveOkamiDaily(weekIdx, iso, routes) {
     toast("No stations configured — add a station before setting OKAMI", "warn");
     return;
   }
-  const perStation = Math.round(routes / _okamiStations.length);
-  const calls = _okamiStations.map(s =>
-    sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: perStation })
+  // Single-station mode: write the full value to the first station and
+  // zero out the rest. Avoids the rounding drift you'd get from
+  // round(routes / station_count) when station_count > 1.
+  const calls = _okamiStations.map((s, idx) =>
+    sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? routes : 0 })
   );
   const results = await Promise.all(calls);
   const firstErr = results.find(r => r.error);
