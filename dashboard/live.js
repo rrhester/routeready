@@ -3629,21 +3629,30 @@ async function saveOkamiDaily(weekIdx, iso, routes) {
 async function loadSchedulingSettings() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
-  const { data, error } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  const { data, error } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
   if (error) { console.warn("scheduling settings load:", error.message); return; }
-  const sched = (data?.metadata?.scheduling) || {};
+  const s = data || {};
+
   const blockEl  = document.getElementById("rr-set-block-hours");
   const cushEl   = document.getElementById("rr-set-cushion-pct");
   const maxDaysEl = document.getElementById("rr-set-max-days");
   const wavesEl  = document.getElementById("rr-set-waves");
-  if (blockEl)   blockEl.value   = sched.default_block_hours ?? 10;
-  if (cushEl)    cushEl.value    = sched.cushion_pct ?? 10;
-  if (maxDaysEl) maxDaysEl.value = sched.max_days_per_week ?? 5;
+  const statusEl = document.getElementById("rr-set-sched-status");
+
+  if (blockEl)   blockEl.value   = s.default_block_hours ?? 10;
+  if (cushEl)    cushEl.value    = s.cushion_pct ?? 10;
+  if (maxDaysEl) maxDaysEl.value = s.max_days_per_week ?? 5;
   if (wavesEl) {
-    const waves = Array.isArray(sched.waves) && sched.waves.length
-      ? sched.waves
-      : [{ start: sched.wave_start || "07:00" }];
+    const waves = Array.isArray(s.waves) && s.waves.length ? s.waves : [{ start: "07:00" }];
     wavesEl.innerHTML = waves.map(w => _renderWaveRow(w.start)).join("");
+  }
+  if (statusEl) {
+    statusEl.style.color = "var(--text-subtle)";
+    statusEl.textContent = s.is_inherited
+      ? "Inherited from a previous week — Save to make this week's settings independent"
+      : `Custom settings for week of ${_schedStart}`;
   }
 }
 
@@ -3685,6 +3694,8 @@ document.addEventListener("click", async (e) => {
     e.preventDefault();
     const dspId = window.RR?.dsp?.id;
     if (!dspId) return;
+    if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
     const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
     const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
     const maxDays = Math.max(1, Math.min(7, parseInt(document.getElementById("rr-set-max-days")?.value, 10) || 5));
@@ -3692,52 +3703,48 @@ document.addEventListener("click", async (e) => {
       .map(inp => ({ start: inp.value || "07:00" }))
       .filter(w => w.start);
     if (waves.length === 0) waves.push({ start: "07:00" });
+    const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || "UTC";
 
     const status = document.getElementById("rr-set-sched-status");
-    if (status) status.textContent = "Saving…";
+    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving for week…"; }
 
-    const { data: row, error: readErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
-    if (readErr) { if (status) status.textContent = "Failed: " + readErr.message; return; }
-    const meta = row?.metadata || {};
-    const sched = meta.scheduling || {};
-    // Capture the operator's IANA timezone so SQL can interpret wave
-    // times like '11:20' as their wall clock instead of UTC.
-    const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || sched.timezone || "UTC";
-    const newMeta = {
-      ...meta,
-      scheduling: {
-        ...sched,
+    const { error: upErr } = await sb.rpc("upsert_scheduling_settings", {
+      p_payload: {
+        week_start: _schedStart,
         default_block_hours: block,
         cushion_pct: cushion,
         max_days_per_week: maxDays,
         waves,
         timezone: tz,
       },
-    };
-    const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
-    if (upErr) { if (status) status.textContent = "Failed: " + upErr.message; return; }
-    // Refresh local cache so subsequent renders use the new waves/cushion immediately.
-    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
-    if (status) status.textContent = "Saved · syncing schedule…";
+    });
+    if (upErr) {
+      if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; }
+      return;
+    }
+    if (status) status.textContent = "Saved · syncing this week…";
 
-    // Push the new settings into existing shifts: assigned shifts get
-    // their block_hours / ends_at refreshed; unassigned shifts are
-    // wiped and regenerated at the new wave times with the new cushion.
-    const { error: regenErr } = await sb.rpc("regenerate_all_shifts");
+    const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: _schedStart });
     if (regenErr) {
-      if (status) status.textContent = "Saved · sync failed: " + regenErr.message;
-      toast("Scheduling settings saved · sync failed: " + regenErr.message, "warn");
+      if (status) { status.style.color = "var(--red)"; status.textContent = "Saved · sync failed: " + regenErr.message; }
+      toast("Settings saved · sync failed: " + regenErr.message, "warn");
       return;
     }
 
-    if (status) status.textContent = "Saved · schedule synced ✓";
+    if (status) {
+      status.style.color = "var(--green)";
+      status.textContent = `Saved for week of ${_schedStart} ✓`;
+    }
     setTimeout(() => { if (status) status.textContent = ""; }, 3000);
-    toast("Scheduling settings saved · schedule synced", "success");
-    // Refresh the schedule view if it's currently open.
+    toast("Scheduling settings saved for this week", "success");
+
+    // Refresh schedule view if active.
     if (typeof renderScheduleWeek === "function") {
       const sub = document.getElementById("sched-sub-week");
       if (sub) renderScheduleWeek();
     }
+    // Reload settings panel so the inheritance hint updates.
+    loadSchedulingSettings();
     return;
   }
 });
@@ -4324,12 +4331,14 @@ function bindSchedWeekNav() {
       const cur = new Date((_schedStart || fmtIsoDate(startOfWeekMonday(new Date()))) + "T12:00:00");
       _schedStart = fmtIsoDate(addDays(cur, isPrev ? -7 : 7));
       renderScheduleWeek();
+      loadSchedulingSettings();
       return;
     }
     const todayBtn = e.target.closest(".sched-week-nav .btn");
     if (todayBtn && todayBtn.textContent.trim() === "Today") {
       _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
       renderScheduleWeek();
+      loadSchedulingSettings();
       return;
     }
     if (e.target.closest("[data-rr-goto-okami]"))   { if (typeof window.goto === "function") window.goto("okami"); return; }
