@@ -254,9 +254,10 @@ window.filterPipelineStage = function (btn) {
 const _legacyGoto = window.goto;
 window.goto = function (view) {
   if (typeof _legacyGoto === "function") _legacyGoto(view);
-  if (view === "pipeline") loadPipeline(getActiveStage());
-  if (view === "drivers")  loadDriversRoster();
-  if (view === "checkin")  loadCheckinView();
+  if (view === "pipeline")  loadPipeline(getActiveStage());
+  if (view === "drivers")   loadDriversRoster();
+  if (view === "checkin")   loadCheckinView();
+  if (view === "dashboard") loadDashboardTasks();
 };
 
 
@@ -571,6 +572,79 @@ async function loadAttendanceLive() {
 
 const _CI_TO_STATUS = { present: "completed", late: "late", callout: "called_off", noshow: "no_show" };
 const _STATUS_TO_CI = Object.fromEntries(Object.entries(_CI_TO_STATUS).map(([k, v]) => [v, k]));
+
+// ─── Dashboard · Today's tasks (Attendance card + header counts) ───────
+
+async function loadDashboardTasks() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const todayIso = fmtIsoDate(new Date());
+  const weekStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  const weekEnd   = fmtIsoDate(addDays(new Date(weekStart + "T12:00:00"), 6));
+
+  // Date eyebrow
+  const eyebrow = document.getElementById("db-eyebrow");
+  if (eyebrow) eyebrow.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+
+  // Today's shifts: total, present (completed), pending (scheduled), and stations.
+  const [shiftsRes, stationsRes, recentAbsentRes] = await Promise.all([
+    sb.from("shifts")
+      .select("id, status, driver_id, station_id, starts_at, ends_at")
+      .eq("dsp_id", dspId)
+      .eq("date", todayIso),
+    sb.from("stations").select("code, active").eq("dsp_id", dspId).eq("active", true),
+    // 30-day absences for the "callout patterns" pill.
+    sb.from("shifts")
+      .select("driver_id, status")
+      .eq("dsp_id", dspId)
+      .in("status", ["called_off", "no_show"])
+      .gte("date", fmtIsoDate(addDays(new Date(), -30)))
+      .lte("date", todayIso),
+  ]);
+
+  const shifts = shiftsRes.data || [];
+  const stations = stationsRes.data || [];
+
+  const total       = shifts.length;
+  const checkedIn   = shifts.filter(sh => sh.status === "completed" || sh.status === "late").length;
+  const callouts    = shifts.filter(sh => sh.status === "called_off" || sh.status === "no_show").length;
+  const coverageNeeded = shifts.filter(sh => sh.status !== "called_off" && sh.status !== "no_show").length;
+  const coveragePct = total === 0 ? 0 : Math.round(checkedIn / Math.max(1, coverageNeeded) * 100);
+
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText("dash-pip-checkin", checkedIn);
+  setText("dash-pip-total", total);
+  setText("dash-coverage", total === 0 ? "—" : `${coveragePct}%`);
+
+  // Loadout = earliest scheduled start time today; stations comma-list.
+  const earliest = shifts
+    .filter(sh => sh.starts_at)
+    .map(sh => new Date(sh.starts_at))
+    .sort((a, b) => a - b)[0];
+  const loadoutLabel = earliest
+    ? `Loadout ${earliest.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
+    : "No shifts today";
+  const stationLabel = stations.length > 0 ? ` · ${stations.map(s => s.code).join(", ")}` : "";
+  setText("dash-pip-meta", `${loadoutLabel}${stationLabel}`);
+
+  // "Callout patterns" — drivers with 3+ callouts/no-shows in last 30 days.
+  const absencesPerDriver = new Map();
+  for (const sh of (recentAbsentRes.data || [])) {
+    if (!sh.driver_id) continue;
+    absencesPerDriver.set(sh.driver_id, (absencesPerDriver.get(sh.driver_id) || 0) + 1);
+  }
+  const flagged = Array.from(absencesPerDriver.values()).filter(n => n >= 3).length;
+  const flagEl = document.getElementById("dash-pip-flag");
+  const flagTextEl = document.getElementById("dash-pip-flag-text");
+  if (flagEl && flagTextEl) {
+    if (flagged > 0) {
+      flagEl.style.display = "";
+      flagTextEl.textContent = `${flagged} callout pattern${flagged === 1 ? "" : "s"} flagged`;
+    } else {
+      flagEl.style.display = "none";
+    }
+  }
+}
 
 async function loadCheckinView() {
   const list = document.querySelector("#view-checkin .checkin-list");
@@ -3552,9 +3626,22 @@ async function hydratePinnedCard(card, p) {
 const _origRefresh = refreshActiveView;
 function refreshWithPins() {
   _origRefresh();
-  if (document.querySelector(".view.active")?.id === "view-dashboard") renderPinnedDashboard();
+  if (document.querySelector(".view.active")?.id === "view-dashboard") {
+    renderPinnedDashboard();
+    if (typeof loadDashboardTasks === "function") loadDashboardTasks();
+  }
 }
-window.addEventListener("focus", () => { if (document.querySelector(".view.active")?.id === "view-dashboard") renderPinnedDashboard(); });
+window.addEventListener("focus", () => {
+  if (document.querySelector(".view.active")?.id === "view-dashboard") {
+    renderPinnedDashboard();
+    if (typeof loadDashboardTasks === "function") loadDashboardTasks();
+  }
+});
+
+// Initial load: if the dashboard is the active view at boot, populate the tasks card.
+if (document.querySelector(".view.active")?.id === "view-dashboard") {
+  setTimeout(() => loadDashboardTasks?.(), 0);
+}
 
 // Initial render on load.
 if (document.readyState === "loading") {
