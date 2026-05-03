@@ -929,6 +929,8 @@ window.pipeSub = function (sub) {
   if (sub === "interview") loadInterviewDay();
   if (sub === "calendar")  loadCalendarTab();
   if (sub === "referrals") loadReferralsTab();
+  if (sub === "screening") loadScreeningQuestionsList();
+  if (sub === "messages")  loadMessagesTab();
 };
 
 
@@ -1388,48 +1390,30 @@ async function loadCalBookingsList() {
 // CRUD. Inline edit toggles between a read row and a tiny form.
 
 async function loadScreeningQuestionsList() {
-  const section = document.querySelector('.settings-section[data-set="screening"]');
-  if (!section) return;
-
-  // Find or create the rows container; the mockup wrapper for rows is
-  // the first inner div containing all .question-row elements.
-  let container = section.querySelector("[data-rr-questions]");
-  if (!container) {
-    const firstInner = section.querySelector("div:has(> .question-row)");
-    if (firstInner) {
-      container = firstInner;
-      container.setAttribute("data-rr-questions", "1");
-    } else {
-      container = document.createElement("div");
-      container.setAttribute("data-rr-questions", "1");
-      section.appendChild(container);
-    }
-  }
+  // Now lives inside the Pipeline → Screening subtab. Containers are
+  // pre-rendered in the static HTML; we just fill the row list.
+  const subview = document.getElementById("pipe-sub-screening");
+  if (!subview) return;
+  const container = subview.querySelector("[data-rr-questions]");
+  if (!container) return;
 
   const { data: rows, error } = await sb.from("screening_questions")
     .select("id, prompt, field_type, options, required, hard_filter, scoring, display_order, active")
     .eq("dsp_id", window.RR.dsp.id)
     .order("display_order", { ascending: true });
-  if (error) { toast("Couldn't load questions: " + error.message, "warn"); return; }
-
-  // Sub-text under the title.
-  const sub = section.querySelector(".settings-section-sub");
-  if (sub) sub.textContent = `Library of ${(rows ?? []).length} questions sent via SMS or email.`;
-
-  container.innerHTML = (rows ?? []).map(renderScreeningQuestionRow).join("");
-
-  // Replace the bottom controls with a live "Add question" button.
-  let footer = section.querySelector("[data-rr-questions-footer]");
-  if (!footer) {
-    footer = document.createElement("div");
-    footer.setAttribute("data-rr-questions-footer", "1");
-    footer.style.cssText = "margin-top:var(--s-3);display:flex;gap:8px";
-    footer.innerHTML = `<button class="btn" data-rr-add-question>+ Add question</button>`;
-    // Remove any sibling with the original "+ Add question / Browse library" buttons.
-    const oldFooter = section.querySelector('div[style*="margin-top"]:has(> .btn)');
-    if (oldFooter && oldFooter !== footer) oldFooter.remove();
-    section.appendChild(footer);
+  if (error) {
+    container.innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>`;
+    return;
   }
+
+  const sub = document.getElementById("rr-screening-sub");
+  if (sub) sub.textContent = `${(rows ?? []).length} questions · sent to applicants via SMS or email.`;
+
+  if (!rows || rows.length === 0) {
+    container.innerHTML = `<div style="padding:16px;color:var(--text-subtle);font-size:13px">No questions yet — click + Add question to start.</div>`;
+    return;
+  }
+  container.innerHTML = rows.map(renderScreeningQuestionRow).join("");
 }
 
 function renderScreeningQuestionRow(q) {
@@ -1571,14 +1555,136 @@ document.addEventListener("click", async (e) => {
   }
 }, true);
 
-// Hook the Settings nav so loading the Screening Questions section refreshes.
-const _legacySettings = window.setSettingsSection;
-window.setSettingsSection = function (btn) {
-  if (typeof _legacySettings === "function") _legacySettings(btn);
-  if (btn && btn.getAttribute("data-set") === "screening") {
-    loadScreeningQuestionsList();
-  }
+// (Settings → Screening Questions was relocated to Pipeline → Screening.
+//  No setSettingsSection hook needed.)
+
+
+// ─── Messages tab ─────────────────────────────────────────────────────────
+//
+// Lists every message_templates row for the DSP, grouped by trigger.
+// Operator can edit subject/body. Tokens like {{first_name}} / {{link}}
+// stay as-is in the text and the render_template SQL substitutes them
+// at send time. Attachments are deferred to a follow-up.
+
+const RR_TEMPLATE_LABELS = {
+  "applicant.invite_screening": "Screening invitation",
+  "applicant.invite_interview": "Interview booking",
+  "applicant.invite_orientation": "Orientation booking",
+  "applicant.outcome_hired": "Hired notice",
+  "applicant.outcome_no_hire": "Not-hired notice",
+  "applicant.outcome_no_show": "No-show notice",
+  "applicant.decline": "Decline notice",
+  "driver.referral_invite": "Driver referral invite",
 };
+
+async function loadMessagesTab() {
+  const list = document.getElementById("rr-messages-list");
+  if (!list) return;
+
+  const { data: rows, error } = await sb.from("message_templates")
+    .select("id, channel, key, name, subject, body, active")
+    .eq("dsp_id", window.RR.dsp.id)
+    .order("key", { ascending: true })
+    .order("channel", { ascending: true });
+
+  if (error) {
+    list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No templates yet.</div>`;
+    return;
+  }
+
+  list.innerHTML = rows.map(renderMessageRow).join("");
+}
+
+function renderMessageRow(t) {
+  const label = RR_TEMPLATE_LABELS[t.key] || t.key;
+  const preview = (t.subject || t.body || "").replace(/\s+/g, " ").trim();
+  return `
+    <div class="msg-row" data-template-id="${t.id}">
+      <div>
+        <div class="msg-row-label">${escapeHtml(label)}</div>
+        <div class="msg-row-sub">${escapeHtml(t.key)}</div>
+      </div>
+      <div><span class="msg-channel-pill ${t.channel}">${t.channel}</span></div>
+      <div class="msg-body-preview" title="${escapeHtml(preview)}">${escapeHtml(preview)}</div>
+      <div style="text-align:right">
+        <button class="btn btn-sm" data-rr-edit-template="${t.id}">Edit</button>
+      </div>
+    </div>`;
+}
+
+function openMessageEditor(template) {
+  const t = template;
+  const isEmail = t.channel === "email";
+
+  let m = document.getElementById("rr-msg-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-msg-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:640px;width:100%;max-height:90vh;overflow:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <h3 style="margin:0;font-size:17px;font-weight:600">${escapeHtml(RR_TEMPLATE_LABELS[t.key] || t.key)}</h3>
+          <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(t.key)} · ${t.channel}</div>
+        </div>
+        <button data-rr-msg-cancel style="background:none;border:0;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
+      </div>
+
+      ${isEmail ? `
+        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Subject</label>
+        <input data-rr-msg-subject class="form-input" style="width:100%;margin-bottom:14px" value="${escapeHtml(t.subject || "")}" />
+      ` : ""}
+
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Body</label>
+      <textarea data-rr-msg-body class="form-input" style="width:100%;min-height:160px;font-family:'SF Mono',Menlo,monospace;font-size:13px;line-height:1.5">${escapeHtml(t.body || "")}</textarea>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:6px;line-height:1.5">
+        Tokens: <code>{{first_name}}</code> · <code>{{link}}</code>. Paste any URL into the body — applicants tap it directly.
+        ${!isEmail ? `<br/><strong style="color:var(--text-muted)">Keep SMS under 160 chars when possible</strong> — longer messages split into multiple texts.` : ""}
+      </div>
+
+      <label style="display:flex;align-items:center;gap:10px;margin:14px 0 4px"><input type="checkbox" data-rr-msg-active ${t.active !== false ? "checked" : ""}/>Active (used for outgoing sends)</label>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button class="btn" data-rr-msg-cancel>Cancel</button>
+        <button class="btn btn-primary" data-rr-msg-save>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-msg-cancel]")) { m.remove(); return; }
+    if (e.target.closest("[data-rr-msg-save]")) {
+      const body = m.querySelector("[data-rr-msg-body]").value;
+      if (!body.trim()) { toast("Body is required", "warn"); return; }
+      const subject = isEmail ? m.querySelector("[data-rr-msg-subject]").value : t.subject;
+      const active = m.querySelector("[data-rr-msg-active]").checked;
+      const { error } = await sb.from("message_templates")
+        .update({ body, subject, active })
+        .eq("id", t.id);
+      if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      m.remove();
+      toast("Template saved", "success");
+      await loadMessagesTab();
+    }
+  });
+}
+
+// Capture-phase delegate for the message-template Edit button.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-edit-template]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const id = btn.getAttribute("data-rr-edit-template");
+  const { data: t, error } = await sb.from("message_templates").select("*").eq("id", id).single();
+  if (error) { toast("Couldn't load template", "warn"); return; }
+  openMessageEditor(t);
+}, true);
 
 
 // ─── Boot: if pipeline view is the default, populate immediately ──────────

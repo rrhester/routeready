@@ -4299,6 +4299,8 @@ a{color:inherit;text-decoration:none}
           <button class="subnav-item active" data-pipesub="funnel" onclick="pipeSub('funnel')">Funnel</button>
           <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
           <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
+          <button class="subnav-item" data-pipesub="screening" onclick="pipeSub('screening')">Screening</button>
+          <button class="subnav-item" data-pipesub="messages" onclick="pipeSub('messages')">Messages</button>
           <button class="subnav-item" data-pipesub="referrals" onclick="pipeSub('referrals')">Referrals</button>
         </div>
 
@@ -4911,179 +4913,7 @@ a{color:inherit;text-decoration:none}
 
         <!-- Candidate cards -->
         <div class="iv-candidates" id="iv-candidates">
-
-          <div class="iv-card" data-candidate="Trevor Anders" data-time="9:00 AM" data-source="Indeed">
-            <div class="iv-card-time">9:00 AM</div>
-            <div class="iv-card-body">
-              <div class="iv-card-header">
-                <div class="iv-card-avatar tier-b">TA</div>
-                <div>
-                  <div class="iv-card-name">Trevor Anders</div>
-                  <div class="iv-card-meta">+1 417 555 0188 · trevor.a@email.com · 32 yo</div>
-                </div>
-                <span class="iv-card-source" style="background:var(--accent-soft);color:var(--accent-text)">Indeed</span>
-              </div>
-              <div class="iv-card-tags">
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Resume on file</span>
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>3 video answers · ★★★★☆</span>
-                <span class="iv-card-tag" style="background:rgba(124,58,237,.12);color:#7C3AED"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Referred by Marcus Davidson</span>
-              </div>
-            </div>
-            <div class="iv-card-actions">
-              <button class="iv-action-btn nohire" onclick="ivAction(this,'No Hire','Trevor Anders')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                No Hire
-              </button>
-              <button class="iv-action-btn noshow" onclick="ivAction(this,'No Show','Trevor Anders')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
-                No Show
-              </button>
-              <button class="iv-action-btn hired" onclick="ivAction(this,'Hired','Trevor Anders','referred:Marcus Davidson')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                Hired
-              </button>
-            </div>
-          </div>
-
-          <div class="iv-card" data-candidate="Sasha Underwood" data-time="9:30 AM" data-source="Indeed">
-            <div class="iv-card-time">9:30 AM</div>
-            <div class="iv-card-body">
-              <div class="iv-card-header">
-                <div class="iv-card-avatar tier-b">SU</div>
-                <div>
-                  <div class="iv-card-name">Sasha Underwood</div>
-                  <div class="iv-card-meta">+1 417 555 0203 · sasha.u@email.com · 28 yo</div>
-                </div>
-                <span class="iv-card-source" style="background:var(--accent-soft);color:var(--accent-text)">Indeed</span>
-              </div>
-              <div class="iv-card-tags">
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Resume on file</span>
-                <span class="iv-card-tag warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Video screen pending</span>
-              </div>
-            </div>
-            <div class="iv-card-actions">
-              <button class="iv-action-btn nohire" onclick="ivAction(this,'No Hire','Sasha Underwood')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No Hire</button>
-              <button class="iv-action-btn noshow" onclick="ivAction(this,'No Show','Sasha Underwood')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No Show</button>
-              <button class="iv-action-btn hired" onclick="ivAction(this,'Hired','Sasha Underwood')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hired</button>
-            </div>
-          </div>
-
-          <div class="iv-card" data-candidate="Lena Whitcomb" data-time="10:00 AM" data-source="Referral">
-            <div class="iv-card-time">10:00 AM</div>
-            <div class="iv-card-body">
-              <div class="iv-card-header">
-                <div class="iv-card-avatar tier-a">LW</div>
-                <div>
-                  <div class="iv-card-name">Lena Whitcomb</div>
-                  <div class="iv-card-meta">+1 417 555 0240 · lena.w@email.com · 41 yo</div>
-                </div>
-                <span class="iv-card-source" style="background:rgba(124,58,237,.12);color:#7C3AED">Referral</span>
-              </div>
-              <div class="iv-card-tags">
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Resume + 5 yrs DSP exp</span>
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>3 video answers · ★★★★★</span>
-                <span class="iv-card-tag" style="background:rgba(124,58,237,.12);color:#7C3AED"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Referred by Camille Foster</span>
-              </div>
-            </div>
-            <div class="iv-card-actions">
-              <button class="iv-action-btn nohire" onclick="ivAction(this,'No Hire','Lena Whitcomb')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No Hire</button>
-              <button class="iv-action-btn noshow" onclick="ivAction(this,'No Show','Lena Whitcomb')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No Show</button>
-              <button class="iv-action-btn hired" onclick="ivAction(this,'Hired','Lena Whitcomb','referred:Camille Foster')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hired</button>
-            </div>
-          </div>
-
-          <div class="iv-card" data-candidate="Marcus Hill" data-time="10:30 AM" data-source="ZipRecruiter">
-            <div class="iv-card-time">10:30 AM</div>
-            <div class="iv-card-body">
-              <div class="iv-card-header">
-                <div class="iv-card-avatar tier-c">MH</div>
-                <div>
-                  <div class="iv-card-name">Marcus Hill</div>
-                  <div class="iv-card-meta">+1 417 555 0274 · marcus.h@email.com · 25 yo</div>
-                </div>
-                <span class="iv-card-source" style="background:var(--canvas);color:var(--text-muted)">ZipRecruiter</span>
-              </div>
-              <div class="iv-card-tags">
-                <span class="iv-card-tag warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No prior delivery exp</span>
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>3 video answers · ★★★☆☆</span>
-              </div>
-            </div>
-            <div class="iv-card-actions">
-              <button class="iv-action-btn nohire" onclick="ivAction(this,'No Hire','Marcus Hill')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No Hire</button>
-              <button class="iv-action-btn noshow" onclick="ivAction(this,'No Show','Marcus Hill')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No Show</button>
-              <button class="iv-action-btn hired" onclick="ivAction(this,'Hired','Marcus Hill')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hired</button>
-            </div>
-          </div>
-
-          <div class="iv-card" data-candidate="Devon Briggs" data-time="11:00 AM" data-source="Indeed">
-            <div class="iv-card-time">11:00 AM</div>
-            <div class="iv-card-body">
-              <div class="iv-card-header">
-                <div class="iv-card-avatar tier-b">DB</div>
-                <div>
-                  <div class="iv-card-name">Devon Briggs</div>
-                  <div class="iv-card-meta">+1 417 555 0291 · devon.b@email.com · 35 yo</div>
-                </div>
-                <span class="iv-card-source" style="background:var(--accent-soft);color:var(--accent-text)">Indeed</span>
-              </div>
-              <div class="iv-card-tags">
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Resume on file</span>
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>3 video answers · ★★★★☆</span>
-              </div>
-            </div>
-            <div class="iv-card-actions">
-              <button class="iv-action-btn nohire" onclick="ivAction(this,'No Hire','Devon Briggs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No Hire</button>
-              <button class="iv-action-btn noshow" onclick="ivAction(this,'No Show','Devon Briggs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No Show</button>
-              <button class="iv-action-btn hired" onclick="ivAction(this,'Hired','Devon Briggs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hired</button>
-            </div>
-          </div>
-
-          <div class="iv-card" data-candidate="Riley Thompkins" data-time="11:30 AM" data-source="Referral">
-            <div class="iv-card-time">11:30 AM</div>
-            <div class="iv-card-body">
-              <div class="iv-card-header">
-                <div class="iv-card-avatar tier-b">RT</div>
-                <div>
-                  <div class="iv-card-name">Riley Thompkins</div>
-                  <div class="iv-card-meta">+1 417 555 0314 · riley.t@email.com · 29 yo</div>
-                </div>
-                <span class="iv-card-source" style="background:rgba(124,58,237,.12);color:#7C3AED">Referral</span>
-              </div>
-              <div class="iv-card-tags">
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Resume + 2 yrs experience</span>
-                <span class="iv-card-tag" style="background:rgba(124,58,237,.12);color:#7C3AED"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Referred by Tasha Reyes</span>
-              </div>
-            </div>
-            <div class="iv-card-actions">
-              <button class="iv-action-btn nohire" onclick="ivAction(this,'No Hire','Riley Thompkins')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No Hire</button>
-              <button class="iv-action-btn noshow" onclick="ivAction(this,'No Show','Riley Thompkins')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No Show</button>
-              <button class="iv-action-btn hired" onclick="ivAction(this,'Hired','Riley Thompkins','referred:Tasha Reyes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hired</button>
-            </div>
-          </div>
-
-          <div class="iv-card" data-candidate="Jasmine Park" data-time="1:00 PM" data-source="Indeed">
-            <div class="iv-card-time">1:00 PM</div>
-            <div class="iv-card-body">
-              <div class="iv-card-header">
-                <div class="iv-card-avatar tier-b">JP</div>
-                <div>
-                  <div class="iv-card-name">Jasmine Park</div>
-                  <div class="iv-card-meta">+1 417 555 0327 · jasmine.p@email.com · 26 yo</div>
-                </div>
-                <span class="iv-card-source" style="background:var(--accent-soft);color:var(--accent-text)">Indeed</span>
-              </div>
-              <div class="iv-card-tags">
-                <span class="iv-card-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Resume on file</span>
-                <span class="iv-card-tag warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Video screen pending</span>
-              </div>
-            </div>
-            <div class="iv-card-actions">
-              <button class="iv-action-btn nohire" onclick="ivAction(this,'No Hire','Jasmine Park')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No Hire</button>
-              <button class="iv-action-btn noshow" onclick="ivAction(this,'No Show','Jasmine Park')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>No Show</button>
-              <button class="iv-action-btn hired" onclick="ivAction(this,'Hired','Jasmine Park')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hired</button>
-            </div>
-          </div>
-
+          <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading interviews…</div>
         </div>
 
         <!-- Day done state -->
@@ -5148,6 +4978,44 @@ a{color:inherit;text-decoration:none}
             <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading availability…</div>
           </div>
         </div><!-- /pipe-sub-calendar -->
+
+
+        <!-- SCREENING QUESTIONS SUB-VIEW -->
+        <div class="pipe-subview" id="pipe-sub-screening" style="display:none">
+          <div style="margin-bottom:var(--s-3)">
+            <h3 style="margin:0;font-size:15px;font-weight:600">Screening questions</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--text-subtle)" id="rr-screening-sub">The questions an applicant answers before booking.</p>
+          </div>
+          <div class="cal-edit-card" style="padding:14px 18px">
+            <div data-rr-questions></div>
+            <div data-rr-questions-footer style="margin-top:14px">
+              <button class="btn" data-rr-add-question>+ Add question</button>
+            </div>
+          </div>
+        </div><!-- /pipe-sub-screening -->
+
+
+        <!-- MESSAGES SUB-VIEW -->
+        <div class="pipe-subview" id="pipe-sub-messages" style="display:none">
+          <div style="margin-bottom:var(--s-3)">
+            <h3 style="margin:0;font-size:15px;font-weight:600">Hiring messages</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--text-subtle)">Customize the SMS and email applicants and drivers receive at every step. Tokens like <code>{{first_name}}</code> and <code>{{link}}</code> are filled in automatically. Paste links right into the body.</p>
+          </div>
+          <style>
+            .msg-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+            .msg-row{display:grid;grid-template-columns:200px 64px 1fr 86px;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--border)}
+            .msg-row:first-of-type{border-top:0}
+            .msg-row-label{font-size:13px;font-weight:600}
+            .msg-row-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+            .msg-channel-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;letter-spacing:.04em;text-transform:uppercase;text-align:center}
+            .msg-channel-pill.sms{background:var(--accent-soft);color:var(--accent-text)}
+            .msg-channel-pill.email{background:rgba(124,58,237,.14);color:#7C3AED}
+            .msg-body-preview{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          </style>
+          <div class="msg-card" id="rr-messages-list">
+            <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading templates…</div>
+          </div>
+        </div><!-- /pipe-sub-messages -->
 
 
         <!-- REFERRALS SUB-VIEW -->
@@ -6044,7 +5912,6 @@ a{color:inherit;text-decoration:none}
             <button class="settings-nav-item" data-set="integrations" onclick="setSettingsSection(this)">Integrations</button>
             <button class="settings-nav-item" data-set="hiring" onclick="setSettingsSection(this)">Hiring criteria</button>
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Referral program</button>
-            <button class="settings-nav-item" data-set="screening" onclick="setSettingsSection(this)">Screening questions</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="video" onclick="setSettingsSection(this)">Video screening</button>
             <button class="settings-nav-item" data-set="renewals" onclick="setSettingsSection(this)">License renewals</button>
@@ -6224,24 +6091,6 @@ a{color:inherit;text-decoration:none}
             </div>
 
             <!-- SCREENING QUESTIONS SECTION -->
-            <div class="settings-section hidden" data-set="screening">
-              <div class="settings-section-head">
-                <h2 class="settings-section-title">Screening questions</h2>
-                <p class="settings-section-sub">Library of 14 questions sent via SMS. Drivers answer in 5–10 minutes.</p>
-              </div>
-              <div>
-                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Are you authorized to work in the United States?<small>Yes/No · auto-fail if No</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
-                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Do you have a valid driver license?<small>Yes/No · auto-fail if No</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
-                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Can you safely lift 50 lbs repeatedly?<small>Yes/No · auto-fail if No</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
-                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Which days are you available to work?<small>Multi-select · scoring +0–3</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
-                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">When can you start?<small>Single-select · scoring +0–3</small></div><span class="role-pill">Required</span><button class="btn btn-sm">Edit</button></div>
-                <div class="question-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg><div class="question-text">Have you had any moving violations in the last 3 years?<small>Yes/No · custom score</small></div><span class="role-pill">Optional</span><button class="btn btn-sm">Edit</button></div>
-              </div>
-              <div style="margin-top:var(--s-3)">
-                <button class="btn">+ Add question</button>
-                <button class="btn">Browse library (28 more)</button>
-              </div>
-            </div>
 
             <!-- VIDEO SCREENING SECTION -->
             <div class="settings-section hidden" data-set="video">
