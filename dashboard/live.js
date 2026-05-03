@@ -1471,20 +1471,61 @@ function isoWeek(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-function renderWeeksStrip() {
+async function renderWeeksStrip() {
   const strip = document.getElementById("hp-weeks-strip");
   if (!strip) return;
-  const today = new Date();
-  const weeks = [];
-  for (let i = 0; i < 5; i++) {
-    const dt = new Date(today.getTime() + i * 7 * 86400000);
-    weeks.push({ n: isoWeek(dt) });
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const monday = startOfWeekMonday(new Date());
+  const startIso = fmtIsoDate(monday);
+
+  // Build placeholders first so the strip never shows mockup data while
+  // the live query is in flight.
+  const placeholderWeeks = Array.from({ length: 5 }, (_, i) => isoWeek(addDays(monday, i * 7)));
+  strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>` +
+    placeholderWeeks.map(n => `<span class="hp-week-cell"><span class="wk">W${n}</span> <span style="color:var(--text-subtle)">— / —</span></span>`).join("");
+
+  // Pull 5 weeks of okami_grid + active driver count.
+  const [gridRes, drvRes] = await Promise.all([
+    sb.rpc("okami_grid", { p_start: startIso, p_weeks: 5 }),
+    sb.from("drivers")
+      .select("id, status", { count: "exact", head: true })
+      .eq("dsp_id", dspId)
+      .in("status", ["active", "onboarding"]),
+  ]);
+  if (gridRes.error) { console.warn("weeks strip:", gridRes.error.message); return; }
+
+  const cells = gridRes.data || [];
+  const available = drvRes.count || 0;
+  const dpr = parseFloat(document.getElementById("okami-dpr")?.value) || 2.0;
+
+  // Group target_routes per (date) summed across stations.
+  const targetByDate = new Map();
+  let cushionPct = 10;
+  for (const c of cells) {
+    if (c.cushion_pct != null) cushionPct = Number(c.cushion_pct);
+    targetByDate.set(c.date, (targetByDate.get(c.date) || 0) + (c.target_routes || 0));
   }
-  strip.innerHTML = `
-    <span class="hp-weeks-strip-label">Next 5 wk</span>
-    ${weeks.map(w => `
-      <span class="hp-week-cell"><span class="wk">W${w.n}</span> <span style="color:var(--text-subtle)">— / —</span></span>
-    `).join("")}`;
+
+  const out = [];
+  for (let w = 0; w < 5; w++) {
+    const wkStart = addDays(monday, w * 7);
+    let routesMax = 0;
+    for (let d = 0; d < 7; d++) {
+      const t = targetByDate.get(fmtIsoDate(addDays(wkStart, d))) || 0;
+      if (t > routesMax) routesMax = t;
+    }
+    const base = Math.round(routesMax * dpr);
+    const cush = Math.ceil(base * (cushionPct / 100));
+    const needed = base + cush;
+    const gap = available - needed;
+    const gapClass = gap >= 0 ? "ok" : (gap >= -10 ? "tight" : "short");
+    const gapText = (gap >= 0 ? "+" : "") + gap;
+    out.push(`<span class="hp-week-cell"><span class="wk">W${isoWeek(wkStart)}</span> ${available} / ${needed} <span class="gap ${gapClass}">${gapText}</span></span>`);
+  }
+
+  strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>${out.join("")}`;
 }
 
 
