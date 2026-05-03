@@ -3105,7 +3105,7 @@ if (document.readyState === "loading") {
 // Pop animation
 const _styleEl = document.createElement("style");
 _styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none} [data-rr-pool-driver]{cursor:grab} [data-rr-pool-driver].rr-dragging{opacity:.5} .cal-cell.rr-drop-active{background:var(--accent-soft) !important;outline:2px dashed var(--accent);outline-offset:-2px}
-/* OKAMI table — strip mockup colors and pills (operator wanted less noise) */
+/* OKAMI table — strip every mockup pill/color (operator wanted plain table) */
 .plan-gap, .plan-gap.ok, .plan-gap.warn, .plan-gap.bad { color: var(--text-muted) !important; }
 .plan-status-pill, .plan-status-pill.ok, .plan-status-pill.warn, .plan-status-pill.bad {
   background: transparent !important; color: var(--text-muted) !important; border: 0 !important;
@@ -3115,7 +3115,11 @@ _styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to
 .strategy-pill, .strategy-pill.active, .strategy-pill.active.hire, .strategy-pill.active.adw, .strategy-pill.active.ot, .strategy-pill.active.seasonal {
   background: transparent !important; color: var(--text-muted) !important; border-color: transparent !important;
   font-weight: 500 !important;
-}`;
+}
+/* Kill HVE row highlights + the tag pills on week labels */
+.okami-table tr.hve, .okami-table tr.hve > td { background: transparent !important; }
+.okami-week-tag, .okami-week-tag.hve, .okami-week-tag.peak, .okami-week-tag.cycle { display: none !important; }
+.plan-calc-sub { display: none !important; }`;
 document.head.appendChild(_styleEl);
 
 
