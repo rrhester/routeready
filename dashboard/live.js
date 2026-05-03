@@ -4125,7 +4125,7 @@ async function renderOkamiDailyPanel(weekIdx) {
           <div class="okami-daily-label">Shifts to schedule</div>
           ${days.map((_, i) => {
             const diff = dailyShifts[i] - dailyRoutes[i];
-            return `<div class="okami-daily-cell"><div class="okami-daily-cell-shifts">${dailyShifts[i]}${diff > 0 ? `<span class="frac">+${diff}</span>` : ""}</div></div>`;
+            return `<div class="okami-daily-cell"><div class="okami-daily-cell-shifts">${dailyShifts[i]}</div></div>`;
           }).join("")}
         </div>
       </div>
