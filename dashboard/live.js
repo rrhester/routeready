@@ -403,12 +403,33 @@ window.filterDriversStage = function (btn) {
 
 
 // ─── Drivers → Licenses tab ──────────────────────────────────────────────
+//
+// The mockup's renderRenewalsPanel() (and licResendNow / licMarkRenewed)
+// fill the same DOM container we use, with RR_DRIVERS mockup data. They
+// fire on page load and on stage filter clicks, flashing fake rows
+// before our live loader runs. Stub them all out at boot so only the
+// live loader paints the panel.
+window.renderRenewalsPanel = function () { /* superseded */ };
+window.licResendNow        = function () { /* superseded */ };
+window.licMarkRenewed      = function () { /* superseded */ };
+window.licApplyAll         = function () { /* superseded */ };
+
+// Wipe the panel body once at boot so any rendering the mockup already
+// did before live.js loaded gets cleared before the operator can click.
+{
+  const body = document.getElementById("lic-renewals-body");
+  if (body) body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+}
 
 async function loadDriverLicensesView() {
   const body = document.getElementById("lic-renewals-body");
   const status = document.getElementById("lic-panel-status");
   if (!body) return;
 
+  // Wipe synchronously so any mockup-rendered rows can't flash through
+  // while the live select is in flight.
+  body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+  if (status) status.textContent = "—";
   // Hydrate the renewal-reminders settings card from dsp.metadata.licenses.
   const lic = window.RR?.dsp?.metadata?.licenses || {};
   const tg = document.getElementById("rr-lic-toggle");
