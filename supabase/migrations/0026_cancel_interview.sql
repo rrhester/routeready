@@ -108,7 +108,7 @@ begin
       jsonb_build_object('first_name', coalesce(v_app.first_name, v_app.full_name), 'link', v_link)
     );
     insert into public.email_messages
-      (dsp_id, applicant_id, direction, status, to_email, subject, body)
+      (dsp_id, applicant_id, direction, status, to_email, subject, body_text)
     values
       (v_dsp, p_applicant_id, 'outbound', 'queued', v_app.email, v_msg.subject, v_msg.body)
     returning id into v_email_id;
