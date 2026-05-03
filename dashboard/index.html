@@ -4118,6 +4118,29 @@ a{color:inherit;text-decoration:none}
             </button>
           </div>
 
+          <!-- WEATHER — full-width, location-specific NWS forecast + alerts -->
+          <div class="task-card attendance-card action-card" data-action="weather" data-sev="info" data-task-key="weather" id="rr-weather-card">
+            <div class="task-tools">
+              <button class="task-tool" data-tool="pin" type="button" onclick="event.stopPropagation();pinTaskCard(this)" aria-label="Pin">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>
+              </button>
+              <button class="task-tool" data-tool="close" type="button" onclick="event.stopPropagation();dismissTaskCard(this)" aria-label="Dismiss">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="ac-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            </div>
+            <div class="ac-body" id="rr-weather-body">
+              <div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
+              <div style="font-size:13px;color:var(--text-subtle)">Loading…</div>
+            </div>
+            <button class="ac-cta" onclick="goto('settings');setTimeout(()=>document.getElementById('rr-set-weather-lat')?.scrollIntoView({behavior:'smooth'}),60)" type="button">
+              Settings
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
           <!-- SAFETY -->
           <div class="task-card action-card" data-action="safety" data-sev="bad" data-task-key="safety">
             <div class="task-tools">
@@ -6024,6 +6047,18 @@ a{color:inherit;text-decoration:none}
                     <option>America/Denver (Mountain)</option>
                     <option>America/Los_Angeles (Pacific)</option>
                   </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Station location (weather forecast)</div>
+                  <div class="form-help">Latitude and longitude — paste from Google Maps. Used for the dashboard weather card and active alerts (US only via NWS).</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input class="form-input" id="rr-set-weather-lat" placeholder="38.886" style="max-width:120px" inputmode="decimal"/>
+                  <input class="form-input" id="rr-set-weather-lon" placeholder="-76.910" style="max-width:120px" inputmode="decimal"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-weather-save" type="button">Save</button>
+                  <span id="rr-set-weather-status" style="font-size:11px;color:var(--text-subtle)"></span>
                 </div>
               </div>
             </div>
