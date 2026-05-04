@@ -5465,9 +5465,25 @@ document.addEventListener("click", async (e) => {
       return;
     }
 
+    // Reconcile cushion shifts to match the saved cushion %. Adds EX rows
+    // when % goes up; removes unassigned EX rows when % drops; deletes all
+    // unassigned EX rows when % is 0. RPC + behavior live in migration 0040.
+    let cushionDelta = 0;
+    try {
+      const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: _schedStart });
+      if (cushionErr) {
+        console.warn("apply_cushion_to_week:", cushionErr.message);
+      } else {
+        cushionDelta = data || 0;
+      }
+    } catch (e) {
+      console.warn("apply_cushion_to_week threw:", e);
+    }
+
     if (status) {
       status.style.color = "var(--green)";
-      status.textContent = `Saved for week of ${_schedStart} ✓`;
+      const cushionNote = cushionDelta !== 0 ? ` · cushion ${cushionDelta > 0 ? "+" : ""}${cushionDelta}` : "";
+      status.textContent = `Saved for week of ${_schedStart} ✓${cushionNote}`;
     }
     setTimeout(() => { if (status) status.textContent = ""; }, 3000);
     toast("Scheduling settings saved for this week", "success");
