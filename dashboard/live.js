@@ -6347,32 +6347,70 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
 
   container.innerHTML = `<div style="padding:18px;color:var(--text-subtle);font-size:12px">Loading…</div>`;
 
-  const [gridRes, recommendation] = await Promise.all([
+  // Pull demand grid + cushion recommendation + this week's waves in one go.
+  // Waves come from scheduling_settings (per-week, with DSP-level fallback)
+  // so the OKAMI panel always matches what Schedule will use.
+  const [gridRes, recommendation, settingsRes] = await Promise.all([
     sb.rpc("okami_grid", { p_start: startIso, p_weeks: 1 }),
     recommendOkamiCushion(dspId),
+    sb.rpc("scheduling_settings_for_week", { p_week_start: startIso }),
   ]);
   if (gridRes.error) {
     container.innerHTML = `<div style="padding:18px;color:var(--red);font-size:12px">Failed to load: ${escapeHtml(gridRes.error.message)}</div>`;
     return;
   }
   const cells = gridRes.data || [];
+  const settings = settingsRes?.data || {};
+  const waves = (Array.isArray(settings.waves) && settings.waves.length > 0)
+    ? settings.waves
+    : [{ start: "07:00" }];
+  const waveCount = waves.length;
 
-  // Sum target_routes per date across stations.
-  const totalsByDate = new Map();
+  // Per-wave totals: dailyByWave[waveIdx][dayIdx] = sum across stations.
+  // The grid returns one row per (date, station) with a targets_by_wave
+  // jsonb breakdown. If a wave has no demand row, it stays at 0.
+  const dailyByWave = waves.map(() => Array(7).fill(0));
   for (const c of cells) {
-    totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
+    const dayIdx = days.findIndex(d => fmtIsoDate(d) === c.date);
+    if (dayIdx < 0) continue;
+    const byWave = Array.isArray(c.targets_by_wave) ? c.targets_by_wave : [];
+    for (const w of byWave) {
+      const wIdx = w?.wave_index ?? 0;
+      if (wIdx >= 0 && wIdx < waveCount) {
+        dailyByWave[wIdx][dayIdx] += (w?.target_routes || 0);
+      }
+    }
   }
 
-  const cushionPct = _okamiCushionPct || 10;
-  const dailyRoutes = days.map(d => totalsByDate.get(fmtIsoDate(d)) || 0);
-  // ceil to match generate_shifts on the server — shifts-to-schedule = shifts created.
-  const dailyShifts = dailyRoutes.map(r => Math.ceil(r * (1 + cushionPct / 100)));
-  const totalRoutes = dailyRoutes.reduce((s, n) => s + n, 0);
-  const totalShifts = dailyShifts.reduce((s, n) => s + n, 0);
-  const peakRoutes  = dailyRoutes.reduce((m, n) => n > m ? n : m, 0);
-  const extraTotal  = totalShifts - totalRoutes;
+  // Day totals + week stats use the sum across waves so the footer line
+  // ("Week total / Peak day") still reflects the day's total demand.
+  const dayTotals = Array(7).fill(0);
+  for (const row of dailyByWave) {
+    for (let i = 0; i < 7; i++) dayTotals[i] += row[i];
+  }
+  const totalRoutes = dayTotals.reduce((s, n) => s + n, 0);
+  const peakRoutes  = dayTotals.reduce((m, n) => n > m ? n : m, 0);
 
   const headerLabel = `W${isoWeekNumber(weekStart)} · ${fmtMD(weekStart)}–${addDays(weekStart, 6).getDate()}`;
+
+  // One "Routes planned" row per wave. Single-wave weeks render exactly
+  // like before — no visible label change. Multi-wave weeks get one row
+  // per wave, labelled with that wave's start time.
+  const rowsHtml = waves.map((wave, wIdx) => {
+    const waveStart = wave?.start || "07:00";
+    const label = waveCount > 1
+      ? `Routes planned · Wave ${wIdx + 1} (${escapeHtml(waveStart)})`
+      : `Routes planned`;
+    const cellsHtml = days.map((d, i) => {
+      const iso = fmtIsoDate(d);
+      const isToday = iso === todayIso;
+      return `<div class="okami-daily-cell${isToday ? " is-today" : ""}"><input type="number" min="0" max="200" value="${dailyByWave[wIdx][i]}" data-rr-okami-daily="${weekIdx}" data-iso="${iso}" data-wave="${wIdx}"/></div>`;
+    }).join("");
+    return `<div class="okami-daily-row">
+      <div class="okami-daily-label">${label}</div>
+      ${cellsHtml}
+    </div>`;
+  }).join("");
 
   container.innerHTML = `
     <div class="okami-daily-panel" style="grid-template-columns:1fr">
@@ -6381,14 +6419,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
           <div>${escapeHtml(headerLabel)}</div>
           ${RR_OKAMI_DAY_LABELS.map(l => `<div>${l}</div>`).join("")}
         </div>
-        <div class="okami-daily-row">
-          <div class="okami-daily-label">Routes planned</div>
-          ${days.map((d, i) => {
-            const iso = fmtIsoDate(d);
-            const isToday = iso === todayIso;
-            return `<div class="okami-daily-cell${isToday ? " is-today" : ""}"><input type="number" min="0" max="200" value="${dailyRoutes[i]}" data-rr-okami-daily="${weekIdx}" data-iso="${iso}"/></div>`;
-          }).join("")}
-        </div>
+        ${rowsHtml}
       </div>
       <div style="grid-column:1 / -1;display:flex;justify-content:space-between;font-size:11px;color:var(--text-subtle);padding:10px 4px 0">
         <span>Week total <strong style="color:var(--text)">${totalRoutes}</strong> routes</span>
@@ -6410,11 +6441,12 @@ function bindOkamiDailyDelegation() {
     if (!inp) return;
     const weekIdx = parseInt(inp.dataset.rrOkamiDaily, 10);
     const iso = inp.dataset.iso;
+    const waveIdx = parseInt(inp.dataset.wave || "0", 10) || 0;
     if (!iso || !Number.isFinite(weekIdx)) return;
-    const key = `${weekIdx}|${iso}`;
+    const key = `${weekIdx}|${iso}|${waveIdx}`;
     const prev = _okamiDailySaveTimers.get(key);
     if (prev) clearTimeout(prev);
-    _okamiDailySaveTimers.set(key, setTimeout(() => saveOkamiDaily(weekIdx, iso, parseInt(inp.value, 10) || 0), 400));
+    _okamiDailySaveTimers.set(key, setTimeout(() => saveOkamiDaily(weekIdx, iso, parseInt(inp.value, 10) || 0, waveIdx), 400));
   });
 
   tbody.addEventListener("change", async (e) => {
@@ -6462,7 +6494,7 @@ function openOkamiDetailIndex() {
   return null;
 }
 
-async function saveOkamiDaily(weekIdx, iso, routes) {
+async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
   if (!_okamiStations || _okamiStations.length === 0) {
@@ -6481,7 +6513,12 @@ async function saveOkamiDaily(weekIdx, iso, routes) {
   // zero out the rest. Avoids the rounding drift you'd get from
   // round(routes / station_count) when station_count > 1.
   const calls = _okamiStations.map((s, idx) =>
-    sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? routes : 0 })
+    sb.rpc("okami_set_target", {
+      p_date:        iso,
+      p_station_id:  s.id,
+      p_target:      idx === 0 ? routes : 0,
+      p_wave_index:  waveIdx,
+    })
   );
   const results = await Promise.all(calls);
   const firstErr = results.find(r => r.error);
