@@ -1904,21 +1904,54 @@ async function openCoachDriverPicker() {
 }
 
 // ─── Drivers · Insights (KPIs + tenure distribution) ───────────────────
+// Per-card timeframe selections (days). Persisted per-user in localStorage.
+function _diTf(card, fallback) {
+  try {
+    const v = parseInt(localStorage.getItem("rr.insights.tf." + card) || "", 10);
+    if (Number.isFinite(v) && v > 0) return v;
+  } catch {}
+  return fallback;
+}
+function _diSetTf(card, days) {
+  try { localStorage.setItem("rr.insights.tf." + card, String(days)); } catch {}
+}
+
+// Dropdown change → save + re-render. Bound once at document level so we
+// don't double-bind across re-renders.
+document.addEventListener("change", (e) => {
+  const sel = e.target.closest?.("[data-rr-di-tf]");
+  if (!sel) return;
+  const card = sel.dataset.rrDiTf;
+  const days = parseInt(sel.value, 10) || 30;
+  _diSetTf(card, days);
+  loadDriverInsights();
+});
+
 async function loadDriverInsights() {
   const root = document.getElementById("dr-sub-insights");
   if (!root) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
+  // Apply persisted timeframe selections to the dropdowns before reading.
+  document.querySelectorAll("[data-rr-di-tf]").forEach(sel => {
+    const card = sel.dataset.rrDiTf;
+    const saved = _diTf(card, parseInt(sel.value, 10) || 30);
+    sel.value = String(saved);
+  });
+
   const today = new Date();
   const todayMs = today.getTime();
-  const ago30Iso = fmtIsoDate(addDays(today, -30));
-  const ago60Iso = fmtIsoDate(addDays(today, -60));
-  const ago90Iso = fmtIsoDate(addDays(today, -90));
+  const tfTurnover   = _diTf("turnover",   30);
+  const tfPast       = _diTf("past",       30);
+  const tfAttendance = _diTf("attendance", 30);
 
-  // Pull everything we need in parallel: full driver list (for tenure
-  // buckets + active count + at-risk), shifts in last 30d (for attendance),
-  // and shifts in last 90d (for the day-of-week absence pattern).
+  // Widest window we need to fetch: max of the per-card windows + a bit
+  // of headroom for the prior-period delta on turnover (2× window).
+  const fetchDays = Math.max(90, tfTurnover * 2, tfPast, tfAttendance);
+  const fetchAgoIso = fmtIsoDate(addDays(today, -fetchDays));
+  const ago90Iso    = fmtIsoDate(addDays(today, -90));
+
   const [allDrvRes, shiftsRes, shifts90Res] = await Promise.all([
     // Note: drivers schema has no terminated_at column. We use updated_at
     // as a rough proxy for "when this driver moved to terminated".
@@ -1927,7 +1960,7 @@ async function loadDriverInsights() {
       .eq("dsp_id", dspId),
     sb.from("shifts").select("driver_id, status, date")
       .eq("dsp_id", dspId)
-      .gte("date", ago30Iso)
+      .gte("date", fetchAgoIso)
       .lte("date", fmtIsoDate(today)),
     sb.from("shifts").select("status, date")
       .eq("dsp_id", dspId)
@@ -1935,6 +1968,9 @@ async function loadDriverInsights() {
       .lte("date", fmtIsoDate(today))
       .in("status", ["completed", "called_off", "no_show", "late", "vto"]),
   ]);
+
+  const ago30Iso = fmtIsoDate(addDays(today, -tfTurnover));
+  const ago60Iso = fmtIsoDate(addDays(today, -tfTurnover * 2));
 
   if (allDrvRes?.error) {
     console.warn("insights load (drivers):", allDrvRes.error);
@@ -1977,15 +2013,18 @@ async function loadDriverInsights() {
   const turnoverPriorPct = (termsPrior30 / denom) * 100;
   const annualized = turnover30Pct * 12;
 
-  // Drivers past 30 days = active drivers whose hire_date >= 30 days ago.
+  // First-N retention (drivers past N days) — active drivers whose
+  // hire_date is at least N days ago. N comes from the per-card timeframe.
   const past30 = active.filter(d => d.hire_date &&
-    (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) >= (30 * 86400000)).length;
+    (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) >= (tfPast * 86400000)).length;
   const past30Pct = totalActive > 0 ? Math.round((past30 / totalActive) * 100) : 0;
 
   // At-risk = active drivers with score < 75 OR an attendance/safety flag.
-  // Attendance flag: 2+ callouts/no-shows in last 30d on this driver.
+  // Attendance flag: 2+ callouts/no-shows in the chosen attendance window.
+  const attCutoffIso = fmtIsoDate(addDays(today, -tfAttendance));
   const absencesByDriver = new Map();
   for (const sh of shifts) {
+    if (sh.date < attCutoffIso) continue;
     if (sh.status === "called_off" || sh.status === "no_show") {
       absencesByDriver.set(sh.driver_id, (absencesByDriver.get(sh.driver_id) || 0) + 1);
     }
@@ -2002,10 +2041,11 @@ async function loadDriverInsights() {
     ? Math.round(scored.reduce((s, d) => s + Number(d.score), 0) / scored.length)
     : null;
 
-  // Avg attendance · 30d = (scheduled - absences) / scheduled across roster.
+  // Avg attendance over the chosen window: (scheduled - absences) / scheduled.
   let scheduled30 = 0, absent30 = 0;
   for (const sh of shifts) {
     if (!sh.driver_id) continue;
+    if (sh.date < attCutoffIso) continue;
     if (["scheduled", "completed", "called_off", "no_show", "late"].includes(sh.status)) scheduled30 += 1;
     if (sh.status === "called_off" || sh.status === "no_show") absent30 += 1;
   }
@@ -2051,8 +2091,8 @@ async function loadDriverInsights() {
     turnover30Pct >= 10 ? "bad" : turnover30Pct >= 5 ? "warn" : "ok");
   const trendDelta = turnover30Pct - turnoverPriorPct;
   set("rr-di-turnover-30-sub",
-    termsLast30 + termsPrior30 === 0 ? "No terminations in last 60d"
-    : `${termsLast30} term${termsLast30 === 1 ? "" : "s"} last 30d · ${trendDelta >= 0 ? "+" : ""}${trendDelta.toFixed(1)}% vs prior 30d`);
+    termsLast30 + termsPrior30 === 0 ? `No terminations in last ${tfTurnover * 2}d`
+    : `${termsLast30} term${termsLast30 === 1 ? "" : "s"} last ${tfTurnover}d · ${trendDelta >= 0 ? "+" : ""}${trendDelta.toFixed(1)}% vs prior ${tfTurnover}d`);
 
   setVal("rr-di-turnover-annual",
     totalActive === 0 ? "—" : `${Math.round(annualized)}%`,
@@ -2062,7 +2102,7 @@ async function loadDriverInsights() {
   setVal("rr-di-past30",
     totalActive === 0 ? "—" : `${past30}`, past30Pct >= 80 ? "ok" : "warn");
   setHtml("rr-di-past30", `${past30}<span class="frac"> / ${totalActive}</span>`);
-  set("rr-di-past30-sub", `First-30 retention: ${past30Pct}%`);
+  set("rr-di-past30-sub", `First-${tfPast} retention: ${past30Pct}%`);
 
   setVal("rr-di-atrisk", String(atRisk), atRisk === 0 ? "ok" : atRisk <= 3 ? "warn" : "bad");
 
@@ -2076,7 +2116,7 @@ async function loadDriverInsights() {
 
   if (attendancePct == null) {
     setVal("rr-di-attendance", "—");
-    set("rr-di-attendance-sub", "No shifts in last 30d");
+    set("rr-di-attendance-sub", `No shifts in last ${tfAttendance}d`);
   } else {
     setVal("rr-di-attendance", `${attendancePct}%`, attendancePct >= 95 ? "ok" : attendancePct >= 90 ? "warn" : "bad");
     set("rr-di-attendance-sub", `${absent30} callouts/no-shows / ${scheduled30} scheduled`);
@@ -3676,8 +3716,38 @@ async function saveCalAvailability() {
 
   status.className = "cal-edit-status ok";
   status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
-  await loadCalBookingsList();
+  toast("Availability saved", "success");
+  // Re-render the editor so the "Current availability" banner reflects
+  // the just-saved state. Also reloads bookings in case the new tz
+  // shifted any visible times.
+  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor()]);
 }
+
+// Auto-save: any change inside the availability editor (day toggle, time
+// change, location pick, tz pick, prompt edit) debounces a save so the
+// operator never has to hunt for a button. The explicit Save button
+// still works as a manual fallback.
+let _calAutoSaveTimer = null;
+function _scheduleCalAutoSave() {
+  if (_calAutoSaveTimer) clearTimeout(_calAutoSaveTimer);
+  _calAutoSaveTimer = setTimeout(() => {
+    _calAutoSaveTimer = null;
+    saveCalAvailability().catch(err => {
+      const status = document.getElementById("cal-edit-status");
+      if (status) { status.className = "cal-edit-status err"; status.textContent = err?.message || String(err); }
+    });
+  }, 600);
+}
+document.addEventListener("change", (e) => {
+  const card = document.getElementById("cal-edit-card");
+  if (!card || !card.contains(e.target)) return;
+  if (e.target.closest("[data-rr-day-on], #cal-tz, #cal-loc-type, [data-rr-day-start], [data-rr-day-end]")) {
+    _scheduleCalAutoSave();
+  }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id === "cal-loc-detail") _scheduleCalAutoSave();
+});
 
 // Capture-phase delegate for the save button.
 document.addEventListener("click", async (e) => {
