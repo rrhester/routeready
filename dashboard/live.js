@@ -8858,15 +8858,22 @@ function _rrApplyTabbarOrder(bar) {
   if (!Array.isArray(saved) || saved.length === 0) return;
   const tabs = _rrTabbarChildren(bar);
   const byId = new Map(tabs.map(t => [_rrTabId(t), t]));
+  // Build target order: saved-ids that exist, then any new tabs at the end.
+  const target = [];
   const seen = new Set();
   for (const id of saved) {
-    const el = byId.get(id);
-    if (el) { bar.appendChild(el); seen.add(id); }
+    if (byId.has(id)) { target.push(id); seen.add(id); }
   }
   for (const t of tabs) {
     const id = _rrTabId(t);
-    if (!seen.has(id)) bar.appendChild(t);
+    if (!seen.has(id)) target.push(id);
   }
+  // No-op if the DOM already matches — critical: appendChild on a child
+  // that's already at the right position still fires a MutationRecord,
+  // which would re-trigger the observer and infinite-loop.
+  const current = tabs.map(t => _rrTabId(t));
+  if (target.length === current.length && target.every((id, i) => id === current[i])) return;
+  for (const id of target) bar.appendChild(byId.get(id));
 }
 
 function _rrSaveTabbarOrder(bar) {
@@ -8878,12 +8885,18 @@ function _rrSaveTabbarOrder(bar) {
 
 function _rrInitTabbar(bar) {
   if (!bar) return;
+  const firstInit = !bar._rrTabbarInit;
+  bar._rrTabbarInit = true;
+  // Mark each child draggable. Idempotent — skipped on tabs already set.
   for (const tab of _rrTabbarChildren(bar)) {
     if (!tab.getAttribute("draggable")) {
       tab.setAttribute("draggable", "true");
     }
   }
-  _rrApplyTabbarOrder(bar);
+  // Apply saved order only on first init. Subsequent observer fires
+  // (drag reparenting, badge counter updates, etc.) skip the apply
+  // step so we never recurse into an infinite loop.
+  if (firstInit) _rrApplyTabbarOrder(bar);
 }
 
 document.addEventListener("dragstart", (e) => {
