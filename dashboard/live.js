@@ -5914,6 +5914,11 @@ function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); retu
 
 let _okamiStations = [];
 let _schedDriverList = [];
+// Driver column sort mode: "alpha" (A–Z, default), "wave" (by primary
+// wave assignment that week), or "hours" (by hours scheduled, desc).
+// Session-only — not persisted across reloads.
+let _schedDriverSort = "alpha";
+let _schedDriverSortBound = false;
 let _okamiStart = null;
 let _schedStart = null;
 
@@ -7339,6 +7344,20 @@ async function renderScheduleWeek() {
 
   _schedDriverList = drivers; // existing add-shift modal reads this list
 
+  // Bind the driver-column sort dropdown once. Re-renders the schedule
+  // when the operator changes mode without round-tripping the server.
+  const sortSel = document.getElementById("rr-sched-driver-sort");
+  if (sortSel) {
+    sortSel.value = _schedDriverSort;
+    if (!_schedDriverSortBound) {
+      _schedDriverSortBound = true;
+      sortSel.addEventListener("change", () => {
+        _schedDriverSort = sortSel.value || "alpha";
+        renderScheduleWeek();
+      });
+    }
+  }
+
   // Index shifts by driver/date and collect open shifts by date.
   const shiftsByDriverDate = new Map();
   const openShiftsByDate = new Map();
@@ -7351,6 +7370,10 @@ async function renderScheduleWeek() {
     }
     return Number(sh.block_hours) || 10;
   };
+  // Per-driver wave histogram so "By wave" sort can pick each driver's
+  // primary wave for the week (the wave they're most often assigned to;
+  // ties broken by the lower wave_index).
+  const waveCountsPerDriver = new Map(); // driver_id -> Map<wave_index, count>
   for (const sh of (grid.shifts || [])) {
     if (sh.driver_id) {
       const k = `${sh.driver_id}|${sh.date}`;
@@ -7358,10 +7381,43 @@ async function renderScheduleWeek() {
       shiftsByDriverDate.get(k).push(sh);
       hoursPerDriver.set(sh.driver_id, (hoursPerDriver.get(sh.driver_id) || 0) + _shiftHours(sh));
       shiftCountPerDriver.set(sh.driver_id, (shiftCountPerDriver.get(sh.driver_id) || 0) + 1);
+      const wIdx = Number.isFinite(sh.wave_index) ? sh.wave_index : 0;
+      const wm = waveCountsPerDriver.get(sh.driver_id) || new Map();
+      wm.set(wIdx, (wm.get(wIdx) || 0) + 1);
+      waveCountsPerDriver.set(sh.driver_id, wm);
     } else {
       if (!openShiftsByDate.has(sh.date)) openShiftsByDate.set(sh.date, []);
       openShiftsByDate.get(sh.date).push(sh);
     }
+  }
+  // Primary wave per driver: most-frequent wave_index this week. Drivers
+  // with no shifts get Infinity so they sort to the bottom in "By wave".
+  const primaryWavePerDriver = new Map();
+  for (const [drvId, wm] of waveCountsPerDriver.entries()) {
+    let bestWave = Infinity, bestCount = -1;
+    for (const [w, c] of wm.entries()) {
+      if (c > bestCount || (c === bestCount && w < bestWave)) { bestCount = c; bestWave = w; }
+    }
+    primaryWavePerDriver.set(drvId, bestWave);
+  }
+
+  // Apply the operator's chosen driver-column sort. Default ("alpha") is
+  // a no-op since the SQL already returned drivers ordered by full_name.
+  const _alphaKey = (d) => (displayDriverName(d) || d.full_name || "").toLowerCase();
+  if (_schedDriverSort === "wave") {
+    drivers.sort((a, b) => {
+      const aw = primaryWavePerDriver.has(a.id) ? primaryWavePerDriver.get(a.id) : Infinity;
+      const bw = primaryWavePerDriver.has(b.id) ? primaryWavePerDriver.get(b.id) : Infinity;
+      if (aw !== bw) return aw - bw;
+      return _alphaKey(a).localeCompare(_alphaKey(b));
+    });
+  } else if (_schedDriverSort === "hours") {
+    drivers.sort((a, b) => {
+      const ah = hoursPerDriver.get(a.id) || 0;
+      const bh = hoursPerDriver.get(b.id) || 0;
+      if (ah !== bh) return bh - ah; // descending
+      return _alphaKey(a).localeCompare(_alphaKey(b));
+    });
   }
 
   // Index PTO by driver.
