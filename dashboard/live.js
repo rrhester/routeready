@@ -6249,19 +6249,30 @@ async function renderScheduleWeek() {
   // isn't silently low.
   let totalOvertimeHrs = 0;
   let estimatedOvertimeCost = 0;
+  let estimatedPayrollCost = 0;
   let driversInOt = 0;
   let driversInOtMissingRate = 0;
+  let driversWithHoursMissingRate = 0;
   for (const d of drivers) {
     const hrs = hoursPerDriver.get(d.id) || 0;
-    const ot  = Math.max(0, hrs - 40);
-    if (ot <= 0) continue;
-    totalOvertimeHrs += ot;
-    driversInOt += 1;
-    const rate = Number(d.metadata?.pay?.hourly_rate) || 0;
+    if (hrs <= 0) continue;
+    const ot       = Math.max(0, hrs - 40);
+    const regular  = Math.min(hrs, 40);
+    const rate     = Number(d.metadata?.pay?.hourly_rate) || 0;
     if (rate > 0) {
-      estimatedOvertimeCost += ot * rate * 1.5;
+      // Total payroll = (regular × rate) + (OT × rate × 1.5).
+      estimatedPayrollCost += regular * rate + ot * rate * 1.5;
     } else {
-      driversInOtMissingRate += 1;
+      driversWithHoursMissingRate += 1;
+    }
+    if (ot > 0) {
+      totalOvertimeHrs += ot;
+      driversInOt += 1;
+      if (rate > 0) {
+        estimatedOvertimeCost += ot * rate * 1.5;
+      } else {
+        driversInOtMissingRate += 1;
+      }
     }
   }
 
@@ -6301,7 +6312,14 @@ async function renderScheduleWeek() {
     otSub = `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5× · ${driversInOt} driver${driversInOt === 1 ? "" : "s"}`;
   }
   kpis.innerHTML =
-    kpiCard("Hours scheduled", `${Math.round(totalHoursWeek)}h`, `${shiftCountPerDriver.size} driver${shiftCountPerDriver.size === 1 ? "" : "s"}`, "default") +
+    kpiCard(
+      "Hours scheduled",
+      `${Math.round(totalHoursWeek)}h`,
+      estimatedPayrollCost > 0
+        ? `~$${Math.round(estimatedPayrollCost).toLocaleString()} payroll${driversWithHoursMissingRate > 0 ? ` · ${driversWithHoursMissingRate} no rate` : ""}`
+        : `${shiftCountPerDriver.size} driver${shiftCountPerDriver.size === 1 ? "" : "s"}${driversWithHoursMissingRate > 0 ? ` · set pay rate to estimate` : ""}`,
+      "default"
+    ) +
     kpiCard("Overtime", otValue, otSub, otTone) +
     kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
     kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
