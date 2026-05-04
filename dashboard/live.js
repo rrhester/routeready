@@ -6249,7 +6249,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
     const newTag = sh.virtual
-      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em">NEW</span>`
+      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em">OKAMI</span>`
       : "";
     const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
@@ -6295,16 +6295,24 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   const totalCount = sorted.length;
   const virtualCount = virtualChips.length;
   const countLabel = virtualCount > 0
-    ? `${totalCount} open · ${virtualCount} new`
+    ? `${totalCount} open · ${virtualCount} from OKAMI`
     : `${totalCount} open`;
+
+  const explainer = virtualCount > 0
+    ? `<div style="font-size:11px;color:var(--text-subtle);line-height:1.4;background:var(--canvas);border-left:2px solid var(--accent);padding:6px 8px;margin-bottom:8px;border-radius:3px">
+        Striped <strong style="color:var(--accent-text)">OKAMI</strong> chips are slots your demand plan needs but no shift row exists yet. Drag onto a driver's day cell to create + assign the shift on <em>that</em> day.
+       </div>`
+    : "";
 
   aside.innerHTML = `
     <div class="pool-head">
       <span>Open shifts</span>
       <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${countLabel}</span>
     </div>
+    ${explainer}
     ${virtualCount > 0 ? `<button type="button" id="rr-sync-to-okami"
-      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer">
+      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer"
+      title="Create the ${virtualCount} OKAMI gap shifts as real (unassigned) rows so you can drag drivers onto them.">
       Sync to OKAMI · create ${virtualCount} missing shift${virtualCount === 1 ? "" : "s"}
     </button>` : ""}
     <button type="button" id="rr-unassign-week"
@@ -6648,7 +6656,7 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
   return violations;
 }
 
-async function _checkAssignViolations(shiftId, shiftDate, driverId) {
+async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShiftOverride) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return [];
   const violations = [];
@@ -6667,6 +6675,13 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId) {
   const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
   const weekEndIso = fmtIsoDate(weekEnd);
 
+  // For virtual chips we don't have a real shift row to fetch. The caller
+  // passes a synthesized candidate (date + starts_at + ends_at + block) so
+  // the WOC math can run identically.
+  const candidateFetch = candidateShiftOverride
+    ? Promise.resolve({ data: candidateShiftOverride })
+    : sb.from("shifts").select("id, date, starts_at, ends_at, block_hours").eq("id", shiftId).single();
+
   const [drvRes, ptoRes, shiftsRes, candidateRes] = await Promise.all([
     sb.from("drivers").select("id, full_name, metadata").eq("id", driverId).single(),
     sb.from("time_off_requests").select("start_date, end_date")
@@ -6675,8 +6690,7 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId) {
     sb.from("shifts").select("id, date, status, driver_id, starts_at, ends_at, block_hours")
       .eq("dsp_id", dspId).eq("driver_id", driverId)
       .gte("date", _schedStart).lte("date", weekEndIso),
-    // The candidate shift itself (need its start/end to evaluate WOC).
-    sb.from("shifts").select("id, date, starts_at, ends_at, block_hours").eq("id", shiftId).single(),
+    candidateFetch,
   ]);
 
   const driver = drvRes.data;
@@ -6773,22 +6787,36 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
 }
 
 // Materialize a virtual gap chip into a real shifts row owned by the
-// chosen driver. Virtual chips come from the OKAMI demand minus the
-// shifts already in the DB — drag-fill creates the missing row at the
-// driver's wave start + the configured block length.
+// chosen driver. Honors the cell's date (so dragging a Monday gap onto
+// a Friday cell creates Friday's shift), and runs the same rule checks
+// real-shift assignments do.
 async function materializeVirtualShiftToDriver(payload, driverId, cell) {
   if (!_confirmLiveScheduleEdit()) return;
+  // Drop target's date wins — the operator is choosing the day they're
+  // putting the driver on, not honoring the gap's original day.
+  const date = cell.dataset.rrCellDate || payload.date;
+  const stationId = cell.dataset.rrCellStation || payload.station_id;
   const block = (window.RR?.dsp?.metadata?.scheduling?.default_block_hours) || 10;
-  // Build starts_at / ends_at as local-time ISO strings so Postgres
-  // interprets them in the operator's timezone (matches how generate_shifts
-  // writes existing rows).
   const wave = payload.wave_start || "07:00";
-  const startsLocal = `${payload.date}T${wave}:00`;
+  const startsLocal = `${date}T${wave}:00`;
   const startsAt = new Date(startsLocal);
   const endsAt = new Date(startsAt.getTime() + block * 3600 * 1000);
+
+  const violations = await _checkAssignViolations(null, date, driverId, {
+    id: null,
+    date,
+    starts_at: startsAt.toISOString(),
+    ends_at:   endsAt.toISOString(),
+    block_hours: block,
+  });
+  if (violations.length > 0) {
+    const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
+    if (!confirm(msg)) return;
+  }
+
   const insertPayload = {
-    date: payload.date,
-    station_id: payload.station_id,
+    date,
+    station_id: stationId,
     driver_id: driverId,
     starts_at: startsAt.toISOString(),
     ends_at:   endsAt.toISOString(),
@@ -6796,7 +6824,7 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
   };
   const { error } = await sb.rpc("create_shift", { p_payload: insertPayload });
   if (error) { toast("Create + assign failed: " + error.message, "warn"); return; }
-  toast("Shift created and assigned", "success");
+  toast(violations.length > 0 ? "Created (override)" : "Shift created and assigned", "success");
   renderScheduleWeek();
 }
 
