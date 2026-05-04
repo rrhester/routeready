@@ -6647,36 +6647,38 @@ async function loadScheduleInsights() {
   const shortDays = [];
   const okDays = [];
 
+  // Percent of roster available per day. Color thresholds based on the
+  // share of the roster, not absolute headcount.
   const rows = DOW.map(day => {
     const avail = availByDay[day];
     const needed = neededByDow[day];
-    const widthPct = Math.round((avail / maxBar) * 100);
+    const pct = totalDrivers > 0 ? (avail / totalDrivers) * 100 : 0;
+    const widthPct = Math.round(pct);
     let color = "#22c55e", note = "";
-    if (needed === 0) {
+    if (totalDrivers === 0) {
       color = "var(--text-muted)";
-      note = "no demand";
+      note = "no roster";
       okDays.push(day);
-    } else if (avail >= needed) {
+    } else if (pct >= 75) {
       color = "#22c55e";
-      const surplus = avail - needed;
-      note = surplus > 0 ? `+${surplus} buffer` : "exact";
+      note = needed > 0 && avail < needed ? `short by ${needed - avail}` : "healthy";
       okDays.push(day);
-    } else if (avail >= needed - 2) {
+    } else if (pct >= 50) {
       color = "var(--amber)";
-      note = `short by ${needed - avail}`;
+      note = needed > 0 && avail < needed ? `short by ${needed - avail}` : "tight";
       tightDays.push(day);
     } else {
       color = "var(--red)";
-      note = `short by ${needed - avail}`;
+      note = needed > 0 && avail < needed ? `short by ${needed - avail}` : "low coverage";
       shortDays.push(day);
     }
     return `
-      <div style="display:grid;grid-template-columns:60px 1fr 80px 110px;align-items:center;gap:12px;padding:6px 0">
+      <div style="display:grid;grid-template-columns:60px 1fr 90px 110px;align-items:center;gap:12px;padding:6px 0">
         <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[day]}</div>
         <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
           <div style="background:${color};height:100%;width:${widthPct}%;transition:width .3s"></div>
         </div>
-        <div style="font-size:12px;color:var(--text);font-variant-numeric:tabular-nums"><strong>${avail}</strong> avail${needed > 0 ? ` / ${needed} need` : ""}</div>
+        <div style="font-size:13px;color:var(--text);font-variant-numeric:tabular-nums"><strong>${widthPct}%</strong> <span style="color:var(--text-subtle);font-size:11px">${avail}/${totalDrivers}</span></div>
         <div style="font-size:11px;color:var(--text-subtle)">${note}</div>
       </div>`;
   }).join("");
@@ -6698,13 +6700,13 @@ async function loadScheduleInsights() {
       lines.push(`No drivers have availability set yet. Open a driver record → Availability tab and check the days they can work.`);
     } else {
       if (shortDays.length > 0) {
-        lines.push(`<strong style="color:var(--red)">Coverage gap:</strong> ${shortDays.map(dayName).join(", ")} ${shortDays.length === 1 ? "is" : "are"} short of demand. Hire or expand availability for these days first.`);
+        lines.push(`<strong style="color:var(--red)">Low coverage:</strong> ${shortDays.map(dayName).join(", ")} — under 50% of your roster is available. Hire or expand availability for these days.`);
       }
       if (tightDays.length > 0) {
-        lines.push(`<strong style="color:var(--amber)">Tight:</strong> ${tightDays.map(dayName).join(", ")} ${tightDays.length === 1 ? "has" : "have"} no buffer. One callout breaks the day.`);
+        lines.push(`<strong style="color:var(--amber)">Tight:</strong> ${tightDays.map(dayName).join(", ")} — 50–75% of your roster is available. One callout strains the day.`);
       }
       if (shortDays.length === 0 && tightDays.length === 0) {
-        lines.push(`<strong style="color:var(--green)">All days have buffer.</strong> Coverage looks healthy across the week.`);
+        lines.push(`<strong style="color:var(--green)">Healthy across the week.</strong> Every day has 75%+ of your roster available.`);
       }
       if (driversWithoutAvailability > 0) {
         lines.push(`${driversWithoutAvailability} driver${driversWithoutAvailability === 1 ? "" : "s"} ${driversWithoutAvailability === 1 ? "has" : "have"} no availability set — they aren't counted above. Set their days in the driver record → Availability tab.`);
@@ -6727,14 +6729,17 @@ document.addEventListener("click", (e) => {
   if (old) { old.remove(); return; }
   const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
   const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-  const tableRows = DOW.map(d => `
+  const tableRows = DOW.map(d => {
+    const pct = m.totalDrivers > 0 ? Math.round((m.availByDay[d] / m.totalDrivers) * 100) : 0;
+    const pctColor = pct >= 75 ? "var(--green)" : pct >= 50 ? "var(--amber)" : "var(--red)";
+    return `
     <tr>
       <td style="padding:5px 10px;border-bottom:1px solid var(--border)"><strong>${DOW_LABEL[d]}</strong></td>
-      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${m.peakRoutesByDow[d]}</td>
-      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${m.neededByDow[d]}</td>
       <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${m.availByDay[d]}</td>
-      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right;color:${m.availByDay[d] >= m.neededByDow[d] ? "var(--green)" : "var(--red)"}">${m.availByDay[d] - m.neededByDow[d] >= 0 ? "+" : ""}${m.availByDay[d] - m.neededByDow[d]}</td>
-    </tr>`).join("");
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${pctColor}">${pct}%</td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text-subtle)">${m.neededByDow[d] || "—"}</td>
+    </tr>`;
+  }).join("");
   const pop = document.createElement("div");
   pop.id = "rr-avail-popover";
   pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
@@ -6749,26 +6754,25 @@ document.addEventListener("click", (e) => {
       <div>Horizon: next <strong>${m.horizonWeeks}</strong> weeks of OKAMI demand</div>
 
       <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
-      <div style="font-size:12px;color:var(--text-subtle);margin-bottom:6px">For each day of the week we take the <em>peak</em> day across the horizon and apply the same OKAMI formula to get demand.</div>
-      <div style="font-family:ui-monospace,monospace;font-size:11px;background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text)">needed = ceil(peak_routes × 2 × (1 + ${m.padPct}/100))</div>
+      <div style="font-size:12px;color:var(--text-subtle);margin-bottom:6px">For each day, we count the active drivers whose availability includes that day, then divide by total active drivers.</div>
+      <div style="font-family:ui-monospace,monospace;font-size:11px;background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil(peak_routes × 2 × (1 + ${m.padPct}%))</code>.</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">
         <thead>
           <tr>
             <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Peak routes</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Needed</th>
             <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Available</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Gap</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% of roster</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Needed</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
       </table>
 
       <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
-      <div>· <strong style="color:#22c55e">Green</strong> = available ≥ needed</div>
-      <div>· <strong style="color:var(--amber)">Amber</strong> = within 2 of needed (one callout breaks the day)</div>
-      <div>· <strong style="color:var(--red)">Red</strong> = short of needed</div>
-      <div>· <span style="color:var(--text-muted)">Grey</span> = no demand for that day</div>
+      <div>· <strong style="color:#22c55e">Green</strong> = 75%+ of roster available</div>
+      <div>· <strong style="color:var(--amber)">Amber</strong> = 50–75% available (tight)</div>
+      <div>· <strong style="color:var(--red)">Red</strong> = under 50% available (low coverage)</div>
 
       <div style="margin-top:18px;display:flex;justify-content:flex-end">
         <button class="btn btn-sm" type="button" id="rr-avail-popover-close">Close</button>
