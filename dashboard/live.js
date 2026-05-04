@@ -8286,6 +8286,14 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
       }
       seenDates.add(sh.date);
 
+      // Driver's license expired on or before this shift's date.
+      // Mirrors the assignment-time check in _checkAssignViolations so a
+      // driver scheduled with an expired DL surfaces in the weekly card.
+      if (d.dl_expires_on && d.dl_expires_on < sh.date) {
+        const expDate = new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString();
+        violations.push({ driver: display, date: sh.date, kind: "expired_dl", note: `License expired ${expDate}` });
+      }
+
       // PTO
       const ptos = ptoByDriver.get(driverId) || [];
       if (ptos.some(t => sh.date >= t.start_date && sh.date <= t.end_date)) {
