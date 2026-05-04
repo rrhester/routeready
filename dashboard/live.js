@@ -6565,6 +6565,151 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+// Wrap the mockup schedSub so the new Insights tab loads live data.
+const _legacySchedSub = window.schedSub;
+window.schedSub = function (sub) {
+  if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
+  if (sub === "insights") loadScheduleInsights();
+};
+
+// ─── Schedule · Insights · driver availability by day of week ──────────
+async function loadScheduleInsights() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const wrap = document.getElementById("rr-avail-bars");
+  if (!wrap) return;
+
+  const today = new Date();
+  const monday = startOfWeekMonday(today);
+  const startIso = fmtIsoDate(monday);
+  const horizonWeeks = 4;
+
+  // Pull active drivers (with availability metadata) + OKAMI demand for
+  // the next 4 weeks so we can compute peak demand per day of week.
+  const [drvRes, gridRes] = await Promise.all([
+    sb.from("drivers")
+      .select("id, full_name, status, metadata")
+      .eq("dsp_id", dspId)
+      .in("status", ["active", "onboarding"]),
+    sb.rpc("okami_grid", { p_start: startIso, p_weeks: horizonWeeks }),
+  ]);
+  if (drvRes.error) {
+    wrap.innerHTML = `<div style="padding:18px;color:var(--red);font-size:13px">Failed to load drivers: ${escapeHtml(drvRes.error.message)}</div>`;
+    return;
+  }
+  const drivers = drvRes.data || [];
+
+  // Per-day available count from drivers.metadata.availability.days.
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const availByDay = Object.fromEntries(DOW.map(d => [d, 0]));
+  let driversWithoutAvailability = 0;
+  for (const d of drivers) {
+    const days = d.metadata?.availability?.days;
+    if (!Array.isArray(days) || days.length === 0) {
+      driversWithoutAvailability += 1;
+      continue;
+    }
+    for (const day of days) {
+      if (availByDay.hasOwnProperty(day)) availByDay[day] += 1;
+    }
+  }
+
+  // Per-day peak demand from OKAMI: max routes_max for any week of that
+  // day of week, × 2 × (1 + plan_pad/100). The same math used in OKAMI.
+  const padPct = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  const cells = (gridRes?.data || []);
+  // Routes total per date, summed across stations.
+  const routesByDate = new Map();
+  for (const c of cells) routesByDate.set(c.date, (routesByDate.get(c.date) || 0) + (c.target_routes || 0));
+  // Peak routes per day-of-week across the horizon.
+  const peakRoutesByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  // JS getDay: 0=Sun, 1=Mon, ..., 6=Sat. Map to our DOW key.
+  const JS_DOW = { 0:"sun", 1:"mon", 2:"tue", 3:"wed", 4:"thu", 5:"fri", 6:"sat" };
+  for (const [iso, routes] of routesByDate.entries()) {
+    const dow = JS_DOW[new Date(iso + "T12:00:00").getDay()];
+    if (routes > peakRoutesByDow[dow]) peakRoutesByDow[dow] = routes;
+  }
+  const neededByDow = {};
+  for (const d of DOW) {
+    neededByDow[d] = peakRoutesByDow[d] > 0 ? Math.ceil(peakRoutesByDow[d] * 2 * (1 + padPct / 100)) : 0;
+  }
+
+  // Bar chart. Width scales to total active drivers so the longest bar
+  // shows roster-wide availability. Color reflects gap to needed.
+  const totalDrivers = drivers.length;
+  const maxBar = Math.max(1, totalDrivers);
+  const tightDays = [];
+  const shortDays = [];
+  const okDays = [];
+
+  const rows = DOW.map(day => {
+    const avail = availByDay[day];
+    const needed = neededByDow[day];
+    const widthPct = Math.round((avail / maxBar) * 100);
+    let color = "#22c55e", note = "";
+    if (needed === 0) {
+      color = "var(--text-muted)";
+      note = "no demand";
+      okDays.push(day);
+    } else if (avail >= needed) {
+      color = "#22c55e";
+      const surplus = avail - needed;
+      note = surplus > 0 ? `+${surplus} buffer` : "exact";
+      okDays.push(day);
+    } else if (avail >= needed - 2) {
+      color = "var(--amber)";
+      note = `short by ${needed - avail}`;
+      tightDays.push(day);
+    } else {
+      color = "var(--red)";
+      note = `short by ${needed - avail}`;
+      shortDays.push(day);
+    }
+    return `
+      <div style="display:grid;grid-template-columns:60px 1fr 80px 110px;align-items:center;gap:12px;padding:6px 0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[day]}</div>
+        <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
+          <div style="background:${color};height:100%;width:${widthPct}%;transition:width .3s"></div>
+        </div>
+        <div style="font-size:12px;color:var(--text);font-variant-numeric:tabular-nums"><strong>${avail}</strong> avail${needed > 0 ? ` / ${needed} need` : ""}</div>
+        <div style="font-size:11px;color:var(--text-subtle)">${note}</div>
+      </div>`;
+  }).join("");
+
+  wrap.innerHTML = rows;
+
+  const summary = document.getElementById("rr-avail-summary");
+  if (summary) {
+    summary.textContent = `${totalDrivers} active driver${totalDrivers === 1 ? "" : "s"}${driversWithoutAvailability > 0 ? ` · ${driversWithoutAvailability} without availability set` : ""}`;
+  }
+
+  const insightEl = document.getElementById("rr-avail-insight");
+  if (insightEl) {
+    const dayName = (k) => DOW_LABEL[k];
+    const lines = [];
+    if (totalDrivers === 0) {
+      lines.push("Add active drivers to see availability coverage.");
+    } else if (driversWithoutAvailability === totalDrivers) {
+      lines.push(`No drivers have availability set yet. Open a driver record → Availability tab and check the days they can work.`);
+    } else {
+      if (shortDays.length > 0) {
+        lines.push(`<strong style="color:var(--red)">Coverage gap:</strong> ${shortDays.map(dayName).join(", ")} ${shortDays.length === 1 ? "is" : "are"} short of demand. Hire or expand availability for these days first.`);
+      }
+      if (tightDays.length > 0) {
+        lines.push(`<strong style="color:var(--amber)">Tight:</strong> ${tightDays.map(dayName).join(", ")} ${tightDays.length === 1 ? "has" : "have"} no buffer. One callout breaks the day.`);
+      }
+      if (shortDays.length === 0 && tightDays.length === 0) {
+        lines.push(`<strong style="color:var(--green)">All days have buffer.</strong> Coverage looks healthy across the week.`);
+      }
+      if (driversWithoutAvailability > 0) {
+        lines.push(`${driversWithoutAvailability} driver${driversWithoutAvailability === 1 ? "" : "s"} ${driversWithoutAvailability === 1 ? "has" : "have"} no availability set — they aren't counted above. Set their days in the driver record → Availability tab.`);
+      }
+    }
+    insightEl.innerHTML = lines.join("<br>");
+  }
+}
+
 async function loadScheduleView() {
   // Force-clear the mockup HTML the moment the view opens so static
   // rows like 'Marcus Davidson' / 'Tasha Reyes' can't flash through
