@@ -4450,19 +4450,33 @@ function renderAvailabilityTab(body, d) {
   const meta = d.metadata || {};
   const avail = meta.availability || {};
   const days = avail.days || [];
+  const preferred = avail.preferred || [];
   const notes = avail.notes || "";
   const isAvail = (k) => days.includes(k);
+  const isPref  = (k) => preferred.includes(k);
   const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-  const checkboxes = dayKey.map(k => `
+  const availBoxes = dayKey.map(k => `
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
+      <span style="font-weight:600">${dayLabel[k]}</span>
+    </label>`).join("");
+  const prefBoxes = dayKey.map(k => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
+      <input type="checkbox" data-rr-avail-pref="${k}" ${isPref(k) ? "checked" : ""}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
   body.innerHTML = `
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
       <label>Available days</label>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${checkboxes}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${availBoxes}</div>
+    </div>
+    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
+      <label>Preferred days <span style="display:block;font-size:11px;color:var(--text-subtle);font-weight:400;margin-top:2px">Optional</span></label>
+      <div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${prefBoxes}</div>
+        <div style="font-size:11px;color:var(--text-subtle);margin-top:6px;line-height:1.4">Auto-fill prefers these days when scheduling this driver. Subset of available days.</div>
+      </div>
     </div>
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
       <label>Notes</label>
@@ -4726,9 +4740,12 @@ document.addEventListener("click", async (e) => {
     const days = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-day]"))
       .filter(el => el.checked)
       .map(el => el.dataset.rrAvailDay);
+    const preferred = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-pref]"))
+      .filter(el => el.checked)
+      .map(el => el.dataset.rrAvailPref);
     const notes = document.querySelector("#rr-dd-drawer [data-rr-avail-notes]")?.value || "";
     const meta = _ddDriver.driver.metadata || {};
-    const newMeta = { ...meta, availability: { days, notes } };
+    const newMeta = { ...meta, availability: { days, preferred, notes } };
     const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", driverId);
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
     _ddDriver.driver.metadata = newMeta;
@@ -8925,6 +8942,42 @@ window.addEventListener("focus", () => {
   if (v === "view-schedule") loadScheduleView();
   if (v === "view-okami")    loadOkamiView();
 });
+
+
+// ─── Rules tab: day-set toggles (Operating / Required days) ─────────
+// Each container marked [data-rr-day-set="operating"] etc. has 7 buttons
+// (one per day, identified by data-rr-day). Click toggles on/off and
+// persists to localStorage. UI-only for now; auto-fill enforcement
+// hooks in via the same key when wire-up lands.
+(function rrInitDaySetToggles() {
+  const KEY = "rr.day-set.";
+  function applySaved() {
+    document.querySelectorAll("[data-rr-day-set]").forEach(set => {
+      const k = set.dataset.rrDaySet;
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(KEY + k) || "null"); } catch {}
+      if (!Array.isArray(saved)) return;
+      set.querySelectorAll("[data-rr-day]").forEach(btn => {
+        btn.classList.toggle("on", saved.includes(btn.dataset.rrDay));
+      });
+    });
+  }
+  function save(set) {
+    const k = set.dataset.rrDaySet;
+    const days = Array.from(set.querySelectorAll(".day-toggle.on")).map(b => b.dataset.rrDay);
+    try { localStorage.setItem(KEY + k, JSON.stringify(days)); } catch {}
+  }
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-rr-day-set] [data-rr-day]");
+    if (!btn) return;
+    e.preventDefault();
+    btn.classList.toggle("on");
+    const set = btn.closest("[data-rr-day-set]");
+    if (set) save(set);
+  });
+  if (document.body) applySaved();
+  else document.addEventListener("DOMContentLoaded", applySaved);
+})();
 
 
 // ─── Rules tab: manual blackout list (UI-only, localStorage) ─────────

@@ -986,6 +986,8 @@ a{color:inherit;text-decoration:none}
   width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
   background:var(--surface);display:inline-flex;align-items:center;justify-content:center;
   cursor:pointer;color:var(--text-subtle);transition:all .12s;
+  font-size:11px;font-weight:700;letter-spacing:.04em;
+  font-family:inherit;padding:0;
 }
 .day-toggle:hover{background:var(--canvas);border-color:var(--border-strong)}
 .day-toggle.on{
@@ -7010,14 +7012,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                   <div class="rule-label">Operating days</div>
                   <div class="rule-help">Drivers can only declare availability for days you operate. Off days are hidden from the driver app.</div>
                 </div>
-                <div style="display:flex;gap:4px">
-                  <button class="day-toggle on" onclick="sgToggle(this)" title="Mon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
-                  <button class="day-toggle on" onclick="sgToggle(this)" title="Tue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
-                  <button class="day-toggle on" onclick="sgToggle(this)" title="Wed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
-                  <button class="day-toggle on" onclick="sgToggle(this)" title="Thu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
-                  <button class="day-toggle on" onclick="sgToggle(this)" title="Fri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
-                  <button class="day-toggle on" onclick="sgToggle(this)" title="Sat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
-                  <button class="day-toggle" onclick="sgToggle(this)" title="Sun"></button>
+                <div data-rr-day-set="operating" style="display:flex;gap:4px">
+                  <button class="day-toggle on" data-rr-day="mon" type="button">M</button>
+                  <button class="day-toggle on" data-rr-day="tue" type="button">T</button>
+                  <button class="day-toggle on" data-rr-day="wed" type="button">W</button>
+                  <button class="day-toggle on" data-rr-day="thu" type="button">T</button>
+                  <button class="day-toggle on" data-rr-day="fri" type="button">F</button>
+                  <button class="day-toggle on" data-rr-day="sat" type="button">S</button>
+                  <button class="day-toggle" data-rr-day="sun" type="button">S</button>
                 </div>
               </div>
 
@@ -7026,14 +7028,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                   <div class="rule-label">Required days · all drivers must be available</div>
                   <div class="rule-help">Drivers cannot mark these days unavailable. Use sparingly — typically high-volume days.</div>
                 </div>
-                <div style="display:flex;gap:4px">
-                  <button class="day-toggle" onclick="sgToggle(this)" title="Mon"></button>
-                  <button class="day-toggle" onclick="sgToggle(this)" title="Tue"></button>
-                  <button class="day-toggle" onclick="sgToggle(this)" title="Wed"></button>
-                  <button class="day-toggle" onclick="sgToggle(this)" title="Thu"></button>
-                  <button class="day-toggle on" onclick="sgToggle(this)" title="Fri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
-                  <button class="day-toggle" onclick="sgToggle(this)" title="Sat"></button>
-                  <button class="day-toggle" onclick="sgToggle(this)" title="Sun"></button>
+                <div data-rr-day-set="required" style="display:flex;gap:4px">
+                  <button class="day-toggle" data-rr-day="mon" type="button">M</button>
+                  <button class="day-toggle" data-rr-day="tue" type="button">T</button>
+                  <button class="day-toggle" data-rr-day="wed" type="button">W</button>
+                  <button class="day-toggle" data-rr-day="thu" type="button">T</button>
+                  <button class="day-toggle on" data-rr-day="fri" type="button">F</button>
+                  <button class="day-toggle" data-rr-day="sat" type="button">S</button>
+                  <button class="day-toggle" data-rr-day="sun" type="button">S</button>
                 </div>
               </div>
 
@@ -7043,14 +7045,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                   <div class="rule-help">Drivers must declare at least this many days as available (across operating days).</div>
                 </div>
                 <input class="rule-input" value="4" />
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Allow drivers to set "preferred" days</div>
-                  <div class="rule-help">If off, drivers can only mark days as available or unavailable — no preference distinction.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
               </div>
 
               <div class="rule-row">
@@ -7086,34 +7080,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               </div>
 
               </div><!-- /rules-availability-body -->
-            </details>
-
-            <details class="rules-section" data-rr-rules-section="woc">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                Working hours compliance
-              </summary>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Max hours per week per driver</div>
-                  <div class="rule-help">Warns when a driver's scheduled hours exceed this limit.</div>
-                </div>
-                <input class="rule-input" value="55" />
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Max consecutive working days · rolling</div>
-                  <div class="rule-help">Drivers can't be scheduled more than this many days in a row. Rolling window — looks back into the previous schedule, not just the current week.</div>
-                </div>
-                <input class="rule-input" value="6" />
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Min rest between shifts (hours)</div>
-                  <div class="rule-help">DOT-style rest enforcement.</div>
-                </div>
-                <input class="rule-input" value="10" />
-              </div>
             </details>
 
             <details class="rules-section" data-rr-rules-section="publishing">
@@ -7256,13 +7222,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                     </div>
                     <label class="toggle"><input type="checkbox" disabled /><span class="toggle-slider"></span></label>
                   </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Allow cross-type fallback</div>
-                      <div class="rule-help">If no qualified driver matches, fall back to any active driver. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-                  </div>
                 </div>
               </details>
 
@@ -7271,15 +7230,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 <div class="rules-sub-body">
                   <div class="rule-row">
                     <div>
-                      <div class="rule-label">Honor each driver's max-days-per-week</div>
-                      <div class="rule-help">Already enforced from Scheduling settings → Max days per week.</div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" checked disabled /><span class="toggle-slider"></span></label>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Prefer spreading shifts across the week</div>
-                      <div class="rule-help">Avoids clumping a driver's days back-to-back. <span class="rules-sub-badge">Preview</span></div>
+                      <div class="rule-label">Guarantee consecutive days off based on workload</div>
+                      <div class="rule-help">When ON, a 4-day driver gets at least 3 days off back-to-back, and a 3-day driver gets at least 4 days off back-to-back. Off days remain contiguous instead of split across the week. <span class="rules-sub-badge">Preview</span></div>
                     </div>
                     <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
                   </div>
@@ -16888,7 +16840,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505b3"></script>
+<script type="module" src="./live.js?v=20260505b4"></script>
 
 </body>
 </html>
