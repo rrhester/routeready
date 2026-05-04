@@ -3802,14 +3802,25 @@ async function openCoachingDrawer(driverId) {
           <h2 class="cd-title" id="rr-cd-title">—</h2>
           <div class="cd-sub" id="rr-cd-sub"></div>
         </div>
-        <button class="cd-close" data-rr-cd-close aria-label="Close">×</button>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <button class="btn btn-sm" type="button" id="rr-cd-export"
+            title="Open a print/PDF-friendly view of this driver's full coaching record. Use the browser's Print menu to save as PDF or send to a printer.">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Export / Print
+          </button>
+          <button class="cd-close" data-rr-cd-close aria-label="Close">×</button>
+        </div>
       </div>
       <div class="cd-body" id="rr-cd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
     </div>`;
   document.body.appendChild(drawer);
 
   drawer.addEventListener("click", (e) => {
-    if (e.target === drawer || e.target.closest("[data-rr-cd-close]")) drawer.remove();
+    if (e.target === drawer || e.target.closest("[data-rr-cd-close]")) { drawer.remove(); return; }
+    if (e.target.closest("#rr-cd-export")) {
+      e.preventDefault();
+      openCoachingPrintView(driverId);
+    }
   });
 
   const drv = data.driver;
@@ -3825,6 +3836,205 @@ async function openCoachingDrawer(driverId) {
   }
   const bodyEl = document.getElementById("rr-cd-body");
   if (bodyEl) bodyEl.innerHTML = renderCoachingTab(data.coachings, drv);
+}
+
+// Coaching record · printable export. Opens a self-contained HTML page
+// in a new window with the driver's full coaching history formatted for
+// printing or saving as PDF. Operator can use the browser's Print menu
+// (Save as PDF) to send to HR / unemployment hearings / legal counsel.
+async function openCoachingPrintView(driverId) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const [driverRes, coachingsRes, editsRes, attRes, dspRes] = await Promise.all([
+    sb.from("drivers").select("*").eq("id", driverId).single(),
+    sb.from("coachings").select("*").eq("driver_id", driverId).order("occurred_at", { ascending: false }),
+    sb.from("coaching_edits").select("*").order("edited_at", { ascending: false }),
+    sb.from("coaching_attachments").select("coaching_id, file_name, mime_type, size_bytes, uploaded_at"),
+    sb.from("dsps").select("name, short_code, metadata").eq("id", dspId).single(),
+  ]);
+
+  const drv  = driverRes?.data;
+  const list = (coachingsRes?.data || []);
+  const edits = (editsRes?.data || []);
+  const attachments = (attRes?.data || []);
+  const dsp = dspRes?.data || {};
+  if (!drv) { toast("Couldn't load driver", "warn"); return; }
+
+  const editsByCoaching = new Map();
+  for (const ed of edits) {
+    if (!editsByCoaching.has(ed.coaching_id)) editsByCoaching.set(ed.coaching_id, []);
+    editsByCoaching.get(ed.coaching_id).push(ed);
+  }
+  const attByCoaching = new Map();
+  for (const a of attachments) {
+    if (!attByCoaching.has(a.coaching_id)) attByCoaching.set(a.coaching_id, []);
+    attByCoaching.get(a.coaching_id).push(a);
+  }
+
+  const generated = new Date().toLocaleString();
+  const escape = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const sevColor = (s) => ({info:"#475569", concern:"#1d4ed8", warning:"#b45309", final:"#dc2626"}[s] || "#475569");
+  const sevLabel = (s) => ({info:"Info", concern:"Concern", warning:"Warning", final:"Final"}[s] || s);
+
+  const totalsBySeverity = list.reduce((acc, c) => {
+    const k = c.severity || "concern";
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
+
+  const ackLabel = (m) => ({verbal:"Verbal", signed:"Signed", sms:"SMS confirmation", email:"Email confirmation"}[m] || m || "—");
+  const actionLabel = {
+    verbal: "Verbal warning", written: "Written warning", retraining: "Retraining",
+    route_change: "Route change", suspension: "Suspension", no_action: "No action",
+  };
+  const renderActions = (a) => {
+    if (!a || typeof a !== "object") return "—";
+    const list = Object.keys(a).filter(k => a[k]).map(k => actionLabel[k] || k);
+    return list.length ? list.map(escape).join(" · ") : "—";
+  };
+
+  const recordsHtml = list.length === 0
+    ? `<div class="empty">No coaching records on file.</div>`
+    : list.map((c, i) => {
+        const eds = editsByCoaching.get(c.id) || [];
+        const atts = attByCoaching.get(c.id) || [];
+        const ack = (c.acknowledgment && c.acknowledgment !== "none")
+          ? `${ackLabel(c.acknowledgment)} on ${c.acknowledged_at ? new Date(c.acknowledged_at).toLocaleString() : "—"}`
+          : (c.driver_visible ? "Awaiting driver acknowledgment" : "Not visible to driver");
+        const sigImg = (c.acknowledgment === "signed" && c.ack_signature_b64)
+          ? `<div class="sig"><div class="sig-label">Driver signature</div><img alt="Signature" src="${escape(c.ack_signature_b64)}"/></div>`
+          : "";
+        return `
+        <section class="rec">
+          <div class="rec-head">
+            <div>
+              <span class="sev" style="background:${sevColor(c.severity)};">${escape(sevLabel(c.severity))}</span>
+              <span class="rec-num">Record ${list.length - i} of ${list.length}</span>
+            </div>
+            <div class="rec-occurred">${c.occurred_at ? new Date(c.occurred_at).toLocaleString() : "—"}</div>
+          </div>
+          <div class="rec-meta">
+            <div><span class="lbl">Topic</span><span>${escape(c.topic || "—")}</span></div>
+            <div><span class="lbl">Type</span><span>${escape((c.type || "—").replace(/_/g, " "))}</span></div>
+            <div><span class="lbl">Incident date</span><span>${c.incident_date ? new Date(c.incident_date + "T12:00:00").toLocaleDateString() : "—"}</span></div>
+            <div><span class="lbl">Coached by</span><span>${escape(c.coached_by_name || "—")}</span></div>
+          </div>
+          <div class="rec-summary">${escape(c.summary || "(no summary)")}</div>
+          ${c.notes ? `<div class="rec-notes">${escape(c.notes)}</div>` : ""}
+          <div class="rec-fields">
+            <div><span class="lbl">Action taken</span><span>${renderActions(c.action_taken)}</span></div>
+            ${c.witness_name ? `<div><span class="lbl">Witness</span><span>${escape(c.witness_name)}${c.witness_role ? ` (${escape(c.witness_role)})` : ""}</span></div>` : ""}
+            ${c.follow_up_at ? `<div><span class="lbl">Follow-up</span><span>${new Date(c.follow_up_at).toLocaleDateString()}${c.resolved_at ? ` · resolved ${new Date(c.resolved_at).toLocaleDateString()}` : ""}</span></div>` : ""}
+            <div><span class="lbl">Driver acknowledgment</span><span>${escape(ack)}</span></div>
+            ${c.privacy_tier === "hr_only" ? `<div><span class="lbl">Privacy</span><span class="hr-only">HR-only</span></div>` : ""}
+            ${atts.length ? `<div><span class="lbl">Attachments</span><span>${atts.map(a => escape(a.file_name)).join(" · ")}</span></div>` : ""}
+          </div>
+          ${sigImg}
+          ${eds.length ? `
+            <details class="audit">
+              <summary>Edit history (${eds.length})</summary>
+              <table>
+                <thead><tr><th>When</th><th>Who</th><th>Field</th><th>From</th><th>To</th></tr></thead>
+                <tbody>${eds.map(ed => `
+                  <tr>
+                    <td>${new Date(ed.edited_at).toLocaleString()}</td>
+                    <td>${escape(ed.edited_by_name || "—")}</td>
+                    <td>${escape(ed.field_name)}</td>
+                    <td>${escape(ed.old_value || "—")}</td>
+                    <td>${escape(ed.new_value || "—")}</td>
+                  </tr>`).join("")}</tbody>
+              </table>
+            </details>
+          ` : ""}
+        </section>`;
+      }).join("");
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Coaching record · ${escape(displayDriverName(drv))}</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#f5f5f5;color:#0f172a;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:13px;line-height:1.55}
+  .toolbar{position:sticky;top:0;background:#0f172a;color:#fff;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;font-size:12px;z-index:5}
+  .toolbar button{background:#fff;color:#0f172a;border:0;border-radius:6px;font:inherit;font-weight:600;padding:6px 12px;cursor:pointer}
+  .page{max-width:780px;margin:18px auto 80px;background:#fff;padding:34px 44px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-radius:6px}
+  header{border-bottom:2px solid #0f172a;padding-bottom:14px;margin-bottom:18px}
+  .brand{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569}
+  h1{margin:4px 0 2px;font-size:24px;letter-spacing:-.01em}
+  .meta-line{font-size:12px;color:#475569}
+  .totals{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 0;font-size:12px;color:#475569}
+  .totals strong{color:#0f172a;font-weight:700}
+  .rec{padding:18px 0;border-bottom:1px solid #e2e8f0;page-break-inside:avoid;break-inside:avoid}
+  .rec:last-child{border-bottom:0}
+  .rec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .sev{display:inline-block;color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:10px;margin-right:8px}
+  .rec-num{font-size:11px;color:#94a3b8}
+  .rec-occurred{font-size:12px;color:#475569;font-variant-numeric:tabular-nums}
+  .rec-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 18px;margin-bottom:10px}
+  .rec-meta>div{display:flex;gap:8px;font-size:12px}
+  .lbl{display:inline-block;min-width:120px;color:#94a3b8;font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+  .rec-summary{font-size:15px;font-weight:600;line-height:1.4;margin:6px 0}
+  .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:10px 12px;border-left:3px solid #cbd5e1;border-radius:3px;margin:8px 0}
+  .rec-fields>div{display:flex;gap:8px;font-size:12px;margin-bottom:4px}
+  .hr-only{color:#dc2626;font-weight:700}
+  .sig{margin-top:12px;border:1px solid #e2e8f0;padding:10px 12px;border-radius:4px;background:#fafafa}
+  .sig-label{font-size:10px;font-weight:600;color:#94a3b8;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
+  .sig img{max-width:300px;max-height:120px;display:block}
+  .audit{margin-top:10px}
+  .audit summary{cursor:pointer;font-size:11px;color:#475569;font-weight:600}
+  .audit table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+  .audit th,.audit td{text-align:left;padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top}
+  .audit th{background:#f8fafc;color:#475569;font-weight:600}
+  .empty{padding:60px 0;text-align:center;color:#94a3b8;font-size:13px}
+  footer{margin-top:30px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;line-height:1.5}
+  @media print {
+    .toolbar{display:none}
+    body{background:#fff}
+    .page{box-shadow:none;margin:0;max-width:100%;padding:0 0;border-radius:0}
+    .audit{display:block !important}
+    .audit summary{display:none}
+    .audit table{margin-top:4px}
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span>Coaching record · ${escape(displayDriverName(drv))} · generated ${escape(generated)}</span>
+  <button type="button" onclick="window.print()">Print / Save as PDF</button>
+</div>
+<div class="page">
+  <header>
+    <div class="brand">${escape(dsp.name || "RouteReady")} · Coaching record</div>
+    <h1>${escape(displayDriverName(drv))}</h1>
+    <div class="meta-line">
+      ${drv.hire_date ? `Hired ${new Date(drv.hire_date + "T12:00:00").toLocaleDateString()}` : ""}
+      ${drv.dl_expires_on ? ` · DL expires ${new Date(drv.dl_expires_on + "T12:00:00").toLocaleDateString()}` : ""}
+      ${drv.phone ? ` · ${escape(drv.phone)}` : ""}
+      ${drv.email ? ` · ${escape(drv.email)}` : ""}
+    </div>
+    <div class="totals">
+      <div><strong>${list.length}</strong> total record${list.length === 1 ? "" : "s"}</div>
+      ${Object.entries(totalsBySeverity).map(([k, n]) => `<div><strong>${n}</strong> ${escape(sevLabel(k).toLowerCase())}</div>`).join("")}
+    </div>
+  </header>
+  ${recordsHtml}
+  <footer>
+    Generated ${escape(generated)} for ${escape(dsp.name || "RouteReady")}.
+    This document includes every coaching record on file for this driver, the audit trail of edits, and any driver acknowledgments captured.
+    Records flagged HR-only have been included; redact before sharing externally if appropriate.
+  </footer>
+</div>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) { toast("Pop-up blocked. Allow pop-ups for this site to export the record.", "warn"); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
 
 async function openDriverDrawer(driverId) {
