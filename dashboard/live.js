@@ -5118,18 +5118,44 @@ function bindOkamiHandlers() {
     btn.classList.toggle("expanded", isOpen);
     if (isOpen) renderOkamiDailyPanel(weekIdx);
   };
+
+  // The mockup's okamiRenderDailyPanel re-renders the drill-down with the
+  // 'Over-plan cushion' card on every input event. Replace it with our
+  // clean live renderer so that card never reappears.
+  window.okamiRenderDailyPanel = renderOkamiDailyPanel;
 }
 
 async function saveOkamiWeek(w, routesMax) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
   if (!_okamiStart) return;
-  const startIso = fmtIsoDate(addDays(new Date(_okamiStart + "T12:00:00"), w * 7));
-  // One RPC sets all 7 days at the demand level. The okami_demand trigger
-  // regenerates shifts per-day automatically. RPC added in migration 0039.
-  const { error } = await sb.rpc("set_okami_week_demand", {
-    p_week_start: startIso,
-    p_target_routes: Math.max(0, parseInt(routesMax, 10) || 0),
-  });
-  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  const weekStart = addDays(new Date(_okamiStart + "T12:00:00"), w * 7);
+
+  if (!_okamiStations || _okamiStations.length === 0) {
+    const { data, error } = await sb.from("stations")
+      .select("id, code, active").eq("dsp_id", dspId).eq("active", true);
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    _okamiStations = data || [];
+  }
+  if (_okamiStations.length === 0) {
+    toast("No stations configured — add a station before setting OKAMI", "warn");
+    return;
+  }
+
+  // Single-station mode: full value to first station, zero out the rest.
+  // set_okami_week_demand wrote to ALL stations which inflated the displayed
+  // peak by N× when multiple active stations existed.
+  const target = Math.max(0, parseInt(routesMax, 10) || 0);
+  const calls = [];
+  for (let d = 0; d < 7; d++) {
+    const iso = fmtIsoDate(addDays(weekStart, d));
+    _okamiStations.forEach((s, idx) => {
+      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? target : 0 }));
+    });
+  }
+  const results = await Promise.all(calls);
+  const firstErr = results.find(r => r.error);
+  if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
   await renderOkamiLive();
 }
 
