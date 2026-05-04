@@ -1761,7 +1761,199 @@ window.drSub = function (sub) {
   if (sub === "roster")     loadDriversRoster();
   if (sub === "attendance") loadAttendanceLive();
   if (sub === "coaching")   loadCoachingFeed();
+  if (sub === "insights")   loadDriverInsights();
 };
+
+// ─── Drivers · Insights (KPIs + tenure distribution) ───────────────────
+async function loadDriverInsights() {
+  const root = document.getElementById("dr-sub-insights");
+  if (!root) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const today = new Date();
+  const todayMs = today.getTime();
+  const ago30Iso = fmtIsoDate(addDays(today, -30));
+  const ago60Iso = fmtIsoDate(addDays(today, -60));
+
+  // Pull everything we need in parallel: full driver list (for tenure
+  // buckets + active count + at-risk), shifts in last 30d (for attendance),
+  // and termination events in two windows for turnover comparison.
+  const [allDrvRes, shiftsRes] = await Promise.all([
+    sb.from("drivers")
+      .select("id, status, hire_date, terminated_at, score, metadata")
+      .eq("dsp_id", dspId),
+    sb.from("shifts").select("driver_id, status, date")
+      .eq("dsp_id", dspId)
+      .gte("date", ago30Iso)
+      .lte("date", fmtIsoDate(today)),
+  ]);
+
+  const drivers = (allDrvRes?.data || []);
+  const shifts  = (shiftsRes?.data  || []);
+
+  // Active count = active + onboarding (not terminated/inactive).
+  const active = drivers.filter(d => d.status === "active" || d.status === "onboarding");
+  const totalActive = active.length;
+
+  // Tenure (months since hire_date) for active drivers only.
+  const tenureMonths = active
+    .filter(d => d.hire_date)
+    .map(d => (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24 * 30.4375));
+  tenureMonths.sort((a, b) => a - b);
+  const avgTenure = tenureMonths.length
+    ? tenureMonths.reduce((s, n) => s + n, 0) / tenureMonths.length
+    : 0;
+  const medianTenure = tenureMonths.length
+    ? tenureMonths[Math.floor(tenureMonths.length / 2)]
+    : 0;
+  const longestMonths = tenureMonths.length ? tenureMonths[tenureMonths.length - 1] : 0;
+
+  // Turnover — terminated_at within last 30 (and prior 30 for trend).
+  // Anchor denominator at total roster size (active + recently-terminated)
+  // so it doesn't go to infinity when small DSPs terminate one driver.
+  const termsLast30  = drivers.filter(d => d.terminated_at && d.terminated_at >= ago30Iso).length;
+  const termsPrior30 = drivers.filter(d => d.terminated_at && d.terminated_at >= ago60Iso && d.terminated_at < ago30Iso).length;
+  const denom = Math.max(1, totalActive + termsLast30);
+  const turnover30Pct = (termsLast30 / denom) * 100;
+  const turnoverPriorPct = (termsPrior30 / denom) * 100;
+  const annualized = turnover30Pct * 12;
+
+  // Drivers past 30 days = active drivers whose hire_date >= 30 days ago.
+  const past30 = active.filter(d => d.hire_date &&
+    (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) >= (30 * 86400000)).length;
+  const past30Pct = totalActive > 0 ? Math.round((past30 / totalActive) * 100) : 0;
+
+  // At-risk = active drivers with score < 75 OR an attendance/safety flag.
+  // Attendance flag: 2+ callouts/no-shows in last 30d on this driver.
+  const absencesByDriver = new Map();
+  for (const sh of shifts) {
+    if (sh.status === "called_off" || sh.status === "no_show") {
+      absencesByDriver.set(sh.driver_id, (absencesByDriver.get(sh.driver_id) || 0) + 1);
+    }
+  }
+  const atRisk = active.filter(d => {
+    const lowScore = (d.score != null) && Number(d.score) < 75;
+    const flag = (absencesByDriver.get(d.id) || 0) >= 2;
+    return lowScore || flag;
+  }).length;
+
+  // Avg fleet score = mean of d.score across active with a value.
+  const scored = active.filter(d => d.score != null && Number.isFinite(Number(d.score)));
+  const avgScore = scored.length
+    ? Math.round(scored.reduce((s, d) => s + Number(d.score), 0) / scored.length)
+    : null;
+
+  // Avg attendance · 30d = (scheduled - absences) / scheduled across roster.
+  let scheduled30 = 0, absent30 = 0;
+  for (const sh of shifts) {
+    if (!sh.driver_id) continue;
+    if (["scheduled", "completed", "called_off", "no_show", "late"].includes(sh.status)) scheduled30 += 1;
+    if (sh.status === "called_off" || sh.status === "no_show") absent30 += 1;
+  }
+  const attendancePct = scheduled30 > 0 ? Math.round(((scheduled30 - absent30) / scheduled30) * 100) : null;
+
+  // Tenure buckets (in days).
+  const buckets = { "0-30": 0, "30-90": 0, "90-365": 0, "365-730": 0, "730plus": 0 };
+  for (const d of active) {
+    if (!d.hire_date) continue;
+    const days = (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000;
+    if      (days < 30)       buckets["0-30"]    += 1;
+    else if (days < 90)       buckets["30-90"]   += 1;
+    else if (days < 365)      buckets["90-365"]  += 1;
+    else if (days < 730)      buckets["365-730"] += 1;
+    else                      buckets["730plus"] += 1;
+  }
+  const bucketMax = Math.max(1, ...Object.values(buckets));
+
+  // ─── Apply to DOM ───
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const setHtml = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  const setVal = (id, text, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (cls) el.className = `di-val ${cls}`;
+    else el.className = "di-val";
+  };
+
+  setVal("rr-di-total", String(totalActive));
+  set("rr-di-total-sub", `Active + onboarding`);
+
+  if (tenureMonths.length === 0) {
+    setVal("rr-di-tenure", "—");
+    set("rr-di-tenure-sub", "Set hire dates to see tenure");
+  } else {
+    setHtml("rr-di-tenure", `${avgTenure.toFixed(1)}<span class="frac"> mo</span>`);
+    set("rr-di-tenure-sub", `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`);
+  }
+
+  setVal("rr-di-turnover-30",
+    totalActive === 0 ? "—" : `${turnover30Pct.toFixed(0)}%`,
+    turnover30Pct >= 10 ? "bad" : turnover30Pct >= 5 ? "warn" : "ok");
+  const trendDelta = turnover30Pct - turnoverPriorPct;
+  set("rr-di-turnover-30-sub",
+    termsLast30 + termsPrior30 === 0 ? "No terminations in last 60d"
+    : `${termsLast30} term${termsLast30 === 1 ? "" : "s"} last 30d · ${trendDelta >= 0 ? "+" : ""}${trendDelta.toFixed(1)}% vs prior 30d`);
+
+  setVal("rr-di-turnover-annual",
+    totalActive === 0 ? "—" : `${Math.round(annualized)}%`,
+    annualized >= 50 ? "bad" : annualized >= 25 ? "warn" : "ok");
+  set("rr-di-turnover-annual-sub", `Industry avg ~35% · ${annualized < 35 ? "below avg ✓" : "above avg"}`);
+
+  setVal("rr-di-past30",
+    totalActive === 0 ? "—" : `${past30}`, past30Pct >= 80 ? "ok" : "warn");
+  setHtml("rr-di-past30", `${past30}<span class="frac"> / ${totalActive}</span>`);
+  set("rr-di-past30-sub", `First-30 retention: ${past30Pct}%`);
+
+  setVal("rr-di-atrisk", String(atRisk), atRisk === 0 ? "ok" : atRisk <= 3 ? "warn" : "bad");
+
+  if (avgScore == null) {
+    setVal("rr-di-fleetscore", "—");
+    set("rr-di-fleetscore-sub", "No fleet scores recorded yet");
+  } else {
+    setVal("rr-di-fleetscore", String(avgScore), avgScore >= 85 ? "ok" : avgScore >= 75 ? "warn" : "bad");
+    set("rr-di-fleetscore-sub", `Across ${scored.length} scored driver${scored.length === 1 ? "" : "s"}`);
+  }
+
+  if (attendancePct == null) {
+    setVal("rr-di-attendance", "—");
+    set("rr-di-attendance-sub", "No shifts in last 30d");
+  } else {
+    setVal("rr-di-attendance", `${attendancePct}%`, attendancePct >= 95 ? "ok" : attendancePct >= 90 ? "warn" : "bad");
+    set("rr-di-attendance-sub", `${absent30} callouts/no-shows / ${scheduled30} scheduled`);
+  }
+
+  // Tenure distribution bars + counts.
+  const setBar = (key, count) => {
+    const widthPct = Math.round((count / bucketMax) * 100);
+    const bar = document.getElementById(`rr-di-bar-${key}`);
+    const cnt = document.getElementById(`rr-di-cnt-${key}`);
+    if (bar) bar.style.width = `${widthPct}%`;
+    if (cnt) cnt.textContent = String(count);
+  };
+  setBar("0-30",    buckets["0-30"]);
+  setBar("30-90",   buckets["30-90"]);
+  setBar("90-365",  buckets["90-365"]);
+  setBar("365-730", buckets["365-730"]);
+  setBar("730plus", buckets["730plus"]);
+
+  // Insight footer.
+  const under90 = buckets["0-30"] + buckets["30-90"];
+  const under90Pct = totalActive > 0 ? Math.round((under90 / totalActive) * 100) : 0;
+  const insightEl = document.getElementById("rr-di-insight");
+  if (insightEl) {
+    if (totalActive === 0) {
+      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> No active drivers yet — add drivers to see the tenure picture.`;
+    } else if (under90Pct >= 30) {
+      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> ${under90Pct}% of your roster is under 90 days. The first-90 cliff is your biggest retention risk — focus coaching here.`;
+    } else if (buckets["730plus"] >= Math.ceil(totalActive * 0.25)) {
+      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> ${buckets["730plus"]} of ${totalActive} drivers have 2+ years tenure. Strong retention — protect this group from burnout.`;
+    } else {
+      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> Tenure is balanced — no single bucket dominates.`;
+    }
+  }
+}
 
 
 // Capture-phase delegate for renewal-reminder settings (Drivers → Licenses).
