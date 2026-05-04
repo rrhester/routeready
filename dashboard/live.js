@@ -4927,6 +4927,38 @@ function isoWeekNumber(date) {
 }
 
 let _okamiActiveCount = 0;
+let _okamiTotalsByDateCache = null;
+let _okamiStartCache = null;
+
+// Recompute Drivers Needed + Gap cells from cached data, no network call.
+// Used when the operator drags the Staffing Plan Pad slider — instant
+// feedback without waiting for okami_grid to round-trip.
+function _okamiRecomputeFromCache(padPct) {
+  if (!_okamiTotalsByDateCache || !_okamiStartCache) return;
+  const okTbody = document.getElementById("okami-tbody");
+  const allOkamiRows = okTbody
+    ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
+    : [];
+  for (let w = 0; w < allOkamiRows.length; w++) {
+    const row = allOkamiRows[w];
+    const weekStart = addDays(_okamiStartCache, w * 7);
+    let routesMax = 0;
+    for (let d = 0; d < 7; d++) {
+      const t = _okamiTotalsByDateCache.get(fmtIsoDate(addDays(weekStart, d))) || 0;
+      if (t > routesMax) routesMax = t;
+    }
+    const needed = routesMax > 0 ? Math.ceil(routesMax * 2 * (1 + padPct / 100)) : 0;
+    const gap = _okamiActiveCount - needed;
+    const tdCells = row.querySelectorAll("td");
+    if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
+    if (tdCells[3]) tdCells[3].innerHTML = `<div class="plan-calc">${_okamiActiveCount}</div>`;
+    const gapEl = tdCells[4]?.querySelector(".plan-gap");
+    if (gapEl) {
+      gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
+      gapEl.classList.remove("ok", "warn", "bad");
+    }
+  }
+}
 let _okamiCushionPct = 10;
 
 async function renderOkamiLive() {
@@ -4968,6 +5000,9 @@ async function _renderOkamiLiveImpl() {
   for (const c of cells) {
     totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
   }
+  // Cache for fast slider re-renders (no network round-trip per drag tick).
+  _okamiTotalsByDateCache = totalsByDate;
+  _okamiStartCache = start;
 
   // Staffing Plan Pad — 0–50% buffer above the 2× per-route baseline.
   // Persisted on dsps.metadata.staffing.plan_pad_pct, defaults to 10%.
@@ -5109,11 +5144,13 @@ function bindOkamiHandlers() {
     padInput.addEventListener("input", () => {
       const pct = Math.max(0, Math.min(50, parseInt(padInput.value, 10) || 0));
       if (padLabel) padLabel.textContent = `${pct}%`;
-      // Stash on RR for immediate render; debounce the DB write.
       if (window.RR?.dsp?.metadata) {
         window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), plan_pad_pct: pct };
       }
-      renderOkamiLive();
+      // Instant client-side recompute from cached okami_grid data — no
+      // network round-trip per drag tick. The full renderOkamiLive runs
+      // on view focus / heartbeat to refresh everything else.
+      _okamiRecomputeFromCache(pct);
       if (padSaveTimer) clearTimeout(padSaveTimer);
       padSaveTimer = setTimeout(async () => {
         const dspId = window.RR?.dsp?.id;
