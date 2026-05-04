@@ -5119,10 +5119,11 @@ function bindOkamiHandlers() {
     if (isOpen) renderOkamiDailyPanel(weekIdx);
   };
 
-  // The mockup's okamiRenderDailyPanel re-renders the drill-down with the
-  // 'Over-plan cushion' card on every input event. Replace it with our
-  // clean live renderer so that card never reappears.
+  // The mockup's okamiRenderDailyPanel was deleted in index.html and now
+  // delegates here via window. Expose the live renderer on window so the
+  // mockup stub can find it.
   window.okamiRenderDailyPanel = renderOkamiDailyPanel;
+  window.renderOkamiDailyPanel = renderOkamiDailyPanel;
 }
 
 async function saveOkamiWeek(w, routesMax) {

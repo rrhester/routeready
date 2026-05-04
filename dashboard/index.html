@@ -16527,73 +16527,12 @@ Evidence attached:
   }
 
   // ─── RENDER DAILY PANEL ─────────────────────────────────────────
+  // Mockup drill-down panel removed. live.js owns the OKAMI drill-down
+  // via window.renderOkamiDailyPanel — clean per-day grid, no cushion
+  // card, no Routes (max) overwrite.
   function okamiRenderDailyPanel(weekIdx){
-    var w = RR_OKAMI_DAILY[weekIdx]; if (!w) return;
-    var container = document.getElementById('okami-detail-content-' + weekIdx);
-    if (!container) return;
-    var rec = okamiRecommendCushion();
-    var totalRoutes = okamiWeekTotalRoutes(weekIdx);
-    var totalShifts = okamiWeekTotalShifts(weekIdx);
-    var maxRoutes = okamiWeekMaxRoutes(weekIdx);
-    var extraTotal = totalShifts - totalRoutes;
-
-    var html = '<div class="okami-daily-panel">'
-      + '<div class="okami-daily-grid">'
-        + '<div class="okami-daily-grid-head">'
-          + '<div>' + w.weekLabel + ' · ' + w.dateLabel + '</div>'
-          + RR_OKAMI_DAY_KEYS.map(function(k){ return '<div>' + RR_OKAMI_DAY_LABELS[k] + '</div>'; }).join('')
-        + '</div>'
-        + '<div class="okami-daily-row">'
-          + '<div class="okami-daily-label">Routes planned</div>'
-          + RR_OKAMI_DAY_KEYS.map(function(k){
-              return '<div class="okami-daily-cell"><input type="number" min="0" max="200" value="' + (w.daily[k] || 0) + '" data-okami-w="' + weekIdx + '" data-okami-d="' + k + '" oninput="okamiUpdateDaily(' + weekIdx + ', \'' + k + '\', this.value)"/></div>';
-          }).join('')
-        + '</div>'
-        + '<div class="okami-daily-row">'
-          + '<div class="okami-daily-label">Shifts to schedule</div>'
-          + RR_OKAMI_DAY_KEYS.map(function(k){
-              var routes = w.daily[k] || 0;
-              var shifts = okamiCushionShiftsForRoutes(routes, w.cushionMode, w.cushionValue);
-              var diff = shifts - routes;
-              return '<div class="okami-daily-cell"><div class="okami-daily-cell-shifts">' + shifts + '<span class="frac">+' + diff + '</span></div></div>';
-          }).join('')
-        + '</div>'
-      + '</div>'
-
-      + '<div class="okami-cushion-card">'
-        + '<h4>Over-plan cushion</h4>'
-        + '<div style="font-size:11px;color:var(--text-subtle);line-height:1.4;margin-top:-4px">Schedule extra shifts above route count to absorb callouts and no-shows.</div>'
-        + '<div class="okami-cushion-mode">'
-          + '<button class="' + (w.cushionMode === 'percent' ? 'active' : '') + '" onclick="okamiSetCushionMode(' + weekIdx + ', \'percent\')">Percent</button>'
-          + '<button class="' + (w.cushionMode === 'count' ? 'active' : '') + '" onclick="okamiSetCushionMode(' + weekIdx + ', \'count\')">Headcount</button>'
-        + '</div>'
-        + '<div class="okami-cushion-input-row">'
-          + '<input type="number" min="0" max="' + (w.cushionMode === 'percent' ? 50 : 20) + '" value="' + w.cushionValue + '" oninput="okamiSetCushionValue(' + weekIdx + ', this.value)" />'
-          + '<span class="unit">' + (w.cushionMode === 'percent' ? '% over routes' : 'extra shifts/day') + '</span>'
-        + '</div>'
-        + '<div class="okami-recommend">'
-          + '<strong>Recommended: ' + rec.percent + '%</strong><br>'
-          + '<span style="font-size:10px;line-height:1.4">' + rec.source + '</span>'
-          + (w.cushionMode === 'percent' && w.cushionValue !== rec.percent
-              ? '<button class="apply-link" onclick="okamiApplyRecommended(' + weekIdx + ')">Apply ' + rec.percent + '%</button>'
-              : '<span style="display:inline-block;margin-top:6px;font-size:10px;color:var(--accent-text)">✓ Following recommendation</span>')
-        + '</div>'
-        + '<div class="okami-totals">'
-          + '<span>Week total <strong>' + totalRoutes + '</strong> routes</span>'
-          + '<span>→ <strong>' + totalShifts + '</strong> shifts (+' + extraTotal + ')</span>'
-        + '</div>'
-        + '<div style="font-size:10px;color:var(--text-subtle);line-height:1.4">Peak day: <strong style="color:var(--text)">' + maxRoutes + ' routes</strong> · matches OKAMI "Routes (max)" cell</div>'
-        + '<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center" onclick="okamiApplyToSchedule(' + weekIdx + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>Apply to Schedule</button>'
-      + '</div>'
-    + '</div>';
-
-    container.innerHTML = html;
-
-    // Sync the W19 max-routes input with peak day so OKAMI math stays consistent
-    var maxInput = document.querySelector('.plan-route-input[data-w="' + weekIdx + '"]');
-    if (maxInput) {
-      maxInput.value = maxRoutes;
-      if (typeof recalcOkami === 'function') recalcOkami();
+    if (typeof window.renderOkamiDailyPanel === 'function') {
+      window.renderOkamiDailyPanel(weekIdx);
     }
   }
 
@@ -17022,7 +16961,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260504r"></script>
+<script type="module" src="./live.js?v=20260504s"></script>
 
 </body>
 </html>
