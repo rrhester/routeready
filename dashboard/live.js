@@ -5467,9 +5467,22 @@ document.addEventListener("click", async (e) => {
       return;
     }
 
+    // Reconcile cushion shifts to match the saved cushion %. Adds EX rows
+    // when % goes up; removes unassigned EX rows when % drops; deletes all
+    // unassigned EX rows when % is 0.
+    const { data: cushionDelta, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: _schedStart });
+    if (cushionErr) {
+      if (status) { status.style.color = "var(--red)"; status.textContent = "Saved · cushion sync failed: " + cushionErr.message; }
+      toast("Settings saved · cushion sync failed: " + cushionErr.message, "warn");
+      return;
+    }
+
     if (status) {
       status.style.color = "var(--green)";
-      status.textContent = `Saved for week of ${_schedStart} ✓`;
+      const cushionNote = cushionDelta && cushionDelta !== 0
+        ? ` · cushion ${cushionDelta > 0 ? "+" : ""}${cushionDelta}`
+        : "";
+      status.textContent = `Saved for week of ${_schedStart} ✓${cushionNote}`;
     }
     setTimeout(() => { if (status) status.textContent = ""; }, 3000);
     toast("Scheduling settings saved for this week", "success");
@@ -6267,19 +6280,12 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   }
 
   const totalCount = sorted.length;
-  const cushionPct = (window.RR?.dsp?.metadata?.scheduling?.cushion_pct ?? 0);
-  const cushionBtnLabel = cushionPct > 0 ? `Apply ${cushionPct}% cushion` : "Add cushion shift";
 
   aside.innerHTML = `
     <div class="pool-head">
       <span>Open shifts</span>
       <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${totalCount} open</span>
     </div>
-    <button type="button" id="rr-apply-cushion"
-      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer"
-      title="Add cushion shifts on top of OKAMI demand. Cushion shifts are tagged EX and don't count against coverage.">
-      ${cushionBtnLabel}
-    </button>
     <button type="button" id="rr-unassign-week"
       style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
       Unassign all shifts this week
@@ -6404,28 +6410,6 @@ function bindSchedWeekNav() {
     const mode = sortBtn.dataset.rrPoolSort;
     if (!mode || mode === _poolSortMode) return;
     _poolSortMode = mode;
-    renderScheduleWeek();
-  });
-
-  // ── Apply cushion: add is_cushion shifts on top of demand.
-  sub.addEventListener("click", async (e) => {
-    if (e.target.id !== "rr-apply-cushion") return;
-    e.preventDefault();
-    if (!_confirmLiveScheduleEdit()) return;
-    const cushionPct = (window.RR?.dsp?.metadata?.scheduling?.cushion_pct ?? 0);
-    if (cushionPct <= 0) {
-      toast("Set a cushion % in Schedule settings first", "warn");
-      return;
-    }
-    if (!confirm(`Add ${cushionPct}% cushion shifts to this week?\n\nCushion shifts are tagged EX and don't count toward coverage — they're extra capacity for callouts/no-shows.`)) return;
-    e.target.disabled = true;
-    const original = e.target.textContent;
-    e.target.textContent = "Applying…";
-    const { data, error } = await sb.rpc("apply_cushion_to_week", { p_week_start: _schedStart });
-    e.target.disabled = false;
-    e.target.textContent = original;
-    if (error) { toast("Apply failed: " + error.message, "warn"); return; }
-    toast(`Added ${data ?? 0} cushion shift${data === 1 ? "" : "s"}`, "success");
     renderScheduleWeek();
   });
 
