@@ -5844,11 +5844,10 @@ async function autoFillScheduleWeek() {
     // Surface drivers blocked by expired/missing license. Use alert so
     // the operator actually sees it (toast vanishes too quick to act on).
     if (skippedExpired && skippedExpired.length > 0) {
-      const lines = skippedExpired.map(s => {
-        const exp = s.expires_on ? `expired ${new Date(s.expires_on + "T12:00:00").toLocaleDateString()}` : "no license on file";
-        return `  • ${s.full_name} — ${exp}`;
-      }).join("\n");
-      alert(`Auto-schedule skipped ${skippedExpired.length} driver${skippedExpired.length === 1 ? "" : "s"} with expired or missing licenses:\n\n${lines}\n\nUpdate their license in the driver record → License tab to include them in future runs.`);
+      const lines = skippedExpired.map(s =>
+        `  • ${s.full_name} — expired ${new Date(s.expires_on + "T12:00:00").toLocaleDateString()}`
+      ).join("\n");
+      alert(`Auto-schedule skipped ${skippedExpired.length} driver${skippedExpired.length === 1 ? "" : "s"} with an expired driver's license:\n\n${lines}\n\nUpdate the expiration in the driver record → License tab to include them in future runs.`);
     }
   }
   await renderScheduleWeek();
@@ -5879,9 +5878,9 @@ async function autoAssignDriversForWeek() {
 
   // Query shifts directly (instead of via schedule_grid) so we always get
   // the is_cushion column even on DBs that haven't run migration 0027.
-  const [driversRes, ptoRes, shiftsRes, licRes] = await Promise.all([
+  const [driversRes, ptoRes, shiftsRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, metadata")
+      .select("id, full_name, metadata, dl_expires_on")
       .eq("dsp_id", dspId)
       .eq("status", "active"),
     sb.from("time_off_requests")
@@ -5895,11 +5894,6 @@ async function autoAssignDriversForWeek() {
       .eq("dsp_id", dspId)
       .gte("date", _schedStart)
       .lte("date", weekEndIso),
-    // Latest drivers_license per driver, so we can block expired licenses.
-    sb.from("driver_documents")
-      .select("driver_id, kind, expires_on, created_at")
-      .eq("dsp_id", dspId)
-      .eq("kind", "drivers_license"),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -5911,33 +5905,27 @@ async function autoAssignDriversForWeek() {
   const pto     = ptoRes.data     || [];
   let   shifts  = shiftsRes.data  || [];
 
-  // Build a per-driver license-status map. Latest expires_on per driver.
-  // Driver is "valid" if any license row exists with expires_on >= weekEnd.
-  // Missing license counts as expired (operator-actionable).
-  const licByDriver = new Map();
-  for (const lic of (licRes?.data || [])) {
-    if (!lic.driver_id) continue;
-    const cur = licByDriver.get(lic.driver_id);
-    if (!cur || (lic.expires_on || "") > (cur.expires_on || "")) {
-      licByDriver.set(lic.driver_id, lic);
-    }
-  }
-  const driverLicenseValid = (driverId) => {
-    const lic = licByDriver.get(driverId);
-    if (!lic || !lic.expires_on) return false;
-    return lic.expires_on >= weekEndIso;
+  // License rule: drivers.dl_expires_on must be on/after today. If
+  // expired, the driver is blocked from auto-assignment. No other
+  // document type (DOT medical, background check, etc.) blocks here —
+  // only the drivers license. Drivers without dl_expires_on at all
+  // are NOT blocked (operator hasn't filled it in yet); they can still
+  // be assigned manually.
+  const todayIso = fmtIsoDate(new Date());
+  const driverLicenseOk = (d) => {
+    if (!d.dl_expires_on) return true;       // no value = don't block
+    return d.dl_expires_on >= todayIso;       // not expired today
   };
 
-  // Pre-collect drivers blocked by expired/missing license so we can
-  // notify the operator after the run.
+  // Pre-collect drivers blocked by an expired license so we can notify
+  // the operator after the run.
   const skippedExpired = [];
   for (const d of drivers) {
-    if (!driverLicenseValid(d.id)) {
-      const lic = licByDriver.get(d.id);
+    if (!driverLicenseOk(d)) {
       skippedExpired.push({
         id: d.id,
         full_name: d.full_name,
-        expires_on: lic?.expires_on || null,
+        expires_on: d.dl_expires_on,
       });
     }
   }
@@ -6002,10 +5990,9 @@ async function autoAssignDriversForWeek() {
 
     // Try strict-availability candidates first; if override is allowed
     // and none match, fall through to "any active non-PTO driver".
-    // License must be valid through the end of this week — expired or
-    // missing license blocks auto-assignment regardless of override.
+    // Expired drivers_license blocks regardless of override.
     const baseFilter = (d) => {
-      if (!driverLicenseValid(d.id)) return false;
+      if (!driverLicenseOk(d)) return false;
       if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
       if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
       if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
