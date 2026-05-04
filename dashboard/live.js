@@ -1702,6 +1702,7 @@ window.drSub = function (sub) {
   if (sub === "licenses")   loadDriverLicensesView();
   if (sub === "roster")     loadDriversRoster();
   if (sub === "attendance") loadAttendanceLive();
+  if (sub === "coaching")   loadCoachingFeed();
 };
 
 
@@ -3292,7 +3293,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "overview")     renderOverviewForm(body, _ddDriver.driver);
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
-  if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings);
+  if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
   setDriverDrawerFoot();
 }
@@ -3445,7 +3446,7 @@ function _coachActionList(actionTaken) {
   return `<div style="font-size:11px;color:var(--text-subtle);margin-top:4px">Action: <strong style="color:var(--text)">${taken.map(escapeHtml).join(" · ")}</strong></div>`;
 }
 
-function renderCoachingTab(coachings) {
+function renderCoachingTab(coachings, driver) {
   const items = (coachings || []).filter(c => !c.archived_at);
   const list = items.map(c => {
     const occurred = c.occurred_at ? new Date(c.occurred_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
@@ -3483,8 +3484,18 @@ function renderCoachingTab(coachings) {
       </div>
     </div>`;
   }).join("");
+  // Driver-facing link — operator copies and sends via SMS/email so the
+  // driver can read + acknowledge their visible coaching records.
+  const token = driver?.coaching_view_token;
+  const base = window.RR?.dsp?.metadata?.public_base_url || window.RR_CONFIG?.PUBLIC_BASE_URL || location.origin;
+  const linkBtn = token
+    ? `<button class="btn btn-sm" data-rr-coach-copy-link="${escapeHtml(base.replace(/\/$/, ""))}/dashboard/coaching.html?t=${encodeURIComponent(token)}" style="margin-left:8px">Copy driver link</button>`
+    : "";
   return `
-    <button class="btn btn-primary" data-rr-add-coaching style="margin-bottom:14px">+ Log coaching</button>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-primary" data-rr-add-coaching>+ Log coaching</button>
+      ${linkBtn}
+    </div>
     <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No coachings logged yet.</div>`}</div>`;
 }
 
@@ -3916,8 +3927,15 @@ async function openCoachingForm(driverId) {
   });
 }
 
-// Resolve / archive / edit-history actions on the coaching tab.
+// Resolve / archive / edit-history / copy-link actions on the coaching tab.
 document.addEventListener("click", async (e) => {
+  const copyBtn = e.target.closest("[data-rr-coach-copy-link]");
+  if (copyBtn) {
+    const url = copyBtn.getAttribute("data-rr-coach-copy-link");
+    try { await navigator.clipboard.writeText(url); toast("Link copied · paste into SMS or email", "success"); }
+    catch { prompt("Copy this link to send to the driver:", url); }
+    return;
+  }
   const resolveBtn = e.target.closest("[data-rr-coach-resolve]");
   if (resolveBtn) {
     const id = resolveBtn.getAttribute("data-rr-coach-resolve");
@@ -3958,6 +3976,148 @@ document.addEventListener("click", async (e) => {
     w.addEventListener("click", (ev) => { if (ev.target === w || ev.target.closest("button")) w.remove(); });
     document.body.appendChild(w);
   }
+});
+
+
+// ─── Drivers · Coaching feed (global, sortable) ───────────────────────
+
+let _coachFeedCache = null; // { rows, drivers }
+
+const _COACH_SEV_RANK = { final: 0, warning: 1, concern: 2, info: 3 };
+
+async function loadCoachingFeed() {
+  const wrap = document.getElementById("rr-coach-feed");
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const [coachRes, drvRes] = await Promise.all([
+    sb.from("coachings")
+      .select("*")
+      .eq("dsp_id", dspId)
+      .order("occurred_at", { ascending: false })
+      .limit(500),
+    sb.from("drivers")
+      .select("id, full_name, preferred_name, station:stations(code)")
+      .eq("dsp_id", dspId),
+  ]);
+  if (coachRes.error) {
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">Could not load coachings: ${escapeHtml(coachRes.error.message)}</div>`;
+    return;
+  }
+  const drvById = new Map((drvRes.data || []).map(d => [d.id, d]));
+  _coachFeedCache = { rows: coachRes.data || [], drivers: drvById };
+
+  // Update the subnav badge (open follow-ups)
+  const openFollowups = (coachRes.data || []).filter(c => c.follow_up_at && !c.resolved_at && !c.archived_at).length;
+  const badge = document.getElementById("rr-coach-feed-badge");
+  if (badge) {
+    if (openFollowups > 0) { badge.style.display = ""; badge.textContent = String(openFollowups); }
+    else badge.style.display = "none";
+  }
+
+  _renderCoachFeed();
+}
+
+function _renderCoachFeed() {
+  const wrap = document.getElementById("rr-coach-feed");
+  if (!wrap || !_coachFeedCache) return;
+
+  const search   = (document.getElementById("rr-coach-search")?.value || "").toLowerCase().trim();
+  const sevFilt  = document.getElementById("rr-coach-filter-severity")?.value || "";
+  const topFilt  = document.getElementById("rr-coach-filter-topic")?.value || "";
+  const statFilt = document.getElementById("rr-coach-filter-status")?.value || "open";
+  const sort     = document.getElementById("rr-coach-sort")?.value || "date_desc";
+
+  let rows = _coachFeedCache.rows.slice();
+  if (statFilt === "open")     rows = rows.filter(c => !c.archived_at && c.follow_up_at && !c.resolved_at);
+  else if (statFilt === "all") rows = rows.filter(c => !c.archived_at);
+  else if (statFilt === "archived") rows = rows.filter(c => !!c.archived_at);
+
+  if (sevFilt) rows = rows.filter(c => c.severity === sevFilt);
+  if (topFilt) rows = rows.filter(c => c.topic === topFilt);
+
+  if (search) {
+    rows = rows.filter(c => {
+      const drv = _coachFeedCache.drivers.get(c.driver_id);
+      const name = drv ? (drv.preferred_name || drv.full_name || "").toLowerCase() : "";
+      return (
+        (c.summary || "").toLowerCase().includes(search) ||
+        (c.notes || "").toLowerCase().includes(search) ||
+        name.includes(search) ||
+        (c.coached_by_name || "").toLowerCase().includes(search)
+      );
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (sort === "date_asc")   return new Date(a.occurred_at) - new Date(b.occurred_at);
+    if (sort === "severity")   return (_COACH_SEV_RANK[a.severity] ?? 9) - (_COACH_SEV_RANK[b.severity] ?? 9) || (new Date(b.occurred_at) - new Date(a.occurred_at));
+    if (sort === "topic")      return String(a.topic).localeCompare(String(b.topic)) || (new Date(b.occurred_at) - new Date(a.occurred_at));
+    if (sort === "coach")      return String(a.coached_by_name || "").localeCompare(String(b.coached_by_name || ""));
+    if (sort === "followup") {
+      const aD = a.follow_up_at ? new Date(a.follow_up_at).getTime() : Infinity;
+      const bD = b.follow_up_at ? new Date(b.follow_up_at).getTime() : Infinity;
+      return aD - bD;
+    }
+    return new Date(b.occurred_at) - new Date(a.occurred_at);
+  });
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No coachings match the current filter.</div>`;
+    return;
+  }
+
+  const head = `<thead><tr style="background:var(--canvas);border-bottom:1px solid var(--border)">
+    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Driver</th>
+    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Severity</th>
+    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Topic</th>
+    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Summary</th>
+    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Coached</th>
+    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Follow-up</th>
+    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Status</th>
+  </tr></thead>`;
+
+  const body = rows.map(c => {
+    const drv = _coachFeedCache.drivers.get(c.driver_id);
+    const name = drv ? (drv.preferred_name || drv.full_name || "—") : "—";
+    const sevChip = _coachSeverityChip(c.severity);
+    const occurred = new Date(c.occurred_at).toLocaleDateString();
+    const followCell = c.follow_up_at
+      ? (c.resolved_at
+          ? `<span style="font-size:11px;color:var(--green)">Resolved</span>`
+          : `<span style="font-size:11px;color:${new Date(c.follow_up_at) < new Date() ? "var(--red)" : "var(--accent-text)"}">${new Date(c.follow_up_at).toLocaleDateString()}</span>`)
+      : `<span style="color:var(--text-subtle)">—</span>`;
+    const ack = c.acknowledgment && c.acknowledgment !== "none"
+      ? `<span style="font-size:10px;font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:1px 6px;border-radius:8px">Ack</span>`
+      : (c.driver_visible ? `<span style="font-size:10px;font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:8px">Pending ack</span>` : "");
+    const status = c.archived_at
+      ? `<span style="font-size:10px;color:var(--text-subtle)">Archived</span>`
+      : (c.resolved_at
+          ? `<span style="font-size:10px;color:var(--green)">Resolved</span>`
+          : ack || `<span style="font-size:10px;color:var(--text-subtle)">Open</span>`);
+
+    return `<tr style="border-top:1px solid var(--border);cursor:pointer" data-rr-driver-id="${c.driver_id}">
+      <td style="padding:10px 14px"><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:10px;color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
+      <td style="padding:10px 14px">${sevChip}</td>
+      <td style="padding:10px 14px;font-size:12px;text-transform:capitalize">${escapeHtml(c.topic || "")}</td>
+      <td style="padding:10px 14px;font-size:13px;max-width:320px">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
+      <td style="padding:10px 14px;font-size:11px;color:var(--text-muted)">${escapeHtml(occurred)}<div>${escapeHtml(c.coached_by_name || "")}</div></td>
+      <td style="padding:10px 14px">${followCell}</td>
+      <td style="padding:10px 14px">${status}</td>
+    </tr>`;
+  }).join("");
+
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse">${head}<tbody>${body}</tbody></table>`;
+}
+
+document.addEventListener("input", (e) => {
+  if (["rr-coach-search"].includes(e.target.id)) _renderCoachFeed();
+});
+document.addEventListener("change", (e) => {
+  if (["rr-coach-filter-severity","rr-coach-filter-topic","rr-coach-filter-status","rr-coach-sort"].includes(e.target.id)) _renderCoachFeed();
 });
 
 
