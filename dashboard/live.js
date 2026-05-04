@@ -1798,7 +1798,94 @@ window.drSub = function (sub) {
   if (sub === "attendance") loadAttendanceLive();
   if (sub === "coaching")   loadCoachingFeed();
   if (sub === "insights")   loadDriverInsights();
+  _swapDriversCta(sub);
 };
+
+// Swap the page-level CTA so it matches the active subnav. On Coaching,
+// 'Add driver' becomes 'Coach a driver' and opens a driver picker that
+// drops into the coaching log form for the chosen driver.
+function _swapDriversCta(sub) {
+  const btn = document.getElementById("rr-drivers-cta");
+  const lbl = document.getElementById("rr-drivers-cta-label");
+  if (!btn || !lbl) return;
+  if (sub === "coaching") {
+    lbl.textContent = "Coach a driver";
+    btn.onclick = (e) => { e.preventDefault(); openCoachDriverPicker(); };
+  } else {
+    lbl.textContent = "Add driver";
+    btn.onclick = () => { if (typeof window.openModal === "function") window.openModal("modal-add-driver"); };
+  }
+}
+
+// Driver picker → coaching log. Shown when the operator clicks 'Coach
+// a driver' on Drivers > Coaching. Pick a driver from the list, modal
+// closes, the coaching log form opens for that driver.
+async function openCoachDriverPicker() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const { data, error } = await sb.from("drivers")
+    .select("id, full_name, preferred_name, station:station_id (code)")
+    .eq("dsp_id", dspId)
+    .in("status", ["active", "onboarding"])
+    .order("full_name");
+  if (error) { toast("Couldn't load drivers: " + error.message, "warn"); return; }
+  const drivers = data || [];
+  if (drivers.length === 0) {
+    toast("Add a driver first, then come back here to coach them.", "warn");
+    return;
+  }
+
+  const m = document.createElement("div");
+  m.id = "rr-coach-picker";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 18px 14px;max-width:440px;width:100%;max-height:80vh;display:flex;flex-direction:column">
+      <h3 style="margin:0 0 10px;font-size:16px;font-weight:600">Coach a driver</h3>
+      <input id="rr-coach-picker-search" type="text" placeholder="Search drivers…" class="form-input" style="margin-bottom:10px"/>
+      <div id="rr-coach-picker-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <button class="btn" type="button" data-rr-coach-picker-cancel>Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  const list = m.querySelector("#rr-coach-picker-list");
+  const renderList = (filter) => {
+    const f = (filter || "").toLowerCase().trim();
+    const matches = !f ? drivers : drivers.filter(d => {
+      const name = (d.preferred_name || d.full_name || "").toLowerCase();
+      return name.includes(f);
+    });
+    if (matches.length === 0) {
+      list.innerHTML = `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No drivers match.</div>`;
+      return;
+    }
+    list.innerHTML = matches.map(d => {
+      const display = d.preferred_name || d.full_name || "—";
+      const station = d.station?.code || "";
+      return `<div class="rr-coach-pick" data-id="${d.id}" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px">
+        <span><strong>${escapeHtml(display)}</strong>${station ? ` <span style="color:var(--text-subtle);font-weight:400;margin-left:6px">${escapeHtml(station)}</span>` : ""}</span>
+        <span style="color:var(--text-subtle);font-size:11px">Coach →</span>
+      </div>`;
+    }).join("");
+  };
+  renderList();
+
+  m.querySelector("#rr-coach-picker-search").addEventListener("input", (e) => renderList(e.target.value));
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-coach-picker-cancel]")) { m.remove(); return; }
+    const pick = e.target.closest(".rr-coach-pick");
+    if (pick) {
+      const id = pick.getAttribute("data-id");
+      m.remove();
+      // Same coaching log flow used everywhere else (drawer, etc.).
+      // _ddDriver isn't required for create-mode; openCoachingForm only
+      // needs the driverId.
+      if (typeof openCoachingForm === "function") openCoachingForm(id);
+    }
+  });
+}
 
 // ─── Drivers · Insights (KPIs + tenure distribution) ───────────────────
 async function loadDriverInsights() {
