@@ -1914,11 +1914,12 @@ async function loadDriverInsights() {
   const todayMs = today.getTime();
   const ago30Iso = fmtIsoDate(addDays(today, -30));
   const ago60Iso = fmtIsoDate(addDays(today, -60));
+  const ago90Iso = fmtIsoDate(addDays(today, -90));
 
   // Pull everything we need in parallel: full driver list (for tenure
   // buckets + active count + at-risk), shifts in last 30d (for attendance),
-  // and termination events in two windows for turnover comparison.
-  const [allDrvRes, shiftsRes] = await Promise.all([
+  // and shifts in last 90d (for the day-of-week absence pattern).
+  const [allDrvRes, shiftsRes, shifts90Res] = await Promise.all([
     // Note: drivers schema has no terminated_at column. We use updated_at
     // as a rough proxy for "when this driver moved to terminated".
     sb.from("drivers")
@@ -1928,6 +1929,11 @@ async function loadDriverInsights() {
       .eq("dsp_id", dspId)
       .gte("date", ago30Iso)
       .lte("date", fmtIsoDate(today)),
+    sb.from("shifts").select("status, date")
+      .eq("dsp_id", dspId)
+      .gte("date", ago90Iso)
+      .lte("date", fmtIsoDate(today))
+      .in("status", ["completed", "called_off", "no_show", "late", "vto"]),
   ]);
 
   if (allDrvRes?.error) {
@@ -2105,7 +2111,151 @@ async function loadDriverInsights() {
       insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> Tenure is balanced — no single bucket dominates.`;
     }
   }
+
+  // ─── Day-of-week absence pattern · rolling 90 days ───
+  const shifts90 = shifts90Res?.data || [];
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const JS_DOW = { 0:"sun", 1:"mon", 2:"tue", 3:"wed", 4:"thu", 5:"fri", 6:"sat" };
+
+  // Per-day: total = shifts that had any outcome (excludes pure 'scheduled'
+  // since we don't know yet); absences = called_off + no_show.
+  const dowTotal   = Object.fromEntries(DOW.map(d => [d, 0]));
+  const dowAbsent  = Object.fromEntries(DOW.map(d => [d, 0]));
+  let totalShifts90 = 0, totalAbsent90 = 0;
+  for (const sh of shifts90) {
+    const dow = JS_DOW[new Date(sh.date + "T12:00:00").getDay()];
+    dowTotal[dow] += 1;
+    totalShifts90 += 1;
+    if (sh.status === "called_off" || sh.status === "no_show") {
+      dowAbsent[dow] += 1;
+      totalAbsent90 += 1;
+    }
+  }
+  const overallRate = totalShifts90 > 0 ? (totalAbsent90 / totalShifts90) * 100 : 0;
+
+  const dowBars = document.getElementById("rr-di-dow-bars");
+  const dowSummary = document.getElementById("rr-di-dow-summary");
+  const dowInsight = document.getElementById("rr-di-dow-insight");
+
+  if (totalShifts90 === 0) {
+    if (dowBars) dowBars.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:13px">No shift outcomes in the last 90 days yet.</div>`;
+    if (dowSummary) dowSummary.textContent = "";
+    if (dowInsight) dowInsight.innerHTML = `Patterns will appear once a few weeks of attendance data flows in.`;
+  } else {
+    const rates = DOW.map(d => ({
+      day: d,
+      total: dowTotal[d],
+      absent: dowAbsent[d],
+      rate: dowTotal[d] > 0 ? (dowAbsent[d] / dowTotal[d]) * 100 : 0,
+    }));
+    const maxRate = Math.max(1, ...rates.map(r => r.rate));
+
+    const colorFor = (r) => r >= overallRate * 1.5 && r > 5 ? "var(--red)"
+      : r >= overallRate * 1.2 ? "var(--amber)"
+      : "#22c55e";
+
+    if (dowBars) {
+      dowBars.innerHTML = rates.map(r => {
+        const widthPct = Math.round((r.rate / maxRate) * 100);
+        const note = r.total === 0 ? "no shifts" : `${r.absent}/${r.total} absent`;
+        return `
+        <div style="display:grid;grid-template-columns:60px 1fr 80px 100px;align-items:center;gap:12px;padding:6px 0">
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[r.day]}</div>
+          <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
+            <div style="background:${r.total === 0 ? "var(--text-muted)" : colorFor(r.rate)};height:100%;width:${widthPct}%;transition:width .3s"></div>
+          </div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${r.total === 0 ? "—" : r.rate.toFixed(1) + "%"}</div>
+          <div style="font-size:11px;color:var(--text-subtle)">${note}</div>
+        </div>`;
+      }).join("");
+    }
+    if (dowSummary) {
+      dowSummary.textContent = `${totalAbsent90} / ${totalShifts90} shifts (${overallRate.toFixed(1)}% overall) · last 90d`;
+    }
+    if (dowInsight) {
+      const sortedDesc = [...rates].filter(r => r.total >= 3).sort((a, b) => b.rate - a.rate);
+      const worst = sortedDesc[0];
+      const best  = sortedDesc[sortedDesc.length - 1];
+      const lines = [];
+      if (worst && best && worst.rate > best.rate * 1.5 && worst.rate > 5) {
+        lines.push(`<strong style="color:var(--red)">${DOW_LABEL[worst.day]} is your weakest day</strong> — ${worst.rate.toFixed(1)}% absence vs. ${best.rate.toFixed(1)}% on ${DOW_LABEL[best.day]}. ${worst.rate >= overallRate * 1.5 ? "Consider VTO offers earlier in the week, scheduling backups, or coaching repeat offenders." : "Worth a focused look at coaching trends."}`);
+      } else if (overallRate < 5 && totalAbsent90 > 0) {
+        lines.push(`<strong style="color:var(--green)">No strong day pattern.</strong> Absences are spread across the week and overall rate (${overallRate.toFixed(1)}%) is healthy.`);
+      } else if (totalAbsent90 === 0) {
+        lines.push(`<strong style="color:var(--green)">Zero callouts or no-shows in the last 90 days.</strong> Whatever you're doing, keep it up.`);
+      } else {
+        lines.push(`Overall absence rate is ${overallRate.toFixed(1)}%. Days are roughly even — no single day stands out.`);
+      }
+      dowInsight.innerHTML = lines.join("");
+    }
+  }
+
+  _dowMath = { dowTotal, dowAbsent, totalShifts90, totalAbsent90, overallRate };
 }
+
+let _dowMath = null;
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#rr-di-dow-info")) return;
+  e.preventDefault();
+  const m = _dowMath;
+  if (!m) return;
+  const old = document.getElementById("rr-di-dow-popover");
+  if (old) { old.remove(); return; }
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const tableRows = DOW.map(d => {
+    const tot = m.dowTotal[d], abs = m.dowAbsent[d];
+    const rate = tot > 0 ? (abs / tot * 100).toFixed(1) : "—";
+    const color = tot > 0 && (abs / tot * 100) >= m.overallRate * 1.5 ? "var(--red)"
+      : tot > 0 && (abs / tot * 100) >= m.overallRate * 1.2 ? "var(--amber)"
+      : "var(--text)";
+    return `
+    <tr>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border)"><strong>${DOW_LABEL[d]}</strong></td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${tot}</td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${abs}</td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right;color:${color};font-weight:600">${tot > 0 ? rate + "%" : "—"}</td>
+    </tr>`;
+  }).join("");
+  const pop = document.createElement("div");
+  pop.id = "rr-di-dow-popover";
+  pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  pop.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:520px;width:100%;font-size:13px;line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Day-of-week absence · the math</h3>
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Window</div>
+      <div>Last <strong>90 days</strong>. Each shift counted once on the day it was scheduled.</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Definitions</div>
+      <div>· <strong>Total</strong> = shifts that had any outcome (completed, late, called_off, no_show, vto). Pure 'scheduled' (not yet started) is excluded.</div>
+      <div>· <strong>Absences</strong> = called_off + no_show only. VTO is operator-approved and doesn't count.</div>
+      <div style="font-family:ui-monospace,monospace;font-size:11px;background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text);margin-top:8px">% absent = absences ÷ total</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">By day</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
+        <thead>
+          <tr>
+            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Total</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Absences</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% absent</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
+      <div>· <strong style="color:var(--red)">Red</strong> = ≥1.5× the overall rate (and >5%)</div>
+      <div>· <strong style="color:var(--amber)">Amber</strong> = ≥1.2× the overall rate</div>
+      <div>· <strong style="color:#22c55e">Green</strong> = at or below the overall rate</div>
+      <div>· <span style="color:var(--text-muted)">Grey</span> = no shifts on that day in the window</div>
+      <div style="margin-top:18px;display:flex;justify-content:flex-end">
+        <button class="btn btn-sm" type="button" id="rr-di-dow-popover-close">Close</button>
+      </div>
+    </div>`;
+  pop.addEventListener("click", (ev) => {
+    if (ev.target === pop || ev.target.id === "rr-di-dow-popover-close") pop.remove();
+  });
+  document.body.appendChild(pop);
+});
 
 
 // Capture-phase delegate for renewal-reminder settings (Drivers → Licenses).
