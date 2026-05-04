@@ -5210,6 +5210,14 @@ async function recommendOkamiCushion(dspId) {
 }
 
 async function renderOkamiDailyPanel(weekIdx) {
+  return _renderOkamiDailyPanelImpl(weekIdx);
+}
+// Attach to window at module load so the mockup stub in index.html can
+// always find it, regardless of whether OKAMI has been bound yet.
+window.renderOkamiDailyPanel = renderOkamiDailyPanel;
+window.okamiRenderDailyPanel = renderOkamiDailyPanel;
+
+async function _renderOkamiDailyPanelImpl(weekIdx) {
   const container = document.getElementById(`okami-detail-content-${weekIdx}`);
   if (!container) return;
   const dspId = window.RR?.dsp?.id;
