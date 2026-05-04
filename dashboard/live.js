@@ -4962,9 +4962,6 @@ async function _renderOkamiLiveImpl() {
 
   const cells = gridRes.data || [];
   _okamiActiveCount = drvRes.count || 0;
-  if (cells.length && cells[0].cushion_pct != null) {
-    _okamiCushionPct = Number(cells[0].cushion_pct) || 10;
-  }
 
   // Sum target_routes per ISO date across all stations.
   const totalsByDate = new Map();
@@ -4972,15 +4969,15 @@ async function _renderOkamiLiveImpl() {
     totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
   }
 
-  // Reflect real cushion into the knob if its value differs.
-  const cushionInput = document.getElementById("okami-cushion");
-  const cushionVal   = document.getElementById("okami-cushion-val");
-  if (cushionInput && Number(cushionInput.value) !== Math.round(_okamiCushionPct)) {
-    cushionInput.value = Math.round(_okamiCushionPct);
-    if (cushionVal) cushionVal.innerHTML = `${Math.round(_okamiCushionPct)}<span class="frac">%</span>`;
-  }
-
-  const dpr = parseFloat(document.getElementById("okami-dpr")?.value) || 2.0;
+  // Staffing Plan Pad — 0–50% buffer above the 2× per-route baseline.
+  // Persisted on dsps.metadata.staffing.plan_pad_pct, defaults to 10%.
+  // This is OKAMI-only — totally separate from the schedule cushion.
+  const padPct = Math.max(0, Math.min(50,
+    Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  const padInput = document.getElementById("rr-okami-pad");
+  const padLabel = document.getElementById("rr-okami-pad-val");
+  if (padInput && Number(padInput.value) !== padPct) padInput.value = padPct;
+  if (padLabel) padLabel.textContent = `${padPct}%`;
 
   // Mockup only assigned id='okami-row-N' to the first three rows; rows
   // 3..12 had no id, so the older lookup silently skipped them and W21
@@ -5005,9 +5002,12 @@ async function _renderOkamiLiveImpl() {
       if (t > routesMax) routesMax = t;
     }
 
-    const base    = Math.round(routesMax * dpr);
-    const cushion = (_okamiCushionPct || 0) / 100;
-    const needed  = base + Math.ceil(base * cushion);
+    // Drivers Needed = ceil(routes_max × 2 × (1 + plan_pad/100)).
+    // 2× = the per-route baseline (1 primary + 1 backup); pad layers
+    // additional buffer for callouts/turnover at the staffing-plan level.
+    const needed = routesMax > 0
+      ? Math.ceil(routesMax * 2 * (1 + padPct / 100))
+      : 0;
     const gap     = _okamiActiveCount - needed;
     const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
 
@@ -5030,7 +5030,7 @@ async function _renderOkamiLiveImpl() {
       input.style.border = "";
       input.style.cursor = "";
       input.title = "Type a value to set all 7 days. Use the drill-down panel for per-day variation.";
-      input.dataset.rrOkamiWeekIdx = String(weekIdx);
+      input.dataset.rrOkamiWeekIdx = String(w);
     }
 
     const tdCells = row.querySelectorAll("td");
@@ -5099,6 +5099,30 @@ function bindOkamiHandlers() {
   window.recalcOkami = function () {
     if (typeof renderOkamiLive === "function") renderOkamiLive();
   };
+
+  // Staffing Plan Pad slider — persists to dsps.metadata.staffing.plan_pad_pct
+  // and re-renders OKAMI on each drag tick.
+  const padInput = document.getElementById("rr-okami-pad");
+  const padLabel = document.getElementById("rr-okami-pad-val");
+  if (padInput) {
+    let padSaveTimer = null;
+    padInput.addEventListener("input", () => {
+      const pct = Math.max(0, Math.min(50, parseInt(padInput.value, 10) || 0));
+      if (padLabel) padLabel.textContent = `${pct}%`;
+      // Stash on RR for immediate render; debounce the DB write.
+      if (window.RR?.dsp?.metadata) {
+        window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), plan_pad_pct: pct };
+      }
+      renderOkamiLive();
+      if (padSaveTimer) clearTimeout(padSaveTimer);
+      padSaveTimer = setTimeout(async () => {
+        const dspId = window.RR?.dsp?.id;
+        if (!dspId) return;
+        const meta = window.RR.dsp.metadata || {};
+        await sb.from("dsps").update({ metadata: meta }).eq("id", dspId);
+      }, 500);
+    });
+  }
 
   // Save plan button now triggers a full regenerate of schedule shifts
   // from the current OKAMI demand. Daily values auto-save in the
