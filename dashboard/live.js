@@ -4520,7 +4520,15 @@ async function renderOverviewForm(body, d) {
     <div class="dd-row"><label>Background check</label><input type="datetime-local" data-rr-dd-field="background_check_completed_at" value="${v((d.background_check_completed_at || '').slice(0,16))}"/></div>
     <div class="dd-row"><label>Drug test</label><input type="datetime-local" data-rr-dd-field="drug_test_completed_at" value="${v((d.drug_test_completed_at || '').slice(0,16))}"/></div>
     <div class="dd-row"><label>Training scheduled</label><input type="datetime-local" data-rr-dd-field="training_scheduled_at" value="${v((d.training_scheduled_at || '').slice(0,16))}"/></div>
-    <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(d.training_date)}"/></div>`;
+    <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(d.training_date)}"/></div>
+    <div class="dd-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
+      <label>Driver app</label>
+      <div>
+        <button type="button" class="btn btn-sm" data-rr-issue-invite>Generate invite code</button>
+        <div style="font-size:11px;color:var(--text-subtle);margin-top:6px;line-height:1.4">Driver enters this on the RouteReady app at <strong>gorouteready.com/app/</strong>. One active code at a time · expires in 14 days.</div>
+        <div data-rr-invite-display style="margin-top:10px;display:none"></div>
+      </div>
+    </div>`;
 }
 
 async function renderLicenseTab(body, d) {
@@ -4752,6 +4760,43 @@ document.addEventListener("click", async (e) => {
     toast("Availability saved", "success");
     const drawer3 = document.getElementById("rr-dd-drawer");
     if (drawer3) drawer3.remove();
+    return;
+  }
+
+  // Generate driver-app invite code (renders the code inline + Copy)
+  if (e.target.closest("[data-rr-issue-invite]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const driverId = _ddDriver?.driver?.id;
+    if (!driverId) { toast("Save the driver first, then generate a code", "warn"); return; }
+    const btn = e.target.closest("[data-rr-issue-invite]");
+    btn.disabled = true; btn.textContent = "Generating…";
+    const { data, error } = await sb.rpc("issue_driver_invite", { p_driver_id: driverId });
+    btn.disabled = false; btn.textContent = "Generate invite code";
+    if (error) { toast("Failed: " + error.message, "warn"); return; }
+    const code = data;
+    const display = document.querySelector("#rr-dd-drawer [data-rr-invite-display]");
+    if (display) {
+      display.style.display = "block";
+      display.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;background:var(--canvas);padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:18px;font-weight:700;letter-spacing:.18em">${escapeHtml(code)}</div>
+          <button type="button" class="btn btn-sm" data-rr-copy-code="${escapeHtml(code)}">Copy</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Share this code with the driver. Generating a new one invalidates this one.</div>`;
+    }
+    toast("Code generated", "success");
+    return;
+  }
+
+  // Copy invite code to clipboard
+  const copyBtn = e.target.closest("[data-rr-copy-code]");
+  if (copyBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const code = copyBtn.dataset.rrCopyCode;
+    try { await navigator.clipboard.writeText(code); toast("Copied", "success"); }
+    catch { toast("Copy failed — select and copy manually", "warn"); }
     return;
   }
 

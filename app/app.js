@@ -121,16 +121,28 @@ function renderLogin(errorMsg) {
     e.preventDefault();
     const code = (document.getElementById("login-code").value || "").trim().toUpperCase();
     if (!code) return;
-    // STUB for v1: accept any code, create a fake session. Real
-    // redemption RPC + SMS verification lands in PR 2.
     if (code.length < 4) { renderLogin("Code looks too short. Double-check with dispatch."); return; }
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Checking…"; }
+    const { data, error } = await sb.rpc("redeem_driver_invite", { p_code: code, p_user_agent: navigator.userAgent || null });
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Continue"; }
+    if (error || !data?.token) {
+      const m = error?.message || "";
+      const msg = m.includes("invalid_or_expired_code")
+        ? "Code not recognized or already used. Ask dispatch for a new one."
+        : m.includes("driver_inactive")
+        ? "This account isn't active. Contact dispatch."
+        : "Couldn't sign you in. Try again or contact dispatch.";
+      renderLogin(msg);
+      return;
+    }
     writeSession({
-      driver_id: null,
-      name: "Driver",
-      code, // remember which code they used so we can swap it for a real session in PR 2
-      stub: true,
+      token:      data.token,
+      driver_id:  data.driver?.id || null,
+      name:       data.driver?.name || "Driver",
+      station_id: data.driver?.station_id || null,
     });
-    toast("Welcome — this is a preview build", "ok");
+    toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
     navigate("/schedule");
   });
 }
@@ -178,38 +190,73 @@ function renderShell(session) {
 }
 
 // ── Schedule ────────────────────────────────────────────────────────
-function renderSchedule() {
+async function renderSchedule() {
   setHeader("Schedule", "Your shifts");
   const main = document.getElementById("main");
-  // PR 2 fetches real shifts via a driver_my_schedule RPC. v1 ships
-  // sample placeholders so the operator can feel the layout on a phone.
-  const today = new Date();
-  const sample = [
-    { date: today, time: "11:20 AM – 9:20 PM", station: "DCA1 · Capitol Heights", status: "Confirmed", today: true },
-    { date: addDays(today, 1), time: "11:45 AM – 9:45 PM", station: "DCA1 · Capitol Heights", status: "Confirmed" },
-    { date: addDays(today, 2), time: "11:20 AM – 9:20 PM", station: "DCA1 · Capitol Heights", status: "Confirmed" },
-    { date: addDays(today, 4), time: "11:45 AM – 9:45 PM", station: "DCA1 · Capitol Heights", status: "Confirmed" },
-  ];
-  if (sample.length === 0) {
+  main.innerHTML = `<div class="loader"></div>`;
+
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data, error } = await sb.rpc("driver_my_schedule", { p_token: session.token, p_weeks: 2 });
+  if (error) {
+    if ((error.message || "").includes("unauthorized") || (error.message || "").includes("revoked") || (error.message || "").includes("inactive")) {
+      writeSession(null);
+      toast("Signed out — please sign in again", "warn");
+      render();
+      return;
+    }
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load schedule.<br><small>${escapeHtml(error.message)}</small></div>`;
+    return;
+  }
+
+  const shifts = (data?.shifts || []).map((s) => ({
+    id:        s.id,
+    date:      new Date(s.date + "T12:00:00"),
+    iso:       s.date,
+    starts_at: s.starts_at,
+    ends_at:   s.ends_at,
+    station:   s.station_code || "",
+    status:    s.status,
+    type:      s.service_type_code || "",
+    typeColor: s.service_type_color || "",
+    isCushion: !!s.is_cushion,
+  })).filter((s) => ["scheduled", "completed"].includes(s.status));
+
+  const todayIso = fmtIsoDate(new Date());
+  const todayShifts    = shifts.filter((s) => s.iso === todayIso);
+  const upcomingShifts = shifts.filter((s) => s.iso > todayIso);
+
+  if (shifts.length === 0) {
     main.innerHTML = `<div class="empty-state">No shifts on the schedule yet.<br>Check back after dispatch publishes.</div>`;
     return;
   }
-  const todayCard = sample.find((s) => s.today);
-  const upcoming  = sample.filter((s) => !s.today);
+
   main.innerHTML = `
-    ${todayCard ? `
+    ${todayShifts.length ? `
       <div class="section-title">Today</div>
-      ${shiftCardHtml(todayCard, true)}
+      ${todayShifts.map((s) => shiftCardHtml(s, true)).join("")}
     ` : ""}
-    <div class="section-title">Upcoming</div>
-    ${upcoming.map((s) => shiftCardHtml(s, false)).join("") || `<div class="empty-state">Nothing scheduled.</div>`}
-    <div class="empty-state" style="font-size:11px;padding:24px 8px">Preview build — real shifts wire up in PR 2.</div>`;
+    ${upcomingShifts.length ? `
+      <div class="section-title">Upcoming</div>
+      ${upcomingShifts.map((s) => shiftCardHtml(s, false)).join("")}
+    ` : !todayShifts.length ? `<div class="empty-state">Nothing scheduled in the next 2 weeks.</div>` : ""}`;
 }
 
 function shiftCardHtml(s, isToday) {
   const dow = s.date.toLocaleDateString(undefined, { weekday: "short" });
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
+  const time = (s.starts_at && s.ends_at)
+    ? `${fmtTime(s.starts_at)} – ${fmtTime(s.ends_at)}`
+    : "";
+  const statusTag = s.status === "completed"
+    ? `<span class="tag" style="background:var(--canvas)">Completed</span>`
+    : `<span class="tag tag-status-confirmed">Scheduled</span>`;
+  const typeTag = (s.type && s.type !== "SP")
+    ? `<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`
+    : "";
+  const cushionTag = s.isCushion ? `<span class="tag" style="background:rgba(217,119,6,.12);color:var(--amber)">EX</span>` : "";
   return `
     <div class="shift-card ${isToday ? "is-today" : ""}">
       <div class="date-block">
@@ -218,15 +265,27 @@ function shiftCardHtml(s, isToday) {
         <div class="date-month">${month}</div>
       </div>
       <div>
-        <div class="meta-time">${escapeHtml(s.time)}</div>
+        <div class="meta-time">${escapeHtml(time)}</div>
         <div class="meta-station">${escapeHtml(s.station)}</div>
-        <div class="meta-tags"><span class="tag tag-status-confirmed">${escapeHtml(s.status)}</span></div>
+        <div class="meta-tags">${statusTag}${typeTag}${cushionTag}</div>
       </div>
       <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>`;
 }
 
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function fmtIsoDate(d) {
+  const z = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+}
+function fmtTime(iso) {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+}
 
 // ── Tasks hub ───────────────────────────────────────────────────────
 // One screen, four cards. Each card represents a workflow the driver
@@ -344,8 +403,12 @@ function renderProfileHub() {
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
-  main.querySelector("#rr-signout").addEventListener("click", () => {
+  main.querySelector("#rr-signout").addEventListener("click", async () => {
     if (!confirm("Sign out of RouteReady?")) return;
+    const session = readSession();
+    if (session?.token) {
+      try { await sb.rpc("driver_signout", { p_token: session.token }); } catch {}
+    }
     writeSession(null);
     location.hash = "";
     render();
