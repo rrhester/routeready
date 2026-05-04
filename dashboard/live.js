@@ -8927,6 +8927,32 @@ window.addEventListener("focus", () => {
 });
 
 
+// ─── Rules tab: persist <details> open/close state per-user ──────────
+// Each rules-section + rules-sub stores its expand/collapse state in
+// localStorage so the operator's layout choices stick across reloads.
+(function rrInitRulesAccordion() {
+  const KEY = "rr.rules-open.";
+  function applySaved() {
+    document.querySelectorAll("[data-rr-rules-section], [data-rr-rules-sub]").forEach(det => {
+      if (!(det instanceof HTMLDetailsElement)) return;
+      const k = det.dataset.rrRulesSection || det.dataset.rrRulesSub;
+      const saved = localStorage.getItem(KEY + k);
+      if (saved === "1") det.open = true;
+      else if (saved === "0") det.open = false;
+    });
+  }
+  document.addEventListener("toggle", (e) => {
+    const det = e.target;
+    if (!(det instanceof HTMLDetailsElement)) return;
+    const k = det.dataset?.rrRulesSection || det.dataset?.rrRulesSub;
+    if (!k) return;
+    try { localStorage.setItem(KEY + k, det.open ? "1" : "0"); } catch {}
+  }, true);
+  if (document.body) applySaved();
+  else document.addEventListener("DOMContentLoaded", applySaved);
+})();
+
+
 // ─── Drag-to-reorder for tab bars ─────────────────────────────────────
 // Any container marked `data-rr-tabbar="some-key"` becomes a reorderable
 // tab bar. Each child button is treated as a tab; its stable identifier
