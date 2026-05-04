@@ -5670,7 +5670,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}" ${data}>${list.map(_schedShiftChip).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cal-row-label-name">${escapeHtml(display)}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
