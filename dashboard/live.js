@@ -3680,6 +3680,66 @@ window.openDriverDetail = function () { /* superseded by openDriverDrawer */ };
 let _ddDriver = null;
 let _ddTab = "overview";
 
+// Coaching-only drawer. Opens from the global Coaching feed when an
+// operator clicks a driver row. Shows just that driver's coaching
+// record + Log button + Copy driver link, NOT the rest of the driver
+// record (employment / availability / license / docs).
+async function openCoachingDrawer(driverId) {
+  let drawer = document.getElementById("rr-cd-drawer");
+  if (drawer) drawer.remove();
+
+  const { data, error } = await sb.rpc("driver_record", { p_id: driverId });
+  if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
+  // Reuse the same _ddDriver state so the existing log/edit/archive
+  // handlers (data-rr-add-coaching, data-rr-coach-resolve, etc.) work
+  // without rewiring.
+  _ddDriver = data;
+
+  drawer = document.createElement("div");
+  drawer.id = "rr-cd-drawer";
+  drawer.innerHTML = `
+    <style>
+      #rr-cd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
+      #rr-cd-drawer .cd-panel{background:var(--surface);width:min(720px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.18)}
+      #rr-cd-drawer .cd-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+      #rr-cd-drawer .cd-title{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0}
+      #rr-cd-drawer .cd-sub{font-size:12px;color:var(--text-subtle);margin-top:2px}
+      #rr-cd-drawer .cd-eyebrow{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+      #rr-cd-drawer .cd-close{background:transparent;border:0;font-size:24px;color:var(--text-subtle);cursor:pointer;line-height:1;padding:0}
+      #rr-cd-drawer .cd-body{flex:1;overflow-y:auto;padding:18px 22px}
+    </style>
+    <div class="cd-panel">
+      <div class="cd-head">
+        <div>
+          <div class="cd-eyebrow">Coaching record</div>
+          <h2 class="cd-title" id="rr-cd-title">—</h2>
+          <div class="cd-sub" id="rr-cd-sub"></div>
+        </div>
+        <button class="cd-close" data-rr-cd-close aria-label="Close">×</button>
+      </div>
+      <div class="cd-body" id="rr-cd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
+    </div>`;
+  document.body.appendChild(drawer);
+
+  drawer.addEventListener("click", (e) => {
+    if (e.target === drawer || e.target.closest("[data-rr-cd-close]")) drawer.remove();
+  });
+
+  const drv = data.driver;
+  const titleEl = document.getElementById("rr-cd-title");
+  if (titleEl) titleEl.textContent = displayDriverName(drv) || "—";
+  const subEl = document.getElementById("rr-cd-sub");
+  if (subEl) {
+    const bits = [];
+    if (drv.station_id) bits.push("Station");
+    if (drv.hire_date)  bits.push(`Hired ${new Date(drv.hire_date).toLocaleDateString()}`);
+    bits.push(`${(data.coachings || []).length} record${(data.coachings || []).length === 1 ? "" : "s"}`);
+    subEl.textContent = bits.join(" · ");
+  }
+  const bodyEl = document.getElementById("rr-cd-body");
+  if (bodyEl) bodyEl.innerHTML = renderCoachingTab(data.coachings, drv);
+}
+
 async function openDriverDrawer(driverId) {
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
@@ -3719,7 +3779,6 @@ async function openDriverDrawer(driverId) {
         <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
         <button class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button class="dd-tab" data-rr-dd-tab="license">License</button>
-        <button class="dd-tab" data-rr-dd-tab="coaching">Coaching</button>
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
       <div class="dd-body" id="rr-dd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
@@ -3749,12 +3808,21 @@ async function openDriverDrawer(driverId) {
 }
 
 async function loadDriverDrawer(driverId) {
+  // Coaching-only drawer doesn't have rr-dd-* elements — refresh that
+  // drawer instead and bail. Caller doesn't need to know which is open.
+  if (document.getElementById("rr-cd-drawer") && !document.getElementById("rr-dd-drawer")) {
+    return openCoachingDrawer(driverId);
+  }
+  if (!document.getElementById("rr-dd-drawer")) return;
+
   const { data, error } = await sb.rpc("driver_record", { p_id: driverId });
   if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
   _ddDriver = data;
 
   const drv = data.driver;
-  document.getElementById("rr-dd-title").textContent = displayDriverName(drv) || "—";
+  const titleEl = document.getElementById("rr-dd-title");
+  if (!titleEl) return;
+  titleEl.textContent = displayDriverName(drv) || "—";
   const sub = [
     drv.station_id ? "Station —" : "No station",
     drv.hire_date ? `Hired ${new Date(drv.hire_date).toLocaleDateString()}` : null,
@@ -4016,6 +4084,13 @@ document.addEventListener("focusout", (e) => {
 
 // Click delegate for the drawer (tabs, save, coaching log, doc upload).
 document.addEventListener("click", async (e) => {
+  // Coaching feed rows route to the dedicated Coaching drawer instead
+  // of the full driver record drawer.
+  const coachRow = e.target.closest("[data-rr-coach-feed-driver]");
+  if (coachRow && !e.target.closest("button, a[href], input, select, textarea, [data-rr-no-drawer]")) {
+    const id = coachRow.getAttribute("data-rr-coach-feed-driver");
+    if (id) { e.preventDefault(); await openCoachingDrawer(id); return; }
+  }
   // Open drawer from any element marked with data-rr-driver-id (e.g. driver
   // names anywhere on the dashboard — scorecards, schedule chips, attendance
   // rows). Don't intercept clicks on form controls inside such elements.
@@ -4614,7 +4689,7 @@ function _renderCoachFeed() {
           ? `<span style="font-size:10px;color:var(--green)">Resolved</span>`
           : ack || `<span style="font-size:10px;color:var(--text-subtle)">Open</span>`);
 
-    return `<tr style="border-top:1px solid var(--border);cursor:pointer" data-rr-driver-id="${c.driver_id}">
+    return `<tr style="border-top:1px solid var(--border);cursor:pointer" data-rr-coach-feed-driver="${c.driver_id}">
       <td style="padding:10px 14px"><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:10px;color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
       <td style="padding:10px 14px">${sevChip}</td>
       <td style="padding:10px 14px;font-size:12px;text-transform:capitalize">${escapeHtml(c.topic || "")}</td>
