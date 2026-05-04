@@ -5371,6 +5371,32 @@ async function loadSchedulingSettings() {
   if (blockEl)   blockEl.value   = s.default_block_hours ?? 10;
   if (cushEl)    cushEl.value    = s.cushion_pct ?? 10;
   if (maxDaysEl) maxDaysEl.value = s.max_days_per_week ?? 5;
+
+  // Cushion recommendation — rolling-30d callout/no-show rate × 1.5 safety.
+  const dspId = window.RR?.dsp?.id;
+  if (dspId) {
+    recommendOkamiCushion(dspId).then(rec => {
+      const recBtn = document.getElementById("rr-cushion-rec");
+      const recDetail = document.getElementById("rr-cushion-rec-detail");
+      if (!recBtn) return;
+      recBtn.style.display = "";
+      recBtn.textContent = `Recommend ${rec.percent}%`;
+      recBtn.title = rec.source || "Click to apply";
+      if (recDetail) {
+        recDetail.style.display = "";
+        recDetail.textContent = rec.source || "";
+      }
+      recBtn.onclick = () => {
+        if (cushEl) {
+          cushEl.value = rec.percent;
+          cushEl.focus();
+          // Visual confirmation only — operator still hits Save to apply.
+          recBtn.textContent = `Set to ${rec.percent}% · click Save`;
+          setTimeout(() => { recBtn.textContent = `Recommend ${rec.percent}%`; }, 2400);
+        }
+      };
+    }).catch(() => { /* swallow — recommendation is optional */ });
+  }
   const overrideEl = document.getElementById("rr-set-availability-override");
   if (overrideEl) overrideEl.checked = !!s.allow_availability_override;
   // Cache the effective settings so auto-assign reads the per-week values.
