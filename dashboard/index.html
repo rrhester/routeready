@@ -13205,66 +13205,13 @@ Evidence attached:
 
   // ─── OKAMI ────────────────────────────────────────────────
   var okamiAvail = [78,81,86,90,90,94,96,100,104,108,112,112,115];
+  // Mockup recalcOkami removed. live.js owns the OKAMI table via
+  // window.renderOkamiLive — real driver count, real OKAMI demand, no
+  // hardcoded okamiAvail[] overwrites.
   function recalcOkami(){
-    const dpr = parseFloat(document.getElementById('okami-dpr').value) || 2.0;
-    const cushion = (parseFloat(document.getElementById('okami-cushion').value) || 0) / 100;
-    const adw = parseFloat(document.getElementById('okami-adw').value) || 5.0;
-    const ot = parseInt(document.getElementById('okami-ot').value) || 0;
-    document.getElementById('okami-cushion-val').innerHTML = (cushion*100).toFixed(0) + '<span class="frac">%</span>';
-    document.getElementById('okami-adw-val').innerHTML = adw.toFixed(1) + '<span class="frac"> days</span>';
-    document.getElementById('okami-ot-val').innerHTML = ot + '<span class="frac"> hrs</span>';
-
-    // Effective driver multiplier from ADW + OT (ADW 5 = 1x baseline)
-    const adwMult = adw / 5.0;
-    const otMult = 1 + (ot / 50); // 50h baseline week
-    const capacityMult = adwMult * otMult;
-
-    let totalHires = 0;
-    document.querySelectorAll('#okami-tbody tr').forEach(function(row, i){
-      const input = row.querySelector('.plan-route-input');
-      if (!input) return;
-      const routes = parseInt(input.value) || 0;
-      const base = Math.round(routes * dpr);
-      const cush = Math.ceil(base * cushion);
-      const needed = base + cush;
-      const baseAvailable = okamiAvail[i] || 78;
-      const effectiveAvailable = Math.round(baseAvailable * capacityMult);
-      const gap = effectiveAvailable - needed;
-
-      const cells = row.querySelectorAll('td');
-      // Drivers needed
-      const subText = row.classList.contains('hve') ? '<div class="plan-calc-sub">spike · absorb if can</div>' : '';
-      cells[2].innerHTML = '<div class="plan-calc">' + needed + '</div>' + subText;
-      // Available — show effective if multiplier changed
-      if (capacityMult > 1.01) {
-        cells[3].innerHTML = '<div class="plan-calc">' + effectiveAvailable + '</div><div class="plan-calc-sub">' + baseAvailable + ' × ' + capacityMult.toFixed(2) + 'x</div>';
-      } else {
-        cells[3].innerHTML = '<div class="plan-calc">' + baseAvailable + '</div>';
-      }
-      // Gap
-      const gapEl = cells[4].querySelector('.plan-gap');
-      if (gapEl) {
-        gapEl.textContent = (gap >= 0 ? '+' : '') + gap;
-        gapEl.classList.remove('ok','warn','bad');
-        gapEl.classList.add(gap >= 0 ? 'ok' : (gap >= -10 ? 'warn' : 'bad'));
-      }
-      // Status pill
-      const pill = cells[7].querySelector('.plan-status-pill');
-      const isHve = row.classList.contains('hve');
-      if (pill) {
-        pill.classList.remove('ok','warn','bad');
-        if (isHve && gap < 0) { pill.classList.add('warn'); pill.innerHTML = '<span class="dot"></span>HVE absorbed'; }
-        else if (gap >= 0) { pill.classList.add('ok'); pill.innerHTML = '<span class="dot"></span>On track'; }
-        else if (gap >= -10) { pill.classList.add('warn'); pill.innerHTML = '<span class="dot"></span>Tight'; }
-        else { pill.classList.add('bad'); pill.innerHTML = '<span class="dot"></span>Critical'; }
-      }
-      if (gap < 0 && !isHve) totalHires += -gap;
-    });
-    // Update permanent hires summary
-    const sumValue = document.querySelector('.okami-summary-grid .okami-sum:first-child .okami-sum-value');
-    if (sumValue) sumValue.textContent = totalHires;
-    const sumSub = document.querySelector('.okami-summary-grid .okami-sum:first-child .okami-sum-sub');
-    if (sumSub) sumSub.textContent = 'across 13 weeks · ~' + Math.ceil(totalHires/0.21) + ' applicants at 21% screen→hire';
+    if (typeof window.renderOkamiLive === 'function') {
+      window.renderOkamiLive();
+    }
   }
   function toggleSeasonal(input){
     const lbl = input.closest('.okami-knob').querySelector('.okami-knob-value');
@@ -16961,7 +16908,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260504v"></script>
+<script type="module" src="./live.js?v=20260504w"></script>
 
 </body>
 </html>
