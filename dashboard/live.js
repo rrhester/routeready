@@ -255,7 +255,7 @@ const _legacyGoto = window.goto;
 window.goto = function (view) {
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
-  if (view === "drivers")   loadDriversRoster();
+  if (view === "drivers")   { loadDriversRoster(); loadDriverInsights(); }
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadDashboardTasks(); loadDashboardWeather(); }
 };
@@ -922,6 +922,42 @@ async function loadDashboardWeather() {
       </div>
       ${advisoryHtml}
       ${alertHtml}`;
+
+    // Snapshot today's weather to weather_snapshots so we can correlate
+    // attendance / scorecard slips with weather later. Idempotent: same
+    // (dsp_id, date) just upserts the freshest values.
+    try {
+      const dspId = window.RR?.dsp?.id;
+      if (dspId && today) {
+        const todayIso = fmtIsoDate(new Date());
+        const conditions = (() => {
+          const s = (today.short || "").toLowerCase();
+          if (s.includes("snow"))      return "snow";
+          if (s.includes("thunder"))   return "thunderstorm";
+          if (s.includes("rain") || s.includes("shower")) return "rain";
+          if (s.includes("cloud"))     return "cloudy";
+          if (s.includes("sun") || s.includes("clear"))   return "sunny";
+          return s.split(" ")[0] || null;
+        })();
+        const alertsJson = activeAlerts.map(a => ({
+          event: a.event, severity: a.severity, headline: a.headline, expires: a.expires,
+        }));
+        await sb.from("weather_snapshots").upsert({
+          dsp_id: dspId,
+          date: todayIso,
+          high_temp_f: today.hi ?? null,
+          low_temp_f:  today.lo ?? null,
+          precip_pct:  today.precip ?? null,
+          peak_wind_mph: peakWindMph || null,
+          conditions,
+          alerts: alertsJson,
+          source: "nws",
+        }, { onConflict: "dsp_id,date" });
+      }
+    } catch (e) {
+      // Don't break the card if storage fails (e.g. table missing).
+      console.warn("weather snapshot save:", e);
+    }
   } catch (err) {
     console.warn("weather load failed:", err);
     const isOutsideUS = String(err.message || "").includes("404");
