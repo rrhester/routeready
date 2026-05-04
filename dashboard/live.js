@@ -4986,11 +4986,12 @@ async function renderOkamiLive() {
     const input = row.querySelector(".plan-route-input");
     if (input) {
       input.value = routesMax;
-      input.readOnly = true;
-      input.style.background = "transparent";
-      input.style.border = "0";
-      input.style.cursor = "default";
-      input.title = "Edit per-day values in the drill-down panel";
+      input.readOnly = false;
+      input.style.background = "";
+      input.style.border = "";
+      input.style.cursor = "";
+      input.title = "Type a value to set all 7 days. Use the drill-down panel for per-day variation.";
+      input.dataset.rrOkamiWeekIdx = String(weekIdx);
     }
 
     const tdCells = row.querySelectorAll("td");
@@ -5120,40 +5121,31 @@ function bindOkamiHandlers() {
 }
 
 async function saveOkamiWeek(w, routesMax) {
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
   if (!_okamiStart) return;
-  const weekStart = addDays(new Date(_okamiStart + "T12:00:00"), w * 7);
-
-  // Need station list — fetch once and cache on _okamiStations.
-  if (!_okamiStations || _okamiStations.length === 0) {
-    const { data, error } = await sb.from("stations")
-      .select("id, code, active")
-      .eq("dsp_id", dspId)
-      .eq("active", true);
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
-    _okamiStations = data || [];
-  }
-  if (_okamiStations.length === 0) {
-    toast("No stations configured — add a station before setting OKAMI", "warn");
-    return;
-  }
-
-  // Single-station mode: full value to the first station, zero out the
-  // rest. Splitting across stations introduced rounding drift when the
-  // value couldn't be divided evenly.
-  const calls = [];
-  for (let d = 0; d < 7; d++) {
-    const iso = fmtIsoDate(addDays(weekStart, d));
-    _okamiStations.forEach((s, idx) => {
-      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? routesMax : 0 }));
-    });
-  }
-  const results = await Promise.all(calls);
-  const firstErr = results.find(r => r.error);
-  if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
+  const startIso = fmtIsoDate(addDays(new Date(_okamiStart + "T12:00:00"), w * 7));
+  // One RPC sets all 7 days at the demand level. The okami_demand trigger
+  // regenerates shifts per-day automatically. RPC added in migration 0039.
+  const { error } = await sb.rpc("set_okami_week_demand", {
+    p_week_start: startIso,
+    p_target_routes: Math.max(0, parseInt(routesMax, 10) || 0),
+  });
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
   await renderOkamiLive();
 }
+
+// Debounced save when the operator types into a Routes (max) cell.
+const _okamiWeekSaveTimers = new Map();
+document.addEventListener("input", (e) => {
+  const inp = e.target.closest("input.plan-route-input");
+  if (!inp) return;
+  const w = parseInt(inp.dataset.rrOkamiWeekIdx ?? "-1", 10);
+  if (!Number.isFinite(w) || w < 0) return;
+  const prev = _okamiWeekSaveTimers.get(w);
+  if (prev) clearTimeout(prev);
+  _okamiWeekSaveTimers.set(w, setTimeout(() => {
+    saveOkamiWeek(w, parseInt(inp.value, 10) || 0);
+  }, 600));
+});
 
 // ─── OKAMI · daily drill-down panel (PR C) ─────────────────────────────────
 
