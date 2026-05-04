@@ -460,7 +460,7 @@ async function loadAttendanceLive() {
 
   const [driversRes, shiftsRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, hire_date, station:station_id (code)")
       .eq("dsp_id", dspId)
       .order("full_name"),
     sb.from("shifts")
@@ -501,6 +501,7 @@ async function loadAttendanceLive() {
   const POLICY = _getAttPolicy();
 
   let totalScheduled = 0, totalIncidents = 0, totalVto = 0, inAction = 0;
+  const todayMs = Date.now();
   const rows = drivers.map(d => {
     const a = acc.get(d.id) || { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null };
     const points = a.callouts * POLICY.points_per_callout + a.noshows * POLICY.points_per_noshow;
@@ -509,6 +510,17 @@ async function loadAttendanceLive() {
     let statusKind  = "ok";
     if (points >= POLICY.threshold_action) { statusLabel = "Action"; statusKind = "bad"; }
     else if (points >= POLICY.threshold_warn) { statusLabel = "Warn"; statusKind = "warn"; }
+
+    // First-30-days strict rule: any absence inside the hire window
+    // jumps the driver to Action regardless of points.
+    if (POLICY.first_30_strict && d.hire_date && occ > 0) {
+      const daysSinceHire = Math.floor((todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000);
+      if (daysSinceHire >= 0 && daysSinceHire <= (POLICY.first_30_window_days || 30)) {
+        statusLabel = "Action · first-30 rule";
+        statusKind  = "bad";
+      }
+    }
+
     totalScheduled += a.scheduled;
     totalIncidents += occ;
     totalVto       += a.vto;
@@ -1461,6 +1473,10 @@ const _ATT_DEFAULT_POLICY = {
   points_per_noshow: 3,
   threshold_warn: 3,
   threshold_action: 6,
+  // First-30-days strict rule: any callout/no-show inside the first
+  // first_30_window_days of hire triggers Action regardless of points.
+  first_30_strict: false,
+  first_30_window_days: 30,
 };
 
 function _getAttPolicy() {
@@ -1514,6 +1530,20 @@ async function loadAttendancePolicy() {
           <input type="number" min="14" max="365" step="1" class="form-input" data-rr-att-field="decay_days" value="${p.decay_days}"/></label>
       </div>
     </div>
+    <div class="pol-section">
+      <h3 class="pol-section-title">First-30-days rule</h3>
+      <p class="pol-section-sub">Many DSPs hold new drivers to <strong>zero absences</strong> during their first 30 days. Any callout or no-show in this window jumps the driver straight to Action.</p>
+      <div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap;max-width:520px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" data-rr-att-field-bool="first_30_strict" ${p.first_30_strict ? "checked" : ""}/>
+          Apply strict no-absence rule
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Window (days from hire)</span>
+          <input type="number" min="7" max="120" step="1" class="form-input" data-rr-att-field="first_30_window_days" value="${p.first_30_window_days}" style="max-width:140px"/>
+        </label>
+      </div>
+    </div>
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn btn-primary" type="button" id="rr-att-policy-save">Save policy</button>
       <span id="rr-att-policy-status" style="font-size:12px;color:var(--text-subtle)"></span>
@@ -1536,6 +1566,9 @@ document.addEventListener("click", async (e) => {
     const fields = {};
     document.querySelectorAll("[data-rr-att-field]").forEach(el => {
       fields[el.dataset.rrAttField] = Number(el.value);
+    });
+    document.querySelectorAll("[data-rr-att-field-bool]").forEach(el => {
+      fields[el.dataset.rrAttFieldBool] = !!el.checked;
     });
     const mode = document.querySelector("[data-rr-att-mode].active")?.dataset.rrAttMode || "points";
     const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields, mode };
@@ -5802,11 +5835,20 @@ async function autoFillScheduleWeek() {
   } else {
     // Now try to auto-assign drivers to the freshly-generated open shifts
     // based on each driver's availability metadata.
-    const assigned = await autoAssignDriversForWeek();
+    const { assigned, skippedExpired } = await autoAssignDriversForWeek();
     if (assigned > 0) {
       toast(`Schedule synced · ${assigned} shift${assigned === 1 ? "" : "s"} auto-assigned`, "success");
     } else {
       toast("Schedule synced with OKAMI plan", "success");
+    }
+    // Surface drivers blocked by expired/missing license. Use alert so
+    // the operator actually sees it (toast vanishes too quick to act on).
+    if (skippedExpired && skippedExpired.length > 0) {
+      const lines = skippedExpired.map(s => {
+        const exp = s.expires_on ? `expired ${new Date(s.expires_on + "T12:00:00").toLocaleDateString()}` : "no license on file";
+        return `  • ${s.full_name} — ${exp}`;
+      }).join("\n");
+      alert(`Auto-schedule skipped ${skippedExpired.length} driver${skippedExpired.length === 1 ? "" : "s"} with expired or missing licenses:\n\n${lines}\n\nUpdate their license in the driver record → License tab to include them in future runs.`);
     }
   }
   await renderScheduleWeek();
@@ -5837,7 +5879,7 @@ async function autoAssignDriversForWeek() {
 
   // Query shifts directly (instead of via schedule_grid) so we always get
   // the is_cushion column even on DBs that haven't run migration 0027.
-  const [driversRes, ptoRes, shiftsRes] = await Promise.all([
+  const [driversRes, ptoRes, shiftsRes, licRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, metadata")
       .eq("dsp_id", dspId)
@@ -5853,16 +5895,52 @@ async function autoAssignDriversForWeek() {
       .eq("dsp_id", dspId)
       .gte("date", _schedStart)
       .lte("date", weekEndIso),
+    // Latest drivers_license per driver, so we can block expired licenses.
+    sb.from("driver_documents")
+      .select("driver_id, kind, expires_on, created_at")
+      .eq("dsp_id", dspId)
+      .eq("kind", "drivers_license"),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
     console.warn("auto-assign load failed:", driversRes.error || shiftsRes.error);
-    return 0;
+    return { assigned: 0, skippedExpired: [] };
   }
 
   const drivers = driversRes.data || [];
   const pto     = ptoRes.data     || [];
   let   shifts  = shiftsRes.data  || [];
+
+  // Build a per-driver license-status map. Latest expires_on per driver.
+  // Driver is "valid" if any license row exists with expires_on >= weekEnd.
+  // Missing license counts as expired (operator-actionable).
+  const licByDriver = new Map();
+  for (const lic of (licRes?.data || [])) {
+    if (!lic.driver_id) continue;
+    const cur = licByDriver.get(lic.driver_id);
+    if (!cur || (lic.expires_on || "") > (cur.expires_on || "")) {
+      licByDriver.set(lic.driver_id, lic);
+    }
+  }
+  const driverLicenseValid = (driverId) => {
+    const lic = licByDriver.get(driverId);
+    if (!lic || !lic.expires_on) return false;
+    return lic.expires_on >= weekEndIso;
+  };
+
+  // Pre-collect drivers blocked by expired/missing license so we can
+  // notify the operator after the run.
+  const skippedExpired = [];
+  for (const d of drivers) {
+    if (!driverLicenseValid(d.id)) {
+      const lic = licByDriver.get(d.id);
+      skippedExpired.push({
+        id: d.id,
+        full_name: d.full_name,
+        expires_on: lic?.expires_on || null,
+      });
+    }
+  }
 
   // Aggressive reset: unassign EVERY driver from EVERY shift so the
   // priority sort (regular → cushion) runs from a clean slate. Anything
@@ -5924,7 +6002,10 @@ async function autoAssignDriversForWeek() {
 
     // Try strict-availability candidates first; if override is allowed
     // and none match, fall through to "any active non-PTO driver".
+    // License must be valid through the end of this week — expired or
+    // missing license blocks auto-assignment regardless of override.
     const baseFilter = (d) => {
+      if (!driverLicenseValid(d.id)) return false;
       if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
       if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
       if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
@@ -5957,7 +6038,7 @@ async function autoAssignDriversForWeek() {
     assigned += 1;
   }
 
-  return assigned;
+  return { assigned, skippedExpired };
 }
 
 function renderScheduleGrid() { /* removed */ }
