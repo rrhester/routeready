@@ -6179,9 +6179,12 @@ async function loadScheduleView() {
   _clearScheduleMockup();
   loadTimeOffList();
   loadOpenShifts();
+  // Settings has to land BEFORE renderScheduleWeek runs — it reads
+  // window._rrWeekFinalized to decide whether to show the LIVE banner.
+  // Previously these ran in parallel, which made the banner flicker.
+  await loadSchedulingSettings();
   await renderScheduleWeek();
   bindSchedWeekNav();
-  loadSchedulingSettings();
 }
 
 function _clearScheduleMockup() {
