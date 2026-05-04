@@ -1,0 +1,16 @@
+{
+  "name": "RouteReady Driver",
+  "short_name": "RouteReady",
+  "description": "Your schedule, availability, and dispatch chat — built for drivers on the road.",
+  "id": "/app/",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "categories": ["productivity", "business"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
