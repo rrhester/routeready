@@ -3769,32 +3769,12 @@ async function openCoachingForm(driverId) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto";
   const today = new Date().toISOString().slice(0, 10);
 
-  // Templates — one-click presets that fill the form for the most common
-  // scenarios. Severity, topic, type, summary, and action_taken defaults
-  // can all be set; operator just adjusts a sentence and saves.
-  const TEMPLATES = [
-    { key: "hardbrake",   label: "Hard brake",     topic: "safety",      severity: "concern", summary: "Hard brake event flagged on Mentor",       actions: { verbal: true, retraining: true } },
-    { key: "speed",       label: "Speed event",    topic: "safety",      severity: "concern", summary: "Speed event flagged on Mentor",            actions: { verbal: true } },
-    { key: "callout",     label: "Mon callout",    topic: "attendance",  severity: "concern", summary: "Monday callout pattern · 3 of last 4",     actions: { verbal: true } },
-    { key: "noshow",      label: "No-show",        topic: "attendance",  severity: "warning", summary: "No-show on assigned shift",                actions: { verbal: true, written: true } },
-    { key: "late",        label: "Late arrival",   topic: "attendance",  severity: "info",    summary: "Late arrival to wave",                     actions: { verbal: true } },
-    { key: "dcr",         label: "DCR slip",       topic: "scorecard",   severity: "concern", summary: "DCR below station target this cycle",      actions: { verbal: true, retraining: true } },
-    { key: "scan",        label: "Scan compliance",topic: "scorecard",   severity: "concern", summary: "Scan compliance below threshold",          actions: { verbal: true, retraining: true } },
-    { key: "kudos",       label: "Recognition",    topic: "recognition", severity: "info",    summary: "Recognition · great work this week",       actions: { no_action: true } },
-  ];
-  const tplChips = TEMPLATES.map(t =>
-    `<button type="button" data-rr-coach-tpl="${t.key}" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--canvas);color:var(--text-muted);cursor:pointer">${escapeHtml(t.label)}</button>`
-  ).join("");
-
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto">
       <h3 style="margin:0 0 6px;font-size:17px;font-weight:600">Log a coaching</h3>
       <div style="font-size:11px;color:var(--text-subtle);margin-bottom:12px">Cmd / Ctrl + Enter to save</div>
 
       ${recent30 >= 3 ? `<div style="font-size:12px;color:var(--amber);background:rgba(245,158,11,.1);border-left:2px solid var(--amber);padding:8px 10px;margin-bottom:14px;border-radius:3px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating severity.</div>` : ""}
-
-      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Template (optional)</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${tplChips}</div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
@@ -3895,27 +3875,6 @@ async function openCoachingForm(driverId) {
       more.style.display = "none";
       tg.textContent = "+ More options (type, action, witness, follow-up, attachments)";
     }
-  });
-
-  // Templates fill in topic / severity / summary / actions in one click.
-  m.querySelectorAll("[data-rr-coach-tpl]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const t = TEMPLATES.find(x => x.key === btn.getAttribute("data-rr-coach-tpl"));
-      if (!t) return;
-      m.querySelector("#rr-coach-topic").value = t.topic;
-      m.querySelector("#rr-coach-severity").value = t.severity;
-      m.querySelector("#rr-coach-summary").value = t.summary;
-      // Reset action checkboxes then apply template's actions.
-      m.querySelectorAll("[data-rr-coach-action]").forEach(cb => { cb.checked = false; });
-      Object.entries(t.actions || {}).forEach(([k, v]) => {
-        const cb = m.querySelector(`[data-rr-coach-action="${k}"]`);
-        if (cb) cb.checked = !!v;
-      });
-      // Visual feedback — highlight the picked chip briefly.
-      m.querySelectorAll("[data-rr-coach-tpl]").forEach(b => b.style.borderColor = "var(--border)");
-      btn.style.borderColor = "var(--accent)";
-      m.querySelector("#rr-coach-summary").focus();
-    });
   });
 
   // Cmd/Ctrl + Enter saves.
