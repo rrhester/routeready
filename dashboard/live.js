@@ -4930,6 +4930,34 @@ let _okamiActiveCount = 0;
 let _okamiTotalsByDateCache = null;
 let _okamiStartCache = null;
 
+// Document-level listener for the Plan Pad slider so timing of when
+// bindOkamiHandlers runs can't break it. Fires on every drag tick.
+let _okamiPadSaveTimer = null;
+document.addEventListener("input", (e) => {
+  if (e.target?.id !== "rr-okami-pad") return;
+  const pct = Math.max(0, Math.min(50, parseInt(e.target.value, 10) || 0));
+  const lbl = document.getElementById("rr-okami-pad-val");
+  if (lbl) lbl.textContent = `${pct}%`;
+  if (window.RR?.dsp?.metadata) {
+    window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), plan_pad_pct: pct };
+  }
+  // If the cache hasn't populated yet (rare — operator opened OKAMI and
+  // dragged before the first fetch completed), fall back to renderOkamiLive
+  // so the cells eventually update.
+  if (!_okamiTotalsByDateCache) {
+    if (typeof renderOkamiLive === "function") renderOkamiLive();
+  } else {
+    _okamiRecomputeFromCache(pct);
+  }
+  if (_okamiPadSaveTimer) clearTimeout(_okamiPadSaveTimer);
+  _okamiPadSaveTimer = setTimeout(async () => {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return;
+    const meta = window.RR.dsp.metadata || {};
+    await sb.from("dsps").update({ metadata: meta }).eq("id", dspId);
+  }, 500);
+});
+
 // Recompute Drivers Needed + Gap cells from cached data, no network call.
 // Used when the operator drags the Staffing Plan Pad slider — instant
 // feedback without waiting for okami_grid to round-trip.
@@ -5135,31 +5163,8 @@ function bindOkamiHandlers() {
     if (typeof renderOkamiLive === "function") renderOkamiLive();
   };
 
-  // Staffing Plan Pad slider — persists to dsps.metadata.staffing.plan_pad_pct
-  // and re-renders OKAMI on each drag tick.
-  const padInput = document.getElementById("rr-okami-pad");
-  const padLabel = document.getElementById("rr-okami-pad-val");
-  if (padInput) {
-    let padSaveTimer = null;
-    padInput.addEventListener("input", () => {
-      const pct = Math.max(0, Math.min(50, parseInt(padInput.value, 10) || 0));
-      if (padLabel) padLabel.textContent = `${pct}%`;
-      if (window.RR?.dsp?.metadata) {
-        window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), plan_pad_pct: pct };
-      }
-      // Instant client-side recompute from cached okami_grid data — no
-      // network round-trip per drag tick. The full renderOkamiLive runs
-      // on view focus / heartbeat to refresh everything else.
-      _okamiRecomputeFromCache(pct);
-      if (padSaveTimer) clearTimeout(padSaveTimer);
-      padSaveTimer = setTimeout(async () => {
-        const dspId = window.RR?.dsp?.id;
-        if (!dspId) return;
-        const meta = window.RR.dsp.metadata || {};
-        await sb.from("dsps").update({ metadata: meta }).eq("id", dspId);
-      }, 500);
-    });
-  }
+  // Slider is wired via the document-level delegate at module top level
+  // so it survives any DOM re-render or re-bind timing.
 
   // Save plan button now triggers a full regenerate of schedule shifts
   // from the current OKAMI demand. Daily values auto-save in the
