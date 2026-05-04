@@ -1945,12 +1945,13 @@ async function loadDriverInsights() {
   const tfTurnover   = _diTf("turnover",   30);
   const tfPast       = _diTf("past",       30);
   const tfAttendance = _diTf("attendance", 30);
+  const tfDow        = _diTf("dow",        90);
 
   // Widest window we need to fetch: max of the per-card windows + a bit
   // of headroom for the prior-period delta on turnover (2× window).
-  const fetchDays = Math.max(90, tfTurnover * 2, tfPast, tfAttendance);
+  const fetchDays = Math.max(90, tfTurnover * 2, tfPast, tfAttendance, tfDow);
   const fetchAgoIso = fmtIsoDate(addDays(today, -fetchDays));
-  const ago90Iso    = fmtIsoDate(addDays(today, -90));
+  const dowAgoIso   = fmtIsoDate(addDays(today, -tfDow));
 
   const [allDrvRes, shiftsRes, shifts90Res] = await Promise.all([
     // Note: drivers schema has no terminated_at column. We use updated_at
@@ -1964,7 +1965,7 @@ async function loadDriverInsights() {
       .lte("date", fmtIsoDate(today)),
     sb.from("shifts").select("status, date")
       .eq("dsp_id", dspId)
-      .gte("date", ago90Iso)
+      .gte("date", dowAgoIso)
       .lte("date", fmtIsoDate(today))
       .in("status", ["completed", "called_off", "no_show", "late", "vto"]),
   ]);
@@ -2152,7 +2153,7 @@ async function loadDriverInsights() {
     }
   }
 
-  // ─── Day-of-week absence pattern · rolling 90 days ───
+  // ─── Day-of-week absence pattern · rolling tfDow window ───
   const shifts90 = shifts90Res?.data || [];
   const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
   const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
@@ -2179,7 +2180,7 @@ async function loadDriverInsights() {
   const dowInsight = document.getElementById("rr-di-dow-insight");
 
   if (totalShifts90 === 0) {
-    if (dowBars) dowBars.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:13px">No shift outcomes in the last 90 days yet.</div>`;
+    if (dowBars) dowBars.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:13px">No shift outcomes in the last ${tfDow} days yet.</div>`;
     if (dowSummary) dowSummary.textContent = "";
     if (dowInsight) dowInsight.innerHTML = `Patterns will appear once a few weeks of attendance data flows in.`;
   } else {
@@ -2211,7 +2212,7 @@ async function loadDriverInsights() {
       }).join("");
     }
     if (dowSummary) {
-      dowSummary.textContent = `${totalAbsent90} / ${totalShifts90} shifts (${overallRate.toFixed(1)}% overall) · last 90d`;
+      dowSummary.textContent = `${totalAbsent90} / ${totalShifts90} shifts (${overallRate.toFixed(1)}% overall) · last ${tfDow}d`;
     }
     if (dowInsight) {
       const sortedDesc = [...rates].filter(r => r.total >= 3).sort((a, b) => b.rate - a.rate);
