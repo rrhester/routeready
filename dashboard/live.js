@@ -478,18 +478,20 @@ async function loadAttendanceLive() {
   const drivers = driversRes.data || [];
   const shifts  = shiftsRes.data  || [];
 
-  // Per-driver aggregate. status === 'completed' counts as Present;
-  // 'called_off' = Callout; 'no_show' = No-show. 'scheduled' is in-progress
-  // (counts toward scheduled total but not present until completed).
-  const acc = new Map(); // driver_id -> { scheduled, present, callouts, noshows, last }
+  // Per-driver tally — every column accumulates from check-in clicks.
+  // 'completed' = Present; 'late' = Late; 'called_off' = Callout;
+  // 'no_show' = No-show; 'vto' = Voluntary time off (no-fault).
+  const acc = new Map();
   for (const sh of shifts) {
     if (!sh.driver_id) continue;
     let a = acc.get(sh.driver_id);
-    if (!a) { a = { scheduled: 0, present: 0, callouts: 0, noshows: 0, last: null }; acc.set(sh.driver_id, a); }
+    if (!a) { a = { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null }; acc.set(sh.driver_id, a); }
     a.scheduled += 1;
-    if (sh.status === "completed")      a.present  += 1;
+    if      (sh.status === "completed")  a.present  += 1;
+    else if (sh.status === "late")       a.late     += 1;
     else if (sh.status === "called_off") a.callouts += 1;
     else if (sh.status === "no_show")    a.noshows  += 1;
+    else if (sh.status === "vto")        a.vto      += 1;
     if (sh.status === "called_off" || sh.status === "no_show") {
       if (!a.last || sh.date > a.last) a.last = sh.date;
     }
@@ -498,9 +500,9 @@ async function loadAttendanceLive() {
   // Pull policy from saved DSP metadata (operator-editable in Policy tab).
   const POLICY = _getAttPolicy();
 
-  let totalScheduled = 0, totalPresent = 0, totalIncidents = 0, inAction = 0;
+  let totalScheduled = 0, totalIncidents = 0, totalVto = 0, inAction = 0;
   const rows = drivers.map(d => {
-    const a = acc.get(d.id) || { scheduled: 0, present: 0, callouts: 0, noshows: 0, last: null };
+    const a = acc.get(d.id) || { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null };
     const points = a.callouts * POLICY.points_per_callout + a.noshows * POLICY.points_per_noshow;
     const occ = a.callouts + a.noshows;
     let statusLabel = "Good";
@@ -508,27 +510,29 @@ async function loadAttendanceLive() {
     if (points >= POLICY.threshold_action) { statusLabel = "Action"; statusKind = "bad"; }
     else if (points >= POLICY.threshold_warn) { statusLabel = "Warn"; statusKind = "warn"; }
     totalScheduled += a.scheduled;
-    totalPresent   += a.present;
     totalIncidents += occ;
+    totalVto       += a.vto;
     if (statusKind !== "ok") inAction += 1;
     return { d, a, points, occ, statusLabel, statusKind };
   }).sort((x, y) => (y.points - x.points) || (y.occ - x.occ));
 
-  // KPIs
-  const avgRate = totalScheduled > 0 ? Math.round(totalPresent / totalScheduled * 100) : 100;
+  // KPIs — Avg attendance = (callouts + no-shows) ÷ scheduled (operator's
+  // definition); VTO = vto ÷ scheduled. Lower = better for both.
+  const absenceRate = totalScheduled > 0 ? (totalIncidents / totalScheduled * 100) : 0;
+  const presentPct  = Math.round(100 - absenceRate);
+  const vtoPct      = totalScheduled > 0 ? Math.round(totalVto / totalScheduled * 100) : 0;
   const setKpi = (id, text, cls) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = text;
     if (cls) el.className = `di-val ${cls}`;
   };
-  setKpi("att-kpi-rate", `${avgRate}%`, avgRate >= 95 ? "ok" : avgRate >= 90 ? "warn" : "bad");
-  setKpi("att-kpi-action", String(inAction), inAction === 0 ? "ok" : inAction <= 2 ? "warn" : "bad");
-  setKpi("att-kpi-incidents", String(totalIncidents));
+  setKpi("att-kpi-rate", `${presentPct}%`, presentPct >= 95 ? "ok" : presentPct >= 90 ? "warn" : "bad");
+  setKpi("att-kpi-vto", `${vtoPct}%`);
   const rateSubEl = document.getElementById("att-kpi-rate-sub");
-  if (rateSubEl) rateSubEl.textContent = `${totalPresent} / ${totalScheduled} shifts · last ${_attLiveWindow}d`;
-  const incSubEl = document.getElementById("att-kpi-incidents-sub");
-  if (incSubEl) incSubEl.textContent = `Last ${_attLiveWindow} days`;
+  if (rateSubEl) rateSubEl.textContent = `${totalIncidents} absent / ${totalScheduled} scheduled · last ${_attLiveWindow}d`;
+  const vtoSubEl = document.getElementById("att-kpi-vto-sub");
+  if (vtoSubEl) vtoSubEl.textContent = `${totalVto} VTO / ${totalScheduled} scheduled · last ${_attLiveWindow}d`;
 
   // Table
   const tbody = document.getElementById("att-report-body");
@@ -548,10 +552,10 @@ async function loadAttendanceLive() {
       <td>${escapeHtml(station)}</td>
       <td style="text-align:right">${r.a.scheduled}</td>
       <td style="text-align:right">${r.a.present}</td>
-      <td style="text-align:right">—</td>
+      <td style="text-align:right">${r.a.late}</td>
       <td style="text-align:right">${r.a.callouts}</td>
       <td style="text-align:right">${r.a.noshows}</td>
-      <td style="text-align:right">—</td>
+      <td style="text-align:right">${r.a.vto}</td>
       <td style="text-align:right;font-weight:600">${r.points}</td>
       <td style="text-align:right">${r.occ}</td>
       <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusColor}1A;color:${statusColor}">${r.statusLabel}</span></td>
@@ -570,7 +574,7 @@ async function loadAttendanceLive() {
 
 // ─── Today's check-in (live) ───────────────────────────────────────────────
 
-const _CI_TO_STATUS = { present: "completed", late: "late", callout: "called_off", noshow: "no_show" };
+const _CI_TO_STATUS = { present: "completed", late: "late", callout: "called_off", noshow: "no_show", vto: "vto" };
 const _STATUS_TO_CI = Object.fromEntries(Object.entries(_CI_TO_STATUS).map(([k, v]) => [v, k]));
 
 // ─── Dashboard · Weather (NWS forecast + alerts) ──────────────────────
@@ -1397,6 +1401,7 @@ async function loadCheckinView() {
           ${btn("late",    "Late",    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>')}
           ${btn("callout", "Callout", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>')}
           ${btn("noshow",  "No-show", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>')}
+          ${btn("vto",     "VTO · Voluntary Time Off (operator-granted, no points)", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>')}
         </div>
       </div>`;
     });
