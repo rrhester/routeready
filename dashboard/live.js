@@ -4905,6 +4905,14 @@ let _okamiActiveCount = 0;
 let _okamiCushionPct = 10;
 
 async function renderOkamiLive() {
+  return _renderOkamiLiveImpl();
+}
+// Attach to window at module load so the mockup recalcOkami stub can
+// always find it. Same pattern as renderOkamiDailyPanel.
+window.renderOkamiLive = renderOkamiLive;
+window.recalcOkami = renderOkamiLive;
+
+async function _renderOkamiLiveImpl() {
   const tbody = document.getElementById("okami-tbody");
   if (!tbody) return;
   const dspId = window.RR?.dsp?.id;
