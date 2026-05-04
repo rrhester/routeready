@@ -4251,6 +4251,7 @@ async function openDriverDrawer(driverId) {
         <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
         <button class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button class="dd-tab" data-rr-dd-tab="license">License</button>
+        <button class="dd-tab" data-rr-dd-tab="dot">DOT</button>
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
       <div class="dd-body" id="rr-dd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
@@ -4313,6 +4314,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "overview")     renderOverviewForm(body, _ddDriver.driver);
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
+  if (_ddTab === "dot")          renderDotTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
   setDriverDrawerFoot();
@@ -4321,7 +4323,7 @@ function renderDriverDrawerTab() {
 function setDriverDrawerFoot() {
   const foot = document.getElementById("rr-dd-foot");
   if (!foot) return;
-  if (_ddTab === "overview" || _ddTab === "license") {
+  if (_ddTab === "overview" || _ddTab === "license" || _ddTab === "dot") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`;
   } else if (_ddTab === "availability") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
@@ -4443,6 +4445,21 @@ async function renderLicenseTab(body, d) {
              <input type="file" id="rr-dl-file" accept="image/*" />
              <button class="btn btn-primary btn-sm" data-rr-dl-upload>Upload license image</button>
            </div>`}
+    </div>`;
+}
+
+function renderDotTab(body, d) {
+  const checked = d.dot_certified ? "checked" : "";
+  body.innerHTML = `
+    <div class="dd-row" style="align-items:flex-start">
+      <label>DOT certification</label>
+      <div>
+        <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
+          <input type="checkbox" data-rr-dd-field="dot_certified" ${checked} style="cursor:pointer;width:16px;height:16px"/>
+          <span style="font-size:13px;color:var(--text)">Driver is DOT certified</span>
+        </label>
+        <div style="font-size:11px;color:var(--text-subtle);line-height:1.4;margin-top:4px">Check this if the driver currently holds a valid DOT medical certification.</div>
+      </div>
     </div>`;
 }
 
@@ -4616,7 +4633,8 @@ document.addEventListener("click", async (e) => {
     e.stopImmediatePropagation();
     const payload = {};
     document.querySelectorAll("#rr-dd-drawer [data-rr-dd-field]").forEach(el => {
-      payload[el.getAttribute("data-rr-dd-field")] = el.value;
+      const name = el.getAttribute("data-rr-dd-field");
+      payload[name] = el.type === "checkbox" ? el.checked : el.value;
     });
     if (payload.first_name === undefined && payload.full_name) {
       const parts = (payload.full_name || "").split(/\s+/);
