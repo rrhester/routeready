@@ -3460,7 +3460,7 @@ function renderCalAvailabilityEditor(payload) {
     perDay[d].sort((a, b) => a.start.localeCompare(b.start));
   }
 
-  const loc = locations[0] || { type: "inPerson", address: "" };
+  const loc = locations[0] || { type: "address", address: "" };
   const isVideo = (loc.type || "").startsWith("integrations:") || loc.type === "link";
   const locDetail = loc.address || loc.link || "";
 
@@ -3485,7 +3485,7 @@ function renderCalAvailabilityEditor(payload) {
       <div class="cal-edit-label">Location</div>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="cal-loc-type" class="cal-edit-input" style="max-width:200px">
-          <option value="inPerson" ${!isVideo ? "selected" : ""}>In-person address</option>
+          <option value="address" ${!isVideo ? "selected" : ""}>In-person address</option>
           <option value="link"     ${isVideo  ? "selected" : ""}>Video / meeting link</option>
         </select>
       </div>
@@ -3615,8 +3615,8 @@ async function saveCalAvailability() {
   const locations = [];
   if (locType === "link" && locDetail) {
     locations.push({ type: "link", link: locDetail });
-  } else if (locType === "inPerson" && locDetail) {
-    locations.push({ type: "inPerson", address: locDetail, displayLocationPublicly: true });
+  } else if (locType === "address" && locDetail) {
+    locations.push({ type: "address", address: locDetail, public: true });
   }
 
   status.className = "cal-edit-status";
