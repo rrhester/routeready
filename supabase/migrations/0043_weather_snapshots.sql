@@ -26,6 +26,7 @@ create index if not exists weather_snapshots_dsp_recent_idx
 
 alter table public.weather_snapshots enable row level security;
 
+drop policy if exists "weather_snapshots_tenant_rw" on public.weather_snapshots;
 create policy "weather_snapshots_tenant_rw"
   on public.weather_snapshots for all
   using (dsp_id = private.current_dsp_id())
