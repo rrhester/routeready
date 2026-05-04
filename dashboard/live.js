@@ -5370,10 +5370,10 @@ async function saveOkamiDaily(weekIdx, iso, routes) {
   const results = await Promise.all(calls);
   const firstErr = results.find(r => r.error);
   if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
-  // Refresh both: the open detail panel (totals) and the 13-week list (peak day → Routes(max)).
-  const openIdx = openOkamiDetailIndex();
-  if (openIdx != null) renderOkamiDailyPanel(openIdx);
-  renderOkamiLive();
+  // Don't re-render anything after a daily save — that's what was causing
+  // the per-keystroke glitch. The operator's input keeps focus + value;
+  // the 13-week Routes(max) cell will refresh on next view focus
+  // (window.focus listener + 30s heartbeat both call refreshActiveView).
 }
 
 // ─── Settings · Scheduling (block hours, cushion, waves) ───────────────────
