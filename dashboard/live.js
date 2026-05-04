@@ -2503,6 +2503,15 @@ async function loadPipelineKpis() {
     if (esub) esub.textContent = `${funnel.hired ?? 0} hired ÷ ${funnel.total ?? 0} applicants`;
   }
 
+  // Page sub-line: live applicant count (open pipeline, not closed).
+  const pageSub = document.getElementById("rr-pipeline-page-sub");
+  if (pageSub) {
+    const total = funnel?.total ?? 0;
+    pageSub.textContent = total === 0
+      ? "No applicants in the pipeline yet"
+      : `${total} applicant${total === 1 ? "" : "s"} in the pipeline`;
+  }
+
   renderWeeksStrip();
   renderIndeedRecommendation(funnel);
 }
