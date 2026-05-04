@@ -6243,17 +6243,26 @@ async function renderScheduleWeek() {
     const c = coverageByDate.get(iso) || { needed: 0, filled: 0 };
     fillByDate.set(iso, c);
   }
-  // Overtime hours per driver: hours-scheduled-this-week beyond 40, billed
-  // at time-and-a-half. Pay rate comes from drivers.metadata.pay.hourly_rate.
+  // Overtime per driver: hours-scheduled-this-week beyond 40, billed at
+  // time-and-a-half against drivers.metadata.pay.hourly_rate. Drivers
+  // without a rate set are surfaced separately so the cost estimate
+  // isn't silently low.
   let totalOvertimeHrs = 0;
   let estimatedOvertimeCost = 0;
+  let driversInOt = 0;
+  let driversInOtMissingRate = 0;
   for (const d of drivers) {
     const hrs = hoursPerDriver.get(d.id) || 0;
     const ot  = Math.max(0, hrs - 40);
     if (ot <= 0) continue;
     totalOvertimeHrs += ot;
+    driversInOt += 1;
     const rate = Number(d.metadata?.pay?.hourly_rate) || 0;
-    estimatedOvertimeCost += ot * rate * 1.5;
+    if (rate > 0) {
+      estimatedOvertimeCost += ot * rate * 1.5;
+    } else {
+      driversInOtMissingRate += 1;
+    }
   }
 
   // Rule violations across assigned shifts in the week (now includes WOC).
@@ -6281,9 +6290,16 @@ async function renderScheduleWeek() {
   const violationsTone = violations.length === 0 ? "ok" : violations.length <= 3 ? "warn" : "bad";
   const otTone = totalOvertimeHrs === 0 ? "ok" : totalOvertimeHrs <= 10 ? "warn" : "bad";
   const otValue = totalOvertimeHrs === 0 ? "0h" : `${Math.round(totalOvertimeHrs * 10) / 10}h`;
-  const otSub = totalOvertimeHrs === 0
-    ? "no OT"
-    : (estimatedOvertimeCost > 0 ? `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5×` : "above 40h/week");
+  let otSub;
+  if (totalOvertimeHrs === 0) {
+    otSub = "no OT";
+  } else if (driversInOtMissingRate > 0 && estimatedOvertimeCost === 0) {
+    otSub = `${driversInOt} driver${driversInOt === 1 ? "" : "s"} · set pay rate to estimate cost`;
+  } else if (driversInOtMissingRate > 0) {
+    otSub = `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5× · ${driversInOtMissingRate} no rate`;
+  } else {
+    otSub = `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5× · ${driversInOt} driver${driversInOt === 1 ? "" : "s"}`;
+  }
   kpis.innerHTML =
     kpiCard("Hours scheduled", `${Math.round(totalHoursWeek)}h`, `${shiftCountPerDriver.size} driver${shiftCountPerDriver.size === 1 ? "" : "s"}`, "default") +
     kpiCard("Overtime", otValue, otSub, otTone) +
