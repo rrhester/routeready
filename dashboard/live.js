@@ -3425,15 +3425,64 @@ async function renderLicenseTab(body, d) {
     </div>`;
 }
 
+function _coachSeverityChip(sev) {
+  const bg = { info: "var(--canvas)", concern: "var(--accent-soft)", warning: "rgba(217,119,6,.18)", final: "rgba(229,62,62,.15)" };
+  const fg = { info: "var(--text-muted)", concern: "var(--accent-text)", warning: "#b45309", final: "var(--red)" };
+  const label = { info: "Info", concern: "Concern", warning: "Warning", final: "Final" };
+  const k = sev || "concern";
+  return `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:${bg[k]};color:${fg[k]}">${label[k] || k}</span>`;
+}
+
+function _coachActionList(actionTaken) {
+  if (!actionTaken || typeof actionTaken !== "object") return "";
+  const labels = {
+    verbal: "Verbal warning", written: "Written warning",
+    retraining: "Retraining", route_change: "Route change",
+    suspension: "Suspension", no_action: "No action",
+  };
+  const taken = Object.keys(actionTaken).filter(k => actionTaken[k]).map(k => labels[k] || k);
+  if (taken.length === 0) return "";
+  return `<div style="font-size:11px;color:var(--text-subtle);margin-top:4px">Action: <strong style="color:var(--text)">${taken.map(escapeHtml).join(" · ")}</strong></div>`;
+}
+
 function renderCoachingTab(coachings) {
-  const list = (coachings || []).map(c => `
-    <div class="dd-list-row">
-      <div>
-        <div class="dd-list-title">${escapeHtml(c.summary || c.topic)}</div>
-        <div class="dd-list-sub">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${new Date(c.occurred_at).toLocaleDateString()}</div>
-        ${c.notes ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5">${escapeHtml(c.notes)}</div>` : ""}
+  const items = (coachings || []).filter(c => !c.archived_at);
+  const list = items.map(c => {
+    const occurred = c.occurred_at ? new Date(c.occurred_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
+    const ackChip = c.acknowledgment && c.acknowledgment !== "none"
+      ? `<span style="font-size:10px;font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:2px 7px;border-radius:10px">Acknowledged · ${escapeHtml(c.acknowledgment)}</span>`
+      : (c.driver_visible ? `<span style="font-size:10px;font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:2px 7px;border-radius:10px">Awaiting acknowledgment</span>` : "");
+    const followBadge = c.follow_up_at && !c.resolved_at
+      ? `<span style="font-size:10px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);padding:2px 7px;border-radius:10px">Follow-up ${new Date(c.follow_up_at).toLocaleDateString()}</span>`
+      : "";
+    const privBadge = c.privacy_tier === "hr_only"
+      ? `<span style="font-size:10px;font-weight:700;color:var(--red);background:rgba(229,62,62,.1);padding:2px 7px;border-radius:10px">HR-only</span>`
+      : "";
+    const witness = c.witness_name
+      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Witness: <strong style="color:var(--text)">${escapeHtml(c.witness_name)}${c.witness_role ? ` (${escapeHtml(c.witness_role)})` : ""}</strong></div>`
+      : "";
+    const coachLine = c.coached_by_name
+      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Coached by <strong style="color:var(--text)">${escapeHtml(c.coached_by_name)}</strong></div>`
+      : "";
+    return `
+    <div class="dd-list-row" data-rr-coaching-id="${c.id}" style="display:block;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+        ${_coachSeverityChip(c.severity)}
+        <span style="font-size:11px;color:var(--text-subtle)">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
+        ${followBadge} ${ackChip} ${privBadge}
       </div>
-    </div>`).join("");
+      <div class="dd-list-title">${escapeHtml(c.summary || c.topic || "(no summary)")}</div>
+      ${c.notes ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;white-space:pre-wrap">${escapeHtml(c.notes)}</div>` : ""}
+      ${_coachActionList(c.action_taken)}
+      ${witness}
+      ${coachLine}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        ${!c.resolved_at ? `<button class="btn btn-sm" data-rr-coach-resolve="${c.id}">Mark resolved</button>` : `<span style="font-size:11px;color:var(--green)">Resolved ${new Date(c.resolved_at).toLocaleDateString()}</span>`}
+        <button class="btn btn-sm" data-rr-coach-archive="${c.id}">Archive</button>
+        <button class="btn btn-sm" data-rr-coach-history="${c.id}">Edit history</button>
+      </div>
+    </div>`;
+  }).join("");
   return `
     <button class="btn btn-primary" data-rr-add-coaching style="margin-bottom:14px">+ Log coaching</button>
     <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No coachings logged yet.</div>`}</div>`;
@@ -3690,54 +3739,226 @@ document.addEventListener("click", async (e) => {
   }
 }, true);
 
-function openCoachingForm(driverId) {
+async function openCoachingForm(driverId) {
   let m = document.getElementById("rr-coach-modal");
   if (m) m.remove();
+
+  // Pull the last 30d of coaching for this driver to drive the pattern strip.
+  const since = new Date(); since.setDate(since.getDate() - 30);
+  const { data: recent } = await sb.from("coachings")
+    .select("id, severity, topic, occurred_at")
+    .eq("driver_id", driverId)
+    .is("archived_at", null)
+    .gte("occurred_at", since.toISOString());
+  const recent30 = (recent || []).length;
+  const sameTopic = (recent || []).filter(r => r.topic === "safety").length;
+
   m = document.createElement("div");
   m.id = "rr-coach-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto";
+  const today = new Date().toISOString().slice(0, 10);
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:480px;width:100%">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto">
       <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Log a coaching</h3>
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Topic</label>
-      <select id="rr-coach-topic" class="form-input" style="width:100%;margin-bottom:10px">
-        ${["safety","performance","attendance","behavior","recognition","other"].map(t => `<option value="${t}">${t}</option>`).join("")}
-      </select>
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Type</label>
-      <select id="rr-coach-type" class="form-input" style="width:100%;margin-bottom:10px">
-        ${["in_person","sms","email","phone_call","video_call","documented_warning"].map(t => `<option value="${t}">${t.replace(/_/g," ")}</option>`).join("")}
-      </select>
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Summary</label>
+
+      ${recent30 >= 3 ? `<div style="font-size:12px;color:var(--amber);background:rgba(245,158,11,.1);border-left:2px solid var(--amber);padding:8px 10px;margin-bottom:14px;border-radius:3px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating severity.</div>` : ""}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Topic</label>
+          <select id="rr-coach-topic" class="form-input" style="width:100%">
+            ${["safety","performance","attendance","behavior","scorecard","conduct","theft","recognition","other"].map(t => `<option value="${t}">${t}</option>`).join("")}
+          </select>
+        </div>
+        <div>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Type</label>
+          <select id="rr-coach-type" class="form-input" style="width:100%">
+            ${["in_person","sms","email","phone_call","video_call","documented_warning"].map(t => `<option value="${t}">${t.replace(/_/g," ")}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Severity</label>
+          <select id="rr-coach-severity" class="form-input" style="width:100%">
+            <option value="info">Info</option>
+            <option value="concern" selected>Concern</option>
+            <option value="warning">Warning</option>
+            <option value="final">Final</option>
+          </select>
+        </div>
+        <div>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Incident date</label>
+          <input id="rr-coach-incident-date" type="date" class="form-input" style="width:100%" value="${today}"/>
+        </div>
+      </div>
+
+      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Summary</label>
       <input id="rr-coach-summary" class="form-input" style="width:100%;margin-bottom:10px" placeholder="One-line headline" />
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Notes</label>
-      <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:90px;margin-bottom:14px"></textarea>
+
+      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Notes</label>
+      <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:80px;margin-bottom:10px" placeholder="What happened, what was discussed, what's next."></textarea>
+
+      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Action taken</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 12px;margin-bottom:12px;font-size:13px">
+        <label><input type="checkbox" data-rr-coach-action="verbal" checked/> Verbal</label>
+        <label><input type="checkbox" data-rr-coach-action="written"/> Written</label>
+        <label><input type="checkbox" data-rr-coach-action="retraining"/> Retraining</label>
+        <label><input type="checkbox" data-rr-coach-action="route_change"/> Route change</label>
+        <label><input type="checkbox" data-rr-coach-action="suspension"/> Suspension</label>
+        <label><input type="checkbox" data-rr-coach-action="no_action"/> No action</label>
+      </div>
+
+      <details style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+          <input id="rr-coach-witness-name" class="form-input" placeholder="Witness name"/>
+          <input id="rr-coach-witness-role" class="form-input" placeholder="Role (e.g. HR, Lead)"/>
+        </div>
+      </details>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:center">
+        <label style="font-size:13px;cursor:pointer">
+          <input id="rr-coach-driver-visible" type="checkbox"/> Driver can view this
+        </label>
+        <div>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Privacy</label>
+          <select id="rr-coach-privacy" class="form-input" style="width:100%">
+            <option value="standard">Standard (DSP staff)</option>
+            <option value="hr_only">HR-only (sensitive)</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Follow-up date (optional)</label>
+      <input id="rr-coach-followup" type="date" class="form-input" style="width:100%;margin-bottom:14px"/>
+
+      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attachments (photos, scorecard screenshots, signed forms)</label>
+      <input id="rr-coach-files" type="file" multiple style="margin-bottom:14px;font-size:12px"/>
+      <div id="rr-coach-upload-status" style="font-size:11px;color:var(--text-subtle);margin-bottom:10px"></div>
+
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn" data-rr-coach-cancel>Cancel</button>
-        <button class="btn btn-primary" data-rr-coach-save>Log it</button>
+        <button class="btn" data-rr-coach-cancel type="button">Cancel</button>
+        <button class="btn btn-primary" data-rr-coach-save type="button">Log it</button>
       </div>
     </div>`;
   document.body.appendChild(m);
-  m.addEventListener("click", async (e) => {
-    if (e.target.closest("[data-rr-coach-cancel]") || e.target === m) { m.remove(); return; }
-    if (e.target.closest("[data-rr-coach-save]")) {
-      const payload = {
-        dsp_id: window.RR.dsp.id,
-        driver_id: driverId,
-        coach_user_id: window.RR.user.id,
-        topic: document.getElementById("rr-coach-topic").value,
-        type:  document.getElementById("rr-coach-type").value,
-        summary: document.getElementById("rr-coach-summary").value.trim() || null,
-        notes:   document.getElementById("rr-coach-notes").value.trim() || null,
-      };
-      if (!payload.summary && !payload.notes) { toast("Add a summary or notes", "warn"); return; }
-      const { error } = await sb.from("coachings").insert(payload);
-      if (error) { toast("Save failed: " + error.message, "warn"); return; }
-      m.remove();
-      toast("Coaching logged", "success");
-      await loadDriverDrawer(driverId);
+
+  // HR-only forces driver-visible off.
+  m.querySelector("#rr-coach-privacy").addEventListener("change", (e) => {
+    if (e.target.value === "hr_only") {
+      const dv = m.querySelector("#rr-coach-driver-visible");
+      if (dv) { dv.checked = false; dv.disabled = true; }
+    } else {
+      const dv = m.querySelector("#rr-coach-driver-visible");
+      if (dv) dv.disabled = false;
     }
   });
+
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-coach-cancel]") || e.target === m) { m.remove(); return; }
+    if (!e.target.closest("[data-rr-coach-save]")) return;
+
+    const action_taken = {};
+    m.querySelectorAll("[data-rr-coach-action]").forEach(cb => {
+      action_taken[cb.getAttribute("data-rr-coach-action")] = cb.checked;
+    });
+
+    const payload = {
+      dsp_id:        window.RR.dsp.id,
+      driver_id:     driverId,
+      coach_user_id: window.RR.user.id,
+      topic:         document.getElementById("rr-coach-topic").value,
+      type:          document.getElementById("rr-coach-type").value,
+      severity:      document.getElementById("rr-coach-severity").value,
+      summary:       document.getElementById("rr-coach-summary").value.trim() || null,
+      notes:         document.getElementById("rr-coach-notes").value.trim() || null,
+      incident_date: document.getElementById("rr-coach-incident-date").value || null,
+      action_taken,
+      witness_name:  document.getElementById("rr-coach-witness-name").value.trim() || null,
+      witness_role:  document.getElementById("rr-coach-witness-role").value.trim() || null,
+      driver_visible: !!document.getElementById("rr-coach-driver-visible").checked,
+      privacy_tier:   document.getElementById("rr-coach-privacy").value,
+      follow_up_at:   document.getElementById("rr-coach-followup").value
+                        ? new Date(document.getElementById("rr-coach-followup").value).toISOString()
+                        : null,
+    };
+    if (!payload.summary && !payload.notes) { toast("Add a summary or notes", "warn"); return; }
+
+    const { data: inserted, error } = await sb.from("coachings").insert(payload).select("id").single();
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+
+    // Upload attachments → storage and write rows in coaching_attachments.
+    const fileInput = document.getElementById("rr-coach-files");
+    const status = document.getElementById("rr-coach-upload-status");
+    const files = Array.from(fileInput?.files || []);
+    if (files.length && inserted?.id) {
+      for (const [i, f] of files.entries()) {
+        const path = `${window.RR.dsp.id}/${inserted.id}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        if (status) status.textContent = `Uploading ${i + 1}/${files.length}…`;
+        const { error: upErr } = await sb.storage.from("coaching-attachments").upload(path, f);
+        if (upErr) { console.warn("upload failed:", upErr); continue; }
+        await sb.from("coaching_attachments").insert({
+          coaching_id: inserted.id,
+          storage_path: path,
+          file_name: f.name,
+          mime_type: f.type,
+          size_bytes: f.size,
+          uploaded_by: window.RR.user.id,
+        });
+      }
+    }
+
+    m.remove();
+    toast("Coaching logged", "success");
+    await loadDriverDrawer(driverId);
+  });
 }
+
+// Resolve / archive / edit-history actions on the coaching tab.
+document.addEventListener("click", async (e) => {
+  const resolveBtn = e.target.closest("[data-rr-coach-resolve]");
+  if (resolveBtn) {
+    const id = resolveBtn.getAttribute("data-rr-coach-resolve");
+    const { error } = await sb.rpc("coaching_resolve", { p_id: id });
+    if (error) { toast("Resolve failed: " + error.message, "warn"); return; }
+    toast("Marked resolved", "success");
+    if (_ddDriver?.driver?.id) await loadDriverDrawer(_ddDriver.driver.id);
+    return;
+  }
+  const archiveBtn = e.target.closest("[data-rr-coach-archive]");
+  if (archiveBtn) {
+    const id = archiveBtn.getAttribute("data-rr-coach-archive");
+    const reason = prompt("Reason for archiving?\n(Coaching records are quasi-legal documents — they're hidden, not deleted.)");
+    if (reason == null) return;
+    const { error } = await sb.rpc("coaching_archive", { p_id: id, p_reason: reason });
+    if (error) { toast("Archive failed: " + error.message, "warn"); return; }
+    toast("Archived", "success");
+    if (_ddDriver?.driver?.id) await loadDriverDrawer(_ddDriver.driver.id);
+    return;
+  }
+  const histBtn = e.target.closest("[data-rr-coach-history]");
+  if (histBtn) {
+    const id = histBtn.getAttribute("data-rr-coach-history");
+    const { data: edits } = await sb.from("coaching_edits")
+      .select("*").eq("coaching_id", id).order("edited_at", { ascending: false });
+    const rows = (edits || []).map(ed =>
+      `<div style="font-size:12px;border-bottom:1px solid var(--border);padding:8px 0">
+         <div style="color:var(--text-muted)">${new Date(ed.edited_at).toLocaleString()} · ${escapeHtml(ed.edited_by_name || "—")}</div>
+         <div><strong>${escapeHtml(ed.field_name)}</strong> · "${escapeHtml(ed.old_value || "")}" → "${escapeHtml(ed.new_value || "")}"</div>
+       </div>`).join("") || `<div style="color:var(--text-subtle);font-size:13px">No edits.</div>`;
+    const w = document.createElement("div");
+    w.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:24px";
+    w.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto">
+      <h3 style="margin:0 0 12px">Edit history</h3>
+      ${rows}
+      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn" type="button">Close</button></div>
+    </div>`;
+    w.addEventListener("click", (ev) => { if (ev.target === w || ev.target.closest("button")) w.remove(); });
+    document.body.appendChild(w);
+  }
+});
 
 
 document.addEventListener("click", async (e) => {
