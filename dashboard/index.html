@@ -7419,39 +7419,17 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <!-- Adjustable assumptions — collapsed by default -->
-        <details style="margin-bottom:var(--s-4);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:var(--s-3) var(--s-4)">
-          <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);user-select:none">Adjust assumptions <span style="color:var(--text-subtle);font-weight:400">(DPR · cushion · ADW · OT · seasonal)</span></summary>
-        <!-- Knobs -->
-        <div class="okami-knobs" style="margin-top:var(--s-3)">
-          <div class="okami-knob">
-            <div class="okami-knob-label">Drivers per route<span class="help" title="Industry baseline · 2 = 1 primary + 1 backup">?</span></div>
-            <div class="okami-knob-value">2.0</div>
-            <input type="range" min="1.5" max="2.5" value="2.0" step="0.1" oninput="recalcOkami()" id="okami-dpr" />
-            <div class="okami-knob-marks"><span>1.5</span><span>2.0</span><span>2.5</span></div>
+        <!-- Single staffing-plan input — Plan Pad % above the 2× baseline. -->
+        <div style="margin-bottom:var(--s-4);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="flex:0 0 auto">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Staffing Plan Pad</div>
+            <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Buffer above the 2× per-route baseline. Separate from the schedule cushion.</div>
           </div>
-          <div class="okami-knob">
-            <div class="okami-knob-label">ADW · avg days worked<span class="help" title="Bump up to absorb HVE without hiring">?</span></div>
-            <div class="okami-knob-value" id="okami-adw-val">5.0<span class="frac"> days</span></div>
-            <input type="range" min="4.0" max="6.0" value="5.0" step="0.1" oninput="recalcOkami()" id="okami-adw" />
-            <div class="okami-knob-marks"><span>4.0</span><span>5.0</span><span>6.0</span></div>
-          </div>
-          <div class="okami-knob">
-            <div class="okami-knob-label">OT tolerance<span class="help" title="Hours/driver/week of OT you'll absorb before hiring">?</span></div>
-            <div class="okami-knob-value" id="okami-ot-val">0<span class="frac"> hrs</span></div>
-            <input type="range" min="0" max="10" value="0" step="1" oninput="recalcOkami()" id="okami-ot" />
-            <div class="okami-knob-marks"><span>0h</span><span>5h</span><span>10h</span></div>
-          </div>
-          <div class="okami-knob">
-            <div class="okami-knob-label">Seasonal hires<span class="help" title="Allowed during peak (Nov–Dec). Auto-end after Jan 5.">?</span></div>
-            <div class="okami-toggle-row">
-              <span class="okami-knob-value">Off</span>
-              <label class="toggle"><input type="checkbox" onchange="toggleSeasonal(this)" id="okami-seasonal" /><span class="toggle-slider"></span></label>
-            </div>
-            <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Recommended Oct 15 – Jan 5</div>
+          <div style="flex:1 1 240px;display:flex;align-items:center;gap:10px;min-width:240px">
+            <input type="range" id="rr-okami-pad" min="0" max="50" step="5" value="10" style="flex:1"/>
+            <span id="rr-okami-pad-val" style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text);min-width:42px;text-align:right">10%</span>
           </div>
         </div>
-        </details>
 
         <!-- 13-week table -->
         <div class="plan-table-wrap">
@@ -16908,7 +16886,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260504y"></script>
+<script type="module" src="./live.js?v=20260504z"></script>
 
 </body>
 </html>
