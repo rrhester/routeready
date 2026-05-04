@@ -5052,6 +5052,12 @@ async function loadCoachingFeed() {
   if (!wrap) return;
   wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
 
+  // Always land on "All active" when (re)entering the feed, so leaving the
+  // page and coming back resets the status filter regardless of what was
+  // selected last time.
+  const statusSel = document.getElementById("rr-coach-filter-status");
+  if (statusSel) statusSel.value = "all";
+
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
@@ -5090,7 +5096,7 @@ function _renderCoachFeed() {
   const search   = (document.getElementById("rr-coach-search")?.value || "").toLowerCase().trim();
   const sevFilt  = document.getElementById("rr-coach-filter-severity")?.value || "";
   const topFilt  = document.getElementById("rr-coach-filter-topic")?.value || "";
-  const statFilt = document.getElementById("rr-coach-filter-status")?.value || "open";
+  const statFilt = document.getElementById("rr-coach-filter-status")?.value || "all";
   const sort     = document.getElementById("rr-coach-sort")?.value || "date_desc";
 
   let rows = _coachFeedCache.rows.slice();
