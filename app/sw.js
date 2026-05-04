@@ -6,7 +6,7 @@
 // We'll add background sync + offline reads in a later phase if drivers
 // actually need them; for now they're online almost always on the road.
 
-const SHELL_CACHE = "rr-app-shell-v1";
+const SHELL_CACHE = "rr-app-shell-v2";
 const SHELL_FILES = [
   "./",
   "index.html",
