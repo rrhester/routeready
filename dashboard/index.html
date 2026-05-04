@@ -4335,7 +4335,7 @@ a{color:inherit;text-decoration:none}
         </div>
 
         <!-- Pipeline sub-nav -->
-        <div class="subnav">
+        <div class="subnav" data-rr-tabbar="hiring">
           <button class="subnav-item active" data-pipesub="funnel" onclick="pipeSub('funnel')">Funnel</button>
           <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
           <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
@@ -5247,7 +5247,7 @@ a{color:inherit;text-decoration:none}
         </div>
 
         <!-- Drivers sub-nav: Roster · Insights · Attendance -->
-        <div class="subnav">
+        <div class="subnav" data-rr-tabbar="drivers">
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
           <button class="subnav-item" data-sub="insights" onclick="drSub('insights')">Insights</button>
           <button class="subnav-item" data-sub="licenses" onclick="drSub('licenses')">Licenses</button>
@@ -6256,7 +6256,7 @@ a{color:inherit;text-decoration:none}
         </div>
 
         <!-- Sub-nav -->
-        <div class="subnav">
+        <div class="subnav" data-rr-tabbar="schedule">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
           <button class="subnav-item" data-sub="timeoff" onclick="schedSub('timeoff')">Time off <span id="rr-sched-timeoff-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')" style="display:none">Open shifts <span id="rr-sched-open-badge" style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
@@ -7765,7 +7765,7 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <div class="subnav">
+        <div class="subnav" data-rr-tabbar="fleet">
           <button class="subnav-item active" data-sub="vehicles" onclick="fleetSub('vehicles')">Vehicles <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">24</span></button>
           <button class="subnav-item" data-sub="assets" onclick="fleetSub('assets')">Assets <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">312</span></button>
           <button class="subnav-item" data-sub="maint" onclick="fleetSub('maint')">Maintenance <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">2</span></button>
@@ -8080,9 +8080,9 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <div class="subnav">
-          <button class="subnav-item active">Forms</button>
-          <button class="subnav-item" onclick="goto('checklists')">Checklists <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
+        <div class="subnav" data-rr-tabbar="forms">
+          <button class="subnav-item active" data-sub="forms">Forms</button>
+          <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
         </div>
 
         <div class="forms-shell">
@@ -8292,8 +8292,8 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <div class="subnav">
-          <button class="subnav-item" onclick="goto('forms')">Forms</button>
+        <div class="subnav" data-rr-tabbar="checklists">
+          <button class="subnav-item" data-sub="forms" onclick="goto('forms')">Forms</button>
           <button class="subnav-item active" data-sub="my" onclick="checklistSub('my')">Checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
           <button class="subnav-item" data-sub="status" onclick="checklistSub('status')">Today's status <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
           <button class="subnav-item" data-sub="templates" onclick="checklistSub('templates')">Templates <span style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">9</span></button>
@@ -8592,7 +8592,7 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
 
-        <div class="subnav">
+        <div class="subnav" data-rr-tabbar="finances">
           <button class="subnav-item active" data-sub="inbox" onclick="finSub('inbox')">Inbox <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">3</span></button>
           <button class="subnav-item" data-sub="disputes" onclick="finSub('disputes')">Disputes <span style="background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">5</span></button>
           <button class="subnav-item" data-sub="recovery" onclick="finSub('recovery')">Recovery</button>
@@ -16716,7 +16716,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505al"></script>
+<script type="module" src="./live.js?v=20260505am"></script>
 
 </body>
 </html>
