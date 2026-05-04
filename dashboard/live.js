@@ -593,9 +593,11 @@ async function loadDashboardWeather() {
   // Per-DSP toggle. Default true so existing installs don't lose the card.
   const showCard = meta.show_card !== false;
   if (card) card.style.display = showCard ? "" : "none";
+  // Always evaluate radar visibility — it has its own toggle and must be
+  // able to hide itself even when the forecast card is off.
+  loadWeatherRadar();
   if (!showCard) return;
   _scheduleWeatherRefresh();
-  loadWeatherRadar();
   const lat = Number(meta.lat);
   const lon = Number(meta.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
