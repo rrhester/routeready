@@ -544,7 +544,7 @@ async function loadAttendanceLive() {
     const last = r.a.last ? new Date(r.a.last + "T12:00:00").toLocaleDateString() : "—";
     const statusColor = r.statusKind === "bad" ? "var(--red)" : r.statusKind === "warn" ? "var(--amber)" : "var(--green)";
     return `<tr>
-      <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
+      <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name" data-rr-driver-id="${r.d.id}">${escapeHtml(display)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
       <td style="text-align:right">${r.a.scheduled}</td>
       <td style="text-align:right">${r.a.present}</td>
@@ -1367,7 +1367,7 @@ async function loadCheckinView() {
         <div class="checkin-driver">
           <div class="avatar-sm ${tier}">${initials}</div>
           <div>
-            <div class="checkin-driver-name">${escapeHtml(display)}</div>
+            <div class="checkin-driver-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}</div>
             <div class="checkin-driver-meta">${escapeHtml(d.phone || "")}</div>
           </div>
         </div>
@@ -1584,7 +1584,7 @@ async function loadAttendanceEventLog() {
           const points = ev.status === "no_show" ? policy.points_per_noshow : ev.status === "called_off" ? policy.points_per_callout : 0;
           return `<tr>
             <td>${new Date(ev.date + "T12:00:00").toLocaleDateString()}</td>
-            <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
+            <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cell-name" data-rr-driver-id="${d?.id || ev.driver_id || ""}">${escapeHtml(display)}</div></div></div></td>
             <td>${escapeHtml(station)}</td>
             <td><span style="color:${eventColor[ev.status]};font-weight:600">${eventLabel[ev.status]}</span></td>
             <td style="text-align:right;font-weight:600">${points}</td>
@@ -3476,7 +3476,15 @@ document.addEventListener("focusout", (e) => {
 
 // Click delegate for the drawer (tabs, save, coaching log, doc upload).
 document.addEventListener("click", async (e) => {
-  // Open drawer from row
+  // Open drawer from any element marked with data-rr-driver-id (e.g. driver
+  // names anywhere on the dashboard — scorecards, schedule chips, attendance
+  // rows). Don't intercept clicks on form controls inside such elements.
+  const named = e.target.closest("[data-rr-driver-id]");
+  if (named && !e.target.closest("button, a[href], input, select, textarea, [data-rr-no-drawer]")) {
+    const id = named.getAttribute("data-rr-driver-id");
+    if (id) { e.preventDefault(); await openDriverDrawer(id); return; }
+  }
+  // Legacy: open drawer from a full row marked with [data-rr-open-driver].
   const row = e.target.closest("[data-rr-open-driver]");
   if (row) {
     const id = row.getAttribute("data-driver-id");
@@ -4415,7 +4423,12 @@ aside.driver-pool::-webkit-scrollbar-thumb:hover { background: var(--text-subtle
 .okami-table tr:not(.okami-detail) > td:nth-child(8) { display: none !important; }
 /* Kill mockup row decorations: cycle-end blue underline + HVE yellow stripe. */
 .okami-table tbody tr.cycle-end { border-bottom: 1px solid var(--border) !important; background: transparent !important; }
-.okami-table tbody tr.hve { background: transparent !important; }`;
+.okami-table tbody tr.hve { background: transparent !important; }
+/* Driver names anywhere are clickable — open the driver record drawer. */
+[data-rr-driver-id]{cursor:pointer}
+[data-rr-driver-id]:hover{text-decoration:underline;text-underline-offset:2px}
+[data-rr-open-driver]{cursor:pointer}
+[data-rr-open-driver]:hover .cell-name{text-decoration:underline;text-underline-offset:2px}`;
 document.head.appendChild(_styleEl);
 
 
