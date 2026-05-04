@@ -5361,6 +5361,47 @@ async function loadSchedulingSettings() {
   if (blockEl)   blockEl.value   = s.default_block_hours ?? 10;
   if (cushEl)    cushEl.value    = s.cushion_pct ?? 10;
   if (maxDaysEl) maxDaysEl.value = s.max_days_per_week ?? 5;
+
+  // Read-only attendance rate label next to the cushion field. Operator
+  // looks at it and decides their own cushion %. No click handler, no
+  // mutation of any other element — kept deliberately minimal after the
+  // recommendation chip kept breaking the dashboard.
+  (async () => {
+    try {
+      const dspId = window.RR?.dsp?.id;
+      const labelEl = document.getElementById("rr-cushion-rec");
+      if (!dspId || !labelEl) return;
+      const since = new Date(); since.setDate(since.getDate() - 30);
+      const sinceIso = since.toISOString().slice(0, 10);
+      const [scheduledRes, absentRes] = await Promise.all([
+        sb.from("shifts").select("id", { count: "exact", head: true })
+          .eq("dsp_id", dspId).gte("date", sinceIso)
+          .in("status", ["scheduled", "completed", "called_off", "no_show"]),
+        sb.from("shifts").select("id", { count: "exact", head: true })
+          .eq("dsp_id", dspId).gte("date", sinceIso)
+          .in("status", ["called_off", "no_show"]),
+      ]);
+      if (scheduledRes.error || absentRes.error) return;
+      const total = scheduledRes.count || 0;
+      const absences = absentRes.count || 0;
+      const rate = total > 0 ? (absences / total * 100) : 0;
+      labelEl.style.display = "inline-block";
+      labelEl.style.cursor = "default";
+      labelEl.style.background = "transparent";
+      labelEl.style.border = "0";
+      labelEl.style.padding = "0";
+      labelEl.style.color = "var(--text-subtle)";
+      labelEl.style.fontWeight = "500";
+      labelEl.textContent = total > 0
+        ? `${rate.toFixed(1)}% absence · last 30d`
+        : "No data yet";
+      labelEl.title = total > 0
+        ? `${absences} callouts + no-shows over ${total} scheduled shifts`
+        : "Once you have a few weeks of attendance data we'll show it here";
+    } catch (e) {
+      console.warn("attendance rate label:", e);
+    }
+  })();
   const overrideEl = document.getElementById("rr-set-availability-override");
   if (overrideEl) overrideEl.checked = !!s.allow_availability_override;
   // Cache the effective settings so auto-assign reads the per-week values.
