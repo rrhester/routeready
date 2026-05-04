@@ -3631,7 +3631,13 @@ document.addEventListener("click", async (e) => {
         metadata:                Number.isFinite(payHourly) ? { pay: { hourly_rate: payHourly } } : {},
       };
       const { error } = await sb.from("drivers").insert(insertRow);
-      if (error) { toast("Add failed: " + error.message, "warn"); return; }
+      if (error) {
+        // Surface the full error so we can diagnose. Toasts disappear too
+        // quickly to read; alert blocks until acknowledged.
+        console.error("driver insert failed:", error);
+        alert("Add driver failed:\n\n" + (error.message || "Unknown error") + (error.details ? "\n\nDetails: " + error.details : "") + (error.hint ? "\n\nHint: " + error.hint : ""));
+        return;
+      }
       const drawer = document.getElementById("rr-dd-drawer");
       if (drawer) drawer.remove();
       await loadDriversRoster();
