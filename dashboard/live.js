@@ -8927,6 +8927,80 @@ window.addEventListener("focus", () => {
 });
 
 
+// ─── Rules tab: manual blackout list (UI-only, localStorage) ─────────
+// Each entry { name, start, end }. Stored in localStorage so the
+// operator's list survives reloads. Wire to a per-DSP table later if
+// auto-fill needs to enforce these.
+(function rrInitBlackoutList() {
+  const KEY = "rr.blackouts";
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  };
+  function read() {
+    try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+  }
+  function write(list) {
+    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch {}
+  }
+  function render() {
+    const list = document.getElementById("rr-blackout-list");
+    if (!list) return;
+    const items = read();
+    if (items.length === 0) {
+      list.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md)">No blackouts yet. Click "+ Add blackout" to enter one.</div>`;
+      return;
+    }
+    list.innerHTML = items.map((b, i) => `
+      <div class="blackout-item" data-rr-blackout-idx="${i}" style="grid-template-columns:1fr auto auto auto;gap:8px">
+        <input type="text" class="rule-input" data-rr-blackout-field="name" value="${escapeHtml(b.name || "")}" placeholder="Name (e.g. Prime Day)" style="width:auto;text-align:left"/>
+        <input type="date" class="rule-input" data-rr-blackout-field="start" value="${escapeHtml(b.start || "")}" style="width:auto"/>
+        <input type="date" class="rule-input" data-rr-blackout-field="end" value="${escapeHtml(b.end || "")}" style="width:auto"/>
+        <button type="button" class="btn btn-sm" data-rr-blackout-remove style="color:var(--red)">Remove</button>
+      </div>
+    `).join("");
+  }
+  function attach() {
+    if (!document.getElementById("rr-blackout-list") || document._rrBlackoutBound) return;
+    document._rrBlackoutBound = true;
+    document.addEventListener("click", (e) => {
+      const addBtn = e.target.closest("#rr-blackout-add");
+      if (addBtn) {
+        e.preventDefault();
+        const list = read();
+        list.push({ name: "", start: "", end: "" });
+        write(list);
+        render();
+        return;
+      }
+      const remBtn = e.target.closest("[data-rr-blackout-remove]");
+      if (remBtn) {
+        e.preventDefault();
+        const idx = parseInt(remBtn.closest("[data-rr-blackout-idx]")?.dataset.rrBlackoutIdx, 10);
+        if (!Number.isFinite(idx)) return;
+        const list = read();
+        list.splice(idx, 1);
+        write(list);
+        render();
+      }
+    });
+    document.addEventListener("change", (e) => {
+      const fld = e.target.closest("[data-rr-blackout-field]");
+      if (!fld) return;
+      const idx = parseInt(fld.closest("[data-rr-blackout-idx]")?.dataset.rrBlackoutIdx, 10);
+      if (!Number.isFinite(idx)) return;
+      const list = read();
+      if (!list[idx]) return;
+      list[idx][fld.dataset.rrBlackoutField] = fld.value;
+      write(list);
+    });
+  }
+  if (document.body) { attach(); render(); }
+  else document.addEventListener("DOMContentLoaded", () => { attach(); render(); });
+})();
+
+
 // ─── Rules tab: persist <details> open/close state per-user ──────────
 // Each rules-section + rules-sub stores its expand/collapse state in
 // localStorage so the operator's layout choices stick across reloads.

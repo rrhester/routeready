@@ -7047,26 +7047,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
               <div class="rule-row">
                 <div>
-                  <div class="rule-label">Maximum days unavailable per driver</div>
-                  <div class="rule-help">Drivers can't mark more than this many operating days as unavailable.</div>
-                </div>
-                <input class="rule-input" value="2" />
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Hours-per-week range allowed</div>
-                  <div class="rule-help">Drivers can set their min/max hours within this range only.</div>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input class="rule-input" value="30" style="width:60px" />
-                  <span style="color:var(--text-subtle);font-size:11px">to</span>
-                  <input class="rule-input" value="60" style="width:60px" />
-                </div>
-              </div>
-
-              <div class="rule-row">
-                <div>
                   <div class="rule-label">Allow drivers to set "preferred" days</div>
                   <div class="rule-help">If off, drivers can only mark days as available or unavailable — no preference distinction.</div>
                 </div>
@@ -7122,8 +7102,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               </div>
               <div class="rule-row">
                 <div>
-                  <div class="rule-label">Max consecutive working days</div>
-                  <div class="rule-help">Drivers can't be scheduled more than this many days in a row.</div>
+                  <div class="rule-label">Max consecutive working days · rolling</div>
+                  <div class="rule-help">Drivers can't be scheduled more than this many days in a row. Rolling window — looks back into the previous schedule, not just the current week.</div>
                 </div>
                 <input class="rule-input" value="6" />
               </div>
@@ -7133,13 +7113,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                   <div class="rule-help">DOT-style rest enforcement.</div>
                 </div>
                 <input class="rule-input" value="10" />
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Required days off per month</div>
-                  <div class="rule-help">Auto-block manager from scheduling beyond.</div>
-                </div>
-                <input class="rule-input" value="8" />
               </div>
             </details>
 
@@ -7191,24 +7164,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 Blackout dates · no time off allowed
               </summary>
               <p class="page-sub" style="margin:0 0 var(--s-3) 0">High-volume periods. Time-off requests for these dates are auto-declined unless manager overrides.</p>
-              <div class="blackout-list">
-                <div class="blackout-item">
-                  <div><div class="blackout-item-name">Prime Day</div><div class="blackout-item-dates">Jul 14 – Jul 17, 2026</div></div>
-                  <span class="tag" style="background:var(--red-soft);color:var(--red)">All drivers required</span>
-                  <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-                </div>
-                <div class="blackout-item">
-                  <div><div class="blackout-item-name">Black Friday week</div><div class="blackout-item-dates">Nov 24 – Nov 30, 2026</div></div>
-                  <span class="tag" style="background:var(--red-soft);color:var(--red)">All drivers required</span>
-                  <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-                </div>
-                <div class="blackout-item">
-                  <div><div class="blackout-item-name">Holiday peak</div><div class="blackout-item-dates">Dec 15 – Dec 24, 2026</div></div>
-                  <span class="tag" style="background:var(--amber-soft);color:var(--amber)">Limited approvals</span>
-                  <button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-                </div>
+              <div class="blackout-list" id="rr-blackout-list">
+                <!-- Manual entries appear here. Empty state shown when none. -->
               </div>
-              <button class="btn btn-sm" style="margin-top:var(--s-3)">+ Add blackout</button>
+              <button class="btn btn-sm" id="rr-blackout-add" type="button" style="margin-top:var(--s-3)">+ Add blackout</button>
             </details>
 
             <details class="rules-section" data-rr-rules-section="autofill" style="grid-column:1/-1">
@@ -7231,8 +7190,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                   </div>
                   <div class="rule-row">
                     <div>
-                      <div class="rule-label">Max consecutive working days</div>
-                      <div class="rule-help">Currently enforced at 6.</div>
+                      <div class="rule-label">Max consecutive working days · rolling</div>
+                      <div class="rule-help">Rolling window — counts back into the previous schedule too. Currently enforced at 6.</div>
                     </div>
                     <input class="rule-input" value="6" />
                   </div>
@@ -7269,13 +7228,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                       <div class="rule-help">Only DOT-certified drivers fill these. <span class="rules-sub-badge">Preview</span></div>
                     </div>
                     <select class="rule-input" style="width:140px"><option>None</option><option>HUB</option><option>XL</option><option>HUB + XL</option></select>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Require service-type qualification</div>
-                      <div class="rule-help">e.g. only XL-certified drivers can run XL routes. <span class="rules-sub-badge">Preview · needs Phase 2</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" disabled /><span class="toggle-slider"></span></label>
                   </div>
                 </div>
               </details>
@@ -16936,7 +16888,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505b2"></script>
+<script type="module" src="./live.js?v=20260505b3"></script>
 
 </body>
 </html>
