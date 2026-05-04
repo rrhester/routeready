@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Your coaching record · RouteReady</title>
+<link rel="icon" href="data:,"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --accent:#2563eb; --accent-soft:#dbeafe; --accent-text:#1d4ed8;
+    --bg:#f3f4f6; --surface:#ffffff; --canvas:#f9fafb;
+    --text:#0f172a; --text-muted:#475569; --text-subtle:#94a3b8;
+    --border:#e2e8f0; --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --shadow:0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:15px;line-height:1.55}
+  .page{max-width:760px;margin:0 auto;padding:32px 20px 60px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+  .brand{font-size:13px;font-weight:700;color:var(--accent-text);letter-spacing:.06em;text-transform:uppercase}
+  h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em;font-weight:700}
+  .sub{color:var(--text-muted);font-size:14px;margin:0 0 18px}
+  .info-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px;box-shadow:var(--shadow);margin-bottom:18px}
+  .info-card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px}
+  .empty{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:40px 22px;text-align:center;color:var(--text-muted);box-shadow:var(--shadow)}
+  .record{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .rec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .sev{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:10px}
+  .sev-info{background:var(--canvas);color:var(--text-muted)}
+  .sev-concern{background:var(--accent-soft);color:var(--accent-text)}
+  .sev-warning{background:#fef3c7;color:#b45309}
+  .sev-final{background:#fee2e2;color:var(--red)}
+  .topic{font-size:11px;color:var(--text-subtle);text-transform:capitalize}
+  .summary{font-size:17px;font-weight:600;margin:6px 0 8px;letter-spacing:-.005em}
+  .notes{font-size:14px;color:var(--text-muted);white-space:pre-wrap;margin-bottom:10px;line-height:1.6}
+  .meta{font-size:12px;color:var(--text-subtle);margin-top:10px}
+  .meta strong{color:var(--text)}
+  .ack-area{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+  .ack-done{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--green);font-weight:600}
+  .ack-done svg{width:16px;height:16px}
+  .ack-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  button{font-family:inherit;font-size:14px;font-weight:600;padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;transition:all .12s}
+  button:hover{background:var(--canvas)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+  button[disabled]{opacity:.5;cursor:not-allowed}
+  .sig-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+  .sig-card{background:var(--surface);border-radius:14px;padding:22px;max-width:480px;width:100%}
+  .sig-canvas-wrap{border:2px dashed var(--border);border-radius:8px;background:var(--canvas);margin:14px 0}
+  canvas#sig-canvas{display:block;width:100%;height:180px;cursor:crosshair;touch-action:none}
+  .sig-actions{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
+  .err{color:var(--red);font-size:13px;margin-top:14px}
+  .legal{font-size:11px;color:var(--text-subtle);line-height:1.5;margin-top:24px;text-align:center}
+</style>
+</head>
+<body>
+<div class="page" id="root">
+  <header>
+    <div class="brand">RouteReady</div>
+    <div style="font-size:12px;color:var(--text-subtle)" id="dsp-tag"></div>
+  </header>
+  <h1 id="page-title">Your coaching record</h1>
+  <p class="sub" id="page-sub">Loading…</p>
+  <div id="content"></div>
+  <p class="legal">This page is private to you and the link expires when the operator rotates the access token.</p>
+</div>
+
+<script src="./config.js"></script>
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+const cfg = window.RR_CONFIG;
+const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+
+const params = new URLSearchParams(location.search);
+const token = params.get("t") || params.get("token");
+const root = document.getElementById("content");
+const sub  = document.getElementById("page-sub");
+
+const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sevClass = (s) => ({info:"sev-info",concern:"sev-concern",warning:"sev-warning",final:"sev-final"}[s] || "sev-concern");
+const sevLabel = (s) => ({info:"Info",concern:"Concern",warning:"Warning",final:"Final"}[s] || s);
+const fmtDate = (iso) => new Date(iso).toLocaleString([], { dateStyle: "long", timeStyle: "short" });
+const ACTION_LABELS = { verbal:"Verbal warning", written:"Written warning", retraining:"Retraining", route_change:"Route change", suspension:"Suspension", no_action:"No action" };
+
+function actionLine(taken) {
+  if (!taken || typeof taken !== "object") return "";
+  const list = Object.keys(taken).filter(k => taken[k]).map(k => ACTION_LABELS[k] || k);
+  if (!list.length) return "";
+  return `<div class="meta">Action taken: <strong>${list.map(escapeHtml).join(" · ")}</strong></div>`;
+}
+
+async function load() {
+  if (!token) { sub.textContent = "Missing access token. Ask your dispatcher for a new link."; return; }
+
+  const { data, error } = await sb.rpc("coaching_for_driver_token", { p_token: token });
+  if (error) {
+    sub.innerHTML = `<span style="color:var(--red)">Could not load: ${escapeHtml(error.message)}</span>`;
+    return;
+  }
+  const records = data || [];
+  if (records.length === 0) {
+    document.getElementById("page-title").textContent = "All clear";
+    sub.textContent = "You don't have any coaching records on file.";
+    return;
+  }
+  document.getElementById("page-title").textContent = `${records[0].driver_full_name}'s coaching record`;
+  const open = records.filter(r => !r.acknowledged_at).length;
+  sub.innerHTML = open > 0
+    ? `<strong>${records.length}</strong> record${records.length===1?"":"s"} on file · <strong style="color:var(--amber)">${open} awaiting your acknowledgment</strong>`
+    : `<strong>${records.length}</strong> record${records.length===1?"":"s"} on file · all acknowledged`;
+
+  root.innerHTML = records.map(r => {
+    const acked = r.acknowledged_at
+      ? `<div class="ack-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Acknowledged ${escapeHtml(r.acknowledgment)} · ${escapeHtml(new Date(r.acknowledged_at).toLocaleDateString())}</div>`
+      : `<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">Please acknowledge that you've read this record.</div>
+         <div class="ack-buttons">
+           <button class="primary" data-rr-ack-sign="${r.id}">Sign and acknowledge</button>
+           <button data-rr-ack-verbal="${r.id}">Acknowledge (verbal)</button>
+         </div>`;
+    return `
+    <div class="record" id="rec-${r.id}">
+      <div class="rec-head">
+        <span class="sev ${sevClass(r.severity)}">${sevLabel(r.severity)}</span>
+        <span class="topic">${escapeHtml(r.topic)} · ${escapeHtml((r.type || "").replace(/_/g," "))}</span>
+      </div>
+      <div class="summary">${escapeHtml(r.summary || "(no summary)")}</div>
+      ${r.notes ? `<div class="notes">${escapeHtml(r.notes)}</div>` : ""}
+      ${actionLine(r.action_taken)}
+      <div class="meta">Logged <strong>${escapeHtml(fmtDate(r.occurred_at))}</strong>${r.coached_by_name ? ` by <strong>${escapeHtml(r.coached_by_name)}</strong>` : ""}</div>
+      <div class="ack-area">${acked}</div>
+    </div>`;
+  }).join("");
+}
+
+// ── Signature canvas ──
+function openSignatureModal(coachingId) {
+  const m = document.createElement("div");
+  m.className = "sig-modal";
+  m.innerHTML = `
+    <div class="sig-card">
+      <h3 style="margin:0 0 4px;font-size:18px">Sign to acknowledge</h3>
+      <p style="margin:0;font-size:13px;color:var(--text-muted)">Use your finger or mouse to sign in the box below.</p>
+      <div class="sig-canvas-wrap"><canvas id="sig-canvas"></canvas></div>
+      <div class="sig-actions">
+        <button id="sig-clear" type="button">Clear</button>
+        <div style="display:flex;gap:8px">
+          <button id="sig-cancel" type="button">Cancel</button>
+          <button class="primary" id="sig-save" type="button">Save signature</button>
+        </div>
+      </div>
+      <div class="err" id="sig-err" style="display:none"></div>
+    </div>`;
+  document.body.appendChild(m);
+
+  const canvas = m.querySelector("#sig-canvas");
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const resize = () => {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = rect.width  * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.strokeStyle = "#0f172a";
+  };
+  resize();
+  let drawing = false, last = null, hasInk = false;
+  const point = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  };
+  const start = (e) => { e.preventDefault(); drawing = true; last = point(e); };
+  const move  = (e) => {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = point(e);
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last = p; hasInk = true;
+  };
+  const end = () => { drawing = false; last = null; };
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", move);
+  canvas.addEventListener("mouseup", end);
+  canvas.addEventListener("mouseleave", end);
+  canvas.addEventListener("touchstart", start, { passive: false });
+  canvas.addEventListener("touchmove",  move,  { passive: false });
+  canvas.addEventListener("touchend",   end);
+
+  m.querySelector("#sig-clear").addEventListener("click", () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); hasInk = false;
+  });
+  m.querySelector("#sig-cancel").addEventListener("click", () => m.remove());
+
+  m.querySelector("#sig-save").addEventListener("click", async () => {
+    const err = m.querySelector("#sig-err");
+    err.style.display = "none";
+    if (!hasInk) { err.textContent = "Please sign before saving."; err.style.display = "block"; return; }
+    const dataUrl = canvas.toDataURL("image/png");
+    const btn = m.querySelector("#sig-save");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const { error } = await sb.rpc("coaching_acknowledge_via_token", {
+      p_token: token, p_coaching_id: coachingId, p_method: "signed", p_signature_b64: dataUrl,
+    });
+    if (error) {
+      err.textContent = "Save failed: " + error.message; err.style.display = "block";
+      btn.disabled = false; btn.textContent = "Save signature";
+      return;
+    }
+    m.remove();
+    await load();
+  });
+}
+
+document.addEventListener("click", async (e) => {
+  const sign = e.target.closest("[data-rr-ack-sign]");
+  if (sign) { openSignatureModal(sign.getAttribute("data-rr-ack-sign")); return; }
+  const verbal = e.target.closest("[data-rr-ack-verbal]");
+  if (verbal) {
+    const id = verbal.getAttribute("data-rr-ack-verbal");
+    if (!confirm("Confirm verbal acknowledgment? You're recording that you discussed this with your dispatcher.")) return;
+    verbal.disabled = true; verbal.textContent = "Saving…";
+    const { error } = await sb.rpc("coaching_acknowledge_via_token", {
+      p_token: token, p_coaching_id: id, p_method: "verbal", p_signature_b64: null,
+    });
+    if (error) { alert("Save failed: " + error.message); verbal.disabled = false; verbal.textContent = "Acknowledge (verbal)"; return; }
+    await load();
+  }
+});
+
+load();
+</script>
+</body>
+</html>
