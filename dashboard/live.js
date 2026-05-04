@@ -1503,12 +1503,16 @@ document.addEventListener("click", async (e) => {
 
   // Visual: clear sibling active states, mark row, add active to clicked.
   if (row) {
-    row.classList.remove("marked-present", "marked-late", "marked-callout", "marked-noshow");
-    row.classList.add("marked", `marked-${ciKey === "noshow" ? "noshow" : ciKey === "callout" ? "callout" : ciKey}`);
+    row.classList.remove("marked-present", "marked-late", "marked-callout", "marked-noshow", "marked-vto");
+    row.classList.add("marked", `marked-${ciKey === "noshow" ? "noshow" : ciKey === "callout" ? "callout" : ciKey === "vto" ? "vto" : ciKey}`);
     row.querySelectorAll(".status-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
   }
   _updateCheckinProgress();
+  // Refresh the live Attendance Report (it queries shifts by status) so
+  // the tally updates without a full nav. Shifts isn't in the realtime
+  // channel, so we trigger the refresh here.
+  if (typeof loadAttendanceLive === "function") loadAttendanceLive();
 });
 
 
@@ -6708,7 +6712,73 @@ async function loadScheduleInsights() {
     }
     insightEl.innerHTML = lines.join("<br>");
   }
+
+  // Cache the math context for the (i) popover.
+  _availMath = { totalDrivers, driversWithoutAvailability, padPct, horizonWeeks, peakRoutesByDow, neededByDow, availByDay };
 }
+
+let _availMath = null;
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#rr-avail-info")) return;
+  e.preventDefault();
+  const m = _availMath;
+  if (!m) return;
+  const old = document.getElementById("rr-avail-popover");
+  if (old) { old.remove(); return; }
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const tableRows = DOW.map(d => `
+    <tr>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border)"><strong>${DOW_LABEL[d]}</strong></td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${m.peakRoutesByDow[d]}</td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${m.neededByDow[d]}</td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">${m.availByDay[d]}</td>
+      <td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right;color:${m.availByDay[d] >= m.neededByDow[d] ? "var(--green)" : "var(--red)"}">${m.availByDay[d] - m.neededByDow[d] >= 0 ? "+" : ""}${m.availByDay[d] - m.neededByDow[d]}</td>
+    </tr>`).join("");
+  const pop = document.createElement("div");
+  pop.id = "rr-avail-popover";
+  pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  pop.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:560px;width:100%;font-size:13px;line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Availability insight · the math</h3>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Inputs</div>
+      <div>Active roster: <strong>${m.totalDrivers}</strong> driver${m.totalDrivers === 1 ? "" : "s"}</div>
+      <div>Without availability set: <strong>${m.driversWithoutAvailability}</strong></div>
+      <div>Plan Pad: <strong>${m.padPct}%</strong> <span style="color:var(--text-subtle)">(from OKAMI)</span></div>
+      <div>Horizon: next <strong>${m.horizonWeeks}</strong> weeks of OKAMI demand</div>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
+      <div style="font-size:12px;color:var(--text-subtle);margin-bottom:6px">For each day of the week we take the <em>peak</em> day across the horizon and apply the same OKAMI formula to get demand.</div>
+      <div style="font-family:ui-monospace,monospace;font-size:11px;background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text)">needed = ceil(peak_routes × 2 × (1 + ${m.padPct}/100))</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">
+        <thead>
+          <tr>
+            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Peak routes</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Needed</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Available</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Gap</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
+      <div>· <strong style="color:#22c55e">Green</strong> = available ≥ needed</div>
+      <div>· <strong style="color:var(--amber)">Amber</strong> = within 2 of needed (one callout breaks the day)</div>
+      <div>· <strong style="color:var(--red)">Red</strong> = short of needed</div>
+      <div>· <span style="color:var(--text-muted)">Grey</span> = no demand for that day</div>
+
+      <div style="margin-top:18px;display:flex;justify-content:flex-end">
+        <button class="btn btn-sm" type="button" id="rr-avail-popover-close">Close</button>
+      </div>
+    </div>`;
+  pop.addEventListener("click", (ev) => {
+    if (ev.target === pop || ev.target.id === "rr-avail-popover-close") pop.remove();
+  });
+  document.body.appendChild(pop);
+});
 
 async function loadScheduleView() {
   // Force-clear the mockup HTML the moment the view opens so static
