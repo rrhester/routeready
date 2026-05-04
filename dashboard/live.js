@@ -7406,7 +7406,7 @@ async function renderScheduleWeek() {
   const [gridRes, driversRes, toRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .order("full_name"),
@@ -7754,6 +7754,13 @@ async function renderScheduleWeek() {
     const hoursLabel = totalHours > 0
       ? `${Math.round(totalHours * 10) / 10}h scheduled · ${shiftCount} shift${shiftCount === 1 ? "" : "s"}`
       : "0h scheduled";
+    // Expired-DL flag — passive visual cue next to the driver name so
+    // the operator sees at a glance that scheduling will trigger a warning.
+    const todayIsoForDL = fmtIsoDate(new Date());
+    const dlExpired = d.dl_expires_on && d.dl_expires_on < todayIsoForDL;
+    const dlFlag = dlExpired
+      ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:#dc2626;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
+      : "";
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
@@ -7765,7 +7772,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}" ${data}>${list.map(_schedShiftChip).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
@@ -8373,7 +8380,7 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
     : sb.from("shifts").select("id, date, starts_at, ends_at, block_hours").eq("id", shiftId).single();
 
   const [drvRes, ptoRes, shiftsRes, candidateRes] = await Promise.all([
-    sb.from("drivers").select("id, full_name, metadata").eq("id", driverId).single(),
+    sb.from("drivers").select("id, full_name, metadata, dl_expires_on").eq("id", driverId).single(),
     sb.from("time_off_requests").select("start_date, end_date")
       .eq("dsp_id", dspId).eq("driver_id", driverId).eq("status", "approved")
       .lte("start_date", weekEndIso).gte("end_date", _schedStart),
@@ -8385,6 +8392,14 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
 
   const driver = drvRes.data;
   if (!driver) { violations.push("Driver not found"); return violations; }
+
+  // Driver's license check: DL must be valid on the shift date. Drivers
+  // without dl_expires_on set aren't blocked here (operator hasn't filled
+  // it in yet) — same rule auto-assign uses.
+  if (driver.dl_expires_on && driver.dl_expires_on < shiftDate) {
+    const expDate = new Date(driver.dl_expires_on + "T12:00:00").toLocaleDateString();
+    violations.push(`Driver's license expired ${expDate}`);
+  }
 
   // PTO check
   for (const t of (ptoRes.data || [])) {
