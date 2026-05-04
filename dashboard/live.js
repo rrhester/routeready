@@ -7229,17 +7229,20 @@ async function autoAssignDriversForWeek() {
   const pto     = ptoRes.data     || [];
   let   shifts  = shiftsRes.data  || [];
 
-  // License rule: drivers.dl_expires_on must be on/after today. If
-  // expired, the driver is blocked from auto-assignment. No other
-  // document type (DOT medical, background check, etc.) blocks here —
-  // only the drivers license. Drivers without dl_expires_on at all
-  // are NOT blocked (operator hasn't filled it in yet); they can still
-  // be assigned manually.
+  // License rule: drivers.dl_expires_on must be on/after the SHIFT date.
+  // A driver whose DL expires Wednesday gets auto-assigned to Mon/Tue/Wed
+  // but blocked from Thu/Fri. No other document type (DOT, background
+  // check, etc.) blocks here — only the drivers license. Drivers without
+  // dl_expires_on aren't blocked (operator hasn't filled it in yet).
   const todayIso = fmtIsoDate(new Date());
-  const driverLicenseOk = (d) => {
-    if (!d.dl_expires_on) return true;       // no value = don't block
-    return d.dl_expires_on >= todayIso;       // not expired today
+  const driverLicenseOkForDate = (d, isoDate) => {
+    if (!d.dl_expires_on) return true;
+    return d.dl_expires_on >= isoDate;
   };
+  // Pre-loop notification still uses today: "currently expired" drivers
+  // are the ones the operator should renew. A driver expiring mid-week
+  // surfaces as missing assignments for those days rather than a banner.
+  const driverLicenseOk = (d) => driverLicenseOkForDate(d, todayIso);
 
   // Pre-collect drivers blocked by an expired license so we can notify
   // the operator after the run.
@@ -7316,7 +7319,7 @@ async function autoAssignDriversForWeek() {
     // and none match, fall through to "any active non-PTO driver".
     // Expired drivers_license blocks regardless of override.
     const baseFilter = (d) => {
-      if (!driverLicenseOk(d)) return false;
+      if (!driverLicenseOkForDate(d, sh.date)) return false;
       if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
       if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
       if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
