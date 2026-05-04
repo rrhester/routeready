@@ -2208,9 +2208,7 @@ async function renderWeeksStrip() {
 
   // Group target_routes per (date) summed across stations.
   const targetByDate = new Map();
-  let cushionPct = 10;
   for (const c of cells) {
-    if (c.cushion_pct != null) cushionPct = Number(c.cushion_pct);
     targetByDate.set(c.date, (targetByDate.get(c.date) || 0) + (c.target_routes || 0));
   }
 
@@ -2222,13 +2220,20 @@ async function renderWeeksStrip() {
       const t = targetByDate.get(fmtIsoDate(addDays(wkStart, d))) || 0;
       if (t > routesMax) routesMax = t;
     }
-    const base = Math.round(routesMax * dpr);
-    const cush = Math.ceil(base * (cushionPct / 100));
-    const needed = base + cush;
+    const wkLabel = `W${isoWeek(wkStart)}`;
+    if (routesMax === 0) {
+      // OKAMI hasn't been set for this week yet. Be explicit instead of
+      // showing "5 / 0 +5" which reads like canned data.
+      out.push(`<span class="hp-week-cell"><span class="wk">${wkLabel}</span> <span style="color:var(--text-subtle)">set OKAMI</span></span>`);
+      continue;
+    }
+    // OKAMI is exact demand now (post migration 0039); cushion is a
+    // separate operator tool. needed = peak routes × DPR.
+    const needed = Math.round(routesMax * dpr);
     const gap = available - needed;
     const gapClass = gap >= 0 ? "ok" : (gap >= -10 ? "tight" : "short");
     const gapText = (gap >= 0 ? "+" : "") + gap;
-    out.push(`<span class="hp-week-cell"><span class="wk">W${isoWeek(wkStart)}</span> ${available} / ${needed} <span class="gap ${gapClass}">${gapText}</span></span>`);
+    out.push(`<span class="hp-week-cell"><span class="wk">${wkLabel}</span> ${available} / ${needed} <span class="gap ${gapClass}">${gapText}</span></span>`);
   }
 
   strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>${out.join("")}`;
