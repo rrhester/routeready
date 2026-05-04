@@ -1318,6 +1318,10 @@ async function loadCheckinView() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
   const todayIso = fmtIsoDate(new Date());
+  // Look 7 days ahead. If today has no assigned shifts, fall back to the
+  // next day that does — operator on a Sunday wants to see Monday's roster
+  // without manually navigating.
+  const horizonIso = fmtIsoDate(addDays(new Date(), 7));
 
   const [driversRes, shiftsRes] = await Promise.all([
     sb.from("drivers")
@@ -1325,9 +1329,12 @@ async function loadCheckinView() {
       .eq("dsp_id", dspId)
       .eq("status", "active"),
     sb.from("shifts")
-      .select("id, driver_id, status")
+      .select("id, driver_id, status, date")
       .eq("dsp_id", dspId)
-      .eq("date", todayIso),
+      .gte("date", todayIso)
+      .lte("date", horizonIso)
+      .not("driver_id", "is", null)
+      .order("date", { ascending: true }),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -1335,18 +1342,31 @@ async function loadCheckinView() {
     return;
   }
   const drivers = driversRes.data || [];
-  const shifts  = shiftsRes.data  || [];
+  const allShifts = shiftsRes.data  || [];
+
+  // Pick target date: today if it has shifts, otherwise earliest day with any.
+  const todayShifts = allShifts.filter(sh => sh.date === todayIso);
+  const targetIso = todayShifts.length > 0
+    ? todayIso
+    : (allShifts[0]?.date || todayIso);
+  const shifts = allShifts.filter(sh => sh.date === targetIso);
 
   const driverShift = new Map(); // driver_id -> shift row
   for (const sh of shifts) {
     if (sh.driver_id) driverShift.set(sh.driver_id, sh);
   }
 
-  // Update head sub line + progress meta with today's actuals.
+  // Head sub line — note when we're showing a future date.
   const sub = document.querySelector("#view-checkin .page-sub");
   if (sub) {
     const expected = drivers.filter(d => driverShift.has(d.id)).length;
-    sub.textContent = `${new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} · ${expected} drivers expected`;
+    const targetDate = new Date(targetIso + "T12:00:00");
+    const dateLabel = targetDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    if (targetIso !== todayIso) {
+      sub.textContent = `${dateLabel} · ${expected} drivers expected (no shifts scheduled today)`;
+    } else {
+      sub.textContent = `${dateLabel} · ${expected} drivers expected`;
+    }
   }
 
   const rows = drivers
