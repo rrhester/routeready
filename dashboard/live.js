@@ -1780,8 +1780,10 @@ async function loadDriverInsights() {
   // buckets + active count + at-risk), shifts in last 30d (for attendance),
   // and termination events in two windows for turnover comparison.
   const [allDrvRes, shiftsRes] = await Promise.all([
+    // Note: drivers schema has no terminated_at column. We use updated_at
+    // as a rough proxy for "when this driver moved to terminated".
     sb.from("drivers")
-      .select("id, status, hire_date, terminated_at, score, metadata")
+      .select("id, status, hire_date, updated_at, score, metadata")
       .eq("dsp_id", dspId),
     sb.from("shifts").select("driver_id, status, date")
       .eq("dsp_id", dspId)
@@ -1789,10 +1791,15 @@ async function loadDriverInsights() {
       .lte("date", fmtIsoDate(today)),
   ]);
 
+  if (allDrvRes?.error) {
+    console.warn("insights load (drivers):", allDrvRes.error);
+    return;
+  }
+
   const drivers = (allDrvRes?.data || []);
   const shifts  = (shiftsRes?.data  || []);
 
-  // Active count = active + onboarding (not terminated/inactive).
+  // Active count = active + onboarding (not terminated/inactive/leave).
   const active = drivers.filter(d => d.status === "active" || d.status === "onboarding");
   const totalActive = active.length;
 
@@ -1809,11 +1816,17 @@ async function loadDriverInsights() {
     : 0;
   const longestMonths = tenureMonths.length ? tenureMonths[tenureMonths.length - 1] : 0;
 
-  // Turnover — terminated_at within last 30 (and prior 30 for trend).
-  // Anchor denominator at total roster size (active + recently-terminated)
-  // so it doesn't go to infinity when small DSPs terminate one driver.
-  const termsLast30  = drivers.filter(d => d.terminated_at && d.terminated_at >= ago30Iso).length;
-  const termsPrior30 = drivers.filter(d => d.terminated_at && d.terminated_at >= ago60Iso && d.terminated_at < ago30Iso).length;
+  // Turnover — use updated_at as a proxy for termination date since the
+  // schema doesn't track it explicitly. Filter by status='terminated'.
+  const termsLast30 = drivers.filter(d =>
+    d.status === "terminated" && d.updated_at && d.updated_at.slice(0, 10) >= ago30Iso
+  ).length;
+  const termsPrior30 = drivers.filter(d => {
+    if (d.status !== "terminated" || !d.updated_at) return false;
+    const dIso = d.updated_at.slice(0, 10);
+    return dIso >= ago60Iso && dIso < ago30Iso;
+  }).length;
+  // Anchor denominator at total roster size (active + recently-terminated).
   const denom = Math.max(1, totalActive + termsLast30);
   const turnover30Pct = (termsLast30 / denom) * 100;
   const turnoverPriorPct = (termsPrior30 / denom) * 100;
