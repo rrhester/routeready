@@ -3768,11 +3768,33 @@ async function openCoachingForm(driverId) {
   m.id = "rr-coach-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto";
   const today = new Date().toISOString().slice(0, 10);
+
+  // Templates — one-click presets that fill the form for the most common
+  // scenarios. Severity, topic, type, summary, and action_taken defaults
+  // can all be set; operator just adjusts a sentence and saves.
+  const TEMPLATES = [
+    { key: "hardbrake",   label: "Hard brake",     topic: "safety",      severity: "concern", summary: "Hard brake event flagged on Mentor",       actions: { verbal: true, retraining: true } },
+    { key: "speed",       label: "Speed event",    topic: "safety",      severity: "concern", summary: "Speed event flagged on Mentor",            actions: { verbal: true } },
+    { key: "callout",     label: "Mon callout",    topic: "attendance",  severity: "concern", summary: "Monday callout pattern · 3 of last 4",     actions: { verbal: true } },
+    { key: "noshow",      label: "No-show",        topic: "attendance",  severity: "warning", summary: "No-show on assigned shift",                actions: { verbal: true, written: true } },
+    { key: "late",        label: "Late arrival",   topic: "attendance",  severity: "info",    summary: "Late arrival to wave",                     actions: { verbal: true } },
+    { key: "dcr",         label: "DCR slip",       topic: "scorecard",   severity: "concern", summary: "DCR below station target this cycle",      actions: { verbal: true, retraining: true } },
+    { key: "scan",        label: "Scan compliance",topic: "scorecard",   severity: "concern", summary: "Scan compliance below threshold",          actions: { verbal: true, retraining: true } },
+    { key: "kudos",       label: "Recognition",    topic: "recognition", severity: "info",    summary: "Recognition · great work this week",       actions: { no_action: true } },
+  ];
+  const tplChips = TEMPLATES.map(t =>
+    `<button type="button" data-rr-coach-tpl="${t.key}" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--canvas);color:var(--text-muted);cursor:pointer">${escapeHtml(t.label)}</button>`
+  ).join("");
+
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto">
-      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Log a coaching</h3>
+      <h3 style="margin:0 0 6px;font-size:17px;font-weight:600">Log a coaching</h3>
+      <div style="font-size:11px;color:var(--text-subtle);margin-bottom:12px">Cmd / Ctrl + Enter to save</div>
 
       ${recent30 >= 3 ? `<div style="font-size:12px;color:var(--amber);background:rgba(245,158,11,.1);border-left:2px solid var(--amber);padding:8px 10px;margin-bottom:14px;border-radius:3px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating severity.</div>` : ""}
+
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Template (optional)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${tplChips}</div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
@@ -3782,15 +3804,6 @@ async function openCoachingForm(driverId) {
           </select>
         </div>
         <div>
-          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Type</label>
-          <select id="rr-coach-type" class="form-input" style="width:100%">
-            ${["in_person","sms","email","phone_call","video_call","documented_warning"].map(t => `<option value="${t}">${t.replace(/_/g," ")}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-        <div>
           <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Severity</label>
           <select id="rr-coach-severity" class="form-input" style="width:100%">
             <option value="info">Info</option>
@@ -3799,55 +3812,68 @@ async function openCoachingForm(driverId) {
             <option value="final">Final</option>
           </select>
         </div>
-        <div>
-          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Incident date</label>
-          <input id="rr-coach-incident-date" type="date" class="form-input" style="width:100%" value="${today}"/>
-        </div>
       </div>
 
       <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Summary</label>
-      <input id="rr-coach-summary" class="form-input" style="width:100%;margin-bottom:10px" placeholder="One-line headline" />
+      <input id="rr-coach-summary" class="form-input" style="width:100%;margin-bottom:10px" placeholder="One-line headline" autofocus/>
 
       <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Notes</label>
-      <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:80px;margin-bottom:10px" placeholder="What happened, what was discussed, what's next."></textarea>
+      <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:80px;margin-bottom:14px" placeholder="What happened, what was discussed, what's next."></textarea>
 
-      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Action taken</label>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 12px;margin-bottom:12px;font-size:13px">
-        <label><input type="checkbox" data-rr-coach-action="verbal" checked/> Verbal</label>
-        <label><input type="checkbox" data-rr-coach-action="written"/> Written</label>
-        <label><input type="checkbox" data-rr-coach-action="retraining"/> Retraining</label>
-        <label><input type="checkbox" data-rr-coach-action="route_change"/> Route change</label>
-        <label><input type="checkbox" data-rr-coach-action="suspension"/> Suspension</label>
-        <label><input type="checkbox" data-rr-coach-action="no_action"/> No action</label>
-      </div>
+      <button type="button" id="rr-coach-more-toggle" style="font-size:12px;font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;margin-bottom:14px">+ More options (type, action, witness, follow-up, attachments)</button>
 
-      <details style="margin-bottom:10px">
-        <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
-          <input id="rr-coach-witness-name" class="form-input" placeholder="Witness name"/>
-          <input id="rr-coach-witness-role" class="form-input" placeholder="Role (e.g. HR, Lead)"/>
+      <div id="rr-coach-more" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Type</label>
+            <select id="rr-coach-type" class="form-input" style="width:100%">
+              ${["in_person","sms","email","phone_call","video_call","documented_warning"].map(t => `<option value="${t}">${t.replace(/_/g," ")}</option>`).join("")}
+            </select>
+          </div>
+          <div>
+            <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Incident date</label>
+            <input id="rr-coach-incident-date" type="date" class="form-input" style="width:100%" value="${today}"/>
+          </div>
         </div>
-      </details>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:center">
-        <label style="font-size:13px;cursor:pointer">
-          <input id="rr-coach-driver-visible" type="checkbox"/> Driver can view this
-        </label>
-        <div>
-          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Privacy</label>
-          <select id="rr-coach-privacy" class="form-input" style="width:100%">
-            <option value="standard">Standard (DSP staff)</option>
-            <option value="hr_only">HR-only (sensitive)</option>
-          </select>
+        <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Action taken</label>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 12px;margin-bottom:12px;font-size:13px">
+          <label><input type="checkbox" data-rr-coach-action="verbal" checked/> Verbal</label>
+          <label><input type="checkbox" data-rr-coach-action="written"/> Written</label>
+          <label><input type="checkbox" data-rr-coach-action="retraining"/> Retraining</label>
+          <label><input type="checkbox" data-rr-coach-action="route_change"/> Route change</label>
+          <label><input type="checkbox" data-rr-coach-action="suspension"/> Suspension</label>
+          <label><input type="checkbox" data-rr-coach-action="no_action"/> No action</label>
         </div>
+
+        <details style="margin-bottom:10px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+            <input id="rr-coach-witness-name" class="form-input" placeholder="Witness name"/>
+            <input id="rr-coach-witness-role" class="form-input" placeholder="Role (e.g. HR, Lead)"/>
+          </div>
+        </details>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:center">
+          <label style="font-size:13px;cursor:pointer">
+            <input id="rr-coach-driver-visible" type="checkbox"/> Driver can view this
+          </label>
+          <div>
+            <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Privacy</label>
+            <select id="rr-coach-privacy" class="form-input" style="width:100%">
+              <option value="standard">Standard (DSP staff)</option>
+              <option value="hr_only">HR-only (sensitive)</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Follow-up date (optional)</label>
+        <input id="rr-coach-followup" type="date" class="form-input" style="width:100%;margin-bottom:14px"/>
+
+        <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attachments (photos, scorecard screenshots, signed forms)</label>
+        <input id="rr-coach-files" type="file" multiple style="margin-bottom:14px;font-size:12px"/>
+        <div id="rr-coach-upload-status" style="font-size:11px;color:var(--text-subtle);margin-bottom:10px"></div>
       </div>
-
-      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Follow-up date (optional)</label>
-      <input id="rr-coach-followup" type="date" class="form-input" style="width:100%;margin-bottom:14px"/>
-
-      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attachments (photos, scorecard screenshots, signed forms)</label>
-      <input id="rr-coach-files" type="file" multiple style="margin-bottom:14px;font-size:12px"/>
-      <div id="rr-coach-upload-status" style="font-size:11px;color:var(--text-subtle);margin-bottom:10px"></div>
 
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn" data-rr-coach-cancel type="button">Cancel</button>
@@ -3855,6 +3881,50 @@ async function openCoachingForm(driverId) {
       </div>
     </div>`;
   document.body.appendChild(m);
+  // Auto-focus the summary so the operator can start typing immediately.
+  setTimeout(() => m.querySelector("#rr-coach-summary")?.focus(), 0);
+
+  // Toggle the More options block.
+  m.querySelector("#rr-coach-more-toggle").addEventListener("click", () => {
+    const more = m.querySelector("#rr-coach-more");
+    const tg   = m.querySelector("#rr-coach-more-toggle");
+    if (more.style.display === "none") {
+      more.style.display = "";
+      tg.textContent = "− Hide options";
+    } else {
+      more.style.display = "none";
+      tg.textContent = "+ More options (type, action, witness, follow-up, attachments)";
+    }
+  });
+
+  // Templates fill in topic / severity / summary / actions in one click.
+  m.querySelectorAll("[data-rr-coach-tpl]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const t = TEMPLATES.find(x => x.key === btn.getAttribute("data-rr-coach-tpl"));
+      if (!t) return;
+      m.querySelector("#rr-coach-topic").value = t.topic;
+      m.querySelector("#rr-coach-severity").value = t.severity;
+      m.querySelector("#rr-coach-summary").value = t.summary;
+      // Reset action checkboxes then apply template's actions.
+      m.querySelectorAll("[data-rr-coach-action]").forEach(cb => { cb.checked = false; });
+      Object.entries(t.actions || {}).forEach(([k, v]) => {
+        const cb = m.querySelector(`[data-rr-coach-action="${k}"]`);
+        if (cb) cb.checked = !!v;
+      });
+      // Visual feedback — highlight the picked chip briefly.
+      m.querySelectorAll("[data-rr-coach-tpl]").forEach(b => b.style.borderColor = "var(--border)");
+      btn.style.borderColor = "var(--accent)";
+      m.querySelector("#rr-coach-summary").focus();
+    });
+  });
+
+  // Cmd/Ctrl + Enter saves.
+  m.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      m.querySelector("[data-rr-coach-save]")?.click();
+    }
+  });
 
   // HR-only forces driver-visible off.
   m.querySelector("#rr-coach-privacy").addEventListener("change", (e) => {
