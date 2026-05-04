@@ -286,6 +286,18 @@ async function loadDriversRoster() {
 
   refreshDriverStatRow(rows ?? []);
   renderDriverTable(rows ?? [], error);
+
+  // Page sub-line: live count of active drivers + distinct active stations.
+  const sub = document.getElementById("rr-drivers-page-sub");
+  if (sub) {
+    const all = rows || [];
+    const active = all.filter(r => r.status === "active").length;
+    const stationCodes = new Set(
+      all.filter(r => r.status === "active" && r.station?.code).map(r => r.station.code)
+    );
+    const stationN = stationCodes.size;
+    sub.textContent = `${active} active driver${active === 1 ? "" : "s"}${stationN > 0 ? ` across ${stationN} station${stationN === 1 ? "" : "s"}` : ""}`;
+  }
 }
 
 function visibleDriversForStage(rows, stage) {
