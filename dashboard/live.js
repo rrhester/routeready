@@ -4995,7 +4995,11 @@ async function renderOkamiLive() {
 // Attach to window at module load so the mockup recalcOkami stub can
 // always find it. Same pattern as renderOkamiDailyPanel.
 window.renderOkamiLive = renderOkamiLive;
-window.recalcOkami = renderOkamiLive;
+// The inline oninput="recalcOkami()" on every Routes (max) input would
+// refetch the row from DB on every keystroke and reset the value the
+// operator just typed. Make it a no-op — the document-level input
+// delegate handles the debounced save + re-render.
+window.recalcOkami = function () { /* no-op */ };
 
 async function _renderOkamiLiveImpl() {
   const tbody = document.getElementById("okami-tbody");
@@ -5158,10 +5162,9 @@ function bindOkamiHandlers() {
   // The mockup's recalcOkami fires on every DPR / ADW / OT / cushion
   // slider tick and writes hardcoded okamiAvail values to every row's
   // cells, overwriting our live render. Neutralize it so only our
-  // renderOkamiLive controls the table.
-  window.recalcOkami = function () {
-    if (typeof renderOkamiLive === "function") renderOkamiLive();
-  };
+  // renderOkamiLive controls the table. Set at module top level (no-op);
+  // do NOT reassign here — the inline oninput handlers on Routes (max)
+  // inputs would refetch on every keystroke and clobber typed values.
 
   // Slider is wired via the document-level delegate at module top level
   // so it survives any DOM re-render or re-bind timing.
