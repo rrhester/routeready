@@ -6371,50 +6371,72 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
     : [{ start: "07:00" }];
   const waveCount = waves.length;
 
-  // Per-wave totals: dailyByWave[waveIdx][dayIdx] = sum across stations.
-  // The grid returns one row per (date, station) with a targets_by_wave
-  // jsonb breakdown. If a wave has no demand row, it stays at 0.
-  const dailyByWave = waves.map(() => Array(7).fill(0));
+  // Active service types determine how many rows per wave to render.
+  // A DSP with only SP active (the default) gets a single row per wave,
+  // looking exactly like pre-0050. Activating XL / HUB / ASU adds rows.
+  if (!_okamiServiceTypes) {
+    const stRes = await sb.rpc("list_service_types");
+    _okamiServiceTypes = (stRes.data || []);
+  }
+  const activeTypes = _okamiServiceTypes.filter(t => t.active);
+  if (activeTypes.length === 0) {
+    activeTypes.push({ id: null, code: "SP", label: "Standard Parcel", color: "#3b82f6" });
+  }
+  const showTypeLabel = activeTypes.length > 1;
+
+  // Per-(wave × type) totals: dailyByBucket[waveIdx][typeIdx][dayIdx].
+  // okami_grid returns one row per (date, station) with targets_by_wave
+  // carrying { wave_index, service_type_code, target_routes } entries.
+  const dailyByBucket = waves.map(() => activeTypes.map(() => Array(7).fill(0)));
   for (const c of cells) {
     const dayIdx = days.findIndex(d => fmtIsoDate(d) === c.date);
     if (dayIdx < 0) continue;
     const byWave = Array.isArray(c.targets_by_wave) ? c.targets_by_wave : [];
     for (const w of byWave) {
       const wIdx = w?.wave_index ?? 0;
-      if (wIdx >= 0 && wIdx < waveCount) {
-        dailyByWave[wIdx][dayIdx] += (w?.target_routes || 0);
+      const stCode = w?.service_type_code || "SP";
+      const tIdx = activeTypes.findIndex(t => t.code === stCode);
+      if (wIdx >= 0 && wIdx < waveCount && tIdx >= 0) {
+        dailyByBucket[wIdx][tIdx][dayIdx] += (w?.target_routes || 0);
       }
     }
   }
 
-  // Day totals + week stats use the sum across waves so the footer line
-  // ("Week total / Peak day") still reflects the day's total demand.
+  // Day totals + week stats sum across every bucket so the footer line
+  // ("Week total / Peak day") reflects all-types-all-waves demand.
   const dayTotals = Array(7).fill(0);
-  for (const row of dailyByWave) {
-    for (let i = 0; i < 7; i++) dayTotals[i] += row[i];
+  for (const waveBuckets of dailyByBucket) {
+    for (const typeBuckets of waveBuckets) {
+      for (let i = 0; i < 7; i++) dayTotals[i] += typeBuckets[i];
+    }
   }
   const totalRoutes = dayTotals.reduce((s, n) => s + n, 0);
   const peakRoutes  = dayTotals.reduce((m, n) => n > m ? n : m, 0);
 
   const headerLabel = `W${isoWeekNumber(weekStart)} · ${fmtMD(weekStart)}–${addDays(weekStart, 6).getDate()}`;
 
-  // One "Routes planned" row per wave. Single-wave weeks render exactly
-  // like before — no visible label change. Multi-wave weeks get one row
-  // per wave, labelled with that wave's start time.
-  const rowsHtml = waves.map((wave, wIdx) => {
+  // One row per (wave × active type). Single-wave + single-type weeks
+  // render exactly like pre-0050. Multi-wave or multi-type weeks get
+  // one labelled row per bucket — labels include type code only when
+  // 2+ types active (single-type weeks just say "Routes planned").
+  const rowsHtml = waves.flatMap((wave, wIdx) => {
     const waveStart = wave?.start || "07:00";
-    const label = waveCount > 1
-      ? `Routes planned · Wave ${wIdx + 1} (${escapeHtml(waveStart)})`
-      : `Routes planned`;
-    const cellsHtml = days.map((d, i) => {
-      const iso = fmtIsoDate(d);
-      const isToday = iso === todayIso;
-      return `<div class="okami-daily-cell${isToday ? " is-today" : ""}"><input type="number" min="0" max="200" value="${dailyByWave[wIdx][i]}" data-rr-okami-daily="${weekIdx}" data-iso="${iso}" data-wave="${wIdx}"/></div>`;
-    }).join("");
-    return `<div class="okami-daily-row">
-      <div class="okami-daily-label">${label}</div>
-      ${cellsHtml}
-    </div>`;
+    return activeTypes.map((st, tIdx) => {
+      const labelParts = ["Routes planned"];
+      if (showTypeLabel) labelParts.push(escapeHtml(st.code));
+      if (waveCount > 1) labelParts.push(`Wave ${wIdx + 1} (${escapeHtml(waveStart)})`);
+      const label = labelParts.join(" · ");
+      const stIdAttr = st.id ? `data-service-type-id="${st.id}"` : "";
+      const cellsHtml = days.map((d, i) => {
+        const iso = fmtIsoDate(d);
+        const isToday = iso === todayIso;
+        return `<div class="okami-daily-cell${isToday ? " is-today" : ""}"><input type="number" min="0" max="200" value="${dailyByBucket[wIdx][tIdx][i]}" data-rr-okami-daily="${weekIdx}" data-iso="${iso}" data-wave="${wIdx}" ${stIdAttr}/></div>`;
+      }).join("");
+      return `<div class="okami-daily-row">
+        <div class="okami-daily-label">${label}</div>
+        ${cellsHtml}
+      </div>`;
+    });
   }).join("");
 
   container.innerHTML = `
@@ -6447,11 +6469,12 @@ function bindOkamiDailyDelegation() {
     const weekIdx = parseInt(inp.dataset.rrOkamiDaily, 10);
     const iso = inp.dataset.iso;
     const waveIdx = parseInt(inp.dataset.wave || "0", 10) || 0;
+    const stId = inp.dataset.serviceTypeId || null;
     if (!iso || !Number.isFinite(weekIdx)) return;
-    const key = `${weekIdx}|${iso}|${waveIdx}`;
+    const key = `${weekIdx}|${iso}|${waveIdx}|${stId || "default"}`;
     const prev = _okamiDailySaveTimers.get(key);
     if (prev) clearTimeout(prev);
-    _okamiDailySaveTimers.set(key, setTimeout(() => saveOkamiDaily(weekIdx, iso, parseInt(inp.value, 10) || 0, waveIdx), 400));
+    _okamiDailySaveTimers.set(key, setTimeout(() => saveOkamiDaily(weekIdx, iso, parseInt(inp.value, 10) || 0, waveIdx, stId), 400));
   });
 
   tbody.addEventListener("change", async (e) => {
@@ -6499,7 +6522,7 @@ function openOkamiDetailIndex() {
   return null;
 }
 
-async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0) {
+async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0, stId = null) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
   if (!_okamiStations || _okamiStations.length === 0) {
@@ -6519,10 +6542,11 @@ async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0) {
   // round(routes / station_count) when station_count > 1.
   const calls = _okamiStations.map((s, idx) =>
     sb.rpc("okami_set_target", {
-      p_date:        iso,
-      p_station_id:  s.id,
-      p_target:      idx === 0 ? routes : 0,
-      p_wave_index:  waveIdx,
+      p_date:             iso,
+      p_station_id:       s.id,
+      p_target:           idx === 0 ? routes : 0,
+      p_wave_index:       waveIdx,
+      p_service_type_id:  stId,
     })
   );
   const results = await Promise.all(calls);
@@ -6612,6 +6636,27 @@ async function loadSchedulingSettings() {
       ? "Inherited from a previous week — Save to make this week's settings independent"
       : `Custom settings for week of ${_schedStart}`;
   }
+  loadServiceTypes();
+}
+
+let _okamiServiceTypes = null;
+async function loadServiceTypes() {
+  const wrap = document.getElementById("rr-set-service-types");
+  const { data, error } = await sb.rpc("list_service_types");
+  if (error) {
+    if (wrap) wrap.innerHTML = `<div style="font-size:11px;color:var(--red)">Failed to load: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const types = data || [];
+  _okamiServiceTypes = types;
+  if (!wrap) return;
+  wrap.innerHTML = types.map(t => `
+    <div data-rr-st="${t.id}" style="display:flex;gap:10px;align-items:center;padding:6px 8px;background:var(--canvas);border-radius:6px">
+      <input type="checkbox" data-rr-st-active ${t.active ? "checked" : ""} style="cursor:pointer" title="Active in OKAMI"/>
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(t.color)};flex-shrink:0"></span>
+      <strong style="font-size:12px;letter-spacing:.04em;width:42px">${escapeHtml(t.code)}</strong>
+      <input type="text" data-rr-st-label class="form-input" value="${escapeHtml(t.label)}" style="flex:1;font-size:12px;height:28px"/>
+    </div>`).join("");
 }
 
 function _renderWaveRow(start) {
@@ -6620,6 +6665,37 @@ function _renderWaveRow(start) {
     <button type="button" class="btn btn-sm" data-rr-remove-wave style="color:var(--red)">Remove</button>
   </div>`;
 }
+
+// Service type: toggle active. Refreshes OKAMI rendering since the
+// per-(wave × type) row count is driven by the active-type list.
+document.addEventListener("change", async (e) => {
+  const cb = e.target.closest?.("[data-rr-st-active]");
+  if (cb) {
+    const row = cb.closest("[data-rr-st]");
+    const id = row?.dataset.rrSt;
+    if (!id) return;
+    const { error } = await sb.rpc("set_service_type", { p_id: id, p_active: cb.checked });
+    if (error) { toast("Save failed: " + error.message, "warn"); cb.checked = !cb.checked; return; }
+    _okamiServiceTypes = null; // bust cache so OKAMI re-renders with the new active set
+    if (typeof renderOkamiLive === "function") renderOkamiLive();
+    const openIdx = openOkamiDetailIndex?.();
+    if (openIdx != null) renderOkamiDailyPanel(openIdx);
+    toast(`${cb.checked ? "Activated" : "Deactivated"} ${row.querySelector("strong")?.textContent || "type"}`, "success");
+  }
+});
+
+// Service type: rename label on blur.
+document.addEventListener("blur", async (e) => {
+  const inp = e.target.closest?.("[data-rr-st-label]");
+  if (!inp) return;
+  const row = inp.closest("[data-rr-st]");
+  const id = row?.dataset.rrSt;
+  if (!id) return;
+  const newLabel = (inp.value || "").trim();
+  if (!newLabel) return;
+  const { error } = await sb.rpc("set_service_type", { p_id: id, p_label: newLabel });
+  if (error) toast("Save failed: " + error.message, "warn");
+}, true);
 
 document.addEventListener("click", async (e) => {
   // Add a wave row.
@@ -7299,8 +7375,16 @@ function _schedShiftChip(sh) {
   const ex = sh.is_cushion
     ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
+  // Service-type badge — shown for any non-SP shift so an XL/HUB/ASU
+  // shift is visually distinguishable. SP shifts (the default) get no
+  // badge to keep the chip clean for single-type DSPs.
+  const stCode = sh.service_type_code;
+  const stColor = sh.service_type_color || "#3b82f6";
+  const stBadge = (stCode && stCode !== "SP")
+    ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
+    : "";
   const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : '';
-  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to remove shift"><div class="shift-chip-route">${r}${ex}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to remove shift"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -7849,14 +7933,19 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     const ex = !sh.virtual && sh.is_cushion
       ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
+    const stCode = sh.service_type_code;
+    const stColor = sh.service_type_color || "#3b82f6";
+    const stBadge = (!sh.virtual && stCode && stCode !== "SP")
+      ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
+      : "";
     const newTag = sh.virtual
       ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em">OKAMI</span>`
       : "";
     const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
-      ? `<div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}${newTag}</div>
+      ? `<div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}${stBadge}${newTag}</div>
          <div style="font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>`
-      : `<div style="font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${newTag}</div>${route ? `<div style="font-size:11px;color:var(--text-subtle)">${route}</div>` : ""}`;
+      : `<div style="font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${stBadge}${newTag}</div>${route ? `<div style="font-size:11px;color:var(--text-subtle)">${route}</div>` : ""}`;
     const dragId = sh.virtual ? sh.synthId : sh.id;
     const virtAttrs = sh.virtual
       ? ` data-rr-pool-virtual="1" data-rr-pool-station="${sh.station_id}" data-rr-pool-wave="${sh.wave_start}"`
