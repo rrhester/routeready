@@ -3470,7 +3470,47 @@ function renderCalAvailabilityEditor(payload) {
 
   const dayRows = Array.from({ length: 7 }, (_, d) => renderDayRow(d, perDay[d])).join("");
 
+  // Current-availability summary so the operator sees at a glance what
+  // applicants will be offered without scanning seven day rows. Groups
+  // contiguous days that share the same window set; e.g. Mon–Fri 9–5.
+  const fmt12 = (hhmm) => {
+    const [h, m] = (hhmm || "").split(":").map(Number);
+    if (!Number.isFinite(h)) return hhmm;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12  = (h % 12) || 12;
+    return `${h12}:${String(m || 0).padStart(2, "0")} ${ampm}`;
+  };
+  const winSig = (windows) => windows.map(w => `${w.start}-${w.end}`).sort().join("|");
+  const winText = (windows) => windows.map(w => `${fmt12(w.start)} – ${fmt12(w.end)}`).join(", ");
+  const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const groups = [];
+  for (let d = 0; d < 7; d++) {
+    const w = perDay[d];
+    if (!w || w.length === 0) continue;
+    const sig = winSig(w);
+    const last = groups[groups.length - 1];
+    if (last && last.sig === sig && last.endDay === d - 1) {
+      last.endDay = d;
+    } else {
+      groups.push({ startDay: d, endDay: d, sig, windows: w });
+    }
+  }
+  const summaryHtml = groups.length === 0
+    ? `<span style="color:var(--red);font-weight:600">No availability set</span> — applicants can't book interviews until at least one day is enabled below.`
+    : groups.map(g => {
+        const days = g.startDay === g.endDay
+          ? DAY_LABELS[g.startDay]
+          : `${DAY_LABELS[g.startDay]}–${DAY_LABELS[g.endDay]}`;
+        return `<strong style="color:var(--text)">${days}</strong> <span style="color:var(--text-subtle)">${escapeHtml(winText(g.windows))}</span>`;
+      }).join(" &nbsp;·&nbsp; ");
+
   card.innerHTML = `
+    <div class="cal-edit-section" style="background:var(--canvas);padding:12px 14px;border-radius:8px;margin-bottom:14px">
+      <div class="cal-edit-label" style="margin-bottom:6px">Current availability</div>
+      <div style="font-size:13px;line-height:1.5">${summaryHtml}</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Time zone: ${escapeHtml(tz)}</div>
+    </div>
+
     <div class="cal-edit-section">
       <div class="cal-edit-label">Time zone</div>
       <select id="cal-tz" class="cal-edit-input" style="max-width:280px">${tzOptions}</select>
@@ -5207,21 +5247,27 @@ document.addEventListener("change", (e) => {
 });
 
 
+// Toggle now saves immediately — no separate Save button. The textarea
+// (prompt) and number input (max seconds) persist on blur/change so
+// nothing is lost when the operator switches contexts.
 document.addEventListener("click", async (e) => {
   const tgBtn = e.target.closest("[data-rr-video-toggle]");
-  if (tgBtn) {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    tgBtn.classList.toggle("on");
-    return;
+  if (!tgBtn) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  tgBtn.classList.toggle("on");
+  await saveVideoScreeningSettings();
+}, true);
+
+document.addEventListener("change", async (e) => {
+  if (e.target.id === "rr-video-max-seconds") {
+    await saveVideoScreeningSettings();
   }
-  const saveBtn = e.target.closest("[data-rr-video-save]");
-  if (saveBtn) {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    saveBtn.disabled = true;
-    try { await saveVideoScreeningSettings(); }
-    finally { saveBtn.disabled = false; }
+});
+
+document.addEventListener("blur", async (e) => {
+  if (e.target.id === "rr-video-prompt") {
+    await saveVideoScreeningSettings();
   }
 }, true);
 
