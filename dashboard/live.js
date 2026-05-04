@@ -6175,18 +6175,40 @@ async function renderScheduleWeek() {
   const lic = document.getElementById("sched-license-banner");
   if (lic) lic.remove();
 
-  renderSchedOpenShiftsPool(sub, grid.shifts || [], drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver);
+  renderSchedOpenShiftsPool(sub, grid.shifts || [], drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, virtualByDate);
 }
 
 let _poolSortMode = "day"; // 'day' | 'wave'
 
-function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver) {
+function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, virtualByDate) {
   const aside = sub.querySelector("aside.driver-pool");
   if (!aside) return;
 
-  // Open shifts = unassigned scheduled shifts in the visible week.
-  const openShifts = (allShifts || []).filter(sh => !sh.driver_id && sh.status === "scheduled");
-  const sorted = [...openShifts].sort((a, b) => {
+  // Real open shifts = unassigned scheduled shifts in the visible week.
+  const realOpen = (allShifts || []).filter(sh => !sh.driver_id && sh.status === "scheduled");
+
+  // Virtual gaps = slots needed by OKAMI demand minus real shift rows. We
+  // synthesize a chip per gap so the operator can drag-fill them; the drop
+  // handler creates the missing shift row at that point.
+  const virtualChips = [];
+  if (virtualByDate) {
+    for (const [date, list] of virtualByDate.entries()) {
+      list.forEach((g, idx) => {
+        virtualChips.push({
+          virtual: true,
+          synthId: `v:${date}:${g.station_id}:${idx}`,
+          date,
+          station_id: g.station_id,
+          station_code: g.station_code,
+          starts_at: `${date}T${g.wave_start || "07:00"}:00`,
+          wave_start: g.wave_start || "07:00",
+        });
+      });
+    }
+  }
+
+  const allChips = [...realOpen, ...virtualChips];
+  const sorted = allChips.sort((a, b) => {
     if (_poolSortMode === "wave") {
       const at = (a.starts_at || "").slice(11, 16);
       const bt = (b.starts_at || "").slice(11, 16);
@@ -6202,21 +6224,52 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   };
 
+  const fmtVirtualTime = (sh) => {
+    // virtual chips don't have a real ends_at — derive a label from the
+    // wave start + the configured block hours so the chip reads naturally.
+    if (!sh.virtual) return (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
+    const block = (window.RR?.dsp?.metadata?.scheduling?.default_block_hours) || 10;
+    const [h, m] = (sh.wave_start || "07:00").split(":").map(Number);
+    const startMins = (h || 0) * 60 + (m || 0);
+    const endMins = startMins + block * 60;
+    const fmt = (mins) => {
+      let hh = Math.floor(mins / 60) % 24;
+      const mm = mins % 60;
+      const ampm = hh >= 12 ? "pm" : "am";
+      hh = hh % 12 || 12;
+      return `${hh}:${String(mm).padStart(2,"0")}${ampm}`;
+    };
+    return `${fmt(startMins)} – ${fmt(endMins)}`;
+  };
+
   const shiftItem = (sh, opts) => {
     const showDayLabel = !opts || opts.includeDay !== false;
-    const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
-    const ex = sh.is_cushion
+    const time = fmtVirtualTime(sh);
+    const ex = !sh.virtual && sh.is_cushion
       ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
-    const route = sh.route_code ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
+    const newTag = sh.virtual
+      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em">NEW</span>`
+      : "";
+    const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
-      ? `<div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}</div>
+      ? `<div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}${newTag}</div>
          <div style="font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>`
-      : `<div style="font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}</div>${route ? `<div style="font-size:11px;color:var(--text-subtle)">${route}</div>` : ""}`;
+      : `<div style="font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${newTag}</div>${route ? `<div style="font-size:11px;color:var(--text-subtle)">${route}</div>` : ""}`;
+    const dragId = sh.virtual ? sh.synthId : sh.id;
+    const virtAttrs = sh.virtual
+      ? ` data-rr-pool-virtual="1" data-rr-pool-station="${sh.station_id}" data-rr-pool-wave="${sh.wave_start}"`
+      : "";
+    const styleEx = sh.virtual
+      ? `border-style:dashed;background:repeating-linear-gradient(45deg,var(--surface),var(--surface) 6px,var(--canvas) 6px,var(--canvas) 12px)`
+      : `background:var(--surface)`;
+    const tooltip = sh.virtual
+      ? "OKAMI gap · drag onto a driver to create + assign"
+      : "Drag onto a driver to assign";
     return `<div class="rr-pool-shift" draggable="true"
-        data-rr-pool-shift="${sh.id}" data-rr-pool-shift-date="${sh.date}"
-        style="display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:grab;margin-bottom:4px"
-        title="Drag onto a driver to assign">
+        data-rr-pool-shift="${dragId}" data-rr-pool-shift-date="${sh.date}"${virtAttrs}
+        style="display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;${styleEx};cursor:grab;margin-bottom:4px"
+        title="${tooltip}">
       <div style="flex:1;min-width:0">${headLine}</div>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-subtle);flex-shrink:0"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
     </div>`;
@@ -6239,11 +6292,21 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     listHtml = sorted.map(shiftItem).join("");
   }
 
+  const totalCount = sorted.length;
+  const virtualCount = virtualChips.length;
+  const countLabel = virtualCount > 0
+    ? `${totalCount} open · ${virtualCount} new`
+    : `${totalCount} open`;
+
   aside.innerHTML = `
     <div class="pool-head">
       <span>Open shifts</span>
-      <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${openShifts.length} open</span>
+      <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${countLabel}</span>
     </div>
+    ${virtualCount > 0 ? `<button type="button" id="rr-sync-to-okami"
+      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer">
+      Sync to OKAMI · create ${virtualCount} missing shift${virtualCount === 1 ? "" : "s"}
+    </button>` : ""}
     <button type="button" id="rr-unassign-week"
       style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
       Unassign all shifts this week
@@ -6371,6 +6434,23 @@ function bindSchedWeekNav() {
     renderScheduleWeek();
   });
 
+  // ── Sync to OKAMI: materialize all virtual gaps in one shot.
+  sub.addEventListener("click", async (e) => {
+    if (e.target.id !== "rr-sync-to-okami") return;
+    e.preventDefault();
+    if (!_confirmLiveScheduleEdit()) return;
+    e.target.disabled = true;
+    e.target.textContent = "Syncing…";
+    const { error } = await sb.rpc("regenerate_week_shifts", { p_week_start: _schedStart });
+    if (error) {
+      e.target.disabled = false;
+      toast("Sync failed: " + error.message, "warn");
+      return;
+    }
+    toast("Schedule synced to OKAMI demand", "success");
+    renderScheduleWeek();
+  });
+
   // ── Unassign all shifts this week
   sub.addEventListener("click", async (e) => {
     if (e.target.id !== "rr-unassign-week") return;
@@ -6400,9 +6480,13 @@ function bindSchedWeekNav() {
     const ps = e.target.closest("[data-rr-pool-shift]");
     if (!ps) return;
     e.dataTransfer.effectAllowed = "move";
+    const isVirtual = ps.dataset.rrPoolVirtual === "1";
     e.dataTransfer.setData("application/x-rr-shift", JSON.stringify({
       id: ps.dataset.rrPoolShift,
       date: ps.dataset.rrPoolShiftDate,
+      virtual: isVirtual,
+      station_id: ps.dataset.rrPoolStation || null,
+      wave_start: ps.dataset.rrPoolWave || null,
     }));
     ps.classList.add("rr-dragging");
   });
@@ -6434,7 +6518,11 @@ function bindSchedWeekNav() {
     if (!payload?.id) return;
     const driverId = cell.dataset.rrCellDriver;
     if (!driverId) return;
-    await assignShiftToDriverWithRules(payload.id, payload.date, driverId, cell);
+    if (payload.virtual) {
+      await materializeVirtualShiftToDriver(payload, driverId, cell);
+    } else {
+      await assignShiftToDriverWithRules(payload.id, payload.date, driverId, cell);
+    }
   });
 }
 
@@ -6681,6 +6769,34 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
   const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
   if (error) { toast("Assign failed: " + error.message, "warn"); return; }
   toast(violations.length > 0 ? "Assigned (override)" : "Shift assigned", "success");
+  renderScheduleWeek();
+}
+
+// Materialize a virtual gap chip into a real shifts row owned by the
+// chosen driver. Virtual chips come from the OKAMI demand minus the
+// shifts already in the DB — drag-fill creates the missing row at the
+// driver's wave start + the configured block length.
+async function materializeVirtualShiftToDriver(payload, driverId, cell) {
+  if (!_confirmLiveScheduleEdit()) return;
+  const block = (window.RR?.dsp?.metadata?.scheduling?.default_block_hours) || 10;
+  // Build starts_at / ends_at as local-time ISO strings so Postgres
+  // interprets them in the operator's timezone (matches how generate_shifts
+  // writes existing rows).
+  const wave = payload.wave_start || "07:00";
+  const startsLocal = `${payload.date}T${wave}:00`;
+  const startsAt = new Date(startsLocal);
+  const endsAt = new Date(startsAt.getTime() + block * 3600 * 1000);
+  const insertPayload = {
+    date: payload.date,
+    station_id: payload.station_id,
+    driver_id: driverId,
+    starts_at: startsAt.toISOString(),
+    ends_at:   endsAt.toISOString(),
+    source: "manual",
+  };
+  const { error } = await sb.rpc("create_shift", { p_payload: insertPayload });
+  if (error) { toast("Create + assign failed: " + error.message, "warn"); return; }
+  toast("Shift created and assigned", "success");
   renderScheduleWeek();
 }
 
