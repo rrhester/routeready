@@ -4978,19 +4978,19 @@ async function renderOkamiLive() {
     if (labelEl) labelEl.textContent = `W${isoWeekNumber(weekStart)}`;
     if (datesEl) datesEl.textContent = `${fmtMD(weekStart)}–${weekEnd.getDate()}`;
 
-    // Routes (max) is now READ-ONLY — operator edits per-day in the
-    // daily drill-down panel and Routes (max) reflects the peak day.
-    // Editing the cell directly used to overwrite all 7 days, which
-    // destroyed per-day variation. Set readOnly + light styling so it
-    // looks like a display value, not an input.
+    // Routes (max) — editable. Typing a value sets all 7 days of the
+    // week to that demand via set_okami_week_demand RPC. Operators who
+    // want per-day variation use the drill-down panel below.
     const input = row.querySelector(".plan-route-input");
     if (input) {
       input.value = routesMax;
-      input.readOnly = true;
-      input.style.background = "transparent";
-      input.style.border = "0";
-      input.style.cursor = "default";
-      input.title = "Edit per-day values in the drill-down panel";
+      input.readOnly = false;
+      input.removeAttribute("disabled");
+      input.style.background = "";
+      input.style.border = "";
+      input.style.cursor = "";
+      input.title = "Type a value to apply to all 7 days. Edit per-day variation in the drill-down panel.";
+      input.dataset.rrOkamiWeekIdx = String(weekIdx);
     }
 
     const tdCells = row.querySelectorAll("td");
@@ -5124,36 +5124,38 @@ async function saveOkamiWeek(w, routesMax) {
   if (!dspId) return;
   if (!_okamiStart) return;
   const weekStart = addDays(new Date(_okamiStart + "T12:00:00"), w * 7);
-
-  // Need station list — fetch once and cache on _okamiStations.
-  if (!_okamiStations || _okamiStations.length === 0) {
-    const { data, error } = await sb.from("stations")
-      .select("id, code, active")
-      .eq("dsp_id", dspId)
-      .eq("active", true);
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
-    _okamiStations = data || [];
-  }
-  if (_okamiStations.length === 0) {
-    toast("No stations configured — add a station before setting OKAMI", "warn");
-    return;
-  }
-
-  // Single-station mode: full value to the first station, zero out the
-  // rest. Splitting across stations introduced rounding drift when the
-  // value couldn't be divided evenly.
-  const calls = [];
-  for (let d = 0; d < 7; d++) {
-    const iso = fmtIsoDate(addDays(weekStart, d));
-    _okamiStations.forEach((s, idx) => {
-      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? routesMax : 0 }));
-    });
-  }
-  const results = await Promise.all(calls);
-  const firstErr = results.find(r => r.error);
-  if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
+  const startIso = fmtIsoDate(weekStart);
+  // Single RPC sets all 7 days at the demand level; the okami_demand
+  // trigger regenerates shifts per-day automatically.
+  const { error } = await sb.rpc("set_okami_week_demand", {
+    p_week_start: startIso,
+    p_target_routes: Math.max(0, parseInt(routesMax, 10) || 0),
+  });
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
   await renderOkamiLive();
 }
+
+// Delegated input handler — when the operator types a Routes (max) value
+// and blurs/Enter, fire a debounced save to set all 7 days.
+const _okamiWeekSaveTimers = new Map();
+document.addEventListener("input", (e) => {
+  const inp = e.target.closest("input.plan-route-input");
+  if (!inp) return;
+  const w = parseInt(inp.dataset.rrOkamiWeekIdx ?? "-1", 10);
+  if (!Number.isFinite(w) || w < 0) return;
+  const prev = _okamiWeekSaveTimers.get(w);
+  if (prev) clearTimeout(prev);
+  _okamiWeekSaveTimers.set(w, setTimeout(() => {
+    saveOkamiWeek(w, parseInt(inp.value, 10) || 0);
+  }, 600));
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const inp = e.target.closest("input.plan-route-input");
+  if (!inp) return;
+  e.preventDefault();
+  inp.blur();
+});
 
 // ─── OKAMI · daily drill-down panel (PR C) ─────────────────────────────────
 
@@ -6184,31 +6186,13 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   const aside = sub.querySelector("aside.driver-pool");
   if (!aside) return;
 
-  // Real open shifts = unassigned scheduled shifts in the visible week.
+  // Open shifts = unassigned scheduled shifts in the visible week. After
+  // migration 0039 the okami_demand trigger generates exactly target_routes
+  // shifts per day, so this list always matches what the schedule needs —
+  // no more "virtual gaps" diverging from real rows. Cushion is applied by
+  // the operator via the Apply cushion button below.
   const realOpen = (allShifts || []).filter(sh => !sh.driver_id && sh.status === "scheduled");
-
-  // Virtual gaps = slots needed by OKAMI demand minus real shift rows. We
-  // synthesize a chip per gap so the operator can drag-fill them; the drop
-  // handler creates the missing shift row at that point.
-  const virtualChips = [];
-  if (virtualByDate) {
-    for (const [date, list] of virtualByDate.entries()) {
-      list.forEach((g, idx) => {
-        virtualChips.push({
-          virtual: true,
-          synthId: `v:${date}:${g.station_id}:${idx}`,
-          date,
-          station_id: g.station_id,
-          station_code: g.station_code,
-          starts_at: `${date}T${g.wave_start || "07:00"}:00`,
-          wave_start: g.wave_start || "07:00",
-        });
-      });
-    }
-  }
-
-  const allChips = [...realOpen, ...virtualChips];
-  const sorted = allChips.sort((a, b) => {
+  const sorted = [...realOpen].sort((a, b) => {
     if (_poolSortMode === "wave") {
       const at = (a.starts_at || "").slice(11, 16);
       const bt = (b.starts_at || "").slice(11, 16);
@@ -6256,20 +6240,10 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       ? `<div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}${newTag}</div>
          <div style="font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>`
       : `<div style="font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${newTag}</div>${route ? `<div style="font-size:11px;color:var(--text-subtle)">${route}</div>` : ""}`;
-    const dragId = sh.virtual ? sh.synthId : sh.id;
-    const virtAttrs = sh.virtual
-      ? ` data-rr-pool-virtual="1" data-rr-pool-station="${sh.station_id}" data-rr-pool-wave="${sh.wave_start}"`
-      : "";
-    const styleEx = sh.virtual
-      ? `border-style:dashed;background:repeating-linear-gradient(45deg,var(--surface),var(--surface) 6px,var(--canvas) 6px,var(--canvas) 12px)`
-      : `background:var(--surface)`;
-    const tooltip = sh.virtual
-      ? "OKAMI gap · drag onto a driver to create + assign"
-      : "Drag onto a driver to assign";
     return `<div class="rr-pool-shift" draggable="true"
-        data-rr-pool-shift="${dragId}" data-rr-pool-shift-date="${sh.date}"${virtAttrs}
-        style="display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;${styleEx};cursor:grab;margin-bottom:4px"
-        title="${tooltip}">
+        data-rr-pool-shift="${sh.id}" data-rr-pool-shift-date="${sh.date}"
+        style="display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:grab;margin-bottom:4px"
+        title="Drag onto a driver to assign">
       <div style="flex:1;min-width:0">${headLine}</div>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-subtle);flex-shrink:0"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
     </div>`;
@@ -6293,28 +6267,19 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   }
 
   const totalCount = sorted.length;
-  const virtualCount = virtualChips.length;
-  const countLabel = virtualCount > 0
-    ? `${totalCount} open · ${virtualCount} from OKAMI`
-    : `${totalCount} open`;
-
-  const explainer = virtualCount > 0
-    ? `<div style="font-size:11px;color:var(--text-subtle);line-height:1.4;background:var(--canvas);border-left:2px solid var(--accent);padding:6px 8px;margin-bottom:8px;border-radius:3px">
-        Striped <strong style="color:var(--accent-text)">OKAMI</strong> chips are slots your demand plan needs but no shift row exists yet. Drag onto a driver's day cell to create + assign the shift on <em>that</em> day.
-       </div>`
-    : "";
+  const cushionPct = (window.RR?.dsp?.metadata?.scheduling?.cushion_pct ?? 0);
+  const cushionBtnLabel = cushionPct > 0 ? `Apply ${cushionPct}% cushion` : "Add cushion shift";
 
   aside.innerHTML = `
     <div class="pool-head">
       <span>Open shifts</span>
-      <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${countLabel}</span>
+      <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${totalCount} open</span>
     </div>
-    ${explainer}
-    ${virtualCount > 0 ? `<button type="button" id="rr-sync-to-okami"
+    <button type="button" id="rr-apply-cushion"
       style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer"
-      title="Create the ${virtualCount} OKAMI gap shifts as real (unassigned) rows so you can drag drivers onto them.">
-      Sync to OKAMI · create ${virtualCount} missing shift${virtualCount === 1 ? "" : "s"}
-    </button>` : ""}
+      title="Add cushion shifts on top of OKAMI demand. Cushion shifts are tagged EX and don't count against coverage.">
+      ${cushionBtnLabel}
+    </button>
     <button type="button" id="rr-unassign-week"
       style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
       Unassign all shifts this week
@@ -6442,20 +6407,25 @@ function bindSchedWeekNav() {
     renderScheduleWeek();
   });
 
-  // ── Sync to OKAMI: materialize all virtual gaps in one shot.
+  // ── Apply cushion: add is_cushion shifts on top of demand.
   sub.addEventListener("click", async (e) => {
-    if (e.target.id !== "rr-sync-to-okami") return;
+    if (e.target.id !== "rr-apply-cushion") return;
     e.preventDefault();
     if (!_confirmLiveScheduleEdit()) return;
-    e.target.disabled = true;
-    e.target.textContent = "Syncing…";
-    const { error } = await sb.rpc("regenerate_week_shifts", { p_week_start: _schedStart });
-    if (error) {
-      e.target.disabled = false;
-      toast("Sync failed: " + error.message, "warn");
+    const cushionPct = (window.RR?.dsp?.metadata?.scheduling?.cushion_pct ?? 0);
+    if (cushionPct <= 0) {
+      toast("Set a cushion % in Schedule settings first", "warn");
       return;
     }
-    toast("Schedule synced to OKAMI demand", "success");
+    if (!confirm(`Add ${cushionPct}% cushion shifts to this week?\n\nCushion shifts are tagged EX and don't count toward coverage — they're extra capacity for callouts/no-shows.`)) return;
+    e.target.disabled = true;
+    const original = e.target.textContent;
+    e.target.textContent = "Applying…";
+    const { data, error } = await sb.rpc("apply_cushion_to_week", { p_week_start: _schedStart });
+    e.target.disabled = false;
+    e.target.textContent = original;
+    if (error) { toast("Apply failed: " + error.message, "warn"); return; }
+    toast(`Added ${data ?? 0} cushion shift${data === 1 ? "" : "s"}`, "success");
     renderScheduleWeek();
   });
 
@@ -6488,13 +6458,9 @@ function bindSchedWeekNav() {
     const ps = e.target.closest("[data-rr-pool-shift]");
     if (!ps) return;
     e.dataTransfer.effectAllowed = "move";
-    const isVirtual = ps.dataset.rrPoolVirtual === "1";
     e.dataTransfer.setData("application/x-rr-shift", JSON.stringify({
       id: ps.dataset.rrPoolShift,
       date: ps.dataset.rrPoolShiftDate,
-      virtual: isVirtual,
-      station_id: ps.dataset.rrPoolStation || null,
-      wave_start: ps.dataset.rrPoolWave || null,
     }));
     ps.classList.add("rr-dragging");
   });
@@ -6526,11 +6492,7 @@ function bindSchedWeekNav() {
     if (!payload?.id) return;
     const driverId = cell.dataset.rrCellDriver;
     if (!driverId) return;
-    if (payload.virtual) {
-      await materializeVirtualShiftToDriver(payload, driverId, cell);
-    } else {
-      await assignShiftToDriverWithRules(payload.id, payload.date, driverId, cell);
-    }
+    await assignShiftToDriverWithRules(payload.id, payload.date, driverId, cell);
   });
 }
 
