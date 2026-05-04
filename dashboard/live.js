@@ -4247,7 +4247,7 @@ async function openDriverDrawer(driverId) {
         </div>
         <button id="rr-dd-close" style="background:none;border:0;font-size:22px;cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
       </div>
-      <div class="dd-tabs">
+      <div class="dd-tabs" data-rr-tabbar="dd-tabs">
         <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
         <button class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button class="dd-tab" data-rr-dd-tab="license">License</button>
@@ -8808,3 +8808,153 @@ window.addEventListener("focus", () => {
   if (v === "view-schedule") loadScheduleView();
   if (v === "view-okami")    loadOkamiView();
 });
+
+
+// ─── Drag-to-reorder for tab bars ─────────────────────────────────────
+// Any container marked `data-rr-tabbar="some-key"` becomes a reorderable
+// tab bar. Each child button is treated as a tab; its stable identifier
+// is read from data-rr-tab → data-pipesub → data-sub → data-rr-dd-tab.
+// Order is saved per-user in localStorage (rr.tab-order.<key>) and
+// re-applied whenever the bar mounts. Survives re-renders via a
+// MutationObserver that re-inits any bar that gets added or has its
+// children replaced. No server round-trip; no DSP-shared state.
+//
+// Tabs keep their click handlers — drag and click coexist because
+// HTML5 dragstart only fires on actual drag motion.
+
+const RR_TAB_PREFIX = "rr.tab-order.";
+
+(function injectRrTabbarStyle() {
+  if (document.getElementById("rr-tabbar-style")) return;
+  const s = document.createElement("style");
+  s.id = "rr-tabbar-style";
+  s.textContent = `
+    [data-rr-tabbar] > [draggable="true"] { cursor: grab; }
+    [data-rr-tabbar] > [draggable="true"]:active { cursor: grabbing; }
+    .rr-tab-dragging { opacity: 0.4; }
+    [data-rr-tabbar].rr-tabbar-dropzone { outline: 1px dashed var(--accent); outline-offset: 2px; border-radius: 6px; }
+  `;
+  document.head.appendChild(s);
+})();
+
+function _rrTabId(el) {
+  if (!(el instanceof Element)) return null;
+  return el.dataset.rrTab
+    || el.dataset.pipesub
+    || el.dataset.sub
+    || el.dataset.rrDdTab
+    || null;
+}
+
+function _rrTabbarChildren(bar) {
+  return Array.from(bar.children).filter(c => _rrTabId(c));
+}
+
+function _rrApplyTabbarOrder(bar) {
+  const key = bar.dataset.rrTabbar;
+  if (!key) return;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(RR_TAB_PREFIX + key) || "null"); } catch {}
+  if (!Array.isArray(saved) || saved.length === 0) return;
+  const tabs = _rrTabbarChildren(bar);
+  const byId = new Map(tabs.map(t => [_rrTabId(t), t]));
+  const seen = new Set();
+  for (const id of saved) {
+    const el = byId.get(id);
+    if (el) { bar.appendChild(el); seen.add(id); }
+  }
+  for (const t of tabs) {
+    const id = _rrTabId(t);
+    if (!seen.has(id)) bar.appendChild(t);
+  }
+}
+
+function _rrSaveTabbarOrder(bar) {
+  const key = bar.dataset.rrTabbar;
+  if (!key) return;
+  const ids = _rrTabbarChildren(bar).map(t => _rrTabId(t));
+  try { localStorage.setItem(RR_TAB_PREFIX + key, JSON.stringify(ids)); } catch {}
+}
+
+function _rrInitTabbar(bar) {
+  if (!bar) return;
+  for (const tab of _rrTabbarChildren(bar)) {
+    if (!tab.getAttribute("draggable")) {
+      tab.setAttribute("draggable", "true");
+    }
+  }
+  _rrApplyTabbarOrder(bar);
+}
+
+document.addEventListener("dragstart", (e) => {
+  const tab = e.target.closest?.("[draggable=\"true\"]");
+  if (!tab) return;
+  const bar = tab.parentElement?.closest?.("[data-rr-tabbar]");
+  if (!bar || tab.parentElement !== bar) return;
+  bar._rrDragging = tab;
+  tab.classList.add("rr-tab-dragging");
+  bar.classList.add("rr-tabbar-dropzone");
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", _rrTabId(tab) || ""); } catch {}
+  }
+});
+
+document.addEventListener("dragover", (e) => {
+  const bar = e.target.closest?.("[data-rr-tabbar]");
+  if (!bar || !bar._rrDragging) return;
+  e.preventDefault();
+  const target = e.target.closest?.("[draggable=\"true\"]");
+  if (!target || target === bar._rrDragging || target.parentElement !== bar) return;
+  const rect = target.getBoundingClientRect();
+  const after = (e.clientX - rect.left) > rect.width / 2;
+  if (after) target.after(bar._rrDragging);
+  else target.before(bar._rrDragging);
+});
+
+document.addEventListener("dragend", (e) => {
+  const tab = e.target.closest?.("[draggable=\"true\"]");
+  if (!tab) return;
+  const bar = tab.parentElement?.closest?.("[data-rr-tabbar]")
+           || document.querySelector("[data-rr-tabbar].rr-tabbar-dropzone");
+  if (bar) {
+    bar.classList.remove("rr-tabbar-dropzone");
+    if (bar._rrDragging) {
+      bar._rrDragging.classList.remove("rr-tab-dragging");
+      bar._rrDragging = null;
+      _rrSaveTabbarOrder(bar);
+    }
+  } else {
+    tab.classList.remove("rr-tab-dragging");
+  }
+});
+
+function _rrInitAllTabbars() {
+  document.querySelectorAll("[data-rr-tabbar]").forEach(_rrInitTabbar);
+}
+
+const _rrTabbarObserver = new MutationObserver((mutations) => {
+  const dirty = new Set();
+  for (const m of mutations) {
+    for (const node of m.addedNodes) {
+      if (!(node instanceof Element)) continue;
+      if (node.matches?.("[data-rr-tabbar]")) dirty.add(node);
+      if (node.querySelectorAll) {
+        node.querySelectorAll("[data-rr-tabbar]").forEach(b => dirty.add(b));
+      }
+      const ancestor = node.parentElement?.closest?.("[data-rr-tabbar]");
+      if (ancestor) dirty.add(ancestor);
+    }
+  }
+  for (const bar of dirty) _rrInitTabbar(bar);
+});
+
+if (document.body) {
+  _rrTabbarObserver.observe(document.body, { childList: true, subtree: true });
+  _rrInitAllTabbars();
+} else {
+  document.addEventListener("DOMContentLoaded", () => {
+    _rrTabbarObserver.observe(document.body, { childList: true, subtree: true });
+    _rrInitAllTabbars();
+  });
+}
