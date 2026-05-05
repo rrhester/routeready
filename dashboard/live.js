@@ -1867,6 +1867,34 @@ async function loadAttendancePolicy() {
       </div>
     </div>
 
+    <!-- Auto-coaching actions on Approve -->
+    <div class="pol-section">
+      <h3 class="pol-section-title">Auto-coach when an event is approved</h3>
+      <p class="pol-section-sub">Pick which side effects fire automatically when a leader hits <strong>Approve</strong> on the daily attendance card.  Pick none and coaching is fully manual — the attendance report will flag the row as <em>Coaching pending</em> until a leader finalizes it from the coaching drawer.</p>
+      ${(function () {
+        const has = (v) => Array.isArray(p.auto_coaching_actions) && p.auto_coaching_actions.includes(v);
+        const row = (val, label, blurb) => `
+          <label class="rr-pol-toggle-row" style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--border)">
+            <span style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
+              <div style="font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
+            </span>
+            <label class="toggle" style="margin-top:2px">
+              <input type="checkbox" data-rr-att-action="${val}" ${has(val) ? "checked" : ""}/>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>`;
+        return [
+          row("message",      "Send a message in the driver's app",
+            "Posts a chat message in the driver's RouteReady app explaining what was logged and why.  When the <strong>Coach drawer pending action</strong> below is also on, the message waits until the leader finalizes the coaching from the drawer.  Logged in the driver's coaching record either way."),
+          row("notification", "Send a push notification",
+            "Triggers a push notification on the driver's phone.  Same content as the in-app message; pairs naturally with the message option above so the driver sees it without having to open the app."),
+          row("coach_drawer", "Add a pending action to the coaching drawer",
+            "Creates a draft coaching record marked <em>Pending</em> and routes it to the coaching drawer.  The leader reviews, edits the notes, and finalizes — at which point any chosen message / notification fires.  Use this when you want a human eye before the driver hears about it."),
+        ].join("");
+      })()}
+    </div>
+
     <!-- Save -->
     <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
       <button class="btn btn-primary" type="button" id="rr-att-policy-save">Save policy</button>
@@ -1897,7 +1925,12 @@ document.addEventListener("click", async (e) => {
       const v = Number(el.value);
       if (Number.isFinite(v) && v >= 0) timing[el.dataset.rrAttTiming] = v;
     });
-    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields };
+    // Multi-select auto-coaching actions.
+    const auto_coaching_actions = [];
+    document.querySelectorAll("[data-rr-att-action]").forEach(el => {
+      if (el.checked) auto_coaching_actions.push(el.dataset.rrAttAction);
+    });
+    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields, auto_coaching_actions };
 
     if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
 
