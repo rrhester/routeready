@@ -1826,6 +1826,25 @@ window.attTab = function (name) {
 
 let _todayPlanTimer = null;
 
+// sessionStorage keys — survive tab navigation, dropped on browser
+// close. Used to render last-known data INSTANTLY on tab open while
+// fresh data fetches in the background ("stale-while-revalidate").
+const _TP_CACHE_KEYS = { att: "rr.tp.att", plan: "rr.tp.plan" };
+
+function _tpCacheRead(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    // Drop anything older than 10 minutes — better to fetch fresh.
+    if (!obj?.ts || Date.now() - obj.ts > 10 * 60 * 1000) return null;
+    return obj.data;
+  } catch { return null; }
+}
+function _tpCacheWrite(key, data) {
+  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+}
+
 async function loadTodayPlan() {
   const shell = document.getElementById("rr-today-plan-shell");
   if (!shell) return;
@@ -1845,9 +1864,6 @@ async function loadTodayPlan() {
   }, 30000);
 
   // Render the skeleton FIRST so the page never sits on a single spinner.
-  // KPI cards + service-chip strip + two side-by-side panels each with
-  // their own loader. Each RPC fills its own region independently — a
-  // missing or slow today_plan can't block today_attendance from showing.
   if (shell.dataset.rrPlanShell !== "1") {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
@@ -1867,6 +1883,13 @@ async function loadTodayPlan() {
       </div>`;
   }
 
+  // Stale-while-revalidate: render last-known cached data instantly so
+  // the page is filled in the same frame the operator clicks Today.
+  const cachedAtt  = _tpCacheRead(_TP_CACHE_KEYS.att);
+  const cachedPlan = _tpCacheRead(_TP_CACHE_KEYS.plan);
+  if (cachedAtt)  _renderTpAttendance(cachedAtt,  null);
+  if (cachedPlan) _renderTpCoverage(cachedPlan,   null);
+
   _refreshTodayPlanData();
 }
 
@@ -1875,11 +1898,13 @@ async function _refreshTodayPlanData() {
   // other. Each handler updates only its own region.
   sb.rpc("today_attendance").then(({ data, error }) => {
     if (error) { _renderTpAttendance(null, error); return; }
+    _tpCacheWrite(_TP_CACHE_KEYS.att, data);
     _renderTpAttendance(data, null);
   }).catch(err => _renderTpAttendance(null, err));
 
   sb.rpc("today_plan").then(({ data, error }) => {
     if (error) { _renderTpCoverage(null, error); return; }
+    _tpCacheWrite(_TP_CACHE_KEYS.plan, data);
     _renderTpCoverage(data, null);
   }).catch(err => _renderTpCoverage(null, err));
 }
