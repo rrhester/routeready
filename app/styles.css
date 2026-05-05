@@ -385,18 +385,24 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 .toast.ok{background:var(--green);color:#fff}
 
 /* ── Chat ───────────────────────────────────────────────────── */
+/* Chat owns the entire <main> rectangle. Using absolute inset with
+   negative offsets to escape main's padding means the shell always
+   exactly fills the viewport between header and tab bar — and because
+   <main> already subtracts the soft-keyboard height (--rr-kbd), the
+   composer rides up with the keys instead of getting buried.  No
+   explicit height calc here; the parent decides the bounds. */
 #chat-shell{
   display:flex;flex-direction:column;
-  /* Subtract the on-screen keyboard height so the composer rides up
-     above the keys on iOS — main already does this for its own
-     scroller, but chat-shell uses an explicit height (it owns its own
-     bottom-pinned composer) so we have to subtract here too. */
-  height:calc(100dvh - 60px - env(safe-area-inset-top, 0px) - var(--tab-h) - env(safe-area-inset-bottom, 0px) - var(--rr-kbd, 0px));
-  margin:-14px -16px -16px;
+  position:absolute;
+  top:-14px;left:-16px;right:-16px;bottom:-16px;
 }
-.chat-composer{ flex:0 0 auto; }
+.chat-composer{
+  flex:0 0 auto;
+  background:var(--surface);
+  border-top:1px solid var(--border);
+}
 .chat-msgs{
-  flex:1;overflow-y:auto;
+  flex:1 1 0;min-height:0;overflow-y:auto;
   padding:16px;
   display:flex;flex-direction:column;gap:6px;
   -webkit-overflow-scrolling:touch;
