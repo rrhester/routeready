@@ -200,7 +200,7 @@ const routes = {
 function currentRoute() {
   const h = (location.hash || "").replace(/^#/, "");
   if (routes[h]) return h;
-  return "/schedule";
+  return "/profile";
 }
 function navigate(path) {
   if (location.hash !== "#" + path) location.hash = "#" + path;
@@ -299,7 +299,7 @@ function renderLogin(errorMsg) {
     writeSession(newSession);
     syncSwSession(newSession);
     toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
-    navigate("/schedule");
+    navigate("/profile");
   });
 }
 
@@ -334,6 +334,10 @@ function renderShell(session) {
     </header>
     <main id="main"><div class="loader"></div></main>
     <nav class="tabbar" role="tablist">
+      <button class="tab" data-route="/profile" role="tab" aria-label="Profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profile
+      </button>
       <button class="tab" data-route="/schedule" role="tab" aria-label="Schedule">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Schedule
@@ -345,10 +349,6 @@ function renderShell(session) {
       <button class="tab" data-route="/chat" role="tab" aria-label="Chat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Chat
-      </button>
-      <button class="tab" data-route="/profile" role="tab" aria-label="Profile">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Profile
       </button>
     </nav>`;
 
