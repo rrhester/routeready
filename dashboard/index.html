@@ -3906,10 +3906,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     </nav>
 
     <div class="workspace-chip">
-      <div class="workspace-chip-avatar">CL</div>
+      <div class="workspace-chip-avatar" id="rr-workspace-chip-avatar">CL</div>
       <div>
-        <div class="workspace-chip-name">Cardinal Logistics</div>
-        <div class="workspace-chip-sub">DSP · KMO1</div>
+        <div class="workspace-chip-name" id="rr-workspace-chip-name">Cardinal Logistics</div>
+        <div class="workspace-chip-sub" id="rr-workspace-chip-sub">DSP · KMO1</div>
       </div>
     </div>
   </aside>
@@ -5599,14 +5599,20 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                   <div class="form-label">DSP name</div>
                   <div class="form-help">Shown in SMS and emails sent to applicants and drivers.</div>
                 </div>
-                <div><input class="form-input" value="Cardinal Logistics" /></div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input class="form-input" id="rr-set-dsp-name" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-dsp-name-save" type="button">Save</button>
+                </div>
               </div>
               <div class="form-row">
                 <div>
                   <div class="form-label">Station code</div>
                   <div class="form-help">Your primary Amazon delivery station.</div>
                 </div>
-                <div><input class="form-input" value="KMO1" /></div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input class="form-input" id="rr-set-dsp-code" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-dsp-code-save" type="button">Save</button>
+                </div>
               </div>
               <div class="form-row">
                 <div>

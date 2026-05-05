@@ -23,6 +23,24 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+// ── On-screen keyboard tracking ─────────────────────────────────────
+// iOS Safari's layout viewport doesn't shrink when the soft keyboard
+// rises, so a `position:absolute; bottom:0` composer disappears under
+// the keys. Mirror visualViewport.height into a --rr-kbd CSS variable
+// and let the layout (main, chat) subtract it so the input always
+// stays visible. Mobile Safari fires `resize` and `scroll` on the
+// visualViewport when the keyboard opens/closes — we listen to both.
+if (typeof window !== "undefined" && window.visualViewport) {
+  const vv = window.visualViewport;
+  const updateKeyboard = () => {
+    const kbd = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty("--rr-kbd", kbd + "px");
+  };
+  vv.addEventListener("resize", updateKeyboard);
+  vv.addEventListener("scroll", updateKeyboard);
+  updateKeyboard();
+}
+
 // ── Push notifications + home-screen badge ──────────────────────────
 // We send the driver's session token + Supabase config to the service
 // worker so it can fetch fresh chat data (preview + unread count) when
