@@ -376,17 +376,12 @@ main{flex:1;padding:14px 16px 24px;width:100%;max-width:560px;margin:0 auto}
 .avail-chip:active{transform:scale(.96)}
 .avail-chip-day{font-size:13px;font-weight:700;color:var(--text-muted);letter-spacing:.02em}
 .avail-chip-state{font-size:9px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em}
-.avail-chip.available{
-  background:var(--accent-soft);border-color:var(--accent);
-}
-.avail-chip.available .avail-chip-day{color:var(--accent)}
-.avail-chip.available .avail-chip-state{color:var(--accent)}
-.avail-chip.preferred{
+.avail-chip.on{
   background:var(--accent);border-color:var(--accent);
   box-shadow:0 1px 0 rgba(0,0,0,.06);
 }
-.avail-chip.preferred .avail-chip-day{color:#fff}
-.avail-chip.preferred .avail-chip-state{color:rgba(255,255,255,.85)}
+.avail-chip.on .avail-chip-day{color:#fff}
+.avail-chip.on .avail-chip-state{color:rgba(255,255,255,.85)}
 
 .avail-presets{
   display:flex;gap:6px;margin-top:14px;
@@ -398,26 +393,6 @@ main{flex:1;padding:14px 16px 24px;width:100%;max-width:560px;margin:0 auto}
   font-family:inherit;cursor:pointer;
 }
 .avail-preset:active{background:var(--canvas)}
-
-.avail-legend{
-  display:flex;gap:14px;margin-top:14px;
-  font-size:11px;color:var(--text-subtle);align-items:center;justify-content:center;
-}
-.avail-dot{
-  display:inline-block;width:10px;height:10px;border-radius:50%;
-  margin-right:4px;vertical-align:-1px;border:1.5px solid var(--border);
-}
-.avail-dot.off{background:var(--canvas)}
-.avail-dot.avail{background:var(--accent-soft);border-color:var(--accent)}
-.avail-dot.pref{background:var(--accent);border-color:var(--accent)}
-
-.avail-section textarea{
-  width:100%;margin-top:10px;padding:10px 12px;
-  font-family:inherit;font-size:14px;line-height:1.4;color:var(--text);
-  background:var(--canvas);border:1px solid var(--border);border-radius:8px;
-  resize:vertical;min-height:64px;outline:none;
-}
-.avail-section textarea:focus{border-color:var(--accent)}
 
 .avail-save{
   position:sticky;bottom:8px;
