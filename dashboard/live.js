@@ -1717,6 +1717,10 @@ const _ATT_DEFAULT_POLICY = {
   // recommendation on the very first NCNS, regardless of count.
   ncns_terminates: false,
   progressive_coaching: true,
+  // Auto-coaching: when an operator hits Approve on the daily tool,
+  // automatically log a coaching record and DM the driver.  Off by
+  // default — many DSPs prefer to coach in person and log it manually.
+  auto_coaching: false,
   // First-30-days strict rule: any callout/no-show inside the
   // probationary window jumps the driver straight to Action.
   first_30_strict: false,
@@ -1742,11 +1746,26 @@ async function loadAttendancePolicy() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
-  const { data, error } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
-  if (error) { console.warn("policy load:", error.message); return; }
-  const meta = data?.metadata || {};
+  // Pull both the policy (lives on dsps.metadata) and the timing
+  // settings (lives on scheduling_settings) — the timing fields drive
+  // when a driver shows as Tardy / NCNS in the daily roster, so they
+  // belong in the same builder UI even though the schema stores them
+  // separately.
+  const [{ data: dspRow, error: dspErr }, { data: setRow }] = await Promise.all([
+    sb.from("dsps").select("metadata").eq("id", dspId).single(),
+    sb.from("scheduling_settings")
+      .select("checkin_lead_minutes, tardy_grace_minutes, ncns_after_minutes")
+      .eq("dsp_id", dspId).is("week_start", null).maybeSingle(),
+  ]);
+  if (dspErr) { console.warn("policy load:", dspErr.message); return; }
+  const meta = dspRow?.metadata || {};
   if (window.RR?.dsp) window.RR.dsp.metadata = meta;
   const p = _getAttPolicy();
+  const timing = {
+    checkin_lead_minutes: setRow?.checkin_lead_minutes ?? 15,
+    tardy_grace_minutes:  setRow?.tardy_grace_minutes  ?? 10,
+    ncns_after_minutes:   setRow?.ncns_after_minutes   ?? 60,
+  };
 
   // Reusable toggle row.  All yes/no settings on this page render this
   // way so the operator gets a consistent on-screen language.
@@ -1779,6 +1798,24 @@ async function loadAttendancePolicy() {
     <div class="pol-section">
       <h3 class="pol-section-title">How it works</h3>
       <p class="pol-section-sub">Every Amazon DSP that uses an attendance policy uses the <strong>occurrence model</strong>: each event you choose to count is worth one occurrence, and the dashboard tracks a running total over a rolling decay window.  When a driver crosses your <strong>Warn</strong> threshold the Today's Plan daily tool shows a yellow flag with a coaching prompt.  When they cross <strong>Action</strong> the row turns red and the dashboard recommends a write-up (or the next progressive step, see below).  Older events drop off as the decay window scrolls forward, so a driver who had a rough month can recover.</p>
+    </div>
+
+    <!-- Timing thresholds — when does Tardy / NCNS kick in -->
+    <div class="pol-section">
+      <h3 class="pol-section-title">Tardy &amp; NCNS timing</h3>
+      <p class="pol-section-sub">How many minutes after a shift's start time before the dashboard considers the driver tardy or a no-call no-show. These drive the live status on Today's Plan and the orange/red flags on the daily approvals card.</p>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:14px;max-width:520px">
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Tardy after (min)</span>
+          <input type="number" min="0" max="120" step="1" class="form-input" data-rr-att-timing="tardy_grace_minutes" value="${timing.tardy_grace_minutes}"/>
+          <span style="font-size:11px;color:var(--text-subtle)">Driver still hasn't checked in this many minutes <strong>after</strong> their shift start = <strong>Tardy</strong>. Common: 5–15 minutes.</span>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">NCNS after (min)</span>
+          <input type="number" min="5" max="240" step="1" class="form-input" data-rr-att-timing="ncns_after_minutes" value="${timing.ncns_after_minutes}"/>
+          <span style="font-size:11px;color:var(--text-subtle)">No check-in <strong>and</strong> no callout this many minutes after start = <strong>No-call no-show</strong>. Common: 30–60 minutes.</span>
+        </label>
+      </div>
     </div>
 
     <!-- Which events count -->
@@ -1830,12 +1867,14 @@ async function loadAttendancePolicy() {
       </label>
     </div>
 
-    <!-- Progressive coaching -->
+    <!-- Progressive coaching + auto-coaching -->
     <div class="pol-section">
       <h3 class="pol-section-title">Coaching style</h3>
-      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold.</p>
+      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold, and what happens when an operator hits Approve on the daily attendance card.</p>
       ${toggleRow("progressive_coaching", "Use progressive coaching steps",
         "When ON the recommended action escalates: <strong>Verbal</strong> coaching at the Warn threshold → <strong>Written</strong> warning at Action → <strong>Final</strong> written warning on a repeat → <strong>Termination</strong>.  Documents the conversation each time so an unemployment claim has a paper trail.<br>When OFF the dashboard recommends a single Coach action at Warn and a single Write-up at Action.")}
+      ${toggleRow("auto_coaching", "Auto-coach when an event is approved",
+        "When ON, hitting <strong>Approve</strong> on the daily attendance card automatically (a) writes a coaching record to the driver's file with the event date and operator notes, and (b) sends the driver an in-app message explaining what was logged and why.<br>When OFF, the event still counts toward attendance but coaching is manual — the attendance report flags the row as <em>Coaching pending</em> until a leader files it themselves.")}
     </div>
 
     <!-- Save -->
@@ -1859,15 +1898,40 @@ document.addEventListener("click", async (e) => {
     document.querySelectorAll("[data-rr-att-field-bool]").forEach(el => {
       fields[el.dataset.rrAttFieldBool] = !!el.checked;
     });
+    // Timing fields live on scheduling_settings, not in dsps.metadata.
+    const timing = {};
+    document.querySelectorAll("[data-rr-att-timing]").forEach(el => {
+      const v = Number(el.value);
+      if (Number.isFinite(v) && v >= 0) timing[el.dataset.rrAttTiming] = v;
+    });
     const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields };
 
     if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
+
+    // 1. Save the policy on dsps.metadata.
     const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
     const meta = row?.metadata || {};
     const newMeta = { ...meta, attendance: { ...(meta.attendance || {}), policy: newPolicy } };
     const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
     if (upErr) { if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; } return; }
     if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
+
+    // 2. Save the tardy/NCNS timing on scheduling_settings — upsert the
+    // dsp-default row (week_start IS NULL).  Two tries because the
+    // existing row may or may not be there yet.
+    if (Object.keys(timing).length > 0) {
+      const { data: existing } = await sb.from("scheduling_settings")
+        .select("id").eq("dsp_id", dspId).is("week_start", null).maybeSingle();
+      if (existing?.id) {
+        const { error: setErr } = await sb.from("scheduling_settings")
+          .update(timing).eq("id", existing.id);
+        if (setErr) console.warn("timing save:", setErr.message);
+      } else {
+        const { error: insErr } = await sb.from("scheduling_settings")
+          .insert([{ dsp_id: dspId, week_start: null, ...timing }]);
+        if (insErr) console.warn("timing insert:", insErr.message);
+      }
+    }
     if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
     toast("Attendance policy saved", "success");
     // Refresh report tab to use the new thresholds.
@@ -2295,34 +2359,81 @@ async function _renderTpDailyTool(flagged) {
           <div style="font-size:11px;color:var(--text-subtle)">Next: ${escapeHtml(rec)}</div>
         </div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-sm btn-primary" data-rr-tp-approve="${escapeHtml(r.driver_id)}" type="button">Approve</button>
-          <button class="btn btn-sm" data-rr-tp-deny="${escapeHtml(r.driver_id)}" type="button">Deny</button>
+          <button class="btn btn-sm btn-primary"
+                  data-rr-tp-approve="1"
+                  data-shift-id="${escapeHtml(r.shift_id)}"
+                  data-outcome="${escapeHtml(r.computed_outcome)}"
+                  data-driver-name="${escapeHtml(r.driver_name)}"
+                  type="button">Approve</button>
+          <button class="btn btn-sm"
+                  data-rr-tp-deny="1"
+                  data-shift-id="${escapeHtml(r.shift_id)}"
+                  data-outcome="${escapeHtml(r.computed_outcome)}"
+                  data-driver-name="${escapeHtml(r.driver_name)}"
+                  type="button">Decline</button>
         </div>
       </div>`;
   }).join("");
 
+  const autoCoachNote = policy.auto_coaching
+    ? "Approvals auto-coach the driver and post a note in their messages."
+    : "Auto-coaching is OFF — approved events still count toward attendance, but coaching must be filed manually.";
+
   toolEl.innerHTML = `${head(flagged.length)}${rows}
     <div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;color:var(--text-subtle)">
-      Approvals are visual only for now — driver-side notifications and event records land in the next release.
+      ${escapeHtml(autoCoachNote)}
     </div>`;
 }
 
-// Approve / deny buttons on the daily tool — visual only for now.  We
-// dim the row and swap the buttons for a status pill so the operator
-// can scan the day's progress at a glance.  Wiring up persistence +
-// notifications is the next product phase.
-document.addEventListener("click", (e) => {
+// Approve / decline on the daily tool.  Approve hits the
+// attendance_decide RPC (which stamps shifts.status, writes a coaching
+// row, and DMs the driver if auto_coaching is on).  Decline opens a
+// notes prompt — server enforces notes on deny.
+document.addEventListener("click", async (e) => {
   const ap = e.target.closest("[data-rr-tp-approve]");
   const dn = e.target.closest("[data-rr-tp-deny]");
   if (!ap && !dn) return;
-  const row = (ap || dn).closest(".rr-tp-tool-row");
+  e.preventDefault();
+  const btn = ap || dn;
+  const row = btn.closest(".rr-tp-tool-row");
   if (!row) return;
-  const verb = ap ? "Approved" : "Denied";
+
+  const shiftId    = btn.dataset.shiftId;
+  const outcome   = btn.dataset.outcome;
+  const driverName = btn.dataset.driverName || "driver";
+
+  let notes = null;
+  if (dn) {
+    const reason = window.prompt(
+      `Decline ${driverName}'s ${outcome.replace(/_/g, " ")}?\n\nNotes are required — explain why this event is excused (e.g. "approved leave", "system glitch", "documentation provided").`
+    );
+    if (reason === null) return;                       // cancelled
+    if (!reason.trim()) { toast("Notes required to decline", "warn"); return; }
+    notes = reason.trim();
+  }
+
+  const btnCell = btn.parentElement;
+  btnCell.innerHTML = `<span style="font-size:11px;color:var(--text-subtle)">Saving…</span>`;
+
+  const { data, error } = await sb.rpc("attendance_decide", {
+    p_shift_id: shiftId,
+    p_outcome:  outcome,
+    p_decision: ap ? "approve" : "deny",
+    p_notes:    notes,
+  });
+
+  if (error) {
+    toast("Save failed: " + (error.message || String(error)), "warn");
+    btnCell.innerHTML = `<span style="font-size:11px;color:var(--red)">${escapeHtml(error.message || "Failed")}</span>`;
+    return;
+  }
+
+  const verb = ap ? "Approved" : "Declined";
   const tone = ap ? "var(--green)" : "var(--text-subtle)";
   row.style.opacity = "0.55";
-  const btnCell = (ap || dn).parentElement;
-  btnCell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${verb}</span>`;
-  toast(`${verb}`, "success");
+  btnCell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
+  const tail = data?.auto_coached ? " · driver notified" : "";
+  toast(`${verb}${tail}`, "success");
 });
 
 function _renderTpCoverage(data, error) {
