@@ -17,8 +17,108 @@ window.RR_DRIVER = { sb, driver: null };
 // ── Service worker registration ─────────────────────────────────────
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch((err) => console.warn("SW reg failed:", err));
+    navigator.serviceWorker.register("./sw.js")
+      .then(() => syncSwSession(readSession()))
+      .catch((err) => console.warn("SW reg failed:", err));
   });
+}
+
+// ── Push notifications + home-screen badge ──────────────────────────
+// We send the driver's session token + Supabase config to the service
+// worker so it can fetch fresh chat data (preview + unread count) when
+// a payloadless push arrives. Permission is requested the first time
+// the user opens the Chat tab — that's the moment the value is obvious.
+async function syncSwSession(session) {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sw = reg.active || navigator.serviceWorker.controller;
+    if (!sw) return;
+    if (session?.token) {
+      sw.postMessage({
+        type: "rr:set-session",
+        token: session.token,
+        supabaseUrl: cfg.SUPABASE_URL,
+        anonKey: cfg.SUPABASE_ANON_KEY,
+      });
+    } else {
+      sw.postMessage({ type: "rr:clear-session" });
+    }
+  } catch {}
+}
+
+function setAppBadge(n) {
+  if ("setAppBadge" in navigator) {
+    if (n > 0) navigator.setAppBadge(n).catch(() => {});
+    else navigator.clearAppBadge().catch(() => {});
+  }
+}
+
+function urlBase64ToUint8Array(b64url) {
+  const pad = "=".repeat((4 - (b64url.length % 4)) % 4);
+  const b64 = (b64url + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+let _pushAttempted = false;
+async function ensurePushSubscription(session) {
+  if (_pushAttempted) return;
+  _pushAttempted = true;
+  if (!("serviceWorker" in navigator)) return;
+  if (!("PushManager" in window) || !("Notification" in window)) return;
+  if (Notification.permission === "denied") return;
+  if (!session?.token) return;
+
+  if (Notification.permission === "default") {
+    const perm = await Notification.requestPermission().catch(() => "default");
+    if (perm !== "granted") return;
+  }
+
+  let reg;
+  try { reg = await navigator.serviceWorker.ready; } catch { return; }
+
+  let sub = await reg.pushManager.getSubscription().catch(() => null);
+  if (!sub) {
+    const { data: vapidKey } = await sb.rpc("driver_push_vapid_key");
+    if (!vapidKey) return; // Server not configured yet — silently skip.
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+    } catch (err) {
+      console.warn("Push subscribe failed:", err);
+      return;
+    }
+  }
+
+  const json = sub.toJSON();
+  const { error } = await sb.rpc("driver_push_register", {
+    p_token:      session.token,
+    p_endpoint:   sub.endpoint,
+    p_p256dh:     json.keys?.p256dh,
+    p_auth:       json.keys?.auth,
+    p_user_agent: navigator.userAgent || null,
+  });
+  if (error) console.warn("driver_push_register failed:", error.message);
+}
+
+async function teardownPushSubscription(session) {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      if (session?.token) {
+        try { await sb.rpc("driver_push_unregister", { p_token: session.token, p_endpoint: sub.endpoint }); } catch {}
+      }
+      try { await sub.unsubscribe(); } catch {}
+    }
+  } catch {}
+  setAppBadge(0);
 }
 
 // ── Local session state ─────────────────────────────────────────────
@@ -136,12 +236,14 @@ function renderLogin(errorMsg) {
       renderLogin(msg);
       return;
     }
-    writeSession({
+    const newSession = {
       token:      data.token,
       driver_id:  data.driver?.id || null,
       name:       data.driver?.name || "Driver",
       station_id: data.driver?.station_id || null,
-    });
+    };
+    writeSession(newSession);
+    syncSwSession(newSession);
     toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
     navigate("/schedule");
   });
@@ -421,6 +523,10 @@ async function renderChat() {
     await refreshChat(true);
   });
 
+  // First time the driver lands on Chat is the right moment to ask for
+  // notification permission — they've clearly engaged with messaging.
+  ensurePushSubscription(session);
+
   // First fetch + start poller
   _chatLastIds = new Set();
   await refreshChat(true);
@@ -451,6 +557,10 @@ async function refreshChat(scrollToBottom) {
     wrap.innerHTML = messages.map(chatBubbleHtml).join("");
   }
   if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
+
+  // Drop the badge to 0 — they're looking at the chat.
+  setAppBadge(0);
+
   // Mark-read whenever there's at least one dispatch message
   if (messages.some((m) => m.sender_kind === "dispatch")) {
     sb.rpc("driver_chat_mark_read", { p_token: session.token }).catch(() => {});
@@ -494,10 +604,12 @@ function renderProfileHub() {
   main.querySelector("#rr-signout").addEventListener("click", async () => {
     if (!confirm("Sign out of RouteReady?")) return;
     const session = readSession();
+    await teardownPushSubscription(session);
     if (session?.token) {
       try { await sb.rpc("driver_signout", { p_token: session.token }); } catch {}
     }
     writeSession(null);
+    syncSwSession(null);
     location.hash = "";
     render();
   });

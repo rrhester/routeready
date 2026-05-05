@@ -31,7 +31,10 @@ supabase secrets set --project-ref doiwrhkirgblcvuskhno \
   RESEND_REPLY_TO=support@gorouteready.com \
   CAL_WEBHOOK_SECRET=... \
   APPLY_SHARED_SECRET=$(openssl rand -hex 32) \
-  PUBLIC_BASE_URL=https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-twilio
+  PUBLIC_BASE_URL=https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-twilio \
+  VAPID_PUBLIC_KEY=BJ... \
+  VAPID_PRIVATE_KEY=... \
+  VAPID_SUBJECT=mailto:support@gorouteready.com
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected by the
@@ -49,6 +52,7 @@ edge runtime — you do **not** set them yourself.
 | `CAL_INTERVIEW_SLUG` | `cal-availability` | Slug of the event type the editor manages (default `interview`). |
 | `APPLY_SHARED_SECRET` | `webhook-apply` | If unset, the function accepts any caller. Set + send `x-apply-secret: <value>` from external integrations. |
 | `PUBLIC_BASE_URL` | `webhook-twilio` (signature check) | Twilio signatures verify against the URL Twilio called; set to the function's public URL. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `send-driver-push` | Required to sign Web Push JWTs. Driver PWA notifications + home-screen badge stop firing if missing. Generate once with `npx web-push generate-vapid-keys`. The public key is also written to a database setting (see §5) so the driver app can fetch it via the `driver_push_vapid_key()` RPC. |
 
 ### Configure Twilio Messaging Service
 
@@ -108,7 +112,20 @@ alter database postgres set "app.functions_base_url"
 
 alter database postgres set "app.service_role_key"
   to 'sb_secret_REPLACE_WITH_REAL_VALUE';
+
+-- Driver Web Push (PR #289). Same value as VAPID_PUBLIC_KEY.
+-- Read by driver_push_vapid_key() so the PWA can subscribe.
+alter database postgres set "app.vapid_public_key"
+  to 'BJ_REPLACE_WITH_REAL_VALUE';
 ```
+
+**Generating VAPID keys (one-time):**
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Copy `Public Key` → `VAPID_PUBLIC_KEY` (Supabase secret) **and** `app.vapid_public_key` (database setting). Copy `Private Key` → `VAPID_PRIVATE_KEY` (Supabase secret only). Set `VAPID_SUBJECT` to a contact URL like `mailto:support@gorouteready.com`. Don't rotate VAPID keys casually — every existing push subscription will silently stop working until the driver re-subscribes.
 
 Run these once in the Supabase SQL editor as the postgres role. They
 persist across connections for the entire database. Existing connections
