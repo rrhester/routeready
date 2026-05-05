@@ -61,6 +61,10 @@ function _paintWorkspaceChip() {
   if (elName)   elName.textContent = name;
   if (elSub)    elSub.textContent  = code ? `DSP · ${code}` : "DSP";
   if (elAvatar) elAvatar.textContent = initials;
+  // Top-of-sidebar brand wordmark — same record drives it so the
+  // operator sees their own DSP name where "RouteReady" used to be.
+  const elBrand = document.getElementById("rr-brand-name");
+  if (elBrand) elBrand.textContent = name;
   document.title = `${name} · Dispatcher`;
 }
 _paintWorkspaceChip();
