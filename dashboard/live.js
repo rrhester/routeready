@@ -83,14 +83,22 @@ function _resolveDriverIdForAvatar(el) {
   // Direct attribute on the avatar itself (cal-row-label, etc.)
   let id = el.getAttribute("data-rr-driver-id");
   if (id) return id;
-  // Walk up to the nearest container that holds a driver-tagged element.
-  const wrap = el.closest(".cell-driver, .msg-item, .cal-row-label, [data-rr-driver-id], [data-rr-coach-feed-driver], [data-driver-id]");
-  if (!wrap) return null;
-  if (wrap.dataset.rrDriverId)        return wrap.dataset.rrDriverId;
-  if (wrap.dataset.driverId)          return wrap.dataset.driverId;
-  if (wrap.dataset.rrCoachFeedDriver) return wrap.dataset.rrCoachFeedDriver;
-  const tagged = wrap.querySelector("[data-rr-driver-id]");
-  if (tagged) return tagged.getAttribute("data-rr-driver-id");
+  // Walk up the tree. Some renders put the id on a deep wrapper
+  // (.cell-driver row -> <tr data-driver-id>), some on a sibling
+  // text node (.cell-name[data-rr-driver-id]), some on the row
+  // itself. We try each ancestor in turn until we find one.
+  let cur = el.parentElement;
+  while (cur && cur !== document.body) {
+    if (cur.dataset?.rrDriverId)        return cur.dataset.rrDriverId;
+    if (cur.dataset?.driverId)          return cur.dataset.driverId;
+    if (cur.dataset?.rrCoachFeedDriver) return cur.dataset.rrCoachFeedDriver;
+    const tagged = cur.querySelector?.("[data-rr-driver-id]");
+    if (tagged) return tagged.getAttribute("data-rr-driver-id");
+    // Stop at row-style boundaries so we don't bleed into a sibling
+    // driver's id when an avatar lives inside a wider container.
+    if (cur.matches?.("tr, .cell-driver, .msg-item, .cal-row-label, .checkin-row, .iv-card, .driver-row, .dr-coach-row")) return null;
+    cur = cur.parentElement;
+  }
   return null;
 }
 
@@ -4446,9 +4454,12 @@ async function openDriverDrawer(driverId) {
     </style>
     <div id="rr-dd-panel">
       <div class="dd-head">
-        <div>
-          <h3 id="rr-dd-title">Driver record</h3>
-          <div class="sub" id="rr-dd-sub"></div>
+        <div style="display:flex;align-items:center;gap:14px;min-width:0">
+          <div class="avatar-sm" id="rr-dd-avatar" data-rr-driver-id="" style="width:44px;height:44px;font-size:15px;flex-shrink:0">--</div>
+          <div style="min-width:0">
+            <h3 id="rr-dd-title">Driver record</h3>
+            <div class="sub" id="rr-dd-sub"></div>
+          </div>
         </div>
         <button id="rr-dd-close" style="background:none;border:0;font-size:22px;cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
       </div>
@@ -4507,6 +4518,21 @@ async function loadDriverDrawer(driverId) {
     drv.tier ? `Tier ${drv.tier}` : null,
   ].filter(Boolean).join(" · ");
   document.getElementById("rr-dd-sub").textContent = sub;
+
+  // Avatar in the drawer header — initials by default; the photo
+  // painter (boot-time MutationObserver) replaces them with the
+  // driver's photo when one's set.
+  const avEl = document.getElementById("rr-dd-avatar");
+  if (avEl) {
+    avEl.setAttribute("data-rr-driver-id", drv.id);
+    avEl.classList.remove("tier-a","tier-b","tier-c","tier-d");
+    if (drv.tier) avEl.classList.add("tier-" + String(drv.tier).toLowerCase());
+    avEl.textContent = displayDriverInitials(drv);
+    delete avEl.dataset.rrPhotoPainted;
+    avEl.style.backgroundImage = "";
+    avEl.style.color           = "";
+    _paintDriverAvatars(avEl.parentElement || document);
+  }
 
   renderDriverDrawerTab();
 }
