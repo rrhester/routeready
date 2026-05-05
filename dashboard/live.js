@@ -46,6 +46,98 @@ window.RR.dsp = dspRow;
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+// ─── Driver photos · paint avatars wherever they show up ───────────────
+// The roster, schedule grid, coaching feed, message list, etc. all
+// render <div class="avatar-sm">XY</div> with the driver's initials.
+// Rather than touch every render site, we cache the photo URL per
+// driver once and walk the DOM after each render painting a CSS
+// background-image on every avatar near a [data-rr-driver-id] node.
+//
+// This means a driver who uploads a photo on the PWA shows up across
+// the dispatcher dashboard automatically, and adding a new avatar
+// somewhere later doesn't require remembering to wire up the photo.
+const _driverPhotos = { loaded: null, map: new Map() };
+
+async function _loadDriverPhotos() {
+  if (_driverPhotos.loaded) return _driverPhotos.loaded;
+  _driverPhotos.loaded = (async () => {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return _driverPhotos.map;
+    const { data, error } = await sb.from("drivers")
+      .select("id, photo_path")
+      .eq("dsp_id", dspId)
+      .not("photo_path", "is", null);
+    if (error) { console.warn("loadDriverPhotos:", error); return _driverPhotos.map; }
+    for (const r of (data || [])) {
+      _driverPhotos.map.set(
+        r.id,
+        `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${r.photo_path}`
+      );
+    }
+    return _driverPhotos.map;
+  })();
+  return _driverPhotos.loaded;
+}
+
+function _resolveDriverIdForAvatar(el) {
+  // Direct attribute on the avatar itself (cal-row-label, etc.)
+  let id = el.getAttribute("data-rr-driver-id");
+  if (id) return id;
+  // Walk up to the nearest container that holds a driver-tagged element.
+  const wrap = el.closest(".cell-driver, .msg-item, .cal-row-label, [data-rr-driver-id], [data-rr-coach-feed-driver], [data-driver-id]");
+  if (!wrap) return null;
+  if (wrap.dataset.rrDriverId)        return wrap.dataset.rrDriverId;
+  if (wrap.dataset.driverId)          return wrap.dataset.driverId;
+  if (wrap.dataset.rrCoachFeedDriver) return wrap.dataset.rrCoachFeedDriver;
+  const tagged = wrap.querySelector("[data-rr-driver-id]");
+  if (tagged) return tagged.getAttribute("data-rr-driver-id");
+  return null;
+}
+
+function _paintDriverAvatars(root) {
+  if (_driverPhotos.map.size === 0) return;
+  const scope = root && root.querySelectorAll ? root : document;
+  scope.querySelectorAll(".avatar-sm").forEach((el) => {
+    if (el.dataset.rrPhotoPainted) return;
+    const id = _resolveDriverIdForAvatar(el);
+    if (!id) return;
+    const url = _driverPhotos.map.get(id);
+    if (!url) return;
+    el.style.backgroundImage    = `url('${url}')`;
+    el.style.backgroundSize     = "cover";
+    el.style.backgroundPosition = "center";
+    el.style.color              = "transparent"; // hide initials
+    el.dataset.rrPhotoPainted   = "1";
+  });
+}
+
+// Repaint after any DOM change. Debounced so a heavy render doesn't
+// cause a flood — one paint pass after the dust settles is enough.
+let _paintTimer = null;
+function _schedulePaint() {
+  if (_paintTimer) return;
+  _paintTimer = setTimeout(() => { _paintTimer = null; _paintDriverAvatars(document); }, 50);
+}
+
+_loadDriverPhotos().then(() => {
+  _paintDriverAvatars(document);
+  new MutationObserver(_schedulePaint).observe(document.body, { childList: true, subtree: true });
+});
+
+// Public hook so a freshly-uploaded photo (e.g. via the driver record
+// drawer in the future) can refresh without a page reload.
+window.RR.refreshDriverPhotos = async function () {
+  _driverPhotos.loaded = null;
+  _driverPhotos.map.clear();
+  document.querySelectorAll(".avatar-sm[data-rr-photo-painted]").forEach((el) => {
+    el.style.backgroundImage = "";
+    el.style.color = "";
+    delete el.dataset.rrPhotoPainted;
+  });
+  await _loadDriverPhotos();
+  _paintDriverAvatars(document);
+};
+
 function toast(msg, kind) {
   if (typeof window.toast === "function") return window.toast(msg, kind);
   console.log("[toast]", kind ?? "", msg);
@@ -4642,7 +4734,7 @@ async function refreshDriverChatList(autoSelect) {
       : "Tap to start the conversation";
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     const isActive = _msgInboxSelectedId === t.driver_id;
-    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}">
+    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div></div>
       <div><div class="msg-item-name">${escapeHtml(t.name)}${t.station_code ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
@@ -4712,7 +4804,7 @@ async function refreshDriverChatThread(scrollToBottom) {
         .rr-mc-send:disabled{opacity:.5;cursor:not-allowed}
       </style>
       <div class="rr-mc-shell">
-        <div class="rr-mc-head">
+        <div class="rr-mc-head" data-rr-driver-id="${escapeHtml(driverId)}">
           <div class="avatar-sm">${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
           <div>
             <div class="rr-mc-name">${escapeHtml(drv.name || "")}</div>
