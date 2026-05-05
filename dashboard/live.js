@@ -1812,10 +1812,251 @@ async function loadAttendanceEventLog() {
 const _legacyAttTab = window.attTab;
 window.attTab = function (name) {
   if (typeof _legacyAttTab === "function") _legacyAttTab(name);
-  if (name === "report") loadAttendanceLive();
-  if (name === "policy") loadAttendancePolicy();
-  if (name === "log")    loadAttendanceEventLog();
+  if (name === "today")   loadTodayAttendance();
+  if (name === "history") loadAttendanceHistory();
+  if (name === "report")  loadAttendanceLive();
+  if (name === "policy")  loadAttendancePolicy();
+  if (name === "log")     loadAttendanceEventLog();
 };
+
+// ─── Drivers · Attendance · Today ──────────────────────────────────────
+// Live KPI card + roster of who hasn't checked in. Polls every 15 s
+// while the tab is visible. Operator can finalize the day with one
+// click; that stamps every row's final_outcome and locks them so the
+// permanent attendance record is immutable.
+
+const _RR_OUTCOME_LABEL = {
+  waiting:          "Waiting",
+  ready_to_checkin: "Ready",
+  checked_in:       "Checked in",
+  checked_out:      "Done",
+  missed_reported:  "Missed (reported)",
+  tardy:            "Tardy",
+  ncns:             "NCNS",
+};
+const _RR_OUTCOME_TONE = {
+  waiting:          { bg: "var(--canvas)",            fg: "var(--text-subtle)" },
+  ready_to_checkin: { bg: "var(--accent-soft)",       fg: "var(--accent)" },
+  checked_in:       { bg: "rgba(22,163,74,.15)",      fg: "var(--green)" },
+  checked_out:      { bg: "rgba(22,163,74,.10)",      fg: "var(--green)" },
+  missed_reported:  { bg: "rgba(180,83,9,.15)",       fg: "var(--amber)" },
+  tardy:            { bg: "rgba(180,83,9,.20)",       fg: "var(--amber)" },
+  ncns:             { bg: "rgba(220,38,38,.15)",      fg: "var(--red)" },
+};
+
+let _todayAttPollTimer = null;
+
+async function loadTodayAttendance() {
+  const wrap = document.getElementById("rr-today-shell");
+  if (!wrap) return;
+
+  if (_todayAttPollTimer) clearInterval(_todayAttPollTimer);
+  _todayAttPollTimer = setInterval(() => {
+    if (document.getElementById("att-pane-today")?.classList.contains("active")
+        && !document.hidden) {
+      loadTodayAttendance();
+    } else {
+      clearInterval(_todayAttPollTimer); _todayAttPollTimer = null;
+    }
+  }, 15000);
+
+  const { data, error } = await sb.rpc("today_attendance");
+  if (error) {
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const rows = data?.rows || [];
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No drivers scheduled for today.</div>`;
+    return;
+  }
+
+  // Bucket counts by computed outcome for the KPI strip.
+  const cnt = { total: rows.length, present: 0, working: 0, ready: 0, waiting: 0,
+                missed: 0, tardy: 0, ncns: 0, finalized: 0 };
+  for (const r of rows) {
+    if (r.finalized) cnt.finalized++;
+    switch (r.computed_outcome) {
+      case "checked_in":     cnt.working++; cnt.present++; break;
+      case "checked_out":                cnt.present++; break;
+      case "ready_to_checkin": cnt.ready++; break;
+      case "waiting":        cnt.waiting++; break;
+      case "missed_reported": cnt.missed++; break;
+      case "tardy":          cnt.tardy++; break;
+      case "ncns":           cnt.ncns++; break;
+    }
+  }
+  const notCheckedInYet = cnt.total - (cnt.working + (rows.filter(r => r.computed_outcome === "checked_out").length));
+
+  // Wave + service-type breakdown.
+  const byWave = {};
+  const bySvc  = {};
+  for (const r of rows) {
+    const w = r.wave_index ?? 0;
+    byWave[w] = (byWave[w] || 0) + 1;
+    const k = r.service_type_code || "—";
+    if (!bySvc[k]) bySvc[k] = { count: 0, color: r.service_type_color || "#94a3b8" };
+    bySvc[k].count++;
+  }
+
+  const kpiCard = (label, value, sub, tone) => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
+      <div style="font-size:26px;font-weight:700;margin-top:4px;color:${tone || "var(--text)"}">${escapeHtml(String(value))}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+    </div>`;
+
+  // Driver-row renderer.
+  const rowHtml = (r) => {
+    const tone = _RR_OUTCOME_TONE[r.computed_outcome] || _RR_OUTCOME_TONE.waiting;
+    const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
+    const t = r.starts_at ? new Date(r.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
+    const inT = r.checked_in_at ? new Date(r.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : null;
+    const noteBits = [];
+    if (inT) noteBits.push("In " + inT);
+    if (r.distance_meters != null && inT) noteBits.push(`${r.distance_meters} m`);
+    if (r.missed_reason) noteBits.push(`"${r.missed_reason}"`);
+    return `
+      <div style="display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
+        <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml((r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(r.driver_name)}</div>
+          <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}${noteBits.length ? " · " + escapeHtml(noteBits.join(" · ")) : ""}</div>
+        </div>
+        <span style="background:${tone.bg};color:${tone.fg};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:10px">${escapeHtml(label)}</span>
+      </div>`;
+  };
+
+  // Group by status — operator scans top-down: NCNS · tardy · ready · waiting · missed · checked-in.
+  const groupOrder = [
+    ["ncns",            "No-call no-show"],
+    ["tardy",           "Tardy"],
+    ["ready_to_checkin","Ready to check in"],
+    ["waiting",         "Waiting · before window"],
+    ["missed_reported", "Missed day · reported"],
+    ["checked_in",      "Checked in · working"],
+    ["checked_out",     "Shift complete"],
+  ];
+  const grouped = groupOrder.map(([k, label]) => {
+    const items = rows.filter(r => r.computed_outcome === k);
+    if (items.length === 0) return "";
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden">
+        <div style="padding:10px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
+          ${escapeHtml(label)} <span style="color:var(--text-subtle);font-weight:600">· ${items.length}</span>
+        </div>
+        ${items.map(rowHtml).join("")}
+      </div>`;
+  }).join("");
+
+  const waveLine = Object.keys(byWave).sort()
+    .map(w => `Wave ${w}: <strong>${byWave[w]}</strong>`).join(" · ");
+  const svcChips = Object.entries(bySvc)
+    .map(([code, v]) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:11px;font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`)
+    .join("");
+
+  wrap.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      ${kpiCard("Scheduled", cnt.total, waveLine || "today")}
+      ${kpiCard("Not checked in", Math.max(0, notCheckedInYet), `${cnt.ready} ready · ${cnt.waiting} waiting`, notCheckedInYet > 0 ? "var(--amber)" : undefined)}
+      ${kpiCard("Tardy / NCNS", cnt.tardy + cnt.ncns, `${cnt.tardy} tardy · ${cnt.ncns} no-show`, (cnt.tardy + cnt.ncns) > 0 ? "var(--red)" : undefined)}
+      ${kpiCard("Working", cnt.working, `${cnt.missed} missed reported`, cnt.working > 0 ? "var(--green)" : undefined)}
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</span>
+        <button class="btn btn-sm" id="rr-today-refresh">Refresh</button>
+        <button class="btn btn-sm btn-primary" id="rr-today-finalize" ${cnt.finalized === cnt.total ? "disabled" : ""}>${cnt.finalized === cnt.total ? "Already finalized" : "Approve & finalize day"}</button>
+      </div>
+    </div>
+
+    ${grouped}
+  `;
+
+  document.getElementById("rr-today-refresh").addEventListener("click", loadTodayAttendance);
+  document.getElementById("rr-today-finalize").addEventListener("click", async () => {
+    if (!confirm("Finalize today's attendance?\n\nThis locks every record for today into the permanent log. Pending check-ins after this won't be retroactive without re-opening the day.")) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const { error } = await sb.rpc("attendance_approve_day", { p_day: today });
+    if (error) { toast("Finalize failed: " + error.message, "warn"); return; }
+    toast("Day finalized · permanent record updated", "success");
+    loadTodayAttendance();
+  });
+}
+
+
+// ─── Drivers · Attendance · History ────────────────────────────────────
+async function loadAttendanceHistory(opts) {
+  const wrap = document.getElementById("rr-att-history-shell");
+  if (!wrap) return;
+  const today = new Date();
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  const defaultFrom = fmt(new Date(today.getTime() - 30 * 86400000));
+  const defaultTo   = fmt(today);
+  const fromIso = opts?.from || defaultFrom;
+  const toIso   = opts?.to   || defaultTo;
+
+  wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+
+  const { data, error } = await sb.rpc("attendance_history", { p_from: fromIso, p_to: toIso, p_driver_id: null });
+  if (error) {
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const summary = data?.summary_by_driver || [];
+  const events  = data?.rows || [];
+
+  const sumRows = summary.length === 0
+    ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No finalized attendance in range.</div>`
+    : summary.map(s => `
+      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;align-items:center">
+        <div style="font-weight:600">${escapeHtml(s.driver_name)}</div>
+        <div style="text-align:right;color:var(--green);font-weight:600">${s.present}</div>
+        <div style="text-align:right;color:var(--amber);font-weight:600">${s.tardy}</div>
+        <div style="text-align:right;color:var(--red);font-weight:600">${s.ncns}</div>
+        <div style="text-align:right;color:var(--text-muted)">${s.absent}</div>
+        <div style="text-align:right;color:var(--text-muted)">${s.excused}</div>
+        <div style="text-align:right;font-weight:700">${s.total}</div>
+      </div>`).join("");
+
+  wrap.innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:14px;align-items:end">
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">From</label>
+        <input type="date" id="rr-att-hist-from" value="${escapeHtml(fromIso)}" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">To</label>
+        <input type="date" id="rr-att-hist-to" value="${escapeHtml(toIso)}" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+      </div>
+      <button class="btn btn-sm btn-primary" id="rr-att-hist-go">Apply</button>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;background:var(--canvas);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
+        <div>Driver</div>
+        <div style="text-align:right">Present</div>
+        <div style="text-align:right">Tardy</div>
+        <div style="text-align:right">NCNS</div>
+        <div style="text-align:right">Absent</div>
+        <div style="text-align:right">Excused</div>
+        <div style="text-align:right">Total</div>
+      </div>
+      ${sumRows}
+    </div>
+
+    <div style="font-size:11px;color:var(--text-subtle);margin-bottom:8px">${events.length} finalized event${events.length === 1 ? "" : "s"} · only finalized days appear in the permanent record.</div>
+  `;
+
+  document.getElementById("rr-att-hist-go").addEventListener("click", () => {
+    loadAttendanceHistory({
+      from: document.getElementById("rr-att-hist-from").value,
+      to:   document.getElementById("rr-att-hist-to").value,
+    });
+  });
+}
 
 
 async function loadDriverLicensesView() {
@@ -1913,7 +2154,7 @@ window.drSub = function (sub) {
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
-  if (sub === "attendance")   loadAttendanceLive();
+  if (sub === "attendance")   loadTodayAttendance();
   if (sub === "coaching")     loadCoachingFeed();
   if (sub === "insights")     loadDriverInsights();
   if (sub === "availability") loadAvailabilityRequests();
@@ -7782,8 +8023,35 @@ const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   if (sub === "insights") loadScheduleInsights();
-  if (sub === "rules")    loadStationGeofences();
+  if (sub === "rules")  { loadStationGeofences(); loadAttendanceWindows(); }
 };
+
+async function loadAttendanceWindows() {
+  const wrap = document.getElementById("rr-att-windows");
+  if (!wrap) return;
+  if (wrap.dataset.rrWired === "1") return;
+  wrap.dataset.rrWired = "1";
+  const { data, error } = await sb.rpc("attendance_settings_get");
+  if (error) return;
+  const lead  = document.getElementById("rr-att-lead");
+  const grace = document.getElementById("rr-att-grace");
+  const ncns  = document.getElementById("rr-att-ncns");
+  if (lead)  lead.value  = Number(data?.checkin_lead_minutes ?? 15);
+  if (grace) grace.value = Number(data?.tardy_grace_minutes  ?? 10);
+  if (ncns)  ncns.value  = Number(data?.ncns_after_minutes   ?? 60);
+  document.getElementById("rr-att-windows-save").addEventListener("click", async () => {
+    const btn = document.getElementById("rr-att-windows-save");
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = "Saving…";
+    const { error: se } = await sb.rpc("attendance_settings_set", {
+      p_lead:  Number(lead.value || 15),
+      p_grace: Number(grace.value || 10),
+      p_ncns:  Number(ncns.value || 60),
+    });
+    btn.disabled = false; btn.textContent = orig;
+    if (se) { toast("Save failed: " + se.message, "warn"); return; }
+    toast("Attendance windows saved", "success");
+  });
+}
 
 // ─── Schedule · Rules · station geofences ─────────────────────────────
 async function loadStationGeofences() {
