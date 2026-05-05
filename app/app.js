@@ -182,7 +182,6 @@ function initialsOf(name) {
 }
 
 // ── Hash router ─────────────────────────────────────────────────────
-// Top-level tabs: /schedule, /tasks, /chat, /profile.
 // Top-level tabs: /profile, /schedule, /tasks, /chat.
 // Sub-routes branch off (e.g. /settings, /tasks/availability).
 const routes = {
