@@ -24,6 +24,9 @@
   --r-md: 10px;
   --r-lg: 14px;
   --tab-h: 68px;
+  /* On-screen keyboard height — set by visualViewport listener in
+     app.js so layouts can subtract it and keep inputs in view. */
+  --rr-kbd: 0px;
 }
 
 @media (prefers-color-scheme: dark){
@@ -127,7 +130,10 @@ a{color:var(--accent);text-decoration:none}
 main{
   position:absolute;
   top:calc(60px + env(safe-area-inset-top, 0px));
-  bottom:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+  /* Subtract the on-screen keyboard height so an input that has focus
+     stays visible above it on iOS PWAs (visualViewport doesn't push
+     position:absolute children up the way it does for fixed:bottom). */
+  bottom:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + var(--rr-kbd, 0px));
   left:0;right:0;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
@@ -135,6 +141,7 @@ main{
      the body's touch-action:none doesn't suppress real scrolling. */
   touch-action:pan-y;
   padding:14px 16px 16px;
+  transition:bottom .15s ease;
 }
 main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 
@@ -380,9 +387,14 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 /* ── Chat ───────────────────────────────────────────────────── */
 #chat-shell{
   display:flex;flex-direction:column;
-  height:calc(100dvh - 60px - var(--tab-h) - env(safe-area-inset-bottom, 0px));
-  margin:-14px -16px -24px;
+  /* Subtract the on-screen keyboard height so the composer rides up
+     above the keys on iOS — main already does this for its own
+     scroller, but chat-shell uses an explicit height (it owns its own
+     bottom-pinned composer) so we have to subtract here too. */
+  height:calc(100dvh - 60px - env(safe-area-inset-top, 0px) - var(--tab-h) - env(safe-area-inset-bottom, 0px) - var(--rr-kbd, 0px));
+  margin:-14px -16px -16px;
 }
+.chat-composer{ flex:0 0 auto; }
 .chat-msgs{
   flex:1;overflow-y:auto;
   padding:16px;

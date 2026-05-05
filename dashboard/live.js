@@ -42,6 +42,33 @@ const { data: dspRow } = await sb.from("dsps")
   .select("id, name, short_code, timezone, metadata").eq("id", profile.dsp_id).single();
 window.RR.dsp = dspRow;
 
+// ─── Brand · paint DSP name + station code into the sidebar chip ────────
+// The chip in dashboard/index.html is a static placeholder ("Cardinal
+// Logistics") so the file looks fine in a static preview. Replace it
+// with the live DSP record so the operator sees their own brand, and
+// re-paint after the Workspace settings save.
+function _paintWorkspaceChip() {
+  const dsp = window.RR?.dsp;
+  if (!dsp) return;
+  const name   = dsp.name || "Workspace";
+  const code   = dsp.short_code || "";
+  const initials = name
+    .split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() || "").join("") || "··";
+  const elName   = document.getElementById("rr-workspace-chip-name");
+  const elSub    = document.getElementById("rr-workspace-chip-sub");
+  const elAvatar = document.getElementById("rr-workspace-chip-avatar");
+  if (elName)   elName.textContent = name;
+  if (elSub)    elSub.textContent  = code ? `DSP · ${code}` : "DSP";
+  if (elAvatar) elAvatar.textContent = initials;
+  // Top-of-sidebar brand wordmark — same record drives it so the
+  // operator sees their own DSP name where "RouteReady" used to be.
+  const elBrand = document.getElementById("rr-brand-name");
+  if (elBrand) elBrand.textContent = name;
+  document.title = `${name} · Dispatcher`;
+}
+_paintWorkspaceChip();
+
 // ─── Tiny DOM helpers ──────────────────────────────────────────────────────
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1359,7 +1386,55 @@ function _prefillWeatherInputs() {
   const radarEl = document.getElementById("rr-set-weather-show-radar");
   if (cardEl)  cardEl.checked  = meta.show_card  !== false;
   if (radarEl) radarEl.checked = meta.show_radar !== false;
+
+  // DSP brand · prefill from the live record so the operator can edit it.
+  const nameEl = document.getElementById("rr-set-dsp-name");
+  const codeEl = document.getElementById("rr-set-dsp-code");
+  if (nameEl) nameEl.value = window.RR?.dsp?.name        || "";
+  if (codeEl) codeEl.value = window.RR?.dsp?.short_code  || "";
 }
+
+// Save DSP name → dsps.name, then refresh sidebar chip + page title.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-set-dsp-name-save")) return;
+  e.preventDefault();
+  const dspId = window.RR?.dsp?.id;
+  const input = document.getElementById("rr-set-dsp-name");
+  if (!dspId || !input) return;
+  const next = (input.value || "").trim();
+  if (!next) { toast("DSP name can't be blank", "warn"); return; }
+  try {
+    const { error } = await sb.from("dsps").update({ name: next }).eq("id", dspId);
+    if (error) throw error;
+    window.RR.dsp.name = next;
+    _paintWorkspaceChip();
+    toast("DSP name saved", "success");
+  } catch (err) {
+    console.error("dsp name save:", err);
+    toast("Save failed: " + (err.message || String(err)), "warn");
+  }
+});
+
+// Save station code → dsps.short_code, then refresh sidebar chip.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-set-dsp-code-save")) return;
+  e.preventDefault();
+  const dspId = window.RR?.dsp?.id;
+  const input = document.getElementById("rr-set-dsp-code");
+  if (!dspId || !input) return;
+  const next = (input.value || "").trim().toUpperCase();
+  if (!next) { toast("Station code can't be blank", "warn"); return; }
+  try {
+    const { error } = await sb.from("dsps").update({ short_code: next }).eq("id", dspId);
+    if (error) throw error;
+    window.RR.dsp.short_code = next;
+    _paintWorkspaceChip();
+    toast("Station code saved", "success");
+  } catch (err) {
+    console.error("station code save:", err);
+    toast("Save failed: " + (err.message || String(err)), "warn");
+  }
+});
 
 // Persist the weather card/radar toggles to dsps.metadata.weather.
 async function _saveWeatherToggle(field, value) {
