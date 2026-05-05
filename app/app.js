@@ -224,6 +224,32 @@ function render() {
   document.querySelectorAll(".tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.route === r.tab);
   });
+  // Refresh the cached photo URL from the server in the background.
+  // Cheap way to pick up a photo set on another device without forcing
+  // the user to do anything.
+  refreshDriverProfile(session);
+}
+
+let _profileRefreshed = false;
+async function refreshDriverProfile(session) {
+  if (_profileRefreshed || !session?.token) return;
+  _profileRefreshed = true;
+  try {
+    const { data, error } = await sb.rpc("driver_me", { p_token: session.token });
+    if (error || !data) return;
+    const photoUrl = data.photo_path
+      ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${data.photo_path}`
+      : null;
+    const cur = readSession();
+    if (!cur) return;
+    if ((cur.photo_url || null) === (photoUrl || null) &&
+        (cur.name || "")     === (data.name || "")) return;
+    writeSession({ ...cur, name: data.name || cur.name, photo_url: photoUrl, photo_path: data.photo_path });
+    // Repaint header chip + profile if the user is on Profile.
+    const chip = document.getElementById("driver-chip");
+    if (chip) chip.innerHTML = avatarHtml(readSession(), "avatar");
+    if (currentRoute() === "/profile") render();
+  } catch {}
 }
 
 // ── Login ───────────────────────────────────────────────────────────
@@ -278,6 +304,19 @@ function renderLogin(errorMsg) {
 }
 
 // ── Shell (header + tabs) ───────────────────────────────────────────
+// Render the avatar for a driver — a real photo if we have one,
+// otherwise the initials. The photo URL has a cache-buster appended at
+// upload time so a newly-changed photo doesn't keep serving the old
+// cached image.
+function avatarHtml(session, sizeClass) {
+  const name = session?.name || "Driver";
+  const url  = session?.photo_url;
+  if (url) {
+    return `<span class="${sizeClass}" style="background-image:url('${escapeHtml(url)}');background-size:cover;background-position:center"></span>`;
+  }
+  return `<span class="${sizeClass}">${escapeHtml(initialsOf(name))}</span>`;
+}
+
 function renderShell(session) {
   const name = session?.name || "Driver";
   document.getElementById("app").innerHTML = `
@@ -290,7 +329,7 @@ function renderShell(session) {
         <div class="sub" id="head-sub"></div>
       </div>
       <button class="driver-chip" id="driver-chip" type="button" title="Profile">
-        <span class="avatar">${escapeHtml(initialsOf(name))}</span>
+        ${avatarHtml(session, "avatar")}
       </button>
     </header>
     <main id="main"><div class="loader"></div></main>
@@ -620,12 +659,30 @@ function renderProfileHub() {
   ];
   main.innerHTML = `
     <div class="profile-head">
-      <div class="profile-avatar">${escapeHtml(initialsOf(name))}</div>
+      <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
+        ${avatarHtml(session, "profile-avatar")}
+        <span class="profile-avatar-edit" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </span>
+      </button>
+      <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
       <div class="profile-name">${escapeHtml(name)}</div>
-      <div class="profile-meta">Preview build — info wires up after auth lands</div>
+      <div class="profile-meta">${session?.photo_url ? "Tap photo to change" : "Tap photo to add one"}</div>
     </div>
     ${cards.map(taskCardHtml).join("")}
     <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>`;
+
+  // Photo upload — clicking the avatar opens the camera or picker.
+  const fileInput = document.getElementById("rr-photo-input");
+  document.getElementById("rr-photo-btn").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { toast("Photo must be under 8 MB", "warn"); return; }
+    await uploadDriverPhoto(file);
+    fileInput.value = ""; // allow re-selecting the same file
+  });
+
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
@@ -641,6 +698,39 @@ function renderProfileHub() {
     location.hash = "";
     render();
   });
+}
+
+async function uploadDriverPhoto(file) {
+  const session = readSession();
+  if (!session?.token) return;
+  toast("Uploading…");
+  const fd = new FormData();
+  fd.append("token", session.token);
+  fd.append("photo", file);
+  let url = `${cfg.SUPABASE_URL}/functions/v1/upload-driver-photo`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        // Supabase routes through its own auth gateway; the anon key
+        // satisfies the JWT requirement, the function does its own
+        // token verification.
+        "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY,
+        "apikey":        cfg.SUPABASE_ANON_KEY,
+      },
+      body: fd,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.photo_url) {
+      toast("Upload failed: " + (json?.error || res.statusText), "warn");
+      return;
+    }
+    writeSession({ ...session, photo_url: json.photo_url, photo_path: json.photo_path });
+    toast("Photo updated", "ok");
+    render(); // re-render so header chip + profile avatar pick up the new URL
+  } catch (err) {
+    toast("Upload failed: " + (err?.message || err), "warn");
+  }
 }
 
 // ── Availability ────────────────────────────────────────────────────

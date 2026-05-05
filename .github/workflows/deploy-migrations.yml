@@ -53,7 +53,7 @@ jobs:
 
       - name: Deploy edge functions (public webhooks)
         run: |
-          for fn in webhook-twilio webhook-cal webhook-apply upload-applicant-video; do
+          for fn in webhook-twilio webhook-cal webhook-apply upload-applicant-video upload-driver-photo; do
             echo "▶ deploying $fn (no jwt)"
             supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"
           done
