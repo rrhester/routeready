@@ -5323,163 +5323,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
           <!-- ─── POLICY BUILDER PANE ─────────────────────────── -->
           <div class="att-pane" id="att-pane-policy">
-
-            <div class="pol-section">
-              <h3 class="pol-section-title">Policy mode</h3>
-              <p class="pol-section-sub">Points-based rewards graduated severity (e.g. 3 callouts &lt; 1 no-show). Occurrence-based counts incidents flatly. Hybrid tracks both and triggers on whichever is hit first — this is what most DSPs use.</p>
-              <div class="pol-mode-row">
-                <button class="pol-mode-btn" data-mode="points" onclick="attSetMode('points')">
-                  <div class="pol-mode-title">Points-based</div>
-                  <div class="pol-mode-help">Each event has a point value. Thresholds trigger by total points.</div>
-                </button>
-                <button class="pol-mode-btn" data-mode="occurrence" onclick="attSetMode('occurrence')">
-                  <div class="pol-mode-title">Occurrence-based</div>
-                  <div class="pol-mode-help">Count of incidents in a rolling window. Simple but blunt.</div>
-                </button>
-                <button class="pol-mode-btn active" data-mode="hybrid" onclick="attSetMode('hybrid')">
-                  <div class="pol-mode-title">Hybrid <span style="font-weight:500;color:var(--text-subtle);font-size:11px">recommended</span></div>
-                  <div class="pol-mode-help">Track both. First threshold hit fires the action.</div>
-                </button>
-              </div>
+            <div id="rr-att-policy-shell">
+              <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading policy…</div>
             </div>
-
-            <div class="pol-section">
-              <h3 class="pol-section-title">Event types &amp; severity</h3>
-              <p class="pol-section-sub">Set the point value and whether the event counts as an occurrence. Set zero points to disable scoring for that event.</p>
-              <div>
-                <div class="pol-event-row">
-                  <span class="att-event-dot late"></span>
-                  <div><div style="font-weight:500">Late arrival</div><div style="font-size:11px;color:var(--text-subtle)">Beyond grace period</div></div>
-                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-late" value="0.5" />
-                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-late" /><span class="toggle-slider"></span></label>
-                </div>
-                <div class="pol-event-row">
-                  <span class="att-event-dot callout"></span>
-                  <div><div style="font-weight:500">Call-out</div><div style="font-size:11px;color:var(--text-subtle)">Notice given before threshold window</div></div>
-                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-callout" value="1.0" />
-                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-callout" checked /><span class="toggle-slider"></span></label>
-                </div>
-                <div class="pol-event-row">
-                  <span class="att-event-dot earlyout"></span>
-                  <div><div style="font-weight:500">Early clock-out</div><div style="font-size:11px;color:var(--text-subtle)">Left route before completion without approval</div></div>
-                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-earlyout" value="0.5" />
-                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-earlyout" /><span class="toggle-slider"></span></label>
-                </div>
-                <div class="pol-event-row">
-                  <span class="att-event-dot noshow"></span>
-                  <div><div style="font-weight:500">No-call no-show</div><div style="font-size:11px;color:var(--text-subtle)">No notice, or notice within the threshold window</div></div>
-                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-noshow" value="3.0" />
-                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-noshow" checked /><span class="toggle-slider"></span></label>
-                </div>
-                <div class="pol-event-row">
-                  <span class="att-event-dot vto"></span>
-                  <div><div style="font-weight:500">VTO — voluntary time off</div><div style="font-size:11px;color:var(--text-subtle)">Manager-offered opt-out (over-scheduled day). Default is 0 points / not an occurrence — never counts against the driver. Tracked separately so you can see if your cushion is too high.</div></div>
-                  <input class="pol-input" type="number" step="0.5" min="0" id="pol-pts-vto" value="0" />
-                  <label class="toggle" style="justify-self:end"><input type="checkbox" id="pol-occ-vto" /><span class="toggle-slider"></span></label>
-                </div>
-                <div style="display:grid;grid-template-columns:24px 1fr 90px 100px;gap:var(--s-3);font-size:10px;color:var(--text-subtle);margin-top:6px;letter-spacing:.04em;text-transform:uppercase">
-                  <span></span><span></span><span style="text-align:right">Points</span><span style="text-align:right">Counts as occ.</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="pol-section">
-              <h3 class="pol-section-title">Windows &amp; grace periods</h3>
-              <div class="form-row">
-                <div><div class="form-label">Call-out window</div><div class="form-help">Notice given <strong>at least</strong> this many hours before shift counts as call-out. Less = no-call no-show.</div></div>
-                <div style="display:flex;align-items:center;gap:8px"><input class="pol-input" type="number" min="0" max="24" id="pol-callout-window" value="4" style="width:72px" /><span style="font-size:12px;color:var(--text-muted)">hours before shift</span></div>
-              </div>
-              <div class="form-row">
-                <div><div class="form-label">Late grace period</div><div class="form-help">Arrivals within this window of scheduled start are not counted as late.</div></div>
-                <div style="display:flex;align-items:center;gap:8px"><input class="pol-input" type="number" min="0" max="60" id="pol-late-grace" value="10" style="width:72px" /><span style="font-size:12px;color:var(--text-muted)">minutes</span></div>
-              </div>
-              <div class="form-row">
-                <div><div class="form-label">Decay / aging</div><div class="form-help">Events older than this drop off the driver's running total.</div></div>
-                <div style="display:flex;align-items:center;gap:8px"><input class="pol-input" type="number" min="14" max="365" id="pol-decay-days" value="90" style="width:72px" /><span style="font-size:12px;color:var(--text-muted)">days rolling</span></div>
-              </div>
-              <div class="form-row" style="border-bottom:0">
-                <div><div class="form-label">Reset cadence</div><div class="form-help">Rolling = continuous decay. Quarterly = full reset on quarter boundary.</div></div>
-                <div><select class="pol-select" id="pol-reset" style="width:160px"><option value="rolling" selected>Rolling window</option><option value="quarter">Quarterly reset</option><option value="annual">Annual reset</option></select></div>
-              </div>
-            </div>
-
-            <div class="pol-section">
-              <h3 class="pol-section-title">Action thresholds</h3>
-              <p class="pol-section-sub">When a driver crosses one of these, RouteReady auto-creates a coaching action and (optionally) notifies the driver. Edit either column — whichever is reached first triggers the action.</p>
-              <div>
-                <div style="display:grid;grid-template-columns:24px 1fr 80px 80px 110px;gap:var(--s-3);font-size:10px;color:var(--text-subtle);padding-bottom:6px;letter-spacing:.04em;text-transform:uppercase">
-                  <span></span><span>Level</span><span style="text-align:right">Points</span><span style="text-align:right">Occurrences</span><span>Auto-action</span>
-                </div>
-                <div class="pol-thresh-row">
-                  <div class="pol-thresh-color" style="background:#FBBF24"></div>
-                  <div><div style="font-weight:500">Verbal warning</div><div style="font-size:11px;color:var(--text-subtle)">SMS check-in + log entry</div></div>
-                  <input class="pol-input" type="number" step="0.5" id="pol-th-verbal-pts" value="2" />
-                  <input class="pol-input" type="number" step="1" id="pol-th-verbal-occ" value="2" />
-                  <select class="pol-select"><option>SMS check-in</option><option>Coach drawer</option><option>Notify owner</option></select>
-                </div>
-                <div class="pol-thresh-row">
-                  <div class="pol-thresh-color" style="background:var(--amber)"></div>
-                  <div><div style="font-weight:500">Written warning</div><div style="font-size:11px;color:var(--text-subtle)">Generates document for signature</div></div>
-                  <input class="pol-input" type="number" step="0.5" id="pol-th-written-pts" value="4" />
-                  <input class="pol-input" type="number" step="1" id="pol-th-written-occ" value="4" />
-                  <select class="pol-select"><option>Generate doc</option><option>SMS + doc</option></select>
-                </div>
-                <div class="pol-thresh-row">
-                  <div class="pol-thresh-color" style="background:#F97316"></div>
-                  <div><div style="font-weight:500">Final warning</div><div style="font-size:11px;color:var(--text-subtle)">Owner approval required</div></div>
-                  <input class="pol-input" type="number" step="0.5" id="pol-th-final-pts" value="6" />
-                  <input class="pol-input" type="number" step="1" id="pol-th-final-occ" value="6" />
-                  <select class="pol-select"><option>Owner approval</option><option>Auto-issue</option></select>
-                </div>
-                <div class="pol-thresh-row">
-                  <div class="pol-thresh-color" style="background:var(--red)"></div>
-                  <div><div style="font-weight:500">Termination eligible</div><div style="font-size:11px;color:var(--text-subtle)">Owner-only · never auto-fires</div></div>
-                  <input class="pol-input" type="number" step="0.5" id="pol-th-term-pts" value="8" />
-                  <input class="pol-input" type="number" step="1" id="pol-th-term-occ" value="8" />
-                  <select class="pol-select" disabled><option>Owner review (manual)</option></select>
-                </div>
-              </div>
-            </div>
-
-            <div class="pol-section">
-              <h3 class="pol-section-title">Exempt categories</h3>
-              <p class="pol-section-sub">Events tagged with these categories don't accrue points or occurrences. Click to toggle.</p>
-              <div id="pol-exempt-chips" style="display:flex;flex-wrap:wrap;gap:6px">
-                <span class="pol-chip active" data-cat="Approved PTO" onclick="attToggleChip(this)">Approved PTO</span>
-                <span class="pol-chip active" data-cat="Jury duty" onclick="attToggleChip(this)">Jury duty</span>
-                <span class="pol-chip active" data-cat="Bereavement" onclick="attToggleChip(this)">Bereavement</span>
-                <span class="pol-chip active" data-cat="FMLA" onclick="attToggleChip(this)">FMLA</span>
-                <span class="pol-chip" data-cat="Vehicle issue (DSP fault)" onclick="attToggleChip(this)">Vehicle issue (DSP fault)</span>
-                <span class="pol-chip" data-cat="Weather closure" onclick="attToggleChip(this)">Weather closure</span>
-                <span class="pol-chip active" data-cat="Workplace injury" onclick="attToggleChip(this)">Workplace injury</span>
-              </div>
-            </div>
-
-            <div class="pol-section">
-              <h3 class="pol-section-title">Notifications</h3>
-              <div class="form-row">
-                <div><div class="form-label">Notify driver via SMS at threshold cross</div><div class="form-help">Driver receives a templated SMS the moment they cross verbal/written/final.</div></div>
-                <div><label class="toggle"><input type="checkbox" id="pol-notify-driver" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-              <div class="form-row">
-                <div><div class="form-label">Notify owner at final + term</div><div class="form-help">Surface in the dashboard action queue.</div></div>
-                <div><label class="toggle"><input type="checkbox" id="pol-notify-owner" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-              <div class="form-row" style="border-bottom:0">
-                <div><div class="form-label">Auto-create coaching task</div><div class="form-help">Pre-fills Coach drawer with template + last 3 events.</div></div>
-                <div><label class="toggle"><input type="checkbox" id="pol-auto-coach" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-            </div>
-
-            <div class="pol-foot">
-              <span class="pol-foot-status" id="pol-foot-status">Editing draft · changes preview live in Report</span>
-              <button class="btn" onclick="attResetPolicy()">Reset to defaults</button>
-              <button class="btn btn-primary" onclick="attSavePolicy()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Save and apply
-              </button>
-            </div>
-
+          
           </div><!-- /att-pane-policy -->
 
           <!-- ─── EVENT LOG PANE ──────────────────────────────── -->
@@ -16258,7 +16105,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505c5"></script>
+<script type="module" src="./live.js?v=20260505c6"></script>
 
 </body>
 </html>
