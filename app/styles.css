@@ -385,21 +385,21 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 .toast.ok{background:var(--green);color:#fff}
 
 /* ── Chat ───────────────────────────────────────────────────── */
-/* The chat layout has had three separate "fixes" that each broke a
-   different state.  This is the deterministic version:
-   - #chat-shell fills <main> exactly, escaping main's padding via
-     negative offsets so the composer sits flush against the tab bar.
-   - .chat-composer is *anchored* at the bottom with position:absolute.
-     It does NOT depend on flex layout, NOT on dvh math, NOT on the
-     visualViewport listener — main already subtracts the keyboard
-     height (--rr-kbd) from its own bottom, so chat-shell shrinks too
-     and the absolutely-positioned composer rides up with it.
-   - .chat-msgs fills the rest with position:absolute (top:0 to
-     bottom:60px), so it always reaches both edges regardless of the
-     keyboard state.  No flex chains, no min-height tricks. */
+/* Chat is a special case: the composer must NEVER move, the messages
+   list must be the only scroller, and there must NOT be a phantom
+   scroll bar on <main> from the chat-shell extending past its padding.
+   To get all three at once, the shell is position:fixed (anchored to
+   the viewport, NOT to main) so it lives entirely outside main's
+   overflow context — main has no scrollable content while chat is
+   active, and the composer rides up with the iOS keyboard purely
+   through the --rr-kbd CSS variable. */
 #chat-shell{
-  position:absolute;
-  top:-14px;left:-16px;right:-16px;bottom:-16px;
+  position:fixed;
+  top:calc(60px + env(safe-area-inset-top, 0px));
+  bottom:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + var(--rr-kbd, 0px));
+  left:0;right:0;
+  background:var(--bg);
+  z-index:5;
 }
 .chat-msgs{
   position:absolute;
@@ -407,7 +407,8 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:16px;
   display:flex;flex-direction:column;gap:6px;
-  /* Hide the desktop-style scrollbar — chat shouldn't show one. */
+  /* Hide the desktop-style scrollbar — only the list scrolls and even
+     that is invisible. */
   scrollbar-width:none;
 }
 .chat-msgs::-webkit-scrollbar{ display:none; width:0; height:0; }
