@@ -182,22 +182,16 @@ function initialsOf(name) {
 }
 
 // ── Hash router ─────────────────────────────────────────────────────
-// Top-level tabs: /schedule, /tasks, /chat, /profile.
-// Sub-routes branch off /tasks and /profile (e.g. /tasks/dvir).
+// Top-level tabs: /profile, /schedule, /tasks, /chat.
+// Sub-routes branch off (e.g. /settings, /tasks/availability).
 const routes = {
   "/schedule":          { render: renderSchedule,        tab: "/schedule" },
   "/tasks":             { render: renderTasksHub,        tab: "/tasks" },
-  "/tasks/dvir-pre":    { render: renderDvirPre,         tab: "/tasks", back: "/tasks", title: "Pre-trip inspection" },
-  "/tasks/dvir-post":   { render: renderDvirPost,        tab: "/tasks", back: "/tasks", title: "Post-trip inspection" },
-  "/tasks/checklist":   { render: renderChecklists,      tab: "/tasks", back: "/tasks", title: "Today's checklists" },
-  "/tasks/forms":       { render: renderForms,           tab: "/tasks", back: "/tasks", title: "Forms" },
-  "/tasks/timeoff":     { render: renderTimeOff,         tab: "/tasks", back: "/tasks", title: "Request time off" },
   "/tasks/availability":{ render: renderAvailability,    tab: "/tasks", back: "/tasks", title: "Availability" },
   "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
-  "/tasks/documents":   { render: renderDocuments,       tab: "/tasks",   back: "/tasks",   title: "Documents" },
 };
 function currentRoute() {
   const h = (location.hash || "").replace(/^#/, "");
@@ -462,39 +456,20 @@ function fmtTime(iso) {
 // completes during their shift. Status pills (Required / Pending /
 // Done) make the day's open work obvious at a glance.
 function renderTasksHub() {
-  setHeader("Tasks", "Today's work");
+  setHeader("Tasks", "");
   const main = document.getElementById("main");
-  // v1: hard-coded status. PR 3+ replaces with real DVIR/checklist
-  // completion records.
   const cards = [
-    { route: "/tasks/availability", title: "Availability",     sub: "Days you can work · subject to approval", status: null,
+    { route: "/tasks/availability", title: "Availability", sub: "Days you can work",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
+    { route: "/tasks/attendance",   title: "Attendance",   sub: "Today's status and policy",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
-    { route: "/tasks/attendance",   title: "Attendance",       sub: "Today's status · attendance policy",     status: null,
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11h6"/><path d="M9 7h6"/><path d="M9 15h4"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>' },
-    { route: "/tasks/dvir-pre",  title: "Pre-trip inspection",  sub: "DVIR · required before each shift",  status: "Required",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' },
-    { route: "/tasks/dvir-post", title: "Post-trip inspection", sub: "DVIR · log defects after the route",  status: "After shift",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' },
-    { route: "/tasks/checklist", title: "Today's checklists",   sub: "Items dispatch needs done today",      status: "Pending",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' },
-    { route: "/tasks/forms",     title: "Forms",                sub: "Submit incidents · respond to assigned forms", status: null,
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>' },
-    { route: "/tasks/timeoff",   title: "Request time off",     sub: "Pick days · add reason",               status: null,
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>' },
-    { route: "/tasks/documents", title: "Documents",            sub: "DL · DOT · insurance · uploads",       status: null,
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' },
   ];
-  main.innerHTML = cards.map(taskCardHtml).join("") + `
-    <div class="empty-state" style="font-size:11px;padding:24px 8px">Preview build — flows wire up in upcoming PRs.</div>`;
+  main.innerHTML = cards.map(taskCardHtml).join("");
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
 }
 function taskCardHtml(c) {
-  const pillCls = c.status === "Required" ? "pill-required"
-                : c.status === "Pending"  ? "pill-pending"
-                : c.status === "Done"     ? "pill-done"
-                : "";
   return `
     <div class="task-card" data-task-route="${c.route}">
       <span class="task-icon">${c.icon}</span>
@@ -502,49 +477,8 @@ function taskCardHtml(c) {
         <div class="task-title">${escapeHtml(c.title)}</div>
         <div class="task-sub">${escapeHtml(c.sub)}</div>
       </div>
-      ${c.status ? `<span class="task-pill ${pillCls}">${escapeHtml(c.status)}</span>` : ""}
       <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>`;
-}
-
-// ── DVIR pre-trip ───────────────────────────────────────────────────
-function renderDvirPre() {
-  document.getElementById("main").innerHTML = comingSoon(
-    "Walk-around the vehicle and confirm each section.",
-    "Cab · body · lights · brakes · tires · mirrors · defects + photos · sign",
-  );
-}
-
-// ── DVIR post-trip ──────────────────────────────────────────────────
-function renderDvirPost() {
-  document.getElementById("main").innerHTML = comingSoon(
-    "End-of-shift inspection.",
-    "Log defects discovered on the route · attach photos · sign",
-  );
-}
-
-// ── Checklists ──────────────────────────────────────────────────────
-function renderChecklists() {
-  document.getElementById("main").innerHTML = comingSoon(
-    "Daily tasks dispatch needs you to complete.",
-    "Same list every driver runs · check off as you go",
-  );
-}
-
-// ── Forms ───────────────────────────────────────────────────────────
-function renderForms() {
-  document.getElementById("main").innerHTML = comingSoon(
-    "Submit incident reports or respond to dispatch-assigned forms.",
-    "Photos · text · attach to a shift",
-  );
-}
-
-// ── Time off ────────────────────────────────────────────────────────
-function renderTimeOff() {
-  document.getElementById("main").innerHTML = comingSoon(
-    "Submit time-off requests and see their status.",
-    "Pick dates · add reason · track approvals",
-  );
 }
 
 // ── Chat ────────────────────────────────────────────────────────────
@@ -652,11 +586,11 @@ function chatBubbleHtml(m) {
     </div>`;
 }
 
-// ── Profile hub ─────────────────────────────────────────────────────
+// ── Profile · home screen. Photo + name + check-in. Nothing else. ──
 function renderProfileHub() {
   const session = readSession();
   const name = session?.name || "Driver";
-  setHeader("Profile", "Your info");
+  setHeader("RouteReady", "");
   const main = document.getElementById("main");
   main.innerHTML = `
     <div class="profile-head">
@@ -668,7 +602,6 @@ function renderProfileHub() {
       </button>
       <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
       <div class="profile-name">${escapeHtml(name)}</div>
-      <div class="profile-meta">${session?.photo_url ? "Tap photo to change" : "Tap photo to add one"}</div>
     </div>
 
     <div id="rr-checkin-slot" class="checkin-card">
@@ -1181,23 +1114,6 @@ async function renderAttendance() {
           <li>Check out from your home screen when your shift ends.</li>
         </ul>
       </section>
-    </div>`;
-}
-
-function renderDocuments() {
-  document.getElementById("main").innerHTML = comingSoon(
-    "Upload renewals when documents are about to expire.",
-    "Driver's license · DOT medical · insurance · misc",
-  );
-}
-
-// ── Coming-soon block ───────────────────────────────────────────────
-function comingSoon(line, second) {
-  return `
-    <div class="coming-soon">
-      <div class="badge">Preview</div>
-      <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px">${escapeHtml(line)}</div>
-      <div>${escapeHtml(second)}</div>
     </div>`;
 }
 
