@@ -47,7 +47,7 @@ async function syncSwSession(session) {
   } catch {}
 }
 
-function setAppBadge(n) {
+function setAppBadge(n, source) {
   if ("setAppBadge" in navigator) {
     if (n > 0) navigator.setAppBadge(n).catch(() => {});
     else navigator.clearAppBadge().catch(() => {});
@@ -59,7 +59,7 @@ function setAppBadge(n) {
   if (n <= 0 && "serviceWorker" in navigator) {
     navigator.serviceWorker.ready.then((reg) => {
       const sw = reg.active || navigator.serviceWorker.controller;
-      sw?.postMessage({ type: "rr:clear-badge" });
+      sw?.postMessage({ type: "rr:clear-badge", source: source || "page" });
     }).catch(() => {});
   }
 }
