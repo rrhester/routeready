@@ -5278,6 +5278,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           <button class="subnav-item" data-sub="licenses" onclick="drSub('licenses')">Licenses</button>
           <button class="subnav-item" data-sub="attendance" onclick="drSub('attendance')">Attendance</button>
           <button class="subnav-item" data-sub="coaching" onclick="drSub('coaching')">Coaching <span id="rr-coach-feed-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+          <button class="subnav-item" data-sub="availability" onclick="drSub('availability')">Availability <span id="rr-avail-req-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
         </div>
 
         <!-- ROSTER SUB-VIEW -->
@@ -5902,6 +5903,21 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
           </div>
         </div><!-- /dr-sub-coaching -->
+
+        <!-- AVAILABILITY REQUESTS SUB-VIEW -->
+        <div class="dr-subview" id="dr-sub-availability">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:14px;font-weight:700">Pending availability requests</div>
+                <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Approvals stay in effect for 3 weeks from approval date.</div>
+              </div>
+            </div>
+            <div id="rr-avail-req-list">
+              <div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
+            </div>
+          </div>
+        </div><!-- /dr-sub-availability -->
 
       </div>
     </div>
