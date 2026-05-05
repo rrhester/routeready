@@ -5444,35 +5444,74 @@ async function loadAvailabilityRequests() {
     return;
   }
   const rows = data || [];
-  _updateAvailReqBadge(rows.length);
+  const pendingCount = rows.filter((r) => r.status === "pending").length;
+  _updateAvailReqBadge(pendingCount);
 
   if (rows.length === 0) {
-    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No pending availability requests.</div>`;
+    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No availability requests.</div>`;
     return;
   }
 
   wrap.innerHTML = rows.map((r) => {
     const same = JSON.stringify((r.days || []).slice().sort()) === JSON.stringify(((r.current_days || []).slice()).sort());
+    const isPending  = r.status === "pending";
+    const isApproved = r.status === "approved";
+    const isDenied   = r.status === "denied";
+
+    let statusPill = "";
+    if (isPending)  statusPill = `<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Pending</span>`;
+    if (isApproved) statusPill = `<span style="background:rgba(22,163,74,.12);color:var(--green);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Approved</span>`;
+    if (isDenied)   statusPill = `<span style="background:rgba(220,38,38,.10);color:var(--red);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Denied</span>`;
+
+    let metaLine;
+    if (isPending) {
+      metaLine = `submitted ${escapeHtml(_fmtRel(r.submitted_at))}`;
+    } else if (isApproved) {
+      metaLine = `approved ${escapeHtml(_fmtRel(r.decided_at))} · effective through ${escapeHtml(_fmtAvailDateShort(r.effective_until))}`;
+    } else {
+      metaLine = `denied ${escapeHtml(_fmtRel(r.decided_at))}`;
+    }
+
+    const noteLine = r.decision_note
+      ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic">"${escapeHtml(r.decision_note)}"</div>`
+      : "";
+
+    const actions = isPending
+      ? `<div style="display:flex;gap:8px;align-items:center">
+           <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
+           <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
+         </div>`
+      : `<div style="font-size:11px;color:var(--text-subtle)">—</div>`;
+
     return `
-      <div class="avail-req-row" data-rr-req-id="${escapeHtml(r.id)}" style="padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:200px 1fr auto;gap:16px;align-items:center">
+      <div class="avail-req-row" data-rr-req-id="${escapeHtml(r.id)}" style="padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:220px 1fr auto;gap:16px;align-items:center;${isPending ? "" : "background:var(--canvas)"}">
         <div>
-          <div style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(r.driver_name || "")}</div>
-          <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(r.station_code || "—")} · submitted ${escapeHtml(_fmtRel(r.submitted_at))}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(r.driver_name || "")}</span>
+            ${statusPill}
+          </div>
+          <div style="font-size:11px;color:var(--text-subtle);margin-top:3px">${escapeHtml(r.station_code || "—")} · ${metaLine}</div>
+          ${noteLine}
         </div>
         <div>
-          <div style="font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Requested</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${isApproved ? "Approved" : "Requested"}</div>
           <div>${_availDaysHtml(r.days, false)}</div>
-          ${same ? "" : `
+          ${(isPending && !same) ? `
             <div style="font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Currently approved</div>
             <div>${_availDaysHtml(r.current_days, true)}</div>
-          `}
+          ` : ""}
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
-          <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
-        </div>
+        ${actions}
       </div>`;
   }).join("");
+}
+
+function _fmtAvailDateShort(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch { return iso; }
 }
 
 function _updateAvailReqBadge(count) {
