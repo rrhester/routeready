@@ -4447,14 +4447,10 @@ function setDriverDrawerFoot() {
 }
 
 function renderAvailabilityTab(body, d) {
-  const v = (s) => escapeHtml(s ?? "");
   const meta = d.metadata || {};
   const avail = meta.availability || {};
   const days = avail.days || [];
-  const preferred = avail.preferred || [];
-  const notes = avail.notes || "";
   const isAvail = (k) => days.includes(k);
-  const isPref  = (k) => preferred.includes(k);
   const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
   const availBoxes = dayKey.map(k => `
@@ -4462,26 +4458,10 @@ function renderAvailabilityTab(body, d) {
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
-  const prefBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
-      <input type="checkbox" data-rr-avail-pref="${k}" ${isPref(k) ? "checked" : ""}/>
-      <span style="font-weight:600">${dayLabel[k]}</span>
-    </label>`).join("");
   body.innerHTML = `
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
       <label>Available days</label>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${availBoxes}</div>
-    </div>
-    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
-      <label>Preferred days <span style="display:block;font-size:11px;color:var(--text-subtle);font-weight:400;margin-top:2px">Optional</span></label>
-      <div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${prefBoxes}</div>
-        <div style="font-size:11px;color:var(--text-subtle);margin-top:6px;line-height:1.4">Auto-fill prefers these days when scheduling this driver. Subset of available days.</div>
-      </div>
-    </div>
-    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
-      <label>Notes</label>
-      <textarea data-rr-avail-notes rows="3" placeholder="e.g. school pickup Wed afternoons · prefers AM routes" style="resize:vertical;min-height:64px">${v(notes)}</textarea>
     </div>`;
 }
 
@@ -4939,12 +4919,8 @@ document.addEventListener("click", async (e) => {
     const days = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-day]"))
       .filter(el => el.checked)
       .map(el => el.dataset.rrAvailDay);
-    const preferred = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-pref]"))
-      .filter(el => el.checked)
-      .map(el => el.dataset.rrAvailPref);
-    const notes = document.querySelector("#rr-dd-drawer [data-rr-avail-notes]")?.value || "";
     const meta = _ddDriver.driver.metadata || {};
-    const newMeta = { ...meta, availability: { days, preferred, notes } };
+    const newMeta = { ...meta, availability: { days } };
     const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", driverId);
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
     _ddDriver.driver.metadata = newMeta;
