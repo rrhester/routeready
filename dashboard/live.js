@@ -358,7 +358,7 @@ window.goto = function (view) {
   if (view === "pipeline")  loadPipeline(getActiveStage());
   if (view === "drivers")   { loadDriversRoster(); loadDriverInsights(); }
   if (view === "checkin")   loadCheckinView();
-  if (view === "dashboard") { loadDashboardTasks(); loadDashboardWeather(); }
+  if (view === "dashboard") { loadTodayPlan(); }
   if (view === "messages")  loadDriverChatInbox();
 };
 
@@ -1818,6 +1818,179 @@ window.attTab = function (name) {
   if (name === "policy")  loadAttendancePolicy();
   if (name === "log")     loadAttendanceEventLog();
 };
+
+// ─── Sidebar · Today's Plan ────────────────────────────────────────────
+// The new default landing for operators. Pulls today's attendance live,
+// today's coverage gaps (open shifts), and credential expirations into
+// one glanceable view. Polls every 30 s while on the dashboard tab.
+
+let _todayPlanTimer = null;
+
+async function loadTodayPlan() {
+  const shell = document.getElementById("rr-today-plan-shell");
+  if (!shell) return;
+
+  const dateEl = document.getElementById("rr-today-date");
+  if (dateEl) {
+    dateEl.textContent = new Date().toLocaleDateString(undefined, {
+      weekday: "long", month: "long", day: "numeric",
+    });
+  }
+
+  if (_todayPlanTimer) clearInterval(_todayPlanTimer);
+  _todayPlanTimer = setInterval(() => {
+    if (document.getElementById("view-dashboard")?.classList.contains("active") && !document.hidden) {
+      loadTodayPlan();
+    } else { clearInterval(_todayPlanTimer); _todayPlanTimer = null; }
+  }, 30000);
+
+  const [attRes, planRes] = await Promise.all([
+    sb.rpc("today_attendance"),
+    sb.rpc("today_plan"),
+  ]);
+  if (attRes.error)  { shell.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(attRes.error.message)}</div>`; return; }
+  if (planRes.error) { shell.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(planRes.error.message)}</div>`; return; }
+
+  const attRows = attRes.data?.rows || [];
+  const plan    = planRes.data || {};
+
+  // Roll up attendance into the same buckets as the Today tab.
+  const cnt = { total: attRows.length, working: 0, completed: 0, ready: 0,
+                waiting: 0, missed: 0, tardy: 0, ncns: 0 };
+  for (const r of attRows) {
+    switch (r.computed_outcome) {
+      case "checked_in":      cnt.working++;   break;
+      case "checked_out":     cnt.completed++; break;
+      case "ready_to_checkin":cnt.ready++;     break;
+      case "waiting":         cnt.waiting++;   break;
+      case "missed_reported": cnt.missed++;    break;
+      case "tardy":           cnt.tardy++;     break;
+      case "ncns":            cnt.ncns++;      break;
+    }
+  }
+  const notIn = cnt.total - (cnt.working + cnt.completed);
+  const notInList = attRows.filter(r =>
+    ["waiting","ready_to_checkin","tardy","ncns","missed_reported"].includes(r.computed_outcome)
+  );
+
+  // Service-type chips for the scheduled-summary card.
+  const bySvc = {};
+  const byWave = {};
+  for (const r of attRows) {
+    const sv = r.service_type_code || "—";
+    if (!bySvc[sv]) bySvc[sv] = { count: 0, color: r.service_type_color || "#94a3b8" };
+    bySvc[sv].count++;
+    const w = r.wave_index ?? 0;
+    byWave[w] = (byWave[w] || 0) + 1;
+  }
+  const svcChips = Object.entries(bySvc).map(([code, v]) =>
+    `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:11px;font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`
+  ).join("");
+  const waveChips = Object.keys(byWave).sort().map(w =>
+    `<span style="font-size:11px;color:var(--text-muted);margin-right:10px">Wave ${w}: <strong>${byWave[w]}</strong></span>`
+  ).join("");
+
+  // ── KPI strip (mirrors Drivers → Attendance → Today, but condensed) ──
+  const kpi = (label, value, sub, tone) => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
+      <div style="font-size:26px;font-weight:700;margin-top:4px;color:${tone || "var(--text)"}">${escapeHtml(String(value))}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+    </div>`;
+
+  // ── Not-checked-in driver list (compact rows) ──
+  const notInRows = notInList.length === 0
+    ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">All scheduled drivers are checked in.</div>`
+    : notInList.map(r => {
+        const tone = r.computed_outcome === "ncns"   ? "var(--red)"
+                   : r.computed_outcome === "tardy"  ? "var(--amber)"
+                   : r.computed_outcome === "ready_to_checkin" ? "var(--accent)"
+                   : r.computed_outcome === "missed_reported" ? "var(--amber)"
+                   : "var(--text-subtle)";
+        const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
+        const t = r.starts_at ? new Date(r.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
+        return `
+          <div style="display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--border)">
+            <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:11px">${escapeHtml((r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:600">${escapeHtml(r.driver_name)}</div>
+              <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}</div>
+            </div>
+            <span style="color:${tone};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</span>
+          </div>`;
+      }).join("");
+
+  // ── Coverage card ──
+  const open = plan.open_shifts || [];
+  const dlExp = plan.dl_expiring || [];
+  const noDot = plan.not_dot_certified || [];
+
+  const openRows = open.length === 0
+    ? `<div style="padding:18px;text-align:center;color:var(--green);font-size:12px;font-weight:600">✓ All shifts assigned</div>`
+    : open.map(o => {
+        const t = o.starts_at ? new Date(o.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
+        const svc = o.service_type_code ? `<span style="background:${o.service_type_color || "#94a3b8"}22;color:${o.service_type_color || "#94a3b8"};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px">${escapeHtml(o.service_type_code)}</span>` : "";
+        const cushion = o.is_cushion ? `<span style="background:rgba(180,83,9,.15);color:var(--amber);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px">EX</span>` : "";
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-top:1px solid var(--border);font-size:13px">
+          <div><strong>${escapeHtml(o.station_code || "—")}</strong> · ${escapeHtml(t)} · Wave ${o.wave_index ?? 0}${svc}${cushion}</div>
+          <button class="btn btn-sm" onclick="goto('schedule')">Assign</button>
+        </div>`;
+      }).join("");
+
+  const dlRows = dlExp.length === 0
+    ? ""
+    : `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Driver license expiring soon · ${dlExp.length}</div>`
+    + dlExp.map(d => {
+        const days = Number(d.days_left);
+        const tone = days <= 0 ? "var(--red)" : (days <= 2 ? "var(--amber)" : "var(--text-muted)");
+        const label = days < 0 ? `Expired ${-days}d ago` : days === 0 ? "Expires today" : `${days}d left`;
+        return `<div style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px 14px;border-top:1px solid var(--border);font-size:13px;align-items:center">
+          <div data-rr-driver-id="${escapeHtml(d.driver_id)}" style="font-weight:600;cursor:pointer">${escapeHtml(d.driver_name)}</div>
+          <span style="color:${tone};font-weight:700;font-size:12px">${escapeHtml(label)}</span>
+        </div>`;
+      }).join("");
+
+  const noDotRows = noDot.length === 0
+    ? ""
+    : `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Active drivers without DOT certification · ${noDot.length}</div>`
+    + noDot.slice(0, 8).map(d => `
+        <div style="padding:8px 14px;border-top:1px solid var(--border);font-size:13px">
+          <span data-rr-driver-id="${escapeHtml(d.driver_id)}" style="font-weight:600;cursor:pointer">${escapeHtml(d.driver_name)}</span>
+        </div>`).join("");
+
+  shell.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      ${kpi("Scheduled", cnt.total, waveChips || "today")}
+      ${kpi("Not checked in", Math.max(0, notIn), `${cnt.ready} ready · ${cnt.waiting} waiting`, notIn > 0 ? "var(--amber)" : undefined)}
+      ${kpi("Tardy / NCNS", cnt.tardy + cnt.ncns, `${cnt.tardy} tardy · ${cnt.ncns} no-show`, (cnt.tardy + cnt.ncns) > 0 ? "var(--red)" : undefined)}
+      ${kpi("Working / Done", cnt.working + cnt.completed, `${cnt.working} working · ${cnt.completed} done`, (cnt.working + cnt.completed) > 0 ? "var(--green)" : undefined)}
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
+      <div style="font-size:11px;color:var(--text-subtle)">As of ${escapeHtml(new Date(attRes.data.as_of).toLocaleTimeString())}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+          Not checked in <span style="color:var(--text-subtle);font-weight:600">· ${notInList.length}</span>
+        </div>
+        ${notInRows}
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
+          <span>Coverage <span style="color:var(--text-subtle);font-weight:600">· ${open.length} open · ${dlExp.length} DL · ${noDot.length} no DOT</span></span>
+        </div>
+        ${openRows}
+        ${dlRows}
+        ${noDotRows}
+      </div>
+    </div>
+  `;
+}
+
 
 // ─── Drivers · Attendance · Today ──────────────────────────────────────
 // Live KPI card + roster of who hasn't checked in. Polls every 15 s
