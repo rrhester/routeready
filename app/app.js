@@ -244,10 +244,18 @@ function render() {
   refreshDriverProfile(session);
 }
 
-let _profileRefreshed = false;
-async function refreshDriverProfile(session) {
-  if (_profileRefreshed || !session?.token) return;
-  _profileRefreshed = true;
+// Throttle the driver_me hit to once per minute. We call this on every
+// navigation, every focus, and every visibilitychange so the header
+// brand, profile photo, and display name flip as soon as dispatch
+// changes them — without hammering the server while the driver is
+// flicking between tabs. The session cache is the source of truth for
+// the UI; this keeps it fresh.
+let _profileRefreshedAt = 0;
+async function refreshDriverProfile(session, { force } = {}) {
+  if (!session?.token) return;
+  const now = Date.now();
+  if (!force && now - _profileRefreshedAt < 60_000) return;
+  _profileRefreshedAt = now;
   try {
     const { data, error } = await sb.rpc("driver_me", { p_token: session.token });
     if (error || !data) return;
@@ -270,6 +278,20 @@ async function refreshDriverProfile(session) {
     // Profile screen shows a freshly-uploaded photo.
     render();
   } catch {}
+}
+
+// Refresh on focus so a DSP name change in dispatcher Settings shows
+// up in the driver header without a full reload. Pairs with the
+// once-per-minute throttle above so it stays cheap.
+if (typeof window !== "undefined") {
+  const refreshOnFocus = () => {
+    const s = readSession();
+    if (s?.token) refreshDriverProfile(s, { force: true });
+  };
+  window.addEventListener("focus", refreshOnFocus);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshOnFocus();
+  });
 }
 
 // ── Login ───────────────────────────────────────────────────────────
