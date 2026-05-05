@@ -4914,7 +4914,7 @@ document.addEventListener("click", async (e) => {
   }
   // Legacy: open drawer from a full row marked with [data-rr-open-driver].
   const row = e.target.closest("[data-rr-open-driver]");
-  if (row) {
+  if (row && !e.target.closest("[data-rr-no-drawer]")) {
     const id = row.getAttribute("data-driver-id");
     if (id) await openDriverDrawer(id);
     return;
