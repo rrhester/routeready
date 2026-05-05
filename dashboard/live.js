@@ -1895,7 +1895,7 @@ async function loadTodayPlan() {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
       <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
       <div style="font-size:26px;font-weight:700;margin-top:4px;color:${tone || "var(--text)"}">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
     </div>`;
 
   // ── Not-checked-in driver list (compact rows) ──
@@ -2076,7 +2076,7 @@ async function loadTodayAttendance() {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
       <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
       <div style="font-size:26px;font-weight:700;margin-top:4px;color:${tone || "var(--text)"}">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
     </div>`;
 
   // Driver-row renderer.
@@ -6129,7 +6129,7 @@ function _renderAvailabilityKpis(k, rows) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
       <div style="font-size:11px;font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</div>
       <div style="font-size:24px;font-weight:700;margin-top:4px">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
     </div>`;
   el.innerHTML = [
     card("Pending",       k.pending_count ?? 0,  "awaiting review"),
