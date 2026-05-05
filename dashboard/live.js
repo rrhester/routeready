@@ -1847,12 +1847,14 @@ async function loadAttendancePolicy() {
       </label>
     </div>
 
-    <!-- Progressive coaching -->
+    <!-- Progressive coaching + auto-coaching -->
     <div class="pol-section">
       <h3 class="pol-section-title">Coaching style</h3>
-      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold.</p>
+      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold, and what happens when an operator hits Approve on the daily attendance card.</p>
       ${toggleRow("progressive_coaching", "Use progressive coaching steps",
         "When ON the recommended action escalates: <strong>Verbal</strong> coaching at the Warn threshold → <strong>Written</strong> warning at Action → <strong>Final</strong> written warning on a repeat → <strong>Termination</strong>.  Documents the conversation each time so an unemployment claim has a paper trail.<br>When OFF the dashboard recommends a single Coach action at Warn and a single Write-up at Action.")}
+      ${toggleRow("auto_coaching", "Auto-coach when an event is approved",
+        "When ON, hitting <strong>Approve</strong> on the daily attendance card automatically (a) writes a coaching record to the driver's file with the event date and operator notes, and (b) sends the driver an in-app message explaining what was logged and why.<br>When OFF, the event still counts toward attendance but coaching is manual — the attendance report flags the row as <em>Coaching pending</em> until a leader files it themselves.")}
     </div>
 
     <!-- Auto-coaching actions on Approve -->
