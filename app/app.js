@@ -52,6 +52,12 @@ function setAppBadge(n) {
     if (n > 0) navigator.setAppBadge(n).catch(() => {});
     else navigator.clearAppBadge().catch(() => {});
   }
+  // Also ask the SW to clear — on iOS PWAs the badge set from inside the
+  // SW push handler won't reliably clear when called from the page, so
+  // we fire clearAppBadge from both contexts.
+  if (n <= 0 && "serviceWorker" in navigator) {
+    navigator.serviceWorker.controller?.postMessage({ type: "rr:clear-badge" });
+  }
 }
 
 function urlBase64ToUint8Array(b64url) {

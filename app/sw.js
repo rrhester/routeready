@@ -13,7 +13,7 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-const SHELL_CACHE = "rr-app-shell-v7";
+const SHELL_CACHE = "rr-app-shell-v8";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -110,6 +110,10 @@ self.addEventListener("message", (event) => {
       rrSet("token", null),
       // Keep supabaseUrl/anonKey — they're public and useful next login.
     ]));
+    if ("clearAppBadge" in self.navigator) {
+      self.navigator.clearAppBadge().catch(() => {});
+    }
+  } else if (data.type === "rr:clear-badge") {
     if ("clearAppBadge" in self.navigator) {
       self.navigator.clearAppBadge().catch(() => {});
     }
