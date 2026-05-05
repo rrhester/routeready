@@ -258,6 +258,7 @@ window.goto = function (view) {
   if (view === "drivers")   { loadDriversRoster(); loadDriverInsights(); }
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadDashboardTasks(); loadDashboardWeather(); }
+  if (view === "messages")  loadDriverChatInbox();
 };
 
 
@@ -4363,7 +4364,6 @@ async function openDriverDrawer(driverId) {
         <button class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button class="dd-tab" data-rr-dd-tab="license">License</button>
         <button class="dd-tab" data-rr-dd-tab="dot">DOT</button>
-        <button class="dd-tab" data-rr-dd-tab="chat">Chat <span id="rr-dd-chat-badge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">0</span></button>
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
       <div class="dd-body" id="rr-dd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
@@ -4427,7 +4427,6 @@ function renderDriverDrawerTab() {
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
   if (_ddTab === "dot")          renderDotTab(body, _ddDriver.driver);
-  if (_ddTab === "chat")         renderDriverChatTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
   setDriverDrawerFoot();
@@ -4598,91 +4597,191 @@ function renderDotTab(body, d) {
     </div>`;
 }
 
-// ─── Driver record · Chat tab ─────────────────────────────────────────
-// The dispatcher's view of one driver's chat. Polls every 8s while open.
-let _ddChatPollTimer = null;
-async function renderDriverChatTab(body, d) {
-  if (!d?.id) {
-    body.innerHTML = `<div style="padding:24px;color:var(--text-subtle);font-size:13px">Save the driver first, then chat.</div>`;
-    return;
-  }
-  body.innerHTML = `
-    <style>
-      .ddchat-shell{display:flex;flex-direction:column;height:60vh;min-height:420px;margin:-12px -22px 0;border-top:1px solid var(--border)}
-      .ddchat-msgs{flex:1;overflow-y:auto;padding:14px 22px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
-      .ddchat-bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.4;word-wrap:break-word}
-      .ddchat-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
-      .ddchat-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
-      .ddchat-time{font-size:10px;margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
-      .ddchat-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:30px}
-      .ddchat-composer{display:flex;gap:8px;align-items:flex-end;padding:10px 22px 14px;background:var(--surface);border-top:1px solid var(--border)}
-      .ddchat-composer textarea{flex:1;min-height:40px;max-height:120px;padding:8px 12px;font-size:13px;line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
-      .ddchat-composer textarea:focus{outline:none;border-color:var(--accent)}
-      .ddchat-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:13px;cursor:pointer;min-height:40px}
-      .ddchat-send:disabled{opacity:.5;cursor:not-allowed}
-    </style>
-    <div class="ddchat-shell">
-      <div class="ddchat-msgs" id="ddchat-msgs"><div style="margin:auto;padding:30px;color:var(--text-subtle);font-size:12px">Loading…</div></div>
-      <form class="ddchat-composer" id="ddchat-form">
-        <textarea id="ddchat-input" rows="1" placeholder="Reply to ${escapeHtml(displayDriverName(d))}…" maxlength="2000"></textarea>
-        <button class="ddchat-send" type="submit">Send</button>
-      </form>
-    </div>`;
+// ─── Driver chat inbox · Messages view ────────────────────────────────
+// Unified view of every driver's thread. Left list is fed by
+// dispatch_chat_threads(); right panel shows the selected driver's
+// messages via dispatch_chat_thread() and accepts replies via
+// dispatch_chat_send(). Both sides poll every 8s while the view is
+// active.
+let _msgInboxList = [];
+let _msgInboxSelectedId = null;
+let _msgInboxListTimer = null;
+let _msgInboxThreadTimer = null;
 
-  const ta = document.getElementById("ddchat-input");
-  ta.addEventListener("input", () => {
-    ta.style.height = "auto";
-    ta.style.height = Math.min(120, ta.scrollHeight) + "px";
-  });
-  ta.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      document.getElementById("ddchat-form").requestSubmit();
+async function loadDriverChatInbox() {
+  await refreshDriverChatList(true);
+  if (_msgInboxListTimer) clearInterval(_msgInboxListTimer);
+  _msgInboxListTimer = setInterval(() => {
+    if (document.getElementById("view-messages")?.classList.contains("active")) {
+      refreshDriverChatList(false);
+    } else {
+      clearInterval(_msgInboxListTimer); _msgInboxListTimer = null;
     }
-  });
-
-  document.getElementById("ddchat-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const body = (ta.value || "").trim();
-    if (!body) return;
-    const send = e.target.querySelector(".ddchat-send");
-    send.disabled = true;
-    const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: d.id, p_body: body });
-    send.disabled = false;
-    if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
-    ta.value = ""; ta.style.height = "auto";
-    await refreshDriverChat(d.id, true);
-  });
-
-  await refreshDriverChat(d.id, true);
-  if (_ddChatPollTimer) clearInterval(_ddChatPollTimer);
-  _ddChatPollTimer = setInterval(() => {
-    if (_ddTab !== "chat" || !document.getElementById("rr-dd-drawer")) {
-      clearInterval(_ddChatPollTimer); _ddChatPollTimer = null; return;
-    }
-    refreshDriverChat(d.id, false);
   }, 8000);
 }
 
-async function refreshDriverChat(driverId, scrollToBottom) {
+async function refreshDriverChatList(autoSelect) {
+  const list = document.getElementById("rr-msg-driver-list");
+  if (!list) return;
+  const { data, error } = await sb.rpc("dispatch_chat_threads");
+  if (error) {
+    list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  _msgInboxList = data || [];
+  if (_msgInboxList.length === 0) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px">No active drivers yet.</div>`;
+    return;
+  }
+  // Sort: unread first, then most-recent activity, then alpha for inactive.
+  _msgInboxList.sort((a, b) => {
+    if ((b.unread > 0) !== (a.unread > 0)) return (b.unread > 0) - (a.unread > 0);
+    if (b.last_at && a.last_at) return new Date(b.last_at) - new Date(a.last_at);
+    if (b.last_at) return 1;
+    if (a.last_at) return -1;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+  const fmtRelative = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    const diffMs = Date.now() - d.getTime();
+    const m = Math.floor(diffMs / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const days = Math.floor(h / 24);
+    if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString();
+  };
+  list.innerHTML = _msgInboxList.map((t) => {
+    const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
+    const lastBody = t.last_message?.body
+      ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
+      : "Tap to start the conversation";
+    const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
+    const isActive = _msgInboxSelectedId === t.driver_id;
+    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}">
+      <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div></div>
+      <div><div class="msg-item-name">${escapeHtml(t.name)}${t.station_code ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
+      <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("[data-rr-thread]").forEach((el) => {
+    el.addEventListener("click", () => openDriverChatThread(el.dataset.rrThread));
+  });
+  // Auto-open first unread thread on initial load if nothing's selected.
+  if (autoSelect && !_msgInboxSelectedId && _msgInboxList.length > 0) {
+    const target = _msgInboxList.find(t => t.unread > 0) || _msgInboxList[0];
+    openDriverChatThread(target.driver_id);
+  }
+}
+
+async function openDriverChatThread(driverId) {
+  _msgInboxSelectedId = driverId;
+  document.querySelectorAll("#rr-msg-driver-list [data-rr-thread]").forEach((el) => {
+    el.classList.toggle("active", el.dataset.rrThread === driverId);
+  });
+  await refreshDriverChatThread(true);
+  if (_msgInboxThreadTimer) clearInterval(_msgInboxThreadTimer);
+  _msgInboxThreadTimer = setInterval(() => {
+    if (!document.getElementById("view-messages")?.classList.contains("active") || _msgInboxSelectedId !== driverId) {
+      clearInterval(_msgInboxThreadTimer); _msgInboxThreadTimer = null; return;
+    }
+    refreshDriverChatThread(false);
+  }, 8000);
+}
+
+async function refreshDriverChatThread(scrollToBottom) {
+  const conv = document.getElementById("rr-msg-conv");
+  if (!conv) return;
+  if (!_msgInboxSelectedId) {
+    conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px">Pick a driver from the list to open their thread.</div>`;
+    return;
+  }
+  const driverId = _msgInboxSelectedId;
   const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
-  if (error) return;
+  if (error) {
+    conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const drv = data?.driver || {};
   const msgs = data?.messages || [];
-  const wrap = document.getElementById("ddchat-msgs");
-  if (!wrap) return;
+
+  // First render: build the shell. After that, only re-render the thread
+  // body and leave the composer / textarea state alone.
+  if (conv.dataset.rrDriverId !== driverId) {
+    conv.dataset.rrDriverId = driverId;
+    conv.innerHTML = `
+      <style>
+        .rr-mc-shell{display:flex;flex-direction:column;height:100%}
+        .rr-mc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+        .rr-mc-name{font-size:14px;font-weight:600}
+        .rr-mc-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+        .rr-mc-thread{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
+        .rr-mc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word}
+        .rr-mc-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
+        .rr-mc-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+        .rr-mc-time{font-size:10px;margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
+        .rr-mc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px}
+        .rr-mc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border)}
+        .rr-mc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:14px;line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
+        .rr-mc-composer textarea:focus{outline:none;border-color:var(--accent)}
+        .rr-mc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:13px;cursor:pointer;min-height:40px}
+        .rr-mc-send:disabled{opacity:.5;cursor:not-allowed}
+      </style>
+      <div class="rr-mc-shell">
+        <div class="rr-mc-head">
+          <div class="avatar-sm">${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
+          <div>
+            <div class="rr-mc-name">${escapeHtml(drv.name || "")}</div>
+            <div class="rr-mc-sub">Driver chat</div>
+          </div>
+        </div>
+        <div class="rr-mc-thread" id="rr-mc-thread"></div>
+        <form class="rr-mc-composer" id="rr-mc-form">
+          <textarea id="rr-mc-input" rows="1" placeholder="Reply to ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
+          <button class="rr-mc-send" type="submit">Send</button>
+        </form>
+      </div>`;
+    const ta = document.getElementById("rr-mc-input");
+    ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px"; });
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById("rr-mc-form").requestSubmit();
+      }
+    });
+    document.getElementById("rr-mc-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const body = (ta.value || "").trim();
+      if (!body) return;
+      const send = e.target.querySelector(".rr-mc-send");
+      send.disabled = true;
+      const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: _msgInboxSelectedId, p_body: body });
+      send.disabled = false;
+      if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
+      ta.value = ""; ta.style.height = "auto";
+      await refreshDriverChatThread(true);
+      refreshDriverChatList(false);
+    });
+  }
+
+  const thread = document.getElementById("rr-mc-thread");
+  if (!thread) return;
   if (msgs.length === 0) {
-    wrap.innerHTML = `<div class="ddchat-empty">No messages yet. Start the thread below.</div>`;
+    thread.innerHTML = `<div class="rr-mc-empty">No messages yet. Start the thread below.</div>`;
   } else {
-    wrap.innerHTML = msgs.map((m) => {
+    thread.innerHTML = msgs.map((m) => {
       const t = new Date(m.created_at);
       const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      return `<div class="ddchat-bubble ${m.sender_kind}">
+      return `<div class="rr-mc-bubble ${m.sender_kind}">
         <div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>
-        <div class="ddchat-time">${escapeHtml(time)}</div>
+        <div class="rr-mc-time">${escapeHtml(time)}</div>
       </div>`;
     }).join("");
   }
-  if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
+  if (scrollToBottom) thread.scrollTop = thread.scrollHeight;
   if (msgs.some((m) => m.sender_kind === "driver")) {
     sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).catch(() => {});
   }
