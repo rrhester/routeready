@@ -7003,6 +7003,17 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
           <div class="rules-grid">
 
+            <details class="rules-section" data-rr-rules-section="geofence" style="grid-column:1/-1">
+              <summary class="rules-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/></svg>
+                Station geofences · driver check-in
+              </summary>
+              <div style="font-size:12px;color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                Set the lat/lng pin and radius for each station. Drivers can only check in for their shift when their phone reports a location inside the radius. Tap "Use current location" while standing at the station to capture the pin from your device.
+              </div>
+              <div id="rr-station-geofences"><div style="font-size:13px;color:var(--text-subtle);padding:14px">Loading…</div></div>
+            </details>
+
             <details class="rules-section" data-rr-rules-section="availability" open style="grid-column:1/-1">
               <summary class="rules-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>

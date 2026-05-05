@@ -7782,7 +7782,95 @@ const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   if (sub === "insights") loadScheduleInsights();
+  if (sub === "rules")    loadStationGeofences();
 };
+
+// ─── Schedule · Rules · station geofences ─────────────────────────────
+async function loadStationGeofences() {
+  const wrap = document.getElementById("rr-station-geofences");
+  if (!wrap) return;
+  const { data, error } = await sb.rpc("stations_with_geofence");
+  if (error) {
+    wrap.innerHTML = `<div style="padding:14px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const rows = data || [];
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div style="padding:14px;color:var(--text-subtle);font-size:13px">No active stations.</div>`;
+    return;
+  }
+  wrap.innerHTML = rows.map((s) => {
+    const hasPin = s.latitude != null && s.longitude != null;
+    const lat = s.latitude  != null ? Number(s.latitude).toFixed(6)  : "";
+    const lng = s.longitude != null ? Number(s.longitude).toFixed(6) : "";
+    return `
+      <div class="station-geofence" data-rr-station-id="${escapeHtml(s.id)}" style="display:grid;grid-template-columns:120px 160px 160px 100px auto;gap:10px;padding:12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);margin-bottom:10px;align-items:end">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Station</label>
+          <div style="font-size:14px;font-weight:600">${escapeHtml(s.code)}</div>
+          <div style="font-size:11px;color:var(--text-subtle);margin-top:1px">${hasPin ? "Pin set" : "No pin yet"}</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Latitude</label>
+          <input class="rr-station-lat field" style="font-size:13px;padding:8px 10px" value="${escapeHtml(lat)}" placeholder="e.g. 40.712776"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Longitude</label>
+          <input class="rr-station-lng field" style="font-size:13px;padding:8px 10px" value="${escapeHtml(lng)}" placeholder="e.g. -74.005974"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Radius (m)</label>
+          <input class="rr-station-radius field" type="number" min="25" max="2000" style="font-size:13px;padding:8px 10px" value="${Number(s.geofence_radius_meters || 150)}"/>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" data-rr-station-locate type="button" title="Use this device's GPS">Use current</button>
+          <button class="btn btn-sm btn-primary" data-rr-station-save type="button">Save</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  if (wrap.dataset.rrWired === "1") return;
+  wrap.dataset.rrWired = "1";
+  wrap.addEventListener("click", async (e) => {
+    const row = e.target.closest(".station-geofence");
+    if (!row) return;
+    const id  = row.getAttribute("data-rr-station-id");
+    const latI = row.querySelector(".rr-station-lat");
+    const lngI = row.querySelector(".rr-station-lng");
+    const radI = row.querySelector(".rr-station-radius");
+
+    if (e.target.closest("[data-rr-station-locate]")) {
+      if (!("geolocation" in navigator)) { toast("Geolocation not available", "warn"); return; }
+      const btn = e.target.closest("[data-rr-station-locate]");
+      btn.disabled = true; const orig = btn.textContent; btn.textContent = "Locating…";
+      navigator.geolocation.getCurrentPosition((pos) => {
+        latI.value = pos.coords.latitude.toFixed(6);
+        lngI.value = pos.coords.longitude.toFixed(6);
+        btn.disabled = false; btn.textContent = orig;
+      }, (err) => {
+        btn.disabled = false; btn.textContent = orig;
+        toast("Couldn't get location: " + err.message, "warn");
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+      return;
+    }
+
+    if (e.target.closest("[data-rr-station-save]")) {
+      const lat = Number(latI.value);
+      const lng = Number(lngI.value);
+      const r   = Number(radI.value);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) { toast("Enter valid lat/lng", "warn"); return; }
+      const btn = e.target.closest("[data-rr-station-save]");
+      btn.disabled = true; const orig = btn.textContent; btn.textContent = "Saving…";
+      const { error } = await sb.rpc("station_set_geofence", {
+        p_station_id: id, p_latitude: lat, p_longitude: lng, p_radius_m: r,
+      });
+      btn.disabled = false; btn.textContent = orig;
+      if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      toast("Saved", "success");
+      loadStationGeofences();
+    }
+  });
+}
 
 // ─── Schedule · Insights · driver availability by day of week ──────────
 // Hosted in #sched-sub-insights when called with no args; accepts a

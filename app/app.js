@@ -669,6 +669,11 @@ function renderProfileHub() {
       <div class="profile-name">${escapeHtml(name)}</div>
       <div class="profile-meta">${session?.photo_url ? "Tap photo to change" : "Tap photo to add one"}</div>
     </div>
+
+    <div id="rr-checkin-slot" class="checkin-card">
+      <div class="checkin-loading">Checking your shift…</div>
+    </div>
+
     ${cards.map(taskCardHtml).join("")}
     <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>`;
 
@@ -682,6 +687,10 @@ function renderProfileHub() {
     await uploadDriverPhoto(file);
     fileInput.value = ""; // allow re-selecting the same file
   });
+
+  // Render the check-in card asynchronously — keeps the rest of the
+  // profile page snappy while we wait on driver_checkin_status.
+  renderCheckinCard(session);
 
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
@@ -698,6 +707,118 @@ function renderProfileHub() {
     location.hash = "";
     render();
   });
+}
+
+// ── Check-in card on the Profile page ──────────────────────────────
+async function renderCheckinCard(session) {
+  const slot = document.getElementById("rr-checkin-slot");
+  if (!slot) return;
+  if (!session?.token) { slot.innerHTML = ""; return; }
+
+  let status;
+  try {
+    const { data, error } = await sb.rpc("driver_checkin_status", { p_token: session.token });
+    if (error) throw error;
+    status = data;
+  } catch (err) {
+    slot.innerHTML = `<div class="checkin-empty">Couldn't load shift · ${escapeHtml(err.message || err)}</div>`;
+    return;
+  }
+
+  const shift = status?.shift;
+  if (!shift) {
+    slot.innerHTML = `<div class="checkin-empty">No shift scheduled today.</div>`;
+    return;
+  }
+
+  const startsAtTxt = shift.starts_at
+    ? new Date(shift.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : "—";
+  const stationCode = shift.station_code || "—";
+
+  const chk = status?.checkin;
+  if (chk?.checked_in_at) {
+    const t = new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    slot.innerHTML = `
+      <div class="checkin-row checked-in">
+        <div>
+          <div class="checkin-title">Checked in · ${escapeHtml(t)}</div>
+          <div class="checkin-sub">${escapeHtml(stationCode)} · today's shift starts ${escapeHtml(startsAtTxt)}</div>
+        </div>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>`;
+    return;
+  }
+
+  if (!shift.has_geofence) {
+    slot.innerHTML = `
+      <div class="checkin-row">
+        <div>
+          <div class="checkin-title">Check-in unavailable</div>
+          <div class="checkin-sub">Your dispatcher hasn't set the geofence for ${escapeHtml(stationCode)} yet.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  slot.innerHTML = `
+    <button class="checkin-btn" id="rr-checkin-btn" type="button">
+      Check in for shift
+      <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startsAtTxt)}</span>
+    </button>
+    <div class="checkin-policy">Must be at the station to check in.</div>`;
+
+  document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
+}
+
+async function doCheckin(session) {
+  const btn = document.getElementById("rr-checkin-btn");
+  if (!btn) return;
+  if (!("geolocation" in navigator)) {
+    toast("This device can't share location", "warn");
+    return;
+  }
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = "Locating…";
+
+  // High-accuracy GPS, 10s timeout. iOS sometimes serves a cached coarse
+  // position; maximumAge:0 forces a fresh fix.
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    btn.innerHTML = "Checking in…";
+    const { data, error } = await sb.rpc("driver_checkin", {
+      p_token:    session.token,
+      p_lat:      lat,
+      p_lng:      lng,
+      p_accuracy: Math.round(accuracy || 0),
+    });
+    btn.disabled = false;
+    btn.innerHTML = orig;
+    if (error) {
+      const msg = error.message || "";
+      if (msg.includes("out_of_geofence")) {
+        toast(msg.replace(/^.*out_of_geofence:\s*/, "Too far from station: "), "warn");
+      } else if (msg.includes("no_shift_today")) {
+        toast("No shift scheduled today", "warn");
+      } else if (msg.includes("geofence_not_configured")) {
+        toast("Dispatcher hasn't set the geofence yet", "warn");
+      } else {
+        toast("Check-in failed: " + msg, "warn");
+      }
+      return;
+    }
+    toast(data?.already_checked_in ? "Already checked in" : "Checked in ✓", "ok");
+    renderCheckinCard(session);
+  }, (err) => {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+    if (err.code === err.PERMISSION_DENIED) {
+      toast("Allow location to check in", "warn");
+    } else {
+      toast("Couldn't get location: " + err.message, "warn");
+    }
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 }
 
 async function uploadDriverPhoto(file) {
