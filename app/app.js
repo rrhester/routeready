@@ -54,10 +54,32 @@ function setAppBadge(n) {
   }
   // Also ask the SW to clear — on iOS PWAs the badge set from inside the
   // SW push handler won't reliably clear when called from the page, so
-  // we fire clearAppBadge from both contexts.
+  // we fire clearAppBadge from both contexts. Wait on serviceWorker.ready
+  // so the postMessage doesn't no-op when the SW isn't yet controlling.
   if (n <= 0 && "serviceWorker" in navigator) {
-    navigator.serviceWorker.controller?.postMessage({ type: "rr:clear-badge" });
+    navigator.serviceWorker.ready.then((reg) => {
+      const sw = reg.active || navigator.serviceWorker.controller;
+      sw?.postMessage({ type: "rr:clear-badge" });
+    }).catch(() => {});
   }
+}
+
+// Any time the driver app becomes visible (open from home screen, tab
+// focus, etc.) drop the badge to zero on the server side too — the
+// driver is clearly looking at the app, so unread should reset.
+async function clearBadgeOnFocus() {
+  setAppBadge(0);
+  const session = readSession();
+  if (session?.token) {
+    try { await sb.rpc("driver_chat_mark_read", { p_token: session.token }); } catch {}
+  }
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("focus",  clearBadgeOnFocus);
+  window.addEventListener("pageshow", clearBadgeOnFocus);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) clearBadgeOnFocus();
+  });
 }
 
 function urlBase64ToUint8Array(b64url) {
