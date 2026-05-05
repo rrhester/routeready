@@ -290,3 +290,61 @@ main{flex:1;padding:14px 16px 24px;width:100%;max-width:560px;margin:0 auto}
 .toast.show{opacity:1}
 .toast.warn{background:var(--red);color:#fff}
 .toast.ok{background:var(--green);color:#fff}
+
+/* ── Chat ───────────────────────────────────────────────────── */
+#chat-shell{
+  display:flex;flex-direction:column;
+  height:calc(100dvh - 60px - var(--tab-h) - env(safe-area-inset-bottom, 0px));
+  margin:-14px -16px -24px;
+}
+.chat-msgs{
+  flex:1;overflow-y:auto;
+  padding:16px;
+  display:flex;flex-direction:column;gap:6px;
+  -webkit-overflow-scrolling:touch;
+}
+.chat-bubble{
+  max-width:78%;
+  padding:9px 13px;border-radius:18px;
+  font-size:15px;line-height:1.4;
+  word-wrap:break-word;
+}
+.chat-bubble .chat-time{
+  font-size:10px;color:var(--text-subtle);
+  margin-top:3px;text-align:right;font-variant-numeric:tabular-nums;
+}
+.chat-bubble.mine{
+  align-self:flex-end;background:var(--accent);color:#fff;
+  border-bottom-right-radius:5px;
+}
+.chat-bubble.mine .chat-time{color:rgba(255,255,255,.7)}
+.chat-bubble.theirs{
+  align-self:flex-start;background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-bottom-left-radius:5px;
+}
+.chat-bubble + .chat-bubble.mine,
+.chat-bubble + .chat-bubble.theirs{margin-top:0}
+.chat-bubble.mine + .chat-bubble.theirs,
+.chat-bubble.theirs + .chat-bubble.mine{margin-top:6px}
+.chat-composer{
+  display:flex;gap:8px;align-items:flex-end;
+  padding:10px 12px;
+  background:var(--surface);
+  border-top:1px solid var(--border);
+}
+.chat-composer textarea{
+  flex:1;min-height:42px;max-height:120px;
+  padding:10px 14px;font-size:16px;line-height:1.4;
+  background:var(--canvas);border:1px solid var(--border);border-radius:18px;
+  resize:none;color:var(--text);
+  font-family:inherit;
+}
+.chat-composer textarea:focus{outline:none;border-color:var(--accent)}
+.chat-send{
+  width:42px;height:42px;flex-shrink:0;
+  background:var(--accent);color:#fff;
+  border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  transition:transform .08s ease;
+}
+.chat-send:active{transform:scale(.95)}
+.chat-msgs .empty-state{margin:auto}
