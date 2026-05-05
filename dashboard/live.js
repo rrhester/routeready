@@ -1721,51 +1721,6 @@ const _ATT_DEFAULT_POLICY = {
   // automatically log a coaching record and DM the driver.  Off by
   // default — many DSPs prefer to coach in person and log it manually.
   auto_coaching: false,
-  // First-30-days strict rule: any callout/no-show inside the
-  // probationary window jumps the driver straight to Action.
-  first_30_strict: false,
-  first_30_window_days: 30,
-};
-
-function _getAttPolicy() {
-  const p = window.RR?.dsp?.metadata?.attendance?.policy || {};
-  // Translate any legacy (points-mode) record so the rest of the app
-  // sees the new shape.  Old saved values for points_per_* are dropped
-  // — occurrence-only is the supported model now.
-  const merged = { ..._ATT_DEFAULT_POLICY, ...p };
-  delete merged.mode;
-  delete merged.points_per_tardy;
-  delete merged.points_per_callout;
-  delete merged.points_per_noshow;
-  return merged;
-}
-
-async function loadAttendancePolicy() {
-  const pane = document.getElementById("att-pane-policy");
-  if (!pane) return;
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-
-  // Pull both the policy (lives on dsps.metadata) and the timing
-  // settings (lives on scheduling_settings) — the timing fields drive
-  // when a driver shows as Tardy / NCNS in the daily roster, so they
-  // belong in the same builder UI even though the schema stores them
-  // separately.
-  const [{ data: dspRow, error: dspErr }, { data: setRow }] = await Promise.all([
-    sb.from("dsps").select("metadata").eq("id", dspId).single(),
-    sb.from("scheduling_settings")
-      .select("checkin_lead_minutes, tardy_grace_minutes, ncns_after_minutes")
-      .eq("dsp_id", dspId).is("week_start", null).maybeSingle(),
-  ]);
-  if (dspErr) { console.warn("policy load:", dspErr.message); return; }
-  const meta = dspRow?.metadata || {};
-  if (window.RR?.dsp) window.RR.dsp.metadata = meta;
-  const p = _getAttPolicy();
-  const timing = {
-    checkin_lead_minutes: setRow?.checkin_lead_minutes ?? 15,
-    tardy_grace_minutes:  setRow?.tardy_grace_minutes  ?? 10,
-    ncns_after_minutes:   setRow?.ncns_after_minutes   ?? 60,
-  };
 
   // Reusable toggle row.  All yes/no settings on this page render this
   // way so the operator gets a consistent on-screen language.
@@ -1818,39 +1773,6 @@ async function loadAttendancePolicy() {
       </div>
     </div>
 
-    <!-- Which events count -->
-    <div class="pol-section">
-      <h3 class="pol-section-title">What counts as an occurrence</h3>
-      <p class="pol-section-sub">Pick which kinds of events feed into the running total.  Anything you turn off here is still <em>logged</em> on the driver's record, it just doesn't count toward the thresholds below.</p>
-      ${toggleRow("count_tardy",   "Count tardies",
-        "Driver checked in <strong>after</strong> the tardy-grace window.  Most DSPs leave this OFF — tardies are coached separately so a chronic-tardy pattern doesn't get lost in raw counts.")}
-      ${toggleRow("count_callout", "Count callouts",
-        "Driver pre-reported they couldn't work the shift.  Default ON.  Counted in full whether the call came in 8 hours early or 8 minutes early.")}
-      ${toggleRow("count_noshow",  "Count no-call no-shows",
-        "Driver missed the shift without notice (NCNS).  Default ON.  See the auto-escalations below if you want NCNS to bypass the threshold ladder.")}
-    </div>
-
-    <!-- Thresholds + decay -->
-    <div class="pol-section">
-      <h3 class="pol-section-title">Thresholds &amp; decay window</h3>
-      <p class="pol-section-sub">When a driver's running total of occurrences crosses these numbers the dashboard flags them.  Decay is how long an event stays on their record before it drops off the running total.</p>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:14px;max-width:760px">
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Warn at</span>
-          <input type="number" min="1" max="40" step="1" class="form-input" data-rr-att-field="threshold_warn" value="${p.threshold_warn}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver appears in <strong>Warning</strong>.  Recommended action: coach &amp; document.</span>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Action at</span>
-          <input type="number" min="1" max="40" step="1" class="form-input" data-rr-att-field="threshold_action" value="${p.threshold_action}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver appears in <strong>Action</strong>.  Recommended: formal write-up or progressive next step.</span>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Decay (days)</span>
-          <input type="number" min="14" max="365" step="1" class="form-input" data-rr-att-field="decay_days" value="${p.decay_days}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Events older than this stop counting toward the running total.  Common: 90 days.</span>
-        </label>
-      </div>
     </div>
 
     <!-- Auto-escalations -->
