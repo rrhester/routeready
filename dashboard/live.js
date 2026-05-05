@@ -4714,17 +4714,17 @@ async function refreshDriverChatThread(scrollToBottom) {
     conv.dataset.rrDriverId = driverId;
     conv.innerHTML = `
       <style>
-        .rr-mc-shell{display:flex;flex-direction:column;height:100%}
-        .rr-mc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+        .rr-mc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
+        .rr-mc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
         .rr-mc-name{font-size:14px;font-weight:600}
         .rr-mc-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
-        .rr-mc-thread{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
+        .rr-mc-thread{flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
         .rr-mc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word}
         .rr-mc-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
         .rr-mc-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
         .rr-mc-time{font-size:10px;margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
         .rr-mc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px}
-        .rr-mc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border)}
+        .rr-mc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
         .rr-mc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:14px;line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
         .rr-mc-composer textarea:focus{outline:none;border-color:var(--accent)}
         .rr-mc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:13px;cursor:pointer;min-height:40px}
@@ -4914,7 +4914,7 @@ document.addEventListener("click", async (e) => {
   }
   // Legacy: open drawer from a full row marked with [data-rr-open-driver].
   const row = e.target.closest("[data-rr-open-driver]");
-  if (row) {
+  if (row && !e.target.closest("[data-rr-no-drawer]")) {
     const id = row.getAttribute("data-driver-id");
     if (id) await openDriverDrawer(id);
     return;
