@@ -13,7 +13,7 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-const SHELL_CACHE = "rr-app-shell-v5";
+const SHELL_CACHE = "rr-app-shell-v6";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -118,63 +118,41 @@ self.addEventListener("message", (event) => {
 
 
 // ── Push handler ──
+// Edge function (send-driver-push) encrypts the payload per RFC 8291, so
+// we read title/body/unread/url straight from event.data — no SW-side
+// fetch, no IDB lookup. iOS only reliably renders notifications when the
+// payload is encrypted, so this is the path that actually works on a PWA.
 self.addEventListener("push", (event) => {
-  event.waitUntil(handlePush());
-});
-
-async function handlePush() {
-  let title = "Dispatch";
-  let body  = "New message from dispatch";
-  let unread = 1;
-
-  // Try to enrich the notification by fetching fresh chat data.
-  try {
-    const [token, supabaseUrl, anonKey] = await Promise.all([
-      rrGet("token"), rrGet("supabaseUrl"), rrGet("anonKey"),
-    ]);
-
-    if (token && supabaseUrl && anonKey) {
-      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/driver_chat_list`, {
-        method: "POST",
-        headers: {
-          "Content-Type":  "application/json",
-          "apikey":        anonKey,
-          "Authorization": `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ p_token: token, p_limit: 50 }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        const messages = Array.isArray(data?.messages) ? data.messages : [];
-        const unreadDispatch = messages.filter((m) => m.sender_kind === "dispatch" && m.is_unread);
-        unread = unreadDispatch.length || 1;
-        const latest = unreadDispatch[unreadDispatch.length - 1]
-          || [...messages].reverse().find((m) => m.sender_kind === "dispatch");
-        if (latest?.body) {
-          const preview = String(latest.body);
-          body = preview.length > 80 ? preview.slice(0, 80) + "…" : preview;
-        }
-      }
+  let payload = {
+    title:  "Dispatch",
+    body:   "New message from dispatch",
+    unread: 1,
+    url:    "/app/#/chat",
+  };
+  if (event.data) {
+    try {
+      const incoming = event.data.json();
+      if (incoming && typeof incoming === "object") payload = { ...payload, ...incoming };
+    } catch {
+      try { payload.body = event.data.text() || payload.body; } catch {}
     }
-  } catch {
-    // Fall through to the generic notification text.
   }
 
   const tasks = [
-    self.registration.showNotification(title, {
-      body,
-      icon:  "icon.svg",
-      badge: "icon.svg",
-      tag:   "dispatch-message",
+    self.registration.showNotification(payload.title || "Dispatch", {
+      body:     payload.body || "",
+      icon:     "icon.svg",
+      badge:    "icon.svg",
+      tag:      "dispatch-message",
       renotify: true,
-      data:  { url: "./#/chat" },
+      data:     { url: payload.url || "/app/#/chat" },
     }),
   ];
-  if ("setAppBadge" in self.navigator) {
-    tasks.push(self.navigator.setAppBadge(unread).catch(() => {}));
+  if ("setAppBadge" in self.navigator && Number(payload.unread) > 0) {
+    tasks.push(self.navigator.setAppBadge(Number(payload.unread)).catch(() => {}));
   }
-  await Promise.all(tasks);
-}
+  event.waitUntil(Promise.all(tasks));
+});
 
 
 self.addEventListener("notificationclick", (event) => {
