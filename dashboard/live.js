@@ -1840,19 +1840,63 @@ async function loadTodayPlan() {
   if (_todayPlanTimer) clearInterval(_todayPlanTimer);
   _todayPlanTimer = setInterval(() => {
     if (document.getElementById("view-dashboard")?.classList.contains("active") && !document.hidden) {
-      loadTodayPlan();
+      _refreshTodayPlanData();
     } else { clearInterval(_todayPlanTimer); _todayPlanTimer = null; }
   }, 30000);
 
-  const [attRes, planRes] = await Promise.all([
-    sb.rpc("today_attendance"),
-    sb.rpc("today_plan"),
-  ]);
-  if (attRes.error)  { shell.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(attRes.error.message)}</div>`; return; }
-  if (planRes.error) { shell.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(planRes.error.message)}</div>`; return; }
+  // Render the skeleton FIRST so the page never sits on a single spinner.
+  // KPI cards + service-chip strip + two side-by-side panels each with
+  // their own loader. Each RPC fills its own region independently — a
+  // missing or slow today_plan can't block today_attendance from showing.
+  if (shell.dataset.rrPlanShell !== "1") {
+    shell.dataset.rrPlanShell = "1";
+    shell.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px" id="rr-tp-kpis">
+        ${[1,2,3,4].map(()=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;height:84px"></div>`).join("")}
+      </div>
+      <div id="rr-tp-meta" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--text-subtle)">Loading…</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div id="rr-tp-notin" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Not checked in</div>
+          <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+        </div>
+        <div id="rr-tp-cov" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Coverage</div>
+          <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+        </div>
+      </div>`;
+  }
 
-  const attRows = attRes.data?.rows || [];
-  const plan    = planRes.data || {};
+  _refreshTodayPlanData();
+}
+
+async function _refreshTodayPlanData() {
+  // Fire each RPC independently so a hang in one doesn't block the
+  // other. Each handler updates only its own region.
+  sb.rpc("today_attendance").then(({ data, error }) => {
+    if (error) { _renderTpAttendance(null, error); return; }
+    _renderTpAttendance(data, null);
+  }).catch(err => _renderTpAttendance(null, err));
+
+  sb.rpc("today_plan").then(({ data, error }) => {
+    if (error) { _renderTpCoverage(null, error); return; }
+    _renderTpCoverage(data, null);
+  }).catch(err => _renderTpCoverage(null, err));
+}
+
+function _renderTpAttendance(data, error) {
+  const kpiEl   = document.getElementById("rr-tp-kpis");
+  const metaEl  = document.getElementById("rr-tp-meta");
+  const notInEl = document.getElementById("rr-tp-notin");
+  if (!kpiEl || !metaEl || !notInEl) return;
+
+  if (error) {
+    notInEl.innerHTML = `<div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Not checked in</div>
+      <div style="padding:18px;color:var(--red);font-size:12px;text-align:center">${escapeHtml(error.message || String(error))}</div>`;
+    return;
+  }
+
+  const attRows = data?.rows || [];
 
   // Roll up attendance into the same buckets as the Today tab.
   const cnt = { total: attRows.length, working: 0, completed: 0, ready: 0,
@@ -1920,10 +1964,53 @@ async function loadTodayPlan() {
           </div>`;
       }).join("");
 
-  // ── Coverage card ──
-  const open = plan.open_shifts || [];
-  const dlExp = plan.dl_expiring || [];
-  const noDot = plan.not_dot_certified || [];
+  // KPI strip
+  kpiEl.innerHTML = `
+    ${kpi("Scheduled", cnt.total, waveChips || "today")}
+    ${kpi("Not checked in", Math.max(0, notIn), `${cnt.ready} ready · ${cnt.waiting} waiting`, notIn > 0 ? "var(--amber)" : undefined)}
+    ${kpi("Tardy / NCNS", cnt.tardy + cnt.ncns, `${cnt.tardy} tardy · ${cnt.ncns} no-show`, (cnt.tardy + cnt.ncns) > 0 ? "var(--red)" : undefined)}
+    ${kpi("Working / Done", cnt.working + cnt.completed, `${cnt.working} working · ${cnt.completed} done`, (cnt.working + cnt.completed) > 0 ? "var(--green)" : undefined)}
+  `;
+
+  // Service-type chip strip + as-of line
+  metaEl.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
+      <div style="font-size:11px;color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</div>
+    </div>`;
+
+  // Not-checked-in panel
+  notInEl.innerHTML = `
+    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+      Not checked in <span style="color:var(--text-subtle);font-weight:600">· ${notInList.length}</span>
+    </div>
+    ${notInRows}`;
+}
+
+function _renderTpCoverage(data, error) {
+  const covEl = document.getElementById("rr-tp-cov");
+  if (!covEl) return;
+
+  const headHtml = (subtext) => `
+    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+      Coverage${subtext ? ` <span style="color:var(--text-subtle);font-weight:600">· ${subtext}</span>` : ""}
+    </div>`;
+
+  if (error) {
+    // The most common case here is migration 0068 not yet applied —
+    // surface a friendly hint instead of just the SQL error.
+    const msg = String(error.message || error || "");
+    const hint = /not find|does not exist|today_plan/i.test(msg)
+      ? `Coverage view needs migration 0068 (today_plan). Apply it via Supabase SQL Editor and refresh.`
+      : msg;
+    covEl.innerHTML = `${headHtml("")}
+      <div style="padding:18px;color:var(--amber);font-size:12px;text-align:center">${escapeHtml(hint)}</div>`;
+    return;
+  }
+
+  const open  = data?.open_shifts       || [];
+  const dlExp = data?.dl_expiring       || [];
+  const noDot = data?.not_dot_certified || [];
 
   const openRows = open.length === 0
     ? `<div style="padding:18px;text-align:center;color:var(--green);font-size:12px;font-weight:600">✓ All shifts assigned</div>`
@@ -1937,9 +2024,8 @@ async function loadTodayPlan() {
         </div>`;
       }).join("");
 
-  const dlRows = dlExp.length === 0
-    ? ""
-    : `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Driver license expiring soon · ${dlExp.length}</div>`
+  const dlRows = dlExp.length === 0 ? "" :
+    `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Driver license expiring soon · ${dlExp.length}</div>`
     + dlExp.map(d => {
         const days = Number(d.days_left);
         const tone = days <= 0 ? "var(--red)" : (days <= 2 ? "var(--amber)" : "var(--text-muted)");
@@ -1950,45 +2036,15 @@ async function loadTodayPlan() {
         </div>`;
       }).join("");
 
-  const noDotRows = noDot.length === 0
-    ? ""
-    : `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Active drivers without DOT certification · ${noDot.length}</div>`
+  const noDotRows = noDot.length === 0 ? "" :
+    `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Active drivers without DOT certification · ${noDot.length}</div>`
     + noDot.slice(0, 8).map(d => `
         <div style="padding:8px 14px;border-top:1px solid var(--border);font-size:13px">
           <span data-rr-driver-id="${escapeHtml(d.driver_id)}" style="font-weight:600;cursor:pointer">${escapeHtml(d.driver_name)}</span>
         </div>`).join("");
 
-  shell.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-      ${kpi("Scheduled", cnt.total, waveChips || "today")}
-      ${kpi("Not checked in", Math.max(0, notIn), `${cnt.ready} ready · ${cnt.waiting} waiting`, notIn > 0 ? "var(--amber)" : undefined)}
-      ${kpi("Tardy / NCNS", cnt.tardy + cnt.ncns, `${cnt.tardy} tardy · ${cnt.ncns} no-show`, (cnt.tardy + cnt.ncns) > 0 ? "var(--red)" : undefined)}
-      ${kpi("Working / Done", cnt.working + cnt.completed, `${cnt.working} working · ${cnt.completed} done`, (cnt.working + cnt.completed) > 0 ? "var(--green)" : undefined)}
-    </div>
-
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-      <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
-      <div style="font-size:11px;color:var(--text-subtle)">As of ${escapeHtml(new Date(attRes.data.as_of).toLocaleTimeString())}</div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
-          Not checked in <span style="color:var(--text-subtle);font-weight:600">· ${notInList.length}</span>
-        </div>
-        ${notInRows}
-      </div>
-
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
-          <span>Coverage <span style="color:var(--text-subtle);font-weight:600">· ${open.length} open · ${dlExp.length} DL · ${noDot.length} no DOT</span></span>
-        </div>
-        ${openRows}
-        ${dlRows}
-        ${noDotRows}
-      </div>
-    </div>
-  `;
+  covEl.innerHTML = `${headHtml(`${open.length} open · ${dlExp.length} DL · ${noDot.length} no DOT`)}
+    ${openRows}${dlRows}${noDotRows}`;
 }
 
 
