@@ -4714,7 +4714,7 @@ async function refreshDriverChatThread(scrollToBottom) {
     conv.dataset.rrDriverId = driverId;
     conv.innerHTML = `
       <style>
-        .rr-mc-shell{display:flex;flex-direction:column;height:100%;min-height:0}
+        .rr-mc-shell{display:flex;flex-direction:column;flex:1 1 0;height:100%;min-height:0;overflow:hidden}
         .rr-mc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
         .rr-mc-name{font-size:14px;font-weight:600}
         .rr-mc-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}

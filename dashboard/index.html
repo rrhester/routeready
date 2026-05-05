@@ -1774,7 +1774,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    MESSAGES / COMMS PLATFORM
    ───────────────────────────────────────────────────────────── */
 .msg-shell{
-  display:grid;grid-template-columns:300px 1fr;
+  display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   overflow:hidden;height:calc(100vh - 240px);min-height:520px;
 }
@@ -1831,7 +1831,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
 .msg-conv{
   display:flex;flex-direction:column;background:var(--surface);
-  min-height:0;min-width:0;
+  min-height:0;min-width:0;height:100%;overflow:hidden;
 }
 .msg-conv-head{
   padding:12px 18px;border-bottom:1px solid var(--border);
