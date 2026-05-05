@@ -1886,8 +1886,10 @@ async function loadAttendanceEventLog() {
 // load; wrap it so we can also fire our live loaders.
 const _legacyAttTab = window.attTab;
 window.attTab = function (name) {
+  // Redirect any lingering "today" call to history — the Today pane was
+  // moved to the sidebar Today's Plan page.
+  if (name === "today") name = "history";
   if (typeof _legacyAttTab === "function") _legacyAttTab(name);
-  if (name === "today")   loadTodayAttendance();
   if (name === "history") loadAttendanceHistory();
   if (name === "report")  loadAttendanceLive();
   if (name === "policy")  loadAttendancePolicy();
@@ -1942,13 +1944,18 @@ async function loadTodayPlan() {
   if (shell.dataset.rrPlanShell !== "1") {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px" id="rr-tp-kpis">
-        ${[1,2,3,4].map(()=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;height:84px"></div>`).join("")}
+      <div id="rr-tp-waves"   style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;height:108px"></div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;height:108px"></div>
       </div>
-      <div id="rr-tp-meta" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--text-subtle)">Loading…</div>
+      <div id="rr-tp-meta"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--text-subtle)">Loading…</div>
+      <div id="rr-tp-tool"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
+        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Daily attendance · approvals</div>
+        <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        <div id="rr-tp-notin" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Not checked in</div>
+        <div id="rr-tp-extras" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Extra drivers (Ex)</div>
           <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
         </div>
         <div id="rr-tp-cov" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
@@ -1985,107 +1992,241 @@ async function _refreshTodayPlanData() {
 }
 
 function _renderTpAttendance(data, error) {
-  const kpiEl   = document.getElementById("rr-tp-kpis");
-  const metaEl  = document.getElementById("rr-tp-meta");
-  const notInEl = document.getElementById("rr-tp-notin");
-  if (!kpiEl || !metaEl || !notInEl) return;
+  const wavesEl  = document.getElementById("rr-tp-waves");
+  const metaEl   = document.getElementById("rr-tp-meta");
+  const toolEl   = document.getElementById("rr-tp-tool");
+  const extrasEl = document.getElementById("rr-tp-extras");
+  if (!wavesEl || !metaEl || !toolEl || !extrasEl) return;
 
   if (error) {
-    notInEl.innerHTML = `<div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Not checked in</div>
+    toolEl.innerHTML = `<div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Daily attendance · approvals</div>
       <div style="padding:18px;color:var(--red);font-size:12px;text-align:center">${escapeHtml(error.message || String(error))}</div>`;
     return;
   }
 
   const attRows = data?.rows || [];
 
-  // Roll up attendance into the same buckets as the Today tab.
-  const cnt = { total: attRows.length, working: 0, completed: 0, ready: 0,
-                waiting: 0, missed: 0, tardy: 0, ncns: 0 };
+  // ── Wave-level rollup ──────────────────────────────────────────────
+  // For each wave: scheduled, checked-in (working OR completed), and
+  // the rest (not-yet-checked-in). Percentages are computed against
+  // scheduled. Operators read this top-down at the start of the day.
+  const waveBuckets = new Map();
   for (const r of attRows) {
-    switch (r.computed_outcome) {
-      case "checked_in":      cnt.working++;   break;
-      case "checked_out":     cnt.completed++; break;
-      case "ready_to_checkin":cnt.ready++;     break;
-      case "waiting":         cnt.waiting++;   break;
-      case "missed_reported": cnt.missed++;    break;
-      case "tardy":           cnt.tardy++;     break;
-      case "ncns":            cnt.ncns++;      break;
-    }
+    const w = r.wave_index ?? 0;
+    if (!waveBuckets.has(w)) waveBuckets.set(w, { scheduled: 0, checkedIn: 0, notIn: 0, tardy: 0, ncns: 0 });
+    const b = waveBuckets.get(w);
+    b.scheduled++;
+    if (r.computed_outcome === "checked_in" || r.computed_outcome === "checked_out") b.checkedIn++;
+    else b.notIn++;
+    if (r.computed_outcome === "tardy") b.tardy++;
+    if (r.computed_outcome === "ncns")  b.ncns++;
   }
-  const notIn = cnt.total - (cnt.working + cnt.completed);
-  const notInList = attRows.filter(r =>
-    ["waiting","ready_to_checkin","tardy","ncns","missed_reported"].includes(r.computed_outcome)
-  );
 
-  // Service-type chips for the scheduled-summary card.
+  const pctOf = (a, b) => b > 0 ? Math.round((a / b) * 100) : 0;
+  const waveCard = (wave, b) => {
+    const inPct  = pctOf(b.checkedIn, b.scheduled);
+    const outPct = 100 - inPct;
+    const flagged = b.tardy + b.ncns;
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">Wave ${escapeHtml(String(wave))}</div>
+          <div style="font-size:11px;color:var(--text-subtle)">${b.scheduled} scheduled</div>
+        </div>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Checked in</div>
+            <div style="font-size:24px;font-weight:700;color:var(--green)">${b.checkedIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${inPct}%</span></div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Not in</div>
+            <div style="font-size:24px;font-weight:700;color:${b.notIn > 0 ? "var(--amber)" : "var(--text)"}">${b.notIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${outPct}%</span></div>
+          </div>
+        </div>
+        <div style="height:6px;background:var(--canvas);border-radius:999px;overflow:hidden;display:flex">
+          <div style="width:${inPct}%;background:var(--green)"></div>
+          <div style="width:${outPct}%;background:${b.notIn > 0 ? "var(--amber)" : "var(--canvas)"}"></div>
+        </div>
+        ${flagged > 0
+          ? `<div style="font-size:11px;color:var(--red);font-weight:600">⚠ ${b.tardy} tardy · ${b.ncns} NCNS</div>`
+          : `<div style="font-size:11px;color:var(--text-subtle)">No issues this wave</div>`}
+      </div>`;
+  };
+
+  const sortedWaves = [...waveBuckets.entries()].sort((a, b) => a[0] - b[0]);
+  wavesEl.innerHTML = sortedWaves.length === 0
+    ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No drivers scheduled today.</div>`
+    : sortedWaves.map(([w, b]) => waveCard(w, b)).join("");
+
+  // ── Meta strip (service-type breakdown + as-of) ────────────────────
   const bySvc = {};
-  const byWave = {};
   for (const r of attRows) {
     const sv = r.service_type_code || "—";
     if (!bySvc[sv]) bySvc[sv] = { count: 0, color: r.service_type_color || "#94a3b8" };
     bySvc[sv].count++;
-    const w = r.wave_index ?? 0;
-    byWave[w] = (byWave[w] || 0) + 1;
   }
   const svcChips = Object.entries(bySvc).map(([code, v]) =>
     `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:11px;font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`
   ).join("");
-  const waveChips = Object.keys(byWave).sort().map(w =>
-    `<span style="font-size:11px;color:var(--text-muted);margin-right:10px">Wave ${w}: <strong>${byWave[w]}</strong></span>`
-  ).join("");
-
-  // ── KPI strip (mirrors Drivers → Attendance → Today, but condensed) ──
-  const kpi = (label, value, sub, tone) => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
-      <div style="font-size:26px;font-weight:700;margin-top:4px;color:${tone || "var(--text)"}">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
-    </div>`;
-
-  // ── Not-checked-in driver list (compact rows) ──
-  const notInRows = notInList.length === 0
-    ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">All scheduled drivers are checked in.</div>`
-    : notInList.map(r => {
-        const tone = r.computed_outcome === "ncns"   ? "var(--red)"
-                   : r.computed_outcome === "tardy"  ? "var(--amber)"
-                   : r.computed_outcome === "ready_to_checkin" ? "var(--accent)"
-                   : r.computed_outcome === "missed_reported" ? "var(--amber)"
-                   : "var(--text-subtle)";
-        const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
-        const t = r.starts_at ? new Date(r.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
-        return `
-          <div style="display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--border)">
-            <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:11px">${escapeHtml((r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
-            <div style="min-width:0">
-              <div style="font-size:13px;font-weight:600">${escapeHtml(r.driver_name)}</div>
-              <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}</div>
-            </div>
-            <span style="color:${tone};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</span>
-          </div>`;
-      }).join("");
-
-  // KPI strip
-  kpiEl.innerHTML = `
-    ${kpi("Scheduled", cnt.total, waveChips || "today")}
-    ${kpi("Not checked in", Math.max(0, notIn), `${cnt.ready} ready · ${cnt.waiting} waiting`, notIn > 0 ? "var(--amber)" : undefined)}
-    ${kpi("Tardy / NCNS", cnt.tardy + cnt.ncns, `${cnt.tardy} tardy · ${cnt.ncns} no-show`, (cnt.tardy + cnt.ncns) > 0 ? "var(--red)" : undefined)}
-    ${kpi("Working / Done", cnt.working + cnt.completed, `${cnt.working} working · ${cnt.completed} done`, (cnt.working + cnt.completed) > 0 ? "var(--green)" : undefined)}
-  `;
-
-  // Service-type chip strip + as-of line
   metaEl.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
       <div style="font-size:11px;color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</div>
     </div>`;
 
-  // Not-checked-in panel
-  notInEl.innerHTML = `
+  // ── Daily attendance approvals card ────────────────────────────────
+  // Anyone tardy / NCNS / missed-reported needs a leader decision today.
+  // We show their current points + standing + recommended action and
+  // expose Approve / Deny buttons.  Persistence is the next phase per
+  // the product spec; for now the buttons just mark the row visually so
+  // the operator can see what they've reviewed.
+  const flagged = attRows.filter(r =>
+    ["tardy", "ncns", "missed_reported"].includes(r.computed_outcome)
+  );
+  _renderTpDailyTool(flagged);
+
+  // ── Extra drivers (Ex / cushion) roster ────────────────────────────
+  const extras = attRows.filter(r => r.is_cushion);
+  const extrasRows = extras.length === 0
+    ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">No extras scheduled today.</div>`
+    : extras.map(r => {
+        const t = r.starts_at ? new Date(r.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
+        const tone = _RR_OUTCOME_TONE[r.computed_outcome] || _RR_OUTCOME_TONE.waiting;
+        const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
+        const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+        return `
+          <div style="display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--border)">
+            <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:11px">${escapeHtml(initials)}</div>
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
+              <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0} · ${escapeHtml(t)}</div>
+            </div>
+            <span style="background:${tone.bg};color:${tone.fg};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
+          </div>`;
+      }).join("");
+  extrasEl.innerHTML = `
     <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
-      Not checked in <span style="color:var(--text-subtle);font-weight:600">· ${notInList.length}</span>
+      Extra drivers (Ex) <span style="color:var(--text-subtle);font-weight:600">· ${extras.length}</span>
     </div>
-    ${notInRows}`;
+    ${extrasRows}`;
 }
+
+// Daily approvals tool — pulls each flagged driver's current
+// attendance points from the last `decay_days` of shift events, plots
+// them against the policy's warn / action thresholds, and recommends
+// the next step.  The Approve / Deny buttons are intentionally inert
+// for now (visual only); persistence + driver notifications are the
+// next phase per product direction.
+async function _renderTpDailyTool(flagged) {
+  const toolEl = document.getElementById("rr-tp-tool");
+  if (!toolEl) return;
+
+  const head = (n) => `
+    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+      Daily attendance · approvals <span style="color:var(--text-subtle);font-weight:600">· ${n}</span>
+    </div>`;
+
+  if (flagged.length === 0) {
+    toolEl.innerHTML = `${head(0)}
+      <div style="padding:24px;text-align:center;color:var(--green);font-size:13px;font-weight:600">✓ No tardies or no-shows to approve right now.</div>`;
+    return;
+  }
+
+  const policy = _getAttPolicy();
+  const dspId  = window.RR?.dsp?.id;
+  const since  = new Date(Date.now() - (policy.decay_days || 90) * 86400000)
+    .toISOString().slice(0, 10);
+
+  // Pull historical events for just the flagged drivers.  Cheap because
+  // the list is small (today's exceptions only, not the whole roster).
+  const ids = flagged.map(r => r.driver_id);
+  const { data: hist } = await sb.from("shifts")
+    .select("driver_id, status")
+    .eq("dsp_id", dspId)
+    .in("driver_id", ids)
+    .in("status", ["called_off", "no_show", "late"])
+    .gte("date", since);
+
+  const pts = new Map();   // driver_id → accrued points
+  for (const h of (hist || [])) {
+    const cur = pts.get(h.driver_id) || 0;
+    const add = h.status === "no_show"   ? policy.points_per_noshow
+              : h.status === "called_off" ? policy.points_per_callout
+              : 0;
+    pts.set(h.driver_id, cur + add);
+  }
+
+  const standing = (p) => {
+    if (p >= policy.threshold_action) return { label: "Action",   tone: "var(--red)" };
+    if (p >= policy.threshold_warn)   return { label: "Warning",  tone: "var(--amber)" };
+    return { label: "Good standing", tone: "var(--green)" };
+  };
+
+  const recommend = (outcome, pAfter) => {
+    if (pAfter >= policy.threshold_action) return "Issue write-up + final warning";
+    if (pAfter >= policy.threshold_warn)   return "Coach + log warning";
+    if (outcome === "ncns")                return "Confirm no-call / no-show";
+    if (outcome === "tardy")               return "Note tardy · no formal action";
+    return "Acknowledge missed day";
+  };
+
+  const rows = flagged.map(r => {
+    const before = pts.get(r.driver_id) || 0;
+    const add = r.computed_outcome === "ncns"            ? policy.points_per_noshow
+              : r.computed_outcome === "missed_reported" ? policy.points_per_callout
+              : r.computed_outcome === "tardy"           ? (policy.points_per_callout / 2) // half-point for tardy
+              : 0;
+    const after = before + add;
+    const st = standing(after);
+    const rec = recommend(r.computed_outcome, after);
+    const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+    const tone = _RR_OUTCOME_TONE[r.computed_outcome] || _RR_OUTCOME_TONE.waiting;
+    const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
+    return `
+      <div class="rr-tp-tool-row" data-driver-id="${escapeHtml(r.driver_id)}"
+           style="display:grid;grid-template-columns:36px minmax(160px,1fr) 130px 1fr auto;gap:14px;align-items:center;padding:12px 14px;border-top:1px solid var(--border)">
+        <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(initials)}</div>
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
+          <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
+        </div>
+        <div>
+          <span style="background:${tone.bg};color:${tone.fg};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
+        </div>
+        <div style="min-width:0">
+          <div style="font-size:12px;color:var(--text)"><strong>${after.toFixed(1)} pts</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
+          <div style="font-size:11px;color:var(--text-subtle)">Next: ${escapeHtml(rec)}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-primary" data-rr-tp-approve="${escapeHtml(r.driver_id)}" type="button">Approve</button>
+          <button class="btn btn-sm" data-rr-tp-deny="${escapeHtml(r.driver_id)}" type="button">Deny</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  toolEl.innerHTML = `${head(flagged.length)}${rows}
+    <div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;color:var(--text-subtle)">
+      Approvals are visual only for now — driver-side notifications and event records land in the next release.
+    </div>`;
+}
+
+// Approve / deny buttons on the daily tool — visual only for now.  We
+// dim the row and swap the buttons for a status pill so the operator
+// can scan the day's progress at a glance.  Wiring up persistence +
+// notifications is the next product phase.
+document.addEventListener("click", (e) => {
+  const ap = e.target.closest("[data-rr-tp-approve]");
+  const dn = e.target.closest("[data-rr-tp-deny]");
+  if (!ap && !dn) return;
+  const row = (ap || dn).closest(".rr-tp-tool-row");
+  if (!row) return;
+  const verb = ap ? "Approved" : "Denied";
+  const tone = ap ? "var(--green)" : "var(--text-subtle)";
+  row.style.opacity = "0.55";
+  const btnCell = (ap || dn).parentElement;
+  btnCell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${verb}</span>`;
+  toast(`${verb}`, "success");
+});
 
 function _renderTpCoverage(data, error) {
   const covEl = document.getElementById("rr-tp-cov");
@@ -2483,7 +2624,7 @@ window.drSub = function (sub) {
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
-  if (sub === "attendance")   loadTodayAttendance();
+  if (sub === "attendance")   loadAttendanceHistory();
   if (sub === "coaching")     loadCoachingFeed();
   if (sub === "insights")     loadDriverInsights();
   if (sub === "availability") loadAvailabilityRequests();
