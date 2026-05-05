@@ -372,12 +372,100 @@ function renderTimeOff() {
 }
 
 // ── Chat ────────────────────────────────────────────────────────────
-function renderChat() {
+// Polls every 8 seconds while the tab is visible. New messages arrive
+// without push for now (push lands in a later PR). Mark-read fires on
+// open + after every poll that returns dispatch messages.
+let _chatPollTimer = null;
+let _chatLastIds = new Set();
+async function renderChat() {
   setHeader("Chat", "Message dispatch");
-  document.getElementById("main").innerHTML = comingSoon(
-    "A single rolling conversation between you and dispatch.",
-    "Two-way messages · push notifications when a reply comes in",
-  );
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div id="chat-shell">
+      <div id="chat-msgs" class="chat-msgs"><div class="loader"></div></div>
+      <form class="chat-composer" id="chat-form">
+        <textarea id="chat-input" rows="1" placeholder="Message dispatch…" maxlength="2000"></textarea>
+        <button class="chat-send" type="submit" aria-label="Send">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </form>
+    </div>`;
+
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  // Auto-grow textarea
+  const ta = document.getElementById("chat-input");
+  ta.addEventListener("input", () => {
+    ta.style.height = "auto";
+    ta.style.height = Math.min(120, ta.scrollHeight) + "px";
+  });
+  ta.addEventListener("keydown", (e) => {
+    // Enter sends, Shift+Enter newline (desktop). On phone, the "send"
+    // button is the primary path; Enter inserts a newline as on iMessage.
+    if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer:fine)").matches) {
+      e.preventDefault();
+      document.getElementById("chat-form").requestSubmit();
+    }
+  });
+
+  // Send
+  document.getElementById("chat-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = (ta.value || "").trim();
+    if (!body) return;
+    ta.value = "";
+    ta.style.height = "auto";
+    const { error } = await sb.rpc("driver_chat_send", { p_token: session.token, p_body: body });
+    if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
+    await refreshChat(true);
+  });
+
+  // First fetch + start poller
+  _chatLastIds = new Set();
+  await refreshChat(true);
+  if (_chatPollTimer) clearInterval(_chatPollTimer);
+  _chatPollTimer = setInterval(() => {
+    if (document.hidden) return;
+    if (currentRoute() !== "/chat") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
+    refreshChat(false);
+  }, 8000);
+}
+
+async function refreshChat(scrollToBottom) {
+  const session = readSession();
+  if (!session?.token) return;
+  const { data, error } = await sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 200 });
+  if (error) {
+    if (/unauthorized|revoked|inactive/.test(error.message || "")) {
+      writeSession(null); render(); return;
+    }
+    return;
+  }
+  const wrap = document.getElementById("chat-msgs");
+  if (!wrap) return;
+  const messages = data?.messages || [];
+  if (messages.length === 0) {
+    wrap.innerHTML = `<div class="empty-state">No messages yet.<br>Start a thread with dispatch below.</div>`;
+  } else {
+    wrap.innerHTML = messages.map(chatBubbleHtml).join("");
+  }
+  if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
+  // Mark-read whenever there's at least one dispatch message
+  if (messages.some((m) => m.sender_kind === "dispatch")) {
+    sb.rpc("driver_chat_mark_read", { p_token: session.token }).catch(() => {});
+  }
+}
+
+function chatBubbleHtml(m) {
+  const mine = m.sender_kind === "driver";
+  const t = new Date(m.created_at);
+  const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `
+    <div class="chat-bubble ${mine ? "mine" : "theirs"}">
+      <div class="chat-body">${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>
+      <div class="chat-time">${escapeHtml(time)}</div>
+    </div>`;
 }
 
 // ── Profile hub ─────────────────────────────────────────────────────

@@ -4363,6 +4363,7 @@ async function openDriverDrawer(driverId) {
         <button class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button class="dd-tab" data-rr-dd-tab="license">License</button>
         <button class="dd-tab" data-rr-dd-tab="dot">DOT</button>
+        <button class="dd-tab" data-rr-dd-tab="chat">Chat <span id="rr-dd-chat-badge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">0</span></button>
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
       <div class="dd-body" id="rr-dd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
@@ -4426,6 +4427,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
   if (_ddTab === "dot")          renderDotTab(body, _ddDriver.driver);
+  if (_ddTab === "chat")         renderDriverChatTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
   setDriverDrawerFoot();
@@ -4594,6 +4596,96 @@ function renderDotTab(body, d) {
         <div style="font-size:11px;color:var(--text-subtle);line-height:1.4;margin-top:4px">Check this if the driver currently holds a valid DOT medical certification.</div>
       </div>
     </div>`;
+}
+
+// ─── Driver record · Chat tab ─────────────────────────────────────────
+// The dispatcher's view of one driver's chat. Polls every 8s while open.
+let _ddChatPollTimer = null;
+async function renderDriverChatTab(body, d) {
+  if (!d?.id) {
+    body.innerHTML = `<div style="padding:24px;color:var(--text-subtle);font-size:13px">Save the driver first, then chat.</div>`;
+    return;
+  }
+  body.innerHTML = `
+    <style>
+      .ddchat-shell{display:flex;flex-direction:column;height:60vh;min-height:420px;margin:-12px -22px 0;border-top:1px solid var(--border)}
+      .ddchat-msgs{flex:1;overflow-y:auto;padding:14px 22px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
+      .ddchat-bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.4;word-wrap:break-word}
+      .ddchat-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
+      .ddchat-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+      .ddchat-time{font-size:10px;margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
+      .ddchat-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:30px}
+      .ddchat-composer{display:flex;gap:8px;align-items:flex-end;padding:10px 22px 14px;background:var(--surface);border-top:1px solid var(--border)}
+      .ddchat-composer textarea{flex:1;min-height:40px;max-height:120px;padding:8px 12px;font-size:13px;line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
+      .ddchat-composer textarea:focus{outline:none;border-color:var(--accent)}
+      .ddchat-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:13px;cursor:pointer;min-height:40px}
+      .ddchat-send:disabled{opacity:.5;cursor:not-allowed}
+    </style>
+    <div class="ddchat-shell">
+      <div class="ddchat-msgs" id="ddchat-msgs"><div style="margin:auto;padding:30px;color:var(--text-subtle);font-size:12px">Loading…</div></div>
+      <form class="ddchat-composer" id="ddchat-form">
+        <textarea id="ddchat-input" rows="1" placeholder="Reply to ${escapeHtml(displayDriverName(d))}…" maxlength="2000"></textarea>
+        <button class="ddchat-send" type="submit">Send</button>
+      </form>
+    </div>`;
+
+  const ta = document.getElementById("ddchat-input");
+  ta.addEventListener("input", () => {
+    ta.style.height = "auto";
+    ta.style.height = Math.min(120, ta.scrollHeight) + "px";
+  });
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      document.getElementById("ddchat-form").requestSubmit();
+    }
+  });
+
+  document.getElementById("ddchat-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = (ta.value || "").trim();
+    if (!body) return;
+    const send = e.target.querySelector(".ddchat-send");
+    send.disabled = true;
+    const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: d.id, p_body: body });
+    send.disabled = false;
+    if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
+    ta.value = ""; ta.style.height = "auto";
+    await refreshDriverChat(d.id, true);
+  });
+
+  await refreshDriverChat(d.id, true);
+  if (_ddChatPollTimer) clearInterval(_ddChatPollTimer);
+  _ddChatPollTimer = setInterval(() => {
+    if (_ddTab !== "chat" || !document.getElementById("rr-dd-drawer")) {
+      clearInterval(_ddChatPollTimer); _ddChatPollTimer = null; return;
+    }
+    refreshDriverChat(d.id, false);
+  }, 8000);
+}
+
+async function refreshDriverChat(driverId, scrollToBottom) {
+  const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
+  if (error) return;
+  const msgs = data?.messages || [];
+  const wrap = document.getElementById("ddchat-msgs");
+  if (!wrap) return;
+  if (msgs.length === 0) {
+    wrap.innerHTML = `<div class="ddchat-empty">No messages yet. Start the thread below.</div>`;
+  } else {
+    wrap.innerHTML = msgs.map((m) => {
+      const t = new Date(m.created_at);
+      const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      return `<div class="ddchat-bubble ${m.sender_kind}">
+        <div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>
+        <div class="ddchat-time">${escapeHtml(time)}</div>
+      </div>`;
+    }).join("");
+  }
+  if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
+  if (msgs.some((m) => m.sender_kind === "driver")) {
+    sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).catch(() => {});
+  }
 }
 
 function _coachSeverityChip(sev) {
