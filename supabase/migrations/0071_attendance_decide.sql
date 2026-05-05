@@ -21,10 +21,12 @@
 --          Notes are required on deny — enforced server-side and in
 --          the dashboard UI.
 --
--- Auto-coaching is policy-controlled (dsps.metadata.attendance.policy
--- .auto_coaching).  Off by default — many DSPs prefer to coach in
--- person and check the box themselves rather than have the system
--- auto-paper a record.
+-- Auto-coaching actions are policy-controlled (an array on
+-- dsps.metadata.attendance.policy.auto_coaching_actions).  Possible
+-- values: 'message' (in-app chat to the driver), 'notification' (push
+-- notification), 'coach_drawer' (pending-action row in the coaching
+-- drawer for the leader to finalize).  Default empty — leader coaches
+-- manually.
 -- ─────────────────────────────────────────────────────────────────────────
 
 
@@ -75,7 +77,10 @@ declare
   v_drv           public.drivers;
   v_meta          jsonb;
   v_policy        jsonb;
-  v_auto_coaching bool;
+  v_actions       jsonb;
+  v_act_message   bool := false;
+  v_act_notify    bool := false;
+  v_act_drawer    bool := false;
   v_status        text;
   v_summary       text;
   v_chat_msg      text;
@@ -132,22 +137,56 @@ begin
   -- occurrence math in the report keys on shifts.status, so an
   -- unchanged status means it never lands on the running total.
 
-  -- Auto-coaching + driver chat message (approve only, policy-gated).
-  v_auto_coaching := false;
+  -- Auto-coaching side effects (approve only, policy-gated).
+  -- auto_coaching_actions is a JSON array on the policy.  We check for
+  -- 'message' (DM the driver), 'notification' (push notification —
+  -- web-push delivery is handled out-of-band by the existing
+  -- send-driver-push edge function on driver_messages insert), and
+  -- 'coach_drawer' (pending-action coachings row).
   if p_decision = 'approve' then
-    v_meta   := coalesce((select metadata from public.dsps where id = v_dsp), '{}'::jsonb);
-    v_policy := coalesce(v_meta -> 'attendance' -> 'policy', '{}'::jsonb);
-    v_auto_coaching := coalesce((v_policy ->> 'auto_coaching')::bool, false);
+    v_meta     := coalesce((select metadata from public.dsps where id = v_dsp), '{}'::jsonb);
+    v_policy   := coalesce(v_meta -> 'attendance' -> 'policy', '{}'::jsonb);
+    v_actions  := coalesce(v_policy -> 'auto_coaching_actions', '[]'::jsonb);
     v_dsp_name := coalesce((select name from public.dsps where id = v_dsp), 'Dispatch');
+    v_act_message := v_actions ? 'message';
+    v_act_notify  := v_actions ? 'notification';
+    v_act_drawer  := v_actions ? 'coach_drawer';
   end if;
 
-  if v_auto_coaching then
-    v_summary := case p_outcome
-      when 'ncns'            then 'No-call no-show on ' || to_char(v_shift.date, 'Mon DD')
-      when 'tardy'           then 'Tardy on '           || to_char(v_shift.date, 'Mon DD')
-      when 'missed_reported' then 'Callout on '         || to_char(v_shift.date, 'Mon DD')
-    end;
+  v_summary := case p_outcome
+    when 'ncns'            then 'No-call no-show on ' || to_char(v_shift.date, 'Mon DD')
+    when 'tardy'           then 'Tardy on '           || to_char(v_shift.date, 'Mon DD')
+    when 'missed_reported' then 'Callout on '         || to_char(v_shift.date, 'Mon DD')
+  end;
 
+  -- Coach drawer pending action: a coaching record marked status pending
+  -- via metadata, surfaces in the coaching drawer for the leader to
+  -- finalize.  When the message action is also on, finalizing the
+  -- drawer entry posts the chat — see metadata.auto_message_pending.
+  if v_act_drawer then
+    insert into public.coachings
+      (dsp_id, driver_id, coach_user_id, topic, type, summary, notes, metadata)
+    values
+      (v_dsp, v_drv.id, auth.uid(),
+       'attendance'::public.coaching_topic,
+       'documented_warning'::public.coaching_type,
+       v_summary,
+       coalesce(p_notes, ''),
+       jsonb_build_object(
+         'source',                'attendance_decide',
+         'shift_id',              p_shift_id,
+         'outcome',               p_outcome,
+         'pending',               true,
+         'auto_message_pending',  v_act_message,
+         'auto_notify_pending',   v_act_notify
+       ));
+  end if;
+
+  -- Direct message to driver — fires immediately when 'message' is
+  -- selected and the coach-drawer flow ISN'T (otherwise the message
+  -- waits until the leader finalizes from the drawer).
+  if v_act_message and not v_act_drawer then
+    -- Log the coaching record up-front since there's no drawer flow.
     insert into public.coachings
       (dsp_id, driver_id, coach_user_id, topic, type, summary, notes, metadata)
     values
@@ -163,22 +202,18 @@ begin
       when 'tardy'           then 'You were marked tardy for your '              || to_char(v_shift.date, 'Mon DD') || ' shift. — ' || v_dsp_name
       when 'missed_reported' then 'Your callout for '                            || to_char(v_shift.date, 'Mon DD') || ' has been logged. — ' || v_dsp_name
     end;
-
     insert into public.driver_messages
       (driver_id, dsp_id, sender_kind, sender_user_id, body)
-    values
-      (v_drv.id, v_dsp, 'dispatch', auth.uid(), v_chat_msg);
-
+    values (v_drv.id, v_dsp, 'dispatch', auth.uid(), v_chat_msg);
     insert into public.driver_conversations (driver_id, dsp_id, last_message_at)
     values (v_drv.id, v_dsp, now())
-    on conflict (driver_id) do update
-      set last_message_at = excluded.last_message_at;
+    on conflict (driver_id) do update set last_message_at = excluded.last_message_at;
   end if;
 
   return jsonb_build_object(
-    'ok',           true,
-    'decision',     p_decision,
-    'auto_coached', v_auto_coaching,
+    'ok',          true,
+    'decision',    p_decision,
+    'actions',     jsonb_build_object('message', v_act_message, 'notification', v_act_notify, 'coach_drawer', v_act_drawer),
     'shift_status', case p_decision when 'approve' then v_status else v_shift.status::text end
   );
 end;

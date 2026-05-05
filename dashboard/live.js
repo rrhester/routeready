@@ -1717,10 +1717,68 @@ const _ATT_DEFAULT_POLICY = {
   // recommendation on the very first NCNS, regardless of count.
   ncns_terminates: false,
   progressive_coaching: true,
-  // Auto-coaching: when an operator hits Approve on the daily tool,
-  // automatically log a coaching record and DM the driver.  Off by
-  // default — many DSPs prefer to coach in person and log it manually.
-  auto_coaching: false,
+  // Auto-coaching actions fired on Approve from the daily tool. Pick
+  // any combination — empty array means coaching is fully manual.
+  //   "message"      — in-app DM to the driver
+  //   "notification" — push notification (handled by send-driver-push)
+  //   "coach_drawer" — pending coaching row for the leader to finalize
+  //                    from the coaching drawer (the message + push,
+  //                    when also selected, fire on finalize)
+  auto_coaching_actions: [],
+  // First-30-days strict rule: any callout/no-show inside the
+  // probationary window jumps the driver straight to Action.
+  first_30_strict: false,
+  first_30_window_days: 30,
+};
+
+function _getAttPolicy() {
+  const p = window.RR?.dsp?.metadata?.attendance?.policy || {};
+  // Translate legacy records (points-mode, single auto_coaching bool)
+  // into the new shape.  Old fields are dropped on read — occurrence-
+  // only is the supported model now.
+  const merged = { ..._ATT_DEFAULT_POLICY, ...p };
+  delete merged.mode;
+  delete merged.points_per_tardy;
+  delete merged.points_per_callout;
+  delete merged.points_per_noshow;
+  if (typeof merged.auto_coaching_actions === "string")
+    merged.auto_coaching_actions = [merged.auto_coaching_actions];
+  if (!Array.isArray(merged.auto_coaching_actions))
+    merged.auto_coaching_actions = [];
+  // Legacy boolean → migrate to message action so existing DSPs keep
+  // their previous behavior.
+  if (p.auto_coaching === true && merged.auto_coaching_actions.length === 0)
+    merged.auto_coaching_actions = ["message"];
+  delete merged.auto_coaching;
+  return merged;
+}
+
+async function loadAttendancePolicy() {
+  const pane = document.getElementById("att-pane-policy");
+  if (!pane) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  // Pull both the policy (lives on dsps.metadata) and the timing
+  // settings (lives on scheduling_settings) — the timing fields drive
+  // when a driver shows as Tardy / NCNS in the daily roster, so they
+  // belong in the same builder UI even though the schema stores them
+  // separately.
+  const [{ data: dspRow, error: dspErr }, { data: setRow }] = await Promise.all([
+    sb.from("dsps").select("metadata").eq("id", dspId).single(),
+    sb.from("scheduling_settings")
+      .select("checkin_lead_minutes, tardy_grace_minutes, ncns_after_minutes")
+      .eq("dsp_id", dspId).is("week_start", null).maybeSingle(),
+  ]);
+  if (dspErr) { console.warn("policy load:", dspErr.message); return; }
+  const meta = dspRow?.metadata || {};
+  if (window.RR?.dsp) window.RR.dsp.metadata = meta;
+  const p = _getAttPolicy();
+  const timing = {
+    checkin_lead_minutes: setRow?.checkin_lead_minutes ?? 15,
+    tardy_grace_minutes:  setRow?.tardy_grace_minutes  ?? 10,
+    ncns_after_minutes:   setRow?.ncns_after_minutes   ?? 60,
+  };
 
   // Reusable toggle row.  All yes/no settings on this page render this
   // way so the operator gets a consistent on-screen language.
@@ -1767,8 +1825,8 @@ const _ATT_DEFAULT_POLICY = {
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">NCNS after (min)</span>
-          <input type="number" min="5" max="240" step="1" class="form-input" data-rr-att-timing="ncns_after_minutes" value="${timing.ncns_after_minutes}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">No check-in <strong>and</strong> no callout this many minutes after start = <strong>No-call no-show</strong>. Common: 30–60 minutes.</span>
+          <input type="number" min="30" max="240" step="30" class="form-input" data-rr-att-timing="ncns_after_minutes" value="${timing.ncns_after_minutes}"/>
+          <span style="font-size:11px;color:var(--text-subtle)">No check-in <strong>and</strong> no callout this many minutes after start = <strong>No-call no-show</strong>. Adjusts in 30-minute steps.</span>
         </label>
       </div>
     </div>
@@ -1789,14 +1847,40 @@ const _ATT_DEFAULT_POLICY = {
       </label>
     </div>
 
-    <!-- Progressive coaching + auto-coaching -->
+    <!-- Progressive coaching -->
     <div class="pol-section">
       <h3 class="pol-section-title">Coaching style</h3>
-      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold, and what happens when an operator hits Approve on the daily attendance card.</p>
+      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold.</p>
       ${toggleRow("progressive_coaching", "Use progressive coaching steps",
         "When ON the recommended action escalates: <strong>Verbal</strong> coaching at the Warn threshold → <strong>Written</strong> warning at Action → <strong>Final</strong> written warning on a repeat → <strong>Termination</strong>.  Documents the conversation each time so an unemployment claim has a paper trail.<br>When OFF the dashboard recommends a single Coach action at Warn and a single Write-up at Action.")}
-      ${toggleRow("auto_coaching", "Auto-coach when an event is approved",
-        "When ON, hitting <strong>Approve</strong> on the daily attendance card automatically (a) writes a coaching record to the driver's file with the event date and operator notes, and (b) sends the driver an in-app message explaining what was logged and why.<br>When OFF, the event still counts toward attendance but coaching is manual — the attendance report flags the row as <em>Coaching pending</em> until a leader files it themselves.")}
+    </div>
+
+    <!-- Auto-coaching actions on Approve -->
+    <div class="pol-section">
+      <h3 class="pol-section-title">Auto-coach when an event is approved</h3>
+      <p class="pol-section-sub">Pick which side effects fire automatically when a leader hits <strong>Approve</strong> on the daily attendance card.  Pick none and coaching is fully manual — the attendance report will flag the row as <em>Coaching pending</em> until a leader finalizes it from the coaching drawer.</p>
+      ${(function () {
+        const has = (v) => Array.isArray(p.auto_coaching_actions) && p.auto_coaching_actions.includes(v);
+        const row = (val, label, blurb) => `
+          <label class="rr-pol-toggle-row" style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--border)">
+            <span style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
+              <div style="font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
+            </span>
+            <label class="toggle" style="margin-top:2px">
+              <input type="checkbox" data-rr-att-action="${val}" ${has(val) ? "checked" : ""}/>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>`;
+        return [
+          row("message",      "Send a message in the driver's app",
+            "Posts a chat message in the driver's RouteReady app explaining what was logged and why.  When the <strong>Coach drawer pending action</strong> below is also on, the message waits until the leader finalizes the coaching from the drawer.  Logged in the driver's coaching record either way."),
+          row("notification", "Send a push notification",
+            "Triggers a push notification on the driver's phone.  Same content as the in-app message; pairs naturally with the message option above so the driver sees it without having to open the app."),
+          row("coach_drawer", "Add a pending action to the coaching drawer",
+            "Creates a draft coaching record marked <em>Pending</em> and routes it to the coaching drawer.  The leader reviews, edits the notes, and finalizes — at which point any chosen message / notification fires.  Use this when you want a human eye before the driver hears about it."),
+        ].join("");
+      })()}
     </div>
 
     <!-- Save -->
@@ -1826,7 +1910,12 @@ document.addEventListener("click", async (e) => {
       const v = Number(el.value);
       if (Number.isFinite(v) && v >= 0) timing[el.dataset.rrAttTiming] = v;
     });
-    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields };
+    // Multi-select auto-coaching actions.
+    const auto_coaching_actions = [];
+    document.querySelectorAll("[data-rr-att-action]").forEach(el => {
+      if (el.checked) auto_coaching_actions.push(el.dataset.rrAttAction);
+    });
+    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields, auto_coaching_actions };
 
     if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
 
@@ -2297,9 +2386,15 @@ async function _renderTpDailyTool(flagged) {
       </div>`;
   }).join("");
 
-  const autoCoachNote = policy.auto_coaching
-    ? "Approvals auto-coach the driver and post a note in their messages."
-    : "Auto-coaching is OFF — approved events still count toward attendance, but coaching must be filed manually.";
+  const acts = Array.isArray(policy.auto_coaching_actions) ? policy.auto_coaching_actions : [];
+  const labels = {
+    message:      "in-app message",
+    notification: "push notification",
+    coach_drawer: "coach-drawer pending action",
+  };
+  const autoCoachNote = acts.length === 0
+    ? "Auto-coaching is OFF — approved events count toward attendance, but coaching must be filed manually."
+    : "Approve fires: " + acts.map(a => labels[a] || a).join(" + ") + ".";
 
   toolEl.innerHTML = `${head(flagged.length)}${rows}
     <div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;color:var(--text-subtle)">
@@ -2354,7 +2449,12 @@ document.addEventListener("click", async (e) => {
   const tone = ap ? "var(--green)" : "var(--text-subtle)";
   row.style.opacity = "0.55";
   btnCell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
-  const tail = data?.auto_coached ? " · driver notified" : "";
+  const fired = data?.actions || {};
+  const tailParts = [];
+  if (fired.message)      tailParts.push("driver messaged");
+  if (fired.notification) tailParts.push("push sent");
+  if (fired.coach_drawer) tailParts.push("coach drawer queued");
+  const tail = tailParts.length ? " · " + tailParts.join(" · ") : "";
   toast(`${verb}${tail}`, "success");
 });
 
