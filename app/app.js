@@ -679,8 +679,16 @@ async function renderAvailability() {
 
   const lastDecision = data?.last_decision || null;
   const hasPending   = !!data?.pending;
+  const blackout     = data?.blackout || null;
+  const leadDays     = Number(data?.lead_days ?? 7);
 
   function statusBannerHtml() {
+    if (blackout) {
+      return `<div class="avail-banner denied">
+        <div class="avail-banner-title">Submissions paused${blackout.reason ? " · " + escapeHtml(blackout.reason) : ""}</div>
+        <div class="avail-banner-sub">Availability changes are blocked through ${escapeHtml(_fmtAvailDate(blackout.end_date))}. Toggles below are read-only until then.</div>
+      </div>`;
+    }
     if (hasPending) {
       return `<div class="avail-banner pending">
         <div class="avail-banner-title">Request pending review</div>
@@ -688,8 +696,9 @@ async function renderAvailability() {
       </div>`;
     }
     if (lastDecision?.status === "approved" && lastDecision.effective_until) {
+      const fromTxt = lastDecision.effective_from ? ` from ${_fmtAvailDate(lastDecision.effective_from)}` : "";
       return `<div class="avail-banner approved">
-        <div class="avail-banner-title">Approved through ${escapeHtml(_fmtAvailDate(lastDecision.effective_until))}</div>
+        <div class="avail-banner-title">Approved${escapeHtml(fromTxt)} through ${escapeHtml(_fmtAvailDate(lastDecision.effective_until))}</div>
         <div class="avail-banner-sub">Flip a toggle to request a change.</div>
       </div>`;
     }
@@ -709,14 +718,18 @@ async function renderAvailability() {
   const rowsHtml = _AVAIL_DAYS.map((d) => {
     const on = picked.has(d.k);
     return `
-      <label class="avail-day" for="avail-tog-${d.k}">
+      <label class="avail-day" for="avail-tog-${d.k}" ${blackout ? `style="opacity:.5;pointer-events:none"` : ""}>
         <span class="avail-day-name">${escapeHtml(d.fullLabel)}</span>
         <span class="avail-toggle ${on ? "on" : ""}">
-          <input type="checkbox" id="avail-tog-${d.k}" data-rr-day="${d.k}" ${on ? "checked" : ""}/>
+          <input type="checkbox" id="avail-tog-${d.k}" data-rr-day="${d.k}" ${on ? "checked" : ""} ${blackout ? "disabled" : ""}/>
           <span class="avail-toggle-track"><span class="avail-toggle-thumb"></span></span>
         </span>
       </label>`;
   }).join("");
+
+  const policyText = leadDays > 0
+    ? `Approved availability changes go into effect <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval and are effective for <b>3 weeks</b>.`
+    : `Approved availability changes are effective immediately for <b>3 weeks</b>.`;
 
   main.innerHTML = `
     <div class="avail-page">
@@ -724,9 +737,7 @@ async function renderAvailability() {
 
       <section class="avail-list" id="avail-list">${rowsHtml}</section>
 
-      <div class="avail-policy">
-        Availability requests must be approved by your dispatcher and are effective for <b>3 weeks</b> from the date of approval.
-      </div>
+      <div class="avail-policy">${policyText}</div>
     </div>`;
 
   const listEl   = document.getElementById("avail-list");
@@ -746,9 +757,19 @@ async function renderAvailability() {
     sb.rpc("driver_submit_availability", { p_token: session.token, p_days: days })
       .then(({ error }) => {
         _inFlight--;
-        if (seq !== _saveSeq) return; // a newer change is queued; ignore stale result
-        if (error) { toast("Save failed: " + error.message, "warn"); return; }
-        // Mark UI as having a pending request now (regardless of prior state).
+        if (seq !== _saveSeq) return;
+        if (error) {
+          // Server-enforced blackout — re-render so the toggles lock and
+          // the banner switches; surface the reason in a toast.
+          if ((error.message || "").includes("availability_blackout")) {
+            const reason = error.message.replace(/^.*availability_blackout:\s*/, "");
+            toast("Submissions paused: " + reason, "warn");
+            renderAvailability();
+            return;
+          }
+          toast("Save failed: " + error.message, "warn");
+          return;
+        }
         bannerEl.innerHTML = `<div class="avail-banner pending">
           <div class="avail-banner-title">Request submitted · awaiting approval</div>
           <div class="avail-banner-sub">Your dispatcher will approve or deny this. Current schedule stays on your last approved availability until then.</div>
