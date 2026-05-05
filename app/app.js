@@ -238,12 +238,19 @@ async function refreshDriverProfile(session) {
       : null;
     const cur = readSession();
     if (!cur) return;
+    const dspName = data.dsp_name || cur.dsp_name || "";
     if ((cur.photo_url || null) === (photoUrl || null) &&
-        (cur.name || "")     === (data.name || "")) return;
-    writeSession({ ...cur, name: data.name || cur.name, photo_url: photoUrl, photo_path: data.photo_path });
-    // Repaint Profile if the user is on it (the header is now a fixed
-    // gear icon, no avatar to refresh there).
-    if (currentRoute() === "/profile") render();
+        (cur.name || "")        === (data.name || "") &&
+        (cur.dsp_name || "")    === dspName) return;
+    writeSession({ ...cur,
+      name:       data.name || cur.name,
+      photo_url:  photoUrl,
+      photo_path: data.photo_path,
+      dsp_name:   dspName,
+    });
+    // Re-render so the header brand picks up the new dsp_name and the
+    // Profile screen shows a freshly-uploaded photo.
+    render();
   } catch {}
 }
 
@@ -252,8 +259,9 @@ function renderLogin(errorMsg) {
   document.getElementById("app").innerHTML = `
     <div class="login-screen">
       <div class="brand">
-        <div class="brand-icon">RR</div>
-        <div class="brand-name">RouteReady</div>
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
       </div>
       <form class="form" id="login-form">
         ${errorMsg ? `<div class="err">${escapeHtml(errorMsg)}</div>` : ""}
@@ -288,6 +296,7 @@ function renderLogin(errorMsg) {
       driver_id:  data.driver?.id || null,
       name:       data.driver?.name || "Driver",
       station_id: data.driver?.station_id || null,
+      dsp_name:   data.driver?.dsp_name || data.dsp?.name || "",
     };
     writeSession(newSession);
     syncSwSession(newSession);
@@ -318,7 +327,7 @@ function renderShell(session) {
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div style="flex:1;min-width:0">
-        <div class="title" id="head-title">RouteReady</div>
+        <div class="title" id="head-title">${escapeHtml(session?.dsp_name || "Driver")}</div>
         <div class="sub" id="head-sub"></div>
       </div>
       <button class="head-gear" id="head-gear" type="button" aria-label="Settings" title="Settings">
@@ -588,7 +597,7 @@ function chatBubbleHtml(m) {
 function renderProfileHub() {
   const session = readSession();
   const name = session?.name || "Driver";
-  setHeader("RouteReady", "");
+  setHeader(session?.dsp_name || "Driver", "");
   const main = document.getElementById("main");
   main.innerHTML = `
     <div class="profile-head">
@@ -720,7 +729,9 @@ async function renderCheckinCard(session) {
             <div class="checkin-sub">In ${escapeHtml(inT)} · out ${escapeHtml(outT)}</div>
           </div>
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>`;
+        </div>
+        <button class="checkin-btn checkin-btn-tertiary" id="rr-undo-checkout" type="button">Undo check-out</button>`;
+      document.getElementById("rr-undo-checkout").addEventListener("click", () => doUndoCheckout(session));
       return;
     }
     slot.innerHTML = `
@@ -829,6 +840,23 @@ async function doCheckout(session) {
     () => submit(),
     { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 },
   );
+}
+
+async function doUndoCheckout(session) {
+  if (!confirm("Undo your check-out?")) return;
+  const { error } = await sb.rpc("driver_undo_checkout", { p_token: session.token });
+  if (error) {
+    if ((error.message || "").includes("day_finalized")) {
+      toast("Day already approved — contact dispatch", "warn");
+    } else if ((error.message || "").includes("no_checkout_to_undo")) {
+      toast("Nothing to undo", "warn");
+    } else {
+      toast("Couldn't undo: " + error.message, "warn");
+    }
+    return;
+  }
+  toast("Check-out undone", "ok");
+  renderCheckinCard(session);
 }
 
 async function doMissedDay(session) {
