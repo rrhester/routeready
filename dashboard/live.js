@@ -96,7 +96,8 @@ function _resolveDriverIdForAvatar(el) {
     if (tagged) return tagged.getAttribute("data-rr-driver-id");
     // Stop at row-style boundaries so we don't bleed into a sibling
     // driver's id when an avatar lives inside a wider container.
-    if (cur.matches?.("tr, .cell-driver, .msg-item, .cal-row-label, .checkin-row, .iv-card, .driver-row, .dr-coach-row")) return null;
+    // (.cell-driver is a per-cell wrapper, NOT a row — keep walking.)
+    if (cur.matches?.("tr, .msg-item, .cal-row-label, .checkin-row, .iv-card, .driver-row, .dr-coach-row")) return null;
     cur = cur.parentElement;
   }
   return null;
