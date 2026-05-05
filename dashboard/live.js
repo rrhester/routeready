@@ -7479,12 +7479,20 @@ window.addEventListener("focus", () => {
     renderPinnedDashboard();
     if (typeof loadDashboardTasks === "function") loadDashboardTasks();
     if (typeof loadDashboardWeather === "function") loadDashboardWeather();
+    if (typeof loadTodayPlan === "function") loadTodayPlan();
   }
 });
 
-// Initial load: if the dashboard is the active view at boot, populate the tasks card.
+// Initial load: if the dashboard is the active view at boot, populate
+// the tasks card AND the Today's Plan body.  Without the loadTodayPlan
+// kick the page sat on the static "Loading today's plan…" placeholder
+// until the operator clicked the Today nav explicitly.
 if (document.querySelector(".view.active")?.id === "view-dashboard") {
-  setTimeout(() => { loadDashboardTasks?.(); loadDashboardWeather?.(); }, 0);
+  setTimeout(() => {
+    loadDashboardTasks?.();
+    loadDashboardWeather?.();
+    if (typeof loadTodayPlan === "function") loadTodayPlan();
+  }, 0);
 }
 
 // Initial render on load.
