@@ -1717,14 +1717,16 @@ const _ATT_DEFAULT_POLICY = {
   // recommendation on the very first NCNS, regardless of count.
   ncns_terminates: false,
   progressive_coaching: true,
-  // Auto-coaching actions fired on Approve from the daily tool. Pick
-  // any combination — empty array means coaching is fully manual.
-  //   "message"      — in-app DM to the driver
-  //   "notification" — push notification (handled by send-driver-push)
-  //   "coach_drawer" — pending coaching row for the leader to finalize
-  //                    from the coaching drawer (the message + push,
-  //                    when also selected, fire on finalize)
-  auto_coaching_actions: [],
+  // Auto-coaching: master toggle + per-level toggles.  When the master
+  // is ON and the per-level toggle for the recommended action is also
+  // ON, hitting Approve on the daily tool fires the coaching record
+  // and DMs the driver immediately.  Anything not auto-fired drops
+  // into the coaching drawer for the leader to finalize.  Termination
+  // is never auto — final-step decisions always need a human signoff.
+  auto_coaching:    false,
+  auto_verbal:      false,
+  auto_written:     false,
+  auto_final:       false,
   // First-30-days strict rule: any callout/no-show inside the
   // probationary window jumps the driver straight to Action.
   first_30_strict: false,
@@ -1741,15 +1743,9 @@ function _getAttPolicy() {
   delete merged.points_per_tardy;
   delete merged.points_per_callout;
   delete merged.points_per_noshow;
-  if (typeof merged.auto_coaching_actions === "string")
-    merged.auto_coaching_actions = [merged.auto_coaching_actions];
-  if (!Array.isArray(merged.auto_coaching_actions))
-    merged.auto_coaching_actions = [];
-  // Legacy boolean → migrate to message action so existing DSPs keep
-  // their previous behavior.
-  if (p.auto_coaching === true && merged.auto_coaching_actions.length === 0)
-    merged.auto_coaching_actions = ["message"];
-  delete merged.auto_coaching;
+  // Drop any old multi-action records — the model is now master toggle
+  // + per-level toggles.
+  delete merged.auto_coaching_actions;
   return merged;
 }
 
@@ -1847,14 +1843,28 @@ async function loadAttendancePolicy() {
       </label>
     </div>
 
-    <!-- Progressive coaching + auto-coaching -->
+    <!-- Coaching style + auto-coaching -->
     <div class="pol-section">
       <h3 class="pol-section-title">Coaching style</h3>
-      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold, and what happens when an operator hits Approve on the daily attendance card.</p>
+      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold, and which levels of coaching fire automatically when a leader hits Approve on the daily attendance card.</p>
       ${toggleRow("progressive_coaching", "Use progressive coaching steps",
         "When ON the recommended action escalates: <strong>Verbal</strong> coaching at the Warn threshold → <strong>Written</strong> warning at Action → <strong>Final</strong> written warning on a repeat → <strong>Termination</strong>.  Documents the conversation each time so an unemployment claim has a paper trail.<br>When OFF the dashboard recommends a single Coach action at Warn and a single Write-up at Action.")}
       ${toggleRow("auto_coaching", "Auto-coach when an event is approved",
-        "When ON, hitting <strong>Approve</strong> on the daily attendance card automatically (a) writes a coaching record to the driver's file with the event date and operator notes, and (b) sends the driver an in-app message explaining what was logged and why.<br>When OFF, the event still counts toward attendance but coaching is manual — the attendance report flags the row as <em>Coaching pending</em> until a leader files it themselves.")}
+        "When ON, approving an event on the daily attendance card automatically logs the coaching to the driver's record and DMs them in the RouteReady app.  Pick which levels auto-fire below — anything you don't auto-fire drops into the coaching drawer for a leader to finalize manually.<br>When OFF, every approved event drops into the coaching drawer regardless of level.")}
+
+      <!-- Per-level auto-approval (only meaningful when auto_coaching is ON) -->
+      <div id="rr-att-auto-levels" style="margin-top:6px;border-top:1px solid var(--border);padding-top:10px;${p.auto_coaching ? "" : "opacity:.45;pointer-events:none"}">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Levels that auto-fire</div>
+        ${toggleRow("auto_verbal",  "Verbal warnings auto-fire",
+          "When the recommended action is a <strong>Verbal</strong> coaching, fire it without leader review.")}
+        ${toggleRow("auto_written", "Written warnings auto-fire",
+          "When the recommended action is a <strong>Written</strong> warning, fire it without leader review.")}
+        ${toggleRow("auto_final",   "Final written warnings auto-fire",
+          "When the recommended action is a <strong>Final</strong> written warning, fire it without leader review.")}
+        <div style="font-size:11px;color:var(--text-subtle);padding:8px 0 0;line-height:1.5">
+          <strong>Termination is never auto-approved.</strong>  A leader always confirms a termination from the coaching drawer.
+        </div>
+      </div>
     </div>
 
     <!-- Auto-coaching actions on Approve -->
@@ -1890,6 +1900,9 @@ async function loadAttendancePolicy() {
       <button class="btn btn-primary" type="button" id="rr-att-policy-save">Save policy</button>
       <span id="rr-att-policy-status" style="font-size:12px;color:var(--text-subtle)"></span>
     </div>`;
+
+  // Apply the cascading disable rules now that the DOM is in place.
+  _rrApplyPolicyDisabledStates();
 }
 
 document.addEventListener("click", async (e) => {
@@ -1949,6 +1962,45 @@ document.addEventListener("click", async (e) => {
     toast("Attendance policy saved", "success");
     // Refresh report tab to use the new thresholds.
     if (typeof loadAttendanceLive === "function") loadAttendanceLive();
+  }
+});
+
+// Live enable/disable behavior on the policy builder.  Two cascading
+// rules:
+//   1. Master "Attendance policy" toggle off → grey out every other
+//      input on the page (operator can't tweak rules that aren't
+//      running).
+//   2. "Auto-coach when an event is approved" off → grey out the per-
+//      level toggles so it's clear they have no effect.
+function _rrApplyPolicyDisabledStates() {
+  const pane = document.getElementById("att-pane-policy");
+  if (!pane) return;
+
+  const masterEl = pane.querySelector('[data-rr-att-field-bool="policy_enabled"]');
+  const policyEnabled = masterEl ? !!masterEl.checked : true;
+
+  // Dim the whole page when the policy is off, except the master row.
+  pane.querySelectorAll(".pol-section").forEach((sec, i) => {
+    if (i === 0) return; // first section holds the master toggle
+    sec.style.opacity       = policyEnabled ? ""    : "0.45";
+    sec.style.pointerEvents = policyEnabled ? ""    : "none";
+  });
+
+  // Within Coaching style, grey out the level toggles when the
+  // auto_coaching master is off (or the whole policy is off).
+  const autoEl  = pane.querySelector('[data-rr-att-field-bool="auto_coaching"]');
+  const autoOn  = autoEl ? !!autoEl.checked : false;
+  const levels  = document.getElementById("rr-att-auto-levels");
+  if (levels) {
+    const off = !policyEnabled || !autoOn;
+    levels.style.opacity       = off ? "0.45" : "";
+    levels.style.pointerEvents = off ? "none" : "";
+  }
+}
+document.addEventListener("change", (e) => {
+  const f = e.target?.dataset?.rrAttFieldBool;
+  if (f === "policy_enabled" || f === "auto_coaching") {
+    _rrApplyPolicyDisabledStates();
   }
 });
 
@@ -2322,24 +2374,35 @@ async function _renderTpDailyTool(flagged) {
     return { label: "Good standing", tone: "var(--green)" };
   };
 
-  const recommend = (outcome, nAfter) => {
-    if (policy.policy_enabled === false) return "Logged · policy is off";
-    // NCNS-terminates short-circuits the ladder for the very first NCNS.
-    if (outcome === "ncns" && policy.ncns_terminates) {
-      return "Termination · NCNS auto-escalation";
-    }
+  // Compute the coaching level (verbal / written / final / termination /
+  // none) that applies to this row.  Drives both the "Next:" label and
+  // the auto-fire decision when the leader hits Approve.
+  const levelFor = (outcome, nAfter) => {
+    if (policy.policy_enabled === false) return null;
+    if (outcome === "ncns" && policy.ncns_terminates) return "termination";
     const prog = !!policy.progressive_coaching;
-    if (nAfter >= policy.threshold_action) {
-      return prog ? "Final written warning · 1 step before termination"
-                  : "Issue write-up + final warning";
-    }
-    if (nAfter >= policy.threshold_warn) {
-      return prog ? "Verbal coaching · log conversation"
-                  : "Coach + log warning";
-    }
+    if (nAfter >= policy.threshold_action) return prog ? "final" : "written";
+    if (nAfter >= policy.threshold_warn)   return prog ? "verbal" : "verbal";
+    return null;
+  };
+  const recommend = (outcome, level) => {
+    if (policy.policy_enabled === false) return "Logged · policy is off";
+    if (level === "termination") return "Termination · review &amp; confirm";
+    if (level === "final")       return "Final written warning · 1 step before termination";
+    if (level === "written")     return "Written warning · log conversation";
+    if (level === "verbal")      return "Verbal coaching · log conversation";
     if (outcome === "ncns")  return "Confirm no-call / no-show";
     if (outcome === "tardy") return "Note tardy · no formal action";
     return "Acknowledge missed day";
+  };
+  const willAutoFire = (level) => {
+    if (!level || level === "termination") return false;
+    if (policy.policy_enabled === false) return false;
+    if (!policy.auto_coaching) return false;
+    if (level === "verbal"  && policy.auto_verbal)  return true;
+    if (level === "written" && policy.auto_written) return true;
+    if (level === "final"   && policy.auto_final)   return true;
+    return false;
   };
 
   const counted = (outcome) =>
@@ -2351,8 +2414,10 @@ async function _renderTpDailyTool(flagged) {
     const before = occMap.get(r.driver_id) || 0;
     const add = (policy.policy_enabled !== false && counted(r.computed_outcome)) ? 1 : 0;
     const after = before + add;
+    const lvl = levelFor(r.computed_outcome, after);
+    const auto = willAutoFire(lvl);
     const st  = standing(after);
-    const rec = recommend(r.computed_outcome, after);
+    const rec = recommend(r.computed_outcome, lvl);
     const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
     const tone = _RR_OUTCOME_TONE[r.computed_outcome] || _RR_OUTCOME_TONE.waiting;
     const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
@@ -2369,7 +2434,7 @@ async function _renderTpDailyTool(flagged) {
         </div>
         <div style="min-width:0">
           <div style="font-size:12px;color:var(--text)"><strong>${after} occ${after === 1 ? "" : "s"}</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
-          <div style="font-size:11px;color:var(--text-subtle)">Next: ${escapeHtml(rec)}</div>
+          <div style="font-size:11px;color:var(--text-subtle)">Next: ${rec}${auto ? " · auto-fires on Approve" : ""}</div>
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-sm btn-primary"
@@ -2377,26 +2442,34 @@ async function _renderTpDailyTool(flagged) {
                   data-shift-id="${escapeHtml(r.shift_id)}"
                   data-outcome="${escapeHtml(r.computed_outcome)}"
                   data-driver-name="${escapeHtml(r.driver_name)}"
+                  data-level="${escapeHtml(lvl || '')}"
+                  data-auto-fire="${auto ? '1' : '0'}"
                   type="button">Approve</button>
           <button class="btn btn-sm"
                   data-rr-tp-deny="1"
                   data-shift-id="${escapeHtml(r.shift_id)}"
                   data-outcome="${escapeHtml(r.computed_outcome)}"
                   data-driver-name="${escapeHtml(r.driver_name)}"
+                  data-level="${escapeHtml(lvl || '')}"
                   type="button">Decline</button>
         </div>
       </div>`;
   }).join("");
 
-  const acts = Array.isArray(policy.auto_coaching_actions) ? policy.auto_coaching_actions : [];
-  const labels = {
-    message:      "in-app message",
-    notification: "push notification",
-    coach_drawer: "coach-drawer pending action",
-  };
-  const autoCoachNote = acts.length === 0
-    ? "Auto-coaching is OFF — approved events count toward attendance, but coaching must be filed manually."
-    : "Approve fires: " + acts.map(a => labels[a] || a).join(" + ") + ".";
+  // Footer summary — what happens on Approve given the operator's
+  // current Coaching style settings.
+  let autoCoachNote;
+  if (!policy.auto_coaching) {
+    autoCoachNote = "Auto-coaching is OFF — approved events count toward attendance and drop into the coaching drawer for manual review.";
+  } else {
+    const levels = [];
+    if (policy.auto_verbal)  levels.push("verbal");
+    if (policy.auto_written) levels.push("written");
+    if (policy.auto_final)   levels.push("final");
+    autoCoachNote = levels.length === 0
+      ? "Auto-coaching is ON but no levels are set to auto-fire — every approval still routes through the coaching drawer."
+      : "Auto-fires for: " + levels.join(", ") + ".  Other levels (and any termination) drop into the coaching drawer.";
+  }
 
   toolEl.innerHTML = `${head(flagged.length)}${rows}
     <div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;color:var(--text-subtle)">
@@ -2434,11 +2507,16 @@ document.addEventListener("click", async (e) => {
   const btnCell = btn.parentElement;
   btnCell.innerHTML = `<span style="font-size:11px;color:var(--text-subtle)">Saving…</span>`;
 
+  const level    = btn.dataset.level || null;
+  const autoFire = btn.dataset.autoFire === "1";
+
   const { data, error } = await sb.rpc("attendance_decide", {
-    p_shift_id: shiftId,
-    p_outcome:  outcome,
-    p_decision: ap ? "approve" : "deny",
-    p_notes:    notes,
+    p_shift_id:  shiftId,
+    p_outcome:   outcome,
+    p_decision:  ap ? "approve" : "deny",
+    p_notes:     notes,
+    p_auto_fire: ap ? autoFire : false,
+    p_level:     level,
   });
 
   if (error) {
@@ -2451,11 +2529,9 @@ document.addEventListener("click", async (e) => {
   const tone = ap ? "var(--green)" : "var(--text-subtle)";
   row.style.opacity = "0.55";
   btnCell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
-  const fired = data?.actions || {};
   const tailParts = [];
-  if (fired.message)      tailParts.push("driver messaged");
-  if (fired.notification) tailParts.push("push sent");
-  if (fired.coach_drawer) tailParts.push("coach drawer queued");
+  if (data?.auto_fired) tailParts.push("driver coached");
+  else if (ap)          tailParts.push("queued for coaching drawer");
   const tail = tailParts.length ? " · " + tailParts.join(" · ") : "";
   toast(`${verb}${tail}`, "success");
 });
