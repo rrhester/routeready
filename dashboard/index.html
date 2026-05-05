@@ -5612,15 +5612,31 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
         <div class="dr-subview" id="dr-sub-attendance">
 
-          <!-- Tab strip: Report · Policy · Log -->
+          <!-- Tab strip: Today · History · Report · Policy · Log -->
           <div class="att-tabstrip">
-            <button class="att-tab active" data-att="report" onclick="attTab('report')">Report</button>
+            <button class="att-tab active" data-att="today" onclick="attTab('today')">Today</button>
+            <button class="att-tab" data-att="history" onclick="attTab('history')">History</button>
+            <button class="att-tab" data-att="report" onclick="attTab('report')">Report</button>
             <button class="att-tab" data-att="policy" onclick="attTab('policy')">Policy builder</button>
             <button class="att-tab" data-att="log" onclick="attTab('log')">Event log <span id="att-log-count" style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
           </div>
 
+          <!-- ─── TODAY PANE ──────────────────────────────────── -->
+          <div class="att-pane active" id="att-pane-today">
+            <div id="rr-today-shell">
+              <div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">Loading today's roster…</div>
+            </div>
+          </div>
+
+          <!-- ─── HISTORY PANE ────────────────────────────────── -->
+          <div class="att-pane" id="att-pane-history">
+            <div id="rr-att-history-shell">
+              <div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">Loading attendance history…</div>
+            </div>
+          </div>
+
           <!-- ─── REPORT PANE ─────────────────────────────────── -->
-          <div class="att-pane active" id="att-pane-report">
+          <div class="att-pane" id="att-pane-report">
 
             <div class="di-grid" style="margin-bottom:var(--s-4)">
               <div class="di-card">
@@ -7002,6 +7018,31 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           </div>
 
           <div class="rules-grid">
+
+            <details class="rules-section" data-rr-rules-section="attendance-windows" style="grid-column:1/-1">
+              <summary class="rules-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Attendance windows · check-in, tardy, no-show
+              </summary>
+              <div style="font-size:12px;color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                Drivers can check in this many minutes before their shift starts. After the shift starts, the grace window decides when they're marked tardy; past the no-show window without a check-in or a reported missed-day, they're marked NCNS.
+              </div>
+              <div id="rr-att-windows" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Check-in opens (min before)</label>
+                  <input type="number" id="rr-att-lead" min="0" max="120" value="15" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Tardy after (min past start)</label>
+                  <input type="number" id="rr-att-grace" min="0" max="120" value="10" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">NCNS after (min past start)</label>
+                  <input type="number" id="rr-att-ncns" min="0" max="720" value="60" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+                </div>
+                <button class="btn btn-sm btn-primary" id="rr-att-windows-save">Save</button>
+              </div>
+            </details>
 
             <details class="rules-section" data-rr-rules-section="geofence" style="grid-column:1/-1">
               <summary class="rules-section-title">
