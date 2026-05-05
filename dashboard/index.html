@@ -4931,16 +4931,34 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
         <div class="toolbar">
           <div class="toolbar-left">
-            <span class="filter-chip">Station: All</span>
-            <span class="filter-chip">Tenure: All</span>
-            <span class="filter-chip">Score: All</span>
+            <select class="filter-chip" id="rr-roster-station"><option value="">Station: All</option></select>
+            <select class="filter-chip" id="rr-roster-tenure">
+              <option value="">Tenure: All</option>
+              <option value="0-30">0–30 days</option>
+              <option value="31-90">31–90 days</option>
+              <option value="91-365">91–365 days</option>
+              <option value="365+">1+ years</option>
+            </select>
+            <select class="filter-chip" id="rr-roster-score">
+              <option value="">Score: All</option>
+              <option value="0-69">Below 70</option>
+              <option value="70-84">70–84</option>
+              <option value="85+">85 or higher</option>
+              <option value="none">No score yet</option>
+            </select>
           </div>
           <div class="toolbar-right">
-            <span class="filter-chip">Sort: Score (low → high)</span>
+            <select class="filter-chip" id="rr-roster-sort">
+              <option value="score-asc">Sort: Score (low → high)</option>
+              <option value="score-desc">Sort: Score (high → low)</option>
+              <option value="name">Sort: Name (A → Z)</option>
+              <option value="tenure-desc">Sort: Tenure (longest)</option>
+              <option value="tenure-asc">Sort: Tenure (newest hire)</option>
+            </select>
           </div>
         </div>
 
-        <div class="table-wrap">
+        <div class="table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
           <table class="table">
             <thead>
               <tr>
@@ -16105,7 +16123,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505c7"></script>
+<script type="module" src="./live.js?v=20260505c8"></script>
 
 </body>
 </html>
