@@ -192,9 +192,10 @@ const routes = {
   "/tasks/checklist":   { render: renderChecklists,      tab: "/tasks", back: "/tasks", title: "Today's checklists" },
   "/tasks/forms":       { render: renderForms,           tab: "/tasks", back: "/tasks", title: "Forms" },
   "/tasks/timeoff":     { render: renderTimeOff,         tab: "/tasks", back: "/tasks", title: "Request time off" },
+  "/tasks/availability":{ render: renderAvailability,    tab: "/tasks", back: "/tasks", title: "Availability" },
+  "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
-  "/profile/availability": { render: renderAvailability, tab: "/profile", back: "/profile", title: "Availability" },
   "/profile/documents": { render: renderDocuments,       tab: "/profile", back: "/profile", title: "Documents" },
 };
 function currentRoute() {
@@ -466,6 +467,10 @@ function renderTasksHub() {
   // v1: hard-coded status. PR 3+ replaces with real DVIR/checklist
   // completion records.
   const cards = [
+    { route: "/tasks/availability", title: "Availability",     sub: "Days you can work · subject to approval", status: null,
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
+    { route: "/tasks/attendance",   title: "Attendance",       sub: "Today's status · attendance policy",     status: null,
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11h6"/><path d="M9 7h6"/><path d="M9 15h4"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>' },
     { route: "/tasks/dvir-pre",  title: "Pre-trip inspection",  sub: "DVIR · required before each shift",  status: "Required",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' },
     { route: "/tasks/dvir-post", title: "Post-trip inspection", sub: "DVIR · log defects after the route",  status: "After shift",
@@ -652,8 +657,6 @@ function renderProfileHub() {
   setHeader("Profile", "Your info");
   const main = document.getElementById("main");
   const cards = [
-    { route: "/profile/availability", title: "Availability",   sub: "Days you can work",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
     { route: "/profile/documents",    title: "Documents",      sub: "DL · DOT · insurance · uploads",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' },
   ];
@@ -709,7 +712,13 @@ function renderProfileHub() {
   });
 }
 
-// ── Check-in card on the Profile page ──────────────────────────────
+// ── Check-in / check-out / report missed day on the Profile page ─────
+//
+// One card, three states:
+//   1. Before window: "Opens 9:45 AM · check in · report missed day"
+//   2. In window, not checked in: same buttons, but Check in is enabled
+//   3. Checked in: "Checked in · 8:42 AM" + "Check out" button
+// Every action goes through confirm() so a stray tap doesn't fire it.
 async function renderCheckinCard(session) {
   const slot = document.getElementById("rr-checkin-slot");
   if (!slot) return;
@@ -735,21 +744,56 @@ async function renderCheckinCard(session) {
     ? new Date(shift.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : "—";
   const stationCode = shift.station_code || "—";
+  const windowOpenTxt = shift.window_open_at
+    ? new Date(shift.window_open_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : "—";
 
   const chk = status?.checkin;
-  if (chk?.checked_in_at) {
-    const t = new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+  // Already missed-day reported.
+  if (chk?.missed_reported_at && !chk?.checked_in_at) {
+    const t = new Date(chk.missed_reported_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     slot.innerHTML = `
-      <div class="checkin-row checked-in">
+      <div class="checkin-row missed">
         <div>
-          <div class="checkin-title">Checked in · ${escapeHtml(t)}</div>
-          <div class="checkin-sub">${escapeHtml(stationCode)} · today's shift starts ${escapeHtml(startsAtTxt)}</div>
+          <div class="checkin-title">Reported missed day · ${escapeHtml(t)}</div>
+          <div class="checkin-sub">${chk.missed_reason ? escapeHtml(chk.missed_reason) : "Your dispatcher has been notified."}</div>
         </div>
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>`;
     return;
   }
 
+  // Already checked in — show check-out button (or already checked out).
+  if (chk?.checked_in_at) {
+    const inT  = new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    if (chk.checked_out_at) {
+      const outT = new Date(chk.checked_out_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      slot.innerHTML = `
+        <div class="checkin-row checked-in">
+          <div>
+            <div class="checkin-title">Shift complete · ${escapeHtml(outT)}</div>
+            <div class="checkin-sub">In ${escapeHtml(inT)} · out ${escapeHtml(outT)}</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>`;
+      return;
+    }
+    slot.innerHTML = `
+      <div class="checkin-row checked-in">
+        <div>
+          <div class="checkin-title">Checked in · ${escapeHtml(inT)}</div>
+          <div class="checkin-sub">${escapeHtml(stationCode)} · shift started ${escapeHtml(startsAtTxt)}</div>
+        </div>
+      </div>
+      <button class="checkin-btn checkin-btn-secondary" id="rr-checkout-btn" type="button">
+        Check out
+        <span class="checkin-meta">Tap when your shift ends</span>
+      </button>`;
+    document.getElementById("rr-checkout-btn").addEventListener("click", () => doCheckout(session));
+    return;
+  }
+
+  // Not checked in. Show check-in (gated by window) + missed-day button.
   if (!shift.has_geofence) {
     slot.innerHTML = `
       <div class="checkin-row">
@@ -757,33 +801,50 @@ async function renderCheckinCard(session) {
           <div class="checkin-title">Check-in unavailable</div>
           <div class="checkin-sub">Your dispatcher hasn't set the geofence for ${escapeHtml(stationCode)} yet.</div>
         </div>
-      </div>`;
+      </div>
+      <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">
+        Report missed day
+        <span class="checkin-meta">Let dispatch know you can't make it</span>
+      </button>`;
+    document.getElementById("rr-missed-btn").addEventListener("click", () => doMissedDay(session));
     return;
   }
 
+  const windowOpen = !!status.window_is_open;
+  const lead       = Number(shift.checkin_lead_minutes ?? 15);
+  const primary    = windowOpen
+    ? `<button class="checkin-btn" id="rr-checkin-btn" type="button">
+         Check in for shift
+         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startsAtTxt)}</span>
+       </button>`
+    : `<button class="checkin-btn" id="rr-checkin-btn" type="button" disabled>
+         Check in opens at ${escapeHtml(windowOpenTxt)}
+         <span class="checkin-meta">Up to ${lead} minutes before shift · ${escapeHtml(startsAtTxt)}</span>
+       </button>`;
+
   slot.innerHTML = `
-    <button class="checkin-btn" id="rr-checkin-btn" type="button">
-      Check in for shift
-      <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startsAtTxt)}</span>
+    ${primary}
+    <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">
+      Report missed day
+      <span class="checkin-meta">Let dispatch know you can't make it</span>
     </button>
     <div class="checkin-policy">Must be at the station to check in.</div>`;
 
-  document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
+  if (windowOpen) {
+    document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
+  }
+  document.getElementById("rr-missed-btn").addEventListener("click", () => doMissedDay(session));
 }
 
 async function doCheckin(session) {
+  if (!confirm("Check in for your shift now?")) return;
   const btn = document.getElementById("rr-checkin-btn");
   if (!btn) return;
-  if (!("geolocation" in navigator)) {
-    toast("This device can't share location", "warn");
-    return;
-  }
+  if (!("geolocation" in navigator)) { toast("This device can't share location", "warn"); return; }
   btn.disabled = true;
   const orig = btn.innerHTML;
   btn.innerHTML = "Locating…";
 
-  // High-accuracy GPS, 10s timeout. iOS sometimes serves a cached coarse
-  // position; maximumAge:0 forces a fresh fix.
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
     btn.innerHTML = "Checking in…";
@@ -797,15 +858,11 @@ async function doCheckin(session) {
     btn.innerHTML = orig;
     if (error) {
       const msg = error.message || "";
-      if (msg.includes("out_of_geofence")) {
-        toast(msg.replace(/^.*out_of_geofence:\s*/, "Too far from station: "), "warn");
-      } else if (msg.includes("no_shift_today")) {
-        toast("No shift scheduled today", "warn");
-      } else if (msg.includes("geofence_not_configured")) {
-        toast("Dispatcher hasn't set the geofence yet", "warn");
-      } else {
-        toast("Check-in failed: " + msg, "warn");
-      }
+      if      (msg.includes("out_of_geofence"))         toast(msg.replace(/^.*out_of_geofence:\s*/, "Too far from station: "), "warn");
+      else if (msg.includes("too_early_to_checkin"))    toast(msg.replace(/^.*too_early_to_checkin:\s*/, ""), "warn");
+      else if (msg.includes("no_shift_today"))          toast("No shift scheduled today", "warn");
+      else if (msg.includes("geofence_not_configured")) toast("Dispatcher hasn't set the geofence yet", "warn");
+      else                                              toast("Check-in failed: " + msg, "warn");
       return;
     }
     toast(data?.already_checked_in ? "Already checked in" : "Checked in ✓", "ok");
@@ -813,12 +870,55 @@ async function doCheckin(session) {
   }, (err) => {
     btn.disabled = false;
     btn.innerHTML = orig;
-    if (err.code === err.PERMISSION_DENIED) {
-      toast("Allow location to check in", "warn");
-    } else {
-      toast("Couldn't get location: " + err.message, "warn");
-    }
+    if (err.code === err.PERMISSION_DENIED) toast("Allow location to check in", "warn");
+    else toast("Couldn't get location: " + err.message, "warn");
   }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+}
+
+async function doCheckout(session) {
+  if (!confirm("Check out for your shift?")) return;
+  const btn = document.getElementById("rr-checkout-btn");
+  if (btn) btn.disabled = true;
+  // Geolocation is best-effort on check-out; we don't gate.
+  const submit = async (lat, lng) => {
+    const { error } = await sb.rpc("driver_checkout", {
+      p_token: session.token, p_lat: lat ?? null, p_lng: lng ?? null,
+    });
+    if (btn) btn.disabled = false;
+    if (error) { toast("Check-out failed: " + error.message, "warn"); return; }
+    toast("Checked out ✓", "ok");
+    renderCheckinCard(session);
+  };
+  if (!("geolocation" in navigator)) { submit(); return; }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => submit(pos.coords.latitude, pos.coords.longitude),
+    () => submit(),
+    { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 },
+  );
+}
+
+async function doMissedDay(session) {
+  const reason = prompt(
+    "Report today as a missed day?\n\nDispatch will be notified. Optional reason:",
+    "",
+  );
+  if (reason === null) return; // cancelled
+  const { error } = await sb.rpc("driver_report_missed_day", {
+    p_token: session.token,
+    p_reason: reason,
+  });
+  if (error) {
+    if ((error.message || "").includes("already_checked_in")) {
+      toast("You're already checked in", "warn");
+    } else if ((error.message || "").includes("no_shift_today")) {
+      toast("No shift scheduled today", "warn");
+    } else {
+      toast("Couldn't report: " + error.message, "warn");
+    }
+    return;
+  }
+  toast("Reported · dispatch has been notified", "ok");
+  renderCheckinCard(session);
 }
 
 async function uploadDriverPhoto(file) {
@@ -881,118 +981,67 @@ async function renderAvailability() {
     return;
   }
 
-  // The toggle state shows the driver's "intended" availability — which
-  // is the pending request if there is one, otherwise the live approved
-  // set. Either way, every flip submits a new pending request.
   const liveDays    = new Set(Array.isArray(data?.days) ? data.days : []);
   const pendingDays = data?.pending?.days ? new Set(data.pending.days) : null;
   const picked      = new Set(pendingDays || liveDays);
 
-  const lastDecision = data?.last_decision || null;
-  const hasPending   = !!data?.pending;
-  const blackout     = data?.blackout || null;
-  const leadDays     = Number(data?.lead_days ?? 7);
+  const hasPending = !!data?.pending;
+  const blackout   = data?.blackout || null;
+  const leadDays   = Number(data?.lead_days ?? 7);
 
-  function statusBannerHtml() {
-    if (blackout) {
-      return `<div class="avail-banner denied">
-        <div class="avail-banner-title">Submissions paused${blackout.reason ? " · " + escapeHtml(blackout.reason) : ""}</div>
-        <div class="avail-banner-sub">Availability changes are blocked through ${escapeHtml(_fmtAvailDate(blackout.end_date))}. Toggles below are read-only until then.</div>
-      </div>`;
-    }
-    if (hasPending) {
-      return `<div class="avail-banner pending">
-        <div class="avail-banner-title">Request pending review</div>
-        <div class="avail-banner-sub">Your dispatcher will approve or deny this. The current schedule keeps your last approved availability until then.</div>
-      </div>`;
-    }
-    if (lastDecision?.status === "approved" && lastDecision.effective_until) {
-      const fromTxt = lastDecision.effective_from ? ` from ${_fmtAvailDate(lastDecision.effective_from)}` : "";
-      return `<div class="avail-banner approved">
-        <div class="avail-banner-title">Approved${escapeHtml(fromTxt)} through ${escapeHtml(_fmtAvailDate(lastDecision.effective_until))}</div>
-        <div class="avail-banner-sub">Flip a toggle to request a change.</div>
-      </div>`;
-    }
-    if (lastDecision?.status === "denied") {
-      const note = lastDecision.decision_note ? ` · "${lastDecision.decision_note}"` : "";
-      return `<div class="avail-banner denied">
-        <div class="avail-banner-title">Last request was denied${escapeHtml(note)}</div>
-        <div class="avail-banner-sub">Flip a toggle to submit a new request.</div>
-      </div>`;
-    }
-    return `<div class="avail-banner neutral">
-      <div class="avail-banner-title">Set your weekly availability</div>
-      <div class="avail-banner-sub">Flip the days you can work. Your dispatcher will review and approve.</div>
-    </div>`;
-  }
+  // Lock toggles when there's a blackout OR a pending request waiting
+  // for approval. Either way the user can't submit a new one anyway.
+  const locked = !!blackout || hasPending;
 
   const rowsHtml = _AVAIL_DAYS.map((d) => {
     const on = picked.has(d.k);
     return `
-      <label class="avail-day" for="avail-tog-${d.k}" ${blackout ? `style="opacity:.5;pointer-events:none"` : ""}>
+      <label class="avail-day" for="avail-tog-${d.k}" ${locked ? `style="opacity:.55;pointer-events:none"` : ""}>
         <span class="avail-day-name">${escapeHtml(d.fullLabel)}</span>
         <span class="avail-toggle ${on ? "on" : ""}">
-          <input type="checkbox" id="avail-tog-${d.k}" data-rr-day="${d.k}" ${on ? "checked" : ""} ${blackout ? "disabled" : ""}/>
+          <input type="checkbox" id="avail-tog-${d.k}" data-rr-day="${d.k}" ${on ? "checked" : ""} ${locked ? "disabled" : ""}/>
           <span class="avail-toggle-track"><span class="avail-toggle-thumb"></span></span>
         </span>
       </label>`;
   }).join("");
 
   const policyText = leadDays > 0
-    ? `Approved availability changes go into effect <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval and are effective for <b>3 weeks</b>.`
-    : `Approved availability changes are effective immediately for <b>3 weeks</b>.`;
+    ? `Approved availability changes go into effect <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval and are effective for <b>3 weeks</b>. You'll be notified by message.`
+    : `Approved availability changes are effective immediately for <b>3 weeks</b>. You'll be notified by message.`;
+
+  // Banner only appears for the two states the driver can do something
+  // about: blackout (can't submit) and pending (waiting on approval).
+  // Approved/denied results land as a chat message instead — keeps the
+  // page clean once a decision is made.
+  let bannerHtml = "";
+  if (blackout) {
+    bannerHtml = `<div class="avail-banner denied">
+      <div class="avail-banner-title">Submissions paused${blackout.reason ? " · " + escapeHtml(blackout.reason) : ""}</div>
+      <div class="avail-banner-sub">Availability changes are blocked through ${escapeHtml(_fmtAvailDate(blackout.end_date))}.</div>
+    </div>`;
+  } else if (hasPending) {
+    bannerHtml = `<div class="avail-banner pending">
+      <div class="avail-banner-title">Request pending review</div>
+      <div class="avail-banner-sub">You'll get a message when your dispatcher decides.</div>
+    </div>`;
+  }
 
   main.innerHTML = `
     <div class="avail-page">
-      <div id="avail-banner-slot">${statusBannerHtml()}</div>
-
+      ${bannerHtml ? `<div id="avail-banner-slot">${bannerHtml}</div>` : ""}
       <section class="avail-list" id="avail-list">${rowsHtml}</section>
-
+      <button class="checkin-btn" id="avail-submit" type="button" ${locked ? "disabled" : ""}>
+        Submit availability
+        <span class="checkin-meta">${locked ? "Pending or paused" : "Subject to dispatcher approval"}</span>
+      </button>
       <div class="avail-policy">${policyText}</div>
     </div>`;
 
   const listEl   = document.getElementById("avail-list");
-  const bannerEl = document.getElementById("avail-banner-slot");
+  const submitEl = document.getElementById("avail-submit");
 
-  // Submit on every flip, debounced so rapid taps coalesce into one
-  // server round-trip. Optimistic UI: the toggle moves immediately;
-  // we only revert if the server rejects.
-  let _saveTimer = null;
-  let _saveSeq   = 0;
-  let _inFlight  = 0;
-
-  function submitNow() {
-    const seq = ++_saveSeq;
-    _inFlight++;
-    const days = _AVAIL_DAYS.filter((d) => picked.has(d.k)).map((d) => d.k);
-    sb.rpc("driver_submit_availability", { p_token: session.token, p_days: days })
-      .then(({ error }) => {
-        _inFlight--;
-        if (seq !== _saveSeq) return;
-        if (error) {
-          // Server-enforced blackout — re-render so the toggles lock and
-          // the banner switches; surface the reason in a toast.
-          if ((error.message || "").includes("availability_blackout")) {
-            const reason = error.message.replace(/^.*availability_blackout:\s*/, "");
-            toast("Submissions paused: " + reason, "warn");
-            renderAvailability();
-            return;
-          }
-          toast("Save failed: " + error.message, "warn");
-          return;
-        }
-        bannerEl.innerHTML = `<div class="avail-banner pending">
-          <div class="avail-banner-title">Request submitted · awaiting approval</div>
-          <div class="avail-banner-sub">Your dispatcher will approve or deny this. Current schedule stays on your last approved availability until then.</div>
-        </div>`;
-      })
-      .catch(() => { _inFlight--; });
-  }
-
-  // Expose the in-flight/save state on the window so the page-level
-  // focus listener (registered once at boot) can decide whether it's
-  // safe to re-render and pick up a fresh decision from the server.
-  window._rrAvailInFlight = () => _inFlight > 0 || _saveTimer != null;
+  let _inFlight = 0;
+  window._rrAvailInFlight = () => _inFlight > 0;
 
   listEl.addEventListener("change", (e) => {
     const cb = e.target.closest("input[data-rr-day]");
@@ -1000,8 +1049,37 @@ async function renderAvailability() {
     const dk = cb.dataset.rrDay;
     if (cb.checked) picked.add(dk); else picked.delete(dk);
     cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
-    if (_saveTimer) clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(submitNow, 350);
+  });
+
+  submitEl.addEventListener("click", async () => {
+    if (locked) {
+      if (hasPending) toast("You already have a pending request", "warn");
+      else if (blackout) toast("Submissions are paused right now", "warn");
+      return;
+    }
+    if (!confirm("Submit your availability for approval?")) return;
+
+    _inFlight++;
+    submitEl.disabled = true;
+    const days = _AVAIL_DAYS.filter((d) => picked.has(d.k)).map((d) => d.k);
+    const { error } = await sb.rpc("driver_submit_availability", {
+      p_token: session.token, p_days: days,
+    });
+    _inFlight--;
+    if (error) {
+      submitEl.disabled = false;
+      if ((error.message || "").includes("availability_blackout")) {
+        const reason = error.message.replace(/^.*availability_blackout:\s*/, "");
+        toast("Submissions paused: " + reason, "warn");
+      } else {
+        toast("Submit failed: " + error.message, "warn");
+      }
+      return;
+    }
+    toast("Submitted · subject to approval. We'll notify you.", "ok");
+    // Re-render so the page reflects the new pending state (toggles
+    // lock, button disables, banner shows the pending message).
+    renderAvailability();
   });
 }
 
@@ -1010,7 +1088,7 @@ async function renderAvailability() {
 // "pending" banner without a manual reload. Registered once at module
 // load; the inner guard keeps it cheap when on other routes.
 function _refreshAvailabilityIfActive() {
-  if (currentRoute() !== "/profile/availability") return;
+  if (currentRoute() !== "/tasks/availability") return;
   if (typeof window._rrAvailInFlight === "function" && window._rrAvailInFlight()) return;
   renderAvailability();
 }
@@ -1028,6 +1106,70 @@ function _fmtAvailDate(iso) {
 }
 
 // ── Documents ───────────────────────────────────────────────────────
+// ── Tasks → Attendance: today's status + the policy ────────────────
+async function renderAttendance() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const [statusRes, settingsRes] = await Promise.all([
+    sb.rpc("driver_checkin_status",       { p_token: session.token }),
+    sb.rpc("driver_attendance_settings",  { p_token: session.token }),
+  ]);
+
+  if (statusRes.error || settingsRes.error) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load attendance.<br><small>${escapeHtml((statusRes.error || settingsRes.error).message)}</small></div>`;
+    return;
+  }
+
+  const status   = statusRes.data || {};
+  const settings = settingsRes.data || {};
+  const lead     = Number(settings.checkin_lead_minutes ?? 15);
+  const grace    = Number(settings.tardy_grace_minutes  ?? 10);
+  const ncns     = Number(settings.ncns_after_minutes   ?? 60);
+
+  const shift = status.shift;
+  const chk   = status.checkin;
+
+  let statusLine, statusClass;
+  if (!shift) {
+    statusLine = "No shift scheduled today.";
+    statusClass = "neutral";
+  } else if (chk?.checked_out_at) {
+    statusLine = `Shift complete · checked out ${new Date(chk.checked_out_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+    statusClass = "approved";
+  } else if (chk?.checked_in_at) {
+    statusLine = `Checked in · ${new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+    statusClass = "approved";
+  } else if (chk?.missed_reported_at) {
+    statusLine = `Missed day reported · dispatch notified`;
+    statusClass = "denied";
+  } else {
+    statusLine = `Scheduled · shift starts ${shift.starts_at ? new Date(shift.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—"}`;
+    statusClass = "pending";
+  }
+
+  main.innerHTML = `
+    <div class="avail-page">
+      <div class="avail-banner ${statusClass}">
+        <div class="avail-banner-title">Today's status</div>
+        <div class="avail-banner-sub">${escapeHtml(statusLine)}</div>
+      </div>
+
+      <section class="avail-list" style="display:block;padding:14px 16px">
+        <div class="checkin-title" style="margin-bottom:8px">Attendance policy</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-muted);line-height:1.55">
+          <li>Check in opens <b>${lead} minute${lead === 1 ? "" : "s"}</b> before your shift starts. You must be at the station.</li>
+          <li>If you can't make it, tap <b>Report missed day</b> on your home screen so dispatch knows in advance.</li>
+          <li>If you haven't checked in by your shift start, you're marked <b>tardy</b> after a <b>${grace}-minute</b> grace.</li>
+          <li>If you still haven't checked in or reported by <b>${ncns} minute${ncns === 1 ? "" : "s"}</b> after your shift starts, it counts as a <b>no-call no-show</b>.</li>
+          <li>Check out from your home screen when your shift ends.</li>
+        </ul>
+      </section>
+    </div>`;
+}
+
 function renderDocuments() {
   document.getElementById("main").innerHTML = comingSoon(
     "Upload renewals when documents are about to expire.",

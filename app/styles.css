@@ -526,3 +526,24 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 .checkin-policy{
   text-align:center;font-size:11px;color:var(--text-subtle);margin-top:6px;
 }
+
+/* ── Check-in card · variants ───────────────────────────────── */
+.checkin-btn-secondary{
+  background:var(--surface);color:var(--accent);
+  border:1.5px solid var(--accent);
+  box-shadow:var(--shadow-sm);
+  margin-top:10px;
+}
+.checkin-btn-tertiary{
+  background:var(--canvas);color:var(--text-muted);
+  border:1px solid var(--border);
+  box-shadow:none;
+  margin-top:10px;
+  font-size:14px;
+}
+.checkin-btn-tertiary .checkin-meta{color:var(--text-subtle);font-weight:500}
+.checkin-row.missed{
+  background:#fef2f2;border-color:#fca5a5;
+}
+.checkin-row.missed .checkin-title{color:#991b1b}
+.checkin-row.missed .checkin-sub{color:#991b1b}
