@@ -1941,7 +1941,12 @@ async function loadTodayPlan() {
   }, 30000);
 
   // Render the skeleton FIRST so the page never sits on a single spinner.
-  if (shell.dataset.rrPlanShell !== "1") {
+  // Re-render whenever the expected IDs are missing — handles upgrading
+  // an open tab from an older live.js that wrote a different skeleton.
+  const skeletonOk = !!document.getElementById("rr-tp-waves")
+                  && !!document.getElementById("rr-tp-tool")
+                  && !!document.getElementById("rr-tp-extras");
+  if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
       <div id="rr-tp-waves"   style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px">
@@ -1967,27 +1972,36 @@ async function loadTodayPlan() {
 
   // Stale-while-revalidate: render last-known cached data instantly so
   // the page is filled in the same frame the operator clicks Today.
+  // Wrap in try/catch — if the cache shape from an earlier live.js
+  // doesn't match the new render code, we'd rather drop the cache than
+  // freeze the page on a "Loading…" placeholder.
   const cachedAtt  = _tpCacheRead(_TP_CACHE_KEYS.att);
   const cachedPlan = _tpCacheRead(_TP_CACHE_KEYS.plan);
-  if (cachedAtt)  _renderTpAttendance(cachedAtt,  null);
-  if (cachedPlan) _renderTpCoverage(cachedPlan,   null);
+  try { if (cachedAtt)  _renderTpAttendance(cachedAtt,  null); }
+  catch (e) { console.warn("today plan · stale attendance cache:", e); sessionStorage.removeItem(_TP_CACHE_KEYS.att); }
+  try { if (cachedPlan) _renderTpCoverage(cachedPlan,   null); }
+  catch (e) { console.warn("today plan · stale coverage cache:", e);   sessionStorage.removeItem(_TP_CACHE_KEYS.plan); }
 
   _refreshTodayPlanData();
 }
 
 async function _refreshTodayPlanData() {
   // Fire each RPC independently so a hang in one doesn't block the
-  // other. Each handler updates only its own region.
+  // other. Each handler updates only its own region.  Wrap the render
+  // in try/catch so a single bad row never wipes out the whole page —
+  // keep the page alive and surface the error inline instead.
   sb.rpc("today_attendance").then(({ data, error }) => {
     if (error) { _renderTpAttendance(null, error); return; }
     _tpCacheWrite(_TP_CACHE_KEYS.att, data);
-    _renderTpAttendance(data, null);
+    try { _renderTpAttendance(data, null); }
+    catch (e) { console.error("today plan · attendance render failed:", e); _renderTpAttendance(null, e); }
   }).catch(err => _renderTpAttendance(null, err));
 
   sb.rpc("today_plan").then(({ data, error }) => {
     if (error) { _renderTpCoverage(null, error); return; }
     _tpCacheWrite(_TP_CACHE_KEYS.plan, data);
-    _renderTpCoverage(data, null);
+    try { _renderTpCoverage(data, null); }
+    catch (e) { console.error("today plan · coverage render failed:", e); _renderTpCoverage(null, e); }
   }).catch(err => _renderTpCoverage(null, err));
 }
 
