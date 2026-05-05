@@ -13,7 +13,7 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-const SHELL_CACHE = "rr-app-shell-v9";
+const SHELL_CACHE = "rr-app-shell-v10";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -114,11 +114,25 @@ self.addEventListener("message", (event) => {
       self.navigator.clearAppBadge().catch(() => {});
     }
   } else if (data.type === "rr:clear-badge") {
-    if ("clearAppBadge" in self.navigator) {
-      self.navigator.clearAppBadge().catch(() => {});
-    }
+    event.waitUntil(clearBadgeAndNotifications(data.source));
   }
 });
+
+// On iOS the home-screen badge often won't drop while there are still
+// pending notifications in Notification Center for the PWA. Close them
+// all out, clear the Badging API count, and ack to the server so we can
+// confirm the SW handler actually fired.
+async function clearBadgeAndNotifications(source) {
+  let closed = 0;
+  try {
+    const ns = await self.registration.getNotifications();
+    for (const n of ns) { try { n.close(); closed++; } catch {} }
+  } catch {}
+  if ("clearAppBadge" in self.navigator) {
+    try { await self.navigator.clearAppBadge(); } catch {}
+  }
+  ackPush({ stage: "clear-badge", source: source || null, closed });
+}
 
 
 // ── Push handler ──
