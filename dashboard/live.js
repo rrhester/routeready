@@ -1810,11 +1810,12 @@ function renderLicenseRow(d) {
 const _legacyDrSub = window.drSub;
 window.drSub = function (sub) {
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
-  if (sub === "licenses")   loadDriverLicensesView();
-  if (sub === "roster")     loadDriversRoster();
-  if (sub === "attendance") loadAttendanceLive();
-  if (sub === "coaching")   loadCoachingFeed();
-  if (sub === "insights")   loadDriverInsights();
+  if (sub === "licenses")     loadDriverLicensesView();
+  if (sub === "roster")       loadDriversRoster();
+  if (sub === "attendance")   loadAttendanceLive();
+  if (sub === "coaching")     loadCoachingFeed();
+  if (sub === "insights")     loadDriverInsights();
+  if (sub === "availability") loadAvailabilityRequests();
   _swapDriversCta(sub);
 };
 
@@ -5404,6 +5405,107 @@ document.addEventListener("click", async (e) => {
 let _coachFeedCache = null; // { rows, drivers }
 
 const _COACH_SEV_RANK = { final: 0, warning: 1, concern: 2, info: 3 };
+
+// ─── Availability requests · approve/deny queue ──────────────────────
+const _AVAIL_DAY_LABELS = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+const _AVAIL_DAY_ORDER  = ["mon","tue","wed","thu","fri","sat","sun"];
+
+function _availDaysHtml(days, dim) {
+  const set = new Set(Array.isArray(days) ? days : []);
+  return _AVAIL_DAY_ORDER.map((k) => {
+    const on = set.has(k);
+    const bg = on ? "var(--accent)" : "var(--canvas)";
+    const fg = on ? "#fff" : "var(--text-subtle)";
+    const op = dim ? .55 : 1;
+    return `<span style="display:inline-block;min-width:32px;text-align:center;padding:3px 6px;border-radius:5px;background:${bg};color:${fg};font-size:11px;font-weight:600;opacity:${op}">${_AVAIL_DAY_LABELS[k]}</span>`;
+  }).join(" ");
+}
+
+function _fmtRel(iso) {
+  if (!iso) return "";
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+async function loadAvailabilityRequests() {
+  const wrap = document.getElementById("rr-avail-req-list");
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+
+  const { data, error } = await sb.rpc("availability_request_list");
+  if (error) {
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const rows = data || [];
+  _updateAvailReqBadge(rows.length);
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No pending availability requests.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = rows.map((r) => {
+    const same = JSON.stringify((r.days || []).slice().sort()) === JSON.stringify(((r.current_days || []).slice()).sort());
+    return `
+      <div class="avail-req-row" data-rr-req-id="${escapeHtml(r.id)}" style="padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:200px 1fr auto;gap:16px;align-items:center">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(r.driver_name || "")}</div>
+          <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(r.station_code || "—")} · submitted ${escapeHtml(_fmtRel(r.submitted_at))}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Requested</div>
+          <div>${_availDaysHtml(r.days, false)}</div>
+          ${same ? "" : `
+            <div style="font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Currently approved</div>
+            <div>${_availDaysHtml(r.current_days, true)}</div>
+          `}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
+          <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function _updateAvailReqBadge(count) {
+  const badge = document.getElementById("rr-avail-req-badge");
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = String(count);
+    badge.style.display = "inline-block";
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+document.addEventListener("click", async (e) => {
+  const approve = e.target.closest("[data-rr-avail-approve]");
+  const deny    = e.target.closest("[data-rr-avail-deny]");
+  if (!approve && !deny) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const id = (approve || deny).getAttribute(approve ? "data-rr-avail-approve" : "data-rr-avail-deny");
+  const note = deny ? (prompt("Note for the driver (optional):", "") || null) : null;
+  if (deny && note === null) return; // user hit cancel
+  const btn = approve || deny;
+  btn.disabled = true; btn.textContent = approve ? "Approving…" : "Denying…";
+  const { error } = await sb.rpc("availability_request_decide", {
+    p_request_id: id,
+    p_approve:    !!approve,
+    p_note:       note,
+  });
+  if (error) { toast("Failed: " + error.message, "warn"); btn.disabled = false; btn.textContent = approve ? "Approve" : "Deny"; return; }
+  toast(approve ? "Approved" : "Denied", "success");
+  loadAvailabilityRequests();
+});
 
 async function loadCoachingFeed() {
   const wrap = document.getElementById("rr-coach-feed");

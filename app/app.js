@@ -645,13 +645,13 @@ function renderProfileHub() {
 
 // ── Availability ────────────────────────────────────────────────────
 const _AVAIL_DAYS = [
-  { k: "mon", label: "Mon" },
-  { k: "tue", label: "Tue" },
-  { k: "wed", label: "Wed" },
-  { k: "thu", label: "Thu" },
-  { k: "fri", label: "Fri" },
-  { k: "sat", label: "Sat" },
-  { k: "sun", label: "Sun" },
+  { k: "mon", label: "Mon", fullLabel: "Monday" },
+  { k: "tue", label: "Tue", fullLabel: "Tuesday" },
+  { k: "wed", label: "Wed", fullLabel: "Wednesday" },
+  { k: "thu", label: "Thu", fullLabel: "Thursday" },
+  { k: "fri", label: "Fri", fullLabel: "Friday" },
+  { k: "sat", label: "Sat", fullLabel: "Saturday" },
+  { k: "sun", label: "Sun", fullLabel: "Sunday" },
 ];
 
 async function renderAvailability() {
@@ -670,75 +670,110 @@ async function renderAvailability() {
     return;
   }
 
-  const picked = new Set(Array.isArray(data?.days) ? data.days : []);
+  // The toggle state shows the driver's "intended" availability — which
+  // is the pending request if there is one, otherwise the live approved
+  // set. Either way, every flip submits a new pending request.
+  const liveDays    = new Set(Array.isArray(data?.days) ? data.days : []);
+  const pendingDays = data?.pending?.days ? new Set(data.pending.days) : null;
+  const picked      = new Set(pendingDays || liveDays);
 
-  const renderChips = () => _AVAIL_DAYS.map((d) => {
+  const lastDecision = data?.last_decision || null;
+  const hasPending   = !!data?.pending;
+
+  function statusBannerHtml() {
+    if (hasPending) {
+      return `<div class="avail-banner pending">
+        <div class="avail-banner-title">Request pending review</div>
+        <div class="avail-banner-sub">Your dispatcher will approve or deny this. The current schedule keeps your last approved availability until then.</div>
+      </div>`;
+    }
+    if (lastDecision?.status === "approved" && lastDecision.effective_until) {
+      return `<div class="avail-banner approved">
+        <div class="avail-banner-title">Approved through ${escapeHtml(_fmtAvailDate(lastDecision.effective_until))}</div>
+        <div class="avail-banner-sub">Flip a toggle to request a change.</div>
+      </div>`;
+    }
+    if (lastDecision?.status === "denied") {
+      const note = lastDecision.decision_note ? ` · "${lastDecision.decision_note}"` : "";
+      return `<div class="avail-banner denied">
+        <div class="avail-banner-title">Last request was denied${escapeHtml(note)}</div>
+        <div class="avail-banner-sub">Flip a toggle to submit a new request.</div>
+      </div>`;
+    }
+    return `<div class="avail-banner neutral">
+      <div class="avail-banner-title">Set your weekly availability</div>
+      <div class="avail-banner-sub">Flip the days you can work. Your dispatcher will review and approve.</div>
+    </div>`;
+  }
+
+  const rowsHtml = _AVAIL_DAYS.map((d) => {
     const on = picked.has(d.k);
     return `
-      <button type="button" class="avail-chip ${on ? "on" : ""}" data-rr-day="${d.k}"
-              aria-label="${escapeHtml(d.label)} · ${on ? "Available" : "Off"}"
-              aria-pressed="${on}">
-        <span class="avail-chip-day">${escapeHtml(d.label)}</span>
-        <span class="avail-chip-state">${on ? "Available" : "Off"}</span>
-      </button>`;
+      <label class="avail-day" for="avail-tog-${d.k}">
+        <span class="avail-day-name">${escapeHtml(d.fullLabel)}</span>
+        <span class="avail-toggle ${on ? "on" : ""}">
+          <input type="checkbox" id="avail-tog-${d.k}" data-rr-day="${d.k}" ${on ? "checked" : ""}/>
+          <span class="avail-toggle-track"><span class="avail-toggle-thumb"></span></span>
+        </span>
+      </label>`;
   }).join("");
 
   main.innerHTML = `
     <div class="avail-page">
-      <section class="avail-section">
-        <div class="avail-title">When can you work?</div>
-        <div class="avail-sub">Tap a day to mark it <b>Available</b>. Tap again to clear.</div>
-        <div class="avail-row" id="avail-row">${renderChips()}</div>
-        <div class="avail-presets">
-          <button type="button" class="avail-preset" data-preset="weekdays">Weekdays</button>
-          <button type="button" class="avail-preset" data-preset="all">Every day</button>
-          <button type="button" class="avail-preset" data-preset="clear">Clear all</button>
-        </div>
-      </section>
+      <div id="avail-banner-slot">${statusBannerHtml()}</div>
 
-      <button class="avail-save" id="avail-save" type="button">Save</button>
+      <section class="avail-list" id="avail-list">${rowsHtml}</section>
+
+      <div class="avail-policy">
+        Availability requests must be approved by your dispatcher and are effective for <b>3 weeks</b> from the date of approval.
+      </div>
     </div>`;
 
-  const rowEl = document.getElementById("avail-row");
+  const listEl   = document.getElementById("avail-list");
+  const bannerEl = document.getElementById("avail-banner-slot");
 
-  function repaint() { rowEl.innerHTML = renderChips(); }
+  // Submit on every flip, debounced so rapid taps coalesce into one
+  // server round-trip. Optimistic UI: the toggle moves immediately;
+  // we only revert if the server rejects.
+  let _saveTimer = null;
+  let _saveSeq   = 0;
+  let _inFlight  = 0;
 
-  rowEl.addEventListener("click", (e) => {
-    const chip = e.target.closest("[data-rr-day]");
-    if (!chip) return;
-    const dk = chip.dataset.rrDay;
-    if (picked.has(dk)) picked.delete(dk); else picked.add(dk);
-    repaint();
+  function submitNow() {
+    const seq = ++_saveSeq;
+    _inFlight++;
+    const days = _AVAIL_DAYS.filter((d) => picked.has(d.k)).map((d) => d.k);
+    sb.rpc("driver_submit_availability", { p_token: session.token, p_days: days })
+      .then(({ error }) => {
+        _inFlight--;
+        if (seq !== _saveSeq) return; // a newer change is queued; ignore stale result
+        if (error) { toast("Save failed: " + error.message, "warn"); return; }
+        // Mark UI as having a pending request now (regardless of prior state).
+        bannerEl.innerHTML = `<div class="avail-banner pending">
+          <div class="avail-banner-title">Request submitted · awaiting approval</div>
+          <div class="avail-banner-sub">Your dispatcher will approve or deny this. Current schedule stays on your last approved availability until then.</div>
+        </div>`;
+      })
+      .catch(() => { _inFlight--; });
+  }
+
+  listEl.addEventListener("change", (e) => {
+    const cb = e.target.closest("input[data-rr-day]");
+    if (!cb) return;
+    const dk = cb.dataset.rrDay;
+    if (cb.checked) picked.add(dk); else picked.delete(dk);
+    cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
+    if (_saveTimer) clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(submitNow, 350);
   });
+}
 
-  document.querySelectorAll(".avail-preset").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const which = btn.dataset.preset;
-      picked.clear();
-      if (which === "weekdays") ["mon","tue","wed","thu","fri"].forEach((k) => picked.add(k));
-      else if (which === "all") _AVAIL_DAYS.forEach((d) => picked.add(d.k));
-      repaint();
-    });
-  });
-
-  document.getElementById("avail-save").addEventListener("click", async () => {
-    const btn = document.getElementById("avail-save");
-    const original = btn.textContent;
-    btn.disabled = true; btn.textContent = "Saving…";
-    const pickedDays = _AVAIL_DAYS.filter((d) => picked.has(d.k)).map((d) => d.k);
-    const { error } = await sb.rpc("driver_set_availability", {
-      p_token: session.token,
-      p_days:  pickedDays,
-    });
-    if (error) {
-      btn.disabled = false; btn.textContent = original;
-      toast("Save failed: " + error.message, "warn");
-      return;
-    }
-    btn.textContent = "Saved ✓";
-    btn.classList.add("saved");
-    toast("Availability saved", "ok");
-    setTimeout(() => { btn.textContent = original; btn.classList.remove("saved"); btn.disabled = false; }, 1400);
+function _fmtAvailDate(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  } catch { return iso; }
   });
 }
 
