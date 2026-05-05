@@ -254,15 +254,13 @@ function renderLogin(errorMsg) {
       <div class="brand">
         <div class="brand-icon">RR</div>
         <div class="brand-name">RouteReady</div>
-        <div class="brand-sub">Driver app</div>
       </div>
       <form class="form" id="login-form">
         ${errorMsg ? `<div class="err">${escapeHtml(errorMsg)}</div>` : ""}
         <label class="field-label">Invite code</label>
-        <input class="field" id="login-code" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="Enter your code" required />
-        <div class="help">You received this from dispatch during orientation.</div>
+        <input class="field" id="login-code" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="ABCD-1234" required />
         <div style="margin-top:18px">
-          <button class="btn btn-primary btn-block" type="submit">Continue</button>
+          <button class="btn btn-primary btn-block" type="submit">Sign in</button>
         </div>
       </form>
     </div>`;
@@ -270,18 +268,18 @@ function renderLogin(errorMsg) {
     e.preventDefault();
     const code = (document.getElementById("login-code").value || "").trim().toUpperCase();
     if (!code) return;
-    if (code.length < 4) { renderLogin("Code looks too short. Double-check with dispatch."); return; }
+    if (code.length < 4) { renderLogin("That code looks too short."); return; }
     const submitBtn = e.target.querySelector('button[type="submit"]');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Checking…"; }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Signing in…"; }
     const { data, error } = await sb.rpc("redeem_driver_invite", { p_code: code, p_user_agent: navigator.userAgent || null });
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Continue"; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Sign in"; }
     if (error || !data?.token) {
       const m = error?.message || "";
       const msg = m.includes("invalid_or_expired_code")
-        ? "Code not recognized or already used. Ask dispatch for a new one."
+        ? "Code not recognized. Ask dispatch for a new one."
         : m.includes("driver_inactive")
         ? "This account isn't active. Contact dispatch."
-        : "Couldn't sign you in. Try again or contact dispatch.";
+        : "Couldn't sign you in. Try again.";
       renderLogin(msg);
       return;
     }
@@ -355,7 +353,7 @@ function renderShell(session) {
 
 // ── Schedule ────────────────────────────────────────────────────────
 async function renderSchedule() {
-  setHeader("Schedule", "Your shifts");
+  setHeader("Schedule", "");
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader"></div>`;
 
@@ -392,7 +390,7 @@ async function renderSchedule() {
   const upcomingShifts = shifts.filter((s) => s.iso > todayIso);
 
   if (shifts.length === 0) {
-    main.innerHTML = `<div class="empty-state">No shifts on the schedule yet.<br>Check back after dispatch publishes.</div>`;
+    main.innerHTML = `<div class="empty-state">No shifts scheduled.</div>`;
     return;
   }
 
@@ -404,9 +402,13 @@ async function renderSchedule() {
     ${upcomingShifts.length ? `
       <div class="section-title">Upcoming</div>
       ${upcomingShifts.map((s) => shiftCardHtml(s, false)).join("")}
-    ` : !todayShifts.length ? `<div class="empty-state">Nothing scheduled in the next 2 weeks.</div>` : ""}`;
+    ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}`;
 }
 
+// Shift card · date block on the left, time/station in the middle. No
+// chevron (cards aren't tappable yet) and no "Scheduled" tag (every
+// non-completed shift is scheduled — redundant). Only badges that
+// carry information appear: Completed, service type, EX cushion.
 function shiftCardHtml(s, isToday) {
   const dow = s.date.toLocaleDateString(undefined, { weekday: "short" });
   const day = s.date.getDate();
@@ -414,13 +416,10 @@ function shiftCardHtml(s, isToday) {
   const time = (s.starts_at && s.ends_at)
     ? `${fmtTime(s.starts_at)} – ${fmtTime(s.ends_at)}`
     : "";
-  const statusTag = s.status === "completed"
-    ? `<span class="tag" style="background:var(--canvas)">Completed</span>`
-    : `<span class="tag tag-status-confirmed">Scheduled</span>`;
-  const typeTag = (s.type && s.type !== "SP")
-    ? `<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`
-    : "";
-  const cushionTag = s.isCushion ? `<span class="tag" style="background:rgba(217,119,6,.12);color:var(--amber)">EX</span>` : "";
+  const tags = [];
+  if (s.status === "completed") tags.push(`<span class="tag" style="background:var(--canvas)">Completed</span>`);
+  if (s.type && s.type !== "SP") tags.push(`<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`);
+  if (s.isCushion) tags.push(`<span class="tag" style="background:rgba(217,119,6,.12);color:var(--amber)">EX</span>`);
   return `
     <div class="shift-card ${isToday ? "is-today" : ""}">
       <div class="date-block">
@@ -431,9 +430,8 @@ function shiftCardHtml(s, isToday) {
       <div>
         <div class="meta-time">${escapeHtml(time)}</div>
         <div class="meta-station">${escapeHtml(s.station)}</div>
-        <div class="meta-tags">${statusTag}${typeTag}${cushionTag}</div>
+        ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
       </div>
-      <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>`;
 }
 
@@ -488,7 +486,7 @@ function taskCardHtml(c) {
 let _chatPollTimer = null;
 let _chatLastIds = new Set();
 async function renderChat() {
-  setHeader("Chat", "Message dispatch");
+  setHeader("Chat", "");
   const main = document.getElementById("main");
   main.innerHTML = `
     <div id="chat-shell">
@@ -560,7 +558,7 @@ async function refreshChat(scrollToBottom) {
   if (!wrap) return;
   const messages = data?.messages || [];
   if (messages.length === 0) {
-    wrap.innerHTML = `<div class="empty-state">No messages yet.<br>Start a thread with dispatch below.</div>`;
+    wrap.innerHTML = `<div class="empty-state">No messages yet.</div>`;
   } else {
     wrap.innerHTML = messages.map(chatBubbleHtml).join("");
   }
@@ -729,13 +727,10 @@ async function renderCheckinCard(session) {
       <div class="checkin-row checked-in">
         <div>
           <div class="checkin-title">Checked in · ${escapeHtml(inT)}</div>
-          <div class="checkin-sub">${escapeHtml(stationCode)} · shift started ${escapeHtml(startsAtTxt)}</div>
+          <div class="checkin-sub">${escapeHtml(stationCode)}</div>
         </div>
       </div>
-      <button class="checkin-btn checkin-btn-secondary" id="rr-checkout-btn" type="button">
-        Check out
-        <span class="checkin-meta">Tap when your shift ends</span>
-      </button>`;
+      <button class="checkin-btn checkin-btn-secondary" id="rr-checkout-btn" type="button">Check out</button>`;
     document.getElementById("rr-checkout-btn").addEventListener("click", () => doCheckout(session));
     return;
   }
@@ -746,36 +741,28 @@ async function renderCheckinCard(session) {
       <div class="checkin-row">
         <div>
           <div class="checkin-title">Check-in unavailable</div>
-          <div class="checkin-sub">Your dispatcher hasn't set the geofence for ${escapeHtml(stationCode)} yet.</div>
+          <div class="checkin-sub">Geofence isn't set for ${escapeHtml(stationCode)}.</div>
         </div>
       </div>
-      <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">
-        Report missed day
-        <span class="checkin-meta">Let dispatch know you can't make it</span>
-      </button>`;
+      <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">Report missed day</button>`;
     document.getElementById("rr-missed-btn").addEventListener("click", () => doMissedDay(session));
     return;
   }
 
   const windowOpen = !!status.window_is_open;
-  const lead       = Number(shift.checkin_lead_minutes ?? 15);
   const primary    = windowOpen
     ? `<button class="checkin-btn" id="rr-checkin-btn" type="button">
-         Check in for shift
+         Check in
          <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startsAtTxt)}</span>
        </button>`
     : `<button class="checkin-btn" id="rr-checkin-btn" type="button" disabled>
-         Check in opens at ${escapeHtml(windowOpenTxt)}
-         <span class="checkin-meta">Up to ${lead} minutes before shift · ${escapeHtml(startsAtTxt)}</span>
+         Opens at ${escapeHtml(windowOpenTxt)}
+         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startsAtTxt)}</span>
        </button>`;
 
   slot.innerHTML = `
     ${primary}
-    <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">
-      Report missed day
-      <span class="checkin-meta">Let dispatch know you can't make it</span>
-    </button>
-    <div class="checkin-policy">Must be at the station to check in.</div>`;
+    <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">Report missed day</button>`;
 
   if (windowOpen) {
     document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
@@ -784,7 +771,7 @@ async function renderCheckinCard(session) {
 }
 
 async function doCheckin(session) {
-  if (!confirm("Check in for your shift now?")) return;
+  if (!confirm("Check in now?")) return;
   const btn = document.getElementById("rr-checkin-btn");
   if (!btn) return;
   if (!("geolocation" in navigator)) { toast("This device can't share location", "warn"); return; }
@@ -823,7 +810,7 @@ async function doCheckin(session) {
 }
 
 async function doCheckout(session) {
-  if (!confirm("Check out for your shift?")) return;
+  if (!confirm("Check out?")) return;
   const btn = document.getElementById("rr-checkout-btn");
   if (btn) btn.disabled = true;
   // Geolocation is best-effort on check-out; we don't gate.
@@ -846,7 +833,7 @@ async function doCheckout(session) {
 
 async function doMissedDay(session) {
   const reason = prompt(
-    "Report today as a missed day?\n\nDispatch will be notified. Optional reason:",
+    "Report today as missed?\n\nOptional reason for dispatch:",
     "",
   );
   if (reason === null) return; // cancelled
@@ -953,8 +940,8 @@ async function renderAvailability() {
   }).join("");
 
   const policyText = leadDays > 0
-    ? `Approved availability changes go into effect <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval and are effective for <b>3 weeks</b>. You'll be notified by message.`
-    : `Approved availability changes are effective immediately for <b>3 weeks</b>. You'll be notified by message.`;
+    ? `Effective <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval, for 3 weeks.`
+    : `Effective immediately on approval, for 3 weeks.`;
 
   // Banner only appears for the two states the driver can do something
   // about: blackout (can't submit) and pending (waiting on approval).
@@ -978,8 +965,7 @@ async function renderAvailability() {
       ${bannerHtml ? `<div id="avail-banner-slot">${bannerHtml}</div>` : ""}
       <section class="avail-list" id="avail-list">${rowsHtml}</section>
       <button class="checkin-btn" id="avail-submit" type="button" ${locked ? "disabled" : ""}>
-        Submit availability
-        <span class="checkin-meta">${locked ? "Pending or paused" : "Subject to dispatcher approval"}</span>
+        ${locked ? "Submission paused" : "Submit"}
       </button>
       <div class="avail-policy">${policyText}</div>
     </div>`;
@@ -1004,7 +990,7 @@ async function renderAvailability() {
       else if (blackout) toast("Submissions are paused right now", "warn");
       return;
     }
-    if (!confirm("Submit your availability for approval?")) return;
+    if (!confirm("Submit availability for approval?")) return;
 
     _inFlight++;
     submitEl.disabled = true;
@@ -1023,7 +1009,7 @@ async function renderAvailability() {
       }
       return;
     }
-    toast("Submitted · subject to approval. We'll notify you.", "ok");
+    toast("Submitted for approval", "ok");
     // Re-render so the page reflects the new pending state (toggles
     // lock, button disables, banner shows the pending message).
     renderAvailability();
@@ -1079,39 +1065,44 @@ async function renderAttendance() {
   const shift = status.shift;
   const chk   = status.checkin;
 
-  let statusLine, statusClass;
+  let statusTitle, statusSub, statusClass;
   if (!shift) {
-    statusLine = "No shift scheduled today.";
+    statusTitle = "Off today";
+    statusSub   = "";
     statusClass = "neutral";
   } else if (chk?.checked_out_at) {
-    statusLine = `Shift complete · checked out ${new Date(chk.checked_out_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+    statusTitle = "Shift complete";
+    statusSub   = `Out ${new Date(chk.checked_out_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
     statusClass = "approved";
   } else if (chk?.checked_in_at) {
-    statusLine = `Checked in · ${new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+    statusTitle = "On the clock";
+    statusSub   = `In ${new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
     statusClass = "approved";
   } else if (chk?.missed_reported_at) {
-    statusLine = `Missed day reported · dispatch notified`;
+    statusTitle = "Missed day reported";
+    statusSub   = "Dispatch has been notified.";
     statusClass = "denied";
   } else {
-    statusLine = `Scheduled · shift starts ${shift.starts_at ? new Date(shift.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—"}`;
+    statusTitle = "Not checked in";
+    statusSub   = `Shift starts ${shift.starts_at ? new Date(shift.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—"}`;
     statusClass = "pending";
   }
 
   main.innerHTML = `
     <div class="avail-page">
       <div class="avail-banner ${statusClass}">
-        <div class="avail-banner-title">Today's status</div>
-        <div class="avail-banner-sub">${escapeHtml(statusLine)}</div>
+        <div class="avail-banner-title">${escapeHtml(statusTitle)}</div>
+        ${statusSub ? `<div class="avail-banner-sub">${escapeHtml(statusSub)}</div>` : ""}
       </div>
 
       <section class="avail-list" style="display:block;padding:14px 16px">
-        <div class="checkin-title" style="margin-bottom:8px">Attendance policy</div>
-        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-muted);line-height:1.55">
-          <li>Check in opens <b>${lead} minute${lead === 1 ? "" : "s"}</b> before your shift starts. You must be at the station.</li>
-          <li>If you can't make it, tap <b>Report missed day</b> on your home screen so dispatch knows in advance.</li>
-          <li>If you haven't checked in by your shift start, you're marked <b>tardy</b> after a <b>${grace}-minute</b> grace.</li>
-          <li>If you still haven't checked in or reported by <b>${ncns} minute${ncns === 1 ? "" : "s"}</b> after your shift starts, it counts as a <b>no-call no-show</b>.</li>
-          <li>Check out from your home screen when your shift ends.</li>
+        <div class="checkin-title" style="margin-bottom:8px">Policy</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-muted);line-height:1.6">
+          <li>Check in opens <b>${lead} min</b> before your shift, at the station.</li>
+          <li>Can't make it? Tap <b>Report missed day</b> from your home screen.</li>
+          <li>No check-in by start + <b>${grace} min</b> grace = tardy.</li>
+          <li>No check-in or report by start + <b>${ncns} min</b> = no-call no-show.</li>
+          <li>Check out from your home screen when the shift ends.</li>
         </ul>
       </section>
     </div>`;
