@@ -12,21 +12,23 @@
 --   2. attendance_decide RPC — applies the decision:
 --        - On Approve: stamps the shift with the appropriate status
 --          (no_show / late / called_off) so the existing attendance
---          report and event log immediately count it.  If the policy
---          has auto_coaching enabled, also creates a coaching record
---          and sends a chat message to the driver.
+--          report and event log immediately count it.  When the
+--          dashboard's policy says this level should auto-fire (see
+--          p_auto_fire below) it also creates a finalized coaching
+--          record and DMs the driver.  Otherwise it logs a *pending*
+--          coaching record so the row shows up in the coaching drawer
+--          for a leader to review and finalize.
 --        - On Deny: leaves shifts.status alone — the audit row in
 --          attendance_decisions captures the operator's denial + notes
 --          so the report shows it but it does not roll into points.
 --          Notes are required on deny — enforced server-side and in
 --          the dashboard UI.
 --
--- Auto-coaching actions are policy-controlled (an array on
--- dsps.metadata.attendance.policy.auto_coaching_actions).  Possible
--- values: 'message' (in-app chat to the driver), 'notification' (push
--- notification), 'coach_drawer' (pending-action row in the coaching
--- drawer for the leader to finalize).  Default empty — leader coaches
--- manually.
+-- The auto-fire decision is made client-side from the policy + the
+-- recommended action level (verbal / written / final / termination).
+-- Termination is never auto.  The server trusts the client flag; this
+-- is a leader-only RPC behind dispatcher RLS so there's no security
+-- risk in letting the page decide.
 -- ─────────────────────────────────────────────────────────────────────────
 
 
@@ -61,30 +63,31 @@ grant select, insert, update on public.attendance_decisions to authenticated;
 
 
 -- ── attendance_decide ──────────────────────────────────────────────────
+-- Drop any older signature first so re-applies on a deployed db don't
+-- end up with two overloaded functions.
+drop function if exists public.attendance_decide(uuid, text, text, text);
+
 create or replace function public.attendance_decide(
-  p_shift_id uuid,
-  p_outcome  text,
-  p_decision text,
-  p_notes    text default null
+  p_shift_id  uuid,
+  p_outcome   text,
+  p_decision  text,
+  p_notes     text default null,
+  p_auto_fire boolean default false,
+  p_level     text default null      -- 'verbal' | 'written' | 'final' | 'termination'
 ) returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_dsp           uuid := private.current_dsp_id();
-  v_shift         public.shifts;
-  v_drv           public.drivers;
-  v_meta          jsonb;
-  v_policy        jsonb;
-  v_actions       jsonb;
-  v_act_message   bool := false;
-  v_act_notify    bool := false;
-  v_act_drawer    bool := false;
-  v_status        text;
-  v_summary       text;
-  v_chat_msg      text;
-  v_dsp_name      text;
+  v_dsp        uuid := private.current_dsp_id();
+  v_shift      public.shifts;
+  v_drv        public.drivers;
+  v_status     text;
+  v_summary    text;
+  v_chat_msg   text;
+  v_dsp_name   text;
+  v_did_auto   boolean := false;
 begin
   if not private.is_staff(v_dsp, 'dispatcher') then
     raise exception 'forbidden' using errcode = '42501';
@@ -109,7 +112,7 @@ begin
 
   select * into v_drv from public.drivers where id = v_shift.driver_id;
 
-  -- Record the decision (one per shift; second click overwrites).
+  -- Record the decision (one row per shift; second click overwrites).
   insert into public.attendance_decisions
     (dsp_id, driver_id, shift_id, outcome, decision, notes, decided_by)
   values
@@ -123,7 +126,8 @@ begin
         created_at = now();
 
   -- Apply the decision to the shift's status.  This is what makes the
-  -- attendance report + event log actually see it.
+  -- attendance report + event log actually see it.  Deny leaves the
+  -- status alone so the event never lands on the running total.
   v_status := case p_outcome
     when 'ncns'            then 'no_show'
     when 'tardy'           then 'late'
@@ -132,93 +136,79 @@ begin
   if p_decision = 'approve' then
     update public.shifts set status = v_status where id = p_shift_id;
   end if;
-  -- Deny: leave shifts.status alone.  The decision row above is enough
-  -- to capture "operator reviewed and excused" — the existing point /
-  -- occurrence math in the report keys on shifts.status, so an
-  -- unchanged status means it never lands on the running total.
 
-  -- Auto-coaching side effects (approve only, policy-gated).
-  -- auto_coaching_actions is a JSON array on the policy.  We check for
-  -- 'message' (DM the driver), 'notification' (push notification —
-  -- web-push delivery is handled out-of-band by the existing
-  -- send-driver-push edge function on driver_messages insert), and
-  -- 'coach_drawer' (pending-action coachings row).
+  -- Coaching record + driver DM.
+  -- Termination is NEVER auto-fired; force the pending path even when
+  -- the client flag claims otherwise.
   if p_decision = 'approve' then
-    v_meta     := coalesce((select metadata from public.dsps where id = v_dsp), '{}'::jsonb);
-    v_policy   := coalesce(v_meta -> 'attendance' -> 'policy', '{}'::jsonb);
-    v_actions  := coalesce(v_policy -> 'auto_coaching_actions', '[]'::jsonb);
     v_dsp_name := coalesce((select name from public.dsps where id = v_dsp), 'Dispatch');
-    v_act_message := v_actions ? 'message';
-    v_act_notify  := v_actions ? 'notification';
-    v_act_drawer  := v_actions ? 'coach_drawer';
-  end if;
-
-  v_summary := case p_outcome
-    when 'ncns'            then 'No-call no-show on ' || to_char(v_shift.date, 'Mon DD')
-    when 'tardy'           then 'Tardy on '           || to_char(v_shift.date, 'Mon DD')
-    when 'missed_reported' then 'Callout on '         || to_char(v_shift.date, 'Mon DD')
-  end;
-
-  -- Coach drawer pending action: a coaching record marked status pending
-  -- via metadata, surfaces in the coaching drawer for the leader to
-  -- finalize.  When the message action is also on, finalizing the
-  -- drawer entry posts the chat — see metadata.auto_message_pending.
-  if v_act_drawer then
-    insert into public.coachings
-      (dsp_id, driver_id, coach_user_id, topic, type, summary, notes, metadata)
-    values
-      (v_dsp, v_drv.id, auth.uid(),
-       'attendance'::public.coaching_topic,
-       'documented_warning'::public.coaching_type,
-       v_summary,
-       coalesce(p_notes, ''),
-       jsonb_build_object(
-         'source',                'attendance_decide',
-         'shift_id',              p_shift_id,
-         'outcome',               p_outcome,
-         'pending',               true,
-         'auto_message_pending',  v_act_message,
-         'auto_notify_pending',   v_act_notify
-       ));
-  end if;
-
-  -- Direct message to driver — fires immediately when 'message' is
-  -- selected and the coach-drawer flow ISN'T (otherwise the message
-  -- waits until the leader finalizes from the drawer).
-  if v_act_message and not v_act_drawer then
-    -- Log the coaching record up-front since there's no drawer flow.
-    insert into public.coachings
-      (dsp_id, driver_id, coach_user_id, topic, type, summary, notes, metadata)
-    values
-      (v_dsp, v_drv.id, auth.uid(),
-       'attendance'::public.coaching_topic,
-       'documented_warning'::public.coaching_type,
-       v_summary,
-       coalesce(p_notes, ''),
-       jsonb_build_object('source', 'attendance_decide', 'shift_id', p_shift_id, 'outcome', p_outcome));
-
-    v_chat_msg := case p_outcome
-      when 'ncns'            then 'You were marked no-call no-show for your '   || to_char(v_shift.date, 'Mon DD') || ' shift. Reach out if you think this is an error. — ' || v_dsp_name
-      when 'tardy'           then 'You were marked tardy for your '              || to_char(v_shift.date, 'Mon DD') || ' shift. — ' || v_dsp_name
-      when 'missed_reported' then 'Your callout for '                            || to_char(v_shift.date, 'Mon DD') || ' has been logged. — ' || v_dsp_name
+    v_summary := case p_outcome
+      when 'ncns'            then 'No-call no-show on ' || to_char(v_shift.date, 'Mon DD')
+      when 'tardy'           then 'Tardy on '           || to_char(v_shift.date, 'Mon DD')
+      when 'missed_reported' then 'Callout on '         || to_char(v_shift.date, 'Mon DD')
     end;
-    insert into public.driver_messages
-      (driver_id, dsp_id, sender_kind, sender_user_id, body)
-    values (v_drv.id, v_dsp, 'dispatch', auth.uid(), v_chat_msg);
-    insert into public.driver_conversations (driver_id, dsp_id, last_message_at)
-    values (v_drv.id, v_dsp, now())
-    on conflict (driver_id) do update set last_message_at = excluded.last_message_at;
+
+    if p_auto_fire and (p_level is null or p_level <> 'termination') then
+      v_did_auto := true;
+
+      insert into public.coachings
+        (dsp_id, driver_id, coach_user_id, topic, type, summary, notes, metadata)
+      values
+        (v_dsp, v_drv.id, auth.uid(),
+         'attendance'::public.coaching_topic,
+         'documented_warning'::public.coaching_type,
+         v_summary,
+         coalesce(p_notes, ''),
+         jsonb_build_object(
+           'source',   'attendance_decide',
+           'shift_id', p_shift_id,
+           'outcome',  p_outcome,
+           'level',    coalesce(p_level, ''),
+           'auto',     true
+         ));
+
+      v_chat_msg := case p_outcome
+        when 'ncns'            then 'You were marked no-call no-show for your '   || to_char(v_shift.date, 'Mon DD') || ' shift. Reach out if you think this is an error. — ' || v_dsp_name
+        when 'tardy'           then 'You were marked tardy for your '              || to_char(v_shift.date, 'Mon DD') || ' shift. — ' || v_dsp_name
+        when 'missed_reported' then 'Your callout for '                            || to_char(v_shift.date, 'Mon DD') || ' has been logged. — ' || v_dsp_name
+      end;
+      insert into public.driver_messages
+        (driver_id, dsp_id, sender_kind, sender_user_id, body)
+      values (v_drv.id, v_dsp, 'dispatch', auth.uid(), v_chat_msg);
+      insert into public.driver_conversations (driver_id, dsp_id, last_message_at)
+      values (v_drv.id, v_dsp, now())
+      on conflict (driver_id) do update set last_message_at = excluded.last_message_at;
+    else
+      -- Pending coaching record — surfaces in the coaching drawer for
+      -- the leader to review and finalize.
+      insert into public.coachings
+        (dsp_id, driver_id, coach_user_id, topic, type, summary, notes, metadata)
+      values
+        (v_dsp, v_drv.id, auth.uid(),
+         'attendance'::public.coaching_topic,
+         'documented_warning'::public.coaching_type,
+         v_summary,
+         coalesce(p_notes, ''),
+         jsonb_build_object(
+           'source',   'attendance_decide',
+           'shift_id', p_shift_id,
+           'outcome',  p_outcome,
+           'level',    coalesce(p_level, ''),
+           'pending',  true
+         ));
+    end if;
   end if;
 
   return jsonb_build_object(
-    'ok',          true,
-    'decision',    p_decision,
-    'actions',     jsonb_build_object('message', v_act_message, 'notification', v_act_notify, 'coach_drawer', v_act_drawer),
+    'ok',           true,
+    'decision',     p_decision,
+    'auto_fired',   v_did_auto,
+    'level',        p_level,
     'shift_status', case p_decision when 'approve' then v_status else v_shift.status::text end
   );
 end;
 $$;
-grant execute on function public.attendance_decide(uuid, text, text, text) to authenticated;
+grant execute on function public.attendance_decide(uuid, text, text, text, boolean, text) to authenticated;
 
 
 notify pgrst, 'reload schema';
