@@ -19,6 +19,17 @@ import webpush from "npm:web-push@3.6.7";
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
+  // Diagnostic ack from the driver SW — confirms a push actually
+  // reached the device. Logged and short-circuited before auth so the
+  // SW can call us without credentials.
+  const rawBody = await req.text();
+  let parsed: Record<string, unknown> = {};
+  try { parsed = JSON.parse(rawBody || "{}"); } catch { /* ignore */ }
+  if (parsed?.ack === true) {
+    console.log(`push ack from device: ${JSON.stringify(parsed).slice(0, 500)}`);
+    return jsonResponse({ ok: true });
+  }
+
   const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC_KEY");
   const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY");
   const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT");
@@ -27,9 +38,8 @@ Deno.serve(async (req) => {
   }
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
-  const body = await req.json().catch(() => ({}));
-  const driverId: string | undefined = body?.driver_id;
-  const messageId: string | undefined = body?.message_id;
+  const driverId: string | undefined = parsed?.driver_id as string | undefined;
+  const messageId: string | undefined = parsed?.message_id as string | undefined;
   if (!driverId) return badRequest("driver_id_required");
 
   const supa = serviceClient();

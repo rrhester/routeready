@@ -13,7 +13,7 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-const SHELL_CACHE = "rr-app-shell-v6";
+const SHELL_CACHE = "rr-app-shell-v7";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -122,6 +122,12 @@ self.addEventListener("message", (event) => {
 // we read title/body/unread/url straight from event.data — no SW-side
 // fetch, no IDB lookup. iOS only reliably renders notifications when the
 // payload is encrypted, so this is the path that actually works on a PWA.
+//
+// We also POST a one-line ack back to the edge function. iOS silently
+// drops a notification if `showNotification` rejects an option (icon
+// format, tag/renotify combo, etc.) — server logs prove whether the SW
+// actually fired so we can tell "push didn't arrive at device" from
+// "push arrived but iOS refused to render."
 self.addEventListener("push", (event) => {
   let payload = {
     title:  "Dispatch",
@@ -129,30 +135,57 @@ self.addEventListener("push", (event) => {
     unread: 1,
     url:    "/app/#/chat",
   };
+  let parseError = null;
   if (event.data) {
     try {
       const incoming = event.data.json();
       if (incoming && typeof incoming === "object") payload = { ...payload, ...incoming };
-    } catch {
+    } catch (err) {
+      parseError = String(err);
       try { payload.body = event.data.text() || payload.body; } catch {}
     }
   }
 
-  const tasks = [
-    self.registration.showNotification(payload.title || "Dispatch", {
-      body:     payload.body || "",
-      icon:     "icon.svg",
-      badge:    "icon.svg",
-      tag:      "dispatch-message",
-      renotify: true,
-      data:     { url: payload.url || "/app/#/chat" },
-    }),
-  ];
-  if ("setAppBadge" in self.navigator && Number(payload.unread) > 0) {
-    tasks.push(self.navigator.setAppBadge(Number(payload.unread)).catch(() => {}));
+  // Bare-minimum showNotification — no icon, no badge, no tag, no
+  // renotify. Apple WebKit silently rejects the entire notification if
+  // any option fails validation (SVG icon, etc.), so we keep it to the
+  // two fields every browser supports.
+  const notify = self.registration.showNotification(
+    payload.title || "Dispatch",
+    {
+      body: payload.body || "",
+      data: { url: payload.url || "/app/#/chat" },
+    },
+  ).catch((err) => ackPush({ stage: "showNotification", error: String(err) }));
+
+  const tasks = [notify, ackPush({ stage: "received", parseError, hasData: !!event.data })];
+  if ("setAppBadge" in self.navigator) {
+    const n = Number(payload.unread) > 0 ? Number(payload.unread) : 1;
+    tasks.push(self.navigator.setAppBadge(n).catch(() => {}));
   }
   event.waitUntil(Promise.all(tasks));
 });
+
+// Diagnostic beacon — POSTs to send-driver-push with `ack:true` so the
+// edge function logs "push arrived at device". Uses the anon key stored
+// at login to satisfy Supabase's JWT gateway; the function then
+// short-circuits on `ack` before doing any work.
+async function ackPush(info) {
+  try {
+    const [url, anon] = await Promise.all([rrGet("supabaseUrl"), rrGet("anonKey")]);
+    if (!url || !anon) return;
+    await fetch(url + "/functions/v1/send-driver-push", {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer " + anon,
+        "apikey":        anon,
+      },
+      body:    JSON.stringify({ ack: true, info, ts: new Date().toISOString() }),
+      keepalive: true,
+    });
+  } catch {}
+}
 
 
 self.addEventListener("notificationclick", (event) => {
