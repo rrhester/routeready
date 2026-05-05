@@ -5470,81 +5470,127 @@ async function loadAvailabilityRequests() {
   _renderAvailabilityRows();
 }
 
-// Sortable column headers + KPI / blackout / settings slots. Rendered
-// once per tab open; row body is replaced separately.
+// Three sub-tabs (Queue / Insights / Rules) inside the Availability
+// subview. Built once on first open. The pre-existing
+// "<div class='rr-avail-req-list-card'>...queue card..." gets moved
+// into the Queue pane; Insights and Rules panes are built fresh.
 function _renderAvailabilityShell() {
   const host = document.getElementById("dr-sub-availability");
   if (!host) return;
   if (host.dataset.rrShell === "1") return;
   host.dataset.rrShell = "1";
 
-  const card = host.querySelector(":scope > div");
-  if (!card) return;
+  // Grab the original queue card so we can re-parent it into the Queue tab.
+  const originalCard = host.querySelector(":scope > div");
 
-  // Inject KPI strip + management panels above the queue card, then the
-  // sortable column header inside the existing card.
-  card.insertAdjacentHTML("beforebegin", `
-    <div id="rr-avail-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
-    <div id="rr-avail-insights" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px"></div>
-    <details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
-      <summary style="cursor:pointer;padding:12px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between">
-        <span>Settings · lead time & auto-response templates</span>
-        <span style="font-size:11px;color:var(--text-subtle);font-weight:400">Click to expand</span>
-      </summary>
-      <div id="rr-avail-settings" style="padding:0 18px 18px"></div>
-    </details>
-    <details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
-      <summary style="cursor:pointer;padding:12px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between">
-        <span>Blackout dates · drivers can't submit during these windows</span>
-        <span style="font-size:11px;color:var(--text-subtle);font-weight:400">Click to expand</span>
-      </summary>
-      <div id="rr-avail-blackouts" style="padding:0 18px 18px"></div>
-    </details>
-  `);
-
-  // Wrap the row list with a sortable header.
-  const list = document.getElementById("rr-avail-req-list");
-  list.insertAdjacentHTML("beforebegin", `
-    <div id="rr-avail-sortbar" style="display:grid;grid-template-columns:220px 1fr auto;gap:16px;padding:10px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;background:var(--canvas)">
-      <div style="display:flex;gap:10px;align-items:center">
-        <button class="avail-sort-btn" data-rr-sort="driver">Driver</button>
-        <button class="avail-sort-btn" data-rr-sort="station">Station</button>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <button class="avail-sort-btn" data-rr-sort="submitted">Submitted</button>
-        <button class="avail-sort-btn" data-rr-sort="status">Status</button>
-      </div>
-      <div></div>
+  host.innerHTML = `
+    <div class="subnav" style="display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:8px;margin-bottom:14px;width:fit-content">
+      <button type="button" class="avail-subtab active" data-rr-availtab="queue">Queue</button>
+      <button type="button" class="avail-subtab" data-rr-availtab="insights">Insights</button>
+      <button type="button" class="avail-subtab" data-rr-availtab="rules">Rules</button>
     </div>
-  `);
-  // Sort-button styling.
-  if (!document.getElementById("rr-avail-sort-style")) {
+    <div class="avail-pane" data-rr-availpane="queue"></div>
+    <div class="avail-pane" data-rr-availpane="insights" style="display:none">
+      <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
+      <div data-rr-avail-byday-card style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">Driver availability by day</div>
+            <p style="font-size:12px;color:var(--text-subtle);margin:4px 0 0">What share of your active roster is available each day of the week.</p>
+          </div>
+          <div style="font-size:11px;color:var(--text-subtle);text-align:right" data-rr-avail-summary></div>
+        </div>
+        <div data-rr-avail-bars>
+          <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
+        </div>
+        <div data-rr-avail-insight style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);line-height:1.5"></div>
+      </div>
+      <div data-rr-avail-repeats style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px"></div>
+    </div>
+    <div class="avail-pane" data-rr-availpane="rules" style="display:none">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
+        <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Settings</h3>
+        <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve/deny.</p>
+        <div data-rr-avail-settings></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px">
+        <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Blackout dates</h3>
+        <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Windows where drivers cannot submit availability changes — e.g. peak season, holidays.</p>
+        <div data-rr-avail-blackouts></div>
+      </div>
+    </div>
+  `;
+
+  // Re-parent the original queue card into the Queue pane and add the
+  // sortable header bar in front of the request list.
+  const queuePane = host.querySelector('[data-rr-availpane="queue"]');
+  if (originalCard) queuePane.appendChild(originalCard);
+
+  const list = document.getElementById("rr-avail-req-list");
+  if (list && !document.getElementById("rr-avail-sortbar")) {
+    list.insertAdjacentHTML("beforebegin", `
+      <div id="rr-avail-sortbar" style="display:grid;grid-template-columns:220px 1fr auto;gap:16px;padding:10px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;background:var(--canvas)">
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="avail-sort-btn" data-rr-sort="driver">Driver</button>
+          <button class="avail-sort-btn" data-rr-sort="station">Station</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="avail-sort-btn" data-rr-sort="submitted">Submitted</button>
+          <button class="avail-sort-btn" data-rr-sort="status">Status</button>
+        </div>
+        <div></div>
+      </div>
+    `);
+  }
+
+  if (!document.getElementById("rr-avail-shell-style")) {
     const st = document.createElement("style");
-    st.id = "rr-avail-sort-style";
+    st.id = "rr-avail-shell-style";
     st.textContent = `
       .avail-sort-btn{font:inherit;text-transform:inherit;letter-spacing:inherit;
         color:var(--text-subtle);background:none;border:0;padding:2px 4px;border-radius:4px;cursor:pointer}
       .avail-sort-btn:hover{color:var(--text)}
       .avail-sort-btn.active{color:var(--accent);background:var(--accent-soft)}
+      .avail-subtab{padding:6px 14px;font:inherit;font-size:13px;font-weight:600;color:var(--text-muted);
+        background:transparent;border:0;border-radius:6px;cursor:pointer}
+      .avail-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
     `;
     document.head.appendChild(st);
   }
-  document.getElementById("rr-avail-sortbar").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-rr-sort]");
-    if (!btn) return;
-    const k = btn.dataset.rrSort;
-    if (_availSortKey === k) {
-      _availSortDir = _availSortDir === "asc" ? "desc" : "asc";
-    } else {
-      _availSortKey = k;
-      _availSortDir = "asc";
+
+  // Sub-tab clicks.
+  host.addEventListener("click", (e) => {
+    const tab = e.target.closest("[data-rr-availtab]");
+    if (tab) {
+      const key = tab.dataset.rrAvailtab;
+      host.querySelectorAll("[data-rr-availtab]").forEach(b => b.classList.toggle("active", b === tab));
+      host.querySelectorAll("[data-rr-availpane]").forEach(p => {
+        p.style.display = p.dataset.rrAvailpane === key ? "" : "none";
+      });
+      // Lazy-load the by-day chart the first time Insights is opened.
+      if (key === "insights" && host.dataset.rrInsightsLoaded !== "1") {
+        host.dataset.rrInsightsLoaded = "1";
+        loadScheduleInsights(host.querySelector('[data-rr-availpane="insights"]'));
+      }
+      return;
     }
-    _renderAvailabilityRows();
+    const sortBtn = e.target.closest("[data-rr-sort]");
+    if (sortBtn) {
+      const k = sortBtn.dataset.rrSort;
+      if (_availSortKey === k) {
+        _availSortDir = _availSortDir === "asc" ? "desc" : "asc";
+      } else {
+        _availSortKey = k;
+        _availSortDir = "asc";
+      }
+      _renderAvailabilityRows();
+    }
   });
 }
 
 function _renderAvailabilityKpis(k, rows) {
-  const el = document.getElementById("rr-avail-kpis");
+  const host = document.getElementById("dr-sub-availability");
+  const el = host?.querySelector("[data-rr-avail-kpis]");
   if (!el) return;
   const card = (label, value, sub) => `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
@@ -5559,52 +5605,29 @@ function _renderAvailabilityKpis(k, rows) {
     card("Avg decision time", k.avg_decision_hours_30d != null ? `${k.avg_decision_hours_30d}h` : "—", "from submit to decide"),
   ].join("");
 
-  // "Repeat requesters" insight panel — operators want to know who's
-  // churning their availability so they can have a conversation.
-  const ins = document.getElementById("rr-avail-insights");
-  if (!ins) return;
+  // "Repeat requesters" — operators want to know who's churning so they
+  // can have a conversation. Lives on its own card now (the Driver
+  // Availability by Day chart from Schedule Insights renders in the
+  // card above).
+  const repeatEl = host.querySelector("[data-rr-avail-repeats]");
+  if (!repeatEl) return;
   const repeats = Array.isArray(k.repeat_requesters_30d) ? k.repeat_requesters_30d : [];
-  const dayDemand = k.day_demand_30d || {};
-
-  const dayLabels = ["mon","tue","wed","thu","fri","sat","sun"];
-  const maxDemand = Math.max(1, ...dayLabels.map(d => Number(dayDemand[d] || 0)));
-  const dayBars = dayLabels.map(d => {
-    const n = Number(dayDemand[d] || 0);
-    const pct = Math.round((n / maxDemand) * 100);
-    return `<div style="text-align:center">
-      <div style="height:60px;display:flex;align-items:flex-end;justify-content:center">
-        <div style="width:18px;height:${pct}%;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px"></div>
-      </div>
-      <div style="font-size:10px;color:var(--text-subtle);margin-top:4px;text-transform:uppercase;letter-spacing:.04em">${d}</div>
-      <div style="font-size:11px;font-weight:600">${n}</div>
-    </div>`;
-  }).join("");
-
   const repeatList = repeats.length === 0
     ? `<div style="font-size:12px;color:var(--text-subtle)">No drivers have submitted more than once in the last 30 days.</div>`
-    : repeats.slice(0, 8).map(r => `
+    : repeats.slice(0, 12).map(r => `
         <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
           <span>${escapeHtml(r.driver_name || "")}</span>
           <span style="font-weight:600">${r.count} requests</span>
         </div>`).join("");
-
-  ins.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
-      <div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px">Repeat requesters · 30 days</div>
-        <div style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
-        ${repeatList}
-      </div>
-      <div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px">Approved-day demand · 30 days</div>
-        <div style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">Which weekdays drivers are asking to work. Heavy days = scheduling cushion shrinking.</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${dayBars}</div>
-      </div>
-    </div>`;
+  repeatEl.innerHTML = `
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">Repeat requesters · 30 days</div>
+    <div style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
+    ${repeatList}`;
 }
 
 function _renderAvailabilityBlackouts(rows) {
-  const el = document.getElementById("rr-avail-blackouts");
+  const host = document.getElementById("dr-sub-availability");
+  const el = host?.querySelector("[data-rr-avail-blackouts]");
   if (!el) return;
   const list = (rows || []).map(b => `
     <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px">
@@ -5647,7 +5670,8 @@ function _renderAvailabilityBlackouts(rows) {
 }
 
 function _renderAvailabilitySettingsPanel(s) {
-  const el = document.getElementById("rr-avail-settings");
+  const host = document.getElementById("dr-sub-availability");
+  const el = host?.querySelector("[data-rr-avail-settings]");
   if (!el) return;
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:8px;align-items:start">
@@ -7642,10 +7666,17 @@ window.schedSub = function (sub) {
 };
 
 // ─── Schedule · Insights · driver availability by day of week ──────────
-async function loadScheduleInsights() {
+// Hosted in #sched-sub-insights when called with no args; accepts a
+// scope element so the same chart can be reused inside the Drivers →
+// Availability → Insights sub-tab. Looks up DOM via getAttribute hooks
+// so two copies can coexist on the page without ID collisions.
+async function loadScheduleInsights(scope) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
-  const wrap = document.getElementById("rr-avail-bars");
+  scope = scope || document;
+  const wrap       = scope.querySelector ? scope.querySelector("[data-rr-avail-bars]")    || document.getElementById("rr-avail-bars")    : document.getElementById("rr-avail-bars");
+  const summaryEl  = scope.querySelector ? scope.querySelector("[data-rr-avail-summary]") || document.getElementById("rr-avail-summary") : document.getElementById("rr-avail-summary");
+  const insightEl  = scope.querySelector ? scope.querySelector("[data-rr-avail-insight]") || document.getElementById("rr-avail-insight") : document.getElementById("rr-avail-insight");
   if (!wrap) return;
 
   const today = new Date();
@@ -7750,12 +7781,10 @@ async function loadScheduleInsights() {
 
   wrap.innerHTML = rows;
 
-  const summary = document.getElementById("rr-avail-summary");
-  if (summary) {
-    summary.textContent = `${totalDrivers} active driver${totalDrivers === 1 ? "" : "s"}${driversWithoutAvailability > 0 ? ` · ${driversWithoutAvailability} without availability set` : ""}`;
+  if (summaryEl) {
+    summaryEl.textContent = `${totalDrivers} active driver${totalDrivers === 1 ? "" : "s"}${driversWithoutAvailability > 0 ? ` · ${driversWithoutAvailability} without availability set` : ""}`;
   }
 
-  const insightEl = document.getElementById("rr-avail-insight");
   if (insightEl) {
     const dayName = (k) => DOW_LABEL[k];
     const lines = [];
