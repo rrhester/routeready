@@ -644,11 +644,109 @@ function renderProfileHub() {
 }
 
 // ── Availability ────────────────────────────────────────────────────
-function renderAvailability() {
-  document.getElementById("main").innerHTML = comingSoon(
-    "Mark which days you can work and which you prefer.",
-    "Available · preferred · notes",
-  );
+const _AVAIL_DAYS = [
+  { k: "mon", label: "Mon" },
+  { k: "tue", label: "Tue" },
+  { k: "wed", label: "Wed" },
+  { k: "thu", label: "Thu" },
+  { k: "fri", label: "Fri" },
+  { k: "sat", label: "Sat" },
+  { k: "sun", label: "Sun" },
+];
+
+async function renderAvailability() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader"></div>`;
+
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data, error } = await sb.rpc("driver_get_availability", { p_token: session.token });
+  if (error) {
+    if (/unauthorized|revoked|inactive/i.test(error.message || "")) {
+      writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return;
+    }
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load availability.<br><small>${escapeHtml(error.message)}</small></div>`;
+    return;
+  }
+
+  const days      = new Set(Array.isArray(data?.days)      ? data.days      : []);
+  const preferred = new Set(Array.isArray(data?.preferred) ? data.preferred : []);
+  const notes     = typeof data?.notes === "string" ? data.notes : "";
+
+  const dayRow = (kind, picked) => _AVAIL_DAYS.map((d) => {
+    const on = picked.has(d.k);
+    return `
+      <button type="button" class="avail-chip ${on ? "on" : ""}"
+              data-rr-avail="${kind}" data-rr-day="${d.k}" aria-pressed="${on}">
+        ${escapeHtml(d.label)}
+      </button>`;
+  }).join("");
+
+  main.innerHTML = `
+    <div class="avail-page">
+      <section class="avail-section">
+        <div class="avail-title">Days you can work</div>
+        <div class="avail-sub">Tap days you're available. Leave off the days you can't.</div>
+        <div class="avail-row" data-rr-avail-row="days">${dayRow("days", days)}</div>
+      </section>
+
+      <section class="avail-section">
+        <div class="avail-title">Preferred days</div>
+        <div class="avail-sub">From the days you're available, which do you prefer? Dispatch will weight these when assigning routes.</div>
+        <div class="avail-row" data-rr-avail-row="preferred">${dayRow("preferred", preferred)}</div>
+      </section>
+
+      <section class="avail-section">
+        <div class="avail-title">Notes for dispatch</div>
+        <div class="avail-sub">Optional. e.g. "school pickup Wed afternoons" or "AM only please".</div>
+        <textarea id="avail-notes" rows="3" maxlength="500" placeholder="Anything dispatch should know…">${escapeHtml(notes)}</textarea>
+      </section>
+
+      <button class="avail-save" id="avail-save" type="button">Save</button>
+    </div>`;
+
+  // Toggle chips. A "preferred" chip is meaningful only if that day is
+  // available, so toggling preferred auto-toggles availability on.
+  main.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-rr-avail]");
+    if (!chip) return;
+    const kind = chip.dataset.rrAvail;
+    const dk   = chip.dataset.rrDay;
+    chip.classList.toggle("on");
+    chip.setAttribute("aria-pressed", chip.classList.contains("on"));
+    if (kind === "preferred" && chip.classList.contains("on")) {
+      const availChip = main.querySelector(`[data-rr-avail="days"][data-rr-day="${dk}"]`);
+      if (availChip && !availChip.classList.contains("on")) {
+        availChip.classList.add("on");
+        availChip.setAttribute("aria-pressed", "true");
+      }
+    }
+    if (kind === "days" && !chip.classList.contains("on")) {
+      const prefChip = main.querySelector(`[data-rr-avail="preferred"][data-rr-day="${dk}"]`);
+      if (prefChip && prefChip.classList.contains("on")) {
+        prefChip.classList.remove("on");
+        prefChip.setAttribute("aria-pressed", "false");
+      }
+    }
+  });
+
+  document.getElementById("avail-save").addEventListener("click", async () => {
+    const btn = document.getElementById("avail-save");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const pickedDays = Array.from(main.querySelectorAll(`[data-rr-avail="days"].on`)).map(c => c.dataset.rrDay);
+    const pickedPref = Array.from(main.querySelectorAll(`[data-rr-avail="preferred"].on`)).map(c => c.dataset.rrDay);
+    const noteVal = (document.getElementById("avail-notes")?.value || "").trim();
+    const { error } = await sb.rpc("driver_set_availability", {
+      p_token:     session.token,
+      p_days:      pickedDays,
+      p_preferred: pickedPref,
+      p_notes:     noteVal,
+    });
+    btn.disabled = false; btn.textContent = "Save";
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    toast("Availability saved", "ok");
+  });
 }
 
 // ── Documents ───────────────────────────────────────────────────────
