@@ -399,6 +399,10 @@ window.goto = function (view) {
 
 // Driver stage state — what the operator has filtered to.
 let _driverStage = "active";
+// Roster filter / sort state (set by the toolbar dropdowns).
+let _rosterFilters = { station: "", tenure: "", score: "", sort: "score-asc" };
+// Cached roster rows so filter/sort changes don't refetch.
+let _rosterRows = [];
 
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
@@ -413,8 +417,10 @@ async function loadDriversRoster() {
     .order("hire_date", { ascending: false })
     .limit(500);
 
-  refreshDriverStatRow(rows ?? []);
-  renderDriverTable(rows ?? [], error);
+  _rosterRows = rows ?? [];
+  refreshDriverStatRow(_rosterRows);
+  _populateRosterStationFilter(_rosterRows);
+  renderDriverTable(_rosterRows, error);
 
   // Page sub-line: live count of active drivers + distinct active stations.
   const sub = document.getElementById("rr-drivers-page-sub");
@@ -430,14 +436,81 @@ async function loadDriversRoster() {
 }
 
 function visibleDriversForStage(rows, stage) {
+  let out;
   switch (stage) {
-    case "onboarding": return rows.filter(r => r.status === "onboarding");
-    case "active":     return rows.filter(r => r.status === "active");
-    case "atrisk":     return rows.filter(r => r.status === "active" && (r.score ?? 999) < 70);
-    case "inactive":   return rows.filter(r => ["leave","inactive","terminated"].includes(r.status));
-    default:           return rows;
+    case "onboarding": out = rows.filter(r => r.status === "onboarding"); break;
+    case "active":     out = rows.filter(r => r.status === "active"); break;
+    case "atrisk":     out = rows.filter(r => r.status === "active" && (r.score ?? 999) < 70); break;
+    case "inactive":   out = rows.filter(r => ["leave","inactive","terminated"].includes(r.status)); break;
+    default:           out = rows;
   }
+  return _applyRosterFiltersAndSort(out);
 }
+
+function _applyRosterFiltersAndSort(rows) {
+  const f = _rosterFilters;
+  let out = rows;
+  if (f.station) out = out.filter(r => (r.station?.code || "") === f.station);
+  if (f.tenure) {
+    const today = Date.now();
+    out = out.filter(r => {
+      if (!r.hire_date) return false;
+      const days = Math.floor((today - new Date(r.hire_date).getTime()) / 86400000);
+      switch (f.tenure) {
+        case "0-30":   return days >= 0   && days <= 30;
+        case "31-90":  return days >= 31  && days <= 90;
+        case "91-365": return days >= 91  && days <= 365;
+        case "365+":   return days > 365;
+        default:       return true;
+      }
+    });
+  }
+  if (f.score) {
+    out = out.filter(r => {
+      const s = r.score;
+      switch (f.score) {
+        case "0-69":  return s != null && s < 70;
+        case "70-84": return s != null && s >= 70 && s < 85;
+        case "85+":   return s != null && s >= 85;
+        case "none":  return s == null;
+        default:      return true;
+      }
+    });
+  }
+  const dispName = (r) => (r.preferred_name?.trim() || r.full_name || "").toLowerCase();
+  switch (f.sort) {
+    case "score-asc":   out = [...out].sort((a, b) => (a.score ?? 999) - (b.score ?? 999)); break;
+    case "score-desc":  out = [...out].sort((a, b) => (b.score ?? -1)  - (a.score ?? -1));  break;
+    case "name":        out = [...out].sort((a, b) => dispName(a).localeCompare(dispName(b))); break;
+    case "tenure-desc": out = [...out].sort((a, b) => new Date(a.hire_date || 0) - new Date(b.hire_date || 0)); break;
+    case "tenure-asc":  out = [...out].sort((a, b) => new Date(b.hire_date || 0) - new Date(a.hire_date || 0)); break;
+  }
+  return out;
+}
+
+function _populateRosterStationFilter(rows) {
+  const sel = document.getElementById("rr-roster-station");
+  if (!sel) return;
+  const codes = [...new Set(rows.map(r => r.station?.code).filter(Boolean))].sort();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Station: All</option>'
+    + codes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  if (codes.includes(cur)) sel.value = cur;
+}
+
+document.addEventListener("change", (e) => {
+  const id = e.target?.id;
+  if (id === "rr-roster-station" || id === "rr-roster-tenure"
+   || id === "rr-roster-score"   || id === "rr-roster-sort") {
+    _rosterFilters = {
+      station: document.getElementById("rr-roster-station")?.value || "",
+      tenure:  document.getElementById("rr-roster-tenure")?.value  || "",
+      score:   document.getElementById("rr-roster-score")?.value   || "",
+      sort:    document.getElementById("rr-roster-sort")?.value    || "score-asc",
+    };
+    renderDriverTable(_rosterRows, null);
+  }
+});
 
 function renderDriverTable(rows, error) {
   const tbody = document.getElementById("drivers-tbody");
@@ -2444,7 +2517,7 @@ async function _renderTpDailyTool(flagged) {
                   data-driver-name="${escapeHtml(r.driver_name)}"
                   data-level="${escapeHtml(lvl || '')}"
                   data-auto-fire="${auto ? '1' : '0'}"
-                  type="button">Approve</button>
+                  type="button">Confirm</button>
           <button class="btn btn-sm"
                   data-rr-tp-deny="1"
                   data-shift-id="${escapeHtml(r.shift_id)}"
@@ -2456,19 +2529,21 @@ async function _renderTpDailyTool(flagged) {
       </div>`;
   }).join("");
 
-  // Footer summary — what happens on Approve given the operator's
+  // Footer summary — what happens on Confirm given the operator's
   // current Coaching style settings.
   let autoCoachNote;
-  if (!policy.auto_coaching) {
-    autoCoachNote = "Auto-coaching is OFF — approved events count toward attendance and drop into the coaching drawer for manual review.";
+  if (policy.policy_enabled === false) {
+    autoCoachNote = "Attendance policy is OFF — Confirm logs the event as a manual coaching needed.";
+  } else if (!policy.auto_coaching) {
+    autoCoachNote = "Auto-coaching is OFF — Confirm logs the event as a manual coaching for the leader to file from the drawer.";
   } else {
     const levels = [];
     if (policy.auto_verbal)  levels.push("verbal");
     if (policy.auto_written) levels.push("written");
     if (policy.auto_final)   levels.push("final");
     autoCoachNote = levels.length === 0
-      ? "Auto-coaching is ON but no levels are set to auto-fire — every approval still routes through the coaching drawer."
-      : "Auto-fires for: " + levels.join(", ") + ".  Other levels (and any termination) drop into the coaching drawer.";
+      ? "Auto-coaching is ON but no levels auto-fire — every Confirm still routes through the coaching drawer as Pending."
+      : "Auto-fires when level is: " + levels.join(", ") + ".  Other levels (and termination) drop into the coaching drawer as Pending.";
   }
 
   toolEl.innerHTML = `${head(flagged.length)}${rows}
@@ -2901,21 +2976,20 @@ async function loadDriverLicensesView() {
 function renderLicenseRow(d) {
   const exp = new Date(d.dl_expires_on);
   const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
-  let bg = "";
+  // Don't tint the entire row anymore — operators found the orange/red
+  // washes too noisy.  The pill on the right is enough warning.
   let pillStyle = "color:var(--text-subtle)";
   let label = `Expires in ${days}d`;
   if (days < 0) {
-    bg = "background:rgba(220,38,38,.08)";
     pillStyle = "color:var(--red);font-weight:700";
     label = `Expired ${-days}d ago`;
   } else if (days <= 30) {
-    bg = "background:rgba(245,158,11,.08)";
     pillStyle = "color:#B45309;font-weight:700";
     label = `Expires in ${days}d`;
   }
   const initials = displayDriverInitials(d);
   return `
-    <div data-driver-id="${d.id}" data-rr-open-driver style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;cursor:pointer;${bg}">
+    <div data-driver-id="${d.id}" data-rr-open-driver style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;cursor:pointer">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="avatar-sm tier-c">${initials}</div>
         <div><div style="font-size:13px;font-weight:600">${escapeHtml(displayDriverName(d))}</div></div>
@@ -3514,7 +3588,12 @@ async function refreshDriverStatRow(rows) {
 
 function setStatTile(tile, label, value, sub) {
   tile.querySelector(".stat-mini-label").textContent = label;
-  tile.querySelector(".stat-mini-value").textContent = value;
+  const valEl = tile.querySelector(".stat-mini-value");
+  valEl.textContent = value;
+  // Force the at-risk count to render in the regular text color rather
+  // than the legacy mockup amber.  The number itself still tells the
+  // story; tinting it orange when there's no risk read like a warning.
+  valEl.style.color = "";
   const s = tile.querySelector(".stat-mini-sub");
   if (s) s.textContent = sub;
 }
