@@ -757,6 +757,11 @@ async function renderAvailability() {
       .catch(() => { _inFlight--; });
   }
 
+  // Expose the in-flight/save state on the window so the page-level
+  // focus listener (registered once at boot) can decide whether it's
+  // safe to re-render and pick up a fresh decision from the server.
+  window._rrAvailInFlight = () => _inFlight > 0 || _saveTimer != null;
+
   listEl.addEventListener("change", (e) => {
     const cb = e.target.closest("input[data-rr-day]");
     if (!cb) return;
@@ -767,6 +772,20 @@ async function renderAvailability() {
     _saveTimer = setTimeout(submitNow, 350);
   });
 }
+
+// Refresh the Availability page on focus / visibility change so a
+// dispatcher decision (which arrives via chat push) clears the
+// "pending" banner without a manual reload. Registered once at module
+// load; the inner guard keeps it cheap when on other routes.
+function _refreshAvailabilityIfActive() {
+  if (currentRoute() !== "/profile/availability") return;
+  if (typeof window._rrAvailInFlight === "function" && window._rrAvailInFlight()) return;
+  renderAvailability();
+}
+window.addEventListener("focus", _refreshAvailabilityIfActive);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) _refreshAvailabilityIfActive();
+});
 
 function _fmtAvailDate(iso) {
   if (!iso) return "—";
