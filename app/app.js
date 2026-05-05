@@ -1114,47 +1114,78 @@ async function renderAttendance() {
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
-  const [statusRes, settingsRes] = await Promise.all([
-    sb.rpc("driver_checkin_status",       { p_token: session.token }),
-    sb.rpc("driver_attendance_settings",  { p_token: session.token }),
-  ]);
+  // Pull the driver's current standing + their DSP's policy.  This
+  // replaces the old "on the clock / off the clock" card — that lives
+  // on the home Profile screen now.  The Attendance screen exists to
+  // tell the driver where they stand against the rules and what those
+  // rules actually are.
+  const { data, error } = await sb.rpc("driver_attendance_overview",
+    { p_token: session.token });
 
-  if (statusRes.error || settingsRes.error) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load attendance.<br><small>${escapeHtml((statusRes.error || settingsRes.error).message)}</small></div>`;
+  if (error) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load attendance.<br><small>${escapeHtml(error.message)}</small></div>`;
     return;
   }
 
-  const status   = statusRes.data || {};
-  const settings = settingsRes.data || {};
-  const lead     = Number(settings.checkin_lead_minutes ?? 15);
-  const grace    = Number(settings.tardy_grace_minutes  ?? 10);
-  const ncns     = Number(settings.ncns_after_minutes   ?? 60);
+  const standing = data?.standing || {};
+  const policy   = data?.policy   || {};
+  const enabled  = policy.enabled !== false;
 
-  const shift = status.shift;
-  const chk   = status.checkin;
-
+  // Status banner
   let statusTitle, statusSub, statusClass;
-  if (!shift) {
-    statusTitle = "Off today";
-    statusSub   = "";
+  if (!enabled) {
+    statusTitle = "No attendance policy";
+    statusSub   = "Your DSP doesn't track attendance points right now.";
     statusClass = "neutral";
-  } else if (chk?.checked_out_at) {
-    statusTitle = "Shift complete";
-    statusSub   = `Out ${new Date(chk.checked_out_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
-    statusClass = "approved";
-  } else if (chk?.checked_in_at) {
-    statusTitle = "On the clock";
-    statusSub   = `In ${new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
-    statusClass = "approved";
-  } else if (chk?.missed_reported_at) {
-    statusTitle = "Missed day reported";
-    statusSub   = "Dispatch has been notified.";
+  } else if (standing.status === "action") {
+    statusTitle = "Action — review with your leader";
+    statusSub   = standing.in_first_30_days
+      ? "First-30-days probation rule applied."
+      : `${standing.occurrences} occurrence${standing.occurrences === 1 ? "" : "s"} in the last ${policy.decay_days} days.`;
     statusClass = "denied";
-  } else {
-    statusTitle = "Not checked in";
-    statusSub   = `Shift starts ${shift.starts_at ? new Date(shift.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—"}`;
+  } else if (standing.status === "warning") {
+    statusTitle = "Warning";
+    statusSub   = `${standing.occurrences} of ${policy.threshold_action} occurrences before formal action.`;
     statusClass = "pending";
+  } else {
+    statusTitle = "Good standing";
+    statusSub   = standing.occurrences > 0
+      ? `${standing.occurrences} occurrence${standing.occurrences === 1 ? "" : "s"} on file in the last ${policy.decay_days} days.`
+      : "Clean record over the last " + policy.decay_days + " days.";
+    statusClass = "approved";
   }
+
+  // Build the policy explanation in plain terms — no toggle words, no
+  // jargon.  Bullets mirror the dispatcher's policy builder so the
+  // driver and the leader see the same rules.
+  const counts = [];
+  if (policy.count_tardy)   counts.push("late check-ins (tardies)");
+  if (policy.count_callout) counts.push("callouts (you let dispatch know in advance)");
+  if (policy.count_noshow)  counts.push("no-call no-shows");
+  const countsText = counts.length === 0
+    ? "Nothing currently counts as an occurrence — your DSP is logging events but not scoring them."
+    : "An occurrence is recorded for: " + counts.join(", ") + ".";
+
+  const ladderText = policy.progressive_coaching
+    ? "Coaching is progressive: <b>verbal</b> conversation first, then a <b>written</b> warning, then a <b>final</b> warning, then termination."
+    : "Crossing the warn line gets a coaching conversation; crossing the action line gets a write-up.";
+
+  const ncnsText = policy.ncns_terminates
+    ? "<b>One no-call no-show is grounds for termination</b> — your DSP escalates NCNS instantly, even on a clean record."
+    : "";
+
+  const first30Text = policy.first_30_strict
+    ? `New drivers are held to <b>zero absences</b> for their first ${policy.first_30_window_days} days.  Any callout or no-show in that window jumps straight to Action.`
+    : "";
+
+  const policyBullets = !enabled ? [] : [
+    countsText,
+    `Warning at <b>${policy.threshold_warn}</b> occurrences in a rolling <b>${policy.decay_days}-day</b> window.`,
+    `Action at <b>${policy.threshold_action}</b> occurrences.  Older events drop off as the window scrolls forward.`,
+    ladderText,
+    ncnsText,
+    first30Text,
+  ].filter(Boolean);
 
   main.innerHTML = `
     <div class="avail-page">
@@ -1163,15 +1194,32 @@ async function renderAttendance() {
         ${statusSub ? `<div class="avail-banner-sub">${escapeHtml(statusSub)}</div>` : ""}
       </div>
 
-      <section class="avail-list" style="display:block;padding:14px 16px">
-        <div class="checkin-title" style="margin-bottom:8px">Policy</div>
-        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-muted);line-height:1.6">
-          <li>Check in opens <b>${lead} min</b> before your shift, at the station.</li>
-          <li>Can't make it? Tap <b>Report missed day</b> from your home screen.</li>
-          <li>No check-in by start + <b>${grace} min</b> grace = tardy.</li>
-          <li>No check-in or report by start + <b>${ncns} min</b> = no-call no-show.</li>
-          <li>Check out from your home screen when the shift ends.</li>
-        </ul>
+      ${enabled ? `
+      <div class="card">
+        <div class="checkin-title" style="margin-bottom:8px">Your record</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.tardies ?? 0}</div>
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Tardies</div>
+          </div>
+          <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.callouts ?? 0}</div>
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Callouts</div>
+          </div>
+          <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.noshows ?? 0}</div>
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">No-shows</div>
+          </div>
+        </div>
+      </div>` : ""}
+
+      <section class="card">
+        <div class="checkin-title" style="margin-bottom:8px">${enabled ? "How your DSP's attendance policy works" : "Attendance"}</div>
+        ${enabled
+          ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-muted);line-height:1.6">
+               ${policyBullets.map(b => `<li>${b}</li>`).join("")}
+             </ul>`
+          : `<p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6">Your DSP isn't running an attendance scoring policy right now.  Tardies, callouts, and no-shows are still logged on your record, but no warnings or actions are auto-generated.</p>`}
       </section>
     </div>`;
 }

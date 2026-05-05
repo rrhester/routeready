@@ -645,14 +645,20 @@ async function loadAttendanceLive() {
   const todayMs = Date.now();
   const rows = drivers.map(d => {
     const a = acc.get(d.id) || { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null };
-    const points = a.callouts * POLICY.points_per_callout
-                 + a.noshows  * POLICY.points_per_noshow
-                 + a.late     * (POLICY.points_per_tardy || 0);
-    const occ = a.callouts + a.noshows;
+    // Occurrence model: count whichever event types the operator
+    // toggled on.  Every counted event is one occurrence.
+    const occ =
+        (POLICY.count_tardy   ? a.late     : 0)
+      + (POLICY.count_callout ? a.callouts : 0)
+      + (POLICY.count_noshow  ? a.noshows  : 0);
+    // Keep the "points" alias on each row so the rest of the report
+    // page (which reads .points) renders without changes.
+    const points = occ;
     let statusLabel = "Good";
     let statusKind  = "ok";
-    if (points >= POLICY.threshold_action) { statusLabel = "Action"; statusKind = "bad"; }
-    else if (points >= POLICY.threshold_warn) { statusLabel = "Warn"; statusKind = "warn"; }
+    if (POLICY.policy_enabled === false) { statusLabel = "Policy off"; statusKind = "ok"; }
+    else if (occ >= POLICY.threshold_action) { statusLabel = "Action"; statusKind = "bad"; }
+    else if (occ >= POLICY.threshold_warn)   { statusLabel = "Warn";   statusKind = "warn"; }
 
     // First-30-days strict rule: any absence inside the hire window
     // jumps the driver to Action regardless of points.
@@ -1698,27 +1704,35 @@ document.addEventListener("click", async (e) => {
 // ─── Drivers · Attendance · Policy + Event log ──────────────────────────
 
 const _ATT_DEFAULT_POLICY = {
-  mode: "points",            // points | occurrence
+  policy_enabled: true,
   decay_days: 90,
-  points_per_tardy:   0.5,
-  points_per_callout: 1,
-  points_per_noshow:  3,
+  // What counts as one occurrence.  Most DSPs don't count tardies as
+  // an "occurrence" but do count callouts and no-shows.
+  count_tardy:    false,
+  count_callout:  true,
+  count_noshow:   true,
   threshold_warn:   3,
   threshold_action: 6,
-  // Progressive coaching: drivers move Verbal → Written → Final →
-  // Termination instead of jumping straight to a write-up at threshold.
+  // Auto-escalations.  ncns_terminates triggers a Termination
+  // recommendation on the very first NCNS, regardless of count.
+  ncns_terminates: false,
   progressive_coaching: true,
-  // First-30-days strict rule: any callout/no-show inside the first
-  // first_30_window_days of hire triggers Action regardless of points.
+  // First-30-days strict rule: any callout/no-show inside the
+  // probationary window jumps the driver straight to Action.
   first_30_strict: false,
   first_30_window_days: 30,
 };
 
 function _getAttPolicy() {
   const p = window.RR?.dsp?.metadata?.attendance?.policy || {};
-  // Coerce away the legacy "hybrid" mode if it's still in saved data.
+  // Translate any legacy (points-mode) record so the rest of the app
+  // sees the new shape.  Old saved values for points_per_* are dropped
+  // — occurrence-only is the supported model now.
   const merged = { ..._ATT_DEFAULT_POLICY, ...p };
-  if (merged.mode !== "points" && merged.mode !== "occurrence") merged.mode = "points";
+  delete merged.mode;
+  delete merged.points_per_tardy;
+  delete merged.points_per_callout;
+  delete merged.points_per_noshow;
   return merged;
 }
 
@@ -1734,140 +1748,94 @@ async function loadAttendancePolicy() {
   if (window.RR?.dsp) window.RR.dsp.metadata = meta;
   const p = _getAttPolicy();
 
-  // Helper for the preview block — recomputes whenever the operator
-  // edits a value so they see the policy reacting in real time.
-  const previewLine = (label, tardies, callouts, noshows) => {
-    const pts = tardies * (Number(p.points_per_tardy) || 0)
-              + callouts * (Number(p.points_per_callout) || 0)
-              + noshows  * (Number(p.points_per_noshow)  || 0);
-    let status = "Good standing", tone = "var(--green)", action = "No formal action";
-    if (pts >= p.threshold_action) { status = "Action";  tone = "var(--red)";   action = p.progressive_coaching ? "Final written warning · 1 step before termination" : "Issue write-up + final warning"; }
-    else if (pts >= p.threshold_warn) { status = "Warning"; tone = "var(--amber)"; action = p.progressive_coaching ? "Verbal coaching · log conversation"      : "Coach + log warning"; }
-    return { label, tardies, callouts, noshows, pts, status, tone, action };
-  };
-  const previewRows = [
-    previewLine("1 tardy",                           1, 0, 0),
-    previewLine("2 callouts in 90 days",             0, 2, 0),
-    previewLine("1 no-show",                         0, 0, 1),
-    previewLine("2 callouts + 2 tardies",            2, 2, 0),
-    previewLine("1 no-show + 1 callout + 1 tardy",   1, 1, 1),
-  ];
-
-  const modeCard = (id, title, blurb, when) => {
-    const active = p.mode === id;
-    return `
-      <button class="pol-mode-btn${active ? " active" : ""}" type="button" data-rr-att-mode="${id}">
-        <div class="pol-mode-title">${escapeHtml(title)}</div>
-        <div class="pol-mode-help">${blurb}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:6px"><strong>Best for:</strong> ${escapeHtml(when)}</div>
-      </button>`;
-  };
+  // Reusable toggle row.  All yes/no settings on this page render this
+  // way so the operator gets a consistent on-screen language.
+  const toggleRow = (field, label, blurb) => `
+    <label class="rr-pol-toggle-row" style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--border)">
+      <span style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
+        <div style="font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
+      </span>
+      <label class="toggle" style="margin-top:2px">
+        <input type="checkbox" data-rr-att-field-bool="${field}" ${p[field] ? "checked" : ""}/>
+        <span class="toggle-slider"></span>
+      </label>
+    </label>`;
 
   pane.innerHTML = `
-    <!-- Mode -->
-    <div class="pol-section">
-      <h3 class="pol-section-title">Attendance mode</h3>
-      <p class="pol-section-sub">Pick how the dashboard scores drivers. You can change this later — historical events stay tagged the same way.</p>
-      <div class="pol-mode-row">
-        ${modeCard("points",     "Points-based",
-          "Each event has a point value (Tardy, Callout, No-show). Drivers move from Good → Warning → Action as points accrue. Most common Amazon DSP model.",
-          "any DSP that wants nuance — short tardies, full callouts, and no-shows scored differently.")}
-        ${modeCard("occurrence", "Occurrence-based",
-          "Every event is one occurrence regardless of severity. Cross a threshold of occurrences in the decay window and you escalate.",
-          "small fleets that prefer a simpler “3 strikes” style policy without weighting.")}
-      </div>
+    <!-- Master enabled toggle -->
+    <div class="pol-section" style="display:flex;align-items:center;gap:14px">
+      <span style="flex:1">
+        <h3 class="pol-section-title">Attendance policy</h3>
+        <p class="pol-section-sub" style="margin:0">When ON, the dashboard scores every driver against the rules below and surfaces flags on Today's Plan. When OFF, attendance is logged but the dashboard does not flag, warn, or recommend actions.</p>
+      </span>
+      <label class="toggle">
+        <input type="checkbox" data-rr-att-field-bool="policy_enabled" ${p.policy_enabled ? "checked" : ""}/>
+        <span class="toggle-slider"></span>
+      </label>
     </div>
 
-    <!-- Point values -->
+    <!-- How occurrence-based scoring works -->
     <div class="pol-section">
-      <h3 class="pol-section-title">Point values</h3>
-      <p class="pol-section-sub">${p.mode === "points"
-        ? "How many points each event adds to a driver's running total. Use 0 to ignore an event entirely."
-        : "Occurrence-based: each event still has a point value (used in the dashboard's standing math), but thresholds below are treated as occurrence counts."}</p>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:14px;max-width:720px">
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Tardy</span>
-          <input type="number" min="0" max="20" step="0.5" class="form-input" data-rr-att-field="points_per_tardy" value="${p.points_per_tardy}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver checked in <strong>after</strong> the tardy-grace window. Default 0.5 pt.</span>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Callout</span>
-          <input type="number" min="0" max="20" step="0.5" class="form-input" data-rr-att-field="points_per_callout" value="${p.points_per_callout}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver pre-reported they couldn't work the shift. Default 1 pt.</span>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">No-show</span>
-          <input type="number" min="0" max="20" step="0.5" class="form-input" data-rr-att-field="points_per_noshow" value="${p.points_per_noshow}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver missed the shift without notice (NCNS). Default 3 pts.</span>
-        </label>
-      </div>
+      <h3 class="pol-section-title">How it works</h3>
+      <p class="pol-section-sub">Every Amazon DSP that uses an attendance policy uses the <strong>occurrence model</strong>: each event you choose to count is worth one occurrence, and the dashboard tracks a running total over a rolling decay window.  When a driver crosses your <strong>Warn</strong> threshold the Today's Plan daily tool shows a yellow flag with a coaching prompt.  When they cross <strong>Action</strong> the row turns red and the dashboard recommends a write-up (or the next progressive step, see below).  Older events drop off as the decay window scrolls forward, so a driver who had a rough month can recover.</p>
     </div>
 
-    <!-- Thresholds -->
+    <!-- Which events count -->
     <div class="pol-section">
-      <h3 class="pol-section-title">Thresholds &amp; decay</h3>
-      <p class="pol-section-sub">When a driver's accumulated ${p.mode === "points" ? "points" : "occurrences"} cross these lines the dashboard flags them.</p>
+      <h3 class="pol-section-title">What counts as an occurrence</h3>
+      <p class="pol-section-sub">Pick which kinds of events feed into the running total.  Anything you turn off here is still <em>logged</em> on the driver's record, it just doesn't count toward the thresholds below.</p>
+      ${toggleRow("count_tardy",   "Count tardies",
+        "Driver checked in <strong>after</strong> the tardy-grace window.  Most DSPs leave this OFF — tardies are coached separately so a chronic-tardy pattern doesn't get lost in raw counts.")}
+      ${toggleRow("count_callout", "Count callouts",
+        "Driver pre-reported they couldn't work the shift.  Default ON.  Counted in full whether the call came in 8 hours early or 8 minutes early.")}
+      ${toggleRow("count_noshow",  "Count no-call no-shows",
+        "Driver missed the shift without notice (NCNS).  Default ON.  See the auto-escalations below if you want NCNS to bypass the threshold ladder.")}
+    </div>
+
+    <!-- Thresholds + decay -->
+    <div class="pol-section">
+      <h3 class="pol-section-title">Thresholds &amp; decay window</h3>
+      <p class="pol-section-sub">When a driver's running total of occurrences crosses these numbers the dashboard flags them.  Decay is how long an event stays on their record before it drops off the running total.</p>
       <div style="display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:14px;max-width:760px">
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Warn at</span>
-          <input type="number" min="1" max="40" step="0.5" class="form-input" data-rr-att-field="threshold_warn" value="${p.threshold_warn}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver shows in <strong>Warning</strong> on the daily tool.</span>
+          <input type="number" min="1" max="40" step="1" class="form-input" data-rr-att-field="threshold_warn" value="${p.threshold_warn}"/>
+          <span style="font-size:11px;color:var(--text-subtle)">Driver appears in <strong>Warning</strong>.  Recommended action: coach &amp; document.</span>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Action at</span>
-          <input type="number" min="1" max="40" step="0.5" class="form-input" data-rr-att-field="threshold_action" value="${p.threshold_action}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver shows in <strong>Action</strong> — formal write-up or progressive next step.</span>
+          <input type="number" min="1" max="40" step="1" class="form-input" data-rr-att-field="threshold_action" value="${p.threshold_action}"/>
+          <span style="font-size:11px;color:var(--text-subtle)">Driver appears in <strong>Action</strong>.  Recommended: formal write-up or progressive next step.</span>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Decay window (days)</span>
+          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Decay (days)</span>
           <input type="number" min="14" max="365" step="1" class="form-input" data-rr-att-field="decay_days" value="${p.decay_days}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Events older than this drop off the running total.</span>
+          <span style="font-size:11px;color:var(--text-subtle)">Events older than this stop counting toward the running total.  Common: 90 days.</span>
         </label>
       </div>
+    </div>
+
+    <!-- Auto-escalations -->
+    <div class="pol-section">
+      <h3 class="pol-section-title">Auto-escalations</h3>
+      <p class="pol-section-sub">Optional rules that bypass the normal threshold ladder for severe events.</p>
+      ${toggleRow("ncns_terminates", "No-call no-show escalates to termination",
+        "When ON, the dashboard recommends <strong>termination</strong> on the driver's first NCNS — regardless of running total.  Many DSPs run their policy this way because an NCNS is the single biggest hit to a station's reliability score.")}
+      ${toggleRow("first_30_strict", "Strict no-absence rule for first " + (p.first_30_window_days || 30) + " days",
+        "When ON, any callout or no-show inside the driver's probationary window jumps them straight to <strong>Action</strong> regardless of accrued occurrences.  Standard for new-hire periods.")}
+      <label style="display:flex;flex-direction:column;gap:4px;padding:12px 0 0;max-width:200px">
+        <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Probation window (days)</span>
+        <input type="number" min="7" max="120" step="1" class="form-input" data-rr-att-field="first_30_window_days" value="${p.first_30_window_days}"/>
+      </label>
     </div>
 
     <!-- Progressive coaching -->
     <div class="pol-section">
-      <h3 class="pol-section-title">Progressive coaching</h3>
-      <p class="pol-section-sub">When ON, the dashboard recommends the <strong>next coaching step</strong> for each flagged driver — Verbal → Written → Final → Termination — instead of jumping straight to a write-up. When OFF, the dashboard recommends one action at the Warning level and one at the Action level.</p>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;line-height:1.4">
-        <input type="checkbox" data-rr-att-field-bool="progressive_coaching" ${p.progressive_coaching ? "checked" : ""} style="margin-top:2px"/>
-        <span>
-          <strong>Use progressive coaching steps</strong>
-          <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Recommended for DSPs that document conversations before terminations — keeps you covered on unemployment claims.</div>
-        </span>
-      </label>
-    </div>
-
-    <!-- First-30-days rule -->
-    <div class="pol-section">
-      <h3 class="pol-section-title">First-30-days rule</h3>
-      <p class="pol-section-sub">Many DSPs hold new drivers to <strong>zero absences</strong> during their probationary window. When ON, any callout or no-show inside the window jumps the driver straight to <strong>Action</strong> regardless of accrued points.</p>
-      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;max-width:520px">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-          <input type="checkbox" data-rr-att-field-bool="first_30_strict" ${p.first_30_strict ? "checked" : ""}/>
-          Apply strict no-absence rule
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Window (days from hire)</span>
-          <input type="number" min="7" max="120" step="1" class="form-input" data-rr-att-field="first_30_window_days" value="${p.first_30_window_days}" style="max-width:140px"/>
-        </label>
-      </div>
-    </div>
-
-    <!-- Live preview -->
-    <div class="pol-section" id="rr-att-policy-preview">
-      <h3 class="pol-section-title">Preview · how the policy would judge</h3>
-      <p class="pol-section-sub">Five common scenarios scored against your current settings. Edits above re-render this on save.</p>
-      <div style="display:flex;flex-direction:column;gap:6px;max-width:760px">
-        ${previewRows.map(r => `
-          <div style="display:grid;grid-template-columns:1fr 80px 100px 1fr;gap:12px;align-items:center;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:12px">
-            <div style="color:var(--text);font-weight:600">${escapeHtml(r.label)}</div>
-            <div style="text-align:right;color:var(--text-muted)"><strong>${r.pts.toFixed(1)} pts</strong></div>
-            <div><span style="background:${r.tone}1A;color:${r.tone};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(r.status)}</span></div>
-            <div style="color:var(--text-subtle)">${escapeHtml(r.action)}</div>
-          </div>`).join("")}
-      </div>
+      <h3 class="pol-section-title">Coaching style</h3>
+      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold.</p>
+      ${toggleRow("progressive_coaching", "Use progressive coaching steps",
+        "When ON the recommended action escalates: <strong>Verbal</strong> coaching at the Warn threshold → <strong>Written</strong> warning at Action → <strong>Final</strong> written warning on a repeat → <strong>Termination</strong>.  Documents the conversation each time so an unemployment claim has a paper trail.<br>When OFF the dashboard recommends a single Coach action at Warn and a single Write-up at Action.")}
     </div>
 
     <!-- Save -->
@@ -1878,13 +1846,7 @@ async function loadAttendancePolicy() {
 }
 
 document.addEventListener("click", async (e) => {
-  // Mode selector click
-  const modeBtn = e.target.closest("[data-rr-att-mode]");
-  if (modeBtn) {
-    document.querySelectorAll("[data-rr-att-mode]").forEach(b => b.classList.toggle("active", b === modeBtn));
-    return;
-  }
-  // Save policy
+  // Save policy.  Mode is fixed to occurrence now — no mode selector.
   if (e.target.id === "rr-att-policy-save") {
     e.preventDefault();
     const dspId = window.RR?.dsp?.id;
@@ -1897,8 +1859,7 @@ document.addEventListener("click", async (e) => {
     document.querySelectorAll("[data-rr-att-field-bool]").forEach(el => {
       fields[el.dataset.rrAttFieldBool] = !!el.checked;
     });
-    const mode = document.querySelector("[data-rr-att-mode].active")?.dataset.rrAttMode || "points";
-    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields, mode };
+    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields };
 
     if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
     const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
@@ -1909,7 +1870,7 @@ document.addEventListener("click", async (e) => {
     if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
     if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
     toast("Attendance policy saved", "success");
-    // Refresh report tab to use new policy thresholds.
+    // Refresh report tab to use the new thresholds.
     if (typeof loadAttendanceLive === "function") loadAttendanceLive();
   }
 });
@@ -1956,9 +1917,16 @@ async function loadAttendanceEventLog() {
   const eventLabel = { called_off: "Callout", no_show: "No-show", late: "Late" };
   const eventColor = { called_off: "var(--amber)", no_show: "var(--red)", late: "var(--text-muted)" };
 
+  // Occurrence model: each event is either +1 (counts) or 0 (doesn't),
+  // based on the per-event toggles in the policy builder.
+  const counts = (st) =>
+       (st === "late"       && policy.count_tardy)
+    || (st === "called_off" && policy.count_callout)
+    || (st === "no_show"    && policy.count_noshow);
+
   pane.innerHTML = `
     <div class="table-wrap"><table class="table">
-      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Points</th></tr></thead>
+      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Counts</th></tr></thead>
       <tbody>
         ${events.map(ev => {
           const d = drvById.get(ev.driver_id);
@@ -1966,16 +1934,13 @@ async function loadAttendanceEventLog() {
           const station = d?.station?.code || "—";
           const initials = d ? displayDriverInitials(d) : "?";
           const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
-          const points = ev.status === "no_show"    ? policy.points_per_noshow
-                       : ev.status === "called_off" ? policy.points_per_callout
-                       : ev.status === "late"       ? (policy.points_per_tardy || 0)
-                       : 0;
+          const occ = counts(ev.status) ? 1 : 0;
           return `<tr>
             <td>${new Date(ev.date + "T12:00:00").toLocaleDateString()}</td>
             <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cell-name" data-rr-driver-id="${d?.id || ev.driver_id || ""}">${escapeHtml(display)}</div></div></div></td>
             <td>${escapeHtml(station)}</td>
             <td><span style="color:${eventColor[ev.status]};font-weight:600">${eventLabel[ev.status]}</span></td>
-            <td style="text-align:right;font-weight:600">${points}</td>
+            <td style="text-align:right;font-weight:600;color:${occ ? "var(--text)" : "var(--text-subtle)"}">${occ ? "+1 occurrence" : "—"}</td>
           </tr>`;
         }).join("")}
       </tbody>
@@ -2252,39 +2217,46 @@ async function _renderTpDailyTool(flagged) {
   const since  = new Date(Date.now() - (policy.decay_days || 90) * 86400000)
     .toISOString().slice(0, 10);
 
-  // Pull historical events for just the flagged drivers.  Cheap because
-  // the list is small (today's exceptions only, not the whole roster).
-  const ids = flagged.map(r => r.driver_id);
-  const { data: hist } = await sb.from("shifts")
-    .select("driver_id, status")
-    .eq("dsp_id", dspId)
-    .in("driver_id", ids)
-    .in("status", ["called_off", "no_show", "late"])
-    .gte("date", since);
-
-  const pts = new Map();   // driver_id → accrued points
-  for (const h of (hist || [])) {
-    const cur = pts.get(h.driver_id) || 0;
-    const add = h.status === "no_show"    ? policy.points_per_noshow
-              : h.status === "called_off" ? policy.points_per_callout
-              : h.status === "late"       ? (policy.points_per_tardy || 0)
-              : 0;
-    pts.set(h.driver_id, cur + add);
+  // If the policy is OFF, skip history + scoring entirely — operator
+  // wants attendance logged but not flagged.
+  let occMap = new Map();
+  if (policy.policy_enabled !== false) {
+    const ids = flagged.map(r => r.driver_id);
+    const { data: hist } = await sb.from("shifts")
+      .select("driver_id, status")
+      .eq("dsp_id", dspId)
+      .in("driver_id", ids)
+      .in("status", ["called_off", "no_show", "late"])
+      .gte("date", since);
+    const counts = (st) =>
+         (st === "late"       && policy.count_tardy)
+      || (st === "called_off" && policy.count_callout)
+      || (st === "no_show"    && policy.count_noshow);
+    for (const h of (hist || [])) {
+      if (!counts(h.status)) continue;
+      occMap.set(h.driver_id, (occMap.get(h.driver_id) || 0) + 1);
+    }
   }
 
-  const standing = (p) => {
-    if (p >= policy.threshold_action) return { label: "Action",   tone: "var(--red)" };
-    if (p >= policy.threshold_warn)   return { label: "Warning",  tone: "var(--amber)" };
+  const standing = (n) => {
+    if (policy.policy_enabled === false) return { label: "Policy off", tone: "var(--text-subtle)" };
+    if (n >= policy.threshold_action) return { label: "Action",       tone: "var(--red)" };
+    if (n >= policy.threshold_warn)   return { label: "Warning",      tone: "var(--amber)" };
     return { label: "Good standing", tone: "var(--green)" };
   };
 
-  const recommend = (outcome, pAfter) => {
+  const recommend = (outcome, nAfter) => {
+    if (policy.policy_enabled === false) return "Logged · policy is off";
+    // NCNS-terminates short-circuits the ladder for the very first NCNS.
+    if (outcome === "ncns" && policy.ncns_terminates) {
+      return "Termination · NCNS auto-escalation";
+    }
     const prog = !!policy.progressive_coaching;
-    if (pAfter >= policy.threshold_action) {
+    if (nAfter >= policy.threshold_action) {
       return prog ? "Final written warning · 1 step before termination"
                   : "Issue write-up + final warning";
     }
-    if (pAfter >= policy.threshold_warn) {
+    if (nAfter >= policy.threshold_warn) {
       return prog ? "Verbal coaching · log conversation"
                   : "Coach + log warning";
     }
@@ -2293,14 +2265,16 @@ async function _renderTpDailyTool(flagged) {
     return "Acknowledge missed day";
   };
 
+  const counted = (outcome) =>
+       (outcome === "tardy"           && policy.count_tardy)
+    || (outcome === "missed_reported" && policy.count_callout)
+    || (outcome === "ncns"            && policy.count_noshow);
+
   const rows = flagged.map(r => {
-    const before = pts.get(r.driver_id) || 0;
-    const add = r.computed_outcome === "ncns"            ? policy.points_per_noshow
-              : r.computed_outcome === "missed_reported" ? policy.points_per_callout
-              : r.computed_outcome === "tardy"           ? (policy.points_per_tardy || 0)
-              : 0;
+    const before = occMap.get(r.driver_id) || 0;
+    const add = (policy.policy_enabled !== false && counted(r.computed_outcome)) ? 1 : 0;
     const after = before + add;
-    const st = standing(after);
+    const st  = standing(after);
     const rec = recommend(r.computed_outcome, after);
     const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
     const tone = _RR_OUTCOME_TONE[r.computed_outcome] || _RR_OUTCOME_TONE.waiting;
@@ -2317,7 +2291,7 @@ async function _renderTpDailyTool(flagged) {
           <span style="background:${tone.bg};color:${tone.fg};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
         </div>
         <div style="min-width:0">
-          <div style="font-size:12px;color:var(--text)"><strong>${after.toFixed(1)} pts</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
+          <div style="font-size:12px;color:var(--text)"><strong>${after} occ${after === 1 ? "" : "s"}</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
           <div style="font-size:11px;color:var(--text-subtle)">Next: ${escapeHtml(rec)}</div>
         </div>
         <div style="display:flex;gap:6px">
