@@ -53,10 +53,12 @@
    #main below opts back into vertical pan only. */
 html,body{
   margin:0;padding:0;
-  height:100%;width:100%;
+  width:100%;
+  height:100%;
+  height:100dvh;
   overflow:hidden;
   position:fixed;
-  top:0;left:0;right:0;bottom:0;
+  inset:0;
   overscroll-behavior:none;
   touch-action:none;
 }
@@ -80,6 +82,8 @@ a{color:var(--accent);text-decoration:none}
   position:fixed;
   inset:0;
   width:100%;
+  height:100dvh;
+  background:var(--bg);
   /* Don't add safe-area-inset padding here — the header pushes itself
      down with its own padding instead, so it stays as the only thing
      under the iPhone notch. */
@@ -384,7 +388,10 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   padding:16px;
   display:flex;flex-direction:column;gap:6px;
   -webkit-overflow-scrolling:touch;
+  /* Hide the desktop-style scrollbar — chat lists shouldn't show one. */
+  scrollbar-width:none;
 }
+.chat-msgs::-webkit-scrollbar{ display:none; width:0; height:0; }
 .chat-bubble{
   max-width:78%;
   padding:9px 13px;border-radius:18px;
