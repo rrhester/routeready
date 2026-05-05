@@ -196,6 +196,7 @@ const routes = {
   "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
+  "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
   "/tasks/documents":   { render: renderDocuments,       tab: "/tasks",   back: "/tasks",   title: "Documents" },
 };
 function currentRoute() {
@@ -246,9 +247,8 @@ async function refreshDriverProfile(session) {
     if ((cur.photo_url || null) === (photoUrl || null) &&
         (cur.name || "")     === (data.name || "")) return;
     writeSession({ ...cur, name: data.name || cur.name, photo_url: photoUrl, photo_path: data.photo_path });
-    // Repaint header chip + profile if the user is on Profile.
-    const chip = document.getElementById("driver-chip");
-    if (chip) chip.innerHTML = avatarHtml(readSession(), "avatar");
+    // Repaint Profile if the user is on it (the header is now a fixed
+    // gear icon, no avatar to refresh there).
     if (currentRoute() === "/profile") render();
   } catch {}
 }
@@ -329,8 +329,8 @@ function renderShell(session) {
         <div class="title" id="head-title">RouteReady</div>
         <div class="sub" id="head-sub"></div>
       </div>
-      <button class="driver-chip" id="driver-chip" type="button" title="Profile">
-        ${avatarHtml(session, "avatar")}
+      <button class="head-gear" id="head-gear" type="button" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </button>
     </header>
     <main id="main"><div class="loader"></div></main>
@@ -356,7 +356,7 @@ function renderShell(session) {
   document.querySelectorAll(".tab").forEach((t) => {
     t.addEventListener("click", () => navigate(t.dataset.route));
   });
-  document.getElementById("driver-chip").addEventListener("click", () => navigate("/profile"));
+  document.getElementById("head-gear").addEventListener("click", () => navigate("/settings"));
 }
 
 // ── Schedule ────────────────────────────────────────────────────────
@@ -673,9 +673,7 @@ function renderProfileHub() {
 
     <div id="rr-checkin-slot" class="checkin-card">
       <div class="checkin-loading">Checking your shift…</div>
-    </div>
-
-    <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>`;
+    </div>`;
 
   // Photo upload — clicking the avatar opens the camera or picker.
   const fileInput = document.getElementById("rr-photo-input");
@@ -695,13 +693,32 @@ function renderProfileHub() {
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
-  main.querySelector("#rr-signout").addEventListener("click", async () => {
+}
+
+// ── Settings · gear icon in the top-right of the header ─────────────
+function renderSettings() {
+  const main = document.getElementById("main");
+  const session = readSession();
+  const name = session?.name || "Driver";
+  main.innerHTML = `
+    <div class="settings-page">
+      <div class="settings-section">
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Signed in as</div>
+            <div class="settings-value">${escapeHtml(name)}</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
+    </div>`;
+
+  document.getElementById("rr-signout").addEventListener("click", async () => {
     if (!confirm("Sign out of RouteReady?")) return;
-    const session = readSession();
-    await teardownPushSubscription(session);
-    if (session?.token) {
-      try { await sb.rpc("driver_signout", { p_token: session.token }); } catch {}
-    }
+    const s = readSession();
+    await teardownPushSubscription(s);
+    if (s?.token) { try { await sb.rpc("driver_signout", { p_token: s.token }); } catch {} }
     writeSession(null);
     syncSwSession(null);
     location.hash = "";

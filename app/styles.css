@@ -547,3 +547,30 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 }
 .checkin-row.missed .checkin-title{color:#991b1b}
 .checkin-row.missed .checkin-sub{color:#991b1b}
+
+/* ── Header gear (replaces the legacy avatar chip) ───────────── */
+.app-head .head-gear{
+  width:38px;height:38px;border-radius:50%;
+  background:var(--canvas);color:var(--text-muted);
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--border);
+  cursor:pointer;
+  transition:background .12s ease, color .12s ease, transform .08s ease;
+}
+.app-head .head-gear:hover{background:var(--accent-soft);color:var(--accent)}
+.app-head .head-gear:active{transform:scale(.95)}
+
+/* ── Settings page ──────────────────────────────────────────── */
+.settings-page{display:flex;flex-direction:column;gap:14px}
+.settings-section{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;
+}
+.settings-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;
+}
+.settings-row + .settings-row{border-top:1px solid var(--border)}
+.settings-label{font-size:11px;font-weight:700;color:var(--text-subtle);
+  letter-spacing:.06em;text-transform:uppercase}
+.settings-value{font-size:15px;font-weight:600;color:var(--text);margin-top:3px}
