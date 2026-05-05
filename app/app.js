@@ -654,6 +654,20 @@ const _AVAIL_DAYS = [
   { k: "sun", label: "Sun" },
 ];
 
+// State machine: 0 = off, 1 = available, 2 = preferred (preferred ⊆ available).
+// One row of chips that cycles through these three states keeps the UI
+// to seven targets instead of fourteen and makes the relationship
+// "preferred implies available" obvious — you can't pick "preferred"
+// without first marking the day available.
+function _stateFor(dk, days, preferred) {
+  if (preferred.has(dk)) return 2;
+  if (days.has(dk))      return 1;
+  return 0;
+}
+function _stateLabel(state) {
+  return state === 2 ? "Preferred" : state === 1 ? "Available" : "Off";
+}
+
 async function renderAvailability() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader"></div>`;
@@ -674,68 +688,84 @@ async function renderAvailability() {
   const preferred = new Set(Array.isArray(data?.preferred) ? data.preferred : []);
   const notes     = typeof data?.notes === "string" ? data.notes : "";
 
-  const dayRow = (kind, picked) => _AVAIL_DAYS.map((d) => {
-    const on = picked.has(d.k);
+  // Track an in-memory state-per-day. Re-rendered after every change so
+  // the chip color, ring, and aria-label always match.
+  const state = {};
+  _AVAIL_DAYS.forEach((d) => { state[d.k] = _stateFor(d.k, days, preferred); });
+
+  const renderChips = () => _AVAIL_DAYS.map((d) => {
+    const s = state[d.k];
+    const cls = s === 2 ? "avail-chip preferred" : s === 1 ? "avail-chip available" : "avail-chip";
     return `
-      <button type="button" class="avail-chip ${on ? "on" : ""}"
-              data-rr-avail="${kind}" data-rr-day="${d.k}" aria-pressed="${on}">
-        ${escapeHtml(d.label)}
+      <button type="button" class="${cls}" data-rr-day="${d.k}"
+              aria-label="${escapeHtml(d.label)} · ${_stateLabel(s)}"
+              aria-pressed="${s > 0}">
+        <span class="avail-chip-day">${escapeHtml(d.label)}</span>
+        <span class="avail-chip-state">${_stateLabel(s)}</span>
       </button>`;
   }).join("");
 
   main.innerHTML = `
     <div class="avail-page">
       <section class="avail-section">
-        <div class="avail-title">Days you can work</div>
-        <div class="avail-sub">Tap days you're available. Leave off the days you can't.</div>
-        <div class="avail-row" data-rr-avail-row="days">${dayRow("days", days)}</div>
+        <div class="avail-title">When can you work?</div>
+        <div class="avail-sub">Tap a day to mark it <b>Available</b>. Tap again to mark it <b>Preferred</b> (your favorite). Tap again to clear.</div>
+        <div class="avail-row" id="avail-row">${renderChips()}</div>
+        <div class="avail-presets">
+          <button type="button" class="avail-preset" data-preset="weekdays">Weekdays</button>
+          <button type="button" class="avail-preset" data-preset="all">Every day</button>
+          <button type="button" class="avail-preset" data-preset="clear">Clear all</button>
+        </div>
+        <div class="avail-legend">
+          <span class="avail-dot off"></span> Off
+          <span class="avail-dot avail"></span> Available
+          <span class="avail-dot pref"></span> Preferred
+        </div>
       </section>
 
       <section class="avail-section">
-        <div class="avail-title">Preferred days</div>
-        <div class="avail-sub">From the days you're available, which do you prefer? Dispatch will weight these when assigning routes.</div>
-        <div class="avail-row" data-rr-avail-row="preferred">${dayRow("preferred", preferred)}</div>
-      </section>
-
-      <section class="avail-section">
-        <div class="avail-title">Notes for dispatch</div>
-        <div class="avail-sub">Optional. e.g. "school pickup Wed afternoons" or "AM only please".</div>
-        <textarea id="avail-notes" rows="3" maxlength="500" placeholder="Anything dispatch should know…">${escapeHtml(notes)}</textarea>
+        <div class="avail-title">Notes for dispatch <span class="avail-optional">· optional</span></div>
+        <textarea id="avail-notes" rows="3" maxlength="500" placeholder="e.g. school pickup Wed afternoons · AM only please">${escapeHtml(notes)}</textarea>
       </section>
 
       <button class="avail-save" id="avail-save" type="button">Save</button>
     </div>`;
 
-  // Toggle chips. A "preferred" chip is meaningful only if that day is
-  // available, so toggling preferred auto-toggles availability on.
-  main.addEventListener("click", (e) => {
-    const chip = e.target.closest("[data-rr-avail]");
+  const rowEl = document.getElementById("avail-row");
+
+  function repaint() {
+    rowEl.innerHTML = renderChips();
+  }
+
+  // Single tap cycles 0 → 1 → 2 → 0.
+  rowEl.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-rr-day]");
     if (!chip) return;
-    const kind = chip.dataset.rrAvail;
-    const dk   = chip.dataset.rrDay;
-    chip.classList.toggle("on");
-    chip.setAttribute("aria-pressed", chip.classList.contains("on"));
-    if (kind === "preferred" && chip.classList.contains("on")) {
-      const availChip = main.querySelector(`[data-rr-avail="days"][data-rr-day="${dk}"]`);
-      if (availChip && !availChip.classList.contains("on")) {
-        availChip.classList.add("on");
-        availChip.setAttribute("aria-pressed", "true");
+    const dk = chip.dataset.rrDay;
+    state[dk] = (state[dk] + 1) % 3;
+    repaint();
+  });
+
+  // Presets — clear everything, then set the target days to "Available".
+  document.querySelectorAll(".avail-preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const which = btn.dataset.preset;
+      _AVAIL_DAYS.forEach((d) => { state[d.k] = 0; });
+      if (which === "weekdays") {
+        ["mon","tue","wed","thu","fri"].forEach((k) => { state[k] = 1; });
+      } else if (which === "all") {
+        _AVAIL_DAYS.forEach((d) => { state[d.k] = 1; });
       }
-    }
-    if (kind === "days" && !chip.classList.contains("on")) {
-      const prefChip = main.querySelector(`[data-rr-avail="preferred"][data-rr-day="${dk}"]`);
-      if (prefChip && prefChip.classList.contains("on")) {
-        prefChip.classList.remove("on");
-        prefChip.setAttribute("aria-pressed", "false");
-      }
-    }
+      repaint();
+    });
   });
 
   document.getElementById("avail-save").addEventListener("click", async () => {
     const btn = document.getElementById("avail-save");
+    const original = btn.textContent;
     btn.disabled = true; btn.textContent = "Saving…";
-    const pickedDays = Array.from(main.querySelectorAll(`[data-rr-avail="days"].on`)).map(c => c.dataset.rrDay);
-    const pickedPref = Array.from(main.querySelectorAll(`[data-rr-avail="preferred"].on`)).map(c => c.dataset.rrDay);
+    const pickedDays = _AVAIL_DAYS.filter((d) => state[d.k] >= 1).map((d) => d.k);
+    const pickedPref = _AVAIL_DAYS.filter((d) => state[d.k] === 2).map((d) => d.k);
     const noteVal = (document.getElementById("avail-notes")?.value || "").trim();
     const { error } = await sb.rpc("driver_set_availability", {
       p_token:     session.token,
@@ -743,9 +773,15 @@ async function renderAvailability() {
       p_preferred: pickedPref,
       p_notes:     noteVal,
     });
-    btn.disabled = false; btn.textContent = "Save";
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    if (error) {
+      btn.disabled = false; btn.textContent = original;
+      toast("Save failed: " + error.message, "warn");
+      return;
+    }
+    btn.textContent = "Saved ✓";
+    btn.classList.add("saved");
     toast("Availability saved", "ok");
+    setTimeout(() => { btn.textContent = original; btn.classList.remove("saved"); btn.disabled = false; }, 1400);
   });
 }
 
