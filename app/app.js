@@ -556,13 +556,30 @@ function taskCardHtml(c) {
 // Polls every 8 seconds while the tab is visible. New messages arrive
 // without push for now (push lands in a later PR). Mark-read fires on
 // open + after every poll that returns dispatch messages.
+//
+// Two sub-views inside /chat:
+//   - "dispatch": the rolling driver↔dispatch thread (legacy default)
+//   - "channels": group rooms scoped to the DSP (or station).  Channel
+//                 list → channel thread → composer.  Same bubble +
+//                 attachment + signed-URL helpers as dispatch chat.
 let _chatPollTimer = null;
 let _chatLastIds = new Set();
+let _chatTab        = "dispatch";  // "dispatch" | "channels"
+let _chatChannelId  = null;        // when set, render the channel thread
+let _chatChannelMeta = null;       // cached header info for the thread
 async function renderChat() {
+  if (_chatTab === "channels") {
+    if (_chatChannelId) return renderChatChannelThread();
+    return renderChatChannelsList();
+  }
   setHeader("Chat", "");
   const main = document.getElementById("main");
   main.innerHTML = `
     <div id="chat-shell">
+      <div id="chat-tabs" class="chat-tabs">
+        <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
+        <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
+      </div>
       <div id="chat-msgs" class="chat-msgs"><div class="loader"></div></div>
       <form class="chat-composer" id="chat-form">
         <input id="chat-file" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
@@ -683,6 +700,19 @@ async function renderChat() {
     await refreshChat(true);
   });
 
+  // Tab toggle — Dispatch / Channels.
+  document.querySelectorAll("[data-rr-chat-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-rr-chat-tab");
+      if (next === _chatTab) return;
+      if (_chatPollTimer) { clearInterval(_chatPollTimer); _chatPollTimer = null; }
+      _chatTab = next;
+      _chatChannelId = null;
+      _chatChannelMeta = null;
+      renderChat();
+    });
+  });
+
   // First time the driver lands on Chat is the right moment to ask for
   // notification permission — they've clearly engaged with messaging.
   ensurePushSubscription(session);
@@ -694,6 +724,7 @@ async function renderChat() {
   _chatPollTimer = setInterval(() => {
     if (document.hidden) return;
     if (currentRoute() !== "/chat") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
+    if (_chatTab !== "dispatch") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
     refreshChat(false);
   }, 8000);
 }
@@ -798,6 +829,325 @@ async function _rrSignChatAttachments() {
       else                       el.href = data.signedUrl;
     } catch {}
   }
+}
+
+
+// ── Channels (driver app side) ─────────────────────────────────────
+// driver_channels_list returns every channel the driver belongs to,
+// with unread counts.  Click → driver_channel_messages renders the
+// thread, composer posts via driver_channel_post.
+
+let _chatChannelPollTimer = null;
+
+async function renderChatChannelsList() {
+  setHeader("Channels", "");
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div id="chat-shell">
+      <div id="chat-tabs" class="chat-tabs">
+        <button class="chat-tab" data-rr-chat-tab="dispatch">Dispatch</button>
+        <button class="chat-tab active" data-rr-chat-tab="channels">Channels</button>
+      </div>
+      <div id="chat-channel-list" class="chat-channel-list" style="flex:1;overflow-y:auto;background:var(--canvas);padding:8px 0">
+        <div class="loader" style="margin:60px auto"></div>
+      </div>
+    </div>`;
+
+  document.querySelectorAll("[data-rr-chat-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-rr-chat-tab");
+      if (next === _chatTab) return;
+      if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
+      _chatTab = next;
+      _chatChannelId = null;
+      _chatChannelMeta = null;
+      renderChat();
+    });
+  });
+
+  await refreshChannelList();
+  if (_chatChannelPollTimer) clearInterval(_chatChannelPollTimer);
+  _chatChannelPollTimer = setInterval(() => {
+    if (document.hidden) return;
+    if (currentRoute() !== "/chat" || _chatTab !== "channels" || _chatChannelId) {
+      clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
+    }
+    refreshChannelList();
+  }, 10000);
+}
+
+async function refreshChannelList() {
+  const session = readSession();
+  if (!session?.token) return;
+  const list = document.getElementById("chat-channel-list");
+  if (!list) return;
+  const { data, error } = await sb.rpc("driver_channels_list", { p_token: session.token });
+  if (error) {
+    if (/unauthorized|revoked|inactive/.test(error.message || "")) {
+      writeSession(null); render(); return;
+    }
+    list.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load channels.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
+    return;
+  }
+  const channels = data?.channels || [];
+  if (channels.length === 0) {
+    list.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--text-subtle)">No channels yet.<br><small>Your dispatcher adds you to channels.</small></div>`;
+    return;
+  }
+  const fmtRel = (iso) => {
+    if (!iso) return "—";
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return "now";
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}d`;
+    return new Date(iso).toLocaleDateString();
+  };
+  list.innerHTML = channels.map(c => {
+    const lastBody = c.last_message
+      ? (c.last_sender ? `${c.last_sender}: ` : "") + c.last_message
+      : `${c.member_count || 0} member${c.member_count === 1 ? "" : "s"}`;
+    const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
+    const stationChip = c.station_code
+      ? `<span style="font-size:10px;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
+      : "";
+    const unread = c.unread > 0
+      ? `<span style="background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center">${c.unread}</span>`
+      : "";
+    return `
+      <div class="chat-channel-row" data-rr-open-channel="${escapeHtml(c.id)}" style="display:flex;gap:12px;align-items:center;padding:14px 18px;background:var(--surface);margin:0 8px 8px;border:1px solid var(--border);border-radius:12px;cursor:pointer">
+        <div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">#</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:15px;font-weight:600;color:var(--text)">${escapeHtml(c.name)}</span>
+            ${stationChip}
+          </div>
+          <div style="font-size:12px;color:var(--text-subtle);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(lastBodyTrunc)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(fmtRel(c.last_message_at))}</div>
+          ${unread}
+        </div>
+      </div>`;
+  }).join("");
+
+  list.querySelectorAll("[data-rr-open-channel]").forEach(el => {
+    el.addEventListener("click", () => {
+      const id = el.getAttribute("data-rr-open-channel");
+      _chatChannelId   = id;
+      _chatChannelMeta = channels.find(c => c.id === id) || null;
+      if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
+      renderChat();
+    });
+  });
+}
+
+async function renderChatChannelThread() {
+  const meta = _chatChannelMeta || {};
+  setHeader(`#${meta.name || "channel"}`, meta.station_code ? `station ${meta.station_code}` : `${meta.member_count || 0} member${meta.member_count === 1 ? "" : "s"}`);
+  // Show the back arrow — points to the channel list rather than the
+  // home tab, so the operator-style breadcrumb stays inside /chat.
+  const back = document.getElementById("head-back");
+  if (back) {
+    back.style.display = "inline-flex";
+    back.onclick = () => {
+      _chatChannelId   = null;
+      _chatChannelMeta = null;
+      renderChat();
+    };
+  }
+
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div id="chat-shell">
+      <div id="chat-msgs" class="chat-msgs"><div class="loader"></div></div>
+      <form class="chat-composer" id="chat-form">
+        <input id="chat-file" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+        <button id="chat-attach" type="button" class="chat-attach" aria-label="Attach photo or document" title="Attach">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+          <div id="chat-attachment-preview" style="display:none"></div>
+          <textarea id="chat-input" rows="1" placeholder="Post to #${escapeHtml(meta.name || "channel")}…" maxlength="2000"></textarea>
+        </div>
+        <button class="chat-send" type="submit" aria-label="Send">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </form>
+    </div>`;
+
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const ta = document.getElementById("chat-input");
+  ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(120, ta.scrollHeight) + "px"; });
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer:fine)").matches) {
+      e.preventDefault();
+      document.getElementById("chat-form").requestSubmit();
+    }
+  });
+
+  const fileInput = document.getElementById("chat-file");
+  const previewEl = document.getElementById("chat-attachment-preview");
+  document.getElementById("chat-attach").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files?.[0];
+    if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+    if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
+    window._rrChatPending = f;
+    const isImg = f.type.startsWith("image/");
+    const sizeKb = Math.round(f.size / 1024);
+    previewEl.style.display = "";
+    previewEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
+        ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">`
+                : `<span style="font-size:18px">📎</span>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
+          <div style="color:var(--text-subtle)">${sizeKb} KB</div>
+        </div>
+        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:16px;line-height:1">×</button>
+      </div>`;
+    document.getElementById("chat-attach-clear").addEventListener("click", () => {
+      fileInput.value = "";
+      window._rrChatPending = null;
+      previewEl.style.display = "none";
+      previewEl.innerHTML = "";
+    });
+  });
+
+  document.getElementById("chat-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = (ta.value || "").trim();
+    const file = window._rrChatPending;
+    if (!body && !file) return;
+
+    let attachment = null;
+    if (file) {
+      let dspId    = session.dsp_id;
+      let driverId = session.driver_id;
+      if (!dspId || !driverId) {
+        const { data: me } = await sb.rpc("driver_me", { p_token: session.token });
+        dspId    = me?.dsp_id    || dspId;
+        driverId = me?.id        || driverId;
+        const cur = readSession();
+        if (cur && (dspId || driverId)) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+      }
+      if (!dspId || !driverId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || `file.${ext}`;
+      const path = `${dspId}/${driverId}/channels/${_chatChannelId}/${Date.now()}-${safe}`;
+      const { error: upErr } = await sb.storage
+        .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+      attachment = { path, mime: file.type, name: file.name, size: file.size };
+    }
+
+    ta.value = ""; ta.style.height = "auto";
+    if (file) {
+      window._rrChatPending = null;
+      fileInput.value = "";
+      previewEl.style.display = "none";
+      previewEl.innerHTML = "";
+    }
+
+    const { error } = await sb.rpc("driver_channel_post", {
+      p_token:                 session.token,
+      p_channel_id:            _chatChannelId,
+      p_body:                  body || null,
+      p_attachment_path:       attachment?.path || null,
+      p_attachment_mime:       attachment?.mime || null,
+      p_attachment_name:       attachment?.name || null,
+      p_attachment_size_bytes: attachment?.size || null,
+    });
+    if (error) { toast("Couldn't post: " + error.message, "warn"); return; }
+    await refreshChannelThread(true);
+  });
+
+  await refreshChannelThread(true);
+  if (_chatChannelPollTimer) clearInterval(_chatChannelPollTimer);
+  _chatChannelPollTimer = setInterval(() => {
+    if (document.hidden) return;
+    if (currentRoute() !== "/chat" || _chatTab !== "channels" || !_chatChannelId) {
+      clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
+    }
+    refreshChannelThread(false);
+  }, 8000);
+}
+
+async function refreshChannelThread(scrollToBottom) {
+  const session = readSession();
+  if (!session?.token || !_chatChannelId) return;
+  const wrap = document.getElementById("chat-msgs");
+  const { data, error } = await sb.rpc("driver_channel_messages", {
+    p_token: session.token, p_channel_id: _chatChannelId, p_limit: 200,
+  });
+  if (error) {
+    if (/unauthorized|revoked|inactive/.test(error.message || "")) {
+      writeSession(null); render(); return;
+    }
+    if (wrap) {
+      wrap.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load channel.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
+    }
+    return;
+  }
+  if (!wrap) return;
+  const messages = data?.messages || [];
+  if (messages.length === 0) {
+    wrap.innerHTML = `<div class="empty-state">No messages yet. Be the first to post.</div>`;
+  } else {
+    wrap.innerHTML = messages.map(channelBubbleHtml).join("");
+    _rrSignChatAttachments();
+  }
+  if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
+  setAppBadge(0);
+}
+
+// Same shape as chatBubbleHtml but routes mine/theirs off the
+// is_self flag (driver could be either side of a channel post).
+function channelBubbleHtml(m) {
+  const mine = !!m.is_self;
+  const t = new Date(m.created_at);
+  const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const sender = m.sender_kind === "dispatch" ? "Dispatch" : (m.sender_name || "Driver");
+  const body = m.body
+    ? escapeHtml(m.body).replace(/\n/g, "<br>")
+        .replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
+          const trim = raw.replace(/[.,;:!?)\]>]+$/, "");
+          const tail = raw.slice(trim.length);
+          return `<a href="${trim}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;font-weight:600;word-break:break-all">${trim}</a>${tail}`;
+        })
+    : "";
+
+  let attachment = "";
+  if (m.attachment_path) {
+    const isImg = (m.attachment_mime || "").startsWith("image/");
+    const name  = m.attachment_name || "Attachment";
+    const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
+    if (isImg) {
+      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
+    } else {
+      attachment = `
+        <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
+          <span style="font-size:18px">📎</span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-weight:600;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(name)}</span>
+            ${sizeKb != null ? `<span style="display:block;font-size:11px;color:var(--text-subtle)">${sizeKb} KB</span>` : ""}
+          </span>
+        </a>`;
+    }
+  }
+
+  return `
+    <div class="chat-bubble ${mine ? "mine" : "theirs"}">
+      ${!mine ? `<div style="font-size:11px;font-weight:700;color:var(--text-subtle);margin-bottom:3px">${escapeHtml(sender)}</div>` : ""}
+      ${attachment}
+      ${body ? `<div class="chat-body">${body}</div>` : ""}
+      <div class="chat-time">${escapeHtml(time)}</div>
+    </div>`;
 }
 
 // ── Profile · home screen. Photo + name + check-in. Nothing else. ──
