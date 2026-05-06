@@ -401,6 +401,31 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   background:var(--bg);
   z-index:5;
 }
+/* Tab strip at the top of /chat — Dispatch / Channels.  When present
+   the chat-msgs region drops 44px so the bubbles don't sit under it. */
+.chat-tabs{
+  position:absolute;
+  top:0;left:0;right:0;height:44px;
+  display:flex;align-items:stretch;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  z-index:6;
+}
+.chat-tab{
+  flex:1;
+  background:transparent;border:0;
+  font:inherit;font-size:13px;font-weight:600;color:var(--text-subtle);
+  cursor:pointer;
+  padding:0;
+}
+.chat-tab.active{
+  color:var(--accent);
+  box-shadow:inset 0 -2px 0 var(--accent);
+}
+.chat-tabs ~ .chat-msgs,
+.chat-tabs ~ .chat-channel-list{
+  top:44px;
+}
 .chat-msgs{
   position:absolute;
   top:0;left:0;right:0;bottom:60px;
@@ -411,6 +436,13 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
      that is invisible. */
   scrollbar-width:none;
 }
+.chat-channel-list{
+  position:absolute;
+  top:0;left:0;right:0;bottom:0;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.chat-channel-list::-webkit-scrollbar{ display:none; width:0; height:0; }
 .chat-msgs::-webkit-scrollbar{ display:none; width:0; height:0; }
 .chat-composer{
   position:absolute;
