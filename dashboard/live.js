@@ -3921,7 +3921,126 @@ const _originalOpenModal = window.openModal;
 window.openModal = function (id) {
   if (id === "modal-add-driver") { openDriverDrawer(null); return; }
   if (typeof _originalOpenModal === "function") _originalOpenModal(id);
+  if (id === "modal-broadcast") { _initBroadcastModal(); }
 };
+
+// ─── Broadcast (one-message-to-many) ──────────────────────────────
+// The modal markup is fully styled but every audience pill, count, and
+// the Send button were hardcoded mockup behavior.  This swaps the
+// audience pills with live station counts, tracks the operator's
+// selection, and rewires the Send button to actually fan a single
+// message out to every targeted driver via dispatch_chat_send (which
+// already handles SMS + push fan-out through the existing chat infra).
+let _broadcastDrivers = []; // [{id, station_id, station_code}]
+let _broadcastAudience = "all"; // "all" | "station:<id>"
+
+async function _initBroadcastModal() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const { data, error } = await sb.from("drivers")
+    .select("id, status, station_id, station:station_id (code)")
+    .eq("dsp_id", dspId)
+    .in("status", ["active", "onboarding"]);
+  if (error) { toast("Couldn't load drivers: " + error.message, "warn"); return; }
+
+  _broadcastDrivers = (data || []).map(d => ({
+    id:           d.id,
+    station_id:   d.station_id || null,
+    station_code: d.station?.code || null,
+  }));
+  _broadcastAudience = "all";
+
+  // Group drivers by station for per-station pill counts.
+  const byStation = new Map();
+  for (const d of _broadcastDrivers) {
+    if (!d.station_id) continue;
+    if (!byStation.has(d.station_id)) {
+      byStation.set(d.station_id, { id: d.station_id, code: d.station_code, count: 0 });
+    }
+    byStation.get(d.station_id).count++;
+  }
+  const stations = Array.from(byStation.values()).sort((a, b) => (a.code || "").localeCompare(b.code || ""));
+
+  // Replace the static audience pill row + count line with live data.
+  const modal = document.getElementById("modal-broadcast");
+  if (!modal) return;
+  const pillRow = modal.querySelector(".aud-pill-row");
+  if (pillRow) {
+    pillRow.innerHTML =
+      `<button class="aud-pill active" data-rr-bcast-aud="all">All drivers (${_broadcastDrivers.length})</button>` +
+      stations.map(s => `<button class="aud-pill" data-rr-bcast-aud="station:${escapeHtml(s.id)}">${escapeHtml(s.code || "—")} (${s.count})</button>`).join("");
+    pillRow.querySelectorAll("[data-rr-bcast-aud]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        pillRow.querySelectorAll(".aud-pill").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        _broadcastAudience = btn.dataset.rrBcastAud;
+        _updateBroadcastCount();
+      });
+    });
+  }
+
+  _updateBroadcastCount();
+
+  // Replace the Send button's mockup onclick with the real sender.
+  const sendBtn = modal.querySelector(".modal-foot .btn-primary");
+  if (sendBtn) {
+    sendBtn.onclick = _sendBroadcast;
+  }
+}
+
+function _broadcastSelectedDrivers() {
+  if (_broadcastAudience === "all") return _broadcastDrivers;
+  if (_broadcastAudience.startsWith("station:")) {
+    const sid = _broadcastAudience.slice("station:".length);
+    return _broadcastDrivers.filter(d => d.station_id === sid);
+  }
+  return [];
+}
+
+function _updateBroadcastCount() {
+  const modal = document.getElementById("modal-broadcast");
+  const countEl = modal?.querySelector(".aud-count strong");
+  if (!countEl) return;
+  const n = _broadcastSelectedDrivers().length;
+  countEl.textContent = `${n} driver${n === 1 ? "" : "s"}`;
+  // The "X currently online" count was a mockup figure; drop it now
+  // that the rest of the line is live.
+  const parent = modal.querySelector(".aud-count");
+  if (parent) {
+    const trailing = parent.lastChild;
+    if (trailing && trailing.nodeType === Node.TEXT_NODE && trailing.textContent.includes("online")) {
+      trailing.textContent = " · sent via in-app + SMS";
+    }
+  }
+}
+
+async function _sendBroadcast() {
+  const modal = document.getElementById("modal-broadcast");
+  if (!modal) return;
+  const ta = document.getElementById("bcast-msg");
+  const body = (ta?.value || "").trim();
+  if (!body) { toast("Type a message first", "warn"); return; }
+
+  const targets = _broadcastSelectedDrivers();
+  if (targets.length === 0) { toast("No drivers in the selected audience", "warn"); return; }
+  if (!confirm(`Send this broadcast to ${targets.length} driver${targets.length === 1 ? "" : "s"}?`)) return;
+
+  const sendBtn = modal.querySelector(".modal-foot .btn-primary");
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "Sending…"; }
+
+  let sent = 0, failed = 0;
+  for (const d of targets) {
+    const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: d.id, p_body: body });
+    if (error) failed++; else sent++;
+  }
+
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send broadcast`; }
+  if (typeof closeModal === "function") closeModal("modal-broadcast");
+  if (ta) ta.value = "";
+  if (failed === 0) toast(`Broadcast sent to ${sent} driver${sent === 1 ? "" : "s"}`, "success");
+  else              toast(`Broadcast sent to ${sent} of ${targets.length} drivers · ${failed} failed`, "warn");
+}
 
 let _driverStationsCache = null;
 async function getDriverStationsCached() {
@@ -7641,27 +7760,18 @@ function _renderAvailabilityShell() {
   if (host.dataset.rrShell === "1") return;
   host.dataset.rrShell = "1";
 
-  const card = host.querySelector(":scope > div");
-  if (!card) return;
-
-  card.insertAdjacentHTML("beforebegin", `
-    <div id="rr-avail-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
-    <div id="rr-avail-insights" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px"></div>
-    <details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
-      <summary style="cursor:pointer;padding:12px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between">
-        <span>Settings · lead time &amp; auto-response templates</span>
-        <span style="font-size:11px;color:var(--text-subtle);font-weight:400">Click to expand</span>
-      </summary>
-      <div id="rr-avail-settings" style="padding:0 18px 18px"></div>
-    </details>
-    <details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
-      <summary style="cursor:pointer;padding:12px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between">
-        <span>Blackout dates · drivers can't submit during these windows</span>
-        <span style="font-size:11px;color:var(--text-subtle);font-weight:400">Click to expand</span>
-      </summary>
-      <div id="rr-avail-blackouts" style="padding:0 18px 18px"></div>
-    </details>
-  `);
+  // KPIs / repeats / settings / blackouts containers all live in static
+  // HTML now (with data-rr-avail-* attribute selectors that match what
+  // the renderers expect).  Earlier this function injected its own
+  // copies with id selectors that didn't match — so KPIs and the
+  // settings/blackouts panels never rendered.  Now we just wire the
+  // gear-icon toggle for the settings drawer.
+  const gear   = document.getElementById("rr-avail-settings-toggle");
+  const drawer = document.getElementById("rr-avail-settings-modal");
+  if (gear && drawer && !gear.dataset.rrWired) {
+    gear.dataset.rrWired = "1";
+    gear.addEventListener("click", () => { drawer.style.display = "flex"; });
+  }
 
   const list = document.getElementById("rr-avail-req-list");
   if (list) {
@@ -7956,10 +8066,9 @@ function _renderAvailabilityCoverageCard() {
 
   if (sub) sub.textContent = `${total} active driver${total === 1 ? "" : "s"}`;
 
-  // Render seven rows: day label · neutral bar · count · pct.
-  // Bars are filled in muted text-muted so the page stays neutral
-  // (no stoplight tints).  The pct number is the operator's quick
-  // read; counts (4/8) carry the absolute supply for context.
+  // Render seven rows: day label · brand bar · count · pct.  Brand
+  // blue is gentler than the slate text-muted that previously read as
+  // almost-black on this page.
   bars.innerHTML = DOW.map(d => {
     const supply = _availImpactCtx.supplyByDow[d] || 0;
     const peak   = _availImpactCtx.demandByDow[d] || 0;
@@ -7967,13 +8076,40 @@ function _renderAvailabilityCoverageCard() {
     return `
       <div style="display:grid;grid-template-columns:48px 1fr 90px 110px;align-items:center;gap:12px;padding:6px 0">
         <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[d]}</div>
-        <div style="background:var(--canvas);height:10px;border-radius:5px;overflow:hidden">
-          <div style="background:var(--text-muted);height:100%;width:${pct}%;transition:width .3s"></div>
+        <div style="background:var(--accent-soft);height:10px;border-radius:5px;overflow:hidden">
+          <div style="background:var(--accent);height:100%;width:${pct}%;transition:width .3s"></div>
         </div>
         <div style="font-size:13px;font-weight:700;color:var(--text);text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
         <div style="font-size:11px;color:var(--text-subtle);text-align:right;font-variant-numeric:tabular-nums">${supply}/${total}${peak > 0 ? ` · peak ${peak}` : ""}</div>
       </div>`;
   }).join("");
+}
+
+// Last of the merge-loss casualties — without this _renderAvailabilityRows
+// throws on its first call and the Pending availability requests panel
+// stays on "Loading…" forever.  Restored from 053968c.
+function _sortAvailRows(rows) {
+  const dir = _availSortDir === "asc" ? 1 : -1;
+  const cmp = (a, b) => {
+    let av, bv;
+    switch (_availSortKey) {
+      case "driver":    av = (a.driver_name || "").toLowerCase(); bv = (b.driver_name || "").toLowerCase(); break;
+      case "station":   av = (a.station_code || "").toLowerCase(); bv = (b.station_code || "").toLowerCase(); break;
+      case "status":    av = a.status; bv = b.status; break;
+      case "submitted": av = a.submitted_at || ""; bv = b.submitted_at || ""; break;
+      default: {
+        // default: pending first, then newest decided
+        const ap = a.status === "pending" ? 0 : 1;
+        const bp = b.status === "pending" ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        return (b.submitted_at || "").localeCompare(a.submitted_at || "");
+      }
+    }
+    if (av < bv) return -dir;
+    if (av > bv) return  dir;
+    return 0;
+  };
+  return rows.slice().sort(cmp);
 }
 
 function _renderAvailabilityRows() {
