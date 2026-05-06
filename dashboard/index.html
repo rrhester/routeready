@@ -511,22 +511,50 @@ a{color:inherit;text-decoration:none}
 }
 .filter-chip svg{width:12px;height:12px;stroke-width:2}
 
-/* Table */
+/* ─────────────────────────────────────────────────────────────
+   TABLE
+   Variants:  .table-compact  · denser rows for wide reports
+              .table-zebra    · subtle alternating rows for dense data
+              .table-clickable· rows feel interactive (cursor + lift)
+   Sortable:  add [data-rr-sort] to a <th> to get cursor + hover
+   Scroll:    .table-wrap-scroll wraps for horizontal scroll on narrow
+   ───────────────────────────────────────────────────────────── */
 .table-wrap{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  overflow:hidden;
 }
+.table-wrap-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .table{width:100%;border-collapse:collapse}
 .table thead th{
   text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
   letter-spacing:.04em;text-transform:uppercase;
-  padding:10px 16px;background:var(--canvas);border-bottom:1px solid var(--border);
+  padding:10px var(--s-4);background:var(--canvas);border-bottom:1px solid var(--border);
+  white-space:nowrap;
 }
+.table thead th[data-rr-sort],
+.table thead th[data-att-sort]{cursor:pointer;user-select:none;transition:color .12s}
+.table thead th[data-rr-sort]:hover,
+.table thead th[data-att-sort]:hover{color:var(--text)}
 .table tbody td{
-  padding:14px 16px;font-size:var(--fs-md);color:var(--text);
+  padding:14px var(--s-4);font-size:var(--fs-md);color:var(--text);
   border-bottom:1px solid var(--border);vertical-align:middle;
 }
 .table tbody tr:last-child td{border-bottom:none}
 .table tbody tr:hover{background:var(--canvas)}
+
+/* Density modifier — shaves vertical padding for wide reports
+   (attendance report has 13 columns; compact mode keeps the row
+   readable without the double scroll). */
+.table-compact thead th{padding:7px var(--s-3)}
+.table-compact tbody td{padding:9px var(--s-3);font-size:var(--fs-sm)}
+
+/* Zebra striping — subtle, only for very dense tables.  Hover
+   still wins since it's a stronger color. */
+.table-zebra tbody tr:nth-child(even){background:rgba(15,23,42,.015)}
+
+/* Clickable rows — used wherever a table row opens a drawer/modal. */
+.table-clickable tbody tr{cursor:pointer}
+.table-clickable tbody tr:hover{background:var(--accent-soft)}
 .cell-name{font-weight:600}
 .cell-name-sub{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400;margin-top:2px}
 .cell-contact{color:var(--text-muted);font-size:var(--fs-sm);line-height:1.4}
@@ -5218,7 +5246,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         </div>
 
         <div class="table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
-          <table class="table">
+          <table class="table table-clickable">
             <thead>
               <tr>
                 <th>Driver</th>
@@ -5538,7 +5566,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             </div>
 
             <div class="table-wrap">
-              <table class="table" id="att-report-table">
+              <table class="table table-compact table-zebra" id="att-report-table">
                 <thead id="att-report-thead">
                   <tr>
                     <th data-rr-att-sort="driver"     style="cursor:pointer;user-select:none">Driver</th>
@@ -16506,7 +16534,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260506y"></script>
+<script type="module" src="./live.js?v=20260506z"></script>
 
 </body>
 </html>
