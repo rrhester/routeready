@@ -643,9 +643,15 @@ function chatBubbleHtml(m) {
   const mine = m.sender_kind === "driver";
   const t = new Date(m.created_at);
   const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  // Auto-link http(s) URLs in the body so the driver can tap a
+  // coaching-link or any other URL dispatch sends.  Escape first,
+  // then swap in <a> tags — this keeps it safe from injection.
+  const body = escapeHtml(m.body).replace(/\n/g, "<br>")
+    .replace(/(https?:\/\/[^\s<]+)/g, (url) =>
+      `<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:600">${url}</a>`);
   return `
     <div class="chat-bubble ${mine ? "mine" : "theirs"}">
-      <div class="chat-body">${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>
+      <div class="chat-body">${body}</div>
       <div class="chat-time">${escapeHtml(time)}</div>
     </div>`;
 }
