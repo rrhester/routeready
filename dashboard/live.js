@@ -2400,22 +2400,22 @@ async function loadTodayPlan() {
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
-      <div id="rr-tp-waves"   style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;height:108px"></div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;height:108px"></div>
+      <div id="rr-tp-waves"   style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--s-3);margin-bottom:var(--s-4)">
+        <div class="card" style="height:108px"></div>
+        <div class="card" style="height:108px"></div>
       </div>
-      <div id="rr-tp-meta"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-subtle)">Loading…</div>
-      <div id="rr-tp-tool"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
-        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Daily attendance · approvals</div>
+      <div id="rr-tp-meta" class="card card-compact" style="padding:var(--s-2) var(--s-4);margin-bottom:var(--s-4);font-size:var(--fs-sm);color:var(--text-subtle)">Loading</div>
+      <div id="rr-tp-tool" class="card card-flush" style="margin-bottom:var(--s-4)">
+        <div class="rr-tp-section-head">Daily attendance · approvals</div>
         <div class="rr-loading">Loading</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        <div id="rr-tp-extras" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Extra drivers (Ex)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4)">
+        <div id="rr-tp-extras" class="card card-flush">
+          <div class="rr-tp-section-head">Extra drivers (Ex)</div>
           <div class="rr-loading">Loading</div>
         </div>
-        <div id="rr-tp-cov" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Coverage</div>
+        <div id="rr-tp-cov" class="card card-flush">
+          <div class="rr-tp-section-head">Coverage</div>
           <div class="rr-loading">Loading</div>
         </div>
       </div>`;
@@ -2464,7 +2464,7 @@ function _renderTpAttendance(data, error) {
   if (!wavesEl || !metaEl || !toolEl || !extrasEl) return;
 
   if (error) {
-    toolEl.innerHTML = `<div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Daily attendance · approvals</div>
+    toolEl.innerHTML = `<div class="card-section-head">Daily attendance · approvals</div>
       <div style="padding:18px;color:var(--red);font-size:var(--fs-sm);text-align:center">${escapeHtml(error.message || String(error))}</div>`;
     return;
   }
@@ -2495,7 +2495,7 @@ function _renderTpAttendance(data, error) {
     const outPct = 100 - inPct;
     const flagged = b.tardy + b.ncns;
     return `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+      <div class="card card-compact" style="display:flex;flex-direction:column;gap:var(--s-3)">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">Wave ${escapeHtml(String(wave))}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${b.scheduled} scheduled</div>
@@ -2573,7 +2573,7 @@ function _renderTpAttendance(data, error) {
           </div>`;
       }).join("");
   extrasEl.innerHTML = `
-    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">
+    <div class="card-section-head">
       Extra drivers (Ex) <span style="color:var(--text-subtle);font-weight:600">· ${extras.length}</span>
     </div>
     ${extrasRows}`;
@@ -2590,7 +2590,7 @@ async function _renderTpDailyTool(flagged) {
   if (!toolEl) return;
 
   const head = (n) => `
-    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">
+    <div class="card-section-head">
       Daily attendance · approvals <span style="color:var(--text-subtle);font-weight:600">· ${n}</span>
     </div>`;
 
@@ -2804,7 +2804,7 @@ function _renderTpCoverage(data, error) {
   if (!covEl) return;
 
   const headHtml = (subtext) => `
-    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">
+    <div class="card-section-head">
       Coverage${subtext ? ` <span style="color:var(--text-subtle);font-weight:600">· ${subtext}</span>` : ""}
     </div>`;
 
@@ -2937,7 +2937,7 @@ async function loadTodayAttendance() {
   }
 
   const kpiCard = (label, value, sub, tone) => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+    <div class="card card-compact">
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
       <div style="font-size:26px;font-weight:700;margin-top:4px;color:${tone || "var(--text)"}">${escapeHtml(String(value))}</div>
       ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
@@ -2978,7 +2978,7 @@ async function loadTodayAttendance() {
     const items = rows.filter(r => r.computed_outcome === k);
     if (items.length === 0) return "";
     return `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden">
+      <div class="card card-flush" style="margin-bottom:var(--s-4)">
         <div style="padding:10px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
           ${escapeHtml(label)} <span style="color:var(--text-subtle);font-weight:600">· ${items.length}</span>
         </div>
@@ -3071,7 +3071,7 @@ async function loadAttendanceHistory(opts) {
       <button class="btn btn-sm btn-primary" id="rr-att-hist-go">Apply</button>
     </div>
 
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
+    <div class="card card-flush" style="margin-bottom:var(--s-4)">
       <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
         <div>Driver</div>
         <div style="text-align:right">Present</div>
@@ -3138,7 +3138,7 @@ async function loadDriverLicensesView() {
   if (status) status.textContent = `${expired} expired · ${within30} within 30 days · ${rows.length} total`;
 
   body.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+    <div class="card card-flush">
       <div style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:10px 16px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
         <div>Driver</div>
         <div>Station</div>
@@ -7950,7 +7950,7 @@ function _renderAvailabilityKpis(k, rows) {
   const el = host?.querySelector("[data-rr-avail-kpis]");
   if (!el) return;
   const card = (label, value, sub) => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+    <div class="card card-compact">
       <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</div>
       <div style="font-size:var(--fs-xxl);font-weight:700;margin-top:4px">${escapeHtml(String(value))}</div>
       ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
@@ -12092,7 +12092,7 @@ async function loadTimeOffList() {
       <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Time off</h3>
       <button class="btn btn-sm btn-primary" data-rr-add-time-off>+ Add request</button>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+    <div class="card card-flush">
       <div style="padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Pending (${pending.length})</div>
       ${pending.length === 0 ? `<div class="rr-empty-inline">No pending requests.</div>` : pending.map(timeOffRow).join("")}
       <div style="padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);border-top:1px solid var(--border)">Past (${past.length})</div>
@@ -12206,7 +12206,7 @@ async function loadOpenShifts() {
   }
   sub.innerHTML = `
     <h3 style="margin:0 0 var(--s-3);font-size:var(--fs-lg);font-weight:600">Open shifts (${rows.length})</h3>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+    <div class="card card-flush">
       <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
         <div>Date</div><div>Station</div><div>Route</div><div></div>
       </div>
