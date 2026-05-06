@@ -6971,15 +6971,28 @@ function renderCoachingTab(coachings, driver) {
         : md.auto_message_pending ? "Driver app"
         : md.auto ? "Driver app"      // existing auto path inserts a chat message
         : null);
-    const coachLine = isAuto
-      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Auto-coached · <strong style="color:var(--text)">${escapeHtml(channel || "Driver app")}</strong></div>`
+    const originBadge = isAuto
+      ? `<span class="origin-badge origin-auto" title="Auto-fired by the attendance policy">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+           Auto
+         </span>`
       : (c.coached_by_name
-        ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Coached by <strong style="color:var(--text)">${escapeHtml(c.coached_by_name)}</strong></div>`
+        ? `<span class="origin-badge origin-manual" title="Logged manually by ${escapeHtml(c.coached_by_name)}">
+             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+             ${escapeHtml(c.coached_by_name)}
+           </span>`
         : "");
+    // Subtitle keeps the delivery-channel detail (Driver app / SMS /
+    // Notification) for auto rows; manual rows already carry the
+    // operator name in the badge above.
+    const coachLine = isAuto && channel
+      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">via <strong style="color:var(--text)">${escapeHtml(channel)}</strong></div>`
+      : "";
     return `
     <div class="dd-list-row" data-rr-coaching-id="${c.id}" style="display:block;padding:12px 14px">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
         ${_coachSeverityChip(c.severity, c.metadata?.level)}
+        ${originBadge}
         <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
         ${followBadge} ${ackChip} ${privBadge}
       </div>
