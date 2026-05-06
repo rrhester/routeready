@@ -3137,6 +3137,35 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .di-val.warn{color:var(--amber)}
 .di-val.bad{color:var(--red)}
 .di-val.ok{color:var(--green)}
+
+/* Clickable KPI card — opens an inline detail panel below the strip.
+   Subtle by default; hover + active states pull the brand accent in
+   so the affordance is discoverable without shouting. */
+.di-card-clickable{
+  cursor:pointer;user-select:none;position:relative;
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
+  text-align:left;
+}
+.di-card-clickable:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+.di-card-clickable.active{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+.di-card-clickable.active::after{
+  content:"";position:absolute;left:50%;bottom:-7px;
+  width:14px;height:14px;background:var(--surface);
+  border-left:1px solid var(--accent);border-top:1px solid var(--accent);
+  transform:translateX(-50%) rotate(45deg);
+}
+
+/* Range toggle inside the KPI detail panel — three pill buttons,
+   subtly framed; the active one fills with the brand accent. */
+.rr-att-range{display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:2px}
+.rr-att-range button{
+  appearance:none;background:transparent;border:0;font:inherit;
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+  padding:5px 12px;border-radius:6px;cursor:pointer;letter-spacing:.02em;
+  transition:background var(--t-fast), color var(--t-fast);
+}
+.rr-att-range button:hover{color:var(--text)}
+.rr-att-range button.active{background:var(--accent);color:#fff}
 .di-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4;display:flex;align-items:center;gap:4px}
 .di-trend{font-size:var(--fs-xs);font-weight:600;padding:1px 6px;border-radius:4px}
 .di-trend.up{color:var(--green);background:var(--green-soft)}
@@ -5714,38 +5743,42 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                localStorage in dashboard/live.js so each operator keeps
                their own preferred layout. -->
           <div class="att-tabstrip" id="rr-att-tabstrip">
-            <button class="att-tab active" draggable="true" data-att="history" onclick="attTab('history')">History</button>
-            <button class="att-tab"        draggable="true" data-att="report"  onclick="attTab('report')">Report</button>
+            <button class="att-tab"        draggable="true" data-att="history" onclick="attTab('history')">History</button>
+            <button class="att-tab active" draggable="true" data-att="report"  onclick="attTab('report')">Report</button>
             <button class="att-tab"        draggable="true" data-att="log"     onclick="attTab('log')">Event log <span id="att-log-count" style="display:none"></span></button>
           </div>
 
           <!-- ─── HISTORY PANE ────────────────────────────────── -->
-          <div class="att-pane active" id="att-pane-history">
+          <div class="att-pane" id="att-pane-history">
             <div id="rr-att-history-shell">
               <div class="rr-loading">Loading attendance history</div>
             </div>
           </div>
 
           <!-- ─── REPORT PANE ─────────────────────────────────── -->
-          <div class="att-pane" id="att-pane-report">
+          <div class="att-pane active" id="att-pane-report">
 
             <div class="di-grid" style="margin-bottom:var(--s-4)">
-              <div class="di-card">
+              <div class="di-card di-card-clickable" data-rr-att-kpi="rate" role="button" tabindex="0" aria-label="Open attendance rate detail">
                 <div class="di-label">Avg attendance</div>
                 <div class="di-val ok" id="att-kpi-rate">—</div>
                 <div class="di-sub" id="att-kpi-rate-sub">Callouts + no-shows ÷ scheduled</div>
               </div>
-              <div class="di-card">
+              <div class="di-card di-card-clickable" data-rr-att-kpi="vto" role="button" tabindex="0" aria-label="Open VTO detail">
                 <div class="di-label">VTO</div>
                 <div class="di-val" id="att-kpi-vto">—</div>
                 <div class="di-sub" id="att-kpi-vto-sub">Voluntary time off ÷ scheduled</div>
               </div>
-              <div class="di-card">
+              <div class="di-card di-card-clickable" data-rr-att-kpi="action" role="button" tabindex="0" aria-label="Open coaching breakdown">
                 <div class="di-label">In corrective action</div>
                 <div class="di-val" id="att-kpi-action-count">—</div>
                 <div class="di-sub" id="att-kpi-action-breakdown">Verbal · Written · Final · Termination</div>
               </div>
             </div>
+
+            <!-- KPI detail panel · populated by _renderAttKpiDetail.  Toggled
+                 by clicking one of the three KPI cards above. -->
+            <div id="rr-att-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
             <div class="toolbar">
               <div class="toolbar-left">
@@ -16691,7 +16724,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507v"></script>
+<script type="module" src="./live.js?v=20260507w"></script>
 
 </body>
 </html>
