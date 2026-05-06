@@ -6666,7 +6666,7 @@ document.addEventListener("click", async (e) => {
 function openChannelCreateModal() {
   // Pull active stations for the dropdown.  All stations under the
   // current DSP — operator can leave it blank for an org-wide channel.
-  const stationsPromise = sb.from("stations").select("id, short_code, name").order("short_code");
+  const stationsPromise = sb.from("stations").select("id, code, name").order("code");
 
   const wrap = document.createElement("div");
   wrap.id = "rr-channel-create-modal";
@@ -6705,7 +6705,7 @@ function openChannelCreateModal() {
     for (const s of (data || [])) {
       const opt = document.createElement("option");
       opt.value = s.id;
-      opt.textContent = `${s.short_code || ""}${s.name ? " · " + s.name : ""}`;
+      opt.textContent = `${s.code || ""}${s.name ? " · " + s.name : ""}`;
       sel.appendChild(opt);
     }
   });

@@ -249,7 +249,7 @@ begin
     'name',            c.name,
     'description',     c.description,
     'station_id',      c.station_id,
-    'station_code',    s.short_code,
+    'station_code',    s.code,
     'archived_at',     c.archived_at,
     'last_message_at', c.last_message_at,
     'last_message',    last_msg.preview,
@@ -358,7 +358,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'driver_id',     d.id,
     'full_name',     d.full_name,
-    'station_code',  s.short_code,
+    'station_code',  s.code,
     'status',        d.status,
     'added_at',      m.added_at,
     'last_read_at',  m.last_read_at
@@ -571,7 +571,7 @@ begin
     'id',              c.id,
     'name',            c.name,
     'description',     c.description,
-    'station_code',    s.short_code,
+    'station_code',    s.code,
     'last_message_at', c.last_message_at,
     'last_message',    last_msg.preview,
     'last_sender',     last_msg.sender,
