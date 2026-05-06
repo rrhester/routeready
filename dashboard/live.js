@@ -6308,7 +6308,6 @@ async function refreshDriverChatThread(scrollToBottom) {
   }
 }
 
-<<<<<<< HEAD
 async function _rrMcSignAttachments() {
   const els = document.querySelectorAll("[data-rr-mc-attach]:not([data-rr-mc-resolved])");
   for (const el of els) {
@@ -6325,8 +6324,6 @@ async function _rrMcSignAttachments() {
   }
 }
 
-=======
->>>>>>> origin/main
 function _coachSeverityChip(sev, level) {
   // Prefer the precise ladder step stored in metadata.level — falls
   // back to the legacy severity enum (info/concern/warning/final)
