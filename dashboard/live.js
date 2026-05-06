@@ -931,6 +931,242 @@ function _renderAttReportTbody() {
   }).join("");
 }
 
+// ─── Attendance KPI detail panel ──────────────────────────────────────────
+//
+// Click a KPI card above the report and a panel opens below the strip
+// showing the relevant breakdown.  The data fetch is on-demand and
+// cached at the maximum range we've seen so toggling 30/90/365 doesn't
+// re-hit the network unless the user widens the window.
+//
+//   rate   → SVG line chart of daily attendance rate
+//   vto    → SVG line chart of daily VTO rate
+//   action → bar breakdown: % of team at each coaching ladder rung
+//            (suppressed with a friendly note when the policy is off)
+
+let _attKpiDetailKpi   = null;        // 'rate' | 'vto' | 'action' | null
+let _attKpiDetailRange = 90;          // 30 | 90 | 365
+let _attKpiHistory     = null;        // { range:Number, byDay:Array<{date,scheduled,present,late,callouts,noshows,vto}> }
+
+async function _ensureAttKpiHistory(rangeDays) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return null;
+  if (_attKpiHistory && _attKpiHistory.range >= rangeDays) return _attKpiHistory;
+
+  const today    = new Date();
+  const since    = new Date(); since.setDate(since.getDate() - rangeDays);
+  const sinceIso = fmtIsoDate(since);
+  const todayIso = fmtIsoDate(today);
+
+  const { data, error } = await sb.from("shifts")
+    .select("date, status")
+    .eq("dsp_id", dspId)
+    .gte("date", sinceIso)
+    .lte("date", todayIso);
+  if (error) { console.warn("att kpi history:", error.message); return null; }
+
+  const byDayMap = new Map();
+  for (const sh of (data || [])) {
+    if (!sh.date) continue;
+    let g = byDayMap.get(sh.date);
+    if (!g) { g = { date: sh.date, scheduled:0, present:0, late:0, callouts:0, noshows:0, vto:0 }; byDayMap.set(sh.date, g); }
+    g.scheduled += 1;
+    if      (sh.status === "completed")  g.present  += 1;
+    else if (sh.status === "late")       g.late     += 1;
+    else if (sh.status === "called_off") g.callouts += 1;
+    else if (sh.status === "no_show")    g.noshows  += 1;
+    else if (sh.status === "vto")        g.vto      += 1;
+  }
+  const byDay = [...byDayMap.values()].sort((a, b) => a.date < b.date ? -1 : 1);
+  _attKpiHistory = { range: rangeDays, byDay };
+  return _attKpiHistory;
+}
+
+function _attKpiSliceToRange(rows, rangeDays) {
+  const cutoffMs = Date.now() - rangeDays * 86400000;
+  return rows.filter(r => new Date(r.date + "T12:00:00").getTime() >= cutoffMs);
+}
+
+// Inline SVG line chart.  Y axis is fixed 0–100% for rate views;
+// dot per day, smooth path, faint area fill, three x-labels.
+function _attLineChart(points, opts) {
+  const { color = "var(--accent)", title = "" } = opts || {};
+  if (!points.length) return `<div class="rr-empty-inline" style="padding:40px 0">No data in range</div>`;
+  const W = 760, H = 240, PL = 36, PR = 12, PT = 14, PB = 28;
+  const xMax = points.length - 1;
+  const x = (i) => PL + (W - PL - PR) * (xMax === 0 ? 0.5 : (i / xMax));
+  const y = (v) => PT + (H - PT - PB) * (1 - Math.max(0, Math.min(100, v)) / 100);
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ");
+  const area = `${path} L ${x(xMax).toFixed(1)} ${y(0).toFixed(1)} L ${x(0).toFixed(1)} ${y(0).toFixed(1)} Z`;
+  const grid = [0, 25, 50, 75, 100].map(v => `
+    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="rgba(15,23,42,.06)" stroke-width="1"/>
+    <text x="${PL - 6}" y="${y(v).toFixed(1)}" font-size="10" fill="var(--text-subtle)" text-anchor="end" dy="3">${v}%</text>`
+  ).join("");
+  const xIdx = xMax === 0 ? [0] : [0, Math.floor(xMax / 2), xMax];
+  const xLabels = xIdx.map(i => {
+    const d = new Date(points[i].date + "T12:00:00");
+    const lbl = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return `<text x="${x(i).toFixed(1)}" y="${H - 8}" font-size="10" fill="var(--text-subtle)" text-anchor="middle">${lbl}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:auto;display:block;max-height:280px"
+              role="img" aria-label="${escapeHtml(title)}">
+    ${grid}
+    <path d="${area}" fill="${color}" fill-opacity="0.10"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${xLabels}
+  </svg>`;
+}
+
+function _attRangeToggleHtml(active) {
+  const opt = (n, label) => `<button class="${n === active ? "active" : ""}" data-rr-att-range="${n}" type="button">${label}</button>`;
+  return `<div class="rr-att-range" role="tablist" aria-label="Time range">
+    ${opt(30, "30 days")}${opt(90, "90 days")}${opt(365, "1 year")}
+  </div>`;
+}
+
+function _attKpiPanelShell(title, sub, body) {
+  return `<div class="card" style="padding:var(--s-5)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3);margin-bottom:var(--s-3)">
+      <div>
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">${escapeHtml(title)}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${sub}</div>
+      </div>
+      ${_attRangeToggleHtml(_attKpiDetailRange)}
+    </div>
+    ${body}
+  </div>`;
+}
+
+async function _renderAttKpiDetail() {
+  const panel = document.getElementById("rr-att-kpi-detail");
+  if (!panel) return;
+
+  // Highlight the active KPI card.
+  document.querySelectorAll("[data-rr-att-kpi]").forEach(el => {
+    el.classList.toggle("active", el.dataset.rrAttKpi === _attKpiDetailKpi);
+  });
+
+  if (!_attKpiDetailKpi) { panel.style.display = "none"; panel.innerHTML = ""; return; }
+  panel.style.display = "block";
+
+  // Coaching breakdown doesn't depend on the daily-history fetch — it
+  // reads the per-driver report rows that the report already computed.
+  if (_attKpiDetailKpi === "action") {
+    const POLICY = _getAttPolicy();
+    if (POLICY.policy_enabled === false) {
+      panel.innerHTML = _attKpiPanelShell(
+        "Corrective action",
+        "Breakdown of the team across the coaching ladder.",
+        `<div class="rr-empty-inline" style="padding:32px 0">Attendance policy is OFF — no coaching levels are being tracked. Turn the policy on in Settings → Attendance to see this breakdown.</div>`
+      );
+      return;
+    }
+    const rows = _attReportRows || [];
+    const total = rows.length;
+    if (total === 0) {
+      panel.innerHTML = _attKpiPanelShell("Corrective action", "Breakdown of the team across the coaching ladder.",
+        `<div class="rr-empty-inline" style="padding:32px 0">No drivers loaded yet.</div>`);
+      return;
+    }
+    const buckets = { "Clear": 0, "Verbal": 0, "Written": 0, "Final": 0, "Termination": 0 };
+    for (const r of rows) {
+      const k = (r.coachingLabel || "").startsWith("Written") ? "Written" : r.coachingLabel;
+      if (k in buckets) buckets[k] += 1;
+      else buckets["Clear"] += 1;
+    }
+    const order  = ["Clear", "Verbal", "Written", "Final", "Termination"];
+    const colors = {
+      "Clear":       "var(--green)",
+      "Verbal":      "var(--amber)",
+      "Written":     "var(--orange, var(--amber))",
+      "Final":       "var(--red)",
+      "Termination": "var(--red)",
+    };
+    const bars = order.map(k => {
+      const n = buckets[k];
+      const pct = total ? Math.round((n / total) * 100) : 0;
+      return `<div style="display:grid;grid-template-columns:96px 1fr 70px;gap:14px;align-items:center;padding:8px 0">
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${k}</div>
+        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:${colors[k]};height:100%;width:${pct}%;transition:width var(--t-fast)"></div>
+        </div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
+      </div>`;
+    }).join("");
+    // No range toggle for the coaching breakdown — it reflects the
+    // current report (which already uses the policy decay window).
+    panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3);margin-bottom:var(--s-3)">
+        <div>
+          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Corrective action breakdown</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Where the ${total} active driver${total === 1 ? "" : "s"} sit on the coaching ladder right now (rolling ${POLICY.decay_days}-day window).</div>
+        </div>
+      </div>
+      ${bars}
+    </div>`;
+    return;
+  }
+
+  // Rate + VTO views need the daily-history fetch.
+  panel.innerHTML = _attKpiPanelShell(
+    _attKpiDetailKpi === "rate" ? "Attendance rate by day" : "VTO rate by day",
+    _attKpiDetailKpi === "rate"
+      ? "% of scheduled shifts attended (present + late) by day."
+      : "% of scheduled shifts taken as voluntary time off, by day.",
+    `<div class="rr-loading">Loading…</div>`
+  );
+
+  const hist = await _ensureAttKpiHistory(_attKpiDetailRange);
+  if (!hist) {
+    panel.innerHTML = _attKpiPanelShell(
+      _attKpiDetailKpi === "rate" ? "Attendance rate by day" : "VTO rate by day",
+      "",
+      `<div class="rr-empty-inline" style="padding:32px 0">Couldn't load history — try again.</div>`
+    );
+    return;
+  }
+  const sliced = _attKpiSliceToRange(hist.byDay, _attKpiDetailRange);
+  const points = sliced.map(d => {
+    const value = d.scheduled === 0
+      ? 0
+      : _attKpiDetailKpi === "rate"
+        ? ((d.present + d.late) / d.scheduled) * 100
+        : (d.vto / d.scheduled) * 100;
+    return { date: d.date, value };
+  });
+  const isRate = _attKpiDetailKpi === "rate";
+  const color  = isRate ? "var(--green)" : "var(--accent)";
+  const title  = isRate ? "Attendance rate by day" : "VTO rate by day";
+  const sub    = isRate
+    ? "% of scheduled shifts attended (present + late) by day."
+    : "% of scheduled shifts taken as voluntary time off, by day.";
+  panel.innerHTML = _attKpiPanelShell(title, sub, _attLineChart(points, { color, title }));
+}
+
+// Click handler: KPI card opens / closes its own detail panel.
+document.addEventListener("click", (e) => {
+  const card = e.target.closest("[data-rr-att-kpi]");
+  if (card) {
+    const kpi = card.dataset.rrAttKpi;
+    _attKpiDetailKpi = (_attKpiDetailKpi === kpi) ? null : kpi;
+    _renderAttKpiDetail();
+    return;
+  }
+  const range = e.target.closest("[data-rr-att-range]");
+  if (range) {
+    _attKpiDetailRange = Number(range.dataset.rrAttRange) || 90;
+    _renderAttKpiDetail();
+    return;
+  }
+});
+// Keyboard activation for the role="button" KPI cards.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const card = e.target.closest("[data-rr-att-kpi]");
+  if (!card) return;
+  e.preventDefault();
+  card.click();
+});
+
 // ─── Today's check-in (live) ───────────────────────────────────────────────
 
 const _CI_TO_STATUS = { present: "completed", late: "late", callout: "called_off", noshow: "no_show", vto: "vto" };
@@ -3209,7 +3445,7 @@ window.drSub = function (sub) {
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
-  if (sub === "attendance")   { loadAttendanceHistory(); _rrInitAttTabDnD(); }
+  if (sub === "attendance")   { loadAttendanceLive(); loadAttendanceHistory(); _rrInitAttTabDnD(); }
   if (sub === "coaching")     loadCoachingFeed();
   if (sub === "insights")     loadDriverInsights();
   if (sub === "availability") loadAvailabilityRequests();
@@ -12281,9 +12517,9 @@ window.goto = function (view) {
   }, 0);
 };
 
-// drSub wrap — when the operator clicks Drivers → Attendance from
-// the subnav, reset the att-tabstrip to its first tab so they don't
-// land on whatever they had open last.
+// drSub wrap — when the operator clicks Drivers → Attendance from the
+// subnav, reset the att-tabstrip to the Report tab (the populated
+// default) so they don't land on a blank History pane after navigation.
 const _origDrSubForSubReset = window.drSub;
 if (typeof _origDrSubForSubReset === "function") {
   window.drSub = function (sub) {
@@ -12292,8 +12528,8 @@ if (typeof _origDrSubForSubReset === "function") {
       setTimeout(() => {
         const strip = document.getElementById("rr-att-tabstrip");
         if (!strip) return;
-        const first = strip.querySelector("[data-att]");
-        if (first && !first.classList.contains("active")) first.click();
+        const target = strip.querySelector('[data-att="report"]') || strip.querySelector("[data-att]");
+        if (target && !target.classList.contains("active")) target.click();
       }, 0);
     }
     return r;
