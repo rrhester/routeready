@@ -20,11 +20,19 @@
      read as dissolved blur without paying for filter:blur on a
      full-screen layer.  Opacities 5/4/3% — sub-perceptual; remove
      and the canvas reads flat. */
+  /* Watermark layer pushed slightly stronger after a real-use
+     "I don't see any change" report.  Three asymmetric radials with
+     wider falloffs (75% instead of 65%) so they bleed further into
+     the center of the canvas where most content sits.  Opacities
+     at .12 / .10 / .06 — sits between "sub-perceptual" and
+     "barely noticeable warmth/shadow at the page edges."  Plus
+     a soft top-down tonal shift on the linear base so the sparse
+     pages don't read as a single flat gray. */
   --canvas-grad:
-    radial-gradient(ellipse 1200px 800px at 92% 4%,  rgba(20,110,180,.075) 0%, transparent 65%),
-    radial-gradient(ellipse 1300px 900px at 4%  72%, rgba(15,23,42,.060)   0%, transparent 65%),
-    radial-gradient(ellipse 820px 660px at 60% 108%, rgba(99,102,241,.040) 0%, transparent 65%),
-    linear-gradient(180deg, #F4F6FB 0%, #EEF1F7 100%);
+    radial-gradient(ellipse 1400px 1000px at 92% 0%,  rgba(20,110,180,.12)  0%, transparent 75%),
+    radial-gradient(ellipse 1500px 1100px at 0%  72%, rgba(15,23,42,.10)    0%, transparent 75%),
+    radial-gradient(ellipse 900px 720px  at 60% 108%, rgba(99,102,241,.06)  0%, transparent 75%),
+    linear-gradient(180deg, #F1F4FA 0%, #E9EEF6 100%);
   --surface:#FFFFFF;
   --surface-elevated:#FFFFFF;
   --surface-grad:linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(252,253,255,1) 100%);
@@ -16725,7 +16733,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507c"></script>
+<script type="module" src="./live.js?v=20260507d"></script>
 
 </body>
 </html>
