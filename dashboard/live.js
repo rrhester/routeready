@@ -892,7 +892,10 @@ function _renderAttReportTbody() {
     const initials = displayDriverInitials(r.d);
     const station = r.d.station?.code || "—";
     const last = r.a.last ? new Date(r.a.last + "T12:00:00").toLocaleDateString() : "—";
-    const statusColor = r.statusKind === "bad" ? "var(--red)" : r.statusKind === "warn" ? "var(--amber)" : "var(--green)";
+    const statusVariant = r.statusKind === "bad"  ? "danger"
+                        : r.statusKind === "warn" ? "warning"
+                        : r.statusKind === "good" ? "success"
+                        : "neutral";
     return `<tr>
       <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name" data-rr-driver-id="${r.d.id}">${escapeHtml(display)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
@@ -904,7 +907,7 @@ function _renderAttReportTbody() {
       <td style="text-align:right">${r.a.vto}</td>
       <td style="text-align:right;font-weight:600">${r.points}</td>
       <td style="text-align:right">${r.occ}</td>
-      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:var(--fs-xs);font-weight:600;background:${statusColor}1A;color:${statusColor}">${r.statusLabel}</span></td>
+      <td><span class="status-pill status-pill-${statusVariant}">${escapeHtml(r.statusLabel)}</span></td>
       <td>${last}</td>
       <td></td>
     </tr>`;
