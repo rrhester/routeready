@@ -406,52 +406,69 @@ async function renderSchedule() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader"></div>`;
 
-  const session = readSession();
-  if (!session?.token) { writeSession(null); render(); return; }
+  try {
+    const session = readSession();
+    if (!session?.token) { writeSession(null); render(); return; }
 
-  const { data, error } = await sb.rpc("driver_my_schedule", { p_token: session.token, p_weeks: 2 });
-  if (error) {
-    if ((error.message || "").includes("unauthorized") || (error.message || "").includes("revoked") || (error.message || "").includes("inactive")) {
-      writeSession(null);
-      toast("Signed out — please sign in again", "warn");
-      render();
+    const { data, error } = await sb.rpc("driver_my_schedule", { p_token: session.token, p_weeks: 2 });
+    if (error) {
+      if ((error.message || "").includes("unauthorized") || (error.message || "").includes("revoked") || (error.message || "").includes("inactive")) {
+        writeSession(null);
+        toast("Signed out — please sign in again", "warn");
+        render();
+        return;
+      }
+      main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load schedule.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
       return;
     }
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load schedule.<br><small>${escapeHtml(error.message)}</small></div>`;
-    return;
+
+    const rawShifts = Array.isArray(data?.shifts) ? data.shifts : [];
+    const shifts = rawShifts.map((s) => ({
+      id:        s.id,
+      date:      new Date(s.date + "T12:00:00"),
+      iso:       s.date,
+      starts_at: s.starts_at,
+      ends_at:   s.ends_at,
+      station:   s.station_code || "",
+      status:    s.status,
+      type:      s.service_type_code || "",
+      typeColor: s.service_type_color || "",
+      isCushion: !!s.is_cushion,
+    })).filter((s) => ["scheduled", "completed"].includes(s.status));
+
+    const todayIso = fmtIsoDate(new Date());
+    const todayShifts    = shifts.filter((s) => s.iso === todayIso);
+    const upcomingShifts = shifts.filter((s) => s.iso > todayIso);
+
+    if (shifts.length === 0) {
+      // Always show *something* so the page is never blank — explain
+      // what would land here and what to do if the driver expects
+      // shifts that aren't showing up.
+      main.innerHTML = `
+        <div class="empty-state" style="padding:48px 20px;text-align:center">
+          <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">No shifts scheduled</div>
+          <div style="color:var(--text-subtle);line-height:1.5;max-width:320px;margin:0 auto">
+            Your dispatcher hasn't published a schedule yet for the next two weeks, or you haven't been assigned to any of the open shifts.  Check back tomorrow or message dispatch.
+          </div>
+        </div>`;
+      return;
+    }
+
+    main.innerHTML = `
+      ${todayShifts.length ? `
+        <div class="section-title">Today</div>
+        ${todayShifts.map((s) => shiftCardHtml(s, true)).join("")}
+      ` : ""}
+      ${upcomingShifts.length ? `
+        <div class="section-title">Upcoming</div>
+        ${upcomingShifts.map((s) => shiftCardHtml(s, false)).join("")}
+      ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}`;
+  } catch (err) {
+    // A thrown error inside renderSchedule used to kill the whole
+    // render and leave main empty.  Surface it instead.
+    console.error("renderSchedule failed:", err);
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Schedule failed to render.<br><small>${escapeHtml(err?.message || String(err))}</small></div>`;
   }
-
-  const shifts = (data?.shifts || []).map((s) => ({
-    id:        s.id,
-    date:      new Date(s.date + "T12:00:00"),
-    iso:       s.date,
-    starts_at: s.starts_at,
-    ends_at:   s.ends_at,
-    station:   s.station_code || "",
-    status:    s.status,
-    type:      s.service_type_code || "",
-    typeColor: s.service_type_color || "",
-    isCushion: !!s.is_cushion,
-  })).filter((s) => ["scheduled", "completed"].includes(s.status));
-
-  const todayIso = fmtIsoDate(new Date());
-  const todayShifts    = shifts.filter((s) => s.iso === todayIso);
-  const upcomingShifts = shifts.filter((s) => s.iso > todayIso);
-
-  if (shifts.length === 0) {
-    main.innerHTML = `<div class="empty-state">No shifts scheduled.</div>`;
-    return;
-  }
-
-  main.innerHTML = `
-    ${todayShifts.length ? `
-      <div class="section-title">Today</div>
-      ${todayShifts.map((s) => shiftCardHtml(s, true)).join("")}
-    ` : ""}
-    ${upcomingShifts.length ? `
-      <div class="section-title">Upcoming</div>
-      ${upcomingShifts.map((s) => shiftCardHtml(s, false)).join("")}
-    ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}`;
 }
 
 // Shift card · date block on the left, time/station in the middle. No
