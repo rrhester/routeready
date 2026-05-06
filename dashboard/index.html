@@ -5135,19 +5135,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <div id="lic-renewals-body"><div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div></div>
           </div>
 
-          <!-- Renewal-reminder configuration moved to Settings → License renewals.
-               Block-scheduling-past-expiry toggle moved to Schedule → Scheduling
-               rules.  Quick links so the operator can still find them. -->
-          <div class="di-section" style="margin-top:var(--s-5)">
-            <div class="cal-edit-card" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 16px">
-              <div style="flex:1;min-width:240px">
-                <div style="font-size:13px;font-weight:600;color:var(--text)">Renewal reminders &amp; scheduling block</div>
-                <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Auto-text / in-app reminder cadence lives in <strong>Settings → License renewals</strong>.  The hard rule that blocks scheduling past an expired license lives in <strong>Schedule → Scheduling rules</strong>.</div>
-              </div>
-              <button class="btn btn-sm" type="button" onclick="goto('settings');setTimeout(function(){var b=document.querySelector('.settings-nav-item[data-set=&quot;licenses&quot;]');if(b)b.click();},50)">Open settings</button>
-              <button class="btn btn-sm" type="button" onclick="goto('schedule');setTimeout(function(){var b=document.querySelector('[onclick*=&quot;rules&quot;]');if(b)b.click();},50)">Open schedule rules</button>
-            </div>
-          </div>
         </div><!-- /dr-sub-licenses -->
 
 
@@ -5265,36 +5252,33 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
             <div class="toolbar">
               <div class="toolbar-left">
-                <span class="filter-chip" onclick="attCycleWindow(this)" id="att-window-chip">Window: 30 days</span>
-                <span class="filter-chip">Station: All</span>
-                <span class="filter-chip">Status: All</span>
+                <span style="font-size:11px;color:var(--text-subtle)">Click a column to sort</span>
               </div>
               <div class="toolbar-right">
-                <span class="filter-chip">Sort: Points (high → low)</span>
                 <button class="btn btn-sm" onclick="attExportCsv()" title="Export CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
               </div>
             </div>
 
             <div class="table-wrap">
               <table class="table" id="att-report-table">
-                <thead>
+                <thead id="att-report-thead">
                   <tr>
-                    <th>Driver</th>
-                    <th>Station</th>
-                    <th style="text-align:right">Scheduled</th>
-                    <th style="text-align:right">Present</th>
-                    <th style="text-align:right">Late</th>
-                    <th style="text-align:right">Callouts</th>
-                    <th style="text-align:right">No-shows</th>
-                    <th style="text-align:right" title="Voluntary Time Off — manager-offered opt-out, not counted against attendance">VTO</th>
-                    <th style="text-align:right">Points</th>
-                    <th style="text-align:right">Occ.</th>
-                    <th>Status</th>
-                    <th>Last incident</th>
+                    <th data-rr-att-sort="driver"     style="cursor:pointer;user-select:none">Driver</th>
+                    <th data-rr-att-sort="station"    style="cursor:pointer;user-select:none">Station</th>
+                    <th data-rr-att-sort="scheduled"  style="cursor:pointer;user-select:none;text-align:right">Scheduled</th>
+                    <th data-rr-att-sort="present"    style="cursor:pointer;user-select:none;text-align:right">Present</th>
+                    <th data-rr-att-sort="late"       style="cursor:pointer;user-select:none;text-align:right">Late</th>
+                    <th data-rr-att-sort="callouts"   style="cursor:pointer;user-select:none;text-align:right">Callouts</th>
+                    <th data-rr-att-sort="noshows"    style="cursor:pointer;user-select:none;text-align:right">No-shows</th>
+                    <th data-rr-att-sort="vto"        style="cursor:pointer;user-select:none;text-align:right" title="Voluntary Time Off — manager-offered opt-out, not counted against attendance">VTO</th>
+                    <th data-rr-att-sort="points"     style="cursor:pointer;user-select:none;text-align:right">Points</th>
+                    <th data-rr-att-sort="occ"        style="cursor:pointer;user-select:none;text-align:right">Occ.</th>
+                    <th data-rr-att-sort="status"     style="cursor:pointer;user-select:none">Status</th>
+                    <th data-rr-att-sort="last"       style="cursor:pointer;user-select:none">Last incident</th>
                     <th></th>
                   </tr>
                 </thead>
-                <tbody id="att-report-body"><!-- populated by attRender() --></tbody>
+                <tbody id="att-report-body"><!-- populated by loadAttendanceLive --></tbody>
               </table>
             </div>
 
@@ -16162,7 +16146,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505d0"></script>
+<script type="module" src="./live.js?v=20260505d1"></script>
 
 </body>
 </html>
