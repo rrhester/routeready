@@ -6050,7 +6050,14 @@ async function loadDriverChatInbox() {
   await refreshDriverChatList(true);
   if (_msgInboxListTimer) clearInterval(_msgInboxListTimer);
   _msgInboxListTimer = setInterval(() => {
-    if (document.getElementById("view-messages")?.classList.contains("active")) {
+    // Only poll while the operator is on the direct messages tab.  Without
+    // the mode guard this timer overwrites the list element with direct
+    // chats every 8 seconds even when the operator has switched to the
+    // Channels tab — flicker + bouncing them off Channels back to Direct.
+    if (
+      document.getElementById("view-messages")?.classList.contains("active") &&
+      _msgInboxMode === "direct"
+    ) {
       refreshDriverChatList(false);
     } else {
       clearInterval(_msgInboxListTimer); _msgInboxListTimer = null;
@@ -6350,8 +6357,14 @@ window.msgListTab = function (btn) {
   // render the wrong shape otherwise.
   _msgInboxSelectedId  = null;
   _msgChannelSelectedId = null;
+  // Stop EVERY mode-specific timer before starting the new one.  The
+  // direct-chat list timer was previously left running when the operator
+  // switched to Channels, so 8 seconds later it overwrote the list with
+  // direct chats and bounced them out of the Channels view.
   if (_msgInboxThreadTimer)   { clearInterval(_msgInboxThreadTimer);   _msgInboxThreadTimer = null; }
   if (_msgChannelThreadTimer) { clearInterval(_msgChannelThreadTimer); _msgChannelThreadTimer = null; }
+  if (_msgInboxListTimer)     { clearInterval(_msgInboxListTimer);     _msgInboxListTimer = null; }
+  if (_msgChannelListTimer)   { clearInterval(_msgChannelListTimer);   _msgChannelListTimer = null; }
   const conv = document.getElementById("rr-msg-conv");
   if (conv) {
     conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px">${
@@ -6362,7 +6375,6 @@ window.msgListTab = function (btn) {
   }
   if (mode === "channels") {
     refreshChannelList(true);
-    if (_msgChannelListTimer) clearInterval(_msgChannelListTimer);
     _msgChannelListTimer = setInterval(() => {
       if (document.getElementById("view-messages")?.classList.contains("active") && _msgInboxMode === "channels") {
         refreshChannelList(false);
@@ -6371,7 +6383,10 @@ window.msgListTab = function (btn) {
       }
     }, 8000);
   } else {
-    refreshDriverChatList(true);
+    // loadDriverChatInbox restores both the list and its 8-second poll.
+    // Without re-arming the poll, the direct list would never refresh
+    // again after the operator's first Channels → Direct round-trip.
+    loadDriverChatInbox();
   }
 };
 
