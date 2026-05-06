@@ -3463,31 +3463,32 @@ async function loadDriverInsights() {
     set("rr-di-tenure-sub", `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`);
   }
 
+  // Insights tiles are intentionally rendered without stoplight
+  // colors — operators want a neutral read of the numbers, not a
+  // green/amber/red verdict baked into the dashboard.
   setVal("rr-di-turnover-30",
-    totalActive === 0 ? "—" : `${turnover30Pct.toFixed(0)}%`,
-    turnover30Pct >= 10 ? "bad" : turnover30Pct >= 5 ? "warn" : "ok");
+    totalActive === 0 ? "—" : `${turnover30Pct.toFixed(0)}%`);
   const trendDelta = turnover30Pct - turnoverPriorPct;
   set("rr-di-turnover-30-sub",
     termsLast30 + termsPrior30 === 0 ? `No terminations in last ${tfTurnover * 2}d`
     : `${termsLast30} term${termsLast30 === 1 ? "" : "s"} last ${tfTurnover}d · ${trendDelta >= 0 ? "+" : ""}${trendDelta.toFixed(1)}% vs prior ${tfTurnover}d`);
 
   setVal("rr-di-turnover-annual",
-    totalActive === 0 ? "—" : `${Math.round(annualized)}%`,
-    annualized >= 50 ? "bad" : annualized >= 25 ? "warn" : "ok");
-  set("rr-di-turnover-annual-sub", `Industry avg ~35% · ${annualized < 35 ? "below avg ✓" : "above avg"}`);
+    totalActive === 0 ? "—" : `${Math.round(annualized)}%`);
+  set("rr-di-turnover-annual-sub", `Industry avg ~35% · ${annualized < 35 ? "below avg" : "above avg"}`);
 
   setVal("rr-di-past30",
-    totalActive === 0 ? "—" : `${past30}`, past30Pct >= 80 ? "ok" : "warn");
+    totalActive === 0 ? "—" : `${past30}`);
   setHtml("rr-di-past30", `${past30}<span class="frac"> / ${totalActive}</span>`);
   set("rr-di-past30-sub", `First-${tfPast} retention: ${past30Pct}%`);
 
-  setVal("rr-di-atrisk", String(atRisk), atRisk === 0 ? "ok" : atRisk <= 3 ? "warn" : "bad");
+  setVal("rr-di-atrisk", String(atRisk));
 
   if (avgScore == null) {
     setVal("rr-di-fleetscore", "—");
     set("rr-di-fleetscore-sub", "No fleet scores recorded yet");
   } else {
-    setVal("rr-di-fleetscore", String(avgScore), avgScore >= 85 ? "ok" : avgScore >= 75 ? "warn" : "bad");
+    setVal("rr-di-fleetscore", String(avgScore));
     set("rr-di-fleetscore-sub", `Across ${scored.length} scored driver${scored.length === 1 ? "" : "s"}`);
   }
 
@@ -3495,7 +3496,7 @@ async function loadDriverInsights() {
     setVal("rr-di-attendance", "—");
     set("rr-di-attendance-sub", `No shifts in last ${tfAttendance}d`);
   } else {
-    setVal("rr-di-attendance", `${attendancePct}%`, attendancePct >= 95 ? "ok" : attendancePct >= 90 ? "warn" : "bad");
+    setVal("rr-di-attendance", `${attendancePct}%`);
     set("rr-di-attendance-sub", `${absent30} callouts/no-shows / ${scheduled30} scheduled`);
   }
 
@@ -3568,10 +3569,6 @@ async function loadDriverInsights() {
     }));
     const maxRate = Math.max(1, ...rates.map(r => r.rate));
 
-    const colorFor = (r) => r >= overallRate * 1.5 && r > 5 ? "var(--red)"
-      : r >= overallRate * 1.2 ? "var(--amber)"
-      : "#22c55e";
-
     if (dowBars) {
       dowBars.innerHTML = rates.map(r => {
         const widthPct = Math.round((r.rate / maxRate) * 100);
@@ -3580,7 +3577,7 @@ async function loadDriverInsights() {
         <div style="display:grid;grid-template-columns:60px 1fr 80px 100px;align-items:center;gap:12px;padding:6px 0">
           <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[r.day]}</div>
           <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
-            <div style="background:${r.total === 0 ? "var(--text-muted)" : colorFor(r.rate)};height:100%;width:${widthPct}%;transition:width .3s"></div>
+            <div style="background:${r.total === 0 ? "var(--text-muted)" : "var(--text-muted)"};height:100%;width:${widthPct}%;transition:width .3s"></div>
           </div>
           <div style="font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${r.total === 0 ? "—" : r.rate.toFixed(1) + "%"}</div>
           <div style="font-size:11px;color:var(--text-subtle)">${note}</div>
@@ -3596,11 +3593,11 @@ async function loadDriverInsights() {
       const best  = sortedDesc[sortedDesc.length - 1];
       const lines = [];
       if (worst && best && worst.rate > best.rate * 1.5 && worst.rate > 5) {
-        lines.push(`<strong style="color:var(--red)">${DOW_LABEL[worst.day]} is your weakest day</strong> — ${worst.rate.toFixed(1)}% absence vs. ${best.rate.toFixed(1)}% on ${DOW_LABEL[best.day]}. ${worst.rate >= overallRate * 1.5 ? "Consider VTO offers earlier in the week, scheduling backups, or coaching repeat offenders." : "Worth a focused look at coaching trends."}`);
+        lines.push(`<strong style="color:var(--text)">${DOW_LABEL[worst.day]} is your weakest day</strong> — ${worst.rate.toFixed(1)}% absence vs. ${best.rate.toFixed(1)}% on ${DOW_LABEL[best.day]}. ${worst.rate >= overallRate * 1.5 ? "Consider VTO offers earlier in the week, scheduling backups, or coaching repeat offenders." : "Worth a focused look at coaching trends."}`);
       } else if (overallRate < 5 && totalAbsent90 > 0) {
-        lines.push(`<strong style="color:var(--green)">No strong day pattern.</strong> Absences are spread across the week and overall rate (${overallRate.toFixed(1)}%) is healthy.`);
+        lines.push(`<strong style="color:var(--text)">No strong day pattern.</strong> Absences are spread across the week and overall rate (${overallRate.toFixed(1)}%) is healthy.`);
       } else if (totalAbsent90 === 0) {
-        lines.push(`<strong style="color:var(--green)">Zero callouts or no-shows in the last 90 days.</strong> Whatever you're doing, keep it up.`);
+        lines.push(`<strong style="color:var(--text)">Zero callouts or no-shows in the last 90 days.</strong> Whatever you're doing, keep it up.`);
       } else {
         lines.push(`Overall absence rate is ${overallRate.toFixed(1)}%. Days are roughly even — no single day stands out.`);
       }
@@ -3624,9 +3621,8 @@ document.addEventListener("click", (e) => {
   const tableRows = DOW.map(d => {
     const tot = m.dowTotal[d], abs = m.dowAbsent[d];
     const rate = tot > 0 ? (abs / tot * 100).toFixed(1) : "—";
-    const color = tot > 0 && (abs / tot * 100) >= m.overallRate * 1.5 ? "var(--red)"
-      : tot > 0 && (abs / tot * 100) >= m.overallRate * 1.2 ? "var(--amber)"
-      : "var(--text)";
+    // Neutral throughout — no stoplight tint on insight popovers.
+    const color = "var(--text)";
     return `
     <tr>
       <td style="padding:5px 10px;border-bottom:1px solid var(--border)"><strong>${DOW_LABEL[d]}</strong></td>
