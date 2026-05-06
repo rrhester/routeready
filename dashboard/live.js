@@ -7817,6 +7817,125 @@ function _availImpactFor(req) {
   return { drops: dropImpact, adds: addImpact };
 }
 
+// KPI cards + repeat-requesters panel for Drivers → Availability.  Was
+// dropped in the same merge that lost _renderAvailabilityShell and
+// _buildAvailImpactCtx, which left the Availability sub-tab spinning
+// forever (loadAvailabilityRequests threw a ReferenceError after the
+// Promise.all resolved).  Restored verbatim from 053968c.
+function _renderAvailabilityKpis(k, rows) {
+  const host = document.getElementById("dr-sub-availability");
+  const el = host?.querySelector("[data-rr-avail-kpis]");
+  if (!el) return;
+  const card = (label, value, sub) => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</div>
+      <div style="font-size:24px;font-weight:700;margin-top:4px">${escapeHtml(String(value))}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+    </div>`;
+  el.innerHTML = [
+    card("Pending",       k.pending_count ?? 0,  "awaiting review"),
+    card("Approved · 30d", k.approved_30d ?? 0,  "decisions in last 30 days"),
+    card("Denied · 30d",   k.denied_30d   ?? 0,  "decisions in last 30 days"),
+    card("Avg decision time", k.avg_decision_hours_30d != null ? `${k.avg_decision_hours_30d}h` : "—", "from submit to decide"),
+  ].join("");
+
+  const repeatEl = host.querySelector("[data-rr-avail-repeats]");
+  if (!repeatEl) return;
+  const repeats = Array.isArray(k.repeat_requesters_30d) ? k.repeat_requesters_30d : [];
+  const repeatList = repeats.length === 0
+    ? `<div style="font-size:12px;color:var(--text-subtle)">No drivers have submitted more than once in the last 30 days.</div>`
+    : repeats.slice(0, 12).map(r => `
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <span>${escapeHtml(r.driver_name || "")}</span>
+          <span style="font-weight:600">${r.count} requests</span>
+        </div>`).join("");
+  repeatEl.innerHTML = `
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">Repeat requesters · 30 days</div>
+    <div style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
+    ${repeatList}`;
+}
+
+function _renderAvailabilityBlackouts(rows) {
+  const host = document.getElementById("dr-sub-availability");
+  const el = host?.querySelector("[data-rr-avail-blackouts]");
+  if (!el) return;
+  const list = (rows || []).map(b => `
+    <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px">
+      <div>${escapeHtml(b.start_date || "")}</div>
+      <div>${escapeHtml(b.end_date || "")}</div>
+      <div style="color:var(--text-muted)">${escapeHtml(b.reason || "")}</div>
+      <button class="btn btn-sm btn-danger" data-rr-blackout-delete="${escapeHtml(b.id)}">Delete</button>
+    </div>`).join("");
+  el.innerHTML = `
+    <form id="rr-avail-blackout-form" style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;align-items:end;margin:6px 0 14px">
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">Start</label>
+        <input type="date" id="rr-bl-start" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">End</label>
+        <input type="date" id="rr-bl-end" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">Reason (optional)</label>
+        <input type="text" id="rr-bl-reason" placeholder="e.g. Holiday peak — no availability changes" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary">Add blackout</button>
+    </form>
+    ${list || `<div style="font-size:12px;color:var(--text-subtle);padding:8px 0">No blackouts. Drivers can submit any day.</div>`}
+  `;
+  document.getElementById("rr-avail-blackout-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const start_date = document.getElementById("rr-bl-start").value;
+    const end_date   = document.getElementById("rr-bl-end").value;
+    const reason     = document.getElementById("rr-bl-reason").value;
+    if (!start_date || !end_date) return;
+    const { error } = await sb.rpc("availability_blackout_upsert", {
+      p_id: null, p_start_date: start_date, p_end_date: end_date, p_reason: reason,
+    });
+    if (error) { toast("Failed: " + error.message, "warn"); return; }
+    toast("Blackout added", "success");
+    loadAvailabilityRequests();
+  });
+}
+
+function _renderAvailabilitySettingsPanel(s) {
+  const host = document.getElementById("dr-sub-availability");
+  const el = host?.querySelector("[data-rr-avail-settings]");
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:8px;align-items:start">
+      <label style="font-size:13px;font-weight:600">Lead time<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Days from approval until the change is live for scheduling.</span></label>
+      <div>
+        <input type="number" id="rr-avail-lead" min="0" max="60" value="${Number(s.lead_days ?? 7)}" style="width:120px;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+        <span style="font-size:12px;color:var(--text-subtle);margin-left:6px">days</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
+      <label style="font-size:13px;font-weight:600">Approve auto-response<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Sent to the driver when you approve. Placeholders: {days} {effective_from} {effective_until} {note}</span></label>
+      <textarea id="rr-avail-approve-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.approve_template || "")}</textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
+      <label style="font-size:13px;font-weight:600">Deny auto-response<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Sent to the driver when you deny. Placeholders: {days} {note}</span></label>
+      <textarea id="rr-avail-deny-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.deny_template || "")}</textarea>
+    </div>
+    <div style="text-align:right;margin-top:14px">
+      <button class="btn btn-primary" id="rr-avail-settings-save">Save settings</button>
+    </div>`;
+  document.getElementById("rr-avail-settings-save").addEventListener("click", async () => {
+    const btn = document.getElementById("rr-avail-settings-save");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const { error } = await sb.rpc("availability_settings_set", {
+      p_lead_days:        Number(document.getElementById("rr-avail-lead").value || 7),
+      p_approve_template: document.getElementById("rr-avail-approve-tmpl").value,
+      p_deny_template:    document.getElementById("rr-avail-deny-tmpl").value,
+    });
+    btn.disabled = false; btn.textContent = "Save settings";
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    toast("Settings saved", "success");
+  });
+}
+
 // Coverage-by-day card · live read of active driver availability.
 function _renderAvailabilityCoverageCard() {
   const bars = document.getElementById("rr-avail-coverage-bars");
