@@ -577,7 +577,7 @@ function renderDriverTable(rows, error) {
 
   const colspan = _driverStage === "onboarding" ? 8 : 7;
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:24px;text-align:center;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:24px;text-align:center;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</td></tr>`;
     return;
   }
 
@@ -588,7 +588,7 @@ function renderDriverTable(rows, error) {
       : _driverStage === "active"
       ? "No active drivers yet. Hire someone in Interview Day to fill this list."
       : "No drivers in this stage.";
-    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">${empty}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">${empty}</td></tr>`;
     return;
   }
 
@@ -610,7 +610,7 @@ function renderOnboardingRow(d) {
     ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000))
     : null;
   const daysCell = days != null
-    ? `<span style="font-weight:600">${days}</span> <span style="font-size:11px;color:var(--text-subtle)">day${days === 1 ? "" : "s"}</span>`
+    ? `<span style="font-weight:600">${days}</span> <span style="font-size:var(--fs-xs);color:var(--text-subtle)">day${days === 1 ? "" : "s"}</span>`
     : '<span style="color:var(--text-subtle)">—</span>';
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
@@ -904,7 +904,7 @@ function _renderAttReportTbody() {
       <td style="text-align:right">${r.a.vto}</td>
       <td style="text-align:right;font-weight:600">${r.points}</td>
       <td style="text-align:right">${r.occ}</td>
-      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusColor}1A;color:${statusColor}">${r.statusLabel}</span></td>
+      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:var(--fs-xs);font-weight:600;background:${statusColor}1A;color:${statusColor}">${r.statusLabel}</span></td>
       <td>${last}</td>
       <td></td>
     </tr>`;
@@ -945,13 +945,13 @@ async function loadDashboardWeather() {
   const lon = Number(meta.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
-      <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:2px">Set your station location</div>
-      <div style="font-size:11px;color:var(--text-subtle);line-height:1.4">Paste lat/lon from Google Maps in Settings → Workspace to enable the local weather forecast and severe-weather alerts.</div>`;
+      <div style="font-size:var(--fs-md);color:var(--text);font-weight:600;margin-bottom:2px">Set your station location</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4">Paste lat/lon from Google Maps in Settings → Workspace to enable the local weather forecast and severe-weather alerts.</div>`;
     return;
   }
 
   body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
-    <div style="font-size:13px;color:var(--text-subtle)">Loading…</div>`;
+    <div style="font-size:var(--fs-md);color:var(--text-subtle)">Loading…</div>`;
 
   try {
     const headers = { "User-Agent": "RouteReady/1.0 (dashboard)", "Accept": "application/geo+json" };
@@ -1054,8 +1054,8 @@ async function loadDashboardWeather() {
       const pct = h.probabilityOfPrecipitation?.value || 0;
       const wind = parseInt(String(h.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
       return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 5px;border-radius:4px;min-width:42px;background:var(--canvas)">
-        <div style="font-size:10px;color:var(--text-muted);font-weight:600">${fmtHour(h.startTime)}</div>
-        <div style="font-size:13px;font-weight:700;color:${tempColor(h.temperature)};font-variant-numeric:tabular-nums;line-height:1">${h.temperature}°</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600">${fmtHour(h.startTime)}</div>
+        <div style="font-size:var(--fs-md);font-weight:700;color:${tempColor(h.temperature)};font-variant-numeric:tabular-nums;line-height:1">${h.temperature}°</div>
         <div style="font-size:9px;font-weight:600;color:${precipColor(pct)};line-height:1">${pct}%</div>
         ${wind >= 15 ? `<div style="font-size:9px;color:var(--amber);font-weight:600;line-height:1">${wind}</div>` : ""}
       </div>`;
@@ -1104,14 +1104,14 @@ async function loadDashboardWeather() {
           ${activeAlerts.map(a => {
             const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : a.severity === "Moderate" ? "var(--amber)" : "var(--text-muted)";
             const exp = a.expires ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(fmtExpires(a.expires))}</span>` : "";
-            return `<div style="font-size:11px;color:${sev};line-height:1.35"><strong>${escapeHtml(a.event || "Alert")}</strong>${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 130))}` : ""}${exp}</div>`;
+            return `<div style="font-size:var(--fs-xs);color:${sev};line-height:1.35"><strong>${escapeHtml(a.event || "Alert")}</strong>${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 130))}` : ""}${exp}</div>`;
           }).join("")}
         </div>`;
 
     const advisoryHtml = advisories.length === 0
       ? ""
       : `<div style="margin-top:8px"><div class="task-eyebrow" style="margin-bottom:3px">Driver advisory</div>
-          ${advisories.map(a => `<div style="font-size:11px;color:var(--text);line-height:1.4;margin:1px 0">• ${a}</div>`).join("")}
+          ${advisories.map(a => `<div style="font-size:var(--fs-xs);color:var(--text);line-height:1.4;margin:1px 0">• ${a}</div>`).join("")}
         </div>`;
 
     const nowWind = parseInt(String(now.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
@@ -1185,7 +1185,7 @@ async function loadDashboardWeather() {
           if (minsToSunset > 0 && minsToSunset < 180) {
             cutoffNote = ` · <strong style="color:var(--amber)">${minsToSunset >= 60 ? Math.floor(minsToSunset/60)+"h " : ""}${minsToSunset%60}m to sunset</strong>`;
           }
-          return `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">☀ Sunrise <strong style="color:var(--text)">${sr}</strong> · Sunset <strong style="color:var(--text)">${ss}</strong>${ct ? ` · Headlights ${ct}` : ""}${cutoffNote}</div>`;
+          return `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">☀ Sunrise <strong style="color:var(--text)">${sr}</strong> · Sunset <strong style="color:var(--text)">${ss}</strong>${ct ? ` · Headlights ${ct}` : ""}${cutoffNote}</div>`;
         })()
       : "";
 
@@ -1196,13 +1196,13 @@ async function loadDashboardWeather() {
     if (obsPressureInHg) obsBits.push(`Pressure <strong style="color:var(--text)">${obsPressureInHg} inHg</strong>`);
     if (obsVisibilityMi && parseFloat(obsVisibilityMi) < 5) obsBits.push(`Vis <strong style="color:var(--amber)">${obsVisibilityMi} mi</strong>`);
     const obsLine = obsBits.length
-      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${obsBits.join(" · ")}</div>`
+      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${obsBits.join(" · ")}</div>`
       : "";
 
     const today    = dayPairs[0];
     const tomorrow = dayPairs[1];
     const dayLine = (d) => d
-      ? `<div style="font-size:11px;color:var(--text-subtle);line-height:1.4">
+      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4">
            <strong style="color:var(--text)">${escapeHtml(d.label)}</strong>
            Hi <strong style="color:var(--text);font-variant-numeric:tabular-nums">${d.hi}°</strong>${d.lo!=null ? ` / Lo <strong style="color:var(--text);font-variant-numeric:tabular-nums">${d.lo}°</strong>` : ""}
            · ${escapeHtml(d.short || "")}${d.precip ? ` · <strong style="color:${precipColor(d.precip)}">${d.precip}%</strong>` : ""}
@@ -1217,10 +1217,10 @@ async function loadDashboardWeather() {
       })();
       const summary = (d.short || "").slice(0, 18);
       return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 6px;border-radius:5px;min-width:62px;background:var(--canvas)">
-        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${escapeHtml(wd)}</div>
+        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${escapeHtml(wd)}</div>
         <div style="display:flex;align-items:baseline;gap:3px">
-          <span style="font-size:13px;font-weight:700;color:${tempColor(d.hi)};font-variant-numeric:tabular-nums;line-height:1">${d.hi}°</span>
-          ${d.lo!=null ? `<span style="font-size:10px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${d.lo}°</span>` : ""}
+          <span style="font-size:var(--fs-md);font-weight:700;color:${tempColor(d.hi)};font-variant-numeric:tabular-nums;line-height:1">${d.hi}°</span>
+          ${d.lo!=null ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">${d.lo}°</span>` : ""}
         </div>
         <div style="font-size:9px;color:var(--text-subtle);text-align:center;line-height:1.15;max-width:72px">${escapeHtml(summary)}</div>
         ${d.precip ? `<div style="font-size:9px;font-weight:600;color:${precipColor(d.precip)};line-height:1">${d.precip}%</div>` : `<div style="height:9px"></div>`}
@@ -1231,10 +1231,10 @@ async function loadDashboardWeather() {
       <div class="task-eyebrow" style="margin-bottom:2px">Weather${locName ? ` · ${escapeHtml(locName)}` : ""}${obsTimestamp ? ` · obs ${fmtTime(obsTimestamp)}` : ""}</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;flex-wrap:wrap">
         <div style="font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums">${tNow}°F</div>
-        <div style="font-size:12px;color:var(--text);line-height:1.3;font-weight:600">${escapeHtml(now.shortForecast || "")}</div>
-        ${feelsLike != null ? `<div style="font-size:11px;color:${feelsLike >= 100 ? "var(--red)" : feelsLike >= 90 ? "var(--amber)" : feelsLike <= 20 ? "#5b8def" : "var(--text-subtle)"};font-weight:600">${feelsKind} <span style="font-variant-numeric:tabular-nums">${feelsLike}°F</span></div>` : ""}
+        <div style="font-size:var(--fs-sm);color:var(--text);line-height:1.3;font-weight:600">${escapeHtml(now.shortForecast || "")}</div>
+        ${feelsLike != null ? `<div style="font-size:var(--fs-xs);color:${feelsLike >= 100 ? "var(--red)" : feelsLike >= 90 ? "var(--amber)" : feelsLike <= 20 ? "#5b8def" : "var(--text-subtle)"};font-weight:600">${feelsKind} <span style="font-variant-numeric:tabular-nums">${feelsLike}°F</span></div>` : ""}
       </div>
-      <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">
         ${nowWind ? `Wind ${nowWind} mph${nowDir ? ` ${escapeHtml(nowDir)}` : ""}` : ""}${peakRain ? `${nowWind ? " · " : ""}${peakRain}% peak precip next 14h` : ""}
       </div>
       ${obsLine}
@@ -1292,7 +1292,7 @@ async function loadDashboardWeather() {
       ? `Saved coords <strong>${lat}, ${lon}</strong> aren't covered by NWS (US only). Common cause: longitude sign flipped — west of the prime meridian should be negative (e.g. <strong>-76.910</strong>).`
       : `Could not load forecast (${escapeHtml(err.message || String(err))}). Saved: <strong>${lat}, ${lon}</strong>.`;
     body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
-      <div style="font-size:13px;color:var(--text-subtle);line-height:1.5">${detail}</div>`;
+      <div style="font-size:var(--fs-md);color:var(--text-subtle);line-height:1.5">${detail}</div>`;
   }
 }
 
@@ -1959,8 +1959,8 @@ async function loadAttendancePolicy() {
   const toggleRow = (field, label, blurb) => `
     <label class="rr-pol-toggle-row" style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--border)">
       <span style="flex:1">
-        <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
-        <div style="font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
+        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
       </span>
       <label class="toggle" style="margin-top:2px">
         <input type="checkbox" data-rr-att-field-bool="${field}" ${p[field] ? "checked" : ""}/>
@@ -1993,14 +1993,14 @@ async function loadAttendancePolicy() {
       <p class="pol-section-sub">How many minutes after a shift's start time before the dashboard considers the driver tardy or a no-call no-show. These drive the live status on Today's Plan and the orange/red flags on the daily approvals card.</p>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:14px;max-width:520px">
         <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Tardy after (min)</span>
+          <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Tardy after (min)</span>
           <input type="number" min="0" max="120" step="1" class="form-input" data-rr-att-timing="tardy_grace_minutes" value="${timing.tardy_grace_minutes}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">Driver still hasn't checked in this many minutes <strong>after</strong> their shift start = <strong>Tardy</strong>. Common: 5–15 minutes.</span>
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Driver still hasn't checked in this many minutes <strong>after</strong> their shift start = <strong>Tardy</strong>. Common: 5–15 minutes.</span>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">NCNS after (min)</span>
+          <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">NCNS after (min)</span>
           <input type="number" min="30" max="240" step="30" class="form-input" data-rr-att-timing="ncns_after_minutes" value="${timing.ncns_after_minutes}"/>
-          <span style="font-size:11px;color:var(--text-subtle)">No check-in <strong>and</strong> no callout this many minutes after start = <strong>No-call no-show</strong>. Adjusts in 30-minute steps.</span>
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle)">No check-in <strong>and</strong> no callout this many minutes after start = <strong>No-call no-show</strong>. Adjusts in 30-minute steps.</span>
         </label>
       </div>
     </div>
@@ -2016,7 +2016,7 @@ async function loadAttendancePolicy() {
       ${toggleRow("first_30_strict", "Strict no-absence rule for first " + (p.first_30_window_days || 30) + " days",
         "When ON, any callout or no-show inside the driver's probationary window jumps them straight to <strong>Action</strong> regardless of accrued occurrences.  Standard for new-hire periods.")}
       <label style="display:flex;flex-direction:column;gap:4px;padding:12px 0 0;max-width:200px">
-        <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Probation window (days)</span>
+        <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Probation window (days)</span>
         <input type="number" min="7" max="120" step="1" class="form-input" data-rr-att-field="first_30_window_days" value="${p.first_30_window_days}"/>
       </label>
     </div>
@@ -2032,14 +2032,14 @@ async function loadAttendancePolicy() {
 
       <!-- Per-level auto-approval (only meaningful when auto_coaching is ON) -->
       <div id="rr-att-auto-levels" style="margin-top:6px;border-top:1px solid var(--border);padding-top:10px;${p.auto_coaching ? "" : "opacity:.45;pointer-events:none"}">
-        <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Levels that auto-fire</div>
+        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Levels that auto-fire</div>
         ${toggleRow("auto_verbal",  "Verbal warnings auto-fire",
           "When the recommended action is a <strong>Verbal</strong> coaching, fire it without leader review.")}
         ${toggleRow("auto_written", "Written warnings auto-fire",
           "When the recommended action is a <strong>Written</strong> warning, fire it without leader review.")}
         ${toggleRow("auto_final",   "Final written warnings auto-fire",
           "When the recommended action is a <strong>Final</strong> written warning, fire it without leader review.")}
-        <div style="font-size:11px;color:var(--text-subtle);padding:8px 0 0;line-height:1.5">
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);padding:8px 0 0;line-height:1.5">
           <strong>Termination is never auto-approved.</strong>  A leader always confirms a termination from the coaching drawer.
         </div>
       </div>
@@ -2054,8 +2054,8 @@ async function loadAttendancePolicy() {
         const row = (val, label, blurb) => `
           <label class="rr-pol-toggle-row" style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--border)">
             <span style="flex:1">
-              <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
-              <div style="font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
+              <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
+              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
             </span>
             <label class="toggle" style="margin-top:2px">
               <input type="checkbox" data-rr-att-action="${val}" ${has(val) ? "checked" : ""}/>
@@ -2076,7 +2076,7 @@ async function loadAttendancePolicy() {
     <!-- Save -->
     <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
       <button class="btn btn-primary" type="button" id="rr-att-policy-save">Save policy</button>
-      <span id="rr-att-policy-status" style="font-size:12px;color:var(--text-subtle)"></span>
+      <span id="rr-att-policy-status" style="font-size:var(--fs-sm);color:var(--text-subtle)"></span>
     </div>`;
 
   // Apply the cascading disable rules now that the DOM is in place.
@@ -2404,18 +2404,18 @@ async function loadTodayPlan() {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;height:108px"></div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;height:108px"></div>
       </div>
-      <div id="rr-tp-meta"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--text-subtle)">Loading…</div>
+      <div id="rr-tp-meta"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-subtle)">Loading…</div>
       <div id="rr-tp-tool"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
-        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Daily attendance · approvals</div>
+        <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Daily attendance · approvals</div>
         <div class="rr-loading">Loading</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div id="rr-tp-extras" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Extra drivers (Ex)</div>
+          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Extra drivers (Ex)</div>
           <div class="rr-loading">Loading</div>
         </div>
         <div id="rr-tp-cov" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Coverage</div>
+          <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Coverage</div>
           <div class="rr-loading">Loading</div>
         </div>
       </div>`;
@@ -2464,8 +2464,8 @@ function _renderTpAttendance(data, error) {
   if (!wavesEl || !metaEl || !toolEl || !extrasEl) return;
 
   if (error) {
-    toolEl.innerHTML = `<div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Daily attendance · approvals</div>
-      <div style="padding:18px;color:var(--red);font-size:12px;text-align:center">${escapeHtml(error.message || String(error))}</div>`;
+    toolEl.innerHTML = `<div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">Daily attendance · approvals</div>
+      <div style="padding:18px;color:var(--red);font-size:var(--fs-sm);text-align:center">${escapeHtml(error.message || String(error))}</div>`;
     return;
   }
 
@@ -2497,17 +2497,17 @@ function _renderTpAttendance(data, error) {
     return `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
-          <div style="font-size:13px;font-weight:700;color:var(--text)">Wave ${escapeHtml(String(wave))}</div>
-          <div style="font-size:11px;color:var(--text-subtle)">${b.scheduled} scheduled</div>
+          <div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">Wave ${escapeHtml(String(wave))}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${b.scheduled} scheduled</div>
         </div>
         <div style="display:flex;gap:12px">
           <div style="flex:1">
-            <div style="font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Checked in</div>
-            <div style="font-size:24px;font-weight:700;color:var(--text)">${b.checkedIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${inPct}%</span></div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Checked in</div>
+            <div style="font-size:var(--fs-xxl);font-weight:700;color:var(--text)">${b.checkedIn}<span style="font-size:var(--fs-md);color:var(--text-subtle);font-weight:600;margin-left:6px">${inPct}%</span></div>
           </div>
           <div style="flex:1">
-            <div style="font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Not in</div>
-            <div style="font-size:24px;font-weight:700;color:var(--text)">${b.notIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${outPct}%</span></div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Not in</div>
+            <div style="font-size:var(--fs-xxl);font-weight:700;color:var(--text)">${b.notIn}<span style="font-size:var(--fs-md);color:var(--text-subtle);font-weight:600;margin-left:6px">${outPct}%</span></div>
           </div>
         </div>
         <div style="height:6px;background:var(--canvas);border-radius:999px;overflow:hidden;display:flex">
@@ -2515,14 +2515,14 @@ function _renderTpAttendance(data, error) {
           <div style="width:${outPct}%;background:var(--border-strong)"></div>
         </div>
         ${flagged > 0
-          ? `<div style="font-size:11px;color:var(--text);font-weight:600">${b.tardy} tardy · ${b.ncns} NCNS</div>`
-          : `<div style="font-size:11px;color:var(--text-subtle)">No issues this wave</div>`}
+          ? `<div style="font-size:var(--fs-xs);color:var(--text);font-weight:600">${b.tardy} tardy · ${b.ncns} NCNS</div>`
+          : `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">No issues this wave</div>`}
       </div>`;
   };
 
   const sortedWaves = [...waveBuckets.entries()].sort((a, b) => a[0] - b[0]);
   wavesEl.innerHTML = sortedWaves.length === 0
-    ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No drivers scheduled today.</div>`
+    ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No drivers scheduled today.</div>`
     : sortedWaves.map(([w, b]) => waveCard(w, b)).join("");
 
   // ── Meta strip (service-type breakdown + as-of) ────────────────────
@@ -2533,12 +2533,12 @@ function _renderTpAttendance(data, error) {
     bySvc[sv].count++;
   }
   const svcChips = Object.entries(bySvc).map(([code, v]) =>
-    `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:11px;font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`
+    `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:var(--fs-xs);font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`
   ).join("");
   metaEl.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
-      <div style="font-size:11px;color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</div>
     </div>`;
 
   // ── Daily attendance approvals card ────────────────────────────────
@@ -2564,16 +2564,16 @@ function _renderTpAttendance(data, error) {
         const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
         return `
           <div style="display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--border)">
-            <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:11px">${escapeHtml(initials)}</div>
+            <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:var(--fs-xs)">${escapeHtml(initials)}</div>
             <div style="min-width:0">
-              <div style="font-size:13px;font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
-              <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0} · ${escapeHtml(t)}</div>
+              <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
+              <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0} · ${escapeHtml(t)}</div>
             </div>
-            <span style="background:${tone.bg};color:${tone.fg};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
+            <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
           </div>`;
       }).join("");
   extrasEl.innerHTML = `
-    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">
       Extra drivers (Ex) <span style="color:var(--text-subtle);font-weight:600">· ${extras.length}</span>
     </div>
     ${extrasRows}`;
@@ -2590,13 +2590,13 @@ async function _renderTpDailyTool(flagged) {
   if (!toolEl) return;
 
   const head = (n) => `
-    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">
       Daily attendance · approvals <span style="color:var(--text-subtle);font-weight:600">· ${n}</span>
     </div>`;
 
   if (flagged.length === 0) {
     toolEl.innerHTML = `${head(0)}
-      <div style="padding:24px;text-align:center;color:var(--green);font-size:13px;font-weight:600">✓ No tardies or no-shows to approve right now.</div>`;
+      <div style="padding:24px;text-align:center;color:var(--green);font-size:var(--fs-md);font-weight:600">✓ No tardies or no-shows to approve right now.</div>`;
     return;
   }
 
@@ -2687,15 +2687,15 @@ async function _renderTpDailyTool(flagged) {
            style="display:grid;grid-template-columns:36px minmax(160px,1fr) 130px 1fr auto;gap:14px;align-items:center;padding:12px 14px;border-top:1px solid var(--border)">
         <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(initials)}</div>
         <div style="min-width:0">
-          <div style="font-size:13px;font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
-          <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
+          <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
         </div>
         <div>
-          <span style="background:${tone.bg};color:${tone.fg};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
+          <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
         </div>
         <div style="min-width:0">
-          <div style="font-size:12px;color:var(--text)"><strong>${after} occ${after === 1 ? "" : "s"}</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
-          <div style="font-size:11px;color:var(--text-subtle)">Next: ${rec}${auto ? " · auto-fires on Approve" : ""}</div>
+          <div style="font-size:var(--fs-sm);color:var(--text)"><strong>${after} occ${after === 1 ? "" : "s"}</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Next: ${rec}${auto ? " · auto-fires on Approve" : ""}</div>
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-sm btn-primary"
@@ -2735,7 +2735,7 @@ async function _renderTpDailyTool(flagged) {
   }
 
   toolEl.innerHTML = `${head(flagged.length)}${rows}
-    <div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;color:var(--text-subtle)">
+    <div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-subtle)">
       ${escapeHtml(autoCoachNote)}
     </div>`;
 }
@@ -2768,7 +2768,7 @@ document.addEventListener("click", async (e) => {
   }
 
   const btnCell = btn.parentElement;
-  btnCell.innerHTML = `<span style="font-size:11px;color:var(--text-subtle)">Saving…</span>`;
+  btnCell.innerHTML = `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Saving…</span>`;
 
   const level    = btn.dataset.level || null;
   const autoFire = btn.dataset.autoFire === "1";
@@ -2784,14 +2784,14 @@ document.addEventListener("click", async (e) => {
 
   if (error) {
     toast("Save failed: " + (error.message || String(error)), "warn");
-    btnCell.innerHTML = `<span style="font-size:11px;color:var(--red)">${escapeHtml(error.message || "Failed")}</span>`;
+    btnCell.innerHTML = `<span style="font-size:var(--fs-xs);color:var(--red)">${escapeHtml(error.message || "Failed")}</span>`;
     return;
   }
 
   const verb = ap ? "Approved" : "Declined";
   const tone = ap ? "var(--green)" : "var(--text-subtle)";
   row.style.opacity = "0.55";
-  btnCell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
+  btnCell.innerHTML = `<span style="font-size:var(--fs-xs);font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
   const tailParts = [];
   if (data?.auto_fired) tailParts.push("driver coached");
   else if (ap)          tailParts.push("queued for coaching drawer");
@@ -2804,7 +2804,7 @@ function _renderTpCoverage(data, error) {
   if (!covEl) return;
 
   const headHtml = (subtext) => `
-    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+    <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:700">
       Coverage${subtext ? ` <span style="color:var(--text-subtle);font-weight:600">· ${subtext}</span>` : ""}
     </div>`;
 
@@ -2816,7 +2816,7 @@ function _renderTpCoverage(data, error) {
       ? `Coverage view needs migration 0068 (today_plan). Apply it via Supabase SQL Editor and refresh.`
       : msg;
     covEl.innerHTML = `${headHtml("")}
-      <div style="padding:18px;color:var(--amber);font-size:12px;text-align:center">${escapeHtml(hint)}</div>`;
+      <div style="padding:18px;color:var(--amber);font-size:var(--fs-sm);text-align:center">${escapeHtml(hint)}</div>`;
     return;
   }
 
@@ -2825,26 +2825,26 @@ function _renderTpCoverage(data, error) {
   const noDot = data?.not_dot_certified || [];
 
   const openRows = open.length === 0
-    ? `<div style="padding:18px;text-align:center;color:var(--green);font-size:12px;font-weight:600">✓ All shifts assigned</div>`
+    ? `<div style="padding:18px;text-align:center;color:var(--green);font-size:var(--fs-sm);font-weight:600">✓ All shifts assigned</div>`
     : open.map(o => {
         const t = o.starts_at ? new Date(o.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
-        const svc = o.service_type_code ? `<span style="background:${o.service_type_color || "#94a3b8"}22;color:${o.service_type_color || "#94a3b8"};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px">${escapeHtml(o.service_type_code)}</span>` : "";
-        const cushion = o.is_cushion ? `<span style="background:rgba(180,83,9,.15);color:var(--amber);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px">EX</span>` : "";
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-top:1px solid var(--border);font-size:13px">
+        const svc = o.service_type_code ? `<span style="background:${o.service_type_color || "#94a3b8"}22;color:${o.service_type_color || "#94a3b8"};padding:2px 6px;border-radius:4px;font-size:var(--fs-xs);font-weight:700;margin-left:6px">${escapeHtml(o.service_type_code)}</span>` : "";
+        const cushion = o.is_cushion ? `<span style="background:rgba(180,83,9,.15);color:var(--amber);padding:2px 6px;border-radius:4px;font-size:var(--fs-xs);font-weight:700;margin-left:6px">EX</span>` : "";
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-top:1px solid var(--border);font-size:var(--fs-md)">
           <div><strong>${escapeHtml(o.station_code || "—")}</strong> · ${escapeHtml(t)} · Wave ${o.wave_index ?? 0}${svc}${cushion}</div>
           <button class="btn btn-sm" onclick="goto('schedule')">Assign</button>
         </div>`;
       }).join("");
 
   const dlRows = dlExp.length === 0 ? "" :
-    `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Driver license expiring soon · ${dlExp.length}</div>`
+    `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Driver license expiring soon · ${dlExp.length}</div>`
     + dlExp.map(d => {
         const days = Number(d.days_left);
         const tone = days <= 0 ? "var(--red)" : (days <= 2 ? "var(--amber)" : "var(--text-muted)");
         const label = days < 0 ? `Expired ${-days}d ago` : days === 0 ? "Expires today" : `${days}d left`;
-        return `<div style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px 14px;border-top:1px solid var(--border);font-size:13px;align-items:center">
+        return `<div style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px 14px;border-top:1px solid var(--border);font-size:var(--fs-md);align-items:center">
           <div data-rr-driver-id="${escapeHtml(d.driver_id)}" style="font-weight:600;cursor:pointer">${escapeHtml(d.driver_name)}</div>
-          <span style="color:${tone};font-weight:700;font-size:12px">${escapeHtml(label)}</span>
+          <span style="color:${tone};font-weight:700;font-size:var(--fs-sm)">${escapeHtml(label)}</span>
         </div>`;
       }).join("");
 
@@ -2899,7 +2899,7 @@ async function loadTodayAttendance() {
 
   const { data, error } = await sb.rpc("today_attendance");
   if (error) {
-    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</div>`;
     return;
   }
   const rows = data?.rows || [];
@@ -2938,9 +2938,9 @@ async function loadTodayAttendance() {
 
   const kpiCard = (label, value, sub, tone) => `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase">${escapeHtml(label)}</div>
       <div style="font-size:26px;font-weight:700;margin-top:4px;color:${tone || "var(--text)"}">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
+      ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
     </div>`;
 
   // Driver-row renderer.
@@ -2957,10 +2957,10 @@ async function loadTodayAttendance() {
       <div style="display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
         <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml((r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
         <div style="min-width:0">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(r.driver_name)}</div>
-          <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}${noteBits.length ? " · " + escapeHtml(noteBits.join(" · ")) : ""}</div>
+          <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(r.driver_name)}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}${noteBits.length ? " · " + escapeHtml(noteBits.join(" · ")) : ""}</div>
         </div>
-        <span style="background:${tone.bg};color:${tone.fg};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:10px">${escapeHtml(label)}</span>
+        <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:10px">${escapeHtml(label)}</span>
       </div>`;
   };
 
@@ -2979,7 +2979,7 @@ async function loadTodayAttendance() {
     if (items.length === 0) return "";
     return `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden">
-        <div style="padding:10px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
+        <div style="padding:10px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
           ${escapeHtml(label)} <span style="color:var(--text-subtle);font-weight:600">· ${items.length}</span>
         </div>
         ${items.map(rowHtml).join("")}
@@ -2989,7 +2989,7 @@ async function loadTodayAttendance() {
   const waveLine = Object.keys(byWave).sort()
     .map(w => `Wave ${w}: <strong>${byWave[w]}</strong>`).join(" · ");
   const svcChips = Object.entries(bySvc)
-    .map(([code, v]) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:11px;font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`)
+    .map(([code, v]) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:var(--fs-xs);font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`)
     .join("");
 
   wrap.innerHTML = `
@@ -3000,10 +3000,10 @@ async function loadTodayAttendance() {
       ${kpiCard("Working", cnt.working, `${cnt.missed} missed reported`, cnt.working > 0 ? "var(--green)" : undefined)}
     </div>
 
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <span style="font-size:11px;color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</span>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</span>
         <button class="btn btn-sm" id="rr-today-refresh">Refresh</button>
         <button class="btn btn-sm btn-primary" id="rr-today-finalize" ${cnt.finalized === cnt.total ? "disabled" : ""}>${cnt.finalized === cnt.total ? "Already finalized" : "Approve & finalize day"}</button>
       </div>
@@ -3039,7 +3039,7 @@ async function loadAttendanceHistory(opts) {
 
   const { data, error } = await sb.rpc("attendance_history", { p_from: fromIso, p_to: toIso, p_driver_id: null });
   if (error) {
-    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</div>`;
     return;
   }
   const summary = data?.summary_by_driver || [];
@@ -3048,7 +3048,7 @@ async function loadAttendanceHistory(opts) {
   const sumRows = summary.length === 0
     ? `<div class="rr-empty-inline">No finalized attendance in range.</div>`
     : summary.map(s => `
-      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;align-items:center">
+      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-size:var(--fs-md);align-items:center">
         <div style="font-weight:600">${escapeHtml(s.driver_name)}</div>
         <div style="text-align:right;color:var(--green);font-weight:600">${s.present}</div>
         <div style="text-align:right;color:var(--amber);font-weight:600">${s.tardy}</div>
@@ -3061,18 +3061,18 @@ async function loadAttendanceHistory(opts) {
   wrap.innerHTML = `
     <div style="display:flex;gap:10px;margin-bottom:14px;align-items:end">
       <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">From</label>
+        <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">From</label>
         <input type="date" id="rr-att-hist-from" value="${escapeHtml(fromIso)}" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
       </div>
       <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">To</label>
+        <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">To</label>
         <input type="date" id="rr-att-hist-to" value="${escapeHtml(toIso)}" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
       </div>
       <button class="btn btn-sm btn-primary" id="rr-att-hist-go">Apply</button>
     </div>
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
-      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;background:var(--canvas);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
+      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
         <div>Driver</div>
         <div style="text-align:right">Present</div>
         <div style="text-align:right">Tardy</div>
@@ -3084,7 +3084,7 @@ async function loadAttendanceHistory(opts) {
       ${sumRows}
     </div>
 
-    <div style="font-size:11px;color:var(--text-subtle);margin-bottom:8px">${events.length} finalized event${events.length === 1 ? "" : "s"} · only finalized days appear in the permanent record.</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">${events.length} finalized event${events.length === 1 ? "" : "s"} · only finalized days appear in the permanent record.</div>
   `;
 
   document.getElementById("rr-att-hist-go").addEventListener("click", () => {
@@ -3117,11 +3117,11 @@ async function loadDriverLicensesView() {
     .limit(500);
 
   if (error) {
-    body.innerHTML = `<div style="padding:16px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    body.innerHTML = `<div style="padding:16px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</div>`;
     return;
   }
   if (!rows || rows.length === 0) {
-    body.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">
+    body.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">
       <strong style="color:var(--text-muted);display:block;margin-bottom:4px">No license dates on file</strong>
       Open a driver record → License tab to add a license number and expiration.
     </div>`;
@@ -3139,7 +3139,7 @@ async function loadDriverLicensesView() {
 
   body.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:10px 16px;background:var(--canvas);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
+      <div style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:10px 16px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
         <div>Driver</div>
         <div>Station</div>
         <div>DL number</div>
@@ -3169,11 +3169,11 @@ function renderLicenseRow(d) {
     <div data-driver-id="${d.id}" data-rr-open-driver style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;cursor:pointer">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="avatar-sm tier-c">${initials}</div>
-        <div><div style="font-size:13px;font-weight:600">${escapeHtml(displayDriverName(d))}</div></div>
+        <div><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(displayDriverName(d))}</div></div>
       </div>
-      <div style="font-size:13px">${escapeHtml(d.station?.code || "—")}</div>
-      <div style="font-size:13px;font-family:'SF Mono',Menlo,monospace">${escapeHtml(d.dl_number || "—")}</div>
-      <div style="font-size:13px">${exp.toLocaleDateString()}<div style="font-size:11px;${pillStyle}">${label}</div></div>
+      <div style="font-size:var(--fs-md)">${escapeHtml(d.station?.code || "—")}</div>
+      <div style="font-size:var(--fs-md);font-family:'SF Mono',Menlo,monospace">${escapeHtml(d.dl_number || "—")}</div>
+      <div style="font-size:var(--fs-md)">${exp.toLocaleDateString()}<div style="font-size:var(--fs-xs);${pillStyle}">${label}</div></div>
       <div><button class="btn btn-sm" data-rr-open-driver data-driver-id="${d.id}">Edit</button></div>
     </div>`;
 }
@@ -3230,7 +3230,7 @@ async function openCoachDriverPicker() {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 18px 14px;max-width:440px;width:100%;max-height:80vh;display:flex;flex-direction:column">
-      <h3 style="margin:0 0 10px;font-size:16px;font-weight:600">Coach a driver</h3>
+      <h3 style="margin:0 0 10px;font-size:var(--fs-lg);font-weight:600">Coach a driver</h3>
       <input id="rr-coach-picker-search" type="text" placeholder="Search drivers…" class="form-input" style="margin-bottom:10px"/>
       <div id="rr-coach-picker-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
       <div style="display:flex;justify-content:flex-end;margin-top:12px">
@@ -3253,9 +3253,9 @@ async function openCoachDriverPicker() {
     list.innerHTML = matches.map(d => {
       const display = d.preferred_name || d.full_name || "—";
       const station = d.station?.code || "";
-      return `<div class="rr-coach-pick" data-id="${d.id}" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px">
+      return `<div class="rr-coach-pick" data-id="${d.id}" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-md)">
         <span><strong>${escapeHtml(display)}</strong>${station ? ` <span style="color:var(--text-subtle);font-weight:400;margin-left:6px">${escapeHtml(station)}</span>` : ""}</span>
-        <span style="color:var(--text-subtle);font-size:11px">Coach →</span>
+        <span style="color:var(--text-subtle);font-size:var(--fs-xs)">Coach →</span>
       </div>`;
     }).join("");
   };
@@ -3580,12 +3580,12 @@ async function loadDriverInsights() {
         const note = r.total === 0 ? "no shifts" : `${r.absent}/${r.total} absent`;
         return `
         <div style="display:grid;grid-template-columns:60px 1fr 80px 100px;align-items:center;gap:12px;padding:6px 0">
-          <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[r.day]}</div>
+          <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${DOW_LABEL[r.day]}</div>
           <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
             <div style="background:${r.total === 0 ? "var(--text-muted)" : "var(--text-muted)"};height:100%;width:${widthPct}%;transition:width .3s"></div>
           </div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${r.total === 0 ? "—" : r.rate.toFixed(1) + "%"}</div>
-          <div style="font-size:11px;color:var(--text-subtle)">${note}</div>
+          <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${r.total === 0 ? "—" : r.rate.toFixed(1) + "%"}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${note}</div>
         </div>`;
       }).join("");
     }
@@ -3640,27 +3640,27 @@ document.addEventListener("click", (e) => {
   pop.id = "rr-di-dow-popover";
   pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   pop.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:520px;width:100%;font-size:13px;line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
-      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Day-of-week absence · the math</h3>
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Window</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:520px;width:100%;font-size:var(--fs-md);line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
+      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Day-of-week absence · the math</h3>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Window</div>
       <div>Last <strong>90 days</strong>. Each shift counted once on the day it was scheduled.</div>
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Definitions</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Definitions</div>
       <div>· <strong>Total</strong> = shifts that had any outcome (completed, late, called_off, no_show, vto). Pure 'scheduled' (not yet started) is excluded.</div>
       <div>· <strong>Absences</strong> = called_off + no_show only. VTO is operator-approved and doesn't count.</div>
-      <div style="font-family:ui-monospace,monospace;font-size:11px;background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text);margin-top:8px">% absent = absences ÷ total</div>
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">By day</div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
+      <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text);margin-top:8px">% absent = absences ÷ total</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">By day</div>
+      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:6px">
         <thead>
           <tr>
-            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Total</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Absences</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% absent</th>
+            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Total</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Absences</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% absent</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
       </table>
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
       <div>· <strong style="color:var(--red)">Red</strong> = ≥1.5× the overall rate (and >5%)</div>
       <div>· <strong style="color:var(--amber)">Amber</strong> = ≥1.2× the overall rate</div>
       <div>· <strong style="color:#22c55e">Green</strong> = at or below the overall rate</div>
@@ -4415,23 +4415,23 @@ document.addEventListener("click", (e) => {
   pop.id = "rr-indeed-popover";
   pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   pop.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:520px;width:100%;font-size:13px;line-height:1.55;color:var(--text)">
-      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Indeed recommendation · the math</h3>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:520px;width:100%;font-size:var(--fs-md);line-height:1.55;color:var(--text)">
+      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Indeed recommendation · the math</h3>
 
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Demand (next ${m.horizonWk} weeks)</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Demand (next ${m.horizonWk} weeks)</div>
       <div>Peak drivers needed: <strong>${m.peakNeeded}</strong> <span style="color:var(--text-subtle)">(Routes(max) × 2 × ${m.padPct}% pad)</span></div>
 
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Supply (with attrition)</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Supply (with attrition)</div>
       <div>Current roster: <strong>${m.currentDrivers}</strong> active+onboarding</div>
       <div>30-day turnover: <strong>${m.monthlyRate.toFixed(1)}%</strong> <span style="color:var(--text-subtle)">(${m.terms30} terms last 30d)</span></div>
       <div>Weekly attrition: <strong>${m.weeklyRate.toFixed(2)}%</strong></div>
       <div>Available end of week ${m.horizonWk}: <strong>${m.endAvailable}</strong> <span style="color:var(--text-subtle)">(roster × (1 − weekly)<sup>${m.horizonWk}</sup>)</span></div>
 
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Hires needed</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Hires needed</div>
       <div>Drivers to hire: <strong>${m.driversToHire}</strong> <span style="color:var(--text-subtle)">(peak − end-of-horizon supply)</span></div>
 
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Pipeline target</div>
-      <div>End-to-end conversion: <strong>${m.e2ePct.toFixed(1)}%</strong>${m.e2eIsEstimate ? ' <span style="color:var(--amber);font-size:11px">· estimate, no history yet</span>' : ""}</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Pipeline target</div>
+      <div>End-to-end conversion: <strong>${m.e2ePct.toFixed(1)}%</strong>${m.e2eIsEstimate ? ' <span style="color:var(--amber);font-size:var(--fs-xs)">· estimate, no history yet</span>' : ""}</div>
       <div>Target applicants: <strong>${m.targetApplicants}</strong> <span style="color:var(--text-subtle)">(hires ÷ conversion)</span></div>
       <div>Current pipeline: <strong>${m.currentPipeline}</strong> open applicants</div>
       <div>Coverage: <strong>${m.ratio == null ? "—" : Math.round(m.ratio) + "%"}</strong></div>
@@ -4639,7 +4639,7 @@ function renderInterviewDay(day, rows) {
 
   if (rows.length === 0) {
     list.innerHTML = `
-      <div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+      <div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);background:var(--surface);border:1px solid var(--border);border-radius:12px">
         <strong style="color:var(--text-muted);display:block;margin-bottom:4px">No interviews booked for ${day.date}</strong>
         When applicants book via Cal.com, they'll show up here.
       </div>`;
@@ -4654,7 +4654,7 @@ function renderInterviewDay(day, rows) {
   if (!closeBtn) {
     closeBtn = document.createElement("button");
     closeBtn.className = "btn btn-sm";
-    closeBtn.style.cssText = "margin-top:14px;font-size:12px;color:var(--text-subtle);background:transparent;border:1px solid var(--border)";
+    closeBtn.style.cssText = "margin-top:14px;font-size:var(--fs-sm);color:var(--text-subtle);background:transparent;border:1px solid var(--border)";
     closeBtn.dataset.rrCloseDay = "1";
     wrap.insertBefore(closeBtn, list.nextSibling);
   }
@@ -4711,13 +4711,13 @@ function renderInterviewDayNav(day) {
 
   nav.innerHTML = `
     <div>
-      <div style="font-size:13px;font-weight:600">${label}</div>
-      <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${relative}${day.closed_at ? " · day closed" : ""}</div>
+      <div style="font-size:var(--fs-md);font-weight:600">${label}</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${relative}${day.closed_at ? " · day closed" : ""}</div>
     </div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-sm" data-rr-iv-prev ${prev ? "" : "disabled"} style="font-size:11px">← Prev day</button>
-      <button class="btn btn-sm" data-rr-iv-today style="font-size:11px">Today</button>
-      <button class="btn btn-sm" data-rr-iv-next ${next ? "" : "disabled"} style="font-size:11px">Next day →</button>
+      <button class="btn btn-sm" data-rr-iv-prev ${prev ? "" : "disabled"} style="font-size:var(--fs-xs)">← Prev day</button>
+      <button class="btn btn-sm" data-rr-iv-today style="font-size:var(--fs-xs)">Today</button>
+      <button class="btn btn-sm" data-rr-iv-next ${next ? "" : "disabled"} style="font-size:var(--fs-xs)">Next day →</button>
     </div>`;
 }
 
@@ -4919,11 +4919,11 @@ async function loadReferralsLeaderboard() {
   if (!list) return;
   const { data: rows, error } = await sb.rpc("referral_leaderboard");
   if (error) {
-    list.innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>`;
+    list.innerHTML = `<div style="padding:16px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`;
     return;
   }
   if (!rows || rows.length === 0) {
-    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No referrals yet</strong>Send drivers their links and the leaderboard fills in.</div>`;
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No referrals yet</strong>Send drivers their links and the leaderboard fills in.</div>`;
     return;
   }
   list.innerHTML = rows.map((r, i) => `
@@ -5026,8 +5026,8 @@ async function loadCalAvailabilityEditor() {
     const msg = error?.message || data?.error || "Couldn't load availability";
     card.innerHTML = `
       <div style="padding:24px">
-        <div style="font-size:13px;color:var(--red);font-weight:600;margin-bottom:8px">Couldn't load availability</div>
-        <div style="font-size:12px;color:var(--text-subtle);line-height:1.5">${escapeHtml(msg)}</div>
+        <div style="font-size:var(--fs-md);color:var(--red);font-weight:600;margin-bottom:8px">Couldn't load availability</div>
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">${escapeHtml(msg)}</div>
       </div>`;
     return;
   }
@@ -5108,8 +5108,8 @@ function renderCalAvailabilityEditor(payload) {
   card.innerHTML = `
     <div class="cal-edit-section" style="background:var(--canvas);padding:12px 14px;border-radius:8px;margin-bottom:14px">
       <div class="cal-edit-label" style="margin-bottom:6px">Current availability</div>
-      <div style="font-size:13px;line-height:1.5">${summaryHtml}</div>
-      <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Time zone: ${escapeHtml(tz)}</div>
+      <div style="font-size:var(--fs-md);line-height:1.5">${summaryHtml}</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Time zone: ${escapeHtml(tz)}</div>
     </div>
 
     <div class="cal-edit-section">
@@ -5335,11 +5335,11 @@ async function loadCalBookingsList() {
     .limit(100);
 
   if (error) {
-    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:13px">Couldn't load bookings: ${error.message}</div>`;
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:var(--fs-md)">Couldn't load bookings: ${error.message}</div>`;
     return;
   }
   if (!rows || rows.length === 0) {
-    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No upcoming bookings</strong>Once applicants book a slot, their interview will land here.</div>`;
+    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No upcoming bookings</strong>Once applicants book a slot, their interview will land here.</div>`;
     return;
   }
 
@@ -5354,24 +5354,24 @@ async function loadCalBookingsList() {
 
   const html = [];
   for (const [date, items] of byDate) {
-    html.push(`<div style="padding:10px 16px;background:var(--canvas);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);border-top:1px solid var(--border)">${date}</div>`);
+    html.push(`<div style="padding:10px 16px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);border-top:1px solid var(--border)">${date}</div>`);
     for (const r of items) {
       const start = new Date(r.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const end = r.ends_at ? new Date(r.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
       const a = r.applicants || {};
       const kindBadge = r.kind === "orientation"
-        ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(124,58,237,.12);color:#7C3AED;letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
-        : `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent-text);letter-spacing:.04em;text-transform:uppercase">Interview</span>`;
+        ? `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(124,58,237,.12);color:#7C3AED;letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
+        : `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent-text);letter-spacing:.04em;text-transform:uppercase">Interview</span>`;
       const statusBadge = r.status === "rescheduled"
-        ? `<span style="font-size:10px;font-weight:600;color:#B45309;margin-left:6px">rescheduled</span>`
+        ? `<span style="font-size:var(--fs-xs);font-weight:600;color:#B45309;margin-left:6px">rescheduled</span>`
         : "";
 
       html.push(`
         <div style="display:grid;grid-template-columns:90px 1fr auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid var(--border)">
-          <div style="font-variant-numeric:tabular-nums;font-size:13px;font-weight:600">${start}<div style="font-size:11px;color:var(--text-subtle);font-weight:400">${end}</div></div>
+          <div style="font-variant-numeric:tabular-nums;font-size:var(--fs-md);font-weight:600">${start}<div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${end}</div></div>
           <div>
-            <div style="font-size:13px;font-weight:600;margin-bottom:2px">${escapeHtml(a.full_name || "Unknown")}</div>
-            <div style="font-size:11px;color:var(--text-subtle)">${[a.phone, a.email].filter(Boolean).join(" · ") || "no contact on file"}</div>
+            <div style="font-size:var(--fs-md);font-weight:600;margin-bottom:2px">${escapeHtml(a.full_name || "Unknown")}</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${[a.phone, a.email].filter(Boolean).join(" · ") || "no contact on file"}</div>
             <div style="margin-top:6px">${kindBadge}${statusBadge}</div>
           </div>
           <div>${r.meeting_url ? `<a class="btn btn-sm" href="${r.meeting_url}" target="_blank" rel="noreferrer">Join</a>` : ""}</div>
@@ -5404,7 +5404,7 @@ async function loadScreeningQuestionsList() {
     .eq("dsp_id", window.RR.dsp.id)
     .order("display_order", { ascending: true });
   if (error) {
-    container.innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>`;
+    container.innerHTML = `<div style="padding:16px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`;
     return;
   }
 
@@ -5459,18 +5459,18 @@ function openQuestionEditor(question) {
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <h3 style="margin:0;font-size:17px;font-weight:600">${isEdit ? "Edit question" : "Add question"}</h3>
+        <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">${isEdit ? "Edit question" : "Add question"}</h3>
         <button data-rr-q-cancel style="background:none;border:0;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
       </div>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Prompt</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Prompt</label>
       <textarea data-rr-q-prompt class="form-input" style="width:100%;min-height:60px;margin-bottom:14px">${escapeHtml(q.prompt)}</textarea>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Type</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Type</label>
       <select data-rr-q-type class="form-input" style="width:100%;margin-bottom:14px">
         ${["yes_no","single","multi","text","number","date"].map(v => `<option value="${v}" ${q.field_type === v ? "selected" : ""}>${v}</option>`).join("")}
       </select>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Options (one per line — only for single / multi)</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Options (one per line — only for single / multi)</label>
       <textarea data-rr-q-options class="form-input" style="width:100%;min-height:70px;margin-bottom:14px;font-family:monospace">${(q.options || []).join("\n")}</textarea>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Auto-decline if answer equals (leave blank for none)</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Auto-decline if answer equals (leave blank for none)</label>
       <input data-rr-q-hardfail class="form-input" style="width:100%;margin-bottom:14px" value="${escapeHtml(q.hard_filter?.answer ?? "")}" placeholder="e.g. No" />
       <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><input type="checkbox" data-rr-q-required ${q.required ? "checked" : ""}/>Required</label>
       <label style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><input type="checkbox" data-rr-q-active ${q.active ? "checked" : ""}/>Active (shown to applicants)</label>
@@ -5636,9 +5636,9 @@ async function openCoachingDrawer(driverId) {
       #rr-cd-drawer .cd-panel{background:var(--surface);width:min(720px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.18)}
       #rr-cd-drawer .cd-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
       #rr-cd-drawer .cd-title{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0}
-      #rr-cd-drawer .cd-sub{font-size:12px;color:var(--text-subtle);margin-top:2px}
-      #rr-cd-drawer .cd-eyebrow{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
-      #rr-cd-drawer .cd-close{background:transparent;border:0;font-size:24px;color:var(--text-subtle);cursor:pointer;line-height:1;padding:0}
+      #rr-cd-drawer .cd-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
+      #rr-cd-drawer .cd-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+      #rr-cd-drawer .cd-close{background:transparent;border:0;font-size:var(--fs-xxl);color:var(--text-subtle);cursor:pointer;line-height:1;padding:0}
       #rr-cd-drawer .cd-body{flex:1;overflow-y:auto;padding:18px 22px}
     </style>
     <div class="cd-panel">
@@ -5803,39 +5803,39 @@ async function openCoachingPrintView(driverId) {
 <title>Coaching record · ${escape(displayDriverName(drv))}</title>
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;background:#f5f5f5;color:#0f172a;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:13px;line-height:1.55}
-  .toolbar{position:sticky;top:0;background:#0f172a;color:#fff;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;font-size:12px;z-index:5}
+  html,body{margin:0;background:#f5f5f5;color:#0f172a;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:var(--fs-md);line-height:1.55}
+  .toolbar{position:sticky;top:0;background:#0f172a;color:#fff;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm);z-index:5}
   .toolbar button{background:#fff;color:#0f172a;border:0;border-radius:6px;font:inherit;font-weight:600;padding:6px 12px;cursor:pointer}
   .page{max-width:780px;margin:18px auto 80px;background:#fff;padding:34px 44px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-radius:6px}
   header{border-bottom:2px solid #0f172a;padding-bottom:14px;margin-bottom:18px}
-  .brand{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569}
-  h1{margin:4px 0 2px;font-size:24px;letter-spacing:-.01em}
-  .meta-line{font-size:12px;color:#475569}
-  .totals{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 0;font-size:12px;color:#475569}
+  .brand{font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569}
+  h1{margin:4px 0 2px;font-size:var(--fs-xxl);letter-spacing:-.01em}
+  .meta-line{font-size:var(--fs-sm);color:#475569}
+  .totals{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 0;font-size:var(--fs-sm);color:#475569}
   .totals strong{color:#0f172a;font-weight:700}
   .rec{padding:18px 0;border-bottom:1px solid #e2e8f0;page-break-inside:avoid;break-inside:avoid}
   .rec:last-child{border-bottom:0}
   .rec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .sev{display:inline-block;color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:10px;margin-right:8px}
-  .rec-num{font-size:11px;color:#94a3b8}
-  .rec-occurred{font-size:12px;color:#475569;font-variant-numeric:tabular-nums}
+  .sev{display:inline-block;color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:10px;margin-right:8px}
+  .rec-num{font-size:var(--fs-xs);color:#94a3b8}
+  .rec-occurred{font-size:var(--fs-sm);color:#475569;font-variant-numeric:tabular-nums}
   .rec-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 18px;margin-bottom:10px}
-  .rec-meta>div{display:flex;gap:8px;font-size:12px}
-  .lbl{display:inline-block;min-width:120px;color:#94a3b8;font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
-  .rec-summary{font-size:15px;font-weight:600;line-height:1.4;margin:6px 0}
+  .rec-meta>div{display:flex;gap:8px;font-size:var(--fs-sm)}
+  .lbl{display:inline-block;min-width:120px;color:#94a3b8;font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase}
+  .rec-summary{font-size:var(--fs-lg);font-weight:600;line-height:1.4;margin:6px 0}
   .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:10px 12px;border-left:3px solid #cbd5e1;border-radius:3px;margin:8px 0}
-  .rec-fields>div{display:flex;gap:8px;font-size:12px;margin-bottom:4px}
+  .rec-fields>div{display:flex;gap:8px;font-size:var(--fs-sm);margin-bottom:4px}
   .hr-only{color:#dc2626;font-weight:700}
   .sig{margin-top:12px;border:1px solid #e2e8f0;padding:10px 12px;border-radius:4px;background:#fafafa}
-  .sig-label{font-size:10px;font-weight:600;color:#94a3b8;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
+  .sig-label{font-size:var(--fs-xs);font-weight:600;color:#94a3b8;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
   .sig img{max-width:300px;max-height:120px;display:block}
   .audit{margin-top:10px}
-  .audit summary{cursor:pointer;font-size:11px;color:#475569;font-weight:600}
-  .audit table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+  .audit summary{cursor:pointer;font-size:var(--fs-xs);color:#475569;font-weight:600}
+  .audit table{width:100%;border-collapse:collapse;font-size:var(--fs-xs);margin-top:8px}
   .audit th,.audit td{text-align:left;padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top}
   .audit th{background:#f8fafc;color:#475569;font-weight:600}
-  .empty{padding:60px 0;text-align:center;color:#94a3b8;font-size:13px}
-  footer{margin-top:30px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;line-height:1.5}
+  .empty{padding:60px 0;text-align:center;color:#94a3b8;font-size:var(--fs-md)}
+  footer{margin-top:30px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:var(--fs-xs);color:#94a3b8;line-height:1.5}
   @media print {
     .toolbar{display:none}
     body{background:#fff}
@@ -5894,32 +5894,32 @@ async function openDriverDrawer(driverId) {
       #rr-dd-panel{width:560px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
       .dd-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       .dd-head h3{margin:0;font-size:18px;font-weight:600}
-      .dd-head .sub{font-size:12px;color:var(--text-subtle);margin-top:2px}
+      .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
       .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:8px;margin:14px 22px 0}
-      .dd-tab{flex:1;background:transparent;border:0;font:inherit;font-size:12px;font-weight:600;color:var(--text-subtle);padding:8px 12px;border-radius:6px;cursor:pointer}
+      .dd-tab{flex:1;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 12px;border-radius:6px;cursor:pointer}
       .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
       .dd-body{padding:18px 22px;flex:1}
       .dd-row{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--border)}
       .dd-row:first-of-type{border-top:0}
-      .dd-row label{font-size:12px;color:var(--text-muted);font-weight:500}
-      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:13px;color:var(--text)}
+      .dd-row label{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
+      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:var(--fs-md);color:var(--text)}
       .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent)}
       .dd-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);position:sticky;bottom:0}
       .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
       .dd-list-row:first-of-type{border-top:0}
-      .dd-list-title{font-size:13px;font-weight:600}
-      .dd-list-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+      .dd-list-title{font-size:var(--fs-md);font-weight:600}
+      .dd-list-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
     </style>
     <div id="rr-dd-panel">
       <div class="dd-head">
         <div style="display:flex;align-items:center;gap:14px;min-width:0">
-          <div class="avatar-sm" id="rr-dd-avatar" data-rr-driver-id="" style="width:44px;height:44px;font-size:15px;flex-shrink:0">--</div>
+          <div class="avatar-sm" id="rr-dd-avatar" data-rr-driver-id="" style="width:44px;height:44px;font-size:var(--fs-lg);flex-shrink:0">--</div>
           <div style="min-width:0">
             <h3 id="rr-dd-title">Driver record</h3>
             <div class="sub" id="rr-dd-sub"></div>
           </div>
         </div>
-        <button id="rr-dd-close" style="background:none;border:0;font-size:22px;cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
       </div>
       <div class="dd-tabs" data-rr-tabbar="dd-tabs">
         <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
@@ -6031,7 +6031,7 @@ function renderAvailabilityTab(body, d) {
   const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
   const availBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
+    <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
@@ -6070,7 +6070,7 @@ async function renderOverviewForm(body, d) {
       <div style="display:flex;align-items:center;gap:6px">
         <span style="color:var(--text-subtle)">$</span>
         <input type="number" min="0" max="200" step="0.01" data-rr-dd-field="pay_hourly" placeholder="22.50" value="${v(payRate)}" style="max-width:120px"/>
-        <span style="color:var(--text-subtle);font-size:12px">/ hour</span>
+        <span style="color:var(--text-subtle);font-size:var(--fs-sm)">/ hour</span>
       </div>
     </div>
     <div class="dd-row"><label>Emergency contact</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(d.emergency_contact_name)}"/></div>
@@ -6083,7 +6083,7 @@ async function renderOverviewForm(body, d) {
       <label>Driver app</label>
       <div>
         <button type="button" class="btn btn-sm" data-rr-issue-invite>Generate invite code</button>
-        <div style="font-size:11px;color:var(--text-subtle);margin-top:6px;line-height:1.4">Driver enters this on the RouteReady app at <strong>gorouteready.com/app/</strong>. One active code at a time · expires in 14 days.</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Driver enters this on the RouteReady app at <strong>gorouteready.com/app/</strong>. One active code at a time · expires in 14 days.</div>
         <div data-rr-invite-display style="margin-top:10px;display:none"></div>
       </div>
     </div>`;
@@ -6100,7 +6100,7 @@ async function renderLicenseTab(body, d) {
   }
 
   // Expiry visual: pill colors past = red, ≤30 days = amber, else neutral.
-  let expiryPill = '<span style="color:var(--text-subtle);font-size:12px">No expiry on file</span>';
+  let expiryPill = '<span style="color:var(--text-subtle);font-size:var(--fs-sm)">No expiry on file</span>';
   if (d.dl_expires_on) {
     const exp = new Date(d.dl_expires_on);
     const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
@@ -6121,7 +6121,7 @@ async function renderLicenseTab(body, d) {
     </div>
 
     <div style="margin-top:18px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">License image</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">License image</div>
       ${imgUrl
         ? `<a href="${imgUrl}" target="_blank" rel="noreferrer" style="display:block">
              <img src="${imgUrl}" style="max-width:100%;max-height:280px;border:1px solid var(--border);border-radius:8px;background:var(--canvas)" alt="Drivers license"/>
@@ -6131,7 +6131,7 @@ async function renderLicenseTab(body, d) {
              <button class="btn btn-sm" data-rr-dl-upload>Replace</button>
              <button class="btn btn-sm" data-rr-dl-remove style="color:var(--red)">Remove</button>
            </div>`
-        : `<div style="border:1px dashed var(--border);border-radius:8px;padding:24px;text-align:center;color:var(--text-subtle);font-size:13px;margin-bottom:10px">No image uploaded yet.</div>
+        : `<div style="border:1px dashed var(--border);border-radius:8px;padding:24px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);margin-bottom:10px">No image uploaded yet.</div>
            <div style="display:flex;gap:8px;align-items:center">
              <input type="file" id="rr-dl-file" accept="image/*" />
              <button class="btn btn-primary btn-sm" data-rr-dl-upload>Upload license image</button>
@@ -6147,9 +6147,9 @@ function renderDotTab(body, d) {
       <div>
         <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
           <input type="checkbox" data-rr-dd-field="dot_certified" ${checked} style="cursor:pointer;width:16px;height:16px"/>
-          <span style="font-size:13px;color:var(--text)">Driver is DOT certified</span>
+          <span style="font-size:var(--fs-md);color:var(--text)">Driver is DOT certified</span>
         </label>
-        <div style="font-size:11px;color:var(--text-subtle);line-height:1.4;margin-top:4px">Check this if the driver currently holds a valid DOT medical certification.</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Check this if the driver currently holds a valid DOT medical certification.</div>
       </div>
     </div>`;
 }
@@ -6189,7 +6189,7 @@ async function refreshDriverChatList(autoSelect) {
   if (!list) return;
   const { data, error } = await sb.rpc("dispatch_chat_threads");
   if (error) {
-    list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>`;
+    list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`;
     return;
   }
   _msgInboxList = data || [];
@@ -6260,7 +6260,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   const conv = document.getElementById("rr-msg-conv");
   if (!conv) return;
   if (!_msgInboxSelectedId) {
-    conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px">Pick a driver from the list to open their thread.</div>`;
+    conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px">Pick a driver from the list to open their thread.</div>`;
     return;
   }
   const driverId = _msgInboxSelectedId;
@@ -6280,18 +6280,18 @@ async function refreshDriverChatThread(scrollToBottom) {
       <style>
         .rr-mc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
         .rr-mc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
-        .rr-mc-name{font-size:14px;font-weight:600}
-        .rr-mc-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+        .rr-mc-name{font-size:var(--fs-base);font-weight:600}
+        .rr-mc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
         .rr-mc-thread{flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
-        .rr-mc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word}
+        .rr-mc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:var(--fs-base);line-height:1.4;word-wrap:break-word}
         .rr-mc-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
         .rr-mc-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
-        .rr-mc-time{font-size:10px;margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
-        .rr-mc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px}
+        .rr-mc-time{font-size:var(--fs-xs);margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
+        .rr-mc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px}
         .rr-mc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
-        .rr-mc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:14px;line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
+        .rr-mc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:var(--fs-base);line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
         .rr-mc-composer textarea:focus{outline:none;border-color:var(--accent)}
-        .rr-mc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:13px;cursor:pointer;min-height:40px}
+        .rr-mc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:var(--fs-md);cursor:pointer;min-height:40px}
         .rr-mc-send:disabled{opacity:.5;cursor:not-allowed}
       </style>
       <div class="rr-mc-shell">
@@ -6339,14 +6339,14 @@ async function refreshDriverChatThread(scrollToBottom) {
       const sizeKb = Math.round(f.size / 1024);
       previewEl.style.display = "";
       previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:var(--fs-sm)">
           ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
-                  : `<span style="font-size:16px">📎</span>`}
+                  : `<span style="font-size:var(--fs-lg)">📎</span>`}
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
             <div style="color:var(--text-subtle)">${sizeKb} KB</div>
           </div>
-          <button type="button" id="rr-mc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:16px;line-height:1;padding:2px">×</button>
+          <button type="button" id="rr-mc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
         </div>`;
       document.getElementById("rr-mc-attach-clear").addEventListener("click", () => {
         fileInput.value = "";
@@ -6416,7 +6416,7 @@ async function refreshDriverChatThread(scrollToBottom) {
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
         attach = isImg
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:12px">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:11px;opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
       return `<div class="rr-mc-bubble ${m.sender_kind}">
@@ -6486,7 +6486,7 @@ window.msgListTab = function (btn) {
   if (_msgChannelListTimer)   { clearInterval(_msgChannelListTimer);   _msgChannelListTimer = null; }
   const conv = document.getElementById("rr-msg-conv");
   if (conv) {
-    conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px">${
+    conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px">${
       mode === "channels" ? "Pick a channel from the list — or create one." : "Pick a driver from the list to open their thread."
     }</div>`;
     delete conv.dataset.rrDriverId;
@@ -6517,7 +6517,7 @@ async function refreshChannelList(autoSelect) {
     list.innerHTML = `
       <div style="padding:14px">
         <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%;margin-bottom:10px">+ New channel</button>
-        <div style="color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>
+        <div style="color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>
       </div>`;
     list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
     return;
@@ -6549,17 +6549,17 @@ async function refreshChannelList(autoSelect) {
   list.innerHTML = headerBtn + _msgChannelList.map((c) => {
     const isActive = _msgChannelSelectedId === c.id;
     const archChip = c.archived_at
-      ? `<span style="font-size:10px;font-weight:600;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">Archived</span>`
+      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">Archived</span>`
       : "";
     const stationChip = c.station_code
-      ? `<span style="font-size:10px;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
+      ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
       : "";
     const lastBody = c.last_message
       ? (c.last_sender ? `${c.last_sender}: ` : "") + c.last_message
       : `${c.member_count || 0} member${c.member_count === 1 ? "" : "s"}`;
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-channel="${escapeHtml(c.id)}">
-      <div class="msg-item-avatar"><div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);font-size:13px">#</div></div>
+      <div class="msg-item-avatar"><div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-md)">#</div></div>
       <div><div class="msg-item-name">${escapeHtml(c.name)}${stationChip}${archChip}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(fmtRel(c.last_message_at))}</div></div>
     </div>`;
@@ -6614,21 +6614,21 @@ async function refreshChannelThread(scrollToBottom) {
       <style>
         .rr-cc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
         .rr-cc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
-        .rr-cc-name{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
-        .rr-cc-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+        .rr-cc-name{font-size:var(--fs-base);font-weight:600;display:flex;align-items:center;gap:6px}
+        .rr-cc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
         .rr-cc-head-actions{margin-left:auto;display:flex;gap:6px}
         .rr-cc-thread{flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
-        .rr-cc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word}
+        .rr-cc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:var(--fs-base);line-height:1.4;word-wrap:break-word}
         .rr-cc-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
         .rr-cc-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
-        .rr-cc-sender{font-size:11px;font-weight:700;color:var(--text-subtle);margin-bottom:3px}
+        .rr-cc-sender{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);margin-bottom:3px}
         .rr-cc-bubble.dispatch .rr-cc-sender{color:rgba(255,255,255,.85)}
-        .rr-cc-time{font-size:10px;margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
-        .rr-cc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px}
+        .rr-cc-time{font-size:var(--fs-xs);margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
+        .rr-cc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px}
         .rr-cc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
-        .rr-cc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:14px;line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
+        .rr-cc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:var(--fs-base);line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
         .rr-cc-composer textarea:focus{outline:none;border-color:var(--accent)}
-        .rr-cc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:13px;cursor:pointer;min-height:40px}
+        .rr-cc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:var(--fs-md);cursor:pointer;min-height:40px}
         .rr-cc-send:disabled{opacity:.5;cursor:not-allowed}
       </style>
       <div class="rr-cc-shell">
@@ -6679,14 +6679,14 @@ async function refreshChannelThread(scrollToBottom) {
       const sizeKb = Math.round(f.size / 1024);
       previewEl.style.display = "";
       previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:var(--fs-sm)">
           ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
-                  : `<span style="font-size:16px">📎</span>`}
+                  : `<span style="font-size:var(--fs-lg)">📎</span>`}
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
             <div style="color:var(--text-subtle)">${sizeKb} KB</div>
           </div>
-          <button type="button" id="rr-cc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:16px;line-height:1;padding:2px">×</button>
+          <button type="button" id="rr-cc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
         </div>`;
       document.getElementById("rr-cc-attach-clear").addEventListener("click", () => {
         fileInput.value = "";
@@ -6756,7 +6756,7 @@ async function refreshChannelThread(scrollToBottom) {
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
         attach = isImg
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:12px">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:11px;opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const senderLabel = m.sender_kind === "dispatch"
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
@@ -6809,21 +6809,21 @@ function openChannelCreateModal() {
   wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
   wrap.innerHTML = `
     <div style="background:var(--surface);border-radius:12px;padding:22px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:14px">New channel</div>
+      <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:14px">New channel</div>
       <form id="rr-channel-create-form" style="display:flex;flex-direction:column;gap:12px">
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-subtle)">Name
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-subtle)">Name
           <input id="rr-cc-new-name" required maxlength="80" placeholder="morning-wave"
-                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:14px">
+                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
         </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-subtle)">Description (optional)
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-subtle)">Description (optional)
           <input id="rr-cc-new-desc" maxlength="280" placeholder="What this channel is for"
-                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:14px">
+                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
         </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-subtle)">Station scope
-          <select id="rr-cc-new-station" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:14px">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-subtle)">Station scope
+          <select id="rr-cc-new-station" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
             <option value="">All stations · DSP-wide</option>
           </select>
-          <span style="font-size:11px;color:var(--text-subtle);margin-top:2px">Drivers at this station auto-join. Leave blank to add members manually.</span>
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Drivers at this station auto-join. Leave blank to add members manually.</span>
         </label>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
           <button type="button" class="btn btn-sm" id="rr-cc-new-cancel">Cancel</button>
@@ -6872,11 +6872,11 @@ async function openChannelMembersModal(channelId) {
   wrap.innerHTML = `
     <div style="background:var(--surface);border-radius:12px;padding:22px;width:100%;max-width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <div style="font-size:16px;font-weight:700;color:var(--text);flex:1">Members of #${escapeHtml(meta.name || "")}</div>
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);flex:1">Members of #${escapeHtml(meta.name || "")}</div>
         <button type="button" class="btn btn-sm" id="rr-cc-mem-close">Close</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <select id="rr-cc-mem-add-driver" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:13px">
+        <select id="rr-cc-mem-add-driver" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-md)">
           <option value="">Add a driver…</option>
         </select>
         <button class="btn btn-primary btn-sm" id="rr-cc-mem-add-btn">Add</button>
@@ -6896,7 +6896,7 @@ async function openChannelMembersModal(channelId) {
     ]);
     const list = document.getElementById("rr-cc-mem-list");
     if (memErr) {
-      list.innerHTML = `<div style="padding:20px;color:var(--red);font-size:12px">${escapeHtml(memErr.message)}</div>`;
+      list.innerHTML = `<div style="padding:20px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(memErr.message)}</div>`;
       return;
     }
     const members = memData?.members || [];
@@ -6912,8 +6912,8 @@ async function openChannelMembersModal(channelId) {
     list.innerHTML = members.map(m => `
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(m.full_name || "")}</div>
-          <div style="font-size:11px;color:var(--text-subtle)">${m.station_code ? escapeHtml(m.station_code) + " · " : ""}${escapeHtml(m.status || "")}</div>
+          <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(m.full_name || "")}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${m.station_code ? escapeHtml(m.station_code) + " · " : ""}${escapeHtml(m.status || "")}</div>
         </div>
         <button class="btn btn-sm" data-rr-cc-mem-remove="${escapeHtml(m.driver_id)}">Remove</button>
       </div>`).join("");
@@ -6954,7 +6954,7 @@ function _coachSeverityChip(sev, level) {
   const SEV_LABEL = { info: "Info", concern: "Concern", warning: "Warning", final: "Final" };
   const label = LEVEL_LABEL[level] || SEV_LABEL[sev] || sev || "Coaching";
   // Neutral chip — no stoplight tints on the coaching log.
-  return `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">${escapeHtml(label)}</span>`;
+  return `<span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">${escapeHtml(label)}</span>`;
 }
 
 function _coachActionList(actionTaken) {
@@ -6966,7 +6966,7 @@ function _coachActionList(actionTaken) {
   };
   const taken = Object.keys(actionTaken).filter(k => actionTaken[k]).map(k => labels[k] || k);
   if (taken.length === 0) return "";
-  return `<div style="font-size:11px;color:var(--text-subtle);margin-top:4px">Action: <strong style="color:var(--text)">${taken.map(escapeHtml).join(" · ")}</strong></div>`;
+  return `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Action: <strong style="color:var(--text)">${taken.map(escapeHtml).join(" · ")}</strong></div>`;
 }
 
 function renderCoachingTab(coachings, driver) {
@@ -6974,16 +6974,16 @@ function renderCoachingTab(coachings, driver) {
   const list = items.map(c => {
     const occurred = c.occurred_at ? new Date(c.occurred_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
     const ackChip = c.acknowledgment && c.acknowledgment !== "none"
-      ? `<span style="font-size:10px;font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:2px 7px;border-radius:10px">Acknowledged · ${escapeHtml(c.acknowledgment)}</span>`
-      : (c.driver_visible ? `<span style="font-size:10px;font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:2px 7px;border-radius:10px">Awaiting acknowledgment</span>` : "");
+      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:2px 7px;border-radius:10px">Acknowledged · ${escapeHtml(c.acknowledgment)}</span>`
+      : (c.driver_visible ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:2px 7px;border-radius:10px">Awaiting acknowledgment</span>` : "");
     const followBadge = c.follow_up_at && !c.resolved_at
-      ? `<span style="font-size:10px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);padding:2px 7px;border-radius:10px">Follow-up ${new Date(c.follow_up_at).toLocaleDateString()}</span>`
+      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);background:var(--accent-soft);padding:2px 7px;border-radius:10px">Follow-up ${new Date(c.follow_up_at).toLocaleDateString()}</span>`
       : "";
     const privBadge = c.privacy_tier === "hr_only"
-      ? `<span style="font-size:10px;font-weight:700;color:var(--red);background:rgba(229,62,62,.1);padding:2px 7px;border-radius:10px">HR-only</span>`
+      ? `<span style="font-size:var(--fs-xs);font-weight:700;color:var(--red);background:rgba(229,62,62,.1);padding:2px 7px;border-radius:10px">HR-only</span>`
       : "";
     const witness = c.witness_name
-      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Witness: <strong style="color:var(--text)">${escapeHtml(c.witness_name)}${c.witness_role ? ` (${escapeHtml(c.witness_role)})` : ""}</strong></div>`
+      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Witness: <strong style="color:var(--text)">${escapeHtml(c.witness_name)}${c.witness_role ? ` (${escapeHtml(c.witness_role)})` : ""}</strong></div>`
       : "";
     // For auto-fired coachings the "coached by" name is the system
     // user (e.g. RouteReady Support).  Operators want the delivery
@@ -6998,24 +6998,24 @@ function renderCoachingTab(coachings, driver) {
         : md.auto ? "Driver app"      // existing auto path inserts a chat message
         : null);
     const coachLine = isAuto
-      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Auto-coached · <strong style="color:var(--text)">${escapeHtml(channel || "Driver app")}</strong></div>`
+      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Auto-coached · <strong style="color:var(--text)">${escapeHtml(channel || "Driver app")}</strong></div>`
       : (c.coached_by_name
-        ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Coached by <strong style="color:var(--text)">${escapeHtml(c.coached_by_name)}</strong></div>`
+        ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Coached by <strong style="color:var(--text)">${escapeHtml(c.coached_by_name)}</strong></div>`
         : "");
     return `
     <div class="dd-list-row" data-rr-coaching-id="${c.id}" style="display:block;padding:12px 14px">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
         ${_coachSeverityChip(c.severity, c.metadata?.level)}
-        <span style="font-size:11px;color:var(--text-subtle)">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
         ${followBadge} ${ackChip} ${privBadge}
       </div>
       <div class="dd-list-title">${escapeHtml(c.summary || c.topic || "(no summary)")}</div>
-      ${c.notes ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;white-space:pre-wrap">${escapeHtml(c.notes)}</div>` : ""}
+      ${c.notes ? `<div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;line-height:1.5;white-space:pre-wrap">${escapeHtml(c.notes)}</div>` : ""}
       ${_coachActionList(c.action_taken)}
       ${witness}
       ${coachLine}
       <div style="display:flex;gap:6px;margin-top:8px">
-        ${!c.resolved_at ? `<button class="btn btn-sm" data-rr-coach-resolve="${c.id}">Mark resolved</button>` : `<span style="font-size:11px;color:var(--green)">Resolved ${new Date(c.resolved_at).toLocaleDateString()}</span>`}
+        ${!c.resolved_at ? `<button class="btn btn-sm" data-rr-coach-resolve="${c.id}">Mark resolved</button>` : `<span style="font-size:var(--fs-xs);color:var(--green)">Resolved ${new Date(c.resolved_at).toLocaleDateString()}</span>`}
         <button class="btn btn-sm" data-rr-coach-archive="${c.id}">Archive</button>
         <button class="btn btn-sm" data-rr-coach-history="${c.id}">Edit history</button>
       </div>
@@ -7050,7 +7050,7 @@ function renderDocumentsTab(docs) {
     </div>`).join("");
   return `
     <div style="display:flex;gap:8px;margin-bottom:14px">
-      <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:13px">
+      <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:var(--fs-md)">
         ${["drivers_license","mvr","dot_medical","background_check","social_security","i9","w4","direct_deposit","vehicle_registration","insurance","other"].map(k => `<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}
       </select>
       <input type="file" id="rr-doc-file" />
@@ -7149,7 +7149,7 @@ document.addEventListener("click", async (e) => {
           <div style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:18px;font-weight:700;letter-spacing:.18em">${escapeHtml(code)}</div>
           <button type="button" class="btn btn-sm" data-rr-copy-code="${escapeHtml(code)}">Copy</button>
         </div>
-        <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Share this code with the driver. Generating a new one invalidates this one.</div>`;
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Share this code with the driver. Generating a new one invalidates this one.</div>`;
     }
     toast("Code generated", "success");
     return;
@@ -7366,11 +7366,11 @@ async function openCoachingForm(driverId) {
       <div style="padding:20px 24px 14px;border-bottom:1px solid var(--border)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
           <div>
-            <h3 style="margin:0;font-size:17px;font-weight:600">Log a coaching</h3>
-            <div style="font-size:11px;color:var(--text-subtle);margin-top:3px">Cmd / Ctrl + Enter to save</div>
+            <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Log a coaching</h3>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">Cmd / Ctrl + Enter to save</div>
           </div>
           ${recent30 >= 3
-            ? `<div style="font-size:11px;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px 10px;border-radius:6px;line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
+            ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px 10px;border-radius:6px;line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
             : ""}
         </div>
       </div>
@@ -7380,7 +7380,7 @@ async function openCoachingForm(driverId) {
 
         <!-- Section 1: What happened -->
         <div>
-          <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">The event</div>
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">The event</div>
           <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:10px;margin-bottom:10px">
             <div>
               <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Topic</label>
@@ -7412,21 +7412,21 @@ async function openCoachingForm(driverId) {
 
         <!-- Section 2: Driver acknowledgment -->
         <div style="background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
-          <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Driver acknowledgment</div>
-          <label style="font-size:13px;cursor:pointer;display:flex;align-items:flex-start;gap:10px">
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Driver acknowledgment</div>
+          <label style="font-size:var(--fs-md);cursor:pointer;display:flex;align-items:flex-start;gap:10px">
             <input id="rr-coach-driver-visible" type="checkbox" style="margin-top:3px"/>
             <span style="flex:1">
               <strong>Request Confirmation</strong>
-              <div id="rr-coach-rc-help" style="font-size:11px;color:var(--text-subtle);font-weight:400;margin-top:3px;line-height:1.5">When ON, the coaching shows up on the driver's record in their RouteReady app and they get a tappable link to read and sign-acknowledge.  When OFF, the coaching is logged on your side only — useful for sensitive notes or when you've already coached in person.</div>
+              <div id="rr-coach-rc-help" style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400;margin-top:3px;line-height:1.5">When ON, the coaching shows up on the driver's record in their RouteReady app and they get a tappable link to read and sign-acknowledge.  When OFF, the coaching is logged on your side only — useful for sensitive notes or when you've already coached in person.</div>
             </span>
           </label>
-          <div id="rr-coach-rc-locked" style="display:none;font-size:11px;color:var(--text-muted);background:var(--surface);border:1px dashed var(--border-strong);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.4">
+          <div id="rr-coach-rc-locked" style="display:none;font-size:var(--fs-xs);color:var(--text-muted);background:var(--surface);border:1px dashed var(--border-strong);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.4">
             <strong>Required at this level.</strong>  Written and Final coachings always Request Confirmation so the driver's signature is on file before the next escalation.
           </div>
         </div>
 
         <!-- Section 3: Details (collapsible) -->
-        <button type="button" id="rr-coach-more-toggle" style="font-size:12px;font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;align-self:flex-start">+ More details (type, incident date, witness, privacy, attachments)</button>
+        <button type="button" id="rr-coach-more-toggle" style="font-size:var(--fs-sm);font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;align-self:flex-start">+ More details (type, incident date, witness, privacy, attachments)</button>
 
         <div id="rr-coach-more" style="display:none;display:flex;flex-direction:column;gap:14px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -7443,7 +7443,7 @@ async function openCoachingForm(driverId) {
           </div>
 
           <details>
-            <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
+            <summary style="cursor:pointer;font-size:var(--fs-sm);color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
               <input id="rr-coach-witness-name" class="form-input" placeholder="Witness name"/>
               <input id="rr-coach-witness-role" class="form-input" placeholder="Role (e.g. HR, Lead)"/>
@@ -7460,9 +7460,9 @@ async function openCoachingForm(driverId) {
 
           <div>
             <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attachments</label>
-            <input id="rr-coach-files" type="file" multiple style="font-size:12px"/>
-            <div id="rr-coach-upload-status" style="font-size:11px;color:var(--text-subtle);margin-top:6px"></div>
-            <div style="font-size:11px;color:var(--text-subtle);margin-top:4px">Photos, scorecard screenshots, signed forms.</div>
+            <input id="rr-coach-files" type="file" multiple style="font-size:var(--fs-sm)"/>
+            <div id="rr-coach-upload-status" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px"></div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Photos, scorecard screenshots, signed forms.</div>
           </div>
         </div>
       </div>
@@ -7690,10 +7690,10 @@ document.addEventListener("click", async (e) => {
     const { data: edits } = await sb.from("coaching_edits")
       .select("*").eq("coaching_id", id).order("edited_at", { ascending: false });
     const rows = (edits || []).map(ed =>
-      `<div style="font-size:12px;border-bottom:1px solid var(--border);padding:8px 0">
+      `<div style="font-size:var(--fs-sm);border-bottom:1px solid var(--border);padding:8px 0">
          <div style="color:var(--text-muted)">${new Date(ed.edited_at).toLocaleString()} · ${escapeHtml(ed.edited_by_name || "—")}</div>
          <div><strong>${escapeHtml(ed.field_name)}</strong> · "${escapeHtml(ed.old_value || "")}" → "${escapeHtml(ed.new_value || "")}"</div>
-       </div>`).join("") || `<div style="color:var(--text-subtle);font-size:13px">No edits.</div>`;
+       </div>`).join("") || `<div style="color:var(--text-subtle);font-size:var(--fs-md)">No edits.</div>`;
     const w = document.createElement("div");
     w.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:24px";
     w.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto">
@@ -7724,7 +7724,7 @@ function _availDaysHtml(days, dim) {
     const bg = on ? "var(--accent)" : "var(--canvas)";
     const fg = on ? "#fff" : "var(--text-subtle)";
     const op = dim ? .55 : 1;
-    return `<span style="display:inline-block;min-width:32px;text-align:center;padding:3px 6px;border-radius:5px;background:${bg};color:${fg};font-size:11px;font-weight:600;opacity:${op}">${_AVAIL_DAY_LABELS[k]}</span>`;
+    return `<span style="display:inline-block;min-width:32px;text-align:center;padding:3px 6px;border-radius:5px;background:${bg};color:${fg};font-size:var(--fs-xs);font-weight:600;opacity:${op}">${_AVAIL_DAY_LABELS[k]}</span>`;
   }).join(" ");
 }
 
@@ -7776,7 +7776,7 @@ function _renderAvailabilityShell() {
   const list = document.getElementById("rr-avail-req-list");
   if (list) {
     list.insertAdjacentHTML("beforebegin", `
-      <div id="rr-avail-sortbar" style="display:grid;grid-template-columns:220px 1fr auto;gap:16px;padding:10px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;background:var(--canvas)">
+      <div id="rr-avail-sortbar" style="display:grid;grid-template-columns:220px 1fr auto;gap:16px;padding:10px 18px;border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;background:var(--canvas)">
         <div style="display:flex;gap:10px;align-items:center">
           <button class="avail-sort-btn" data-rr-sort="driver">Driver</button>
           <button class="avail-sort-btn" data-rr-sort="station">Station</button>
@@ -7845,7 +7845,7 @@ async function loadAvailabilityRequests() {
     sb.rpc("okami_grid", { p_start: startIso, p_weeks: 4 }),
   ]);
   if (reqRes.error) {
-    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(reqRes.error.message)}</div>`;
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(reqRes.error.message)}</div>`;
     return;
   }
   _availRequestsCache = reqRes.data || [];
@@ -7940,9 +7940,9 @@ function _renderAvailabilityKpis(k, rows) {
   if (!el) return;
   const card = (label, value, sub) => `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</div>
-      <div style="font-size:24px;font-weight:700;margin-top:4px">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+      <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</div>
+      <div style="font-size:var(--fs-xxl);font-weight:700;margin-top:4px">${escapeHtml(String(value))}</div>
+      ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
     </div>`;
   el.innerHTML = [
     card("Pending",       k.pending_count ?? 0,  "awaiting review"),
@@ -7955,15 +7955,15 @@ function _renderAvailabilityKpis(k, rows) {
   if (!repeatEl) return;
   const repeats = Array.isArray(k.repeat_requesters_30d) ? k.repeat_requesters_30d : [];
   const repeatList = repeats.length === 0
-    ? `<div style="font-size:12px;color:var(--text-subtle)">No drivers have submitted more than once in the last 30 days.</div>`
+    ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No drivers have submitted more than once in the last 30 days.</div>`
     : repeats.slice(0, 12).map(r => `
-        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:var(--fs-md)">
           <span>${escapeHtml(r.driver_name || "")}</span>
           <span style="font-weight:600">${r.count} requests</span>
         </div>`).join("");
   repeatEl.innerHTML = `
-    <div style="font-size:13px;font-weight:700;margin-bottom:8px">Repeat requesters · 30 days</div>
-    <div style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
+    <div style="font-size:var(--fs-md);font-weight:700;margin-bottom:8px">Repeat requesters · 30 days</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
     ${repeatList}`;
 }
 
@@ -7972,7 +7972,7 @@ function _renderAvailabilityBlackouts(rows) {
   const el = host?.querySelector("[data-rr-avail-blackouts]");
   if (!el) return;
   const list = (rows || []).map(b => `
-    <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px">
+    <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:var(--fs-md)">
       <div>${escapeHtml(b.start_date || "")}</div>
       <div>${escapeHtml(b.end_date || "")}</div>
       <div style="color:var(--text-muted)">${escapeHtml(b.reason || "")}</div>
@@ -7981,20 +7981,20 @@ function _renderAvailabilityBlackouts(rows) {
   el.innerHTML = `
     <form id="rr-avail-blackout-form" style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;align-items:end;margin:6px 0 14px">
       <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">Start</label>
+        <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px">Start</label>
         <input type="date" id="rr-bl-start" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
       </div>
       <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">End</label>
+        <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px">End</label>
         <input type="date" id="rr-bl-end" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
       </div>
       <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">Reason (optional)</label>
+        <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px">Reason (optional)</label>
         <input type="text" id="rr-bl-reason" placeholder="e.g. Holiday peak — no availability changes" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
       </div>
       <button type="submit" class="btn btn-sm btn-primary">Add blackout</button>
     </form>
-    ${list || `<div style="font-size:12px;color:var(--text-subtle);padding:8px 0">No blackouts. Drivers can submit any day.</div>`}
+    ${list || `<div style="font-size:var(--fs-sm);color:var(--text-subtle);padding:8px 0">No blackouts. Drivers can submit any day.</div>`}
   `;
   document.getElementById("rr-avail-blackout-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -8017,18 +8017,18 @@ function _renderAvailabilitySettingsPanel(s) {
   if (!el) return;
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:8px;align-items:start">
-      <label style="font-size:13px;font-weight:600">Lead time<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Days from approval until the change is live for scheduling.</span></label>
+      <label style="font-size:var(--fs-md);font-weight:600">Lead time<br><span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">Days from approval until the change is live for scheduling.</span></label>
       <div>
         <input type="number" id="rr-avail-lead" min="0" max="60" value="${Number(s.lead_days ?? 7)}" style="width:120px;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
-        <span style="font-size:12px;color:var(--text-subtle);margin-left:6px">days</span>
+        <span style="font-size:var(--fs-sm);color:var(--text-subtle);margin-left:6px">days</span>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
-      <label style="font-size:13px;font-weight:600">Approve auto-response<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Sent to the driver when you approve. Placeholders: {days} {effective_from} {effective_until} {note}</span></label>
+      <label style="font-size:var(--fs-md);font-weight:600">Approve auto-response<br><span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">Sent to the driver when you approve. Placeholders: {days} {effective_from} {effective_until} {note}</span></label>
       <textarea id="rr-avail-approve-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.approve_template || "")}</textarea>
     </div>
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
-      <label style="font-size:13px;font-weight:600">Deny auto-response<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Sent to the driver when you deny. Placeholders: {days} {note}</span></label>
+      <label style="font-size:var(--fs-md);font-weight:600">Deny auto-response<br><span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">Sent to the driver when you deny. Placeholders: {days} {note}</span></label>
       <textarea id="rr-avail-deny-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.deny_template || "")}</textarea>
     </div>
     <div style="text-align:right;margin-top:14px">
@@ -8075,12 +8075,12 @@ function _renderAvailabilityCoverageCard() {
     const pct    = total > 0 ? Math.round((supply / total) * 100) : 0;
     return `
       <div style="display:grid;grid-template-columns:48px 1fr 90px 110px;align-items:center;gap:12px;padding:6px 0">
-        <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[d]}</div>
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${DOW_LABEL[d]}</div>
         <div style="background:var(--accent-soft);height:10px;border-radius:5px;overflow:hidden">
           <div style="background:var(--accent);height:100%;width:${pct}%;transition:width .3s"></div>
         </div>
-        <div style="font-size:13px;font-weight:700;color:var(--text);text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
-        <div style="font-size:11px;color:var(--text-subtle);text-align:right;font-variant-numeric:tabular-nums">${supply}/${total}${peak > 0 ? ` · peak ${peak}` : ""}</div>
+        <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);text-align:right;font-variant-numeric:tabular-nums">${supply}/${total}${peak > 0 ? ` · peak ${peak}` : ""}</div>
       </div>`;
   }).join("");
 }
@@ -8144,9 +8144,9 @@ function _renderAvailabilityRows() {
     const isDenied   = r.status === "denied";
 
     let statusPill = "";
-    if (isPending)  statusPill = `<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Pending</span>`;
-    if (isApproved) statusPill = `<span style="background:rgba(22,163,74,.12);color:var(--green);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Approved</span>`;
-    if (isDenied)   statusPill = `<span style="background:rgba(220,38,38,.10);color:var(--red);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Denied</span>`;
+    if (isPending)  statusPill = `<span style="background:#fef3c7;color:#92400e;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Pending</span>`;
+    if (isApproved) statusPill = `<span style="background:rgba(22,163,74,.12);color:var(--green);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Approved</span>`;
+    if (isDenied)   statusPill = `<span style="background:rgba(220,38,38,.10);color:var(--red);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Denied</span>`;
 
     let metaLine;
     if (isPending) {
@@ -8158,7 +8158,7 @@ function _renderAvailabilityRows() {
     }
 
     const noteLine = r.decision_note
-      ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic">"${escapeHtml(r.decision_note)}"</div>`
+      ? `<div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;font-style:italic">"${escapeHtml(r.decision_note)}"</div>`
       : "";
 
     const actions = isPending
@@ -8166,7 +8166,7 @@ function _renderAvailabilityRows() {
            <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
            <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
          </div>`
-      : `<div style="font-size:11px;color:var(--text-subtle)">—</div>`;
+      : `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">—</div>`;
 
     let impactBlock = "";
     if (isPending && !same) {
@@ -8182,14 +8182,14 @@ function _renderAvailabilityRows() {
         const dropChips = im.drops.map(d => {
           const before = (d.after + 1); // pre-change supply
           const tight  = d.tight;
-          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600">
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:10px;font-size:var(--fs-xs);font-weight:600">
             <span>−${escapeHtml(d.label)}</span>
             <span style="font-weight:500">${arrow(before, d.after)}</span>
           </span>`;
         }).join("");
         const addChips = im.adds.map(a => {
           const before = (a.after - 1);
-          return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600">
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:10px;font-size:var(--fs-xs);font-weight:600">
             <span>+${escapeHtml(a.label)}</span>
             <span style="font-weight:500">${arrow(before, a.after)}</span>
           </span>`;
@@ -8201,9 +8201,9 @@ function _renderAvailabilityRows() {
               : `Coverage holds — every dropped day still has enough drivers for peak demand.`);
         impactBlock = `
           <div style="grid-column:1/-1;margin-top:10px;padding:10px 12px;background:var(--canvas);border-radius:8px;border:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">If approved · coverage shift</div>
+            <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">If approved · coverage shift</div>
             ${(dropChips || addChips) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${dropChips}${addChips}</div>` : ""}
-            <div style="font-size:11px;color:var(--text-subtle);line-height:1.5">${verdict}</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">${verdict}</div>
           </div>`;
       }
     }
@@ -8212,17 +8212,17 @@ function _renderAvailabilityRows() {
       <div class="avail-req-row" data-rr-req-id="${escapeHtml(r.id)}" style="padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:220px 1fr auto;gap:16px;align-items:start;${isPending ? "" : "background:var(--canvas)"}">
         <div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(r.driver_name || "")}</span>
+            <span style="font-size:var(--fs-base);font-weight:600;color:var(--text)">${escapeHtml(r.driver_name || "")}</span>
             ${statusPill}
           </div>
-          <div style="font-size:11px;color:var(--text-subtle);margin-top:3px">${escapeHtml(r.station_code || "—")} · ${metaLine}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">${escapeHtml(r.station_code || "—")} · ${metaLine}</div>
           ${noteLine}
         </div>
         <div>
-          <div style="font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${isApproved ? "Approved" : "Requested"}</div>
+          <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${isApproved ? "Approved" : "Requested"}</div>
           <div>${_availDaysHtml(r.days, false)}</div>
           ${(isPending && !same) ? `
-            <div style="font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Currently approved</div>
+            <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Currently approved</div>
             <div>${_availDaysHtml(r.current_days, true)}</div>
           ` : ""}
         </div>
@@ -8311,7 +8311,7 @@ async function loadCoachingFeed() {
       .eq("dsp_id", dspId),
   ]);
   if (coachRes.error) {
-    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">Could not load coachings: ${escapeHtml(coachRes.error.message)}</div>`;
+    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">Could not load coachings: ${escapeHtml(coachRes.error.message)}</div>`;
     return;
   }
   const drvById = new Map((drvRes.data || []).map(d => [d.id, d]));
@@ -8378,13 +8378,13 @@ function _renderCoachFeed() {
   }
 
   const head = `<thead><tr style="background:var(--canvas);border-bottom:1px solid var(--border)">
-    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Driver</th>
-    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Severity</th>
-    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Topic</th>
-    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Summary</th>
-    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Coached</th>
-    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Follow-up</th>
-    <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Status</th>
+    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Driver</th>
+    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Severity</th>
+    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Topic</th>
+    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Summary</th>
+    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Coached</th>
+    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Follow-up</th>
+    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Status</th>
   </tr></thead>`;
 
   const body = rows.map(c => {
@@ -8394,24 +8394,24 @@ function _renderCoachFeed() {
     const occurred = new Date(c.occurred_at).toLocaleDateString();
     const followCell = c.follow_up_at
       ? (c.resolved_at
-          ? `<span style="font-size:11px;color:var(--green)">Resolved</span>`
-          : `<span style="font-size:11px;color:${new Date(c.follow_up_at) < new Date() ? "var(--red)" : "var(--accent-text)"}">${new Date(c.follow_up_at).toLocaleDateString()}</span>`)
+          ? `<span style="font-size:var(--fs-xs);color:var(--green)">Resolved</span>`
+          : `<span style="font-size:var(--fs-xs);color:${new Date(c.follow_up_at) < new Date() ? "var(--red)" : "var(--accent-text)"}">${new Date(c.follow_up_at).toLocaleDateString()}</span>`)
       : `<span style="color:var(--text-subtle)">—</span>`;
     const ack = c.acknowledgment && c.acknowledgment !== "none"
-      ? `<span style="font-size:10px;font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:1px 6px;border-radius:8px">Ack</span>`
-      : (c.driver_visible ? `<span style="font-size:10px;font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:8px">Pending ack</span>` : "");
+      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:1px 6px;border-radius:8px">Ack</span>`
+      : (c.driver_visible ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:8px">Pending ack</span>` : "");
     const status = c.archived_at
-      ? `<span style="font-size:10px;color:var(--text-subtle)">Archived</span>`
+      ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Archived</span>`
       : (c.resolved_at
-          ? `<span style="font-size:10px;color:var(--green)">Resolved</span>`
-          : ack || `<span style="font-size:10px;color:var(--text-subtle)">Open</span>`);
+          ? `<span style="font-size:var(--fs-xs);color:var(--green)">Resolved</span>`
+          : ack || `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Open</span>`);
 
     return `<tr style="border-top:1px solid var(--border);cursor:pointer" data-rr-coach-feed-driver="${c.driver_id}">
-      <td style="padding:10px 14px"><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:10px;color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
+      <td style="padding:10px 14px"><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
       <td style="padding:10px 14px">${sevChip}</td>
-      <td style="padding:10px 14px;font-size:12px;text-transform:capitalize">${escapeHtml(c.topic || "")}</td>
-      <td style="padding:10px 14px;font-size:13px;max-width:320px">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
-      <td style="padding:10px 14px;font-size:11px;color:var(--text-muted)">${escapeHtml(occurred)}<div>${escapeHtml(c.coached_by_name || "")}</div></td>
+      <td style="padding:10px 14px;font-size:var(--fs-sm);text-transform:capitalize">${escapeHtml(c.topic || "")}</td>
+      <td style="padding:10px 14px;font-size:var(--fs-md);max-width:320px">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
+      <td style="padding:10px 14px;font-size:var(--fs-xs);color:var(--text-muted)">${escapeHtml(occurred)}<div>${escapeHtml(c.coached_by_name || "")}</div></td>
       <td style="padding:10px 14px">${followCell}</td>
       <td style="padding:10px 14px">${status}</td>
     </tr>`;
@@ -8482,7 +8482,7 @@ async function loadMessagesTab() {
     .order("channel", { ascending: true });
 
   if (error) {
-    list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</div>`;
     return;
   }
   if (!rows || rows.length === 0) {
@@ -8525,13 +8525,13 @@ function openMessageEditor(template) {
 
   function attachmentsHtml() {
     if (attachments.length === 0) {
-      return `<div style="font-size:12px;color:var(--text-subtle);padding:8px 0">No attachments yet.</div>`;
+      return `<div style="font-size:var(--fs-sm);color:var(--text-subtle);padding:8px 0">No attachments yet.</div>`;
     }
     return attachments.map((a, i) => `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;margin-top:6px">
         <div style="min-width:0">
-          <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.name || "attachment")}</div>
-          <div style="font-size:10px;color:var(--text-subtle)">${a.content_type || ""} · ${a.size ? Math.round(a.size/1024)+" KB" : ""}</div>
+          <div style="font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.name || "attachment")}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${a.content_type || ""} · ${a.size ? Math.round(a.size/1024)+" KB" : ""}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <a class="btn btn-sm" href="${a.url}" target="_blank" rel="noreferrer">Open</a>
@@ -8548,27 +8548,27 @@ function openMessageEditor(template) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:640px;width:100%;max-height:90vh;overflow:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div>
-          <h3 style="margin:0;font-size:17px;font-weight:600">${escapeHtml(RR_TEMPLATE_LABELS[t.key] || t.key)}</h3>
-          <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${escapeHtml(t.key)} · ${t.channel}</div>
+          <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">${escapeHtml(RR_TEMPLATE_LABELS[t.key] || t.key)}</h3>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(t.key)} · ${t.channel}</div>
         </div>
         <button data-rr-msg-cancel style="background:none;border:0;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
       </div>
 
       ${isEmail ? `
-        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Subject</label>
+        <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Subject</label>
         <input data-rr-msg-subject class="form-input" style="width:100%;margin-bottom:14px" value="${escapeHtml(t.subject || "")}" />
       ` : ""}
 
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Body</label>
-      <textarea data-rr-msg-body class="form-input" style="width:100%;min-height:160px;font-family:'SF Mono',Menlo,monospace;font-size:13px;line-height:1.5">${escapeHtml(t.body || "")}</textarea>
-      <div style="font-size:11px;color:var(--text-subtle);margin-top:6px;line-height:1.5">
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Body</label>
+      <textarea data-rr-msg-body class="form-input" style="width:100%;min-height:160px;font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-md);line-height:1.5">${escapeHtml(t.body || "")}</textarea>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.5">
         Tokens: <code>{{first_name}}</code> · <code>{{link}}</code>. Paste any URL into the body — applicants tap it directly.
         ${!isEmail ? `<br/><strong style="color:var(--text-muted)">Keep SMS under 160 chars when possible</strong> — longer messages split into multiple texts.` : ""}
       </div>
 
       <div style="margin-top:18px">
-        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Attachments</label>
-        <div style="font-size:11px;color:var(--text-subtle);margin-bottom:8px">
+        <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Attachments</label>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">
           ${isEmail
             ? `Email attachments are sent as files (Resend fetches the URL)`
             : `SMS attachments turn the text into MMS — Twilio fetches each file. Up to 10 per message.`}
@@ -8886,10 +8886,10 @@ function showPinOverlay(target) {
     box-shadow:0 6px 20px rgba(0,0,0,.25);
     display:flex; align-items:center; gap:8px;
     animation:rr-pop .12s ease-out;
-    font-size:12px;
+    font-size:var(--fs-sm);
   `;
   ov.innerHTML = `
-    <button class="btn btn-sm btn-primary" data-rr-pin-confirm style="font-size:12px;display:flex;align-items:center;gap:6px;margin:0">
+    <button class="btn btn-sm btn-primary" data-rr-pin-confirm style="font-size:var(--fs-sm);display:flex;align-items:center;gap:6px;margin:0">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>
       ${pinned ? "Unpin" : "Pin to dashboard"}
     </button>
@@ -9049,7 +9049,7 @@ async function hydratePinnedCard(card, p) {
       .select("id, full_name, status, phone, email")
       .eq("id", p.ref).maybeSingle();
     if (!a) { body.innerHTML = `<span style="color:var(--text-subtle)">Removed.</span>`; return; }
-    body.innerHTML = `<strong>${escapeHtml(a.full_name)}</strong> · ${a.status}<br/><span style="color:var(--text-subtle);font-size:12px">${a.phone || a.email || ""}</span>`;
+    body.innerHTML = `<strong>${escapeHtml(a.full_name)}</strong> · ${a.status}<br/><span style="color:var(--text-subtle);font-size:var(--fs-sm)">${a.phone || a.email || ""}</span>`;
     return;
   }
 
@@ -9397,7 +9397,7 @@ async function _renderOkamiLiveImpl() {
     const stratEl = tdCells[5]?.querySelector(".strategy-pills");
     if (stratEl) {
       const text = gap >= 0 ? "Hold" : (gap >= -10 ? "+8h OT" : "Hire");
-      stratEl.innerHTML = `<span style="font-size:12px;color:var(--text-muted)">${text}</span>`;
+      stratEl.innerHTML = `<span style="font-size:var(--fs-sm);color:var(--text-muted)">${text}</span>`;
     }
 
     const hireByEl = tdCells[6]?.querySelector(".plan-calc");
@@ -9409,7 +9409,7 @@ async function _renderOkamiLiveImpl() {
     if (statusPill) {
       statusPill.classList.remove("ok", "warn", "bad");
       const text = gap >= 0 ? "On track" : (gap >= -10 ? "Tight" : "Critical");
-      statusPill.outerHTML = `<span style="font-size:12px;color:var(--text-muted)">${text}</span>`;
+      statusPill.outerHTML = `<span style="font-size:var(--fs-sm);color:var(--text-muted)">${text}</span>`;
     }
   }
 
@@ -9630,7 +9630,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
     sb.rpc("scheduling_settings_for_week", { p_week_start: startIso }),
   ]);
   if (gridRes.error) {
-    container.innerHTML = `<div style="padding:18px;color:var(--red);font-size:12px">Failed to load: ${escapeHtml(gridRes.error.message)}</div>`;
+    container.innerHTML = `<div style="padding:18px;color:var(--red);font-size:var(--fs-sm)">Failed to load: ${escapeHtml(gridRes.error.message)}</div>`;
     return;
   }
   const cells = gridRes.data || [];
@@ -9717,7 +9717,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
         </div>
         ${rowsHtml}
       </div>
-      <div style="grid-column:1 / -1;display:flex;justify-content:space-between;font-size:11px;color:var(--text-subtle);padding:10px 4px 0">
+      <div style="grid-column:1 / -1;display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-subtle);padding:10px 4px 0">
         <span>Week total <strong style="color:var(--text)">${totalRoutes}</strong> routes</span>
         <span>Peak day <strong style="color:var(--text)">${peakRoutes} routes</strong> · cushion applied in Schedule</span>
       </div>
@@ -9913,7 +9913,7 @@ async function loadServiceTypes() {
   const wrap = document.getElementById("rr-set-service-types");
   const { data, error } = await sb.rpc("list_service_types");
   if (error) {
-    if (wrap) wrap.innerHTML = `<div style="font-size:11px;color:var(--red)">Failed to load: ${escapeHtml(error.message)}</div>`;
+    if (wrap) wrap.innerHTML = `<div style="font-size:var(--fs-xs);color:var(--red)">Failed to load: ${escapeHtml(error.message)}</div>`;
     return;
   }
   const types = data || [];
@@ -9923,8 +9923,8 @@ async function loadServiceTypes() {
     <div data-rr-st="${t.id}" style="display:flex;gap:10px;align-items:center;padding:6px 8px;background:var(--canvas);border-radius:6px">
       <input type="checkbox" data-rr-st-active ${t.active ? "checked" : ""} style="cursor:pointer" title="Active in OKAMI"/>
       <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(t.color)};flex-shrink:0"></span>
-      <strong style="font-size:12px;letter-spacing:.04em;width:42px">${escapeHtml(t.code)}</strong>
-      <input type="text" data-rr-st-label class="form-input" value="${escapeHtml(t.label)}" style="flex:1;font-size:12px;height:28px"/>
+      <strong style="font-size:var(--fs-sm);letter-spacing:.04em;width:42px">${escapeHtml(t.code)}</strong>
+      <input type="text" data-rr-st-label class="form-input" value="${escapeHtml(t.label)}" style="flex:1;font-size:var(--fs-sm);height:28px"/>
     </div>`).join("");
 }
 
@@ -10153,7 +10153,7 @@ async function loadStationGeofences() {
   if (!wrap) return;
   const { data, error } = await sb.rpc("stations_with_geofence");
   if (error) {
-    wrap.innerHTML = `<div style="padding:14px;color:var(--red);font-size:13px">${escapeHtml(error.message)}</div>`;
+    wrap.innerHTML = `<div style="padding:14px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</div>`;
     return;
   }
   const rows = data || [];
@@ -10168,21 +10168,21 @@ async function loadStationGeofences() {
     return `
       <div class="station-geofence" data-rr-station-id="${escapeHtml(s.id)}" style="display:grid;grid-template-columns:120px 160px 160px 100px auto;gap:10px;padding:12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);margin-bottom:10px;align-items:end">
         <div>
-          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Station</label>
-          <div style="font-size:14px;font-weight:600">${escapeHtml(s.code)}</div>
-          <div style="font-size:11px;color:var(--text-subtle);margin-top:1px">${hasPin ? "Pin set" : "No pin yet"}</div>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Station</label>
+          <div style="font-size:var(--fs-base);font-weight:600">${escapeHtml(s.code)}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${hasPin ? "Pin set" : "No pin yet"}</div>
         </div>
         <div>
-          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Latitude</label>
-          <input class="rr-station-lat field" style="font-size:13px;padding:8px 10px" value="${escapeHtml(lat)}" placeholder="e.g. 40.712776"/>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Latitude</label>
+          <input class="rr-station-lat field" style="font-size:var(--fs-md);padding:8px 10px" value="${escapeHtml(lat)}" placeholder="e.g. 40.712776"/>
         </div>
         <div>
-          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Longitude</label>
-          <input class="rr-station-lng field" style="font-size:13px;padding:8px 10px" value="${escapeHtml(lng)}" placeholder="e.g. -74.005974"/>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Longitude</label>
+          <input class="rr-station-lng field" style="font-size:var(--fs-md);padding:8px 10px" value="${escapeHtml(lng)}" placeholder="e.g. -74.005974"/>
         </div>
         <div>
-          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:3px">Radius (m)</label>
-          <input class="rr-station-radius field" type="number" min="25" max="2000" style="font-size:13px;padding:8px 10px" value="${Number(s.geofence_radius_meters || 150)}"/>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Radius (m)</label>
+          <input class="rr-station-radius field" type="number" min="25" max="2000" style="font-size:var(--fs-md);padding:8px 10px" value="${Number(s.geofence_radius_meters || 150)}"/>
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-sm" data-rr-station-locate type="button" title="Use this device's GPS">Use current</button>
@@ -10263,7 +10263,7 @@ async function loadScheduleInsights(scope) {
     sb.rpc("okami_grid", { p_start: startIso, p_weeks: horizonWeeks }),
   ]);
   if (drvRes.error) {
-    wrap.innerHTML = `<div style="padding:18px;color:var(--red);font-size:13px">Failed to load drivers: ${escapeHtml(drvRes.error.message)}</div>`;
+    wrap.innerHTML = `<div style="padding:18px;color:var(--red);font-size:var(--fs-md)">Failed to load drivers: ${escapeHtml(drvRes.error.message)}</div>`;
     return;
   }
   const drivers = drvRes.data || [];
@@ -10339,12 +10339,12 @@ async function loadScheduleInsights(scope) {
     }
     return `
       <div style="display:grid;grid-template-columns:60px 1fr 90px 110px;align-items:center;gap:12px;padding:6px 0">
-        <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[day]}</div>
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${DOW_LABEL[day]}</div>
         <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
           <div style="background:${color};height:100%;width:${widthPct}%;transition:width .3s"></div>
         </div>
-        <div style="font-size:13px;color:var(--text);font-variant-numeric:tabular-nums"><strong>${widthPct}%</strong> <span style="color:var(--text-subtle);font-size:11px">${avail}/${totalDrivers}</span></div>
-        <div style="font-size:11px;color:var(--text-subtle)">${note}</div>
+        <div style="font-size:var(--fs-md);color:var(--text);font-variant-numeric:tabular-nums"><strong>${widthPct}%</strong> <span style="color:var(--text-subtle);font-size:var(--fs-xs)">${avail}/${totalDrivers}</span></div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${note}</div>
       </div>`;
   }).join("");
 
@@ -10407,32 +10407,32 @@ document.addEventListener("click", (e) => {
   pop.id = "rr-avail-popover";
   pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   pop.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:560px;width:100%;font-size:13px;line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
-      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Availability insight · the math</h3>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:560px;width:100%;font-size:var(--fs-md);line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
+      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Availability insight · the math</h3>
 
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Inputs</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Inputs</div>
       <div>Active roster: <strong>${m.totalDrivers}</strong> driver${m.totalDrivers === 1 ? "" : "s"}</div>
       <div>Without availability set: <strong>${m.driversWithoutAvailability}</strong></div>
       <div>Plan Pad: <strong>${m.padPct}%</strong> <span style="color:var(--text-subtle)">(from OKAMI)</span></div>
       <div>Horizon: next <strong>${m.horizonWeeks}</strong> weeks of OKAMI demand</div>
 
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
-      <div style="font-size:12px;color:var(--text-subtle);margin-bottom:6px">For each day, we count the active drivers whose availability includes that day, then divide by total active drivers.</div>
-      <div style="font-family:ui-monospace,monospace;font-size:11px;background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
-      <div style="font-size:11px;color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil(peak_routes × 2 × (1 + ${m.padPct}%))</code>.</div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
+      <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-bottom:6px">For each day, we count the active drivers whose availability includes that day, then divide by total active drivers.</div>
+      <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil(peak_routes × 2 × (1 + ${m.padPct}%))</code>.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px">
         <thead>
           <tr>
-            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Available</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% of roster</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Needed</th>
+            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Available</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% of roster</th>
+            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Needed</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
       </table>
 
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
       <div>· <strong style="color:#22c55e">Green</strong> = 75%+ of roster available</div>
       <div>· <strong style="color:var(--amber)">Amber</strong> = 50–75% available (tight)</div>
       <div>· <strong style="color:var(--red)">Red</strong> = under 50% available (low coverage)</div>
@@ -10465,7 +10465,7 @@ async function loadScheduleView() {
     console.warn("schedule · renderWeek:", e);
     const sub = document.getElementById("sched-sub-week");
     if (sub) {
-      sub.innerHTML = `<div style="padding:48px;text-align:center;color:var(--red);font-size:13px">Couldn't render the schedule week.<br><small>${escapeHtml(e?.message || String(e))}</small></div>`;
+      sub.innerHTML = `<div style="padding:48px;text-align:center;color:var(--red);font-size:var(--fs-md)">Couldn't render the schedule week.<br><small>${escapeHtml(e?.message || String(e))}</small></div>`;
     }
   }
   try { bindSchedWeekNav(); } catch (e) { console.warn("schedule · navBind:", e); }
@@ -11026,7 +11026,7 @@ async function renderScheduleWeek() {
   if (pageSub) {
     const wkRange = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
     const finalPill = window._rrWeekFinalized
-      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live</span>`
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live</span>`
       : "";
     pageSub.innerHTML = `Week of ${wkRange} · ${drivers.length} active driver${drivers.length === 1 ? "" : "s"}${finalPill}`;
   }
@@ -11038,7 +11038,7 @@ async function renderScheduleWeek() {
     if (!banner) {
       banner = document.createElement("div");
       banner.id = "rr-sched-finalize-banner";
-      banner.style.cssText = "display:flex;align-items:center;gap:10px;background:rgba(34,197,94,.10);border:1px solid var(--green);border-left-width:4px;color:var(--green);font-weight:600;font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:var(--s-3)";
+      banner.style.cssText = "display:flex;align-items:center;gap:10px;background:rgba(34,197,94,.10);border:1px solid var(--green);border-left-width:4px;color:var(--green);font-weight:600;font-size:var(--fs-md);padding:10px 14px;border-radius:8px;margin-bottom:var(--s-3)";
       banner.innerHTML = `
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         <span>This week is <strong>LIVE</strong> — drivers can see this schedule. Edits notify the affected drivers.</span>`;
@@ -11112,9 +11112,9 @@ async function renderScheduleWeek() {
   const kpiCard = (label, value, sublabel, tone) => {
     const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "var(--text)";
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
-      <div style="font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">${label}</div>
+      <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">${label}</div>
       <div style="font-size:18px;font-weight:700;color:${c};letter-spacing:-.02em;margin-top:2px;line-height:1.2">${value}</div>
-      <div style="font-size:11px;color:var(--text-subtle);margin-top:1px">${sublabel}</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${sublabel}</div>
     </div>`;
   };
   const coverageTone = pct >= 100 ? "ok" : pct >= 90 ? "warn" : "bad";
@@ -11160,10 +11160,10 @@ async function renderScheduleWeek() {
       let status = "";
       if (c.needed > 0) {
         if (c.filled >= c.needed) {
-          status = `<div style="font-size:10px;font-weight:600;color:var(--green);margin-top:2px">✓ Complete</div>`;
+          status = `<div style="font-size:var(--fs-xs);font-weight:600;color:var(--green);margin-top:2px">✓ Complete</div>`;
         } else {
           const tone = c.filled === 0 ? "var(--red)" : "var(--amber)";
-          status = `<div style="font-size:10px;font-weight:600;color:${tone};margin-top:2px">${c.filled} / ${c.needed}</div>`;
+          status = `<div style="font-size:var(--fs-xs);font-weight:600;color:${tone};margin-top:2px">${c.filled} / ${c.needed}</div>`;
         }
       }
       cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${status}`;
@@ -11270,7 +11270,7 @@ async function renderScheduleWeek() {
     const pdNum = r + 1;
     return `<div class="cal-grid" style="background:var(--canvas)">
       <div class="cal-row-label" style="background:var(--canvas)">
-        <div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong);font-weight:700;font-size:11px">PD</div>
+        <div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong);font-weight:700;font-size:var(--fs-xs)">PD</div>
         <div><div class="cal-row-label-name" style="color:var(--text-muted)">PD ${pdNum}</div><div class="cal-row-label-meta">Potential driver slot</div></div>
       </div>
       ${cells}
@@ -11384,9 +11384,9 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       : "";
     const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
-      ? `<div style="font-size:12px;font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}${stBadge}${newTag}</div>
-         <div style="font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>`
-      : `<div style="font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${stBadge}${newTag}</div>${route ? `<div style="font-size:11px;color:var(--text-subtle)">${route}</div>` : ""}`;
+      ? `<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}${stBadge}${newTag}</div>
+         <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>`
+      : `<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${stBadge}${newTag}</div>${route ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${route}</div>` : ""}`;
     const dragId = sh.virtual ? sh.synthId : sh.id;
     const virtAttrs = sh.virtual
       ? ` data-rr-pool-virtual="1" data-rr-pool-station="${sh.station_id}" data-rr-pool-wave="${sh.wave_start}"`
@@ -11409,7 +11409,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   // Group by day when sortMode === 'day' (more legible).
   let listHtml;
   if (sorted.length === 0) {
-    listHtml = '<div style="padding:14px;font-size:12px;color:var(--text-subtle);text-align:center">All shifts assigned</div>';
+    listHtml = '<div style="padding:14px;font-size:var(--fs-sm);color:var(--text-subtle);text-align:center">All shifts assigned</div>';
   } else if (_poolSortMode === "day") {
     const byDay = new Map();
     for (const sh of sorted) {
@@ -11417,7 +11417,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       byDay.get(sh.date).push(sh);
     }
     listHtml = Array.from(byDay.entries()).map(([d, list]) =>
-      `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:8px 0 6px">${dayLabel(d)} · ${list.length}</div>${list.map(sh => shiftItem(sh, { includeDay: false })).join("")}</div>`
+      `<div style="margin-bottom:10px"><div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:8px 0 6px">${dayLabel(d)} · ${list.length}</div>${list.map(sh => shiftItem(sh, { includeDay: false })).join("")}</div>`
     ).join("");
   } else {
     listHtml = sorted.map(shiftItem).join("");
@@ -11430,7 +11430,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     : `${totalCount} open`;
 
   const explainer = virtualCount > 0
-    ? `<div style="font-size:11px;color:var(--text-subtle);line-height:1.4;background:var(--canvas);border-left:2px solid var(--accent);padding:6px 8px;margin-bottom:8px;border-radius:3px">
+    ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;background:var(--canvas);border-left:2px solid var(--accent);padding:6px 8px;margin-bottom:8px;border-radius:3px">
         Striped <strong style="color:var(--accent-text)">OKAMI</strong> chips are slots your demand plan needs but no shift row exists yet. Drag onto a driver's day cell to create + assign the shift on <em>that</em> day.
        </div>`
     : "";
@@ -11438,23 +11438,23 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   aside.innerHTML = `
     <div class="pool-head">
       <span>Open shifts</span>
-      <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:11px">${countLabel}</span>
+      <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:var(--fs-xs)">${countLabel}</span>
     </div>
     ${explainer}
     ${virtualCount > 0 ? `<button type="button" id="rr-sync-to-okami"
-      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer"
+      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer"
       title="Create the ${virtualCount} OKAMI gap shifts as real (unassigned) rows so you can drag drivers onto them.">
       Sync to OKAMI · create ${virtualCount} missing shift${virtualCount === 1 ? "" : "s"}
     </button>` : ""}
     <button type="button" id="rr-unassign-week"
-      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
+      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:var(--fs-xs);font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
       Unassign all shifts this week
     </button>
     <div style="display:flex;gap:4px;background:var(--canvas);padding:3px;border-radius:6px;margin-bottom:8px">
       <button type="button" class="rr-pool-sort-btn" data-rr-pool-sort="day"
-        style="flex:1;border:0;background:${_poolSortMode === 'day' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:11px;font-weight:600;color:${_poolSortMode === 'day' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Day</button>
+        style="flex:1;border:0;background:${_poolSortMode === 'day' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:var(--fs-xs);font-weight:600;color:${_poolSortMode === 'day' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Day</button>
       <button type="button" class="rr-pool-sort-btn" data-rr-pool-sort="wave"
-        style="flex:1;border:0;background:${_poolSortMode === 'wave' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:11px;font-weight:600;color:${_poolSortMode === 'wave' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Wave time</button>
+        style="flex:1;border:0;background:${_poolSortMode === 'wave' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:var(--fs-xs);font-weight:600;color:${_poolSortMode === 'wave' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Wave time</button>
     </div>
     <div>${listHtml}</div>
     ${(() => {
@@ -11463,10 +11463,10 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       const item = (d) => {
         const t = (ptoByDriver.get(d.id) || [])[0];
         const range = t ? `PTO ${t.start_date.slice(5)}–${t.end_date.slice(5)}` : "Off";
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:11px;color:var(--text-subtle)"><span>${escapeHtml(displayDriverName(d))}</span><span style="margin-left:auto">${escapeHtml(range)}</span></div>`;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:var(--fs-xs);color:var(--text-subtle)"><span>${escapeHtml(displayDriverName(d))}</span><span style="margin-left:auto">${escapeHtml(range)}</span></div>`;
       };
       return `<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">PTO this week</div>
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">PTO this week</div>
         ${ptoDrivers.map(item).join("")}
       </div>`;
     })()}
@@ -11550,12 +11550,12 @@ function bindSchedWeekNav() {
     m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
     const list = v.length === 0
       ? '<div class="rr-empty-inline">No rule violations this week ✓</div>'
-      : v.map(x => `<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:12px;align-items:center"><div style="flex:1"><div style="font-size:13px;font-weight:600">${escapeHtml(x.driver)}</div><div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(x.note)}</div></div><span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
+      : v.map(x => `<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:12px;align-items:center"><div style="flex:1"><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(x.driver)}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(x.note)}</div></div><span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
     m.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
-          <div><div style="font-size:14px;font-weight:600">Rule violations</div><div style="font-size:12px;color:var(--text-subtle)">${v.length} this week</div></div>
-          <button type="button" id="rr-vio-close" style="background:none;border:0;font-size:22px;cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+          <div><div style="font-size:var(--fs-base);font-weight:600">Rule violations</div><div style="font-size:var(--fs-sm);color:var(--text-subtle)">${v.length} this week</div></div>
+          <button type="button" id="rr-vio-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
         </div>
         <div>${list}</div>
       </div>`;
@@ -11983,15 +11983,15 @@ function openAddShiftModal(date, stationId, prefDriverId) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:440px;width:100%">
-      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Add shift</h3>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Date</label>
+      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Add shift</h3>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Date</label>
       <input type="date" id="rr-sh-date" class="form-input" style="width:100%;margin-bottom:10px" value="${date}"/>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver (optional · leave blank for open shift)</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver (optional · leave blank for open shift)</label>
       <select id="rr-sh-driver" class="form-input" style="width:100%;margin-bottom:10px">
         <option value="">— Open shift —</option>
         ${_schedDriverList.map(d => `<option value="${d.id}"${prefDriverId === d.id ? " selected" : ""}>${escapeHtml(displayDriverName(d))}</option>`).join("")}
       </select>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
       <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. KMO1-14B"/>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn" data-rr-sh-cancel>Cancel</button>
@@ -12026,7 +12026,7 @@ function openAssignShiftModal(shiftId) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:380px;width:100%">
-      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Assign shift</h3>
+      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Assign shift</h3>
       <select id="rr-as-driver" class="form-input" style="width:100%;margin-bottom:14px">
         ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(displayDriverName(d))}</option>`).join("")}
       </select>
@@ -12068,13 +12068,13 @@ async function loadTimeOffList() {
 
   sub.innerHTML = `
     <div style="margin-bottom:var(--s-3);display:flex;align-items:center;justify-content:space-between">
-      <h3 style="margin:0;font-size:15px;font-weight:600">Time off</h3>
+      <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Time off</h3>
       <button class="btn btn-sm btn-primary" data-rr-add-time-off>+ Add request</button>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Pending (${pending.length})</div>
+      <div style="padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Pending (${pending.length})</div>
       ${pending.length === 0 ? `<div class="rr-empty-inline">No pending requests.</div>` : pending.map(timeOffRow).join("")}
-      <div style="padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);border-top:1px solid var(--border)">Past (${past.length})</div>
+      <div style="padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);border-top:1px solid var(--border)">Past (${past.length})</div>
       ${past.length === 0 ? `<div class="rr-empty-inline">No past requests.</div>` : past.map(timeOffRow).join("")}
     </div>`;
 }
@@ -12091,10 +12091,10 @@ function timeOffRow(r) {
   }[r.status];
   return `
     <div style="display:grid;grid-template-columns:1fr 1fr 100px 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
-      <div><div style="font-size:13px;font-weight:600">${escapeHtml(r.drivers?.full_name || "—")}</div></div>
-      <div style="font-size:12px">${range}</div>
-      <div style="font-size:11px;font-weight:700;${statusColor};text-transform:uppercase">${r.status}</div>
-      <div style="font-size:12px;color:var(--text-subtle)">${escapeHtml(r.reason || "")}</div>
+      <div><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.drivers?.full_name || "—")}</div></div>
+      <div style="font-size:var(--fs-sm)">${range}</div>
+      <div style="font-size:var(--fs-xs);font-weight:700;${statusColor};text-transform:uppercase">${r.status}</div>
+      <div style="font-size:var(--fs-sm);color:var(--text-subtle)">${escapeHtml(r.reason || "")}</div>
       <div>${r.status === "pending" ? `
         <button class="btn btn-sm" data-rr-time-off-decide="${r.id}" data-decision="approve">Approve</button>
         <button class="btn btn-sm" data-rr-time-off-decide="${r.id}" data-decision="deny" style="color:var(--red)">Deny</button>
@@ -12127,16 +12127,16 @@ function openTimeOffModal() {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:440px;width:100%">
-      <h3 style="margin:0 0 14px;font-size:17px;font-weight:600">Time off request</h3>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver</label>
+      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Time off request</h3>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver</label>
       <select id="rr-to-driver" class="form-input" style="width:100%;margin-bottom:10px">
         ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(displayDriverName(d))}</option>`).join("")}
       </select>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Start</label><input type="date" id="rr-to-start" class="form-input" style="width:100%"/></div>
-        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">End</label><input type="date" id="rr-to-end" class="form-input" style="width:100%"/></div>
+        <div><label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Start</label><input type="date" id="rr-to-start" class="form-input" style="width:100%"/></div>
+        <div><label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">End</label><input type="date" id="rr-to-end" class="form-input" style="width:100%"/></div>
       </div>
-      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Reason</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Reason</label>
       <input id="rr-to-reason" class="form-input" style="width:100%;margin-bottom:14px" placeholder="Vacation / personal / sick / …"/>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn" data-rr-to-cancel>Cancel</button>
@@ -12180,20 +12180,20 @@ async function loadOpenShifts() {
   if (error) { sub.innerHTML = `<div style="padding:24px;color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
 
   if (!rows || rows.length === 0) {
-    sub.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No open shifts</strong>Add shifts from the Week view, or leave the driver picker blank when adding to create one.</div>`;
+    sub.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No open shifts</strong>Add shifts from the Week view, or leave the driver picker blank when adding to create one.</div>`;
     return;
   }
   sub.innerHTML = `
-    <h3 style="margin:0 0 var(--s-3);font-size:15px;font-weight:600">Open shifts (${rows.length})</h3>
+    <h3 style="margin:0 0 var(--s-3);font-size:var(--fs-lg);font-weight:600">Open shifts (${rows.length})</h3>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
+      <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
         <div>Date</div><div>Station</div><div>Route</div><div></div>
       </div>
       ${rows.map(r => `
         <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:600">${new Date(r.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div>
-          <div style="font-size:13px">${escapeHtml(r.station?.code || "—")}</div>
-          <div style="font-size:13px;font-family:'SF Mono',Menlo,monospace;color:var(--text-muted)">${escapeHtml(r.route_code || "—")}</div>
+          <div style="font-size:var(--fs-md);font-weight:600">${new Date(r.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div>
+          <div style="font-size:var(--fs-md)">${escapeHtml(r.station?.code || "—")}</div>
+          <div style="font-size:var(--fs-md);font-family:'SF Mono',Menlo,monospace;color:var(--text-muted)">${escapeHtml(r.route_code || "—")}</div>
           <div><button class="btn btn-sm btn-primary" data-rr-shift-id="${r.id}">Assign</button></div>
         </div>`).join("")}
     </div>`;
@@ -12350,7 +12350,7 @@ window.addEventListener("focus", () => {
     if (!list) return;
     const items = read();
     if (items.length === 0) {
-      list.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md)">No blackouts yet. Click "+ Add blackout" to enter one.</div>`;
+      list.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);border:1px dashed var(--border);border-radius:var(--r-md)">No blackouts yet. Click "+ Add blackout" to enter one.</div>`;
       return;
     }
     list.innerHTML = items.map((b, i) => `

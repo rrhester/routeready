@@ -453,7 +453,7 @@ async function renderSchedule() {
       // shifts that aren't showing up.
       main.innerHTML = `
         <div class="empty-state" style="padding:48px 20px;text-align:center">
-          <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">No shifts scheduled</div>
+          <div style="font-size:var(--fs-lg);font-weight:600;color:var(--text);margin-bottom:6px">No shifts scheduled</div>
           <div style="color:var(--text-subtle);line-height:1.5;max-width:320px;margin:0 auto">
             Your dispatcher hasn't published a schedule yet for the next two weeks, or you haven't been assigned to any of the open shifts.  Check back tomorrow or message dispatch.
           </div>
@@ -626,14 +626,14 @@ async function renderChat() {
     const sizeKb = Math.round(f.size / 1024);
     previewEl.style.display = "";
     previewEl.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:var(--fs-sm)">
         ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">`
                 : `<span style="font-size:18px">📎</span>`}
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
           <div style="color:var(--text-subtle)">${sizeKb} KB</div>
         </div>
-        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:16px;line-height:1">×</button>
+        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:var(--fs-lg);line-height:1">×</button>
       </div>`;
     document.getElementById("chat-attach-clear").addEventListener("click", () => {
       fileInput.value = "";
@@ -803,8 +803,8 @@ function chatBubbleHtml(m) {
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
           <span style="font-size:18px">📎</span>
           <span style="flex:1;min-width:0">
-            <span style="display:block;font-weight:600;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(name)}</span>
-            ${sizeKb != null ? `<span style="display:block;font-size:11px;color:var(--text-subtle)">${sizeKb} KB</span>` : ""}
+            <span style="display:block;font-weight:600;font-size:var(--fs-sm);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(name)}</span>
+            ${sizeKb != null ? `<span style="display:block;font-size:var(--fs-xs);color:var(--text-subtle)">${sizeKb} KB</span>` : ""}
           </span>
         </a>`;
     }
@@ -925,23 +925,23 @@ async function refreshChannelList() {
       : `${c.member_count || 0} member${c.member_count === 1 ? "" : "s"}`;
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     const stationChip = c.station_code
-      ? `<span style="font-size:10px;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
+      ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
       : "";
     const unread = c.unread > 0
-      ? `<span style="background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center">${c.unread}</span>`
+      ? `<span style="background:var(--accent);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center">${c.unread}</span>`
       : "";
     return `
       <div class="chat-channel-row" data-rr-open-channel="${escapeHtml(c.id)}" style="display:flex;gap:12px;align-items:center;padding:14px 18px;background:var(--surface);margin:0 8px 8px;border:1px solid var(--border);border-radius:12px;cursor:pointer">
         <div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">#</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:15px;font-weight:600;color:var(--text)">${escapeHtml(c.name)}</span>
+            <span style="font-size:var(--fs-lg);font-weight:600;color:var(--text)">${escapeHtml(c.name)}</span>
             ${stationChip}
           </div>
-          <div style="font-size:12px;color:var(--text-subtle);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(lastBodyTrunc)}</div>
+          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(lastBodyTrunc)}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-          <div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(fmtRel(c.last_message_at))}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtRel(c.last_message_at))}</div>
           ${unread}
         </div>
       </div>`;
@@ -1016,14 +1016,14 @@ async function renderChatChannelThread() {
     const sizeKb = Math.round(f.size / 1024);
     previewEl.style.display = "";
     previewEl.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:var(--fs-sm)">
         ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">`
                 : `<span style="font-size:18px">📎</span>`}
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
           <div style="color:var(--text-subtle)">${sizeKb} KB</div>
         </div>
-        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:16px;line-height:1">×</button>
+        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:var(--fs-lg);line-height:1">×</button>
       </div>`;
     document.getElementById("chat-attach-clear").addEventListener("click", () => {
       fileInput.value = "";
@@ -1148,8 +1148,8 @@ function channelBubbleHtml(m) {
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
           <span style="font-size:18px">📎</span>
           <span style="flex:1;min-width:0">
-            <span style="display:block;font-weight:600;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(name)}</span>
-            ${sizeKb != null ? `<span style="display:block;font-size:11px;color:var(--text-subtle)">${sizeKb} KB</span>` : ""}
+            <span style="display:block;font-weight:600;font-size:var(--fs-sm);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(name)}</span>
+            ${sizeKb != null ? `<span style="display:block;font-size:var(--fs-xs);color:var(--text-subtle)">${sizeKb} KB</span>` : ""}
           </span>
         </a>`;
     }
@@ -1157,7 +1157,7 @@ function channelBubbleHtml(m) {
 
   return `
     <div class="chat-bubble ${mine ? "mine" : "theirs"}">
-      ${!mine ? `<div style="font-size:11px;font-weight:700;color:var(--text-subtle);margin-bottom:3px">${escapeHtml(sender)}</div>` : ""}
+      ${!mine ? `<div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);margin-bottom:3px">${escapeHtml(sender)}</div>` : ""}
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
       <div class="chat-time">${escapeHtml(time)}</div>
@@ -1731,15 +1731,15 @@ async function renderAttendance() {
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
           <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
             <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.tardies ?? 0}</div>
-            <div style="font-size:10px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Tardies</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Tardies</div>
           </div>
           <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
             <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.callouts ?? 0}</div>
-            <div style="font-size:10px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Callouts</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Callouts</div>
           </div>
           <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
             <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.noshows ?? 0}</div>
-            <div style="font-size:10px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">No-shows</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">No-shows</div>
           </div>
         </div>
       </div>` : ""}
@@ -1747,10 +1747,10 @@ async function renderAttendance() {
       <section class="card">
         <div class="checkin-title" style="margin-bottom:8px">${enabled ? "How your DSP's attendance policy works" : "Attendance"}</div>
         ${enabled
-          ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-muted);line-height:1.6">
+          ? `<ul style="margin:0;padding-left:18px;font-size:var(--fs-md);color:var(--text-muted);line-height:1.6">
                ${policyBullets.map(b => `<li>${b}</li>`).join("")}
              </ul>`
-          : `<p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6">Your DSP isn't running an attendance scoring policy right now.  Tardies, callouts, and no-shows are still logged on your record, but no warnings or actions are auto-generated.</p>`}
+          : `<p style="margin:0;font-size:var(--fs-md);color:var(--text-muted);line-height:1.6">Your DSP isn't running an attendance scoring policy right now.  Tardies, callouts, and no-shows are still logged on your record, but no warnings or actions are auto-generated.</p>`}
       </section>
     </div>`;
 }
