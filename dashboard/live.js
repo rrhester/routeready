@@ -278,7 +278,7 @@ async function loadPipeline(stage = "all") {
   });
 
   list.innerHTML = (rows ?? []).map(renderApplicantCard).join("")
-    || `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No applicants yet — share your apply link or add one manually.</div>`;
+    || `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
 }
 
 // ─── paAction override ─────────────────────────────────────────────────────
@@ -680,7 +680,7 @@ window.licApplyAll         = function () { /* superseded */ };
 // did before live.js loaded gets cleared before the operator can click.
 {
   const body = document.getElementById("lic-renewals-body");
-  if (body) body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+  if (body) body.innerHTML = `<div class="rr-loading">Loading</div>`;
 }
 
 // ─── Drivers · Attendance (live) ───────────────────────────────────────────
@@ -837,7 +837,7 @@ function _renderAttReportTbody() {
   if (!tbody) return;
   const rows = [..._attReportRows];
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="13" style="padding:24px;text-align:center;color:var(--text-subtle)">No drivers yet</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13"><div class="rr-empty-inline">No drivers yet</div></td></tr>`;
     return;
   }
 
@@ -1830,7 +1830,7 @@ async function loadCheckinView() {
     });
 
   list.innerHTML = rows.length === 0
-    ? `<div style="padding:32px;text-align:center;color:var(--text-subtle)">No shifts scheduled for today.</div>`
+    ? `<div class="rr-empty-inline">No shifts scheduled for today.</div>`
     : rows.join("");
 
   _updateCheckinProgress();
@@ -2217,7 +2217,7 @@ async function loadAttendanceEventLog() {
   if (countEl) countEl.textContent = String(events.length);
 
   if (events.length === 0) {
-    pane.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No callouts, no-shows, or late events in the last ${policy.decay_days} days.</div>`;
+    pane.innerHTML = `<div class="rr-empty-inline">No callouts, no-shows, or late events in the last ${policy.decay_days} days.</div>`;
     return;
   }
 
@@ -2407,16 +2407,16 @@ async function loadTodayPlan() {
       <div id="rr-tp-meta"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--text-subtle)">Loading…</div>
       <div id="rr-tp-tool"    style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
         <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Daily attendance · approvals</div>
-        <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+        <div class="rr-loading">Loading</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div id="rr-tp-extras" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Extra drivers (Ex)</div>
-          <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+          <div class="rr-loading">Loading</div>
         </div>
         <div id="rr-tp-cov" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <div style="padding:12px 14px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">Coverage</div>
-          <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+          <div class="rr-loading">Loading</div>
         </div>
       </div>`;
   }
@@ -2555,7 +2555,7 @@ function _renderTpAttendance(data, error) {
   // ── Extra drivers (Ex / cushion) roster ────────────────────────────
   const extras = attRows.filter(r => r.is_cushion);
   const extrasRows = extras.length === 0
-    ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">No extras scheduled today.</div>`
+    ? `<div class="rr-empty-inline">No extras scheduled today.</div>`
     : extras.map(r => {
         const t = r.starts_at ? new Date(r.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
         // Neutral chip — Today page is a no-stoplight zone.
@@ -2904,7 +2904,7 @@ async function loadTodayAttendance() {
   }
   const rows = data?.rows || [];
   if (rows.length === 0) {
-    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No drivers scheduled for today.</div>`;
+    wrap.innerHTML = `<div class="rr-empty-inline">No drivers scheduled for today.</div>`;
     return;
   }
 
@@ -3035,7 +3035,7 @@ async function loadAttendanceHistory(opts) {
   const fromIso = opts?.from || defaultFrom;
   const toIso   = opts?.to   || defaultTo;
 
-  wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+  wrap.innerHTML = `<div class="rr-loading">Loading</div>`;
 
   const { data, error } = await sb.rpc("attendance_history", { p_from: fromIso, p_to: toIso, p_driver_id: null });
   if (error) {
@@ -3046,7 +3046,7 @@ async function loadAttendanceHistory(opts) {
   const events  = data?.rows || [];
 
   const sumRows = summary.length === 0
-    ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No finalized attendance in range.</div>`
+    ? `<div class="rr-empty-inline">No finalized attendance in range.</div>`
     : summary.map(s => `
       <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;align-items:center">
         <div style="font-weight:600">${escapeHtml(s.driver_name)}</div>
@@ -3103,7 +3103,7 @@ async function loadDriverLicensesView() {
 
   // Wipe synchronously so any mockup-rendered rows can't flash through
   // while the live select is in flight.
-  body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+  body.innerHTML = `<div class="rr-loading">Loading</div>`;
   if (status) status.textContent = "—";
   // Renewal-reminder configuration moved to Settings → License renewals
   // and Schedule → Scheduling rules; this view just shows the renewal
@@ -3247,7 +3247,7 @@ async function openCoachDriverPicker() {
       return name.includes(f);
     });
     if (matches.length === 0) {
-      list.innerHTML = `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No drivers match.</div>`;
+      list.innerHTML = `<div class="rr-empty-inline">No drivers match.</div>`;
       return;
     }
     list.innerHTML = matches.map(d => {
@@ -3562,7 +3562,7 @@ async function loadDriverInsights() {
   const dowInsight = document.getElementById("rr-di-dow-insight");
 
   if (totalShifts90 === 0) {
-    if (dowBars) dowBars.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:13px">No shift outcomes in the last ${tfDow} days yet.</div>`;
+    if (dowBars) dowBars.innerHTML = `<div class="rr-empty-inline">No shift outcomes in the last ${tfDow} days yet.</div>`;
     if (dowSummary) dowSummary.textContent = "";
     if (dowInsight) dowInsight.innerHTML = `Patterns will appear once a few weeks of attendance data flows in.`;
   } else {
@@ -5014,7 +5014,7 @@ async function loadCalAvailabilityEditor() {
   const card = document.getElementById("cal-edit-card");
   const meta = document.getElementById("cal-edit-meta");
   if (!card) return;
-  card.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading availability…</div>`;
+  card.innerHTML = `<div class="rr-loading">Loading availability</div>`;
   if (meta) meta.textContent = "";
 
   // Call the edge function. JWT-gated → uses the user's session.
@@ -5324,7 +5324,7 @@ document.addEventListener("click", async (e) => {
 async function loadCalBookingsList() {
   const list = document.getElementById("cal-bookings-list");
   if (!list) return;
-  list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+  list.innerHTML = `<div class="rr-loading">Loading</div>`;
 
   const { data: rows, error } = await sb.from("cal_events")
     .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, applicants:applicant_id (full_name, email, phone)")
@@ -5412,7 +5412,7 @@ async function loadScreeningQuestionsList() {
   if (sub) sub.textContent = `${(rows ?? []).length} questions · sent to applicants via SMS or email.`;
 
   if (!rows || rows.length === 0) {
-    container.innerHTML = `<div style="padding:16px;color:var(--text-subtle);font-size:13px">No questions yet — click + Add question to start.</div>`;
+    container.innerHTML = `<div class="rr-empty-inline">No questions yet — click + Add question to start.</div>`;
     return;
   }
   container.innerHTML = rows.map(renderScreeningQuestionRow).join("");
@@ -5657,7 +5657,7 @@ async function openCoachingDrawer(driverId) {
           <button class="cd-close" data-rr-cd-close aria-label="Close">×</button>
         </div>
       </div>
-      <div class="cd-body" id="rr-cd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
+      <div class="cd-body" id="rr-cd-body"><div class="rr-loading">Loading</div></div>
     </div>`;
   document.body.appendChild(drawer);
 
@@ -5928,7 +5928,7 @@ async function openDriverDrawer(driverId) {
         <button class="dd-tab" data-rr-dd-tab="dot">DOT</button>
         <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
-      <div class="dd-body" id="rr-dd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
+      <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
   document.body.appendChild(drawer);
@@ -6194,7 +6194,7 @@ async function refreshDriverChatList(autoSelect) {
   }
   _msgInboxList = data || [];
   if (_msgInboxList.length === 0) {
-    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px">No active drivers yet.</div>`;
+    list.innerHTML = `<div class="rr-empty-inline">No active drivers yet.</div>`;
     return;
   }
   // Sort: unread first, then most-recent activity, then alpha for inactive.
@@ -6542,7 +6542,7 @@ async function refreshChannelList(autoSelect) {
       </button>
     </div>`;
   if (_msgChannelList.length === 0) {
-    list.innerHTML = headerBtn + `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px">No channels yet.<br>Create one to start group comms.</div>`;
+    list.innerHTML = headerBtn + `<div class="rr-empty-inline">No channels yet.<br>Create one to start group comms.</div>`;
     list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
     return;
   }
@@ -6882,7 +6882,7 @@ async function openChannelMembersModal(channelId) {
         <button class="btn btn-primary btn-sm" id="rr-cc-mem-add-btn">Add</button>
       </div>
       <div id="rr-cc-mem-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
-        <div style="padding:20px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+        <div class="rr-loading">Loading</div>
       </div>
     </div>`;
   document.body.appendChild(wrap);
@@ -6906,7 +6906,7 @@ async function openChannelMembersModal(channelId) {
       .filter(d => !memberIds.has(d.id))
       .map(d => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.full_name)}</option>`).join("");
     if (members.length === 0) {
-      list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px">No members yet.</div>`;
+      list.innerHTML = `<div class="rr-empty-inline">No members yet.</div>`;
       return;
     }
     list.innerHTML = members.map(m => `
@@ -7036,7 +7036,7 @@ function renderCoachingTab(coachings, driver) {
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
       ${linkBtn}
     </div>
-    <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No coachings logged yet.</div>`}</div>`;
+    <div>${list || `<div class="rr-empty-inline">No coachings logged yet.</div>`}</div>`;
 }
 
 function renderDocumentsTab(docs) {
@@ -7056,7 +7056,7 @@ function renderDocumentsTab(docs) {
       <input type="file" id="rr-doc-file" />
       <button class="btn btn-primary" data-rr-doc-upload>Upload</button>
     </div>
-    <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No documents on file.</div>`}</div>`;
+    <div>${list || `<div class="rr-empty-inline">No documents on file.</div>`}</div>`;
 }
 
 // Title-case name fields when the operator leaves the input. Marked via
@@ -8059,7 +8059,7 @@ function _renderAvailabilityCoverageCard() {
   const total = _availImpactCtx.totalActive;
 
   if (total === 0) {
-    bars.innerHTML = `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet — add drivers to see coverage.</div>`;
+    bars.innerHTML = `<div class="rr-empty-inline">No active drivers yet — add drivers to see coverage.</div>`;
     if (sub) sub.textContent = "";
     return;
   }
@@ -8289,7 +8289,7 @@ document.addEventListener("click", async (e) => {
 async function loadCoachingFeed() {
   const wrap = document.getElementById("rr-coach-feed");
   if (!wrap) return;
-  wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+  wrap.innerHTML = `<div class="rr-loading">Loading</div>`;
 
   // Always land on "All active" when (re)entering the feed, so leaving the
   // page and coming back resets the status filter regardless of what was
@@ -8373,7 +8373,7 @@ function _renderCoachFeed() {
   });
 
   if (rows.length === 0) {
-    wrap.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No coachings match the current filter.</div>`;
+    wrap.innerHTML = `<div class="rr-empty-inline">No coachings match the current filter.</div>`;
     return;
   }
 
@@ -8486,7 +8486,7 @@ async function loadMessagesTab() {
     return;
   }
   if (!rows || rows.length === 0) {
-    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No templates yet.</div>`;
+    list.innerHTML = `<div class="rr-empty-inline">No templates yet.</div>`;
     return;
   }
 
@@ -8725,14 +8725,30 @@ function applyStoredNavOrder() {
   try { order = JSON.parse(raw); } catch { return; }
   if (!Array.isArray(order)) return;
 
-  const nav = document.querySelector(".sidebar nav, nav.sidebar-nav, nav") || document.querySelector(".nav-item")?.parentElement;
+  // Scope strictly to the sidebar so we don't accidentally reach into
+  // settings <nav> or some other future nav element.
+  const nav = document.querySelector(".sidebar .nav, .sidebar nav");
   if (!nav) return;
 
-  const byView = new Map();
-  nav.querySelectorAll(".nav-item[data-view]").forEach(el => byView.set(el.getAttribute("data-view"), el));
+  const items = Array.from(nav.querySelectorAll(".nav-item[data-view]"));
+  const byView = new Map(items.map(el => [el.getAttribute("data-view"), el]));
+
+  // Defensive: if the stored order is missing any view that currently
+  // exists in source, the nav was edited (a new sidebar item shipped)
+  // since the order was saved.  Don't partially apply the stale order
+  // — that's how items like Messages went visually missing when the
+  // sidebar was drag-reordered before that sidebar item shipped.
+  // Reset and let the source order win until the operator drags again.
+  for (const view of byView.keys()) {
+    if (!order.includes(view)) {
+      localStorage.removeItem(RR_NAV_ORDER_KEY);
+      return;
+    }
+  }
+
   for (const view of order) {
     const el = byView.get(view);
-    if (el) nav.appendChild(el);  // appendChild moves the existing node
+    if (el) nav.appendChild(el);
   }
 }
 
@@ -9603,7 +9619,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const todayIso = fmtIsoDate(new Date());
 
-  container.innerHTML = `<div style="padding:18px;color:var(--text-subtle);font-size:12px">Loading…</div>`;
+  container.innerHTML = `<div class="rr-loading">Loading</div>`;
 
   // Pull demand grid + cushion recommendation + this week's waves in one go.
   // Waves come from scheduling_settings (per-week, with DSP-level fallback)
@@ -10142,7 +10158,7 @@ async function loadStationGeofences() {
   }
   const rows = data || [];
   if (rows.length === 0) {
-    wrap.innerHTML = `<div style="padding:14px;color:var(--text-subtle);font-size:13px">No active stations.</div>`;
+    wrap.innerHTML = `<div class="rr-empty-inline">No active stations.</div>`;
     return;
   }
   wrap.innerHTML = rows.map((s) => {
@@ -11274,7 +11290,7 @@ async function renderScheduleWeek() {
   </div>`;
 
   const emptyHtml = drivers.length === 0
-    ? `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet. <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-drivers>Add drivers →</span></div>`
+    ? `<div class="rr-empty-inline">No active drivers yet. <span style="color:var(--accent-text);cursor:pointer" data-rr-goto-drivers>Add drivers →</span></div>`
     : "";
 
   // PD rows removed — Open Shifts pool on the right covers the same need
@@ -11533,7 +11549,7 @@ function bindSchedWeekNav() {
     m.id = "rr-violations-modal";
     m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
     const list = v.length === 0
-      ? '<div style="padding:24px;text-align:center;color:var(--text-subtle)">No rule violations this week ✓</div>'
+      ? '<div class="rr-empty-inline">No rule violations this week ✓</div>'
       : v.map(x => `<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:12px;align-items:center"><div style="flex:1"><div style="font-size:13px;font-weight:600">${escapeHtml(x.driver)}</div><div style="font-size:11px;color:var(--text-subtle)">${escapeHtml(x.note)}</div></div><span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
     m.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto">
@@ -12057,9 +12073,9 @@ async function loadTimeOffList() {
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
       <div style="padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Pending (${pending.length})</div>
-      ${pending.length === 0 ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No pending requests.</div>` : pending.map(timeOffRow).join("")}
+      ${pending.length === 0 ? `<div class="rr-empty-inline">No pending requests.</div>` : pending.map(timeOffRow).join("")}
       <div style="padding:8px 14px;background:var(--canvas);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);border-top:1px solid var(--border)">Past (${past.length})</div>
-      ${past.length === 0 ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No past requests.</div>` : past.map(timeOffRow).join("")}
+      ${past.length === 0 ? `<div class="rr-empty-inline">No past requests.</div>` : past.map(timeOffRow).join("")}
     </div>`;
 }
 
