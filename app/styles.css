@@ -4,60 +4,58 @@
 
 :root{
   /* ── Surfaces (mobile material) ─────────────────────────── */
-  /* Environment — slightly cooler/darker so cards (white) read as
-     clearly elevated.  Two ultra-soft radial light zones give the
-     mobile canvas a sense of "space" without any visible shapes
-     or patterns.  Subtle vertical tonal shift on the linear base. */
-  --bg: #E6EAF1;
+  /* Environment (Fluent — clean, cool, neutral) */
+  --bg: #F0F3F8;
   --bg-grad:
-    radial-gradient(ellipse 600px 400px at 88% 0%,  rgba(255,255,255,.6) 0%, transparent 60%),
-    radial-gradient(ellipse 700px 500px at 0% 100%, rgba(15,23,42,.03)   0%, transparent 60%),
-    linear-gradient(180deg, #E6EAF1 0%, #DCE2EB 100%);
+    radial-gradient(ellipse 600px 400px at 88% 0%,  rgba(255,255,255,.55) 0%, transparent 60%),
+    radial-gradient(ellipse 700px 500px at 0% 100%, rgba(15,23,42,.025)  0%, transparent 60%),
+    linear-gradient(180deg, #F0F3F8 0%, #E6EBF2 100%);
   --surface: #FFFFFF;
   --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FBFCFE 100%);
   --canvas: #F1F4F8;
-  --border: rgba(15,23,42,.10);
-  --border-strong: rgba(15,23,42,.16);
+  --border: rgba(15,23,42,.12);
+  --border-strong: rgba(15,23,42,.18);
   --border-subtle: rgba(15,23,42,.06);
   --glass: rgba(255,255,255,.78);
   --text: #0B1220;
   --text-muted: #2E3A4F;
   --text-subtle: #5B6878;
-  /* Brand blue — matches dashboard --accent (#146EB4). */
-  --accent: #146EB4;
-  --accent-strong: #0F5A95;
-  --accent-soft: #DDE9F4;
-  --accent-grad: linear-gradient(180deg, #1A7BC9 0%, #146EB4 100%);
-  --accent-grad-pressed: linear-gradient(180deg, #105F9D 0%, #0E5489 100%);
-  --accent-glow: 0 0 0 3px rgba(20,110,180,.20);
+  /* Brand blue (Microsoft Fluent · matches dashboard --accent #0F6CBD) */
+  --accent: #0F6CBD;
+  --accent-strong: #0B5BA1;
+  --accent-soft: #DCE9F5;
+  --accent-grad: linear-gradient(180deg, #1A7AC9 0%, #0F6CBD 100%);
+  --accent-grad-pressed: linear-gradient(180deg, #0B5BA1 0%, #094F8C 100%);
+  --accent-glow: 0 0 0 3px rgba(15,108,189,.22);
   --green: #15803d;
   --amber: #b45309;
   --red: #b91c1c;
   /* ── Shadows (multi-layer) ─────────────────────────────── */
-  --shadow-xs: 0 1px 2px rgba(15,23,42,.06);
-  --shadow-sm: 0 1px 2px rgba(15,23,42,.06),
-               0 2px 8px rgba(15,23,42,.06);
-  --shadow-md: 0 1px 2px rgba(15,23,42,.06),
-               0 4px 14px rgba(15,23,42,.10),
-               0 0 0 1px rgba(15,23,42,.03);
-  --shadow-lg: 0 1px 2px rgba(15,23,42,.06),
-               0 8px 24px rgba(15,23,42,.14),
-               0 16px 40px rgba(15,23,42,.08);
-  --highlight-top: inset 0 1px 0 rgba(255,255,255,.7);
-  --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.9);
+  /* Shadows (Fluent — restrained, edges do the work) */
+  --shadow-xs: 0 1px 2px rgba(15,23,42,.05);
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.05);
+  --shadow-md: 0 2px 4px rgba(15,23,42,.05),
+               0 1px 8px rgba(15,23,42,.05);
+  --shadow-lg: 0 4px 8px rgba(15,23,42,.07),
+               0 8px 24px rgba(15,23,42,.10);
+  --highlight-top: inset 0 1px 0 rgba(255,255,255,.5);
+  --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.7);
   --inset-pressed: inset 0 1px 2px rgba(15,23,42,.08);
-  --r-md: 10px;
-  --r-lg: 16px;
-  --r-xl: 20px;
+  /* Radii — Fluent functional sizes, slightly more rounded on
+     mobile than desktop because thumb tap-targets benefit from
+     it but still tighter than the previous web-SaaS scale. */
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
   --tab-h: 68px;
   /* ── Blur for glass ─────────────────────────────────────── */
   --blur-sm: 6px;
   --blur-md: 14px;
   --blur-lg: 24px;
-  /* ── Transitions ────────────────────────────────────────── */
-  --t-fast: 150ms cubic-bezier(.4,0,.2,1);
-  --t-smooth: 200ms cubic-bezier(.4,0,.2,1);
-  --t-spring: 220ms cubic-bezier(.34,1.56,.64,1);
+  /* ── Transitions (Fluent — fast, functional) ───────────── */
+  --t-fast: 100ms cubic-bezier(.33,0,.67,1);
+  --t-smooth: 150ms cubic-bezier(.33,0,.67,1);
+  --t-spring: 200ms cubic-bezier(.34,1.4,.64,1);
 
   /* Spacing scale (8px grid · matches the dashboard's --s-* so the
      two surfaces speak the same spacing language). */
