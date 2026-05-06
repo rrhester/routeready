@@ -400,11 +400,11 @@ select.field{
 }
 .login-screen .brand-icon{
   width:64px;height:64px;border-radius:16px;
-  background:linear-gradient(135deg,#3FA0E5 0%,#0F6CBD 100%);
   display:inline-flex;align-items:center;justify-content:center;
-  color:#fff;font-size:var(--fs-xxl);font-weight:800;letter-spacing:-.02em;
-  box-shadow:0 6px 20px rgba(15,108,189,.35), inset 0 1px 0 rgba(255,255,255,.20);
+  box-shadow:0 6px 20px rgba(15,108,189,.35);
+  overflow:hidden;
 }
+.login-screen .brand-icon img{width:100%;height:100%;object-fit:cover;display:block}
 .login-screen .brand-name{font-size:var(--fs-xl);font-weight:700;letter-spacing:-.02em}
 .login-screen .brand-sub{font-size:var(--fs-md);color:var(--text-subtle)}
 .login-screen .form{margin-top:auto;padding-bottom:48px}
