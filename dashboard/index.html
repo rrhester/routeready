@@ -13,8 +13,8 @@
    ───────────────────────────────────────────────────────────── */
 :root{
   /* ── Surfaces ──────────────────────────────────────────────── */
-  --canvas:#D6E2F0;
-  --canvas-grad:linear-gradient(180deg, #D6E2F0 0%, #C8D7E8 100%);
+  --canvas:#F7F8FA;
+  --canvas-grad:none;
   --surface:#FFFFFF;
   --surface-elevated:#FFFFFF;
   --surface-grad:linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(252,253,255,1) 100%);
@@ -111,19 +111,7 @@ body{
   font-size:var(--fs-base);
   line-height:1.5;
   color:var(--text);
-  background-color:var(--canvas);
-  /* Paper-grain watermark + linear canvas gradient.
-     SVG fractalNoise (organic, non-repeating-feeling) tiled at 200px.
-     feColorMatrix alpha multiplier of 0.16 yields ~8% effective
-     visibility on average (fractal noise centers around 50% lightness,
-     so 0.5 × 0.16 ≈ 0.08).  background-attachment:fixed locks the
-     grain to the viewport. */
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1.0 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
-    var(--canvas-grad);
-  background-attachment:fixed, fixed;
-  background-repeat:repeat, no-repeat;
-  background-size:200px 200px, auto;
+  background:var(--canvas);
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
   font-feature-settings:"cv02","cv03","cv04","cv11";
@@ -16711,7 +16699,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507j"></script>
+<script type="module" src="./live.js?v=20260507k"></script>
 
 </body>
 </html>
