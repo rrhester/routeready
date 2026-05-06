@@ -5370,6 +5370,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <!-- AVAILABILITY REQUESTS SUB-VIEW -->
         <div class="dr-subview" id="dr-sub-availability">
 
+          <!-- KPI strip (filled by _renderAvailabilityKpis) -->
+          <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
+
           <!-- Coverage-by-day card · % of active drivers available each DOW -->
           <div id="rr-avail-coverage-card" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px">
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
@@ -5384,17 +5387,44 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             </div>
           </div>
 
+          <!-- Repeat-requesters insight (filled by _renderAvailabilityKpis) -->
+          <div data-rr-avail-repeats style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px"></div>
+
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
             <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:14px;font-weight:700">Pending availability requests</div>
                 <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Approvals stay in effect for 3 weeks from approval date.</div>
               </div>
+              <button id="rr-avail-settings-toggle" class="icon-btn" title="Availability settings" aria-label="Availability settings" style="background:none;border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;justify-content:center">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </button>
             </div>
             <div id="rr-avail-req-list">
               <div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
             </div>
           </div>
+
+          <!-- Settings drawer · opened by the gear icon above -->
+          <div id="rr-avail-settings-modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)document.getElementById('rr-avail-settings-modal').style.display='none'">
+            <div class="modal-card" style="max-width:680px;width:92vw;max-height:88vh;display:flex;flex-direction:column">
+              <div class="modal-head">
+                <div>
+                  <p class="modal-title">Availability settings</p>
+                  <p class="modal-sub">Lead time, auto-response templates, and blackout windows</p>
+                </div>
+                <button class="modal-close" onclick="document.getElementById('rr-avail-settings-modal').style.display='none'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div class="modal-body" style="overflow-y:auto">
+                <div style="font-size:13px;font-weight:700;margin-bottom:8px">Lead time &amp; auto-responses</div>
+                <div data-rr-avail-settings></div>
+                <div style="font-size:13px;font-weight:700;margin:18px 0 8px">Blackout dates</div>
+                <div style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">Drivers can't submit availability changes during these windows.</div>
+                <div data-rr-avail-blackouts></div>
+              </div>
+            </div>
+          </div>
+
         </div><!-- /dr-sub-availability -->
 
       </div>
@@ -16212,7 +16242,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260506i"></script>
+<script type="module" src="./live.js?v=20260506j"></script>
 
 </body>
 </html>
