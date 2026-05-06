@@ -6256,9 +6256,23 @@ function renderCoachingTab(coachings, driver) {
     const witness = c.witness_name
       ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Witness: <strong style="color:var(--text)">${escapeHtml(c.witness_name)}${c.witness_role ? ` (${escapeHtml(c.witness_role)})` : ""}</strong></div>`
       : "";
-    const coachLine = c.coached_by_name
-      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Coached by <strong style="color:var(--text)">${escapeHtml(c.coached_by_name)}</strong></div>`
-      : "";
+    // For auto-fired coachings the "coached by" name is the system
+    // user (e.g. RouteReady Support).  Operators want the delivery
+    // channel there instead — Driver app, SMS, or whichever route
+    // the auto-fire actually used.  Manual coachings still show the
+    // operator's name.
+    const md = c.metadata || {};
+    const isAuto = md.source === "attendance_decide" || md.auto === true;
+    const channel = md.channel
+      || (md.auto_message_pending === false && md.auto_notify_pending ? "Notification"
+        : md.auto_message_pending ? "Driver app"
+        : md.auto ? "Driver app"      // existing auto path inserts a chat message
+        : null);
+    const coachLine = isAuto
+      ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Auto-coached · <strong style="color:var(--text)">${escapeHtml(channel || "Driver app")}</strong></div>`
+      : (c.coached_by_name
+        ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Coached by <strong style="color:var(--text)">${escapeHtml(c.coached_by_name)}</strong></div>`
+        : "");
     return `
     <div class="dd-list-row" data-rr-coaching-id="${c.id}" style="display:block;padding:12px 14px">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
@@ -6285,9 +6299,12 @@ function renderCoachingTab(coachings, driver) {
   const linkBtn = token
     ? `<button class="btn btn-sm" data-rr-coach-copy-link="${escapeHtml(base.replace(/\/$/, ""))}/dashboard/coaching.html?t=${encodeURIComponent(token)}" style="margin-left:8px">Copy driver link</button>`
     : "";
+  // Drop the "+ Log coaching" button on a driver's coaching record —
+  // operators log new coachings from the global Coaching feed and
+  // from the daily-attendance approve flow.  The driver record is a
+  // read + acknowledge view, not a re-entry point.
   return `
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-      <button class="btn btn-primary" data-rr-add-coaching>+ Log coaching</button>
       ${linkBtn}
     </div>
     <div>${list || `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">No coachings logged yet.</div>`}</div>`;
