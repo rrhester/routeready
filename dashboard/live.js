@@ -7178,7 +7178,46 @@ async function loadAvailabilityRequests() {
   _renderAvailabilityKpis(kpiRes.data || {}, _availRequestsCache);
   _renderAvailabilityBlackouts(blackRes.data || []);
   _renderAvailabilitySettingsPanel(setRes.data || {});
+  _renderAvailabilityCoverageCard();
   _renderAvailabilityRows();
+}
+
+// Coverage-by-day card · live read of active driver availability.
+function _renderAvailabilityCoverageCard() {
+  const bars = document.getElementById("rr-avail-coverage-bars");
+  const sub  = document.getElementById("rr-avail-coverage-sub");
+  if (!bars || !_availImpactCtx) return;
+
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const total = _availImpactCtx.totalActive;
+
+  if (total === 0) {
+    bars.innerHTML = `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet — add drivers to see coverage.</div>`;
+    if (sub) sub.textContent = "";
+    return;
+  }
+
+  if (sub) sub.textContent = `${total} active driver${total === 1 ? "" : "s"}`;
+
+  // Render seven rows: day label · neutral bar · count · pct.
+  // Bars are filled in muted text-muted so the page stays neutral
+  // (no stoplight tints).  The pct number is the operator's quick
+  // read; counts (4/8) carry the absolute supply for context.
+  bars.innerHTML = DOW.map(d => {
+    const supply = _availImpactCtx.supplyByDow[d] || 0;
+    const peak   = _availImpactCtx.demandByDow[d] || 0;
+    const pct    = total > 0 ? Math.round((supply / total) * 100) : 0;
+    return `
+      <div style="display:grid;grid-template-columns:48px 1fr 90px 110px;align-items:center;gap:12px;padding:6px 0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[d]}</div>
+        <div style="background:var(--canvas);height:10px;border-radius:5px;overflow:hidden">
+          <div style="background:var(--text-muted);height:100%;width:${pct}%;transition:width .3s"></div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
+        <div style="font-size:11px;color:var(--text-subtle);text-align:right;font-variant-numeric:tabular-nums">${supply}/${total}${peak > 0 ? ` · peak ${peak}` : ""}</div>
+      </div>`;
+  }).join("");
 }
 
 // Pre-compute per-DOW supply (drivers available) + peak demand
@@ -7499,23 +7538,35 @@ function _renderAvailabilityRows() {
       : `<div style="font-size:11px;color:var(--text-subtle)">—</div>`;
 
     // Impact panel — only on pending rows where the request actually
-    // changes the schedule.  Walks dropped + added days against the
-    // pre-computed supply / OKAMI peak-demand context so the
-    // dispatcher can see "approving this leaves 7 drivers Mon vs.
-    // peak demand 9" without having to leave the page.
+    // changes the schedule.  Shows the day-level % change in coverage
+    // if approved, paired with the absolute supply count.  Reads from
+    // the same supply/demand context used by the Coverage card above.
     let impactBlock = "";
     if (isPending && !same) {
       const im = _availImpactFor(r);
       if (im && (im.drops.length || im.adds.length)) {
+        const total = _availImpactCtx?.totalActive || 0;
+        const pctOf = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
         const tightAny = im.drops.some(d => d.tight);
-        const dropChips = im.drops.map(d => `
-          <span style="display:inline-flex;align-items:center;gap:4px;background:${d.tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${d.tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${d.tight ? "var(--red)" : "var(--text-muted)"};padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600">
-            −${escapeHtml(d.label)} · <span style="font-weight:500">${d.after}/${d.peak || "—"}</span>
-          </span>`).join("");
-        const addChips = im.adds.map(a => `
-          <span style="display:inline-flex;align-items:center;gap:4px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600">
-            +${escapeHtml(a.label)} · <span style="font-weight:500">${a.after}/${a.peak || "—"}</span>
-          </span>`).join("");
+        const arrow = (before, after) => {
+          if (before === after) return `${pctOf(before)}%`;
+          return `${pctOf(before)}% → <strong>${pctOf(after)}%</strong>`;
+        };
+        const dropChips = im.drops.map(d => {
+          const before = (d.after + 1); // pre-change supply
+          const tight  = d.tight;
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600">
+            <span>−${escapeHtml(d.label)}</span>
+            <span style="font-weight:500">${arrow(before, d.after)}</span>
+          </span>`;
+        }).join("");
+        const addChips = im.adds.map(a => {
+          const before = (a.after - 1);
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600">
+            <span>+${escapeHtml(a.label)}</span>
+            <span style="font-weight:500">${arrow(before, a.after)}</span>
+          </span>`;
+        }).join("");
         const verdict = tightAny
           ? `<span style="color:var(--red);font-weight:600">Coverage tight</span> — at least one dropped day would fall below peak demand.  Reach out before approving.`
           : (im.drops.length === 0
@@ -7523,7 +7574,7 @@ function _renderAvailabilityRows() {
               : `Coverage holds — every dropped day still has enough drivers for peak demand.`);
         impactBlock = `
           <div style="grid-column:1/-1;margin-top:10px;padding:10px 12px;background:var(--canvas);border-radius:8px;border:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">If approved · supply / peak demand</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">If approved · coverage shift</div>
             ${(dropChips || addChips) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${dropChips}${addChips}</div>` : ""}
             <div style="font-size:11px;color:var(--text-subtle);line-height:1.5">${verdict}</div>
           </div>`;
