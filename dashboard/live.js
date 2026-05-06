@@ -7738,6 +7738,70 @@ async function loadAvailabilityRequests() {
   _renderAvailabilityRows();
 }
 
+// Pre-compute per-DOW supply (drivers available) + peak demand
+// (max routes that day across the next 4 weeks) once per page load.
+// Ignores the requester's current availability — the row renderer
+// applies the "what if" math on top of this baseline.  Was lost in
+// the same merge that dropped _renderAvailabilityShell — without
+// these the loadAvailabilityRequests continuation throws a
+// ReferenceError, and that broke the goto chain (clicking Schedule
+// would briefly render then snap back to whichever view was active
+// before the click).
+let _availImpactCtx = null;
+function _buildAvailImpactCtx(drivers, okamiGrid) {
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const supplyByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  const totalActive = drivers.length;
+  for (const d of drivers) {
+    const days = d.metadata?.availability?.days;
+    if (!Array.isArray(days)) continue;
+    for (const dow of days) {
+      if (supplyByDow[dow] !== undefined) supplyByDow[dow] += 1;
+    }
+  }
+  const demandByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  const JS_DOW = { 0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat" };
+  for (const cell of (okamiGrid || [])) {
+    if (!cell?.date) continue;
+    const dow = JS_DOW[new Date(cell.date + "T12:00:00").getDay()];
+    const routes = Number(cell.routes_planned ?? cell.routes ?? 0);
+    if (routes > demandByDow[dow]) demandByDow[dow] = routes;
+  }
+  return { supplyByDow, demandByDow, totalActive };
+}
+
+function _availImpactFor(req) {
+  if (!_availImpactCtx) return null;
+  const cur = new Set(req.current_days || []);
+  const next = new Set(req.days || []);
+  const drops = [...cur].filter(d => !next.has(d));
+  const adds  = [...next].filter(d => !cur.has(d));
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const supply = _availImpactCtx.supplyByDow;
+  const demand = _availImpactCtx.demandByDow;
+
+  // Driver themselves is already counted in `supply` (they're active),
+  // so subtract 1 to model the after-change state.
+  const dropImpact = drops.map(d => {
+    const after = (supply[d] || 0) - 1;
+    const peak  = demand[d] || 0;
+    return {
+      day:    d,
+      label:  DOW_LABEL[d] || d,
+      after,
+      peak,
+      tight:  peak > 0 && after < peak,
+    };
+  });
+  const addImpact = adds.map(d => ({
+    day:   d,
+    label: DOW_LABEL[d] || d,
+    after: (supply[d] || 0) + 1,
+    peak:  demand[d] || 0,
+  }));
+  return { drops: dropImpact, adds: addImpact };
+}
+
 // Coverage-by-day card · live read of active driver availability.
 function _renderAvailabilityCoverageCard() {
   const bars = document.getElementById("rr-avail-coverage-bars");
