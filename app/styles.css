@@ -215,6 +215,29 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 .status-dot-error,
 .status-dot-danger{background:var(--red)}
 .status-dot-info{background:var(--accent)}
+
+/* Origin badge — automated vs manually-fired indicator (same as
+   dashboard's .origin-badge).  Used wherever a driver-side surface
+   shows a coaching / message / action that came from the system
+   vs from a person. */
+.origin-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:var(--fs-xs);font-weight:600;line-height:1.5;
+  padding:1px 7px;border-radius:8px;
+  background:var(--canvas);color:var(--text-subtle);
+  border:1px solid var(--border);
+  white-space:nowrap;
+}
+.origin-badge svg{width:11px;height:11px;stroke-width:2;flex-shrink:0}
+.origin-badge.origin-auto{
+  background:var(--accent-soft);color:var(--accent);border-color:transparent;
+}
+.origin-badge.origin-manual{
+  background:var(--canvas);color:var(--text-muted);border-color:var(--border);
+}
+.origin-badge.origin-override{
+  background:rgba(180,83,9,.12);color:var(--amber);border-color:transparent;
+}
 .card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:14px 16px;margin-bottom:12px;
