@@ -49,6 +49,25 @@
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px;
   --s-5:20px; --s-6:24px; --s-8:32px; --s-10:40px;
 
+  /* Type scale — canonical 7-step scale.  Use these instead of
+     hard-coded font-size values so the typographic rhythm stays
+     consistent.  Stale font-size literals throughout the codebase
+     migrate over time; new code should use var(--fs-*).
+       --fs-xs   eyebrow / micro label / table column header
+       --fs-sm   caption / sub copy / metadata
+       --fs-md   secondary body / list item
+       --fs-base body / default UI text
+       --fs-lg   section title / card heading / modal title
+       --fs-xl   large heading
+       --fs-xxl  page title / hero stat */
+  --fs-xs:11px;
+  --fs-sm:12px;
+  --fs-md:13px;
+  --fs-base:14px;
+  --fs-lg:16px;
+  --fs-xl:22px;
+  --fs-xxl:24px;
+
   /* Radii */
   --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px;
 
@@ -80,7 +99,7 @@ a{color:inherit;text-decoration:none}
 .rr-loading{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:var(--s-3);padding:var(--s-8) var(--s-4);
-  color:var(--text-subtle);font-size:13px;line-height:1.4;
+  color:var(--text-subtle);font-size:var(--fs-md);line-height:1.4;
 }
 .rr-loading::before{
   content:"";display:block;width:18px;height:18px;
@@ -99,8 +118,8 @@ a{color:inherit;text-decoration:none}
   margin-bottom:var(--s-2);
 }
 .rr-empty-icon svg{width:18px;height:18px;stroke-width:1.8;color:var(--text-subtle)}
-.rr-empty-title{font-size:14px;font-weight:600;color:var(--text);line-height:1.3}
-.rr-empty-sub{font-size:12px;color:var(--text-subtle);max-width:38ch;line-height:1.5}
+.rr-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3}
+.rr-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:38ch;line-height:1.5}
 .rr-empty-action{margin-top:var(--s-3)}
 /* Compact inline variant — for short "No X yet" placeholders inside
    tables, sub-cards, or lists where the rich rr-empty would be too
@@ -108,7 +127,7 @@ a{color:inherit;text-decoration:none}
 .rr-empty-inline{
   padding:var(--s-4) var(--s-4);
   text-align:center;color:var(--text-subtle);
-  font-size:12px;line-height:1.5;
+  font-size:var(--fs-sm);line-height:1.5;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -210,8 +229,8 @@ a{color:inherit;text-decoration:none}
 /* Page */
 .page{padding:var(--s-8) var(--s-8)}
 .page-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-6);gap:var(--s-4)}
-.page-title{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:0 0 4px 0}
-.page-sub{font-size:13px;color:var(--text-muted);margin:0}
+.page-title{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:0 0 4px 0}
+.page-sub{font-size:var(--fs-md);color:var(--text-muted);margin:0}
 .page-actions{display:flex;gap:var(--s-2);align-items:center}
 
 /* Buttons */
@@ -237,13 +256,13 @@ a{color:inherit;text-decoration:none}
   padding:var(--s-5);
 }
 .kpi-label{
-  font-size:11px;font-weight:600;color:var(--text-muted);
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
   letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px;
   display:flex;align-items:center;gap:6px;
 }
-.kpi-value{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--text)}
-.kpi-value-fraction{font-size:14px;color:var(--text-subtle);font-weight:500;margin-left:2px}
-.kpi-sub{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text-muted)}
+.kpi-value{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--text)}
+.kpi-value-fraction{font-size:var(--fs-base);color:var(--text-subtle);font-weight:500;margin-left:2px}
+.kpi-sub{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:var(--fs-sm);color:var(--text-muted)}
 .kpi-pip{width:8px;height:8px;border-radius:50%;display:inline-block}
 .kpi-pip.green{background:var(--green)}
 .kpi-pip.amber{background:var(--amber)}
@@ -1339,8 +1358,8 @@ a{color:inherit;text-decoration:none}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes modalUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-head{padding:var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start}
-.modal-title{font-size:15px;font-weight:600;margin:0 0 2px 0}
-.modal-sub{font-size:12px;color:var(--text-muted);margin:0}
+.modal-title{font-size:var(--fs-lg);font-weight:600;margin:0 0 2px 0}
+.modal-sub{font-size:var(--fs-sm);color:var(--text-muted);margin:0}
 .modal-close{
   width:28px;height:28px;border-radius:6px;background:transparent;border:none;
   color:var(--text-subtle);display:flex;align-items:center;justify-content:center;cursor:pointer;
@@ -16282,7 +16301,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260506l"></script>
+<script type="module" src="./live.js?v=20260506m"></script>
 
 </body>
 </html>
