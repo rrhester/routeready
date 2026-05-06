@@ -6820,16 +6820,14 @@ function openChannelCreateModal() {
       </div>
       <div class="modal-body">
         <label class="modal-field-label" for="rr-cc-new-name">Name</label>
-        <input id="rr-cc-new-name" required maxlength="80" placeholder="morning-wave"
-               style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
+        <input id="rr-cc-new-name" class="form-input form-input-block" required maxlength="80" placeholder="morning-wave">
         <label class="modal-field-label" for="rr-cc-new-desc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)">(optional)</span></label>
-        <input id="rr-cc-new-desc" maxlength="280" placeholder="What this channel is for"
-               style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
+        <input id="rr-cc-new-desc" class="form-input form-input-block" maxlength="280" placeholder="What this channel is for">
         <label class="modal-field-label" for="rr-cc-new-station">Station scope</label>
-        <select id="rr-cc-new-station" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
+        <select id="rr-cc-new-station" class="form-input form-input-block">
           <option value="">All stations · DSP-wide</option>
         </select>
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:-6px">Drivers at this station auto-join. Leave blank to add members manually.</span>
+        <span class="form-help">Drivers at this station auto-join. Leave blank to add members manually.</span>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn" id="rr-cc-new-cancel">Cancel</button>
@@ -6888,7 +6886,7 @@ async function openChannelMembersModal(channelId) {
       </div>
       <div class="modal-body" style="overflow-y:auto;min-height:0">
         <div style="display:flex;gap:var(--s-2)">
-          <select id="rr-cc-mem-add-driver" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-md)">
+          <select id="rr-cc-mem-add-driver" class="form-input form-input-block">
             <option value="">Add a driver…</option>
           </select>
           <button type="button" class="btn btn-primary" id="rr-cc-mem-add-btn">Add</button>
