@@ -265,14 +265,20 @@ async function refreshDriverProfile(session, { force } = {}) {
     const cur = readSession();
     if (!cur) return;
     const dspName = data.dsp_name || cur.dsp_name || "";
+    const dspId   = data.dsp_id   || cur.dsp_id   || null;
+    const drvId   = data.id       || cur.driver_id || null;
     if ((cur.photo_url || null) === (photoUrl || null) &&
         (cur.name || "")        === (data.name || "") &&
-        (cur.dsp_name || "")    === dspName) return;
+        (cur.dsp_name || "")    === dspName &&
+        (cur.dsp_id || null)    === dspId &&
+        (cur.driver_id || null) === drvId) return;
     writeSession({ ...cur,
       name:       data.name || cur.name,
       photo_url:  photoUrl,
       photo_path: data.photo_path,
       dsp_name:   dspName,
+      dsp_id:     dspId,
+      driver_id:  drvId,
     });
     // Re-render so the header brand picks up the new dsp_name and the
     // Profile screen shows a freshly-uploaded photo.
@@ -334,6 +340,7 @@ function renderLogin(errorMsg) {
     const newSession = {
       token:      data.token,
       driver_id:  data.driver?.id || null,
+      dsp_id:     data.driver?.dsp_id || data.dsp?.id || null,
       name:       data.driver?.name || "Driver",
       station_id: data.driver?.station_id || null,
       dsp_name:   data.driver?.dsp_name || data.dsp?.name || "",
@@ -628,11 +635,27 @@ async function renderChat() {
 
     let attachment = null;
     if (file) {
+      // dsp_id and driver_id need to land on the session for the
+      // server-side path validation to accept the upload.  Existing
+      // logins from before that change don't carry them yet — fetch
+      // driver_me on the fly to backfill, then save the session so
+      // future sends are quick.
+      let dspId    = session.dsp_id;
+      let driverId = session.driver_id;
+      if (!dspId || !driverId) {
+        const { data: me, error: meErr } = await sb.rpc("driver_me", { p_token: session.token });
+        if (meErr || !me) { toast("Couldn't load profile", "warn"); return; }
+        dspId    = me.dsp_id    || dspId;
+        driverId = me.id        || driverId;
+        const cur = readSession();
+        if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+      }
+      if (!dspId || !driverId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
+
       const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || `file.${ext}`;
       // Path layout: <dsp_id>/<driver_id>/<ts>-<safe-filename>
-      const dspId = session.dsp_id || "unknown";
-      const path  = `${dspId}/${session.driver_id || "driver"}/${Date.now()}-${safe}`;
+      const path = `${dspId}/${driverId}/${Date.now()}-${safe}`;
       const { error: upErr } = await sb.storage
         .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
       if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
