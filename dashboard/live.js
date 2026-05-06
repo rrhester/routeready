@@ -7220,6 +7220,19 @@ function _renderAvailabilityCoverageCard() {
   }).join("");
 }
 
+function _renderAvailabilityRows() {
+  const wrap = document.getElementById("rr-avail-req-list");
+  if (!wrap) return;
+
+  // Reflect active sort.
+  document.querySelectorAll("[data-rr-sort]").forEach(b => {
+    b.classList.toggle("active", b.dataset.rrSort === _availSortKey);
+    if (b.dataset.rrSort === _availSortKey) b.textContent = b.dataset.rrSort + (_availSortDir === "asc" ? " ↑" : " ↓");
+    else b.textContent = b.dataset.rrSort;
+  });
+
+  if (_availRequestsCache.length === 0) {
+    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No availability requests.</div>`;
     let impactBlock = "";
     if (isPending && !same) {
       const im = _availImpactFor(r);
