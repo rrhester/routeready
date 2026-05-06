@@ -761,7 +761,7 @@ async function refreshChat(scrollToBottom) {
 
   // Mark-read whenever there's at least one dispatch message
   if (messages.some((m) => m.sender_kind === "dispatch")) {
-    sb.rpc("driver_chat_mark_read", { p_token: session.token }).catch(() => {});
+    sb.rpc("driver_chat_mark_read", { p_token: session.token }).then(undefined, () => {});
   }
 }
 

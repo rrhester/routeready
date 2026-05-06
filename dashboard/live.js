@@ -6304,7 +6304,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   }
   if (scrollToBottom) thread.scrollTop = thread.scrollHeight;
   if (msgs.some((m) => m.sender_kind === "driver")) {
-    sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).catch(() => {});
+    sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).then(undefined, () => {});
   }
 }
 
@@ -6636,7 +6636,7 @@ async function refreshChannelThread(scrollToBottom) {
     setTimeout(() => _rrMcSignAttachments(), 0);
   }
   if (scrollToBottom) thread.scrollTop = thread.scrollHeight;
-  sb.rpc("dispatch_channel_mark_read", { p_channel_id: channelId }).catch(() => {});
+  sb.rpc("dispatch_channel_mark_read", { p_channel_id: channelId }).then(undefined, () => {});
 }
 
 // Channel head buttons (Members, Archive) — single delegate.
@@ -7609,6 +7609,83 @@ function _fmtRel(iso) {
 let _availRequestsCache = [];
 let _availSortKey = "default"; // default | driver | station | submitted | status
 let _availSortDir = "asc";     // asc | desc
+
+// Build the KPI strip + management panels + sortable header inside
+// the Drivers → Availability sub-view.  Idempotent — the dataset flag
+// keeps re-renders from stacking shells.  Was lost in an earlier
+// merge, which made loadAvailabilityRequests crash with a
+// ReferenceError every time it ran (Drivers nav, Schedule nav via
+// the goto chain, etc.) — and that exception broke the goto chain
+// mid-cascade, leaving the operator on whichever view was active
+// before the click.
+function _renderAvailabilityShell() {
+  const host = document.getElementById("dr-sub-availability");
+  if (!host) return;
+  if (host.dataset.rrShell === "1") return;
+  host.dataset.rrShell = "1";
+
+  const card = host.querySelector(":scope > div");
+  if (!card) return;
+
+  card.insertAdjacentHTML("beforebegin", `
+    <div id="rr-avail-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
+    <div id="rr-avail-insights" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px"></div>
+    <details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
+      <summary style="cursor:pointer;padding:12px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between">
+        <span>Settings · lead time &amp; auto-response templates</span>
+        <span style="font-size:11px;color:var(--text-subtle);font-weight:400">Click to expand</span>
+      </summary>
+      <div id="rr-avail-settings" style="padding:0 18px 18px"></div>
+    </details>
+    <details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
+      <summary style="cursor:pointer;padding:12px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between">
+        <span>Blackout dates · drivers can't submit during these windows</span>
+        <span style="font-size:11px;color:var(--text-subtle);font-weight:400">Click to expand</span>
+      </summary>
+      <div id="rr-avail-blackouts" style="padding:0 18px 18px"></div>
+    </details>
+  `);
+
+  const list = document.getElementById("rr-avail-req-list");
+  if (list) {
+    list.insertAdjacentHTML("beforebegin", `
+      <div id="rr-avail-sortbar" style="display:grid;grid-template-columns:220px 1fr auto;gap:16px;padding:10px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;background:var(--canvas)">
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="avail-sort-btn" data-rr-sort="driver">Driver</button>
+          <button class="avail-sort-btn" data-rr-sort="station">Station</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="avail-sort-btn" data-rr-sort="submitted">Submitted</button>
+          <button class="avail-sort-btn" data-rr-sort="status">Status</button>
+        </div>
+        <div></div>
+      </div>
+    `);
+    if (!document.getElementById("rr-avail-sort-style")) {
+      const st = document.createElement("style");
+      st.id = "rr-avail-sort-style";
+      st.textContent = `
+        .avail-sort-btn{font:inherit;text-transform:inherit;letter-spacing:inherit;
+          color:var(--text-subtle);background:none;border:0;padding:2px 4px;border-radius:4px;cursor:pointer}
+        .avail-sort-btn:hover{color:var(--text)}
+        .avail-sort-btn.active{color:var(--accent);background:var(--accent-soft)}
+      `;
+      document.head.appendChild(st);
+    }
+    document.getElementById("rr-avail-sortbar").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-rr-sort]");
+      if (!btn) return;
+      const k = btn.dataset.rrSort;
+      if (_availSortKey === k) {
+        _availSortDir = _availSortDir === "asc" ? "desc" : "asc";
+      } else {
+        _availSortKey = k;
+        _availSortDir = "asc";
+      }
+      _renderAvailabilityRows();
+    });
+  }
+}
 
 async function loadAvailabilityRequests() {
   const wrap = document.getElementById("rr-avail-req-list");
