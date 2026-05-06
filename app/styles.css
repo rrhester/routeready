@@ -5,16 +5,7 @@
 :root{
   /* ── Surfaces (mobile material) ─────────────────────────── */
   --bg: #EDF1F7;
-  /* Watermark depth layer baked into the background gradient so we
-     don't pay for filter:blur on iOS PWA compositing.  Two ultra-soft
-     asymmetric radial shapes (top-right cool, lower-left warm slate)
-     with very wide falloffs read as dissolved blur; sub-perceptual
-     opacity (4.5% / 4%) — invisible but kills the digital-flat feel. */
-  --bg-grad:
-    radial-gradient(ellipse 820px 620px at 92% 4%,  rgba(20,110,180,.045) 0%, transparent 70%),
-    radial-gradient(ellipse 900px 720px at 4%  82%, rgba(15,23,42,.040)   0%, transparent 70%),
-    radial-gradient(ellipse 540px 480px at 60% 110%, rgba(99,102,241,.030) 0%, transparent 70%),
-    linear-gradient(180deg, #EDF1F7 0%, #E6EBF3 100%);
+  --bg-grad: linear-gradient(180deg, #EDF1F7 0%, #E6EBF3 100%);
   --surface: #FFFFFF;
   --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FBFCFE 100%);
   --canvas: #F1F4F8;
@@ -88,10 +79,7 @@
 @media (prefers-color-scheme: dark){
   :root{
     --bg: #0A0F1C;
-    --bg-grad:
-      radial-gradient(ellipse 820px 620px at 92% 4%,  rgba(63,146,217,.07) 0%, transparent 70%),
-      radial-gradient(ellipse 900px 720px at 4%  82%, rgba(255,255,255,.025) 0%, transparent 70%),
-      linear-gradient(180deg, #0E1525 0%, #080D18 100%);
+    --bg-grad: linear-gradient(180deg, #0E1525 0%, #080D18 100%);
     --surface: #131A2C;
     --surface-grad: linear-gradient(180deg, #161E33 0%, #131A2C 100%);
     --canvas: #0E1424;
@@ -162,30 +150,10 @@ a{color:var(--accent);text-decoration:none}
   height:100dvh;
   background:var(--bg);
   background-image:var(--bg-grad);
-  isolation:isolate;
   /* Don't add safe-area-inset padding here — the header pushes itself
      down with its own padding instead, so it stays as the only thing
      under the iPhone notch. */
 }
-/* Micro-grain on the driver app — same SVG fractal noise as the
-   dashboard, ~2% opacity, multiply blend.  Sub-perceptual; removes
-   the plasticky feel from the cool-blue surface fields under
-   outdoor light. */
-#app::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:0;
-  pointer-events:none;
-  opacity:.022;
-  mix-blend-mode:multiply;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size:220px 220px;
-}
-/* Lift content above the noise overlay without disturbing the
-   fixed-position layout (.app-head/.tabbar already have z-index 10/20;
-   main needs to clear the ::after layer). */
-main{ z-index:1 }
 
 /* ── Header (floating glass top bar) ──────────────────────── */
 .app-head{
