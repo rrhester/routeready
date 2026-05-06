@@ -306,18 +306,7 @@ function renderLogin(errorMsg) {
     <div class="login-screen">
       <div class="brand">
         <div class="brand-icon">
-          <svg viewBox="0 0 24 24" width="32" height="32" fill="none">
-            <defs>
-              <mask id="rr-login-r-cut">
-                <rect width="24" height="24" fill="#fff"/>
-                <text x="12" y="14.4" text-anchor="middle"
-                      font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-                      font-size="10" font-weight="900" fill="#000">R</text>
-              </mask>
-            </defs>
-            <path d="M12 3.5 C7.86 3.5 4.5 6.74 4.5 10.75 C4.5 13 6 15.5 8.5 17.5 L12 20 L15.5 17.5 C18 15.5 19.5 13 19.5 10.75 C19.5 6.74 16.14 3.5 12 3.5 Z"
-                  fill="#fff" mask="url(#rr-login-r-cut)"/>
-          </svg>
+          <img src="Icon.png" alt="RouteReady">
         </div>
       </div>
       <form class="form" id="login-form">
