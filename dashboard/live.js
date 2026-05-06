@@ -6632,7 +6632,7 @@ async function openCoachingForm(driverId) {
           </select>
         </div>
         <div>
-          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Severity</label>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px" id="rr-coach-severity-label">Severity</label>
           <select id="rr-coach-severity" class="form-input" style="width:100%">
             <option value="info">Info</option>
             <option value="concern" selected>Concern</option>
@@ -6648,7 +6648,7 @@ async function openCoachingForm(driverId) {
       <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Notes</label>
       <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:80px;margin-bottom:14px" placeholder="What happened, what was discussed, what's next."></textarea>
 
-      <button type="button" id="rr-coach-more-toggle" style="font-size:12px;font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;margin-bottom:14px">+ More options (type, action, witness, follow-up, attachments)</button>
+      <button type="button" id="rr-coach-more-toggle" style="font-size:12px;font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;margin-bottom:14px">+ More options (type, witness, attachments)</button>
 
       <div id="rr-coach-more" style="display:none">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -6664,16 +6664,6 @@ async function openCoachingForm(driverId) {
           </div>
         </div>
 
-        <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Action taken</label>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 12px;margin-bottom:12px;font-size:13px">
-          <label><input type="checkbox" data-rr-coach-action="verbal" checked/> Verbal</label>
-          <label><input type="checkbox" data-rr-coach-action="written"/> Written</label>
-          <label><input type="checkbox" data-rr-coach-action="retraining"/> Retraining</label>
-          <label><input type="checkbox" data-rr-coach-action="route_change"/> Route change</label>
-          <label><input type="checkbox" data-rr-coach-action="suspension"/> Suspension</label>
-          <label><input type="checkbox" data-rr-coach-action="no_action"/> No action</label>
-        </div>
-
         <details style="margin-bottom:10px">
           <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
@@ -6682,9 +6672,13 @@ async function openCoachingForm(driverId) {
           </div>
         </details>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:center">
-          <label style="font-size:13px;cursor:pointer">
-            <input id="rr-coach-driver-visible" type="checkbox"/> Driver can view this
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:start">
+          <label style="font-size:13px;cursor:pointer;display:flex;align-items:flex-start;gap:8px">
+            <input id="rr-coach-driver-visible" type="checkbox" style="margin-top:3px"/>
+            <span>
+              <strong>Driver can view this</strong>
+              <div style="font-size:11px;color:var(--text-subtle);font-weight:400;margin-top:2px;line-height:1.4">When ON, the coaching shows up on the driver's record in their RouteReady app and the driver is asked to acknowledge it (tap to sign).  When OFF, the coaching is logged on your side only — useful for sensitive notes or when you've already coached in person and don't want to re-notify.</div>
+            </span>
           </label>
           <div>
             <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Privacy</label>
@@ -6694,9 +6688,6 @@ async function openCoachingForm(driverId) {
             </select>
           </div>
         </div>
-
-        <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Follow-up date (optional)</label>
-        <input id="rr-coach-followup" type="date" class="form-input" style="width:100%;margin-bottom:14px"/>
 
         <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attachments (photos, scorecard screenshots, signed forms)</label>
         <input id="rr-coach-files" type="file" multiple style="margin-bottom:14px;font-size:12px"/>
@@ -6721,9 +6712,43 @@ async function openCoachingForm(driverId) {
       tg.textContent = "− Hide options";
     } else {
       more.style.display = "none";
-      tg.textContent = "+ More options (type, action, witness, follow-up, attachments)";
+      tg.textContent = "+ More options (type, witness, attachments)";
     }
   });
+
+  // Severity options swap when Topic = attendance.  Use the
+  // progressive-coaching ladder (Verbal → Written → Final →
+  // Termination) instead of generic Info / Concern / Warning / Final
+  // so attendance write-ups match the policy builder's vocabulary.
+  const SEV_DEFAULT = [
+    { v: "info",    l: "Info" },
+    { v: "concern", l: "Concern", selected: true },
+    { v: "warning", l: "Warning" },
+    { v: "final",   l: "Final" },
+  ];
+  const SEV_ATTENDANCE = [
+    { v: "verbal",       l: "Verbal warning", selected: true },
+    { v: "written",      l: "Written warning" },
+    { v: "final",        l: "Final written warning" },
+    { v: "termination",  l: "Termination" },
+  ];
+  const _renderSeverityFor = (topic) => {
+    const sev = m.querySelector("#rr-coach-severity");
+    const lbl = m.querySelector("#rr-coach-severity-label");
+    if (!sev) return;
+    const list = topic === "attendance" ? SEV_ATTENDANCE : SEV_DEFAULT;
+    const prev = sev.value;
+    sev.innerHTML = list.map(o =>
+      `<option value="${o.v}"${o.selected ? " selected" : ""}>${escapeHtml(o.l)}</option>`
+    ).join("");
+    if (list.some(o => o.v === prev)) sev.value = prev;
+    if (lbl) lbl.textContent = topic === "attendance" ? "Coaching level" : "Severity";
+  };
+  m.querySelector("#rr-coach-topic").addEventListener("change", (e) => {
+    _renderSeverityFor(e.target.value);
+  });
+  // Initial render — topic dropdown defaults to "safety".
+  _renderSeverityFor(m.querySelector("#rr-coach-topic").value);
 
   // Cmd/Ctrl + Enter saves.
   m.addEventListener("keydown", (e) => {
@@ -6748,29 +6773,20 @@ async function openCoachingForm(driverId) {
     if (e.target.closest("[data-rr-coach-cancel]") || e.target === m) { m.remove(); return; }
     if (!e.target.closest("[data-rr-coach-save]")) return;
 
-    const action_taken = {};
-    m.querySelectorAll("[data-rr-coach-action]").forEach(cb => {
-      action_taken[cb.getAttribute("data-rr-coach-action")] = cb.checked;
-    });
-
     const payload = {
       dsp_id:        window.RR.dsp.id,
       driver_id:     driverId,
       coach_user_id: window.RR.user.id,
       topic:         document.getElementById("rr-coach-topic").value,
-      type:          document.getElementById("rr-coach-type").value,
+      type:          document.getElementById("rr-coach-type")?.value || "in_person",
       severity:      document.getElementById("rr-coach-severity").value,
       summary:       document.getElementById("rr-coach-summary").value.trim() || null,
       notes:         document.getElementById("rr-coach-notes").value.trim() || null,
-      incident_date: document.getElementById("rr-coach-incident-date").value || null,
-      action_taken,
-      witness_name:  document.getElementById("rr-coach-witness-name").value.trim() || null,
-      witness_role:  document.getElementById("rr-coach-witness-role").value.trim() || null,
-      driver_visible: !!document.getElementById("rr-coach-driver-visible").checked,
-      privacy_tier:   document.getElementById("rr-coach-privacy").value,
-      follow_up_at:   document.getElementById("rr-coach-followup").value
-                        ? new Date(document.getElementById("rr-coach-followup").value).toISOString()
-                        : null,
+      incident_date: document.getElementById("rr-coach-incident-date")?.value || null,
+      witness_name:  document.getElementById("rr-coach-witness-name")?.value.trim() || null,
+      witness_role:  document.getElementById("rr-coach-witness-role")?.value.trim() || null,
+      driver_visible: !!document.getElementById("rr-coach-driver-visible")?.checked,
+      privacy_tier:   document.getElementById("rr-coach-privacy")?.value || "standard",
     };
     if (!payload.summary && !payload.notes) { toast("Add a summary or notes", "warn"); return; }
 
