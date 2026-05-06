@@ -6324,6 +6324,485 @@ async function _rrMcSignAttachments() {
   }
 }
 
+
+// ─── Channels (group rooms) ──────────────────────────────────────────────
+// Driver-to-driver group messaging with dispatcher oversight.  Channels
+// can be tied to a station_id; drivers at that station auto-join via
+// the trigger in migration 0073.  Dispatchers see every channel in
+// their DSP and can post / manage members from this same Messages view.
+let _msgInboxMode        = "direct"; // "direct" | "channels"
+let _msgChannelList      = [];
+let _msgChannelSelectedId = null;
+let _msgChannelListTimer  = null;
+let _msgChannelThreadTimer = null;
+
+// Override the static msgListTab handler so clicking Channels actually
+// loads channel data.  All / Direct / Broadcasts still fall through to
+// the existing driver-chat list for now.
+window.msgListTab = function (btn) {
+  document.querySelectorAll(".msg-list-tab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  const label = (btn.textContent || "").trim().toLowerCase();
+  const mode = label === "channels" ? "channels" : "direct";
+  if (mode === _msgInboxMode) return;
+  _msgInboxMode = mode;
+  // Drop any open thread when switching modes — the conv pane would
+  // render the wrong shape otherwise.
+  _msgInboxSelectedId  = null;
+  _msgChannelSelectedId = null;
+  if (_msgInboxThreadTimer)   { clearInterval(_msgInboxThreadTimer);   _msgInboxThreadTimer = null; }
+  if (_msgChannelThreadTimer) { clearInterval(_msgChannelThreadTimer); _msgChannelThreadTimer = null; }
+  const conv = document.getElementById("rr-msg-conv");
+  if (conv) {
+    conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px">${
+      mode === "channels" ? "Pick a channel from the list — or create one." : "Pick a driver from the list to open their thread."
+    }</div>`;
+    delete conv.dataset.rrDriverId;
+    delete conv.dataset.rrChannelId;
+  }
+  if (mode === "channels") {
+    refreshChannelList(true);
+    if (_msgChannelListTimer) clearInterval(_msgChannelListTimer);
+    _msgChannelListTimer = setInterval(() => {
+      if (document.getElementById("view-messages")?.classList.contains("active") && _msgInboxMode === "channels") {
+        refreshChannelList(false);
+      } else {
+        clearInterval(_msgChannelListTimer); _msgChannelListTimer = null;
+      }
+    }, 8000);
+  } else {
+    refreshDriverChatList(true);
+  }
+};
+
+async function refreshChannelList(autoSelect) {
+  const list = document.getElementById("rr-msg-driver-list");
+  if (!list) return;
+  const { data, error } = await sb.rpc("dispatch_channels_list");
+  if (error) {
+    list.innerHTML = `
+      <div style="padding:14px">
+        <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%;margin-bottom:10px">+ New channel</button>
+        <div style="color:var(--red);font-size:12px">${escapeHtml(error.message)}</div>
+      </div>`;
+    list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
+    return;
+  }
+  _msgChannelList = data?.channels || [];
+  const fmtRel = (iso) => {
+    if (!iso) return "—";
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return "now";
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}d`;
+    return new Date(iso).toLocaleDateString();
+  };
+  const headerBtn = `
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border)">
+      <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New channel
+      </button>
+    </div>`;
+  if (_msgChannelList.length === 0) {
+    list.innerHTML = headerBtn + `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px">No channels yet.<br>Create one to start group comms.</div>`;
+    list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
+    return;
+  }
+  list.innerHTML = headerBtn + _msgChannelList.map((c) => {
+    const isActive = _msgChannelSelectedId === c.id;
+    const archChip = c.archived_at
+      ? `<span style="font-size:10px;font-weight:600;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">Archived</span>`
+      : "";
+    const stationChip = c.station_code
+      ? `<span style="font-size:10px;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
+      : "";
+    const lastBody = c.last_message
+      ? (c.last_sender ? `${c.last_sender}: ` : "") + c.last_message
+      : `${c.member_count || 0} member${c.member_count === 1 ? "" : "s"}`;
+    const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
+    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-channel="${escapeHtml(c.id)}">
+      <div class="msg-item-avatar"><div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);font-size:13px">#</div></div>
+      <div><div class="msg-item-name">${escapeHtml(c.name)}${stationChip}${archChip}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
+      <div><div class="msg-item-time">${escapeHtml(fmtRel(c.last_message_at))}</div></div>
+    </div>`;
+  }).join("");
+  list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
+  list.querySelectorAll("[data-rr-channel]").forEach((el) => {
+    el.addEventListener("click", () => openChannelThread(el.dataset.rrChannel));
+  });
+  if (autoSelect && !_msgChannelSelectedId && _msgChannelList.length > 0) {
+    openChannelThread(_msgChannelList[0].id);
+  }
+}
+
+async function openChannelThread(channelId) {
+  _msgChannelSelectedId = channelId;
+  document.querySelectorAll("#rr-msg-driver-list [data-rr-channel]").forEach((el) => {
+    el.classList.toggle("active", el.dataset.rrChannel === channelId);
+  });
+  await refreshChannelThread(true);
+  if (_msgChannelThreadTimer) clearInterval(_msgChannelThreadTimer);
+  _msgChannelThreadTimer = setInterval(() => {
+    if (!document.getElementById("view-messages")?.classList.contains("active")
+        || _msgInboxMode !== "channels"
+        || _msgChannelSelectedId !== channelId) {
+      clearInterval(_msgChannelThreadTimer); _msgChannelThreadTimer = null; return;
+    }
+    refreshChannelThread(false);
+  }, 8000);
+}
+
+async function refreshChannelThread(scrollToBottom) {
+  const conv = document.getElementById("rr-msg-conv");
+  if (!conv || !_msgChannelSelectedId) return;
+  const channelId = _msgChannelSelectedId;
+  const meta = _msgChannelList.find(c => c.id === channelId) || {};
+
+  const { data, error } = await sb.rpc("dispatch_channel_messages", {
+    p_channel_id: channelId, p_limit: 200,
+  });
+  if (error) {
+    conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const msgs = data?.messages || [];
+
+  if (conv.dataset.rrChannelId !== channelId) {
+    conv.dataset.rrChannelId = channelId;
+    delete conv.dataset.rrDriverId;
+    const stationLine = meta.station_code ? ` · station ${escapeHtml(meta.station_code)}` : "";
+    const memberCount = meta.member_count || 0;
+    conv.innerHTML = `
+      <style>
+        .rr-cc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
+        .rr-cc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+        .rr-cc-name{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+        .rr-cc-sub{font-size:11px;color:var(--text-subtle);margin-top:2px}
+        .rr-cc-head-actions{margin-left:auto;display:flex;gap:6px}
+        .rr-cc-thread{flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
+        .rr-cc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word}
+        .rr-cc-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
+        .rr-cc-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+        .rr-cc-sender{font-size:11px;font-weight:700;color:var(--text-subtle);margin-bottom:3px}
+        .rr-cc-bubble.dispatch .rr-cc-sender{color:rgba(255,255,255,.85)}
+        .rr-cc-time{font-size:10px;margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
+        .rr-cc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;padding:40px}
+        .rr-cc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+        .rr-cc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:14px;line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
+        .rr-cc-composer textarea:focus{outline:none;border-color:var(--accent)}
+        .rr-cc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:13px;cursor:pointer;min-height:40px}
+        .rr-cc-send:disabled{opacity:.5;cursor:not-allowed}
+      </style>
+      <div class="rr-cc-shell">
+        <div class="rr-cc-head">
+          <div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text)">#</div>
+          <div style="flex:1;min-width:0">
+            <div class="rr-cc-name">${escapeHtml(meta.name || "")}</div>
+            <div class="rr-cc-sub">${memberCount} member${memberCount === 1 ? "" : "s"}${stationLine}${meta.archived_at ? " · archived" : ""}</div>
+          </div>
+          <div class="rr-cc-head-actions">
+            <button class="btn btn-sm" data-rr-channel-members="${escapeHtml(channelId)}">Members</button>
+            <button class="btn btn-sm" data-rr-channel-archive="${escapeHtml(channelId)}">${meta.archived_at ? "Unarchive" : "Archive"}</button>
+          </div>
+        </div>
+        <div class="rr-cc-thread" id="rr-cc-thread"></div>
+        <form class="rr-cc-composer" id="rr-cc-form" style="${meta.archived_at ? "opacity:.5;pointer-events:none" : ""}">
+          <input type="file" id="rr-cc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+          <button type="button" id="rr-cc-attach" title="Attach photo or document"
+                  style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+            <div id="rr-cc-attach-preview" style="display:none"></div>
+            <textarea id="rr-cc-input" rows="1" placeholder="Post to #${escapeHtml(meta.name || "channel")}…" maxlength="2000"></textarea>
+          </div>
+          <button class="rr-cc-send" type="submit">Send</button>
+        </form>
+      </div>`;
+
+    const ta = document.getElementById("rr-cc-input");
+    ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px"; });
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById("rr-cc-form").requestSubmit();
+      }
+    });
+
+    const fileInput = document.getElementById("rr-cc-file");
+    const previewEl = document.getElementById("rr-cc-attach-preview");
+    document.getElementById("rr-cc-attach").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files?.[0];
+      if (!f) { window._rrCcPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+      if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
+      window._rrCcPending = f;
+      const isImg = f.type.startsWith("image/");
+      const sizeKb = Math.round(f.size / 1024);
+      previewEl.style.display = "";
+      previewEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px">
+          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
+                  : `<span style="font-size:16px">📎</span>`}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
+            <div style="color:var(--text-subtle)">${sizeKb} KB</div>
+          </div>
+          <button type="button" id="rr-cc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:16px;line-height:1;padding:2px">×</button>
+        </div>`;
+      document.getElementById("rr-cc-attach-clear").addEventListener("click", () => {
+        fileInput.value = "";
+        window._rrCcPending = null;
+        previewEl.style.display = "none";
+        previewEl.innerHTML = "";
+      });
+    });
+
+    document.getElementById("rr-cc-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const body = (ta.value || "").trim();
+      const file = window._rrCcPending;
+      if (!body && !file) return;
+      const send = e.target.querySelector(".rr-cc-send");
+      send.disabled = true;
+
+      let attachment = null;
+      if (file) {
+        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
+        const dspId = window.RR?.dsp?.id || "unknown";
+        const path  = `${dspId}/channels/${_msgChannelSelectedId}/${Date.now()}-${safe}`;
+        const { error: upErr } = await sb.storage
+          .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+        if (upErr) {
+          send.disabled = false;
+          toast("Upload failed: " + upErr.message, "warn");
+          return;
+        }
+        attachment = { path, mime: file.type, name: file.name, size: file.size };
+      }
+
+      const { error } = await sb.rpc("dispatch_channel_post", {
+        p_channel_id:            _msgChannelSelectedId,
+        p_body:                  body || null,
+        p_attachment_path:       attachment?.path || null,
+        p_attachment_mime:       attachment?.mime || null,
+        p_attachment_name:       attachment?.name || null,
+        p_attachment_size_bytes: attachment?.size || null,
+      });
+      send.disabled = false;
+      if (error) { toast("Couldn't post: " + error.message, "warn"); return; }
+      ta.value = ""; ta.style.height = "auto";
+      if (file) {
+        window._rrCcPending = null;
+        fileInput.value = "";
+        previewEl.style.display = "none";
+        previewEl.innerHTML = "";
+      }
+      await refreshChannelThread(true);
+      refreshChannelList(false);
+    });
+  }
+
+  const thread = document.getElementById("rr-cc-thread");
+  if (!thread) return;
+  if (msgs.length === 0) {
+    thread.innerHTML = `<div class="rr-cc-empty">No messages yet. Start the channel below.</div>`;
+  } else {
+    thread.innerHTML = msgs.map((m) => {
+      const t = new Date(m.created_at);
+      const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      let attach = "";
+      if (m.attachment_path) {
+        const isImg = (m.attachment_mime || "").startsWith("image/");
+        const name  = m.attachment_name || "Attachment";
+        const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
+        attach = isImg
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:12px">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:11px;opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+      }
+      const senderLabel = m.sender_kind === "dispatch" ? `Dispatch · ${m.sender_name || ""}` : (m.sender_name || "Driver");
+      const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
+      return `<div class="rr-cc-bubble ${m.sender_kind}">
+        <div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>
+        ${attach}
+        ${bodyHtml}
+        <div class="rr-cc-time">${escapeHtml(time)}</div>
+      </div>`;
+    }).join("");
+    setTimeout(() => _rrMcSignAttachments(), 0);
+  }
+  if (scrollToBottom) thread.scrollTop = thread.scrollHeight;
+  sb.rpc("dispatch_channel_mark_read", { p_channel_id: channelId }).catch(() => {});
+}
+
+// Channel head buttons (Members, Archive) — single delegate.
+document.addEventListener("click", async (e) => {
+  const memBtn = e.target.closest("[data-rr-channel-members]");
+  if (memBtn) {
+    e.preventDefault();
+    openChannelMembersModal(memBtn.getAttribute("data-rr-channel-members"));
+    return;
+  }
+  const archBtn = e.target.closest("[data-rr-channel-archive]");
+  if (archBtn) {
+    e.preventDefault();
+    const id = archBtn.getAttribute("data-rr-channel-archive");
+    const meta = _msgChannelList.find(c => c.id === id) || {};
+    const goingArchive = !meta.archived_at;
+    if (!confirm(goingArchive ? "Archive this channel? Members keep history but can't post." : "Unarchive this channel?")) return;
+    const { error } = await sb.rpc("dispatch_channel_archive", { p_channel_id: id, p_archived: goingArchive });
+    if (error) { toast(error.message, "warn"); return; }
+    delete document.getElementById("rr-msg-conv")?.dataset.rrChannelId;
+    await refreshChannelList(false);
+    await refreshChannelThread(false);
+  }
+});
+
+// ── Create channel modal ──
+function openChannelCreateModal() {
+  // Pull active stations for the dropdown.  All stations under the
+  // current DSP — operator can leave it blank for an org-wide channel.
+  const stationsPromise = sb.from("stations").select("id, short_code, name").order("short_code");
+
+  const wrap = document.createElement("div");
+  wrap.id = "rr-channel-create-modal";
+  wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  wrap.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;padding:22px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:14px">New channel</div>
+      <form id="rr-channel-create-form" style="display:flex;flex-direction:column;gap:12px">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-subtle)">Name
+          <input id="rr-cc-new-name" required maxlength="80" placeholder="morning-wave"
+                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:14px">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-subtle)">Description (optional)
+          <input id="rr-cc-new-desc" maxlength="280" placeholder="What this channel is for"
+                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:14px">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-subtle)">Station scope
+          <select id="rr-cc-new-station" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:14px">
+            <option value="">All stations · DSP-wide</option>
+          </select>
+          <span style="font-size:11px;color:var(--text-subtle);margin-top:2px">Drivers at this station auto-join. Leave blank to add members manually.</span>
+        </label>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+          <button type="button" class="btn btn-sm" id="rr-cc-new-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Create</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+  document.getElementById("rr-cc-new-cancel").addEventListener("click", () => wrap.remove());
+
+  stationsPromise.then(({ data }) => {
+    const sel = document.getElementById("rr-cc-new-station");
+    if (!sel) return;
+    for (const s of (data || [])) {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = `${s.short_code || ""}${s.name ? " · " + s.name : ""}`;
+      sel.appendChild(opt);
+    }
+  });
+
+  document.getElementById("rr-channel-create-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("rr-cc-new-name").value.trim();
+    const desc = document.getElementById("rr-cc-new-desc").value.trim();
+    const sid  = document.getElementById("rr-cc-new-station").value || null;
+    if (!name) return;
+    const { data, error } = await sb.rpc("dispatch_channel_create", {
+      p_name: name, p_description: desc || null, p_station_id: sid,
+    });
+    if (error) { toast("Create failed: " + error.message, "warn"); return; }
+    wrap.remove();
+    toast("Channel created", "good");
+    await refreshChannelList(false);
+    if (data?.id) openChannelThread(data.id);
+  });
+}
+
+// ── Members modal ──
+async function openChannelMembersModal(channelId) {
+  const meta = _msgChannelList.find(c => c.id === channelId) || {};
+  const wrap = document.createElement("div");
+  wrap.id = "rr-channel-members-modal";
+  wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  wrap.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;padding:22px;width:100%;max-width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="font-size:16px;font-weight:700;color:var(--text);flex:1">Members of #${escapeHtml(meta.name || "")}</div>
+        <button type="button" class="btn btn-sm" id="rr-cc-mem-close">Close</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <select id="rr-cc-mem-add-driver" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:13px">
+          <option value="">Add a driver…</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="rr-cc-mem-add-btn">Add</button>
+      </div>
+      <div id="rr-cc-mem-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+        <div style="padding:20px;text-align:center;color:var(--text-subtle);font-size:12px">Loading…</div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+  document.getElementById("rr-cc-mem-close").addEventListener("click", () => wrap.remove());
+
+  async function paint() {
+    const [{ data: memData, error: memErr }, { data: drvData }] = await Promise.all([
+      sb.rpc("dispatch_channel_members", { p_channel_id: channelId }),
+      sb.from("drivers").select("id, full_name, status").in("status", ["active","onboarding"]).order("full_name"),
+    ]);
+    const list = document.getElementById("rr-cc-mem-list");
+    if (memErr) {
+      list.innerHTML = `<div style="padding:20px;color:var(--red);font-size:12px">${escapeHtml(memErr.message)}</div>`;
+      return;
+    }
+    const members = memData?.members || [];
+    const memberIds = new Set(members.map(m => m.driver_id));
+    const sel = document.getElementById("rr-cc-mem-add-driver");
+    sel.innerHTML = `<option value="">Add a driver…</option>` + (drvData || [])
+      .filter(d => !memberIds.has(d.id))
+      .map(d => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.full_name)}</option>`).join("");
+    if (members.length === 0) {
+      list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:12px">No members yet.</div>`;
+      return;
+    }
+    list.innerHTML = members.map(m => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(m.full_name || "")}</div>
+          <div style="font-size:11px;color:var(--text-subtle)">${m.station_code ? escapeHtml(m.station_code) + " · " : ""}${escapeHtml(m.status || "")}</div>
+        </div>
+        <button class="btn btn-sm" data-rr-cc-mem-remove="${escapeHtml(m.driver_id)}">Remove</button>
+      </div>`).join("");
+    list.querySelectorAll("[data-rr-cc-mem-remove]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const did = btn.getAttribute("data-rr-cc-mem-remove");
+        const { error } = await sb.rpc("dispatch_channel_remove_member", { p_channel_id: channelId, p_driver_id: did });
+        if (error) { toast(error.message, "warn"); return; }
+        await paint();
+        refreshChannelList(false);
+      });
+    });
+  }
+  await paint();
+
+  document.getElementById("rr-cc-mem-add-btn").addEventListener("click", async () => {
+    const did = document.getElementById("rr-cc-mem-add-driver").value;
+    if (!did) return;
+    const { error } = await sb.rpc("dispatch_channel_add_member", { p_channel_id: channelId, p_driver_id: did });
+    if (error) { toast(error.message, "warn"); return; }
+    await paint();
+    refreshChannelList(false);
+  });
+}
+
 function _coachSeverityChip(sev, level) {
   // Prefer the precise ladder step stored in metadata.level — falls
   // back to the legacy severity enum (info/concern/warning/final)
