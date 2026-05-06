@@ -801,6 +801,28 @@ async function loadAttendanceLive() {
   const vtoSubEl = document.getElementById("att-kpi-vto-sub");
   if (vtoSubEl) vtoSubEl.textContent = `${totalVto} VTO / ${totalScheduled} scheduled · last ${decay}d`;
 
+  // "In corrective action" KPI — drivers currently flagged at any
+  // step of the coaching ladder.  Verbal = at the warn threshold,
+  // Written = at the action threshold (or first-30-days strict),
+  // Final and Termination are tracked manually for now (no historical
+  // coaching ladder yet) so we surface 0 for those — operators see
+  // the live count grow once those flows are wired up.
+  let nVerbal = 0, nWritten = 0;
+  for (const r of rows) {
+    if (r.statusKind === "warn")     nVerbal++;
+    else if (r.statusKind === "bad") nWritten++;
+  }
+  const nTotal = nVerbal + nWritten;
+  setKpi("att-kpi-action-count",
+    String(nTotal),
+    nTotal === 0 ? "ok" : nTotal <= 3 ? "warn" : "bad");
+  const breakdownEl = document.getElementById("att-kpi-action-breakdown");
+  if (breakdownEl) {
+    breakdownEl.textContent = POLICY.policy_enabled === false
+      ? "Policy is OFF"
+      : `${nVerbal} verbal · ${nWritten} written · 0 final · 0 termination`;
+  }
+
   _renderAttReportTbody();
 
   const badge = document.getElementById("att-subnav-badge");
@@ -2240,12 +2262,31 @@ window.attTab = function (name) {
   // Redirect any lingering "today" call to history — the Today pane was
   // moved to the sidebar Today's Plan page.
   if (name === "today") name = "history";
+  // Policy builder lives in Settings → Attendance policy now.  If
+  // anything still triggers attTab('policy'), bounce the operator to
+  // the new home instead of rendering nothing.
+  if (name === "policy") {
+    if (typeof window.goto === "function") window.goto("settings");
+    setTimeout(() => {
+      const btn = document.querySelector('.settings-nav-item[data-set="attendance"]');
+      if (btn) btn.click();
+    }, 50);
+    return;
+  }
   if (typeof _legacyAttTab === "function") _legacyAttTab(name);
   if (name === "history") loadAttendanceHistory();
   if (name === "report")  loadAttendanceLive();
-  if (name === "policy")  loadAttendancePolicy();
   if (name === "log")     loadAttendanceEventLog();
 };
+
+// Load the policy builder when the operator opens Settings →
+// Attendance policy (or navigates back to Settings while it was the
+// last selected section).
+document.addEventListener("click", (e) => {
+  if (e.target.closest('.settings-nav-item[data-set="attendance"]')) {
+    setTimeout(() => loadAttendancePolicy(), 0);
+  }
+});
 
 // Attendance subtab order is operator-preference.  Drag to reorder;
 // the order is persisted per browser via localStorage so it survives
