@@ -1697,9 +1697,7 @@ async function renderAttendance() {
     ? "Nothing currently counts as an occurrence — your DSP is logging events but not scoring them."
     : "An occurrence is recorded for: " + counts.join(", ") + ".";
 
-  const ladderText = policy.progressive_coaching
-    ? "Coaching is progressive: <b>verbal</b> conversation first, then a <b>written</b> warning, then a <b>final</b> warning, then termination."
-    : "Crossing the warn line gets a coaching conversation; crossing the action line gets a write-up.";
+  const ladderText = "Coaching is progressive: each occurrence in the rolling window steps you up one rung — <b>1st</b> = verbal conversation, <b>2nd</b> = written warning, <b>3rd</b> = final written warning, <b>4th</b> = termination. Older events drop off as the window scrolls forward.";
 
   const ncnsText = policy.ncns_terminates
     ? "<b>One no-call no-show is grounds for termination</b> — your DSP escalates NCNS instantly, even on a clean record."
@@ -1711,8 +1709,7 @@ async function renderAttendance() {
 
   const policyBullets = !enabled ? [] : [
     countsText,
-    `Warning at <b>${policy.threshold_warn}</b> occurrences in a rolling <b>${policy.decay_days}-day</b> window.`,
-    `Action at <b>${policy.threshold_action}</b> occurrences.  Older events drop off as the window scrolls forward.`,
+    `Events accrue in a rolling <b>${policy.decay_days}-day</b> window. Coaching starts at occurrence <b>#${policy.threshold_warn}</b>.`,
     ladderText,
     ncnsText,
     first30Text,
