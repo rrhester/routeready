@@ -208,13 +208,25 @@ a{color:inherit;text-decoration:none}
   background:var(--sidebar-hover);
   color:var(--text-inverse);
 }
+.nav-item:hover svg{stroke-width:2}
 .nav-item:active{transform:translateY(.5px)}
 .nav-item.active{
   background:var(--sidebar-active);
   color:#fff;font-weight:600;
   box-shadow:inset 2px 0 0 var(--accent), inset 0 1px 0 rgba(255,255,255,.06);
 }
-.nav-item svg{width:16px;height:16px;flex-shrink:0;stroke-width:1.75;transition:color var(--t-fast)}
+.nav-item.active svg{
+  stroke-width:2.2;
+  filter:drop-shadow(0 1px 2px rgba(15,108,189,.40));
+}
+/* Sidebar icons — Fluent weight: bigger, heavier stroke, soft
+   drop-shadow on active state for the "filled" Microsoft feel
+   without redrawing every glyph. */
+.nav-item svg{
+  width:18px;height:18px;flex-shrink:0;stroke-width:2;
+  transition:stroke-width var(--t-fast), color var(--t-fast),
+             filter var(--t-fast), transform var(--t-fast);
+}
 .nav-badge{ display:none }
 
 .nav-section-label{
@@ -287,7 +299,7 @@ a{color:inherit;text-decoration:none}
   outline:none;border-color:var(--accent);
   box-shadow:var(--accent-glow);color:var(--text);
 }
-.icon-btn svg{width:16px;height:16px;stroke-width:1.75}
+.icon-btn svg{width:16px;height:16px;stroke-width:2}
 .icon-btn .dot{
   position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
   background:var(--red);border:2px solid #fff;
@@ -14687,17 +14699,7 @@ Evidence attached:
   // Report is computed live from policy + log.
   // ═══════════════════════════════════════════════════════════════
   function _isoFromNow(n){ var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); }
-  var RR_DRIVERS = [
-    // score = composite performance (matches the score pills in the Roster table)
-    // licenseExpiry seeded relative to today so the 30d/14d auto-text and schedule flag render in demo
-    { id:'MD', name:'Marcus Davidson',  station:'KMO1', tier:'tier-d', scheduled30:22, score:62, tenureMonths:18, licenseExpiry:_isoFromNow(4)   },
-    { id:'TR', name:'Tasha Reyes',      station:'KMO2', tier:'tier-d', scheduled30:21, score:68, tenureMonths:9,  licenseExpiry:_isoFromNow(28)  },
-    { id:'KW', name:'Kerwin Whitfield', station:'KMO1', tier:'tier-c', scheduled30:22, score:71, tenureMonths:24, licenseExpiry:_isoFromNow(6)   },
-    { id:'JB', name:'Jordan Beckett',   station:'KMO3', tier:'tier-c', scheduled30:20, score:73, tenureMonths:6,  licenseExpiry:_isoFromNow(12)  },
-    { id:'DP', name:'Devon Patterson',  station:'KMO3', tier:'tier-b', scheduled30:22, score:79, tenureMonths:11, licenseExpiry:_isoFromNow(90)  },
-    { id:'AT', name:'Asha Thornton',    station:'KMO2', tier:'tier-c', scheduled30:21, score:74, tenureMonths:14, licenseExpiry:_isoFromNow(22)  },
-    { id:'CF', name:'Camille Foster',   station:'KMO1', tier:'tier-a', scheduled30:22, score:88, tenureMonths:22, licenseExpiry:_isoFromNow(200) }
-  ];
+  var RR_DRIVERS = [];
 
   function _daysAgo(n){ var d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0,10); }
   function _fmtDate(iso){
@@ -14714,31 +14716,11 @@ Evidence attached:
     return Math.round(diff/30) + 'mo ago';
   }
 
-  // Seed events that match what's shown in the existing roster table
-  var RR_ATTENDANCE_LOG = [
-    // Marcus Davidson: 3 callouts in 30d (matches roster pill)
-    { id:'a1', driverId:'MD', date:_daysAgo(3),  type:'callout',  category:null, exempt:false, note:'Said sick · 6am' },
-    { id:'a2', driverId:'MD', date:_daysAgo(11), type:'callout',  category:null, exempt:false, note:'Family emergency' },
-    { id:'a3', driverId:'MD', date:_daysAgo(19), type:'noshow',   category:null, exempt:false, note:'Did not respond to dispatcher' },
-    { id:'a4', driverId:'MD', date:_daysAgo(26), type:'late',     category:null, exempt:false, note:'+22 min, traffic' },
-    // Tasha Reyes: 2 callouts (Mon/Fri pattern) + 1 late
-    { id:'a5', driverId:'TR', date:_daysAgo(4),  type:'callout',  category:null, exempt:false, note:'Friday · sick' },
-    { id:'a6', driverId:'TR', date:_daysAgo(14), type:'callout',  category:null, exempt:false, note:'Monday · childcare' },
-    { id:'a7', driverId:'TR', date:_daysAgo(22), type:'late',     category:null, exempt:false, note:'+18 min' },
-    // Jordan Beckett: 1 callout + 2 late (matches scorecard slip)
-    { id:'a8', driverId:'JB', date:_daysAgo(7),  type:'callout',  category:null, exempt:false, note:'No detail' },
-    { id:'a9', driverId:'JB', date:_daysAgo(15), type:'late',     category:null, exempt:false, note:'+14 min' },
-    { id:'a10',driverId:'JB', date:_daysAgo(28), type:'late',     category:null, exempt:false, note:'+12 min' },
-    // Asha Thornton: 1 callout + 1 late (at-risk but borderline)
-    { id:'a11',driverId:'AT', date:_daysAgo(9),  type:'callout',  category:'Approved PTO', exempt:true, note:'Scheduled time-off · approved' },
-    { id:'a12',driverId:'AT', date:_daysAgo(20), type:'late',     category:null, exempt:false, note:'+11 min' },
-    // VTO events — driver opted out of a shift you offered (over-scheduled days).
-    // Doesn't accrue points; useful signal for whether your OKAMI cushion is too high.
-    { id:'a13',driverId:'CF', date:_daysAgo(6),  type:'vto',      category:null, exempt:false, note:'Light Sat — accepted VTO' },
-    { id:'a14',driverId:'DP', date:_daysAgo(13), type:'vto',      category:null, exempt:false, note:'Sun overage — accepted VTO' },
-    { id:'a15',driverId:'KW', date:_daysAgo(20), type:'vto',      category:null, exempt:false, note:'Sun overage — accepted VTO' },
-    // Kerwin, Devon, Camille: clean of attendance issues
-  ];
+  // Empty by default — live data fills these.  Static seed rows used to
+  // flash through here on every page load before the live attendance
+  // RPCs returned, briefly painting fake attendance events into the
+  // log/history panes and the report KPIs.
+  var RR_ATTENDANCE_LOG = [];
 
   var RR_ATTENDANCE_POLICY = _attDefaultPolicy();
   var _attWindow = 30;
@@ -16703,7 +16685,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507o"></script>
+<script type="module" src="./live.js?v=20260507p"></script>
 
 </body>
 </html>
