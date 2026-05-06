@@ -253,10 +253,14 @@ grant execute on function public.dispatch_chat_send(uuid, text, text, text, text
 
 
 -- ── driver_chat_list · also return attachment fields ──
+-- Note: NOT stable.  This function inserts into driver_conversations
+-- (and private.driver_validate_token updates last_seen_at), which
+-- fails with "cannot execute UPDATE in a read-only transaction" if
+-- the function is marked STABLE.  Same pattern bit driver_my_schedule
+-- and driver_attendance_settings before.
 create or replace function public.driver_chat_list(p_token text, p_limit int default 100)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -309,10 +313,10 @@ grant execute on function public.driver_chat_list(text, int) to anon, authentica
 -- Match the shape the original 0054 version returned: { driver,
 -- messages, last_read_at }.  The dispatcher's chat head card reads
 -- data.driver.name; without that key we'd render a blank header.
+-- Note: NOT stable, for the same reason as driver_chat_list above.
 create or replace function public.dispatch_chat_thread(p_driver_id uuid, p_limit int default 200)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
