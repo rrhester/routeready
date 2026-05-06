@@ -14,7 +14,7 @@
 :root{
   /* ── Surfaces (multi-layered material system) ─────────────── */
   --canvas:#F4F6FB;
-  --canvas-grad:radial-gradient(ellipse 1200px 800px at 50% -120px, rgba(20,110,180,.045) 0%, transparent 60%), linear-gradient(180deg, #F4F6FB 0%, #EEF1F7 100%);
+  --canvas-grad:linear-gradient(180deg, #F4F6FB 0%, #EEF1F7 100%);
   --surface:#FFFFFF;
   --surface-elevated:#FFFFFF;
   --surface-grad:linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(252,253,255,1) 100%);
@@ -118,6 +118,46 @@ body{
   -moz-osx-font-smoothing:grayscale;
   font-feature-settings:"cv02","cv03","cv04","cv11";
   text-rendering:optimizeLegibility;
+  position:relative;
+  isolation:isolate;
+}
+/* ── Watermark depth layer — sub-perceptual ────────────────────
+   Two ultra-soft, asymmetrically placed shapes blurred 100px so
+   their edges fully dissolve into the canvas gradient.  Fixed
+   inset:-240px so the blurred halo never shows as a hard edge.
+   pointer-events:none + z-index:-1 + body{isolation:isolate} keeps
+   the layer beneath all content without affecting any sticky / z
+   stacking elsewhere.  Opacity is intentionally well below the
+   threshold of conscious recognition; remove it and the canvas
+   reads as a flat color. */
+body::before{
+  content:"";
+  position:fixed;
+  inset:-240px;
+  z-index:-2;
+  pointer-events:none;
+  background:
+    radial-gradient(circle 720px at 88% 8%,   rgba(20,110,180,.10) 0%, rgba(20,110,180,0) 70%),
+    radial-gradient(circle 820px at 6%  72%,  rgba(15,23,42,.08)   0%, rgba(15,23,42,0)   70%),
+    radial-gradient(circle 540px at 62% 108%, rgba(99,102,241,.06) 0%, rgba(99,102,241,0) 70%);
+  filter:blur(100px) saturate(105%);
+  will-change:filter;
+}
+/* ── Micro-grain — kills digital flatness on large surfaces.
+   ~1.5% opacity SVG fractal noise overlay, multiply blend so it
+   biases dark instead of brightening white space.  Invisible at
+   normal viewing distance; removing it makes white surfaces feel
+   plasticky. */
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  opacity:.025;
+  mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size:220px 220px;
 }
 button{font-family:inherit;cursor:pointer}
 a{color:inherit;text-decoration:none}
@@ -5575,7 +5615,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Pulled from each driver's saved availability and the next four weeks of OKAMI demand.</div>
             </div>
             <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
-            <div data-rr-avail-byday-card style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
+            <div data-rr-avail-byday-card class="card" style="margin-bottom:var(--s-4)">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
                 <div>
                   <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">Driver availability by day</div>
@@ -5773,7 +5813,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 <span class="filter-chip">All drivers</span>
               </div>
             </div>
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <div class="card card-flush">
               <div class="att-log-row" style="background:var(--canvas);font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
                 <span>Date</span><span>Driver</span><span>Event</span><span style="text-align:right">Points</span><span></span>
               </div>
@@ -5821,7 +5861,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <option value="followup">Follow-up date</option>
             </select>
           </div>
-          <div id="rr-coach-feed" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div id="rr-coach-feed" class="card card-flush">
             <div class="rr-loading">Loading</div>
           </div>
         </div><!-- /dr-sub-coaching -->
@@ -6131,12 +6171,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 <h2 class="settings-section-title">Availability rules</h2>
                 <p class="settings-section-sub">Lead time, the auto-response messages drivers receive on approve / deny, and blackout windows.</p>
               </div>
-              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
+              <div class="card" style="margin-bottom:var(--s-4)">
                 <h3 style="margin:0 0 4px;font-size:var(--fs-base);font-weight:700">Settings</h3>
                 <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve / deny.</p>
                 <div data-rr-avail-settings></div>
               </div>
-              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px">
+              <div class="card">
                 <h3 style="margin:0 0 4px;font-size:var(--fs-base);font-weight:700">Blackout dates</h3>
                 <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 14px">Windows where drivers cannot submit availability changes — e.g. peak season, holidays.</p>
                 <div data-rr-avail-blackouts></div>
@@ -7423,7 +7463,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <p class="page-sub" style="margin:4px 0 0">Where the schedule is tight before it breaks.</p>
           </div>
 
-          <div id="rr-sched-insights-availability" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px">
+          <div id="rr-sched-insights-availability" class="card">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
               <div>
                 <div style="display:flex;align-items:center;gap:6px">
@@ -8314,7 +8354,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
             <!-- SUBMISSIONS -->
             <div class="forms-tab" id="forms-tab-subm" style="display:none">
-              <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+              <div class="card card-flush">
                 <div class="subm-row" style="background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;cursor:default">
                   <div></div><div>Form · Driver</div><div>Status</div><div>Submitted</div><div></div>
                 </div>
@@ -8750,7 +8790,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <div class="kpi-card"><div class="kpi-label">Recovered YTD</div><div class="kpi-value" style="color:var(--green)">$14,420</div><div class="kpi-sub">73% win rate · 18 of 24 disputes</div></div>
           </div>
 
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:var(--s-4)">
+          <div class="card card-flush" style="margin-bottom:var(--s-4)">
             <div style="padding:14px 18px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Inbox · 8 invoices · 3 flagged</div>
 
             <div class="invoice-row flagged" onclick="openReconciliation('variable-w17')">
@@ -8890,7 +8930,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <div class="kpi-card"><div class="kpi-label">Avg recovery</div><div class="kpi-value">$801</div><div class="kpi-sub">per won dispute</div></div>
           </div>
 
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <div class="card card-flush">
             <div style="padding:14px 18px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Active disputes · 5</div>
 
             <div class="invoice-row disputed" onclick="openReconciliation('dispute-1')">
@@ -15689,7 +15729,7 @@ Evidence attached:
       return;
     }
 
-    body.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">'
+    body.innerHTML = '<div class="card card-flush" style="border-radius:var(--r-md)">'
       + '<div style="display:grid;grid-template-columns:1.6fr 80px 100px 110px 1.4fr auto;gap:14px;padding:10px 16px;background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">'
         + '<span>Driver</span>'
         + '<span style="text-align:right">Score</span>'
@@ -15928,7 +15968,7 @@ Evidence attached:
       return;
     }
 
-    body.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">'
+    body.innerHTML = '<div class="card card-flush" style="border-radius:var(--r-md)">'
       + '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr auto;gap:12px;padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">'
       + '<span>Driver</span><span>License expires</span><span>Days remaining</span><span>Reminders sent</span><span></span>'
       + '</div>'
@@ -16701,7 +16741,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507a"></script>
+<script type="module" src="./live.js?v=20260507b"></script>
 
 </body>
 </html>

@@ -3062,11 +3062,11 @@ async function loadAttendanceHistory(opts) {
     <div style="display:flex;gap:10px;margin-bottom:14px;align-items:end">
       <div>
         <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">From</label>
-        <input type="date" id="rr-att-hist-from" value="${escapeHtml(fromIso)}" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+        <input type="date" id="rr-att-hist-from" value="${escapeHtml(fromIso)}" class="form-input form-input-sm"/>
       </div>
       <div>
         <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">To</label>
-        <input type="date" id="rr-att-hist-to" value="${escapeHtml(toIso)}" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+        <input type="date" id="rr-att-hist-to" value="${escapeHtml(toIso)}" class="form-input form-input-sm"/>
       </div>
       <button class="btn btn-sm btn-primary" id="rr-att-hist-go">Apply</button>
     </div>
@@ -8006,7 +8006,7 @@ function _renderAvailabilitySettingsPanel(s) {
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:8px;align-items:start">
       <label style="font-size:var(--fs-md);font-weight:600">Lead time<br><span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">Days from approval until the change is live for scheduling.</span></label>
       <div>
-        <input type="number" id="rr-avail-lead" min="0" max="60" value="${Number(s.lead_days ?? 7)}" style="width:120px;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+        <input type="number" id="rr-avail-lead" min="0" max="60" value="${Number(s.lead_days ?? 7)}" class="form-input form-input-sm" style="max-width:120px"/>
         <span style="font-size:var(--fs-sm);color:var(--text-subtle);margin-left:6px">days</span>
       </div>
     </div>
@@ -11098,7 +11098,7 @@ async function renderScheduleWeek() {
   }
   const kpiCard = (label, value, sublabel, tone) => {
     const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "var(--text)";
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+    return `<div class="card card-compact" style="border-radius:var(--r-md);padding:10px 12px">
       <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">${label}</div>
       <div style="font-size:18px;font-weight:700;color:${c};letter-spacing:-.02em;margin-top:2px;line-height:1.2">${value}</div>
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${sublabel}</div>
