@@ -6549,7 +6549,7 @@ async function refreshChannelList(autoSelect) {
   list.innerHTML = headerBtn + _msgChannelList.map((c) => {
     const isActive = _msgChannelSelectedId === c.id;
     const archChip = c.archived_at
-      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">Archived</span>`
+      ? `<span class="status-pill status-pill-neutral" style="margin-left:6px">Archived</span>`
       : "";
     const stationChip = c.station_code
       ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
@@ -6985,13 +6985,13 @@ function renderCoachingTab(coachings, driver) {
   const list = items.map(c => {
     const occurred = c.occurred_at ? new Date(c.occurred_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
     const ackChip = c.acknowledgment && c.acknowledgment !== "none"
-      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:2px 7px;border-radius:10px">Acknowledged · ${escapeHtml(c.acknowledgment)}</span>`
-      : (c.driver_visible ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:2px 7px;border-radius:10px">Awaiting acknowledgment</span>` : "");
+      ? `<span class="status-pill status-pill-acknowledged">Acknowledged · ${escapeHtml(c.acknowledgment)}</span>`
+      : (c.driver_visible ? `<span class="status-pill status-pill-pending">Awaiting acknowledgment</span>` : "");
     const followBadge = c.follow_up_at && !c.resolved_at
-      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);background:var(--accent-soft);padding:2px 7px;border-radius:10px">Follow-up ${new Date(c.follow_up_at).toLocaleDateString()}</span>`
+      ? `<span class="status-pill status-pill-followup">Follow-up ${new Date(c.follow_up_at).toLocaleDateString()}</span>`
       : "";
     const privBadge = c.privacy_tier === "hr_only"
-      ? `<span style="font-size:var(--fs-xs);font-weight:700;color:var(--red);background:rgba(229,62,62,.1);padding:2px 7px;border-radius:10px">HR-only</span>`
+      ? `<span class="status-pill status-pill-error">HR-only</span>`
       : "";
     const witness = c.witness_name
       ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Witness: <strong style="color:var(--text)">${escapeHtml(c.witness_name)}${c.witness_role ? ` (${escapeHtml(c.witness_role)})` : ""}</strong></div>`
@@ -8155,9 +8155,9 @@ function _renderAvailabilityRows() {
     const isDenied   = r.status === "denied";
 
     let statusPill = "";
-    if (isPending)  statusPill = `<span style="background:#fef3c7;color:#92400e;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Pending</span>`;
-    if (isApproved) statusPill = `<span style="background:rgba(22,163,74,.12);color:var(--green);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Approved</span>`;
-    if (isDenied)   statusPill = `<span style="background:rgba(220,38,38,.10);color:var(--red);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Denied</span>`;
+    if (isPending)  statusPill = `<span class="status-pill status-pill-pending">Pending</span>`;
+    if (isApproved) statusPill = `<span class="status-pill status-pill-approved">Approved</span>`;
+    if (isDenied)   statusPill = `<span class="status-pill status-pill-denied">Denied</span>`;
 
     let metaLine;
     if (isPending) {
@@ -8409,8 +8409,8 @@ function _renderCoachFeed() {
           : `<span style="font-size:var(--fs-xs);color:${new Date(c.follow_up_at) < new Date() ? "var(--red)" : "var(--accent-text)"}">${new Date(c.follow_up_at).toLocaleDateString()}</span>`)
       : `<span style="color:var(--text-subtle)">—</span>`;
     const ack = c.acknowledgment && c.acknowledgment !== "none"
-      ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--green);background:rgba(34,197,94,.12);padding:1px 6px;border-radius:8px">Ack</span>`
-      : (c.driver_visible ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:8px">Pending ack</span>` : "");
+      ? `<span class="status-pill status-pill-acknowledged">Ack</span>`
+      : (c.driver_visible ? `<span class="status-pill status-pill-pending">Pending ack</span>` : "");
     const status = c.archived_at
       ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Archived</span>`
       : (c.resolved_at
