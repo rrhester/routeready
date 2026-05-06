@@ -1,3 +1,7 @@
 # Migration artifacts — contain secrets and PII, do NOT commit
 migration/*.sql
 migration/parsed.json
+
+# Local tooling
+node_modules/
+package-lock.json

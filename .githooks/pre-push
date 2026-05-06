@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# RouteReady pre-push gate.  Runs the smoke-check so a busted live.js
+# (orphan top-level code, parse error, conflict marker) can never reach
+# the remote.  See scripts/smoke-check-live.mjs for the rules.
+#
+# Bypassing this hook (--no-verify) is forbidden — every reach for
+# --no-verify in the past has resulted in production going dark.
+
+set -e
+
+# If acorn isn't installed yet, bail with a clear message instead of an
+# obscure ERR_MODULE_NOT_FOUND.
+if [ ! -d node_modules/acorn ]; then
+  echo "✗ pre-push: node_modules/acorn missing.  Run \`npm install\` first." >&2
+  exit 1
+fi
+
+node scripts/smoke-check-live.mjs
