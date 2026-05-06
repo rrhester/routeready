@@ -72,6 +72,38 @@ button{font-family:inherit;cursor:pointer}
 a{color:inherit;text-decoration:none}
 
 /* ─────────────────────────────────────────────────────────────
+   CANONICAL LOADING + EMPTY PRIMITIVES
+   Cohesive between dashboard and driver app — same shape, same
+   tokens, same proportions.  Use these for any new "Loading…"
+   or empty placeholder so the platform reads as one system.
+   ───────────────────────────────────────────────────────────── */
+.rr-loading{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:var(--s-3);padding:var(--s-8) var(--s-4);
+  color:var(--text-subtle);font-size:13px;line-height:1.4;
+}
+.rr-loading::before{
+  content:"";display:block;width:18px;height:18px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:rr-spin .7s linear infinite;
+}
+@keyframes rr-spin{to{transform:rotate(360deg)}}
+.rr-empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:var(--s-2);padding:var(--s-8) var(--s-5);text-align:center;
+}
+.rr-empty-icon{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--canvas);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:var(--s-2);
+}
+.rr-empty-icon svg{width:18px;height:18px;stroke-width:1.8;color:var(--text-subtle)}
+.rr-empty-title{font-size:14px;font-weight:600;color:var(--text);line-height:1.3}
+.rr-empty-sub{font-size:12px;color:var(--text-subtle);max-width:38ch;line-height:1.5}
+.rr-empty-action{margin-top:var(--s-3)}
+
+/* ─────────────────────────────────────────────────────────────
    APP SHELL
    ───────────────────────────────────────────────────────────── */
 .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
@@ -5383,7 +5415,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <div style="font-size:11px;color:var(--text-subtle)" id="rr-avail-coverage-sub">—</div>
             </div>
             <div id="rr-avail-coverage-bars">
-              <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
+              <div class="rr-loading">Loading coverage</div>
             </div>
           </div>
 
@@ -5401,7 +5433,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               </button>
             </div>
             <div id="rr-avail-req-list">
-              <div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
+              <div class="rr-loading">Loading requests</div>
             </div>
           </div>
 
@@ -16242,7 +16274,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260506j"></script>
+<script type="module" src="./live.js?v=20260506k"></script>
 
 </body>
 </html>

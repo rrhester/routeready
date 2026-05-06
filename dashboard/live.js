@@ -7821,7 +7821,7 @@ async function loadAvailabilityRequests() {
   // Header + KPI shells render synchronously so the operator sees
   // structure even while the data loads.
   _renderAvailabilityShell();
-  wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
+  wrap.innerHTML = `<div class="rr-loading">Loading requests</div>`;
 
   // Fire all five endpoints in parallel.  The decision-support
   // numbers under each pending request need:
@@ -8124,7 +8124,14 @@ function _renderAvailabilityRows() {
   });
 
   if (_availRequestsCache.length === 0) {
-    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No availability requests.</div>`;
+    wrap.innerHTML = `
+      <div class="rr-empty">
+        <div class="rr-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <div class="rr-empty-title">No availability requests</div>
+        <div class="rr-empty-sub">When a driver submits a change to their available days, it'll show up here for approval.</div>
+      </div>`;
     return;
   }
 

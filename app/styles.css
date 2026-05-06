@@ -24,6 +24,17 @@
   --r-md: 10px;
   --r-lg: 14px;
   --tab-h: 68px;
+
+  /* Spacing scale (8px grid · matches the dashboard's --s-* so the
+     two surfaces speak the same spacing language). */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
   /* On-screen keyboard height — set by visualViewport listener in
      app.js so layouts can subtract it and keep inputs in view. */
   --rr-kbd: 0px;
@@ -369,6 +380,34 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   border-radius:50%;animation:rrspin .7s linear infinite;
 }
 @keyframes rrspin{to{transform:rotate(360deg)}}
+
+/* ── Canonical loading + empty primitives ─────────────────────
+   Same shape and proportions as the dashboard.  Use these for
+   new code; existing .loader / .empty-state keep working. */
+.rr-loading{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:var(--s-3);padding:var(--s-8) var(--s-4);
+  color:var(--text-subtle);font-size:13px;line-height:1.4;
+}
+.rr-loading::before{
+  content:"";display:block;width:18px;height:18px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:rrspin .7s linear infinite;
+}
+.rr-empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:var(--s-2);padding:var(--s-8) var(--s-5);text-align:center;
+}
+.rr-empty-icon{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--canvas);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:var(--s-2);
+}
+.rr-empty-icon svg{width:18px;height:18px;stroke-width:1.8;color:var(--text-subtle)}
+.rr-empty-title{font-size:14px;font-weight:600;color:var(--text);line-height:1.3}
+.rr-empty-sub{font-size:12px;color:var(--text-subtle);max-width:38ch;line-height:1.5}
+.rr-empty-action{margin-top:var(--s-3)}
 
 /* ── Toast ──────────────────────────────────────────────────── */
 .toast{
