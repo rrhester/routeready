@@ -7220,6 +7220,55 @@ function _renderAvailabilityCoverageCard() {
   }).join("");
 }
 
+function _renderAvailabilityRows() {
+  const wrap = document.getElementById("rr-avail-req-list");
+  if (!wrap) return;
+
+  // Reflect active sort.
+  document.querySelectorAll("[data-rr-sort]").forEach(b => {
+    b.classList.toggle("active", b.dataset.rrSort === _availSortKey);
+    if (b.dataset.rrSort === _availSortKey) b.textContent = b.dataset.rrSort + (_availSortDir === "asc" ? " ↑" : " ↓");
+    else b.textContent = b.dataset.rrSort;
+  });
+
+  if (_availRequestsCache.length === 0) {
+    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No availability requests.</div>`;
+    return;
+  }
+
+  const rows = _sortAvailRows(_availRequestsCache);
+
+  wrap.innerHTML = rows.map((r) => {
+    const same = JSON.stringify((r.days || []).slice().sort()) === JSON.stringify(((r.current_days || []).slice()).sort());
+    const isPending  = r.status === "pending";
+    const isApproved = r.status === "approved";
+    const isDenied   = r.status === "denied";
+
+    let statusPill = "";
+    if (isPending)  statusPill = `<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Pending</span>`;
+    if (isApproved) statusPill = `<span style="background:rgba(22,163,74,.12);color:var(--green);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Approved</span>`;
+    if (isDenied)   statusPill = `<span style="background:rgba(220,38,38,.10);color:var(--red);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Denied</span>`;
+
+    let metaLine;
+    if (isPending) {
+      metaLine = `submitted ${escapeHtml(_fmtRel(r.submitted_at))}`;
+    } else if (isApproved) {
+      metaLine = `approved ${escapeHtml(_fmtRel(r.decided_at))} · effective through ${escapeHtml(_fmtAvailDateShort(r.effective_until))}`;
+    } else {
+      metaLine = `denied ${escapeHtml(_fmtRel(r.decided_at))}`;
+    }
+
+    const noteLine = r.decision_note
+      ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic">"${escapeHtml(r.decision_note)}"</div>`
+      : "";
+
+    const actions = isPending
+      ? `<div style="display:flex;gap:8px;align-items:center">
+           <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
+           <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
+         </div>`
+      : `<div style="font-size:11px;color:var(--text-subtle)">—</div>`;
+
     let impactBlock = "";
     if (isPending && !same) {
       const im = _availImpactFor(r);
