@@ -5117,6 +5117,29 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <button class="btn btn-sm" onclick="goto('staffing')">Open Performance →</button>
           </div>
 
+          <!-- ─── AVAILABILITY INSIGHTS (relocated from Drivers → Availability) ─── -->
+          <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:24px">
+            <div style="margin-bottom:12px">
+              <div style="font-size:13px;font-weight:700;color:var(--text);letter-spacing:-.005em">Availability insights</div>
+              <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Pulled from each driver's saved availability and the next four weeks of OKAMI demand.</div>
+            </div>
+            <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
+            <div data-rr-avail-byday-card style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+                <div>
+                  <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">Driver availability by day</div>
+                  <p style="font-size:12px;color:var(--text-subtle);margin:4px 0 0">What share of your active roster is available each day of the week.</p>
+                </div>
+                <div style="font-size:11px;color:var(--text-subtle);text-align:right" data-rr-avail-summary></div>
+              </div>
+              <div data-rr-avail-bars>
+                <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
+              </div>
+              <div data-rr-avail-insight style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);line-height:1.5"></div>
+            </div>
+            <div data-rr-avail-repeats style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px"></div>
+          </div>
+
         </div><!-- /dr-sub-insights -->
 
 
@@ -5392,6 +5415,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="attendance" onclick="setSettingsSection(this)">Attendance policy</button>
+            <button class="settings-nav-item" data-set="availability" onclick="setSettingsSection(this)">Availability rules</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
@@ -5601,6 +5625,26 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               </div>
               <div id="att-pane-policy">
                 <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading policy…</div>
+              </div>
+            </div>
+
+            <!-- AVAILABILITY RULES SECTION -->
+            <div class="settings-section hidden" data-set="availability">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Availability rules</h2>
+                <p class="settings-section-sub">Lead time, the auto-response messages drivers receive on approve / deny, and blackout windows.</p>
+              </div>
+
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
+                <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Settings</h3>
+                <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve / deny.</p>
+                <div data-rr-avail-settings></div>
+              </div>
+
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px">
+                <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Blackout dates</h3>
+                <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Windows where drivers cannot submit availability changes — e.g. peak season, holidays.</p>
+                <div data-rr-avail-blackouts></div>
               </div>
             </div>
 
@@ -16152,7 +16196,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505d2"></script>
+<script type="module" src="./live.js?v=20260505d3"></script>
 
 </body>
 </html>

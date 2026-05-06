@@ -2279,12 +2279,14 @@ window.attTab = function (name) {
   if (name === "log")     loadAttendanceEventLog();
 };
 
-// Load the policy builder when the operator opens Settings →
-// Attendance policy (or navigates back to Settings while it was the
-// last selected section).
+// Load the right data when the operator opens a settings section
+// that's hosted by JS rather than baked into the HTML mockup.
 document.addEventListener("click", (e) => {
   if (e.target.closest('.settings-nav-item[data-set="attendance"]')) {
     setTimeout(() => loadAttendancePolicy(), 0);
+  }
+  if (e.target.closest('.settings-nav-item[data-set="availability"]')) {
+    setTimeout(() => loadAvailabilityRequests(), 0);
   }
 });
 
@@ -3298,6 +3300,14 @@ async function loadDriverInsights() {
   if (!root) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
+
+  // Pull availability data + render the by-day insights into the
+  // relocated panel at the bottom of this page.  Cheap re-call —
+  // _renderAvailability* short-circuits if the anchor isn't in the
+  // DOM, so this is safe to fire even when the operator's parked on
+  // another sub-tab.
+  loadAvailabilityRequests();
+  loadScheduleInsights();
 
   // Apply persisted timeframe selections to the dropdowns before reading.
   document.querySelectorAll("[data-rr-di-tf]").forEach(sel => {
@@ -6916,61 +6926,18 @@ async function loadAvailabilityRequests() {
   _renderAvailabilityRows();
 }
 
-// Three sub-tabs (Queue / Insights / Rules) inside the Availability
-// subview. Built once on first open. The pre-existing
-// "<div class='rr-avail-req-list-card'>...queue card..." gets moved
-// into the Queue pane; Insights and Rules panes are built fresh.
+// Drivers → Availability is now just the request queue.
+//   - Insights moved to Drivers → Insights (data-rr-avail-* targets
+//     live in dr-sub-insights now).
+//   - Rules moved to Settings → Availability rules.
+// Render the queue card and a sortable header bar; the renderer
+// helpers below populate the relocated insights / rules panels via
+// document.querySelector so they find the new homes.
 function _renderAvailabilityShell() {
   const host = document.getElementById("dr-sub-availability");
   if (!host) return;
   if (host.dataset.rrShell === "1") return;
   host.dataset.rrShell = "1";
-
-  // Grab the original queue card so we can re-parent it into the Queue tab.
-  const originalCard = host.querySelector(":scope > div");
-
-  host.innerHTML = `
-    <div class="subnav" style="display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:8px;margin-bottom:14px;width:fit-content">
-      <button type="button" class="avail-subtab active" data-rr-availtab="queue">Queue</button>
-      <button type="button" class="avail-subtab" data-rr-availtab="insights">Insights</button>
-      <button type="button" class="avail-subtab" data-rr-availtab="rules">Rules</button>
-    </div>
-    <div class="avail-pane" data-rr-availpane="queue"></div>
-    <div class="avail-pane" data-rr-availpane="insights" style="display:none">
-      <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
-      <div data-rr-avail-byday-card style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-          <div>
-            <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">Driver availability by day</div>
-            <p style="font-size:12px;color:var(--text-subtle);margin:4px 0 0">What share of your active roster is available each day of the week.</p>
-          </div>
-          <div style="font-size:11px;color:var(--text-subtle);text-align:right" data-rr-avail-summary></div>
-        </div>
-        <div data-rr-avail-bars>
-          <div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
-        </div>
-        <div data-rr-avail-insight style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);line-height:1.5"></div>
-      </div>
-      <div data-rr-avail-repeats style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px"></div>
-    </div>
-    <div class="avail-pane" data-rr-availpane="rules" style="display:none">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
-        <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Settings</h3>
-        <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve/deny.</p>
-        <div data-rr-avail-settings></div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px">
-        <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Blackout dates</h3>
-        <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Windows where drivers cannot submit availability changes — e.g. peak season, holidays.</p>
-        <div data-rr-avail-blackouts></div>
-      </div>
-    </div>
-  `;
-
-  // Re-parent the original queue card into the Queue pane and add the
-  // sortable header bar in front of the request list.
-  const queuePane = host.querySelector('[data-rr-availpane="queue"]');
-  if (originalCard) queuePane.appendChild(originalCard);
 
   const list = document.getElementById("rr-avail-req-list");
   if (list && !document.getElementById("rr-avail-sortbar")) {
@@ -6997,29 +6964,11 @@ function _renderAvailabilityShell() {
         color:var(--text-subtle);background:none;border:0;padding:2px 4px;border-radius:4px;cursor:pointer}
       .avail-sort-btn:hover{color:var(--text)}
       .avail-sort-btn.active{color:var(--accent);background:var(--accent-soft)}
-      .avail-subtab{padding:6px 14px;font:inherit;font-size:13px;font-weight:600;color:var(--text-muted);
-        background:transparent;border:0;border-radius:6px;cursor:pointer}
-      .avail-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
     `;
     document.head.appendChild(st);
   }
 
-  // Sub-tab clicks.
   host.addEventListener("click", (e) => {
-    const tab = e.target.closest("[data-rr-availtab]");
-    if (tab) {
-      const key = tab.dataset.rrAvailtab;
-      host.querySelectorAll("[data-rr-availtab]").forEach(b => b.classList.toggle("active", b === tab));
-      host.querySelectorAll("[data-rr-availpane]").forEach(p => {
-        p.style.display = p.dataset.rrAvailpane === key ? "" : "none";
-      });
-      // Lazy-load the by-day chart the first time Insights is opened.
-      if (key === "insights" && host.dataset.rrInsightsLoaded !== "1") {
-        host.dataset.rrInsightsLoaded = "1";
-        loadScheduleInsights(host.querySelector('[data-rr-availpane="insights"]'));
-      }
-      return;
-    }
     const sortBtn = e.target.closest("[data-rr-sort]");
     if (sortBtn) {
       const k = sortBtn.dataset.rrSort;
@@ -7035,8 +6984,9 @@ function _renderAvailabilityShell() {
 }
 
 function _renderAvailabilityKpis(k, rows) {
-  const host = document.getElementById("dr-sub-availability");
-  const el = host?.querySelector("[data-rr-avail-kpis]");
+  // Insights moved to Drivers → Insights, so search globally for the
+  // target containers — they live wherever the operator put them.
+  const el = document.querySelector("[data-rr-avail-kpis]");
   if (!el) return;
   const card = (label, value, sub) => `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
@@ -7055,7 +7005,7 @@ function _renderAvailabilityKpis(k, rows) {
   // can have a conversation. Lives on its own card now (the Driver
   // Availability by Day chart from Schedule Insights renders in the
   // card above).
-  const repeatEl = host.querySelector("[data-rr-avail-repeats]");
+  const repeatEl = document.querySelector("[data-rr-avail-repeats]");
   if (!repeatEl) return;
   const repeats = Array.isArray(k.repeat_requesters_30d) ? k.repeat_requesters_30d : [];
   const repeatList = repeats.length === 0
@@ -7072,8 +7022,9 @@ function _renderAvailabilityKpis(k, rows) {
 }
 
 function _renderAvailabilityBlackouts(rows) {
-  const host = document.getElementById("dr-sub-availability");
-  const el = host?.querySelector("[data-rr-avail-blackouts]");
+  // Rules section moved to Settings; search globally so the blackout
+  // editor renders wherever the [data-rr-avail-blackouts] anchor sits.
+  const el = document.querySelector("[data-rr-avail-blackouts]");
   if (!el) return;
   const list = (rows || []).map(b => `
     <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px">
@@ -7116,8 +7067,10 @@ function _renderAvailabilityBlackouts(rows) {
 }
 
 function _renderAvailabilitySettingsPanel(s) {
-  const host = document.getElementById("dr-sub-availability");
-  const el = host?.querySelector("[data-rr-avail-settings]");
+  // Settings card moved to Settings → Availability rules.  Search
+  // globally so it renders wherever the [data-rr-avail-settings]
+  // anchor lives now.
+  const el = document.querySelector("[data-rr-avail-settings]");
   if (!el) return;
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:8px;align-items:start">
