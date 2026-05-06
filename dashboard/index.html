@@ -6742,15 +6742,15 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <div id="rr-att-windows" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
                 <div>
                   <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Check-in opens (min before)</label>
-                  <input type="number" id="rr-att-lead" min="0" max="120" value="15" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+                  <input type="number" id="rr-att-lead" min="0" max="120" value="15" class="form-input form-input-block"/>
                 </div>
                 <div>
                   <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Tardy after (min past start)</label>
-                  <input type="number" id="rr-att-grace" min="0" max="120" value="10" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+                  <input type="number" id="rr-att-grace" min="0" max="120" value="10" class="form-input form-input-block"/>
                 </div>
                 <div>
                   <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">NCNS after (min past start)</label>
-                  <input type="number" id="rr-att-ncns" min="0" max="720" value="60" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+                  <input type="number" id="rr-att-ncns" min="0" max="720" value="60" class="form-input form-input-block"/>
                 </div>
                 <button class="btn btn-sm btn-primary" id="rr-att-windows-save">Save</button>
               </div>
@@ -11077,21 +11077,21 @@ Evidence attached:
     </div>
     <div class="modal-body">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">First name</label><input id="ad-fn" placeholder="Devon" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none" /></div>
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Last name</label><input id="ad-ln" placeholder="Briggs" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none" /></div>
+        <div><label class="modal-field-label">First name</label><input id="ad-fn" placeholder="Devon" class="form-input form-input-block" style="margin-top:4px" /></div>
+        <div><label class="modal-field-label">Last name</label><input id="ad-ln" placeholder="Briggs" class="form-input form-input-block" style="margin-top:4px" /></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Phone</label><input id="ad-phone" placeholder="+1 417 555 0123" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none" /></div>
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Email</label><input id="ad-email" placeholder="devon@email.com" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none" /></div>
+        <div><label class="modal-field-label">Phone</label><input id="ad-phone" placeholder="+1 417 555 0123" class="form-input form-input-block" style="margin-top:4px" /></div>
+        <div><label class="modal-field-label">Email</label><input id="ad-email" placeholder="devon@email.com" class="form-input form-input-block" style="margin-top:4px" /></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Station</label><select id="ad-station" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none;background:var(--surface)"><option>KMO1</option><option>KMO2</option><option>KMO3</option></select></div>
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Hire date</label><input id="ad-hiredate" type="date" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none" /></div>
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Pay rate</label><input id="ad-payrate" placeholder="$22.50/hr" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none" /></div>
+        <div><label class="modal-field-label">Station</label><select id="ad-station" class="form-input form-input-block" style="margin-top:4px"><option>KMO1</option><option>KMO2</option><option>KMO3</option></select></div>
+        <div><label class="modal-field-label">Hire date</label><input id="ad-hiredate" type="date" class="form-input form-input-block" style="margin-top:4px" /></div>
+        <div><label class="modal-field-label">Pay rate</label><input id="ad-payrate" placeholder="$22.50/hr" class="form-input form-input-block" style="margin-top:4px" /></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Vehicle assignment</label><select id="ad-vehicle" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none;background:var(--surface)"><option value="">Unassigned</option><option>VAN-04</option><option>VAN-08</option><option>VAN-12</option><option>VAN-14</option><option>VAN-16</option></select></div>
-        <div><label style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Status</label><select id="ad-status" style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);outline:none;background:var(--surface)"><option value="active">Active</option><option value="onboarding">Onboarding</option><option value="inactive">Inactive</option></select></div>
+        <div><label class="modal-field-label">Vehicle assignment</label><select id="ad-vehicle" class="form-input form-input-block" style="margin-top:4px"><option value="">Unassigned</option><option>VAN-04</option><option>VAN-08</option><option>VAN-12</option><option>VAN-14</option><option>VAN-16</option></select></div>
+        <div><label class="modal-field-label">Status</label><select id="ad-status" class="form-input form-input-block" style="margin-top:4px"><option value="active">Active</option><option value="onboarding">Onboarding</option><option value="inactive">Inactive</option></select></div>
       </div>
       <div style="margin-top:14px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:8px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -16367,7 +16367,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260506q"></script>
+<script type="module" src="./live.js?v=20260506r"></script>
 
 </body>
 </html>
