@@ -6178,7 +6178,15 @@ async function refreshDriverChatThread(scrollToBottom) {
         </div>
         <div class="rr-mc-thread" id="rr-mc-thread"></div>
         <form class="rr-mc-composer" id="rr-mc-form">
-          <textarea id="rr-mc-input" rows="1" placeholder="Reply to ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
+          <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+          <button type="button" id="rr-mc-attach" title="Attach photo or document"
+                  style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+            <div id="rr-mc-attach-preview" style="display:none"></div>
+            <textarea id="rr-mc-input" rows="1" placeholder="Reply to ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
+          </div>
           <button class="rr-mc-send" type="submit">Send</button>
         </form>
       </div>`;
@@ -6190,16 +6198,78 @@ async function refreshDriverChatThread(scrollToBottom) {
         document.getElementById("rr-mc-form").requestSubmit();
       }
     });
+
+    // Attachment picker — paperclip opens the file input.  Pending
+    // file sits on window._rrMcPending until send.
+    const fileInput = document.getElementById("rr-mc-file");
+    const previewEl = document.getElementById("rr-mc-attach-preview");
+    document.getElementById("rr-mc-attach").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files?.[0];
+      if (!f) { window._rrMcPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+      if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
+      window._rrMcPending = f;
+      const isImg = f.type.startsWith("image/");
+      const sizeKb = Math.round(f.size / 1024);
+      previewEl.style.display = "";
+      previewEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px">
+          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
+                  : `<span style="font-size:16px">📎</span>`}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
+            <div style="color:var(--text-subtle)">${sizeKb} KB</div>
+          </div>
+          <button type="button" id="rr-mc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:16px;line-height:1;padding:2px">×</button>
+        </div>`;
+      document.getElementById("rr-mc-attach-clear").addEventListener("click", () => {
+        fileInput.value = "";
+        window._rrMcPending = null;
+        previewEl.style.display = "none";
+        previewEl.innerHTML = "";
+      });
+    });
+
     document.getElementById("rr-mc-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const body = (ta.value || "").trim();
-      if (!body) return;
+      const file = window._rrMcPending;
+      if (!body && !file) return;
       const send = e.target.querySelector(".rr-mc-send");
       send.disabled = true;
-      const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: _msgInboxSelectedId, p_body: body });
+
+      let attachment = null;
+      if (file) {
+        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
+        const dspId = window.RR?.dsp?.id || "unknown";
+        const path  = `${dspId}/${_msgInboxSelectedId}/${Date.now()}-${safe}`;
+        const { error: upErr } = await sb.storage
+          .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+        if (upErr) {
+          send.disabled = false;
+          toast("Upload failed: " + upErr.message, "warn");
+          return;
+        }
+        attachment = { path, mime: file.type, name: file.name, size: file.size };
+      }
+
+      const { error } = await sb.rpc("dispatch_chat_send", {
+        p_driver_id:             _msgInboxSelectedId,
+        p_body:                  body || null,
+        p_attachment_path:       attachment?.path || null,
+        p_attachment_mime:       attachment?.mime || null,
+        p_attachment_name:       attachment?.name || null,
+        p_attachment_size_bytes: attachment?.size || null,
+      });
       send.disabled = false;
       if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
       ta.value = ""; ta.style.height = "auto";
+      if (file) {
+        window._rrMcPending = null;
+        fileInput.value = "";
+        previewEl.style.display = "none";
+        previewEl.innerHTML = "";
+      }
       await refreshDriverChatThread(true);
       refreshDriverChatList(false);
     });
@@ -6213,15 +6283,44 @@ async function refreshDriverChatThread(scrollToBottom) {
     thread.innerHTML = msgs.map((m) => {
       const t = new Date(m.created_at);
       const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      let attach = "";
+      if (m.attachment_path) {
+        const isImg = (m.attachment_mime || "").startsWith("image/");
+        const name  = m.attachment_name || "Attachment";
+        const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
+        attach = isImg
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:12px">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:11px;opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+      }
+      const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
       return `<div class="rr-mc-bubble ${m.sender_kind}">
-        <div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>
+        ${attach}
+        ${bodyHtml}
         <div class="rr-mc-time">${escapeHtml(time)}</div>
       </div>`;
     }).join("");
+    // Sign attachment paths so they render — bucket is private.
+    setTimeout(() => _rrMcSignAttachments(), 0);
   }
   if (scrollToBottom) thread.scrollTop = thread.scrollHeight;
   if (msgs.some((m) => m.sender_kind === "driver")) {
     sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).catch(() => {});
+  }
+}
+
+async function _rrMcSignAttachments() {
+  const els = document.querySelectorAll("[data-rr-mc-attach]:not([data-rr-mc-resolved])");
+  for (const el of els) {
+    const path = el.getAttribute("data-rr-mc-attach");
+    el.setAttribute("data-rr-mc-resolved", "1");
+    try {
+      const { data, error } = await sb.storage
+        .from("driver-chat-attachments")
+        .createSignedUrl(path, 60 * 60 * 8);
+      if (error || !data?.signedUrl) continue;
+      if (el.tagName === "IMG") el.src = data.signedUrl;
+      else                       el.href = data.signedUrl;
+    } catch {}
   }
 }
 
