@@ -7178,344 +7178,74 @@ async function loadAvailabilityRequests() {
   _renderAvailabilityKpis(kpiRes.data || {}, _availRequestsCache);
   _renderAvailabilityBlackouts(blackRes.data || []);
   _renderAvailabilitySettingsPanel(setRes.data || {});
+  _renderAvailabilityCoverageCard();
   _renderAvailabilityRows();
 }
 
-// Pre-compute per-DOW supply (drivers available) + peak demand
-// (max routes that day across the next 4 weeks) once per page load.
-// Ignores the requester's current availability — the row renderer
-// applies the "what if" math on top of this baseline.
-let _availImpactCtx = null;
-function _buildAvailImpactCtx(drivers, okamiGrid) {
+// Coverage-by-day card · live read of active driver availability.
+function _renderAvailabilityCoverageCard() {
+  const bars = document.getElementById("rr-avail-coverage-bars");
+  const sub  = document.getElementById("rr-avail-coverage-sub");
+  if (!bars || !_availImpactCtx) return;
+
   const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
-  const supplyByDow = Object.fromEntries(DOW.map(d => [d, 0]));
-  const totalActive = drivers.length;
-  for (const d of drivers) {
-    const days = d.metadata?.availability?.days;
-    if (!Array.isArray(days)) continue;
-    for (const dow of days) {
-      if (supplyByDow[dow] !== undefined) supplyByDow[dow] += 1;
-    }
-  }
-  // OKAMI grid is one row per day with route counts; reduce to peak
-  // demand per day-of-week across the horizon.
-  const demandByDow = Object.fromEntries(DOW.map(d => [d, 0]));
-  const JS_DOW = { 0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat" };
-  for (const cell of (okamiGrid || [])) {
-    if (!cell?.date) continue;
-    const dow = JS_DOW[new Date(cell.date + "T12:00:00").getDay()];
-    const routes = Number(cell.routes_planned ?? cell.routes ?? 0);
-    if (routes > demandByDow[dow]) demandByDow[dow] = routes;
-  }
-  return { supplyByDow, demandByDow, totalActive };
-}
-
-// Build the impact summary for one pending request — drops + adds
-// against the baseline supply, with a tone if any drop pushes a day
-// below peak demand.  Returns null if we don't have enough data.
-function _availImpactFor(req) {
-  if (!_availImpactCtx) return null;
-  const cur = new Set(req.current_days || []);
-  const next = new Set(req.days || []);
-  const drops = [...cur].filter(d => !next.has(d));
-  const adds  = [...next].filter(d => !cur.has(d));
   const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-  const supply = _availImpactCtx.supplyByDow;
-  const demand = _availImpactCtx.demandByDow;
+  const total = _availImpactCtx.totalActive;
 
-  // For each dropped day, what's the after-change supply vs peak
-  // demand?  The driver themselves is in `supply` if they were
-  // already counted (they were — they're active), so subtract 1.
-  const dropImpact = drops.map(d => {
-    const after = (supply[d] || 0) - 1;
-    const peak  = demand[d] || 0;
-    return {
-      day:    d,
-      label:  DOW_LABEL[d] || d,
-      after,
-      peak,
-      tight:  peak > 0 && after < peak,
-    };
-  });
-  const addImpact = adds.map(d => ({
-    day:   d,
-    label: DOW_LABEL[d] || d,
-    after: (supply[d] || 0) + 1,
-    peak:  demand[d] || 0,
-  }));
-  return { drops: dropImpact, adds: addImpact };
-}
-
-// Drivers → Availability is now just the request queue.
-//   - Insights moved to Drivers → Insights (data-rr-avail-* targets
-//     live in dr-sub-insights now).
-//   - Rules moved to Settings → Availability rules.
-// Render the queue card and a sortable header bar; the renderer
-// helpers below populate the relocated insights / rules panels via
-// document.querySelector so they find the new homes.
-function _renderAvailabilityShell() {
-  const host = document.getElementById("dr-sub-availability");
-  if (!host) return;
-  if (host.dataset.rrShell === "1") return;
-  host.dataset.rrShell = "1";
-
-  const list = document.getElementById("rr-avail-req-list");
-  if (list && !document.getElementById("rr-avail-sortbar")) {
-    list.insertAdjacentHTML("beforebegin", `
-      <div id="rr-avail-sortbar" style="display:grid;grid-template-columns:220px 1fr auto;gap:16px;padding:10px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;background:var(--canvas)">
-        <div style="display:flex;gap:10px;align-items:center">
-          <button class="avail-sort-btn" data-rr-sort="driver">Driver</button>
-          <button class="avail-sort-btn" data-rr-sort="station">Station</button>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center">
-          <button class="avail-sort-btn" data-rr-sort="submitted">Submitted</button>
-          <button class="avail-sort-btn" data-rr-sort="status">Status</button>
-        </div>
-        <div></div>
-      </div>
-    `);
-  }
-
-  if (!document.getElementById("rr-avail-shell-style")) {
-    const st = document.createElement("style");
-    st.id = "rr-avail-shell-style";
-    st.textContent = `
-      .avail-sort-btn{font:inherit;text-transform:inherit;letter-spacing:inherit;
-        color:var(--text-subtle);background:none;border:0;padding:2px 4px;border-radius:4px;cursor:pointer}
-      .avail-sort-btn:hover{color:var(--text)}
-      .avail-sort-btn.active{color:var(--accent);background:var(--accent-soft)}
-    `;
-    document.head.appendChild(st);
-  }
-
-  host.addEventListener("click", (e) => {
-    const sortBtn = e.target.closest("[data-rr-sort]");
-    if (sortBtn) {
-      const k = sortBtn.dataset.rrSort;
-      if (_availSortKey === k) {
-        _availSortDir = _availSortDir === "asc" ? "desc" : "asc";
-      } else {
-        _availSortKey = k;
-        _availSortDir = "asc";
-      }
-      _renderAvailabilityRows();
-    }
-  });
-}
-
-function _renderAvailabilityKpis(k, rows) {
-  // Insights moved to Drivers → Insights, so search globally for the
-  // target containers — they live wherever the operator put them.
-  const el = document.querySelector("[data-rr-avail-kpis]");
-  if (!el) return;
-  const card = (label, value, sub) => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</div>
-      <div style="font-size:24px;font-weight:700;margin-top:4px">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}
-    </div>`;
-  el.innerHTML = [
-    card("Pending",       k.pending_count ?? 0,  "awaiting review"),
-    card("Approved · 30d", k.approved_30d ?? 0,  "decisions in last 30 days"),
-    card("Denied · 30d",   k.denied_30d   ?? 0,  "decisions in last 30 days"),
-    card("Avg decision time", k.avg_decision_hours_30d != null ? `${k.avg_decision_hours_30d}h` : "—", "from submit to decide"),
-  ].join("");
-
-  // "Repeat requesters" — operators want to know who's churning so they
-  // can have a conversation. Lives on its own card now (the Driver
-  // Availability by Day chart from Schedule Insights renders in the
-  // card above).
-  const repeatEl = document.querySelector("[data-rr-avail-repeats]");
-  if (!repeatEl) return;
-  const repeats = Array.isArray(k.repeat_requesters_30d) ? k.repeat_requesters_30d : [];
-  const repeatList = repeats.length === 0
-    ? `<div style="font-size:12px;color:var(--text-subtle)">No drivers have submitted more than once in the last 30 days.</div>`
-    : repeats.slice(0, 12).map(r => `
-        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <span>${escapeHtml(r.driver_name || "")}</span>
-          <span style="font-weight:600">${r.count} requests</span>
-        </div>`).join("");
-  repeatEl.innerHTML = `
-    <div style="font-size:13px;font-weight:700;margin-bottom:8px">Repeat requesters · 30 days</div>
-    <div style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
-    ${repeatList}`;
-}
-
-function _renderAvailabilityBlackouts(rows) {
-  // Rules section moved to Settings; search globally so the blackout
-  // editor renders wherever the [data-rr-avail-blackouts] anchor sits.
-  const el = document.querySelector("[data-rr-avail-blackouts]");
-  if (!el) return;
-  const list = (rows || []).map(b => `
-    <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px">
-      <div>${escapeHtml(b.start_date || "")}</div>
-      <div>${escapeHtml(b.end_date || "")}</div>
-      <div style="color:var(--text-muted)">${escapeHtml(b.reason || "")}</div>
-      <button class="btn btn-sm btn-danger" data-rr-blackout-delete="${escapeHtml(b.id)}">Delete</button>
-    </div>`).join("");
-  el.innerHTML = `
-    <form id="rr-avail-blackout-form" style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;align-items:end;margin:6px 0 14px">
-      <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">Start</label>
-        <input type="date" id="rr-bl-start" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
-      </div>
-      <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">End</label>
-        <input type="date" id="rr-bl-end" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
-      </div>
-      <div>
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-subtle);margin-bottom:4px">Reason (optional)</label>
-        <input type="text" id="rr-bl-reason" placeholder="e.g. Holiday peak — no availability changes" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
-      </div>
-      <button type="submit" class="btn btn-sm btn-primary">Add blackout</button>
-    </form>
-    ${list || `<div style="font-size:12px;color:var(--text-subtle);padding:8px 0">No blackouts. Drivers can submit any day.</div>`}
-  `;
-  document.getElementById("rr-avail-blackout-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const start_date = document.getElementById("rr-bl-start").value;
-    const end_date   = document.getElementById("rr-bl-end").value;
-    const reason     = document.getElementById("rr-bl-reason").value;
-    if (!start_date || !end_date) return;
-    const { error } = await sb.rpc("availability_blackout_upsert", {
-      p_id: null, p_start_date: start_date, p_end_date: end_date, p_reason: reason,
-    });
-    if (error) { toast("Failed: " + error.message, "warn"); return; }
-    toast("Blackout added", "success");
-    loadAvailabilityRequests();
-  });
-}
-
-function _renderAvailabilitySettingsPanel(s) {
-  // Settings card moved to Settings → Availability rules.  Search
-  // globally so it renders wherever the [data-rr-avail-settings]
-  // anchor lives now.
-  const el = document.querySelector("[data-rr-avail-settings]");
-  if (!el) return;
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:8px;align-items:start">
-      <label style="font-size:13px;font-weight:600">Lead time<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Days from approval until the change is live for scheduling.</span></label>
-      <div>
-        <input type="number" id="rr-avail-lead" min="0" max="60" value="${Number(s.lead_days ?? 7)}" style="width:120px;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
-        <span style="font-size:12px;color:var(--text-subtle);margin-left:6px">days</span>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
-      <label style="font-size:13px;font-weight:600">Approve auto-response<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Sent to the driver when you approve. Placeholders: {days} {effective_from} {effective_until} {note}</span></label>
-      <textarea id="rr-avail-approve-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.approve_template || "")}</textarea>
-    </div>
-    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
-      <label style="font-size:13px;font-weight:600">Deny auto-response<br><span style="font-size:11px;color:var(--text-subtle);font-weight:400">Sent to the driver when you deny. Placeholders: {days} {note}</span></label>
-      <textarea id="rr-avail-deny-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.deny_template || "")}</textarea>
-    </div>
-    <div style="text-align:right;margin-top:14px">
-      <button class="btn btn-primary" id="rr-avail-settings-save">Save settings</button>
-    </div>`;
-  document.getElementById("rr-avail-settings-save").addEventListener("click", async () => {
-    const btn = document.getElementById("rr-avail-settings-save");
-    btn.disabled = true; btn.textContent = "Saving…";
-    const { error } = await sb.rpc("availability_settings_set", {
-      p_lead_days:        Number(document.getElementById("rr-avail-lead").value || 7),
-      p_approve_template: document.getElementById("rr-avail-approve-tmpl").value,
-      p_deny_template:    document.getElementById("rr-avail-deny-tmpl").value,
-    });
-    btn.disabled = false; btn.textContent = "Save settings";
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
-    toast("Settings saved", "success");
-  });
-}
-
-function _sortAvailRows(rows) {
-  const dir = _availSortDir === "asc" ? 1 : -1;
-  const cmp = (a, b) => {
-    let av, bv;
-    switch (_availSortKey) {
-      case "driver":    av = (a.driver_name || "").toLowerCase(); bv = (b.driver_name || "").toLowerCase(); break;
-      case "station":   av = (a.station_code || "").toLowerCase(); bv = (b.station_code || "").toLowerCase(); break;
-      case "status":    av = a.status; bv = b.status; break;
-      case "submitted": av = a.submitted_at || ""; bv = b.submitted_at || ""; break;
-      default: {
-        // default: pending first, then newest decided
-        const ap = a.status === "pending" ? 0 : 1;
-        const bp = b.status === "pending" ? 0 : 1;
-        if (ap !== bp) return ap - bp;
-        return (b.submitted_at || "").localeCompare(a.submitted_at || "");
-      }
-    }
-    if (av < bv) return -dir;
-    if (av > bv) return  dir;
-    return 0;
-  };
-  return rows.slice().sort(cmp);
-}
-
-function _renderAvailabilityRows() {
-  const wrap = document.getElementById("rr-avail-req-list");
-  if (!wrap) return;
-
-  // Reflect active sort.
-  document.querySelectorAll("[data-rr-sort]").forEach(b => {
-    b.classList.toggle("active", b.dataset.rrSort === _availSortKey);
-    if (b.dataset.rrSort === _availSortKey) b.textContent = b.dataset.rrSort + (_availSortDir === "asc" ? " ↑" : " ↓");
-    else b.textContent = b.dataset.rrSort;
-  });
-
-  if (_availRequestsCache.length === 0) {
-    wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No availability requests.</div>`;
+  if (total === 0) {
+    bars.innerHTML = `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:13px">No active drivers yet — add drivers to see coverage.</div>`;
+    if (sub) sub.textContent = "";
     return;
   }
 
-  const rows = _sortAvailRows(_availRequestsCache);
+  if (sub) sub.textContent = `${total} active driver${total === 1 ? "" : "s"}`;
 
-  wrap.innerHTML = rows.map((r) => {
-    const same = JSON.stringify((r.days || []).slice().sort()) === JSON.stringify(((r.current_days || []).slice()).sort());
-    const isPending  = r.status === "pending";
-    const isApproved = r.status === "approved";
-    const isDenied   = r.status === "denied";
+  // Render seven rows: day label · neutral bar · count · pct.
+  // Bars are filled in muted text-muted so the page stays neutral
+  // (no stoplight tints).  The pct number is the operator's quick
+  // read; counts (4/8) carry the absolute supply for context.
+  bars.innerHTML = DOW.map(d => {
+    const supply = _availImpactCtx.supplyByDow[d] || 0;
+    const peak   = _availImpactCtx.demandByDow[d] || 0;
+    const pct    = total > 0 ? Math.round((supply / total) * 100) : 0;
+    return `
+      <div style="display:grid;grid-template-columns:48px 1fr 90px 110px;align-items:center;gap:12px;padding:6px 0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${DOW_LABEL[d]}</div>
+        <div style="background:var(--canvas);height:10px;border-radius:5px;overflow:hidden">
+          <div style="background:var(--text-muted);height:100%;width:${pct}%;transition:width .3s"></div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
+        <div style="font-size:11px;color:var(--text-subtle);text-align:right;font-variant-numeric:tabular-nums">${supply}/${total}${peak > 0 ? ` · peak ${peak}` : ""}</div>
+      </div>`;
+  }).join("");
+}
 
-    let statusPill = "";
-    if (isPending)  statusPill = `<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Pending</span>`;
-    if (isApproved) statusPill = `<span style="background:rgba(22,163,74,.12);color:var(--green);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Approved</span>`;
-    if (isDenied)   statusPill = `<span style="background:rgba(220,38,38,.10);color:var(--red);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Denied</span>`;
-
-    let metaLine;
-    if (isPending) {
-      metaLine = `submitted ${escapeHtml(_fmtRel(r.submitted_at))}`;
-    } else if (isApproved) {
-      metaLine = `approved ${escapeHtml(_fmtRel(r.decided_at))} · effective through ${escapeHtml(_fmtAvailDateShort(r.effective_until))}`;
-    } else {
-      metaLine = `denied ${escapeHtml(_fmtRel(r.decided_at))}`;
-    }
-
-    const noteLine = r.decision_note
-      ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic">"${escapeHtml(r.decision_note)}"</div>`
-      : "";
-
-    const actions = isPending
-      ? `<div style="display:flex;gap:8px;align-items:center">
-           <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
-           <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
-         </div>`
-      : `<div style="font-size:11px;color:var(--text-subtle)">—</div>`;
-
-    // Impact panel — only on pending rows where the request actually
-    // changes the schedule.  Walks dropped + added days against the
-    // pre-computed supply / OKAMI peak-demand context so the
-    // dispatcher can see "approving this leaves 7 drivers Mon vs.
-    // peak demand 9" without having to leave the page.
     let impactBlock = "";
     if (isPending && !same) {
       const im = _availImpactFor(r);
       if (im && (im.drops.length || im.adds.length)) {
+        const total = _availImpactCtx?.totalActive || 0;
+        const pctOf = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
         const tightAny = im.drops.some(d => d.tight);
-        const dropChips = im.drops.map(d => `
-          <span style="display:inline-flex;align-items:center;gap:4px;background:${d.tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${d.tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${d.tight ? "var(--red)" : "var(--text-muted)"};padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600">
-            −${escapeHtml(d.label)} · <span style="font-weight:500">${d.after}/${d.peak || "—"}</span>
-          </span>`).join("");
-        const addChips = im.adds.map(a => `
-          <span style="display:inline-flex;align-items:center;gap:4px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600">
-            +${escapeHtml(a.label)} · <span style="font-weight:500">${a.after}/${a.peak || "—"}</span>
-          </span>`).join("");
+        const arrow = (before, after) => {
+          if (before === after) return `${pctOf(before)}%`;
+          return `${pctOf(before)}% → <strong>${pctOf(after)}%</strong>`;
+        };
+        const dropChips = im.drops.map(d => {
+          const before = (d.after + 1); // pre-change supply
+          const tight  = d.tight;
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600">
+            <span>−${escapeHtml(d.label)}</span>
+            <span style="font-weight:500">${arrow(before, d.after)}</span>
+          </span>`;
+        }).join("");
+        const addChips = im.adds.map(a => {
+          const before = (a.after - 1);
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600">
+            <span>+${escapeHtml(a.label)}</span>
+            <span style="font-weight:500">${arrow(before, a.after)}</span>
+          </span>`;
+        }).join("");
         const verdict = tightAny
           ? `<span style="color:var(--red);font-weight:600">Coverage tight</span> — at least one dropped day would fall below peak demand.  Reach out before approving.`
           : (im.drops.length === 0
@@ -7523,7 +7253,7 @@ function _renderAvailabilityRows() {
               : `Coverage holds — every dropped day still has enough drivers for peak demand.`);
         impactBlock = `
           <div style="grid-column:1/-1;margin-top:10px;padding:10px 12px;background:var(--canvas);border-radius:8px;border:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">If approved · supply / peak demand</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">If approved · coverage shift</div>
             ${(dropChips || addChips) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${dropChips}${addChips}</div>` : ""}
             <div style="font-size:11px;color:var(--text-subtle);line-height:1.5">${verdict}</div>
           </div>`;
