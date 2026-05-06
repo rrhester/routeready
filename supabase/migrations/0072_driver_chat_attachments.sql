@@ -313,10 +313,7 @@ grant execute on function public.driver_chat_list(text, int) to anon, authentica
 -- Match the shape the original 0054 version returned: { driver,
 -- messages, last_read_at }.  The dispatcher's chat head card reads
 -- data.driver.name; without that key we'd render a blank header.
-<<<<<<< HEAD
 -- Note: NOT stable, for the same reason as driver_chat_list above.
-=======
->>>>>>> origin/main
 create or replace function public.dispatch_chat_thread(p_driver_id uuid, p_limit int default 200)
 returns jsonb
 language plpgsql
