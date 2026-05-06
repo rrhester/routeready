@@ -6806,34 +6806,40 @@ function openChannelCreateModal() {
 
   const wrap = document.createElement("div");
   wrap.id = "rr-channel-create-modal";
-  wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  wrap.className = "modal-backdrop open";
   wrap.innerHTML = `
-    <div style="background:var(--surface);border-radius:12px;padding:22px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:14px">New channel</div>
-      <form id="rr-channel-create-form" style="display:flex;flex-direction:column;gap:12px">
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-subtle)">Name
-          <input id="rr-cc-new-name" required maxlength="80" placeholder="morning-wave"
-                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-subtle)">Description (optional)
-          <input id="rr-cc-new-desc" maxlength="280" placeholder="What this channel is for"
-                 style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-subtle)">Station scope
-          <select id="rr-cc-new-station" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
-            <option value="">All stations · DSP-wide</option>
-          </select>
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Drivers at this station auto-join. Leave blank to add members manually.</span>
-        </label>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
-          <button type="button" class="btn btn-sm" id="rr-cc-new-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary btn-sm">Create</button>
+    <form id="rr-channel-create-form" class="modal-card" style="max-width:440px">
+      <div class="modal-head">
+        <div>
+          <p class="modal-title">New channel</p>
+          <p class="modal-sub">Group room for drivers + dispatch</p>
         </div>
-      </form>
-    </div>`;
+        <button type="button" class="modal-close" id="rr-cc-new-close" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-field-label" for="rr-cc-new-name">Name</label>
+        <input id="rr-cc-new-name" required maxlength="80" placeholder="morning-wave"
+               style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
+        <label class="modal-field-label" for="rr-cc-new-desc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)">(optional)</span></label>
+        <input id="rr-cc-new-desc" maxlength="280" placeholder="What this channel is for"
+               style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
+        <label class="modal-field-label" for="rr-cc-new-station">Station scope</label>
+        <select id="rr-cc-new-station" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-base)">
+          <option value="">All stations · DSP-wide</option>
+        </select>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:-6px">Drivers at this station auto-join. Leave blank to add members manually.</span>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" id="rr-cc-new-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>`;
   document.body.appendChild(wrap);
   wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
   document.getElementById("rr-cc-new-cancel").addEventListener("click", () => wrap.remove());
+  document.getElementById("rr-cc-new-close").addEventListener("click", () => wrap.remove());
 
   stationsPromise.then(({ data }) => {
     const sel = document.getElementById("rr-cc-new-station");
@@ -6868,21 +6874,28 @@ async function openChannelMembersModal(channelId) {
   const meta = _msgChannelList.find(c => c.id === channelId) || {};
   const wrap = document.createElement("div");
   wrap.id = "rr-channel-members-modal";
-  wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  wrap.className = "modal-backdrop open";
   wrap.innerHTML = `
-    <div style="background:var(--surface);border-radius:12px;padding:22px;width:100%;max-width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);flex:1">Members of #${escapeHtml(meta.name || "")}</div>
-        <button type="button" class="btn btn-sm" id="rr-cc-mem-close">Close</button>
+    <div class="modal-card" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column">
+      <div class="modal-head">
+        <div>
+          <p class="modal-title">Members of #${escapeHtml(meta.name || "")}</p>
+          <p class="modal-sub">Add or remove drivers from this channel</p>
+        </div>
+        <button type="button" class="modal-close" id="rr-cc-mem-close" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <select id="rr-cc-mem-add-driver" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-md)">
-          <option value="">Add a driver…</option>
-        </select>
-        <button class="btn btn-primary btn-sm" id="rr-cc-mem-add-btn">Add</button>
-      </div>
-      <div id="rr-cc-mem-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
-        <div class="rr-loading">Loading</div>
+      <div class="modal-body" style="overflow-y:auto;min-height:0">
+        <div style="display:flex;gap:var(--s-2)">
+          <select id="rr-cc-mem-add-driver" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font:inherit;font-size:var(--fs-md)">
+            <option value="">Add a driver…</option>
+          </select>
+          <button type="button" class="btn btn-primary" id="rr-cc-mem-add-btn">Add</button>
+        </div>
+        <div id="rr-cc-mem-list" style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+          <div class="rr-loading">Loading</div>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(wrap);
@@ -12023,14 +12036,24 @@ function openAssignShiftModal(shiftId) {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-shift-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.className = "modal-backdrop open";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:380px;width:100%">
-      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Assign shift</h3>
-      <select id="rr-as-driver" class="form-input" style="width:100%;margin-bottom:14px">
-        ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(displayDriverName(d))}</option>`).join("")}
-      </select>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+    <div class="modal-card" style="max-width:380px">
+      <div class="modal-head">
+        <div>
+          <p class="modal-title">Assign shift</p>
+          <p class="modal-sub">Pick a driver to take this open slot</p>
+        </div>
+        <button type="button" class="modal-close" data-rr-as-cancel aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <select id="rr-as-driver" class="form-input" style="width:100%">
+          ${_schedDriverList.map(d => `<option value="${d.id}">${escapeHtml(displayDriverName(d))}</option>`).join("")}
+        </select>
+      </div>
+      <div class="modal-foot">
         <button class="btn" data-rr-as-cancel>Cancel</button>
         <button class="btn btn-primary" data-rr-as-save>Assign</button>
       </div>
