@@ -678,14 +678,20 @@ async function renderChat() {
 async function refreshChat(scrollToBottom) {
   const session = readSession();
   if (!session?.token) return;
+  const wrap = document.getElementById("chat-msgs");
   const { data, error } = await sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 200 });
   if (error) {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
     }
+    // Surface the error inline instead of leaving the loader spinning
+    // forever.  This caught the post-migration "function …driver_chat_list…
+    // does not exist" once the schema cache hadn't reloaded yet.
+    if (wrap) {
+      wrap.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load messages.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
+    }
     return;
   }
-  const wrap = document.getElementById("chat-msgs");
   if (!wrap) return;
   const messages = data?.messages || [];
   if (messages.length === 0) {
