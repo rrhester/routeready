@@ -765,26 +765,29 @@ async function loadAttendanceLive() {
     const points = occ;
     let statusLabel = "Good";
     let statusKind  = "ok";
-    // Coaching label = where this driver currently sits on the discipline
-    // ladder. This is what operators actually act on (and what the daily
-    // attendance card recommends), so we surface it directly in the
-    // status column instead of the abstract "Warn / Action" thresholds.
+    // Coaching label = where this driver currently sits on the
+    // progressive ladder, which is just how many qualifying occurrences
+    // they've accrued in the rolling decay window:
+    //   1 → Verbal · 2 → Written · 3 → Final · 4+ → Termination
+    // This mirrors levelFor() in the daily-card flow so the report and
+    // the daily card never disagree about a driver's current rung.
     let coachingLabel = "Clear";
+    const warnFloor = Math.max(1, POLICY.threshold_warn || 1);
     if (POLICY.policy_enabled === false) {
       statusLabel = "Policy off"; statusKind = "ok"; coachingLabel = "Policy off";
-    } else if (occ >= POLICY.threshold_action) {
-      statusLabel = "Action"; statusKind = "bad";
-      coachingLabel = POLICY.progressive_coaching ? "Final" : "Written";
-    } else if (occ >= POLICY.threshold_warn) {
-      statusLabel = "Warn"; statusKind = "warn";
-      coachingLabel = "Verbal";
+    } else if (occ >= warnFloor) {
+      const step = occ - warnFloor + 1;
+      if (step <= 1)       { coachingLabel = "Verbal";      statusLabel = "Warn";   statusKind = "warn"; }
+      else if (step === 2) { coachingLabel = "Written";     statusLabel = "Action"; statusKind = "bad";  }
+      else if (step === 3) { coachingLabel = "Final";       statusLabel = "Action"; statusKind = "bad";  }
+      else                 { coachingLabel = "Termination"; statusLabel = "Action"; statusKind = "bad";  }
     }
     if (POLICY.first_30_strict && d.hire_date && occ > 0) {
       const daysSinceHire = Math.floor((todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000);
       if (daysSinceHire >= 0 && daysSinceHire <= (POLICY.first_30_window_days || 30)) {
         statusLabel = "Action · first-30 rule";
         statusKind  = "bad";
-        coachingLabel = "Written · 1st 30";
+        if (coachingLabel === "Clear" || coachingLabel === "Verbal") coachingLabel = "Written · 1st 30";
       }
     }
     totalScheduled += a.scheduled;
@@ -857,7 +860,7 @@ function _renderAttReportTbody() {
   // a comparator-friendly value via the keyOf table below.
   // Coaching column ranks by ladder severity so a click sorts most-
   // urgent → clear (Termination > Final > Written > Verbal > Clear).
-  const COACHING_RANK = { "Termination": 5, "Final": 4, "Written · 1st 30": 3, "Written": 3, "Verbal": 2, "Clear": 0, "Policy off": -1 };
+  const COACHING_RANK = { "Termination": 4, "Final": 3, "Written · 1st 30": 2, "Written": 2, "Verbal": 1, "Clear": 0, "Policy off": -1 };
   const keyOf = {
     driver:    (r) => (displayDriverName(r.d) || "").toLowerCase(),
     station:   (r) => (r.d.station?.code || "").toLowerCase(),
@@ -1911,13 +1914,15 @@ const _ATT_DEFAULT_POLICY = {
   // Auto-escalations.  ncns_terminates triggers a Termination
   // recommendation on the very first NCNS, regardless of count.
   ncns_terminates: false,
-  progressive_coaching: true,
-  // Auto-coaching: master toggle + per-level toggles.  When the master
+  // Coaching is a progressive ladder by definition: each qualifying
+  // occurrence in the rolling window steps the driver up one rung
+  // (Verbal → Written → Final → Termination). No on/off knob.
+  // Auto-coaching: master toggle + per-level toggles. When the master
   // is ON and the per-level toggle for the recommended action is also
   // ON, hitting Approve on the daily tool fires the coaching record
-  // and DMs the driver immediately.  Anything not auto-fired drops
-  // into the coaching drawer for the leader to finalize.  Termination
-  // is never auto — final-step decisions always need a human signoff.
+  // and posts an in-app message to the driver immediately. Levels
+  // not auto-fired drop into the coaching drawer for the leader to
+  // finalize. Termination is never auto — a leader always confirms.
   auto_coaching:    false,
   auto_verbal:      false,
   auto_written:     false,
@@ -1930,16 +1935,16 @@ const _ATT_DEFAULT_POLICY = {
 
 function _getAttPolicy() {
   const p = window.RR?.dsp?.metadata?.attendance?.policy || {};
-  // Translate legacy records (points-mode, single auto_coaching bool)
-  // into the new shape.  Old fields are dropped on read — occurrence-
-  // only is the supported model now.
+  // Translate legacy records (points-mode, the old progressive_coaching
+  // toggle, multi-action side effects) into the current shape.  The
+  // ladder is now always progressive and "auto-fire on a level"
+  // implies a single side effect (in-app driver message).
   const merged = { ..._ATT_DEFAULT_POLICY, ...p };
   delete merged.mode;
   delete merged.points_per_tardy;
   delete merged.points_per_callout;
   delete merged.points_per_noshow;
-  // Drop any old multi-action records — the model is now master toggle
-  // + per-level toggles.
+  delete merged.progressive_coaching;
   delete merged.auto_coaching_actions;
   return merged;
 }
@@ -2038,56 +2043,36 @@ async function loadAttendancePolicy() {
       </label>
     </div>
 
-    <!-- Coaching style + auto-coaching -->
+    <!-- Coaching ladder + auto-coaching -->
     <div class="pol-section">
-      <h3 class="pol-section-title">Coaching style</h3>
-      <p class="pol-section-sub">How the dashboard phrases its recommendations once a driver crosses a threshold, and which levels of coaching fire automatically when a leader hits Approve on the daily attendance card.</p>
-      ${toggleRow("progressive_coaching", "Use progressive coaching steps",
-        "When ON the recommended action escalates: <strong>Verbal</strong> coaching at the Warn threshold → <strong>Written</strong> warning at Action → <strong>Final</strong> written warning on a repeat → <strong>Termination</strong>.  Documents the conversation each time so an unemployment claim has a paper trail.<br>When OFF the dashboard recommends a single Coach action at Warn and a single Write-up at Action.")}
+      <h3 class="pol-section-title">Coaching ladder</h3>
+      <p class="pol-section-sub">Coaching is a <strong>progressive ladder</strong>. Every qualifying occurrence inside the rolling decay window steps the driver up one rung — there's no separate threshold for each level.</p>
+      <div style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;margin:6px 0 12px;font-size:var(--fs-sm);line-height:1.7;color:var(--text)">
+        <div style="display:grid;grid-template-columns:auto auto 1fr;gap:6px 14px;align-items:center">
+          <strong style="color:var(--text)">1st event</strong><span style="color:var(--text-muted)">→</span><span>Verbal coaching</span>
+          <strong style="color:var(--text)">2nd event</strong><span style="color:var(--text-muted)">→</span><span>Written warning</span>
+          <strong style="color:var(--text)">3rd event</strong><span style="color:var(--text-muted)">→</span><span>Final written warning</span>
+          <strong style="color:var(--red)">4th event</strong><span style="color:var(--text-muted)">→</span><span><strong style="color:var(--red)">Termination</strong> recommended (a leader still confirms)</span>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px">Older events drop off as the rolling <strong>${p.decay_days}-day</strong> window scrolls forward, so a driver who stays clean climbs back down the ladder.</div>
+      </div>
       ${toggleRow("auto_coaching", "Auto-coach when an event is approved",
-        "When ON, approving an event on the daily attendance card automatically logs the coaching to the driver's record and DMs them in the RouteReady app.  Pick which levels auto-fire below — anything you don't auto-fire drops into the coaching drawer for a leader to finalize manually.<br>When OFF, every approved event drops into the coaching drawer regardless of level.")}
+        "When ON, approving an event on the daily attendance card automatically logs the coaching to the driver's record and posts an in-app message in the RouteReady driver app for the levels you toggle below. Anything you don't auto-fire drops into the coaching drawer for a leader to finalize manually.<br>When OFF, every approved event drops into the coaching drawer regardless of level.")}
 
       <!-- Per-level auto-approval (only meaningful when auto_coaching is ON) -->
       <div id="rr-att-auto-levels" style="margin-top:6px;border-top:1px solid var(--border);padding-top:10px;${p.auto_coaching ? "" : "opacity:.45;pointer-events:none"}">
         <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Levels that auto-fire</div>
-        ${toggleRow("auto_verbal",  "Verbal warnings auto-fire",
-          "When the recommended action is a <strong>Verbal</strong> coaching, fire it without leader review.")}
-        ${toggleRow("auto_written", "Written warnings auto-fire",
-          "When the recommended action is a <strong>Written</strong> warning, fire it without leader review.")}
-        ${toggleRow("auto_final",   "Final written warnings auto-fire",
-          "When the recommended action is a <strong>Final</strong> written warning, fire it without leader review.")}
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:6px;line-height:1.5">For any level you toggle on, the driver will receive an automatic message in the RouteReady driver app on Approve. Levels you leave off route to the coaching drawer for a leader to finalize.</div>
+        ${toggleRow("auto_verbal",  "Verbal coaching auto-fires",
+          "On Approve, log the verbal coaching and message the driver in the RouteReady app.")}
+        ${toggleRow("auto_written", "Written warning auto-fires",
+          "On Approve, log the written warning and message the driver in the RouteReady app.")}
+        ${toggleRow("auto_final",   "Final written warning auto-fires",
+          "On Approve, log the final written warning and message the driver in the RouteReady app.")}
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);padding:8px 0 0;line-height:1.5">
-          <strong>Termination is never auto-approved.</strong>  A leader always confirms a termination from the coaching drawer.
+          <strong>Termination is never auto-approved.</strong> A leader always confirms a termination from the coaching drawer.
         </div>
       </div>
-    </div>
-
-    <!-- Auto-coaching actions on Approve -->
-    <div class="pol-section">
-      <h3 class="pol-section-title">Auto-coach when an event is approved</h3>
-      <p class="pol-section-sub">Pick which side effects fire automatically when a leader hits <strong>Approve</strong> on the daily attendance card.  Pick none and coaching is fully manual — the attendance report will flag the row as <em>Coaching pending</em> until a leader finalizes it from the coaching drawer.</p>
-      ${(function () {
-        const has = (v) => Array.isArray(p.auto_coaching_actions) && p.auto_coaching_actions.includes(v);
-        const row = (val, label, blurb) => `
-          <label class="rr-pol-toggle-row" style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--border)">
-            <span style="flex:1">
-              <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
-            </span>
-            <label class="toggle" style="margin-top:2px">
-              <input type="checkbox" data-rr-att-action="${val}" ${has(val) ? "checked" : ""}/>
-              <span class="toggle-slider"></span>
-            </label>
-          </label>`;
-        return [
-          row("message",      "Send a message in the driver's app",
-            "Posts a chat message in the driver's RouteReady app explaining what was logged and why.  When the <strong>Coach drawer pending action</strong> below is also on, the message waits until the leader finalizes the coaching from the drawer.  Logged in the driver's coaching record either way."),
-          row("notification", "Send a push notification",
-            "Triggers a push notification on the driver's phone.  Same content as the in-app message; pairs naturally with the message option above so the driver sees it without having to open the app."),
-          row("coach_drawer", "Add a pending action to the coaching drawer",
-            "Creates a draft coaching record marked <em>Pending</em> and routes it to the coaching drawer.  The leader reviews, edits the notes, and finalizes — at which point any chosen message / notification fires.  Use this when you want a human eye before the driver hears about it."),
-        ].join("");
-      })()}
     </div>
 
     <!-- Save -->
@@ -2120,12 +2105,7 @@ document.addEventListener("click", async (e) => {
       const v = Number(el.value);
       if (Number.isFinite(v) && v >= 0) timing[el.dataset.rrAttTiming] = v;
     });
-    // Multi-select auto-coaching actions.
-    const auto_coaching_actions = [];
-    document.querySelectorAll("[data-rr-att-action]").forEach(el => {
-      if (el.checked) auto_coaching_actions.push(el.dataset.rrAttAction);
-    });
-    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields, auto_coaching_actions };
+    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields };
 
     if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
 
@@ -2652,15 +2632,26 @@ async function _renderTpDailyTool(flagged) {
   };
 
   // Compute the coaching level (verbal / written / final / termination /
-  // none) that applies to this row.  Drives both the "Next:" label and
-  // the auto-fire decision when the leader hits Approve.
+  // none) that applies to this row.  The ladder is progressive: each
+  // qualifying occurrence inside the rolling decay window steps the
+  // driver up one rung, starting from threshold_warn:
+  //   1st event at-or-above warn → Verbal
+  //   2nd                        → Written
+  //   3rd                        → Final
+  //   4th+                       → Termination
+  // NCNS-terminates short-circuits straight to termination if enabled.
+  // threshold_action is retained for status-pill display only — the
+  // ladder itself is per-occurrence, not threshold-banded.
   const levelFor = (outcome, nAfter) => {
     if (policy.policy_enabled === false) return null;
     if (outcome === "ncns" && policy.ncns_terminates) return "termination";
-    const prog = !!policy.progressive_coaching;
-    if (nAfter >= policy.threshold_action) return prog ? "final" : "written";
-    if (nAfter >= policy.threshold_warn)   return prog ? "verbal" : "verbal";
-    return null;
+    const warn = Math.max(1, policy.threshold_warn || 1);
+    if (nAfter < warn) return null;
+    const step = nAfter - warn + 1;
+    if (step <= 1) return "verbal";
+    if (step === 2) return "written";
+    if (step === 3) return "final";
+    return "termination";
   };
   const recommend = (outcome, level) => {
     if (policy.policy_enabled === false) return "Logged · policy is off";
@@ -2735,20 +2726,20 @@ async function _renderTpDailyTool(flagged) {
   }).join("");
 
   // Footer summary — what happens on Confirm given the operator's
-  // current Coaching style settings.
+  // current Coaching ladder + auto-coaching settings.
   let autoCoachNote;
   if (policy.policy_enabled === false) {
     autoCoachNote = "Attendance policy is OFF — Confirm logs the event as a manual coaching needed.";
   } else if (!policy.auto_coaching) {
-    autoCoachNote = "Auto-coaching is OFF — Confirm logs the event as a manual coaching for the leader to file from the drawer.";
+    autoCoachNote = "Auto-coaching is OFF — Confirm drops every event into the coaching drawer for a leader to finalize.";
   } else {
     const levels = [];
     if (policy.auto_verbal)  levels.push("verbal");
     if (policy.auto_written) levels.push("written");
     if (policy.auto_final)   levels.push("final");
     autoCoachNote = levels.length === 0
-      ? "Auto-coaching is ON but no levels auto-fire — every Confirm still routes through the coaching drawer as Pending."
-      : "Auto-fires when level is: " + levels.join(", ") + ".  Other levels (and termination) drop into the coaching drawer as Pending.";
+      ? "Auto-coaching is ON but no levels are toggled — every Confirm still routes through the coaching drawer as Pending."
+      : "Auto-fires + messages the driver in the RouteReady app for: " + levels.join(", ") + ". Other levels (and termination) drop into the coaching drawer as Pending.";
   }
 
   toolEl.innerHTML = `${head(flagged.length)}${rows}
