@@ -749,7 +749,14 @@ async function refreshChat(scrollToBottom) {
   if (!wrap) return;
   const messages = data?.messages || [];
   if (messages.length === 0) {
-    wrap.innerHTML = `<div class="empty-state">No messages yet.</div>`;
+    wrap.innerHTML = `
+      <div class="rr-empty">
+        <div class="rr-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="rr-empty-title">No messages yet</div>
+        <div class="rr-empty-sub">Type below to start a conversation with dispatch.</div>
+      </div>`;
   } else {
     wrap.innerHTML = messages.map(chatBubbleHtml).join("");
     _rrSignChatAttachments();
@@ -891,7 +898,14 @@ async function refreshChannelList() {
   }
   const channels = data?.channels || [];
   if (channels.length === 0) {
-    list.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--text-subtle)">No channels yet.<br><small>Your dispatcher adds you to channels.</small></div>`;
+    list.innerHTML = `
+      <div class="rr-empty">
+        <div class="rr-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="rr-empty-title">No channels yet</div>
+        <div class="rr-empty-sub">Your dispatcher will add you to channels for your station or team.</div>
+      </div>`;
     return;
   }
   const fmtRel = (iso) => {
