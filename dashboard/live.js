@@ -2488,6 +2488,8 @@ function _renderTpAttendance(data, error) {
   }
 
   const pctOf = (a, b) => b > 0 ? Math.round((a / b) * 100) : 0;
+  // Neutral palette throughout — operator wants the numbers to carry
+  // the message, not the dashboard's verdict.
   const waveCard = (wave, b) => {
     const inPct  = pctOf(b.checkedIn, b.scheduled);
     const outPct = 100 - inPct;
@@ -2501,19 +2503,19 @@ function _renderTpAttendance(data, error) {
         <div style="display:flex;gap:12px">
           <div style="flex:1">
             <div style="font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Checked in</div>
-            <div style="font-size:24px;font-weight:700;color:var(--green)">${b.checkedIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${inPct}%</span></div>
+            <div style="font-size:24px;font-weight:700;color:var(--text)">${b.checkedIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${inPct}%</span></div>
           </div>
           <div style="flex:1">
             <div style="font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase">Not in</div>
-            <div style="font-size:24px;font-weight:700;color:${b.notIn > 0 ? "var(--amber)" : "var(--text)"}">${b.notIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${outPct}%</span></div>
+            <div style="font-size:24px;font-weight:700;color:var(--text)">${b.notIn}<span style="font-size:13px;color:var(--text-subtle);font-weight:600;margin-left:6px">${outPct}%</span></div>
           </div>
         </div>
         <div style="height:6px;background:var(--canvas);border-radius:999px;overflow:hidden;display:flex">
-          <div style="width:${inPct}%;background:var(--green)"></div>
-          <div style="width:${outPct}%;background:${b.notIn > 0 ? "var(--amber)" : "var(--canvas)"}"></div>
+          <div style="width:${inPct}%;background:var(--text-muted)"></div>
+          <div style="width:${outPct}%;background:var(--border-strong)"></div>
         </div>
         ${flagged > 0
-          ? `<div style="font-size:11px;color:var(--red);font-weight:600">⚠ ${b.tardy} tardy · ${b.ncns} NCNS</div>`
+          ? `<div style="font-size:11px;color:var(--text);font-weight:600">${b.tardy} tardy · ${b.ncns} NCNS</div>`
           : `<div style="font-size:11px;color:var(--text-subtle)">No issues this wave</div>`}
       </div>`;
   };
@@ -2556,7 +2558,8 @@ function _renderTpAttendance(data, error) {
     ? `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:12px">No extras scheduled today.</div>`
     : extras.map(r => {
         const t = r.starts_at ? new Date(r.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
-        const tone = _RR_OUTCOME_TONE[r.computed_outcome] || _RR_OUTCOME_TONE.waiting;
+        // Neutral chip — Today page is a no-stoplight zone.
+        const tone = { bg: "var(--canvas)", fg: "var(--text-muted)" };
         const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
         const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
         return `
@@ -2623,11 +2626,12 @@ async function _renderTpDailyTool(flagged) {
     }
   }
 
+  // Neutral palette — labels carry the meaning; no stoplight tints.
   const standing = (n) => {
     if (policy.policy_enabled === false) return { label: "Policy off", tone: "var(--text-subtle)" };
-    if (n >= policy.threshold_action) return { label: "Action",       tone: "var(--red)" };
-    if (n >= policy.threshold_warn)   return { label: "Warning",      tone: "var(--amber)" };
-    return { label: "Good standing", tone: "var(--green)" };
+    if (n >= policy.threshold_action) return { label: "Action",        tone: "var(--text)" };
+    if (n >= policy.threshold_warn)   return { label: "Warning",       tone: "var(--text-muted)" };
+    return { label: "Good standing", tone: "var(--text-subtle)" };
   };
 
   // Compute the coaching level (verbal / written / final / termination /
@@ -2675,7 +2679,8 @@ async function _renderTpDailyTool(flagged) {
     const st  = standing(after);
     const rec = recommend(r.computed_outcome, lvl);
     const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
-    const tone = _RR_OUTCOME_TONE[r.computed_outcome] || _RR_OUTCOME_TONE.waiting;
+    // Today page is neutral — no stoplight chip on the daily approvals.
+    const tone = { bg: "var(--canvas)", fg: "var(--text-muted)" };
     const label = _RR_OUTCOME_LABEL[r.computed_outcome] || r.computed_outcome;
     return `
       <div class="rr-tp-tool-row" data-driver-id="${escapeHtml(r.driver_id)}"
@@ -6805,6 +6810,32 @@ async function openCoachingForm(driverId) {
 
     const { data: inserted, error } = await sb.from("coachings").insert(payload).select("id").single();
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
+
+    // When the operator checked "Driver can view this", post a chat
+    // message to the driver in their RouteReady app so they actually
+    // know a new coaching landed on their record.  Same delivery path
+    // as auto-coached attendance events — uses dispatch_chat_send
+    // which inserts a driver_messages row + triggers the existing
+    // web-push pipeline.  Without this the coaching just sits silently
+    // on the driver's record until they happen to open the app.
+    if (payload.driver_visible) {
+      const dspName = window.RR?.dsp?.name || "Dispatch";
+      const sevWord = (() => {
+        const s = (payload.severity || "").toLowerCase();
+        if (s === "verbal" || s === "info" || s === "concern") return "coaching note";
+        if (s === "written" || s === "warning")                 return "written warning";
+        if (s === "final")                                       return "final written warning";
+        if (s === "termination")                                 return "notice";
+        return "coaching";
+      })();
+      const headline = payload.summary || (payload.topic ? `${payload.topic} ${sevWord}` : "New coaching");
+      const body = `New ${sevWord} from ${dspName}: ${headline}.  Open the app to review and acknowledge.`;
+      const { error: msgErr } = await sb.rpc("dispatch_chat_send", {
+        p_driver_id: driverId,
+        p_body:      body,
+      });
+      if (msgErr) console.warn("coaching · driver notify failed:", msgErr.message);
+    }
 
     // Upload attachments → storage and write rows in coaching_attachments.
     const fileInput = document.getElementById("rr-coach-files");
@@ -11188,6 +11219,26 @@ window.goto = function (view) {
   if (typeof _origGotoForSched === "function") _origGotoForSched(view);
   if (view === "schedule") loadScheduleView();
   if (view === "okami")    loadOkamiView();
+};
+
+// Reset every view to its first sub-tab when the operator navigates
+// to it.  Without this the dashboard remembers the last sub-tab they
+// were on (e.g. they leave Drivers from the Coaching tab, come back
+// later, and land on Coaching).  Most operators want a clean start
+// from the primary view every time.
+const _origGotoForSubReset = window.goto;
+window.goto = function (view) {
+  if (typeof _origGotoForSubReset === "function") _origGotoForSubReset(view);
+  // Run after the legacy goto applied the .active class on the view.
+  setTimeout(() => {
+    const activeView = document.getElementById("view-" + view);
+    if (!activeView) return;
+    // Pick the first subnav button — works for both .subnav (Drivers,
+    // Schedule, Pipeline, Workflows) and .att-tabstrip (Drivers →
+    // Attendance, after the user reorders subtabs).
+    const firstSub = activeView.querySelector(".subnav .subnav-item, .subnav-item");
+    if (firstSub && !firstSub.classList.contains("active")) firstSub.click();
+  }, 0);
 };
 
 const _origRefreshSched = refreshActiveView;
