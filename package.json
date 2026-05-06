@@ -1,0 +1,11 @@
+{
+  "name": "routeready-tools",
+  "private": true,
+  "description": "Local dev tooling. Run `npm install` once, then `npm run smoke` before every push.",
+  "scripts": {
+    "smoke": "node scripts/smoke-check-live.mjs"
+  },
+  "devDependencies": {
+    "acorn": "^8.12.1"
+  }
+}

@@ -7233,6 +7233,42 @@ function _renderAvailabilityRows() {
 
   if (_availRequestsCache.length === 0) {
     wrap.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">No availability requests.</div>`;
+    return;
+  }
+
+  const rows = _sortAvailRows(_availRequestsCache);
+
+  wrap.innerHTML = rows.map((r) => {
+    const same = JSON.stringify((r.days || []).slice().sort()) === JSON.stringify(((r.current_days || []).slice()).sort());
+    const isPending  = r.status === "pending";
+    const isApproved = r.status === "approved";
+    const isDenied   = r.status === "denied";
+
+    let statusPill = "";
+    if (isPending)  statusPill = `<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Pending</span>`;
+    if (isApproved) statusPill = `<span style="background:rgba(22,163,74,.12);color:var(--green);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Approved</span>`;
+    if (isDenied)   statusPill = `<span style="background:rgba(220,38,38,.10);color:var(--red);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">Denied</span>`;
+
+    let metaLine;
+    if (isPending) {
+      metaLine = `submitted ${escapeHtml(_fmtRel(r.submitted_at))}`;
+    } else if (isApproved) {
+      metaLine = `approved ${escapeHtml(_fmtRel(r.decided_at))} · effective through ${escapeHtml(_fmtAvailDateShort(r.effective_until))}`;
+    } else {
+      metaLine = `denied ${escapeHtml(_fmtRel(r.decided_at))}`;
+    }
+
+    const noteLine = r.decision_note
+      ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic">"${escapeHtml(r.decision_note)}"</div>`
+      : "";
+
+    const actions = isPending
+      ? `<div style="display:flex;gap:8px;align-items:center">
+           <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
+           <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
+         </div>`
+      : `<div style="font-size:11px;color:var(--text-subtle)">—</div>`;
+
     let impactBlock = "";
     if (isPending && !same) {
       const im = _availImpactFor(r);
@@ -7245,7 +7281,7 @@ function _renderAvailabilityRows() {
           return `${pctOf(before)}% → <strong>${pctOf(after)}%</strong>`;
         };
         const dropChips = im.drops.map(d => {
-          const before = (d.after + 1); // pre-change supply
+          const before = (d.after + 1);
           const tight  = d.tight;
           return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600">
             <span>−${escapeHtml(d.label)}</span>
