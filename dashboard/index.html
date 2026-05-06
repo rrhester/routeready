@@ -5218,8 +5218,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           <div class="att-tabstrip" id="rr-att-tabstrip">
             <button class="att-tab active" draggable="true" data-att="history" onclick="attTab('history')">History</button>
             <button class="att-tab"        draggable="true" data-att="report"  onclick="attTab('report')">Report</button>
-            <button class="att-tab"        draggable="true" data-att="policy"  onclick="attTab('policy')">Policy builder</button>
-            <button class="att-tab"        draggable="true" data-att="log"     onclick="attTab('log')">Event log <span id="att-log-count" style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
+            <button class="att-tab"        draggable="true" data-att="log"     onclick="attTab('log')">Event log <span id="att-log-count" style="display:none"></span></button>
           </div>
 
           <!-- ─── HISTORY PANE ────────────────────────────────── -->
@@ -5244,9 +5243,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 <div class="di-sub" id="att-kpi-vto-sub">Voluntary time off ÷ scheduled</div>
               </div>
               <div class="di-card">
-                <div class="di-label">Active policy</div>
-                <div class="di-val" style="font-size:18px" id="att-kpi-mode">Hybrid</div>
-                <div class="di-sub" id="att-kpi-mode-sub">90-day rolling · 4 thresholds</div>
+                <div class="di-label">In corrective action</div>
+                <div class="di-val" id="att-kpi-action-count">—</div>
+                <div class="di-sub" id="att-kpi-action-breakdown">Verbal · Written · Final · Termination</div>
               </div>
             </div>
 
@@ -5288,13 +5287,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
           </div><!-- /att-pane-report -->
 
-          <!-- ─── POLICY BUILDER PANE ─────────────────────────── -->
-          <div class="att-pane" id="att-pane-policy">
-            <div id="rr-att-policy-shell">
-              <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading policy…</div>
-            </div>
-          
-          </div><!-- /att-pane-policy -->
+          <!-- Policy builder moved to Settings → Attendance policy. -->
+
 
           <!-- ─── EVENT LOG PANE ──────────────────────────────── -->
           <div class="att-pane" id="att-pane-log">
@@ -5397,6 +5391,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Referral program</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
+            <button class="settings-nav-item" data-set="attendance" onclick="setSettingsSection(this)">Attendance policy</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
@@ -5595,6 +5590,17 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                   <span id="rr-lic-status" style="font-size:11px;color:var(--text-subtle)"></span>
                   <button class="btn btn-primary" type="button" data-rr-lic-save>Save settings</button>
                 </div>
+              </div>
+            </div>
+
+            <!-- ATTENDANCE POLICY SECTION -->
+            <div class="settings-section hidden" data-set="attendance">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Attendance policy</h2>
+                <p class="settings-section-sub">Master toggle, occurrence rules, thresholds, auto-coaching, and timing.  Live preview reacts as you edit.</p>
+              </div>
+              <div id="att-pane-policy">
+                <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading policy…</div>
               </div>
             </div>
 
@@ -16146,7 +16152,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505d1"></script>
+<script type="module" src="./live.js?v=20260505d2"></script>
 
 </body>
 </html>
