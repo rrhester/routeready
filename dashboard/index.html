@@ -14,7 +14,17 @@
 :root{
   /* ── Surfaces (multi-layered material system) ─────────────── */
   --canvas:#F4F6FB;
-  --canvas-grad:linear-gradient(180deg, #F4F6FB 0%, #EEF1F7 100%);
+  /* Watermark depth layer baked into the canvas gradient.  Three
+     ultra-soft asymmetric radial shapes (top-right cool brand,
+     lower-left slate, lower-middle indigo) with very wide falloffs
+     read as dissolved blur without paying for filter:blur on a
+     full-screen layer.  Opacities 5/4/3% — sub-perceptual; remove
+     and the canvas reads flat. */
+  --canvas-grad:
+    radial-gradient(ellipse 1200px 800px at 92% 4%,  rgba(20,110,180,.075) 0%, transparent 65%),
+    radial-gradient(ellipse 1300px 900px at 4%  72%, rgba(15,23,42,.060)   0%, transparent 65%),
+    radial-gradient(ellipse 820px 660px at 60% 108%, rgba(99,102,241,.040) 0%, transparent 65%),
+    linear-gradient(180deg, #F4F6FB 0%, #EEF1F7 100%);
   --surface:#FFFFFF;
   --surface-elevated:#FFFFFF;
   --surface-grad:linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(252,253,255,1) 100%);
@@ -118,43 +128,17 @@ body{
   -moz-osx-font-smoothing:grayscale;
   font-feature-settings:"cv02","cv03","cv04","cv11";
   text-rendering:optimizeLegibility;
-  position:relative;
-  isolation:isolate;
 }
-/* ── Watermark depth layer — sub-perceptual ────────────────────
-   Two ultra-soft, asymmetrically placed shapes blurred 100px so
-   their edges fully dissolve into the canvas gradient.  Fixed
-   inset:-240px so the blurred halo never shows as a hard edge.
-   pointer-events:none + z-index:-1 + body{isolation:isolate} keeps
-   the layer beneath all content without affecting any sticky / z
-   stacking elsewhere.  Opacity is intentionally well below the
-   threshold of conscious recognition; remove it and the canvas
-   reads as a flat color. */
-body::before{
-  content:"";
-  position:fixed;
-  inset:-240px;
-  z-index:-2;
-  pointer-events:none;
-  background:
-    radial-gradient(circle 720px at 88% 8%,   rgba(20,110,180,.10) 0%, rgba(20,110,180,0) 70%),
-    radial-gradient(circle 820px at 6%  72%,  rgba(15,23,42,.08)   0%, rgba(15,23,42,0)   70%),
-    radial-gradient(circle 540px at 62% 108%, rgba(99,102,241,.06) 0%, rgba(99,102,241,0) 70%);
-  filter:blur(100px) saturate(105%);
-  will-change:filter;
-}
-/* ── Micro-grain — kills digital flatness on large surfaces.
-   ~1.5% opacity SVG fractal noise overlay, multiply blend so it
-   biases dark instead of brightening white space.  Invisible at
-   normal viewing distance; removing it makes white surfaces feel
-   plasticky. */
+/* Micro-grain — fixed overlay, no z-index gymnastics.
+   pointer-events:none means it never blocks interaction; multiply
+   blend at 2.2% darkens by an imperceptible amount but kills the
+   plasticky flat-white feel on large empty surfaces. */
 body::after{
   content:"";
   position:fixed;
   inset:0;
-  z-index:-1;
   pointer-events:none;
-  opacity:.025;
+  opacity:.022;
   mix-blend-mode:multiply;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   background-size:220px 220px;
@@ -16741,7 +16725,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507b"></script>
+<script type="module" src="./live.js?v=20260507c"></script>
 
 </body>
 </html>
