@@ -13084,9 +13084,19 @@ Evidence attached:
     document.querySelectorAll('.settings-nav-item').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
     document.querySelectorAll('.settings-section[data-set]').forEach(function(s){ s.classList.add('hidden'); });
-    const target = document.querySelector('.settings-section[data-set="' + id + '"]');
+    let target = document.querySelector('.settings-section[data-set="' + id + '"]');
+    // Fallback: if the section we want isn't in the DOM (an old build,
+    // a missing pane, anything), don't leave the page blank — show
+    // the first available section so the operator always sees content.
+    if (!target) {
+      target = document.querySelector('.settings-section[data-set]');
+      console.warn('Settings pane not found for', id, '— falling back to', target?.getAttribute('data-set'));
+    }
     if (target) target.classList.remove('hidden');
   }
+  // Belt-and-suspenders: expose globally so inline onclicks always
+  // resolve, even if a later script body shadows the local binding.
+  window.setSettingsSection = setSettingsSection;
 
   // ─── ALERT TABS FILTER ─────────────────────────────────────
   function filterAlertTab(btn){
@@ -16182,7 +16192,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505d6"></script>
+<script type="module" src="./live.js?v=20260505d7"></script>
 
 </body>
 </html>

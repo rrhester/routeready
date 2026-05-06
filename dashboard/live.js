@@ -9430,18 +9430,27 @@ document.addEventListener("click", (e) => {
 });
 
 async function loadScheduleView() {
-  // Force-clear the mockup HTML the moment the view opens so static
-  // rows like 'Marcus Davidson' / 'Tasha Reyes' can't flash through
-  // while the live render is in flight.
-  _clearScheduleMockup();
-  loadTimeOffList();
-  loadOpenShifts();
-  // Settings has to land BEFORE renderScheduleWeek runs — it reads
-  // window._rrWeekFinalized to decide whether to show the LIVE banner.
-  // Previously these ran in parallel, which made the banner flicker.
-  await loadSchedulingSettings();
-  await renderScheduleWeek();
-  bindSchedWeekNav();
+  // Wrap every step so a single thrown function (missing helper,
+  // schema mismatch, etc.) can't blank the entire schedule view.
+  // Each error gets a console warning; the page keeps rendering.
+  try { _clearScheduleMockup(); } catch (e) { console.warn("schedule · clearMockup:", e); }
+  try { loadTimeOffList();      } catch (e) { console.warn("schedule · timeOff:", e); }
+  try { loadOpenShifts();       } catch (e) { console.warn("schedule · openShifts:", e); }
+  try {
+    // Settings has to land BEFORE renderScheduleWeek runs — it reads
+    // window._rrWeekFinalized to decide whether to show the LIVE
+    // banner.  Previously these ran in parallel, which made the
+    // banner flicker.
+    await loadSchedulingSettings();
+  } catch (e) { console.warn("schedule · settings:", e); }
+  try { await renderScheduleWeek(); } catch (e) {
+    console.warn("schedule · renderWeek:", e);
+    const sub = document.getElementById("sched-sub-week");
+    if (sub) {
+      sub.innerHTML = `<div style="padding:48px;text-align:center;color:var(--red);font-size:13px">Couldn't render the schedule week.<br><small>${escapeHtml(e?.message || String(e))}</small></div>`;
+    }
+  }
+  try { bindSchedWeekNav(); } catch (e) { console.warn("schedule · navBind:", e); }
 }
 
 function _clearScheduleMockup() {
