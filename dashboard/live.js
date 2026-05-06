@@ -6277,23 +6277,6 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (conv.dataset.rrDriverId !== driverId) {
     conv.dataset.rrDriverId = driverId;
     conv.innerHTML = `
-      <style>
-        .rr-mc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
-        .rr-mc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
-        .rr-mc-name{font-size:var(--fs-base);font-weight:600}
-        .rr-mc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-        .rr-mc-thread{flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
-        .rr-mc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:var(--fs-base);line-height:1.4;word-wrap:break-word}
-        .rr-mc-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
-        .rr-mc-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
-        .rr-mc-time{font-size:var(--fs-xs);margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
-        .rr-mc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px}
-        .rr-mc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
-        .rr-mc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:var(--fs-base);line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
-        .rr-mc-composer textarea:focus{outline:none;border-color:var(--accent)}
-        .rr-mc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:var(--fs-md);cursor:pointer;min-height:40px}
-        .rr-mc-send:disabled{opacity:.5;cursor:not-allowed}
-      </style>
       <div class="rr-mc-shell">
         <div class="rr-mc-head" data-rr-driver-id="${escapeHtml(driverId)}">
           <div class="avatar-sm">${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
@@ -6611,26 +6594,6 @@ async function refreshChannelThread(scrollToBottom) {
     const stationLine = meta.station_code ? ` · station ${escapeHtml(meta.station_code)}` : "";
     const memberCount = meta.member_count || 0;
     conv.innerHTML = `
-      <style>
-        .rr-cc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
-        .rr-cc-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
-        .rr-cc-name{font-size:var(--fs-base);font-weight:600;display:flex;align-items:center;gap:6px}
-        .rr-cc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-        .rr-cc-head-actions{margin-left:auto;display:flex;gap:6px}
-        .rr-cc-thread{flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
-        .rr-cc-bubble{max-width:78%;padding:9px 13px;border-radius:14px;font-size:var(--fs-base);line-height:1.4;word-wrap:break-word}
-        .rr-cc-bubble.driver{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
-        .rr-cc-bubble.dispatch{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
-        .rr-cc-sender{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);margin-bottom:3px}
-        .rr-cc-bubble.dispatch .rr-cc-sender{color:rgba(255,255,255,.85)}
-        .rr-cc-time{font-size:var(--fs-xs);margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
-        .rr-cc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px}
-        .rr-cc-composer{display:flex;gap:8px;align-items:flex-end;padding:12px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
-        .rr-cc-composer textarea{flex:1;min-height:40px;max-height:140px;padding:9px 12px;font-size:var(--fs-base);line-height:1.4;background:var(--canvas);border:1px solid var(--border);border-radius:8px;resize:none;font-family:inherit;color:var(--text)}
-        .rr-cc-composer textarea:focus{outline:none;border-color:var(--accent)}
-        .rr-cc-send{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 16px;font-weight:600;font-size:var(--fs-md);cursor:pointer;min-height:40px}
-        .rr-cc-send:disabled{opacity:.5;cursor:not-allowed}
-      </style>
       <div class="rr-cc-shell">
         <div class="rr-cc-head">
           <div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text)">#</div>
