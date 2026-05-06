@@ -181,6 +181,40 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   letter-spacing:.08em;text-transform:uppercase;
   margin:20px 4px 10px;
 }
+
+/* ── Status pill + dot ───────────────────────────────────────
+   Mirrors the dashboard's .status-pill / .status-dot so a
+   pending badge here reads identically to one over there.
+   Use the semantic variant for state, not the color. */
+.status-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:10px;
+  font-size:var(--fs-xs);font-weight:700;line-height:1.5;
+  letter-spacing:.04em;text-transform:uppercase;
+  background:var(--canvas);color:var(--text-muted);
+  border:1px solid transparent;white-space:nowrap;
+}
+.status-pill-pending,
+.status-pill-warning{background:rgba(180,83,9,.12);color:var(--amber)}
+.status-pill-success,
+.status-pill-approved,
+.status-pill-acknowledged{background:rgba(21,128,61,.12);color:var(--green)}
+.status-pill-error,
+.status-pill-denied,
+.status-pill-danger{background:rgba(185,28,28,.10);color:var(--red)}
+.status-pill-info,
+.status-pill-followup{background:var(--accent-soft);color:var(--accent)}
+.status-pill-neutral{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
+.status-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:var(--text-subtle);flex-shrink:0;
+}
+.status-dot-success{background:var(--green)}
+.status-dot-pending,
+.status-dot-warning{background:var(--amber)}
+.status-dot-error,
+.status-dot-danger{background:var(--red)}
+.status-dot-info{background:var(--accent)}
 .card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:14px 16px;margin-bottom:12px;
