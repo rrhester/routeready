@@ -112,19 +112,18 @@ body{
   line-height:1.5;
   color:var(--text);
   background-color:var(--canvas);
-  /* Subtle dot-grid watermark + linear canvas gradient.
-     The pattern shows only in the canvas area (around cards) — cards
-     have their own backgrounds and cover it.  24px tile, 1px slate
-     dots at 5% opacity.  background-attachment:fixed keeps the
-     pattern locked to the viewport so it reads as canvas texture
-     rather than scrolling content.
-     To swap pattern (cross-hatch, lines, grid), replace the data URI. */
+  /* Paper-grain watermark + linear canvas gradient.
+     SVG fractalNoise (organic, non-repeating-feeling) tiled at 200px.
+     feColorMatrix alpha multiplier of 0.16 yields ~8% effective
+     visibility on average (fractal noise centers around 50% lightness,
+     so 0.5 × 0.16 ≈ 0.08).  background-attachment:fixed locks the
+     grain to the viewport. */
   background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='1' cy='1' r='1' fill='%230F172A' fill-opacity='0.05'/></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.16 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
     var(--canvas-grad);
   background-attachment:fixed, fixed;
   background-repeat:repeat, no-repeat;
-  background-size:24px 24px, auto;
+  background-size:200px 200px, auto;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
   font-feature-settings:"cv02","cv03","cv04","cv11";
@@ -16712,7 +16711,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507g"></script>
+<script type="module" src="./live.js?v=20260507h"></script>
 
 </body>
 </html>
