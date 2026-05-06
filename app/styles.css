@@ -12,9 +12,15 @@
   --text: #0b1220;
   --text-muted: #2e3a4f;
   --text-subtle: #5b6878;
-  --accent: #1d4ed8;
-  --accent-strong: #1e3a8a;
-  --accent-soft: #dbe6fe;
+  /* Brand blue — matches the dashboard's --accent (#146EB4) so both
+     surfaces read as one platform.  --accent-strong is the hover /
+     pressed shade.  --accent-soft is an opaque light-blue tint
+     designed to read clearly on var(--surface) and var(--bg) without
+     relying on alpha (mobile compositors handle opaque colors more
+     predictably under outdoor light). */
+  --accent: #146EB4;
+  --accent-strong: #0F5A95;
+  --accent-soft: #DDE9F4;
   --green: #15803d;
   --amber: #b45309;
   --red: #b91c1c;
@@ -50,9 +56,13 @@
     --text: #f4f7fb;
     --text-muted: #d2dae8;
     --text-subtle: #8c9bb2;
-    --accent: #3b82f6;
-    --accent-strong: #60a5fa;
-    --accent-soft: #1d3a7a;
+    /* Dark-mode accent — derived from the platform brand (#146EB4)
+       lightened for legibility on dark surfaces, then lifted again
+       for accent-strong.  accent-soft stays a deep brand-tinted
+       block so it reads on dark surface without washing out. */
+    --accent: #3F92D9;
+    --accent-strong: #5DAFEC;
+    --accent-soft: #1A3956;
     --shadow-sm: 0 1px 2px rgba(0,0,0,.40);
     --shadow-md: 0 4px 14px rgba(0,0,0,.45);
     --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
