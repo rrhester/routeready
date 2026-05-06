@@ -6639,7 +6639,9 @@ async function refreshChannelThread(scrollToBottom) {
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:12px">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:11px;opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
-      const senderLabel = m.sender_kind === "dispatch" ? `Dispatch · ${m.sender_name || ""}` : (m.sender_name || "Driver");
+      const senderLabel = m.sender_kind === "dispatch"
+        ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
+        : (m.sender_name || "Driver");
       const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
       return `<div class="rr-cc-bubble ${m.sender_kind}">
         <div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>
