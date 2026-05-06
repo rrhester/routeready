@@ -6829,7 +6829,29 @@ async function openCoachingForm(driverId) {
         return "coaching";
       })();
       const headline = payload.summary || (payload.topic ? `${payload.topic} ${sevWord}` : "New coaching");
-      const body = `New ${sevWord} from ${dspName}: ${headline}.  Open the app to review and acknowledge.`;
+
+      // Pull the driver's public coaching-view token so we can paste
+      // a clickable link in the message.  The driver taps it → public
+      // coaching page opens in their browser → they read the full
+      // record and tap to sign-acknowledge.  Without the URL, the
+      // existing message just told the driver to "open the app" but
+      // the coaching record isn't actually rendered anywhere in the
+      // PWA today, so they had no way to acknowledge it.
+      const { data: tokRow } = await sb.from("drivers")
+        .select("coaching_view_token")
+        .eq("id", driverId)
+        .single();
+      const base = window.RR?.dsp?.metadata?.public_base_url
+        || window.RR_CONFIG?.PUBLIC_BASE_URL
+        || location.origin;
+      const link = tokRow?.coaching_view_token
+        ? `${base.replace(/\/$/, "")}/dashboard/coaching.html?t=${encodeURIComponent(tokRow.coaching_view_token)}`
+        : null;
+
+      const body = link
+        ? `New ${sevWord} from ${dspName}: ${headline}.\n\nReview and sign here: ${link}`
+        : `New ${sevWord} from ${dspName}: ${headline}.  Reach out to dispatch to review and sign.`;
+
       const { error: msgErr } = await sb.rpc("dispatch_chat_send", {
         p_driver_id: driverId,
         p_body:      body,
