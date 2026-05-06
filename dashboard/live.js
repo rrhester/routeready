@@ -6225,12 +6225,22 @@ async function refreshDriverChatThread(scrollToBottom) {
   }
 }
 
-function _coachSeverityChip(sev) {
-  const bg = { info: "var(--canvas)", concern: "var(--accent-soft)", warning: "rgba(217,119,6,.18)", final: "rgba(229,62,62,.15)" };
-  const fg = { info: "var(--text-muted)", concern: "var(--accent-text)", warning: "#b45309", final: "var(--red)" };
-  const label = { info: "Info", concern: "Concern", warning: "Warning", final: "Final" };
-  const k = sev || "concern";
-  return `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:${bg[k]};color:${fg[k]}">${label[k] || k}</span>`;
+function _coachSeverityChip(sev, level) {
+  // Prefer the precise ladder step stored in metadata.level — falls
+  // back to the legacy severity enum (info/concern/warning/final)
+  // for older rows that don't carry a level.
+  const LEVEL_LABEL = {
+    verbal:             "Verbal",
+    verbal_attendance:  "Verbal · Attendance",
+    written:            "Written",
+    written_attendance: "Written · Attendance",
+    final_attendance:   "Final · Attendance",
+    termination:        "Termination",
+  };
+  const SEV_LABEL = { info: "Info", concern: "Concern", warning: "Warning", final: "Final" };
+  const label = LEVEL_LABEL[level] || SEV_LABEL[sev] || sev || "Coaching";
+  // Neutral chip — no stoplight tints on the coaching log.
+  return `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">${escapeHtml(label)}</span>`;
 }
 
 function _coachActionList(actionTaken) {
@@ -6281,7 +6291,7 @@ function renderCoachingTab(coachings, driver) {
     return `
     <div class="dd-list-row" data-rr-coaching-id="${c.id}" style="display:block;padding:12px 14px">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
-        ${_coachSeverityChip(c.severity)}
+        ${_coachSeverityChip(c.severity, c.metadata?.level)}
         <span style="font-size:11px;color:var(--text-subtle)">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
         ${followBadge} ${ackChip} ${privBadge}
       </div>
@@ -6636,83 +6646,115 @@ async function openCoachingForm(driverId) {
   const today = new Date().toISOString().slice(0, 10);
 
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto">
-      <h3 style="margin:0 0 6px;font-size:17px;font-weight:600">Log a coaching</h3>
-      <div style="font-size:11px;color:var(--text-subtle);margin-bottom:12px">Cmd / Ctrl + Enter to save</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column">
 
-      ${recent30 >= 3 ? `<div style="font-size:12px;color:var(--amber);background:rgba(245,158,11,.1);border-left:2px solid var(--amber);padding:8px 10px;margin-bottom:14px;border-radius:3px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating severity.</div>` : ""}
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-        <div>
-          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Topic</label>
-          <select id="rr-coach-topic" class="form-input" style="width:100%">
-            ${["safety","performance","attendance","behavior","scorecard","conduct","theft","recognition","other"].map(t => `<option value="${t}">${t}</option>`).join("")}
-          </select>
-        </div>
-        <div>
-          <label class="dd-eyebrow" style="display:block;margin-bottom:6px" id="rr-coach-severity-label">Severity</label>
-          <select id="rr-coach-severity" class="form-input" style="width:100%">
-            <option value="info">Info</option>
-            <option value="concern" selected>Concern</option>
-            <option value="warning">Warning</option>
-            <option value="final">Final</option>
-          </select>
+      <!-- Header -->
+      <div style="padding:20px 24px 14px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <h3 style="margin:0;font-size:17px;font-weight:600">Log a coaching</h3>
+            <div style="font-size:11px;color:var(--text-subtle);margin-top:3px">Cmd / Ctrl + Enter to save</div>
+          </div>
+          ${recent30 >= 3
+            ? `<div style="font-size:11px;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px 10px;border-radius:6px;line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
+            : ""}
         </div>
       </div>
 
-      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Summary</label>
-      <input id="rr-coach-summary" class="form-input" style="width:100%;margin-bottom:10px" placeholder="One-line headline" autofocus/>
+      <!-- Body -->
+      <div style="padding:18px 24px;display:flex;flex-direction:column;gap:16px">
 
-      <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Notes</label>
-      <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:80px;margin-bottom:14px" placeholder="What happened, what was discussed, what's next."></textarea>
-
-      <button type="button" id="rr-coach-more-toggle" style="font-size:12px;font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;margin-bottom:14px">+ More options (type, witness, attachments)</button>
-
-      <div id="rr-coach-more" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          <div>
-            <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Type</label>
-            <select id="rr-coach-type" class="form-input" style="width:100%">
-              ${["in_person","sms","email","phone_call","video_call","documented_warning"].map(t => `<option value="${t}">${t.replace(/_/g," ")}</option>`).join("")}
-            </select>
+        <!-- Section 1: What happened -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">The event</div>
+          <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Topic</label>
+              <select id="rr-coach-topic" class="form-input" style="width:100%">
+                ${["safety","performance","attendance","behavior","scorecard","conduct","theft","recognition","other"].map(t => `<option value="${t}">${t}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Coaching level</label>
+              <select id="rr-coach-severity" class="form-input" style="width:100%">
+                <optgroup label="Attendance ladder">
+                  <option value="verbal_attendance">Verbal — Attendance</option>
+                  <option value="written_attendance">Written — Attendance</option>
+                  <option value="final_attendance">Final — Attendance</option>
+                </optgroup>
+                <optgroup label="Conduct / performance ladder">
+                  <option value="verbal" selected>Verbal</option>
+                  <option value="written">Written</option>
+                  <option value="termination">Termination</option>
+                </optgroup>
+              </select>
+            </div>
           </div>
-          <div>
-            <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Incident date</label>
-            <input id="rr-coach-incident-date" type="date" class="form-input" style="width:100%" value="${today}"/>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Summary</label>
+          <input id="rr-coach-summary" class="form-input" style="width:100%;margin-bottom:10px" placeholder="One-line headline" autofocus/>
+          <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Notes</label>
+          <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:88px" placeholder="What happened, what was discussed, what's next."></textarea>
+        </div>
+
+        <!-- Section 2: Driver acknowledgment -->
+        <div style="background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Driver acknowledgment</div>
+          <label style="font-size:13px;cursor:pointer;display:flex;align-items:flex-start;gap:10px">
+            <input id="rr-coach-driver-visible" type="checkbox" style="margin-top:3px"/>
+            <span style="flex:1">
+              <strong>Request Confirmation</strong>
+              <div id="rr-coach-rc-help" style="font-size:11px;color:var(--text-subtle);font-weight:400;margin-top:3px;line-height:1.5">When ON, the coaching shows up on the driver's record in their RouteReady app and they get a tappable link to read and sign-acknowledge.  When OFF, the coaching is logged on your side only — useful for sensitive notes or when you've already coached in person.</div>
+            </span>
+          </label>
+          <div id="rr-coach-rc-locked" style="display:none;font-size:11px;color:var(--text-muted);background:var(--surface);border:1px dashed var(--border-strong);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.4">
+            <strong>Required at this level.</strong>  Written and Final coachings always Request Confirmation so the driver's signature is on file before the next escalation.
           </div>
         </div>
 
-        <details style="margin-bottom:10px">
-          <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
-            <input id="rr-coach-witness-name" class="form-input" placeholder="Witness name"/>
-            <input id="rr-coach-witness-role" class="form-input" placeholder="Role (e.g. HR, Lead)"/>
-          </div>
-        </details>
+        <!-- Section 3: Details (collapsible) -->
+        <button type="button" id="rr-coach-more-toggle" style="font-size:12px;font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;align-self:flex-start">+ More details (type, incident date, witness, privacy, attachments)</button>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:start">
-          <label style="font-size:13px;cursor:pointer;display:flex;align-items:flex-start;gap:8px">
-            <input id="rr-coach-driver-visible" type="checkbox" style="margin-top:3px"/>
-            <span>
-              <strong>Driver can view this</strong>
-              <div style="font-size:11px;color:var(--text-subtle);font-weight:400;margin-top:2px;line-height:1.4">When ON, the coaching shows up on the driver's record in their RouteReady app and the driver is asked to acknowledge it (tap to sign).  When OFF, the coaching is logged on your side only — useful for sensitive notes or when you've already coached in person and don't want to re-notify.</div>
-            </span>
-          </label>
+        <div id="rr-coach-more" style="display:none;display:flex;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Type</label>
+              <select id="rr-coach-type" class="form-input" style="width:100%">
+                ${["in_person","sms","email","phone_call","video_call","documented_warning"].map(t => `<option value="${t}">${t.replace(/_/g," ")}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Incident date</label>
+              <input id="rr-coach-incident-date" type="date" class="form-input" style="width:100%" value="${today}"/>
+            </div>
+          </div>
+
+          <details>
+            <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:600">Witness · 3rd party in the conversation</summary>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+              <input id="rr-coach-witness-name" class="form-input" placeholder="Witness name"/>
+              <input id="rr-coach-witness-role" class="form-input" placeholder="Role (e.g. HR, Lead)"/>
+            </div>
+          </details>
+
           <div>
             <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Privacy</label>
-            <select id="rr-coach-privacy" class="form-input" style="width:100%">
+            <select id="rr-coach-privacy" class="form-input" style="width:100%;max-width:260px">
               <option value="standard">Standard (DSP staff)</option>
               <option value="hr_only">HR-only (sensitive)</option>
             </select>
           </div>
-        </div>
 
-        <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attachments (photos, scorecard screenshots, signed forms)</label>
-        <input id="rr-coach-files" type="file" multiple style="margin-bottom:14px;font-size:12px"/>
-        <div id="rr-coach-upload-status" style="font-size:11px;color:var(--text-subtle);margin-bottom:10px"></div>
+          <div>
+            <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attachments</label>
+            <input id="rr-coach-files" type="file" multiple style="font-size:12px"/>
+            <div id="rr-coach-upload-status" style="font-size:11px;color:var(--text-subtle);margin-top:6px"></div>
+            <div style="font-size:11px;color:var(--text-subtle);margin-top:4px">Photos, scorecard screenshots, signed forms.</div>
+          </div>
+        </div>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      <!-- Footer -->
+      <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:var(--canvas)">
         <button class="btn" data-rr-coach-cancel type="button">Cancel</button>
         <button class="btn btn-primary" data-rr-coach-save type="button">Log it</button>
       </div>
@@ -6726,47 +6768,44 @@ async function openCoachingForm(driverId) {
     const more = m.querySelector("#rr-coach-more");
     const tg   = m.querySelector("#rr-coach-more-toggle");
     if (more.style.display === "none") {
-      more.style.display = "";
-      tg.textContent = "− Hide options";
+      more.style.display = "flex";
+      tg.textContent = "− Hide details";
     } else {
       more.style.display = "none";
-      tg.textContent = "+ More options (type, witness, attachments)";
+      tg.textContent = "+ More details (type, incident date, witness, privacy, attachments)";
     }
   });
 
-  // Severity options swap when Topic = attendance.  Use the
-  // progressive-coaching ladder (Verbal → Written → Final →
-  // Termination) instead of generic Info / Concern / Warning / Final
-  // so attendance write-ups match the policy builder's vocabulary.
-  const SEV_DEFAULT = [
-    { v: "info",    l: "Info" },
-    { v: "concern", l: "Concern", selected: true },
-    { v: "warning", l: "Warning" },
-    { v: "final",   l: "Final" },
-  ];
-  const SEV_ATTENDANCE = [
-    { v: "verbal",       l: "Verbal warning", selected: true },
-    { v: "written",      l: "Written warning" },
-    { v: "final",        l: "Final written warning" },
-    { v: "termination",  l: "Termination" },
-  ];
-  const _renderSeverityFor = (topic) => {
-    const sev = m.querySelector("#rr-coach-severity");
-    const lbl = m.querySelector("#rr-coach-severity-label");
-    if (!sev) return;
-    const list = topic === "attendance" ? SEV_ATTENDANCE : SEV_DEFAULT;
-    const prev = sev.value;
-    sev.innerHTML = list.map(o =>
-      `<option value="${o.v}"${o.selected ? " selected" : ""}>${escapeHtml(o.l)}</option>`
-    ).join("");
-    if (list.some(o => o.v === prev)) sev.value = prev;
-    if (lbl) lbl.textContent = topic === "attendance" ? "Coaching level" : "Severity";
+  // Severity → Request Confirmation lock.  Written and Final coachings
+  // (both attendance and conduct ladders) always need a signed
+  // acknowledgment so the next escalation has a paper trail.  When
+  // one of those levels is selected, force the toggle on and disable
+  // it so the operator can't accidentally skip the signature step.
+  const SERIOUS_LEVELS = new Set([
+    "written_attendance",
+    "final_attendance",
+    "written",
+    "final",
+  ]);
+  const _applyConfirmationLock = () => {
+    const sev = m.querySelector("#rr-coach-severity")?.value;
+    const cb  = m.querySelector("#rr-coach-driver-visible");
+    const lock= m.querySelector("#rr-coach-rc-locked");
+    const help= m.querySelector("#rr-coach-rc-help");
+    if (!cb) return;
+    if (SERIOUS_LEVELS.has(sev)) {
+      cb.checked = true;
+      cb.disabled = true;
+      if (lock) lock.style.display = "";
+      if (help) help.style.display = "none";
+    } else {
+      cb.disabled = false;
+      if (lock) lock.style.display = "none";
+      if (help) help.style.display = "";
+    }
   };
-  m.querySelector("#rr-coach-topic").addEventListener("change", (e) => {
-    _renderSeverityFor(e.target.value);
-  });
-  // Initial render — topic dropdown defaults to "safety".
-  _renderSeverityFor(m.querySelector("#rr-coach-topic").value);
+  m.querySelector("#rr-coach-severity").addEventListener("change", _applyConfirmationLock);
+  _applyConfirmationLock();
 
   // Cmd/Ctrl + Enter saves.
   m.addEventListener("keydown", (e) => {
@@ -6791,13 +6830,29 @@ async function openCoachingForm(driverId) {
     if (e.target.closest("[data-rr-coach-cancel]") || e.target === m) { m.remove(); return; }
     if (!e.target.closest("[data-rr-coach-save]")) return;
 
+    // Read the operator's selected coaching level — it carries more
+    // detail than the existing 4-value coaching_severity enum (which
+    // is only info/concern/warning/final).  Map the precise level
+    // onto the closest enum value for storage, but stash the exact
+    // ladder step in metadata.level so downstream rendering can show
+    // "Verbal — Attendance" vs. "Verbal" with no migration needed.
+    const level = document.getElementById("rr-coach-severity").value;
+    const levelToSeverity = {
+      verbal:             "concern",
+      verbal_attendance:  "concern",
+      written:            "warning",
+      written_attendance: "warning",
+      final_attendance:   "final",
+      termination:        "final",
+    };
     const payload = {
       dsp_id:        window.RR.dsp.id,
       driver_id:     driverId,
       coach_user_id: window.RR.user.id,
       topic:         document.getElementById("rr-coach-topic").value,
       type:          document.getElementById("rr-coach-type")?.value || "in_person",
-      severity:      document.getElementById("rr-coach-severity").value,
+      severity:      levelToSeverity[level] || "concern",
+      metadata:      { level },
       summary:       document.getElementById("rr-coach-summary").value.trim() || null,
       notes:         document.getElementById("rr-coach-notes").value.trim() || null,
       incident_date: document.getElementById("rr-coach-incident-date")?.value || null,
@@ -6821,11 +6876,11 @@ async function openCoachingForm(driverId) {
     if (payload.driver_visible) {
       const dspName = window.RR?.dsp?.name || "Dispatch";
       const sevWord = (() => {
-        const s = (payload.severity || "").toLowerCase();
-        if (s === "verbal" || s === "info" || s === "concern") return "coaching note";
-        if (s === "written" || s === "warning")                 return "written warning";
-        if (s === "final")                                       return "final written warning";
-        if (s === "termination")                                 return "notice";
+        const s = (payload.metadata?.level || payload.severity || "").toLowerCase();
+        if (s === "verbal_attendance"   || s === "verbal")  return "coaching note";
+        if (s === "written_attendance"  || s === "written") return "written warning";
+        if (s === "final_attendance")                        return "final written warning";
+        if (s === "termination")                             return "termination notice";
         return "coaching";
       })();
       const headline = payload.summary || (payload.topic ? `${payload.topic} ${sevWord}` : "New coaching");
@@ -7441,7 +7496,7 @@ function _renderCoachFeed() {
   const body = rows.map(c => {
     const drv = _coachFeedCache.drivers.get(c.driver_id);
     const name = drv ? (drv.preferred_name || drv.full_name || "—") : "—";
-    const sevChip = _coachSeverityChip(c.severity);
+    const sevChip = _coachSeverityChip(c.severity, c.metadata?.level);
     const occurred = new Date(c.occurred_at).toLocaleDateString();
     const followCell = c.follow_up_at
       ? (c.resolved_at
