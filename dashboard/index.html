@@ -5050,27 +5050,27 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <h3 class="di-section-title">Tenure distribution</h3>
             <div class="di-bar-row">
               <span class="di-bar-label">0–30 days</span>
-              <div class="di-bar-track"><div class="di-bar-fill tier-d" id="rr-di-bar-0-30" style="width:0%"></div></div>
+              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-0-30"></div></div>
               <div class="di-bar-count" id="rr-di-cnt-0-30">0</div>
             </div>
             <div class="di-bar-row">
               <span class="di-bar-label">30–90 days</span>
-              <div class="di-bar-track"><div class="di-bar-fill tier-c" id="rr-di-bar-30-90" style="width:0%"></div></div>
+              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-30-90"></div></div>
               <div class="di-bar-count" id="rr-di-cnt-30-90">0</div>
             </div>
             <div class="di-bar-row">
               <span class="di-bar-label">90 days – 1 year</span>
-              <div class="di-bar-track"><div class="di-bar-fill tier-b" id="rr-di-bar-90-365" style="width:0%"></div></div>
+              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-90-365"></div></div>
               <div class="di-bar-count" id="rr-di-cnt-90-365">0</div>
             </div>
             <div class="di-bar-row">
               <span class="di-bar-label">1–2 years</span>
-              <div class="di-bar-track"><div class="di-bar-fill tier-a" id="rr-di-bar-365-730" style="width:0%"></div></div>
+              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-365-730"></div></div>
               <div class="di-bar-count" id="rr-di-cnt-365-730">0</div>
             </div>
             <div class="di-bar-row">
               <span class="di-bar-label">2+ years</span>
-              <div class="di-bar-track"><div class="di-bar-fill tier-a" id="rr-di-bar-730plus" style="width:0%"></div></div>
+              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-730plus"></div></div>
               <div class="di-bar-count" id="rr-di-cnt-730plus">0</div>
             </div>
             <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5" id="rr-di-insight">
@@ -5106,15 +5106,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <div style="padding:14px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>
             </div>
             <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);line-height:1.5" id="rr-di-dow-insight"></div>
-          </div>
-
-          <div class="di-section" style="background:var(--canvas);display:flex;align-items:center;gap:12px;padding:var(--s-3);border-radius:8px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;color:var(--text-muted);flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="14"/><line x1="6" y1="20" x2="6" y2="4"/></svg>
-            <div style="flex:1">
-              <div style="font-weight:600;font-size:13px;color:var(--text)">Performance distribution moved</div>
-              <div style="font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.4">Now lives in Performance Management alongside the bottom-N accountability list and termination guidance.</div>
-            </div>
-            <button class="btn btn-sm" onclick="goto('staffing')">Open Performance →</button>
           </div>
 
           <!-- ─── AVAILABILITY INSIGHTS (relocated from Drivers → Availability) ─── -->
@@ -5416,6 +5407,233 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="attendance" onclick="setSettingsSection(this)">Attendance policy</button>
             <button class="settings-nav-item" data-set="availability" onclick="setSettingsSection(this)">Availability rules</button>
+            <div class="settings-section" data-set="workspace">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Workspace</h2>
+                <p class="settings-section-sub">Basic information about your DSP.</p>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">DSP name</div>
+                  <div class="form-help">Shown in SMS and emails sent to applicants and drivers.</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input class="form-input" id="rr-set-dsp-name" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-dsp-name-save" type="button">Save</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Station code</div>
+                  <div class="form-help">Your primary Amazon delivery station.</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input class="form-input" id="rr-set-dsp-code" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-dsp-code-save" type="button">Save</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Time zone</div>
+                  <div class="form-help">Used for SMS quiet hours and report timestamps.</div>
+                </div>
+                <div>
+                  <select class="form-input">
+                    <option>America/Chicago (Central)</option>
+                    <option>America/New_York (Eastern)</option>
+                    <option>America/Denver (Mountain)</option>
+                    <option>America/Los_Angeles (Pacific)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Station location (weather forecast)</div>
+                  <div class="form-help">Latitude and longitude — paste from Google Maps. Used for the dashboard weather card and active alerts (US only via NWS).</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input class="form-input" id="rr-set-weather-lat" placeholder="38.886" style="max-width:120px" inputmode="decimal"/>
+                  <input class="form-input" id="rr-set-weather-lon" placeholder="-76.910" style="max-width:120px" inputmode="decimal"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-weather-save" type="button">Save</button>
+                  <span id="rr-set-weather-status" style="font-size:11px;color:var(--text-subtle)"></span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Dashboard weather widgets</div>
+                  <div class="form-help">Toggle the weather forecast card and the live precipitation radar on the dashboard.</div>
+                </div>
+                <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer">
+                    <input type="checkbox" id="rr-set-weather-show-card" checked/>
+                    Forecast card
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer">
+                    <input type="checkbox" id="rr-set-weather-show-radar" checked/>
+                    Live radar
+                  </label>
+                  <span id="rr-set-weather-toggle-status" style="font-size:11px;color:var(--text-subtle)"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section hidden" data-set="integrations">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Integrations</h2>
+                <p class="settings-section-sub">Connected services that power the dashboard.</p>
+              </div>
+              <div class="integration-row">
+                <div class="integration-logo">in</div>
+                <div class="integration-meta">
+                  <div class="integration-name">Indeed</div>
+                  <div class="integration-status"><span class="status-dot"></span>Connected · ryan@cardinallogistics.com</div>
+                </div>
+                <button class="btn btn-sm">Manage</button>
+              </div>
+              <div class="integration-row">
+                <div class="integration-logo">Cal</div>
+                <div class="integration-meta">
+                  <div class="integration-name">Cal.com</div>
+                  <div class="integration-status"><span class="status-dot"></span>Connected · 2 schedules · 18 bookings this cycle</div>
+                </div>
+                <button class="btn btn-sm">Manage</button>
+              </div>
+              <div class="integration-row">
+                <div class="integration-logo">Tw</div>
+                <div class="integration-meta">
+                  <div class="integration-name">Twilio (SMS)</div>
+                  <div class="integration-status"><span class="status-dot"></span>Connected · +1 417 555 0001 · 142 messages this cycle</div>
+                </div>
+                <button class="btn btn-sm">Manage</button>
+              </div>
+              <div class="integration-row">
+                <div class="integration-logo" style="background:#FEF3C7;color:#92400E">!</div>
+                <div class="integration-meta">
+                  <div class="integration-name">Amazon Logistics</div>
+                  <div class="integration-status"><span class="status-dot" style="background:var(--text-subtle)"></span>Not connected · Required for live route counts</div>
+                </div>
+                <button class="btn btn-primary btn-sm">Connect</button>
+              </div>
+            </div>
+
+            <div class="settings-section hidden" data-set="sms">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">SMS &amp; messaging</h2>
+                <p class="settings-section-sub">Quiet hours, opt-out handling, default templates.</p>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">SMS quiet hours</div>
+                  <div class="form-help">No SMS sent to applicants or drivers between these hours.</div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center">
+                  <input class="form-input" style="max-width:120px" value="9:00 PM" />
+                  <span style="color:var(--text-subtle)">to</span>
+                  <input class="form-input" style="max-width:120px" value="7:00 AM" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Auto-send screening SMS</div>
+                  <div class="form-help">When you add a new applicant, send screening link automatically.</div>
+                </div>
+                <div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Coaching SMS signature</div>
+                  <div class="form-help">Appended to all coaching messages.</div>
+                </div>
+                <div><input class="form-input" value="— Ryan, Cardinal Logistics" /></div>
+              </div>
+            </div>
+
+            <!-- LICENSE RENEWALS SECTION -->
+            <div class="settings-section hidden" data-set="licenses">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">License renewals</h2>
+                <p class="settings-section-sub">Auto-remind drivers before their license expires.  A daily background job checks every driver against your reminder schedule and fires a reminder once per threshold per renewal cycle.</p>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Auto-reminders enabled</div>
+                  <div class="form-help">When off, no reminders fire regardless of expiry.  Renewals still surface on Drivers → Licenses.</div>
+                </div>
+                <div><label class="toggle"><input type="checkbox" id="rr-lic-toggle-input" data-rr-lic-toggle-input/><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Send by SMS</div>
+                  <div class="form-help">Text the driver's phone number.  Best reach but counts against your messaging quota.</div>
+                </div>
+                <div><label class="toggle"><input type="checkbox" id="rr-lic-channel-sms" data-rr-lic-channel="sms"/><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Send in the driver app</div>
+                  <div class="form-help">Posts the reminder as a chat message in the driver's RouteReady app.  Free, but only reaches drivers who've installed and signed in.</div>
+                </div>
+                <div><label class="toggle"><input type="checkbox" id="rr-lic-channel-inapp" data-rr-lic-channel="inapp"/><span class="toggle-slider"></span></label></div>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Reminder days before expiry</div>
+                  <div class="form-help">Comma-separated.  A separate reminder fires the day each threshold is hit.  Common: 30, 14, 3.</div>
+                </div>
+                <div><input class="form-input" id="rr-lic-days" placeholder="30, 14, 3" value="30, 14"/></div>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Message template</div>
+                  <div class="form-help">Tokens: <code>{{name}}</code>, <code>{{days}}</code>, <code>{{date}}</code>.  Keep under 160 characters when possible to fit a single SMS.</div>
+                </div>
+                <div><textarea class="form-input" id="rr-lic-template" rows="3" style="font-family:inherit;resize:vertical">Hi {{name}} — your driver license expires in {{days}} days ({{date}}). Please renew ASAP and send a photo of your new license.</textarea></div>
+              </div>
+
+              <div class="form-row">
+                <div></div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span id="rr-lic-status" style="font-size:11px;color:var(--text-subtle)"></span>
+                  <button class="btn btn-primary" type="button" data-rr-lic-save>Save settings</button>
+                </div>
+              </div>
+            </div>
+
+
+            <!-- ATTENDANCE POLICY SECTION -->
+            <div class="settings-section hidden" data-set="attendance">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Attendance policy</h2>
+                <p class="settings-section-sub">Master toggle, occurrence rules, thresholds, auto-coaching, and timing.</p>
+              </div>
+              <div id="att-pane-policy">
+                <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:13px">Loading policy…</div>
+              </div>
+            </div>
+
+            <!-- AVAILABILITY RULES SECTION -->
+            <div class="settings-section hidden" data-set="availability">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Availability rules</h2>
+                <p class="settings-section-sub">Lead time, the auto-response messages drivers receive on approve / deny, and blackout windows.</p>
+              </div>
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px">
+                <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Settings</h3>
+                <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve / deny.</p>
+                <div data-rr-avail-settings></div>
+              </div>
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px">
+                <h3 style="margin:0 0 4px;font-size:14px;font-weight:700">Blackout dates</h3>
+                <p style="font-size:12px;color:var(--text-subtle);margin:0 0 14px">Windows where drivers cannot submit availability changes — e.g. peak season, holidays.</p>
+                <div data-rr-avail-blackouts></div>
+              </div>
+            </div>
+
             <!-- TEAM SECTION -->
             <div class="settings-section hidden" data-set="team">
               <div class="settings-section-head">
@@ -15964,7 +16182,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505d4"></script>
+<script type="module" src="./live.js?v=20260505d5"></script>
 
 </body>
 </html>
