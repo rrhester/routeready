@@ -1441,19 +1441,27 @@ select.form-input{
   display:flex;flex-direction:column;gap:8px;align-items:flex-end;
   pointer-events:none;
 }
+/* Toast — dark slate with brand-tinted accent border (left stripe).
+   Variant names align with the driver app and the rest of the
+   semantic system shipped in #381 (.status-pill-*).
+   Both .success/.ok and .error/.warn aliases work so callers don't
+   need to remember which surface they're on. */
 .toast{
-  background:#0F172A;color:#fff;padding:12px 16px;border-radius:10px;
+  background:var(--sidebar);color:var(--text-inverse);
+  padding:var(--s-3) var(--s-4);border-radius:var(--r-md);
   font-size:var(--fs-md);font-weight:500;display:flex;align-items:center;gap:10px;
-  box-shadow:0 12px 32px rgba(15,23,42,.18);
+  box-shadow:var(--shadow-md);
   animation:toastSlide .25s ease;pointer-events:auto;max-width:380px;
-  border-left:3px solid var(--green);
+  border-left:3px solid var(--accent);
 }
-.toast.success{border-left-color:var(--green)}
+.toast.success,.toast.ok{border-left-color:var(--green)}
 .toast.warn{border-left-color:var(--amber)}
-.toast.error{border-left-color:var(--red)}
-.toast-icon{width:18px;height:18px;flex-shrink:0;color:var(--green)}
+.toast.error,.toast.danger{border-left-color:var(--red)}
+.toast.info{border-left-color:var(--accent)}
+.toast-icon{width:18px;height:18px;flex-shrink:0;color:var(--accent)}
+.toast.success .toast-icon,.toast.ok .toast-icon{color:var(--green)}
 .toast.warn .toast-icon{color:var(--amber)}
-.toast.error .toast-icon{color:var(--red)}
+.toast.error .toast-icon,.toast.danger .toast-icon{color:var(--red)}
 @keyframes toastSlide{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
 .toast.fade{animation:toastFade .2s ease forwards}
 @keyframes toastFade{to{transform:translateX(20px);opacity:0}}
@@ -16469,7 +16477,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260506v"></script>
+<script type="module" src="./live.js?v=20260506w"></script>
 
 </body>
 </html>
