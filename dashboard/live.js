@@ -501,15 +501,31 @@ function _populateRosterStationFilter(rows) {
 document.addEventListener("change", (e) => {
   const id = e.target?.id;
   if (id === "rr-roster-station" || id === "rr-roster-tenure"
-   || id === "rr-roster-score"   || id === "rr-roster-sort") {
+   || id === "rr-roster-score") {
     _rosterFilters = {
+      ..._rosterFilters,
       station: document.getElementById("rr-roster-station")?.value || "",
       tenure:  document.getElementById("rr-roster-tenure")?.value  || "",
       score:   document.getElementById("rr-roster-score")?.value   || "",
-      sort:    document.getElementById("rr-roster-sort")?.value    || "score-asc",
     };
     renderDriverTable(_rosterRows, null);
   }
+});
+
+// Click a sortable column header → toggle direction (or set to that
+// column at its default direction).
+document.addEventListener("click", (e) => {
+  const th = e.target.closest("[data-rr-roster-sort]");
+  if (!th) return;
+  const col = th.dataset.rrRosterSort;
+  const cur = _rosterFilters.sort;
+  let next;
+  if (col === "name")        next = "name";
+  else if (col === "tenure") next = cur === "tenure-desc" ? "tenure-asc"  : "tenure-desc";
+  else if (col === "score")  next = cur === "score-asc"   ? "score-desc"  : "score-asc";
+  if (!next) return;
+  _rosterFilters = { ..._rosterFilters, sort: next };
+  renderDriverTable(_rosterRows, null);
 });
 
 function renderDriverTable(rows, error) {
@@ -517,7 +533,25 @@ function renderDriverTable(rows, error) {
   const thead = tbody?.parentElement?.querySelector("thead tr");
   if (!tbody || !thead) return;
 
-  // Swap headers per stage. Onboarding shows the new milestone columns.
+  // Sort caret helper — shows the active sort direction next to the
+  // matching header.
+  const f = _rosterFilters;
+  const caret = (col) => {
+    const map = {
+      name:    ["name"],
+      tenure:  ["tenure-asc", "tenure-desc"],
+      score:   ["score-asc", "score-desc"],
+    };
+    const ours = map[col] || [];
+    if (!ours.includes(f.sort)) return "";
+    if (f.sort.endsWith("-asc") || f.sort === "name") return ' <span style="font-size:9px">▲</span>';
+    return ' <span style="font-size:9px">▼</span>';
+  };
+
+  // Swap headers per stage.  Onboarding still uses the milestone
+  // columns; Active drops the Status column (everyone's "Active" in
+  // this stage by definition) and turns the sortable columns into
+  // clickable headers (data-rr-roster-sort).
   if (_driverStage === "onboarding") {
     thead.innerHTML = `
       <th>Driver</th>
@@ -529,19 +563,21 @@ function renderDriverTable(rows, error) {
       <th>Training date</th>
       <th></th>`;
   } else {
+    const colCount = 7;
     thead.innerHTML = `
-      <th>Driver</th>
+      <th data-rr-roster-sort="name"   style="cursor:pointer;user-select:none">Driver${caret("name")}</th>
       <th>Station</th>
-      <th>Tenure</th>
-      <th>Score</th>
+      <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
+      <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score${caret("score")}</th>
       <th>Attendance · 30d</th>
-      <th>Status</th>
       <th>Last coached</th>
       <th></th>`;
+    thead.dataset.rrColCount = String(colCount);
   }
 
+  const colspan = _driverStage === "onboarding" ? 8 : 7;
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:24px;text-align:center;color:var(--red);font-size:13px">${escapeHtml(error.message)}</td></tr>`;
     return;
   }
 
@@ -552,7 +588,7 @@ function renderDriverTable(rows, error) {
       : _driverStage === "active"
       ? "No active drivers yet. Hire someone in Interview Day to fill this list."
       : "No drivers in this stage.";
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">${empty}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:13px">${empty}</td></tr>`;
     return;
   }
 
@@ -598,7 +634,9 @@ function renderDriverRow(d) {
   const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
   const station = d.station?.code || "—";
   const contact = d.phone || d.email || "";
-  const statusBadge = renderDriverStatusBadge(d.status);
+  // Status column dropped from the active roster — it'd always read
+  // "Active" by definition.  The Active / Onboarding / At risk /
+  // Inactive stage tabs above already split that.
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver
         data-rr-pinnable data-rr-pin-kind="driver" data-rr-pin-ref="${d.id}"
@@ -610,7 +648,6 @@ function renderDriverRow(d) {
       <td>${tenure}</td>
       <td>—</td>
       <td>—</td>
-      <td>${statusBadge}</td>
       <td class="cell-time">—</td>
       <td></td>
     </tr>`;
@@ -2164,6 +2201,63 @@ window.attTab = function (name) {
   if (name === "log")     loadAttendanceEventLog();
 };
 
+// Attendance subtab order is operator-preference.  Drag to reorder;
+// the order is persisted per browser via localStorage so it survives
+// reloads.  Re-applies on every render of the Drivers view.
+const _RR_ATT_TAB_ORDER_KEY = "rr.att.tab-order";
+function _rrApplyAttTabOrder() {
+  const strip = document.getElementById("rr-att-tabstrip");
+  if (!strip) return;
+  let order;
+  try { order = JSON.parse(localStorage.getItem(_RR_ATT_TAB_ORDER_KEY) || "null"); } catch {}
+  if (!Array.isArray(order)) return;
+  const byKey = {};
+  strip.querySelectorAll("[data-att]").forEach(el => { byKey[el.dataset.att] = el; });
+  for (const k of order) if (byKey[k]) strip.appendChild(byKey[k]);
+}
+function _rrSaveAttTabOrder() {
+  const strip = document.getElementById("rr-att-tabstrip");
+  if (!strip) return;
+  const order = [...strip.querySelectorAll("[data-att]")].map(el => el.dataset.att);
+  try { localStorage.setItem(_RR_ATT_TAB_ORDER_KEY, JSON.stringify(order)); } catch {}
+}
+function _rrInitAttTabDnD() {
+  const strip = document.getElementById("rr-att-tabstrip");
+  if (!strip || strip.dataset.rrDndReady === "1") return;
+  strip.dataset.rrDndReady = "1";
+  _rrApplyAttTabOrder();
+
+  let dragged = null;
+  strip.addEventListener("dragstart", (e) => {
+    const t = e.target.closest("[data-att]");
+    if (!t) return;
+    dragged = t;
+    t.style.opacity = "0.4";
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", t.dataset.att); } catch {}
+  });
+  strip.addEventListener("dragend", () => {
+    if (dragged) dragged.style.opacity = "";
+    dragged = null;
+  });
+  strip.addEventListener("dragover", (e) => {
+    if (!dragged) return;
+    e.preventDefault();
+    const target = e.target.closest("[data-att]");
+    if (!target || target === dragged) return;
+    const rect = target.getBoundingClientRect();
+    const after = (e.clientX - rect.left) > rect.width / 2;
+    target.parentElement.insertBefore(dragged, after ? target.nextSibling : target);
+  });
+  strip.addEventListener("drop", (e) => {
+    e.preventDefault();
+    _rrSaveAttTabOrder();
+  });
+}
+// Bootstrap once now (in case the user is already on Drivers →
+// Attendance) and again after every drSub call so the strip exists.
+_rrInitAttTabDnD();
+
 // ─── Sidebar · Today's Plan ────────────────────────────────────────────
 // The new default landing for operators. Pulls today's attendance live,
 // today's coverage gaps (open shifts), and credential expirations into
@@ -2660,15 +2754,11 @@ function _renderTpCoverage(data, error) {
         </div>`;
       }).join("");
 
-  const noDotRows = noDot.length === 0 ? "" :
-    `<div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Active drivers without DOT certification · ${noDot.length}</div>`
-    + noDot.slice(0, 8).map(d => `
-        <div style="padding:8px 14px;border-top:1px solid var(--border);font-size:13px">
-          <span data-rr-driver-id="${escapeHtml(d.driver_id)}" style="font-weight:600;cursor:pointer">${escapeHtml(d.driver_name)}</span>
-        </div>`).join("");
-
-  covEl.innerHTML = `${headHtml(`${open.length} open · ${dlExp.length} DL · ${noDot.length} no DOT`)}
-    ${openRows}${dlRows}${noDotRows}`;
+  // Drop the "active drivers without DOT certification" list on the
+  // home page per product direction — that lives on the Drivers
+  // licenses tab, no need to repeat it here.
+  covEl.innerHTML = `${headHtml(`${open.length} open · ${dlExp.length} DL`)}
+    ${openRows}${dlRows}`;
 }
 
 
@@ -3006,7 +3096,7 @@ window.drSub = function (sub) {
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
-  if (sub === "attendance")   loadAttendanceHistory();
+  if (sub === "attendance")   { loadAttendanceHistory(); _rrInitAttTabDnD(); }
   if (sub === "coaching")     loadCoachingFeed();
   if (sub === "insights")     loadDriverInsights();
   if (sub === "availability") loadAvailabilityRequests();

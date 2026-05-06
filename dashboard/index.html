@@ -4948,13 +4948,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             </select>
           </div>
           <div class="toolbar-right">
-            <select class="filter-chip" id="rr-roster-sort">
-              <option value="score-asc">Sort: Score (low → high)</option>
-              <option value="score-desc">Sort: Score (high → low)</option>
-              <option value="name">Sort: Name (A → Z)</option>
-              <option value="tenure-desc">Sort: Tenure (longest)</option>
-              <option value="tenure-asc">Sort: Tenure (newest hire)</option>
-            </select>
+            <span style="font-size:11px;color:var(--text-subtle)">Click a column to sort</span>
           </div>
         </div>
 
@@ -4967,14 +4961,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 <th>Tenure</th>
                 <th>Score</th>
                 <th>Attendance · 30d</th>
-                <th>Status</th>
                 <th>Last coached</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody>
             <tbody id="drivers-tbody">
-              <tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading drivers…</td></tr>
+              <tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading drivers…</td></tr>
             </tbody>
           </table>
         </div>
@@ -5261,13 +5253,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
         <div class="dr-subview" id="dr-sub-attendance">
 
-          <!-- Tab strip: History · Report · Policy · Log -->
-          <!-- "Today" lives on the sidebar Today's Plan page now. -->
-          <div class="att-tabstrip">
-            <button class="att-tab active" data-att="history" onclick="attTab('history')">History</button>
-            <button class="att-tab" data-att="report" onclick="attTab('report')">Report</button>
-            <button class="att-tab" data-att="policy" onclick="attTab('policy')">Policy builder</button>
-            <button class="att-tab" data-att="log" onclick="attTab('log')">Event log <span id="att-log-count" style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
+          <!-- Tab strip · drag to reorder.  Order persisted to
+               localStorage in dashboard/live.js so each operator keeps
+               their own preferred layout. -->
+          <div class="att-tabstrip" id="rr-att-tabstrip">
+            <button class="att-tab active" draggable="true" data-att="history" onclick="attTab('history')">History</button>
+            <button class="att-tab"        draggable="true" data-att="report"  onclick="attTab('report')">Report</button>
+            <button class="att-tab"        draggable="true" data-att="policy"  onclick="attTab('policy')">Policy builder</button>
+            <button class="att-tab"        draggable="true" data-att="log"     onclick="attTab('log')">Event log <span id="att-log-count" style="background:var(--canvas);color:var(--text-subtle);font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
           </div>
 
           <!-- ─── HISTORY PANE ────────────────────────────────── -->
@@ -16123,7 +16116,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260505c8"></script>
+<script type="module" src="./live.js?v=20260505c9"></script>
 
 </body>
 </html>
