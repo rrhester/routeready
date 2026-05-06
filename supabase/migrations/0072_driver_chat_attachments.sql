@@ -64,26 +64,60 @@ insert into storage.buckets (id, name, public)
 values ('driver-chat-attachments', 'driver-chat-attachments', false)
 on conflict (id) do nothing;
 
--- Dispatchers (auth.uid() bound to a DSP) can read every attachment
--- in their tenant's path tree.  Path layout: <dsp_id>/<driver_id>/<msg_id>-<filename>.
-drop policy if exists "chat_attachments_tenant_read" on storage.objects;
+-- Tenant-scoped read + write.  Path layout enforced:
+--   <dsp_id>/<driver_id>/<ts>-<filename>
+-- Match the same pattern as message-attachments (migration 0023):
+-- explicit `to authenticated`, uuid comparison via the cast on the
+-- folder slot rather than stringifying current_dsp_id().  The string
+-- variant we tried first failed with "new row violates RLS" — Supabase
+-- storage evaluates the array index at numeric 1 = first folder, and
+-- the uuid cast is what storage.foldername was designed to compare.
+drop policy if exists "chat_attachments_tenant_read"  on storage.objects;
+drop policy if exists "chat_attachments_tenant_write" on storage.objects;
+drop policy if exists "chat_attachments_tenant_del"   on storage.objects;
+
 create policy "chat_attachments_tenant_read"
   on storage.objects for select
+  to authenticated
   using (
     bucket_id = 'driver-chat-attachments'
-    and (storage.foldername(name))[1] = private.current_dsp_id()::text
+    and (storage.foldername(name))[1]::uuid = private.current_dsp_id()
   );
 
--- Dispatchers can upload to their tenant's path tree.  (Drivers
--- upload via an edge function with the service role, same pattern
--- as driver-photos, so no driver-side RLS needed here.)
-drop policy if exists "chat_attachments_tenant_write" on storage.objects;
 create policy "chat_attachments_tenant_write"
   on storage.objects for insert
+  to authenticated
   with check (
     bucket_id = 'driver-chat-attachments'
-    and (storage.foldername(name))[1] = private.current_dsp_id()::text
+    and (storage.foldername(name))[1]::uuid = private.current_dsp_id()
   );
+
+-- Allow dispatchers to delete an accidental upload from their DSP.
+create policy "chat_attachments_tenant_del"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'driver-chat-attachments'
+    and (storage.foldername(name))[1]::uuid = private.current_dsp_id()
+  );
+
+-- Driver-side uploads come from the anon role with a session token.
+-- We can't read the token from a storage policy, so we accept any
+-- well-formed path under the bucket; driver_chat_send validates that
+-- the path's dsp_id + driver_id match the calling token before
+-- accepting the row.  Untracked uploads are orphans and get cleaned
+-- up by a cron we'll add later.
+drop policy if exists "chat_attachments_anon_write" on storage.objects;
+create policy "chat_attachments_anon_write"
+  on storage.objects for insert
+  to anon
+  with check (bucket_id = 'driver-chat-attachments');
+
+drop policy if exists "chat_attachments_anon_read" on storage.objects;
+create policy "chat_attachments_anon_read"
+  on storage.objects for select
+  to anon
+  using (bucket_id = 'driver-chat-attachments');
 
 
 -- ── driver_chat_send · accept attachment params ──
@@ -112,6 +146,18 @@ begin
   end if;
   if v_body is not null and length(v_body) > 2000 then
     raise exception 'too_long' using errcode = 'P0001';
+  end if;
+  -- Anon storage uploads aren't path-scoped (RLS can't read the
+  -- driver session token), so verify here that the attachment lives
+  -- under the calling driver's <dsp_id>/<driver_id>/ path before we
+  -- accept it onto the row.  Anything else is rejected and stays
+  -- orphaned in storage.
+  if p_attachment_path is not null and p_attachment_path <> '' then
+    if not (
+      p_attachment_path like (v_drv.dsp_id::text || '/' || v_drv.id::text || '/%')
+    ) then
+      raise exception 'invalid_attachment_path' using errcode = '42501';
+    end if;
   end if;
 
   insert into public.driver_messages
