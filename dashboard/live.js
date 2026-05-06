@@ -3011,16 +3011,9 @@ async function loadDriverLicensesView() {
   // while the live select is in flight.
   body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
   if (status) status.textContent = "—";
-  // Hydrate the renewal-reminders settings card from dsp.metadata.licenses.
-  const lic = window.RR?.dsp?.metadata?.licenses || {};
-  const tg = document.getElementById("rr-lic-toggle");
-  if (tg) tg.classList.toggle("on", lic.auto_reminders !== false);
-  const blk = document.getElementById("rr-lic-block");
-  if (blk) blk.classList.toggle("on", lic.block_past_expiry !== false);
-  const days = document.getElementById("rr-lic-days");
-  if (days) days.value = Array.isArray(lic.reminder_days) ? lic.reminder_days.join(", ") : "30, 14";
-  const tpl = document.getElementById("rr-lic-template");
-  if (tpl && lic.sms_template) tpl.value = lic.sms_template;
+  // Renewal-reminder configuration moved to Settings → License renewals
+  // and Schedule → Scheduling rules; this view just shows the renewal
+  // queue.  Hydrate happens when the operator opens those panes.
 
   const { data: rows, error } = await sb.from("drivers")
     .select("id, full_name, station:station_id (code), dl_number, dl_expires_on, status")
@@ -3585,40 +3578,99 @@ document.addEventListener("click", (e) => {
 });
 
 
-// Capture-phase delegate for renewal-reminder settings (Drivers → Licenses).
-document.addEventListener("click", async (e) => {
-  const tg = e.target.closest("[data-rr-lic-toggle], [data-rr-lic-block]");
-  if (tg) { e.preventDefault(); e.stopImmediatePropagation(); tg.classList.toggle("on"); return; }
+// Renewal-reminder + license-block settings moved to:
+//   Settings → License renewals  (auto-reminders, channels, days, template)
+//   Schedule → Scheduling rules  (block scheduling past expiry)
+// Both write the same dsps.metadata.licenses object so the existing
+// background job keeps reading from one place.
+function _rrPrefillLicenseSettings() {
+  const lic = window.RR?.dsp?.metadata?.licenses || {};
+  const setBool = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!val;
+  };
+  // auto_reminders defaults ON when no record yet, to match the
+  // previous mockup behavior.
+  setBool("rr-lic-toggle-input",  lic.auto_reminders !== false);
+  // Channels: default to SMS on (the historical channel) and in-app
+  // off.  Operators opt into in-app explicitly.
+  setBool("rr-lic-channel-sms",   lic.channel_sms   !== false);
+  setBool("rr-lic-channel-inapp", lic.channel_inapp === true);
+  // Block past expiry: false by default (was the legacy default too).
+  setBool("rr-lic-block-input",   !!lic.block_past_expiry);
 
-  if (e.target.closest("[data-rr-lic-save]")) {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    const status = document.getElementById("rr-lic-status");
-    const enabled  = document.getElementById("rr-lic-toggle")?.classList.contains("on");
-    const block    = document.getElementById("rr-lic-block")?.classList.contains("on");
-    const daysRaw  = document.getElementById("rr-lic-days")?.value || "";
-    const template = document.getElementById("rr-lic-template")?.value || "";
-    const days = daysRaw.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0);
-
-    status.className = "cal-edit-status";
-    status.textContent = "Saving…";
-
-    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
-    if (rErr) { status.className = "cal-edit-status err"; status.textContent = rErr.message; return; }
-    const md = dsp.metadata || {};
-    md.licenses = {
-      auto_reminders:    !!enabled,
-      block_past_expiry: !!block,
-      reminder_days:     days,
-      sms_template:      template,
-    };
-    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
-    if (wErr) { status.className = "cal-edit-status err"; status.textContent = wErr.message; return; }
-    window.RR.dsp.metadata = md;
-    status.className = "cal-edit-status ok";
-    status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+  const days = document.getElementById("rr-lic-days");
+  if (days) days.value = Array.isArray(lic.reminder_days) ? lic.reminder_days.join(", ") : "30, 14";
+  const tpl = document.getElementById("rr-lic-template");
+  if (tpl && lic.sms_template) tpl.value = lic.sms_template;
+}
+// Hydrate when the operator opens Settings or Schedule rules.
+document.addEventListener("click", (e) => {
+  if (e.target.closest('.settings-nav-item[data-set="licenses"]') ||
+      e.target.closest('[data-rr-nav-item="settings"]')           ||
+      e.target.closest('a[href="#schedule"]')                     ||
+      e.target.closest('[data-rr-rules-section="license-compliance"]')) {
+    setTimeout(_rrPrefillLicenseSettings, 0);
   }
-}, true);
+});
+// Wrap goto so navigating to Settings or Schedule prefills too.
+const _legacyGotoForLic = window.goto;
+if (typeof _legacyGotoForLic === "function") {
+  window.goto = function (view) {
+    const r = _legacyGotoForLic(view);
+    if (view === "settings" || view === "schedule") setTimeout(_rrPrefillLicenseSettings, 0);
+    return r;
+  };
+}
+
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("[data-rr-lic-save]")) return;
+  e.preventDefault();
+  const status = document.getElementById("rr-lic-status");
+  const setStatus = (text, kind) => {
+    if (!status) return;
+    status.style.color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+    status.textContent = text;
+  };
+  const get = (id) => document.getElementById(id);
+  const enabled  = get("rr-lic-toggle-input")?.checked;
+  const sms      = get("rr-lic-channel-sms")?.checked;
+  const inapp    = get("rr-lic-channel-inapp")?.checked;
+  const daysRaw  = get("rr-lic-days")?.value || "";
+  const template = get("rr-lic-template")?.value || "";
+  const days = daysRaw.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0);
+
+  setStatus("Saving…");
+  const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
+  if (rErr) { setStatus(rErr.message, "warn"); return; }
+  const md = dsp.metadata || {};
+  md.licenses = {
+    ...(md.licenses || {}),
+    auto_reminders:    !!enabled,
+    channel_sms:       !!sms,
+    channel_inapp:     !!inapp,
+    reminder_days:     days,
+    sms_template:      template,
+  };
+  const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
+  if (wErr) { setStatus(wErr.message, "warn"); return; }
+  window.RR.dsp.metadata = md;
+  setStatus(`Saved at ${new Date().toLocaleTimeString()}`, "ok");
+});
+
+// Block-past-expiry toggle on the scheduling rules page is a one-shot
+// save — flip and persist.
+document.addEventListener("change", async (e) => {
+  if (e.target?.id !== "rr-lic-block-input") return;
+  const checked = !!e.target.checked;
+  const { data: dsp } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
+  const md = dsp?.metadata || {};
+  md.licenses = { ...(md.licenses || {}), block_past_expiry: checked };
+  const { error } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
+  if (error) { toast("Couldn't save: " + error.message, "warn"); e.target.checked = !checked; return; }
+  window.RR.dsp.metadata = md;
+  toast(checked ? "Block scheduling past expiry: ON" : "Block scheduling past expiry: OFF", "success");
+});
 
 function renderDriverStatusBadge(s) {
   const map = {
