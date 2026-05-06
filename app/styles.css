@@ -415,10 +415,19 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 .chat-composer{
   position:absolute;
   left:0;right:0;bottom:0;
-  height:60px;
+  min-height:60px;
   background:var(--surface);
   border-top:1px solid var(--border);
+  padding:8px 10px;
+  display:flex;align-items:flex-end;gap:8px;
 }
+.chat-attach{
+  flex:0 0 auto;width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;border:0;border-radius:50%;
+  color:var(--text-muted);cursor:pointer;
+}
+.chat-attach:active{transform:scale(.95);background:var(--canvas)}
 .chat-bubble{
   max-width:78%;
   padding:9px 13px;border-radius:18px;

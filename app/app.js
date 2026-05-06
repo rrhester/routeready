@@ -558,7 +558,14 @@ async function renderChat() {
     <div id="chat-shell">
       <div id="chat-msgs" class="chat-msgs"><div class="loader"></div></div>
       <form class="chat-composer" id="chat-form">
-        <textarea id="chat-input" rows="1" placeholder="Message dispatch…" maxlength="2000"></textarea>
+        <input id="chat-file" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+        <button id="chat-attach" type="button" class="chat-attach" aria-label="Attach photo or document" title="Attach">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+          <div id="chat-attachment-preview" style="display:none"></div>
+          <textarea id="chat-input" rows="1" placeholder="Message dispatch…" maxlength="2000"></textarea>
+        </div>
         <button class="chat-send" type="submit" aria-label="Send">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
@@ -575,22 +582,80 @@ async function renderChat() {
     ta.style.height = Math.min(120, ta.scrollHeight) + "px";
   });
   ta.addEventListener("keydown", (e) => {
-    // Enter sends, Shift+Enter newline (desktop). On phone, the "send"
-    // button is the primary path; Enter inserts a newline as on iMessage.
     if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer:fine)").matches) {
       e.preventDefault();
       document.getElementById("chat-form").requestSubmit();
     }
   });
 
-  // Send
+  // Attachment picker — paperclip opens the file input.  Pending file
+  // sits in window._rrChatPending until the operator hits send.
+  const fileInput = document.getElementById("chat-file");
+  const previewEl = document.getElementById("chat-attachment-preview");
+  document.getElementById("chat-attach").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files?.[0];
+    if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+    if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
+    window._rrChatPending = f;
+    const isImg = f.type.startsWith("image/");
+    const sizeKb = Math.round(f.size / 1024);
+    previewEl.style.display = "";
+    previewEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
+        ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">`
+                : `<span style="font-size:18px">📎</span>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
+          <div style="color:var(--text-subtle)">${sizeKb} KB</div>
+        </div>
+        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:16px;line-height:1">×</button>
+      </div>`;
+    document.getElementById("chat-attach-clear").addEventListener("click", () => {
+      fileInput.value = "";
+      window._rrChatPending = null;
+      previewEl.style.display = "none";
+      previewEl.innerHTML = "";
+    });
+  });
+
+  // Send — uploads any pending attachment first, then calls the RPC.
   document.getElementById("chat-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const body = (ta.value || "").trim();
-    if (!body) return;
+    const file = window._rrChatPending;
+    if (!body && !file) return;
+
+    let attachment = null;
+    if (file) {
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || `file.${ext}`;
+      // Path layout: <dsp_id>/<driver_id>/<ts>-<safe-filename>
+      const dspId = session.dsp_id || "unknown";
+      const path  = `${dspId}/${session.driver_id || "driver"}/${Date.now()}-${safe}`;
+      const { error: upErr } = await sb.storage
+        .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+      attachment = { path, mime: file.type, name: file.name, size: file.size };
+    }
+
     ta.value = "";
     ta.style.height = "auto";
-    const { error } = await sb.rpc("driver_chat_send", { p_token: session.token, p_body: body });
+    if (file) {
+      window._rrChatPending = null;
+      fileInput.value = "";
+      previewEl.style.display = "none";
+      previewEl.innerHTML = "";
+    }
+
+    const { error } = await sb.rpc("driver_chat_send", {
+      p_token:                 session.token,
+      p_body:                  body || null,
+      p_attachment_path:       attachment?.path || null,
+      p_attachment_mime:       attachment?.mime || null,
+      p_attachment_name:       attachment?.name || null,
+      p_attachment_size_bytes: attachment?.size || null,
+    });
     if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
     await refreshChat(true);
   });
@@ -627,6 +692,7 @@ async function refreshChat(scrollToBottom) {
     wrap.innerHTML = `<div class="empty-state">No messages yet.</div>`;
   } else {
     wrap.innerHTML = messages.map(chatBubbleHtml).join("");
+    _rrSignChatAttachments();
   }
   if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
 
@@ -643,23 +709,66 @@ function chatBubbleHtml(m) {
   const mine = m.sender_kind === "driver";
   const t = new Date(m.created_at);
   const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  // Auto-link http(s) URLs in the body so the driver can tap a
-  // coaching-link or any other URL dispatch sends.  Escape first,
-  // then swap in <a> tags — this keeps it safe from injection.  The
-  // /i flag handles uppercased schemes; the trailing-punctuation
-  // strip keeps a sentence-ending period from being included in the
-  // link target (so href = "…html?t=abc", not "…html?t=abc.").
-  const body = escapeHtml(m.body).replace(/\n/g, "<br>")
-    .replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
-      const trim = raw.replace(/[.,;:!?)\]>]+$/, "");
-      const tail = raw.slice(trim.length);
-      return `<a href="${trim}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;font-weight:600;word-break:break-all">${trim}</a>${tail}`;
-    });
+  // Body — escape first, then swap http(s) URLs into <a> tags.  /i
+  // catches uppercased schemes; trailing punctuation stripped so a
+  // sentence-ending period isn't part of the href.
+  const body = m.body
+    ? escapeHtml(m.body).replace(/\n/g, "<br>")
+        .replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
+          const trim = raw.replace(/[.,;:!?)\]>]+$/, "");
+          const tail = raw.slice(trim.length);
+          return `<a href="${trim}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;font-weight:600;word-break:break-all">${trim}</a>${tail}`;
+        })
+    : "";
+
+  // Attachment — Supabase signed URL keeps a bucket-private file
+  // viewable via a short-lived link.  We mint inline at render time
+  // so the link works without exposing a public bucket.
+  let attachment = "";
+  if (m.attachment_path) {
+    const isImg = (m.attachment_mime || "").startsWith("image/");
+    const name  = m.attachment_name || "Attachment";
+    const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
+    if (isImg) {
+      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
+    } else {
+      attachment = `
+        <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
+          <span style="font-size:18px">📎</span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-weight:600;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(name)}</span>
+            ${sizeKb != null ? `<span style="display:block;font-size:11px;color:var(--text-subtle)">${sizeKb} KB</span>` : ""}
+          </span>
+        </a>`;
+    }
+  }
+
   return `
     <div class="chat-bubble ${mine ? "mine" : "theirs"}">
-      <div class="chat-body">${body}</div>
+      ${attachment}
+      ${body ? `<div class="chat-body">${body}</div>` : ""}
       <div class="chat-time">${escapeHtml(time)}</div>
     </div>`;
+}
+
+// Resolve attachment paths to short-lived signed URLs after each
+// chat render, then swap them into the <img>/<a> tags.  We do this
+// lazily because signed URLs are per-call; the bucket itself is
+// private so we never want to expose paths directly.
+async function _rrSignChatAttachments() {
+  const els = document.querySelectorAll("[data-rr-attach]:not([data-rr-attach-resolved])");
+  for (const el of els) {
+    const path = el.getAttribute("data-rr-attach");
+    el.setAttribute("data-rr-attach-resolved", "1");
+    try {
+      const { data, error } = await sb.storage
+        .from("driver-chat-attachments")
+        .createSignedUrl(path, 60 * 60 * 8); // 8h
+      if (error || !data?.signedUrl) continue;
+      if (el.tagName === "IMG") el.src = data.signedUrl;
+      else                       el.href = data.signedUrl;
+    } catch {}
+  }
 }
 
 // ── Profile · home screen. Photo + name + check-in. Nothing else. ──
