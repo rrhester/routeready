@@ -1346,18 +1346,11 @@ select.form-input{
   transition:background var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
 }
 .subnav-item:hover{color:var(--text);background:rgba(255,255,255,.5)}
-/* Active tab pill — filled brand gradient with brand-tinted shadow.
-   Matches the sidebar's depth + accent feel applied to a light
-   surface.  White text on the brand fill so the selected tab reads
-   as the dominant element in the strip. */
 .subnav-item.active{
-  background:linear-gradient(180deg, #2391DA 0%, #0F6CBD 100%);
-  color:#fff;font-weight:600;
-  box-shadow:
-    0 1px 2px rgba(15,108,189,.22),
-    0 3px 8px -1px rgba(15,108,189,.28),
-    inset 0 1px 0 rgba(255,255,255,.22);
-  text-shadow:0 1px 0 rgba(0,0,0,.08);
+  background:var(--surface);
+  background-image:var(--surface-grad);
+  color:var(--text);font-weight:600;
+  box-shadow:var(--shadow-sm), var(--highlight-top-strong);
 }
 
 .dr-subview{display:none}
@@ -2236,15 +2229,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   transition:background .12s, color .12s;
 }
 .msg-list-tab:hover{color:var(--text)}
-.msg-list-tab.active{
-  background:linear-gradient(180deg, #2391DA 0%, #0F6CBD 100%);
-  color:#fff;font-weight:600;
-  box-shadow:
-    0 1px 2px rgba(15,108,189,.22),
-    0 2px 6px -1px rgba(15,108,189,.26),
-    inset 0 1px 0 rgba(255,255,255,.20);
-  text-shadow:0 1px 0 rgba(0,0,0,.08);
-}
+.msg-list-tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
 .msg-list-items{flex:1;overflow-y:auto}
 .msg-item{
   display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;padding:10px var(--s-4);
@@ -3490,11 +3475,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   cursor:pointer;font-family:inherit;white-space:nowrap;margin-bottom:-1px;
 }
 .dr-tab:hover{color:var(--text)}
-.dr-tab.active{
-  color:var(--accent-text);font-weight:700;
-  border-bottom-color:var(--accent);
-  background:linear-gradient(180deg, transparent 0%, rgba(15,108,189,.06) 100%);
-}
+.dr-tab.active{color:var(--text);font-weight:700;border-bottom-color:var(--accent)}
 
 .dr-tabview{display:none}
 .dr-tabview.active{display:block}
@@ -16704,7 +16685,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507q"></script>
+<script type="module" src="./live.js?v=20260507p"></script>
 
 </body>
 </html>
