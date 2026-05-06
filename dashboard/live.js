@@ -7993,15 +7993,15 @@ function _renderAvailabilityBlackouts(rows) {
     <form id="rr-avail-blackout-form" style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;align-items:end;margin:6px 0 14px">
       <div>
         <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px">Start</label>
-        <input type="date" id="rr-bl-start" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+        <input type="date" id="rr-bl-start" required class="form-input form-input-block"/>
       </div>
       <div>
         <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px">End</label>
-        <input type="date" id="rr-bl-end" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+        <input type="date" id="rr-bl-end" required class="form-input form-input-block"/>
       </div>
       <div>
         <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px">Reason (optional)</label>
-        <input type="text" id="rr-bl-reason" placeholder="e.g. Holiday peak — no availability changes" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+        <input type="text" id="rr-bl-reason" placeholder="e.g. Holiday peak — no availability changes" class="form-input form-input-block"/>
       </div>
       <button type="submit" class="btn btn-sm btn-primary">Add blackout</button>
     </form>
@@ -8036,11 +8036,11 @@ function _renderAvailabilitySettingsPanel(s) {
     </div>
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
       <label style="font-size:var(--fs-md);font-weight:600">Approve auto-response<br><span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">Sent to the driver when you approve. Placeholders: {days} {effective_from} {effective_until} {note}</span></label>
-      <textarea id="rr-avail-approve-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.approve_template || "")}</textarea>
+      <textarea id="rr-avail-approve-tmpl" rows="3" class="form-input form-input-block">${escapeHtml(s.approve_template || "")}</textarea>
     </div>
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:14px;align-items:start">
       <label style="font-size:var(--fs-md);font-weight:600">Deny auto-response<br><span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">Sent to the driver when you deny. Placeholders: {days} {note}</span></label>
-      <textarea id="rr-avail-deny-tmpl" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;resize:vertical">${escapeHtml(s.deny_template || "")}</textarea>
+      <textarea id="rr-avail-deny-tmpl" rows="3" class="form-input form-input-block">${escapeHtml(s.deny_template || "")}</textarea>
     </div>
     <div style="text-align:right;margin-top:14px">
       <button class="btn btn-primary" id="rr-avail-settings-save">Save settings</button>
