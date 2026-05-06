@@ -7140,12 +7140,26 @@ async function loadAvailabilityRequests() {
   _renderAvailabilityShell();
   wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);font-size:13px">Loading…</div>`;
 
-  // Fire all three endpoints in parallel.
-  const [reqRes, kpiRes, blackRes, setRes] = await Promise.all([
+  // Fire all five endpoints in parallel.  The decision-support
+  // numbers under each pending request need:
+  //   - Active drivers' saved availability (drivers + metadata.days)
+  //   - OKAMI demand per day across the next four weeks
+  // Both already exist for the Insights view; we re-fetch them here
+  // so impact rendering doesn't depend on the operator having
+  // visited Insights first.
+  const today = new Date();
+  const monday = startOfWeekMonday(today);
+  const startIso = fmtIsoDate(monday);
+  const [reqRes, kpiRes, blackRes, setRes, drvRes, gridRes] = await Promise.all([
     sb.rpc("availability_request_list"),
     sb.rpc("availability_kpis"),
     sb.rpc("availability_blackout_list"),
     sb.rpc("availability_settings_get"),
+    sb.from("drivers")
+      .select("id, status, metadata")
+      .eq("dsp_id", window.RR.dsp.id)
+      .in("status", ["active", "onboarding"]),
+    sb.rpc("okami_grid", { p_start: startIso, p_weeks: 4 }),
   ]);
   if (reqRes.error) {
     wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:13px">${escapeHtml(reqRes.error.message)}</div>`;
@@ -7155,11 +7169,81 @@ async function loadAvailabilityRequests() {
   const pendingCount = _availRequestsCache.filter((r) => r.status === "pending").length;
   _updateAvailReqBadge(pendingCount);
 
+  // Build an availability-by-day index so each pending row can show
+  // "8 drivers still available Monday" inline.  Falls back gracefully
+  // if metadata.availability.days isn't populated for some drivers.
+  _availImpactCtx = _buildAvailImpactCtx(drvRes.data || [], gridRes.data || []);
+
   // KPIs + blackouts + settings rendered into their own slots.
   _renderAvailabilityKpis(kpiRes.data || {}, _availRequestsCache);
   _renderAvailabilityBlackouts(blackRes.data || []);
   _renderAvailabilitySettingsPanel(setRes.data || {});
   _renderAvailabilityRows();
+}
+
+// Pre-compute per-DOW supply (drivers available) + peak demand
+// (max routes that day across the next 4 weeks) once per page load.
+// Ignores the requester's current availability — the row renderer
+// applies the "what if" math on top of this baseline.
+let _availImpactCtx = null;
+function _buildAvailImpactCtx(drivers, okamiGrid) {
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const supplyByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  const totalActive = drivers.length;
+  for (const d of drivers) {
+    const days = d.metadata?.availability?.days;
+    if (!Array.isArray(days)) continue;
+    for (const dow of days) {
+      if (supplyByDow[dow] !== undefined) supplyByDow[dow] += 1;
+    }
+  }
+  // OKAMI grid is one row per day with route counts; reduce to peak
+  // demand per day-of-week across the horizon.
+  const demandByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  const JS_DOW = { 0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat" };
+  for (const cell of (okamiGrid || [])) {
+    if (!cell?.date) continue;
+    const dow = JS_DOW[new Date(cell.date + "T12:00:00").getDay()];
+    const routes = Number(cell.routes_planned ?? cell.routes ?? 0);
+    if (routes > demandByDow[dow]) demandByDow[dow] = routes;
+  }
+  return { supplyByDow, demandByDow, totalActive };
+}
+
+// Build the impact summary for one pending request — drops + adds
+// against the baseline supply, with a tone if any drop pushes a day
+// below peak demand.  Returns null if we don't have enough data.
+function _availImpactFor(req) {
+  if (!_availImpactCtx) return null;
+  const cur = new Set(req.current_days || []);
+  const next = new Set(req.days || []);
+  const drops = [...cur].filter(d => !next.has(d));
+  const adds  = [...next].filter(d => !cur.has(d));
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const supply = _availImpactCtx.supplyByDow;
+  const demand = _availImpactCtx.demandByDow;
+
+  // For each dropped day, what's the after-change supply vs peak
+  // demand?  The driver themselves is in `supply` if they were
+  // already counted (they were — they're active), so subtract 1.
+  const dropImpact = drops.map(d => {
+    const after = (supply[d] || 0) - 1;
+    const peak  = demand[d] || 0;
+    return {
+      day:    d,
+      label:  DOW_LABEL[d] || d,
+      after,
+      peak,
+      tight:  peak > 0 && after < peak,
+    };
+  });
+  const addImpact = adds.map(d => ({
+    day:   d,
+    label: DOW_LABEL[d] || d,
+    after: (supply[d] || 0) + 1,
+    peak:  demand[d] || 0,
+  }));
+  return { drops: dropImpact, adds: addImpact };
 }
 
 // Drivers → Availability is now just the request queue.
@@ -7414,8 +7498,40 @@ function _renderAvailabilityRows() {
          </div>`
       : `<div style="font-size:11px;color:var(--text-subtle)">—</div>`;
 
+    // Impact panel — only on pending rows where the request actually
+    // changes the schedule.  Walks dropped + added days against the
+    // pre-computed supply / OKAMI peak-demand context so the
+    // dispatcher can see "approving this leaves 7 drivers Mon vs.
+    // peak demand 9" without having to leave the page.
+    let impactBlock = "";
+    if (isPending && !same) {
+      const im = _availImpactFor(r);
+      if (im && (im.drops.length || im.adds.length)) {
+        const tightAny = im.drops.some(d => d.tight);
+        const dropChips = im.drops.map(d => `
+          <span style="display:inline-flex;align-items:center;gap:4px;background:${d.tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${d.tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${d.tight ? "var(--red)" : "var(--text-muted)"};padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600">
+            −${escapeHtml(d.label)} · <span style="font-weight:500">${d.after}/${d.peak || "—"}</span>
+          </span>`).join("");
+        const addChips = im.adds.map(a => `
+          <span style="display:inline-flex;align-items:center;gap:4px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600">
+            +${escapeHtml(a.label)} · <span style="font-weight:500">${a.after}/${a.peak || "—"}</span>
+          </span>`).join("");
+        const verdict = tightAny
+          ? `<span style="color:var(--red);font-weight:600">Coverage tight</span> — at least one dropped day would fall below peak demand.  Reach out before approving.`
+          : (im.drops.length === 0
+              ? `<span style="color:var(--text);font-weight:600">No dropped days.</span>  Driver is widening availability — safe to approve.`
+              : `Coverage holds — every dropped day still has enough drivers for peak demand.`);
+        impactBlock = `
+          <div style="grid-column:1/-1;margin-top:10px;padding:10px 12px;background:var(--canvas);border-radius:8px;border:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">If approved · supply / peak demand</div>
+            ${(dropChips || addChips) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${dropChips}${addChips}</div>` : ""}
+            <div style="font-size:11px;color:var(--text-subtle);line-height:1.5">${verdict}</div>
+          </div>`;
+      }
+    }
+
     return `
-      <div class="avail-req-row" data-rr-req-id="${escapeHtml(r.id)}" style="padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:220px 1fr auto;gap:16px;align-items:center;${isPending ? "" : "background:var(--canvas)"}">
+      <div class="avail-req-row" data-rr-req-id="${escapeHtml(r.id)}" style="padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:220px 1fr auto;gap:16px;align-items:start;${isPending ? "" : "background:var(--canvas)"}">
         <div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(r.driver_name || "")}</span>
@@ -7433,6 +7549,7 @@ function _renderAvailabilityRows() {
           ` : ""}
         </div>
         ${actions}
+        ${impactBlock}
       </div>`;
   }).join("");
 }
