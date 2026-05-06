@@ -4,8 +4,15 @@
 
 :root{
   /* ── Surfaces (mobile material) ─────────────────────────── */
-  --bg: #e9edf3;
-  --bg-grad: none;
+  /* Environment — slightly cooler/darker so cards (white) read as
+     clearly elevated.  Two ultra-soft radial light zones give the
+     mobile canvas a sense of "space" without any visible shapes
+     or patterns.  Subtle vertical tonal shift on the linear base. */
+  --bg: #E6EAF1;
+  --bg-grad:
+    radial-gradient(ellipse 600px 400px at 88% 0%,  rgba(255,255,255,.6) 0%, transparent 60%),
+    radial-gradient(ellipse 700px 500px at 0% 100%, rgba(15,23,42,.03)   0%, transparent 60%),
+    linear-gradient(180deg, #E6EAF1 0%, #DCE2EB 100%);
   --surface: #FFFFFF;
   --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FBFCFE 100%);
   --canvas: #F1F4F8;
@@ -28,19 +35,20 @@
   --red: #b91c1c;
   /* ── Shadows (multi-layer) ─────────────────────────────── */
   --shadow-xs: 0 1px 2px rgba(15,23,42,.06);
-  --shadow-sm: 0 1px 2px rgba(15,23,42,.08), 0 1px 1px rgba(15,23,42,.04);
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.06),
+               0 2px 8px rgba(15,23,42,.06);
   --shadow-md: 0 1px 2px rgba(15,23,42,.06),
                0 4px 14px rgba(15,23,42,.10),
                0 0 0 1px rgba(15,23,42,.03);
   --shadow-lg: 0 1px 2px rgba(15,23,42,.06),
-               0 8px 24px rgba(15,23,42,.12),
-               0 16px 40px rgba(15,23,42,.06);
-  --highlight-top: inset 0 1px 0 rgba(255,255,255,.6);
-  --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.85);
+               0 8px 24px rgba(15,23,42,.14),
+               0 16px 40px rgba(15,23,42,.08);
+  --highlight-top: inset 0 1px 0 rgba(255,255,255,.7);
+  --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.9);
   --inset-pressed: inset 0 1px 2px rgba(15,23,42,.08);
   --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 18px;
+  --r-lg: 16px;
+  --r-xl: 20px;
   --tab-h: 68px;
   /* ── Blur for glass ─────────────────────────────────────── */
   --blur-sm: 6px;
@@ -126,7 +134,8 @@ html,body{
   touch-action:none;
 }
 body{
-  background:var(--bg);
+  background-color:var(--bg);
+  background-image:var(--bg-grad);
   color:var(--text);
   font:16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -147,10 +156,11 @@ a{color:var(--accent);text-decoration:none}
   inset:0;
   width:100%;
   height:100dvh;
-  background:var(--bg);
-  /* Don't add safe-area-inset padding here — the header pushes itself
-     down with its own padding instead, so it stays as the only thing
-     under the iPhone notch. */
+  background:transparent;
+  /* Body owns the gradient + canvas color; #app is transparent so
+     the depth shows through.  Don't add safe-area-inset padding
+     here — the header pushes itself down with its own padding so
+     it stays the only thing under the iPhone notch. */
 }
 
 /* ── Header (clean white control surface) ─────────────────── */

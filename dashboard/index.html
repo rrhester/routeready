@@ -12,9 +12,17 @@
    DESIGN TOKENS
    ───────────────────────────────────────────────────────────── */
 :root{
-  /* ── Surfaces ──────────────────────────────────────────────── */
-  --canvas:#F7F8FA;
-  --canvas-grad:none;
+  /* ── Surfaces (environment) ──────────────────────────────────
+     Canvas pushed one step cooler/darker so cards (white) read as
+     clearly elevated above it.  Two ultra-soft radial light zones
+     give the canvas a sense of "space" rather than "color" without
+     any visible patterns.  No grain, no watermark, no shapes — just
+     subtle directional light. */
+  --canvas:#EEF1F6;
+  --canvas-grad:
+    radial-gradient(ellipse 1400px 900px at 85% -8%,  rgba(255,255,255,.55) 0%, transparent 55%),
+    radial-gradient(ellipse 1200px 850px at 5%  90%, rgba(15,23,42,.025)  0%, transparent 55%),
+    linear-gradient(180deg, #EEF1F6 0%, #E6EBF2 100%);
   --surface:#FFFFFF;
   --surface-elevated:#FFFFFF;
   --surface-grad:linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(252,253,255,1) 100%);
@@ -72,26 +80,32 @@
   --fs-xl:22px;
   --fs-xxl:24px;
 
-  /* ── Radii ────────────────────────────────────────────────── */
-  --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px; --r-2xl:20px;
+  /* ── Radii (slightly softer for modern SaaS feel) ─────────── */
+  --r-sm:6px; --r-md:8px; --r-lg:14px; --r-xl:18px; --r-2xl:22px;
 
-  /* ── Shadows (multi-layer, realistic, designed-in light) ──── */
-  --shadow-xs: 0 1px 2px rgba(15,23,42,.04);
-  --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 1px rgba(15,23,42,.03);
-  --shadow-md: 0 1px 2px rgba(15,23,42,.04),
-               0 4px 12px rgba(15,23,42,.06),
+  /* ── Shadows (multi-layer, top-down light, realistic) ─────── */
+  --shadow-xs: 0 1px 2px rgba(15,23,42,.05);
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.05),
+               0 2px 6px rgba(15,23,42,.04);
+  --shadow-md: 0 1px 2px rgba(15,23,42,.05),
+               0 4px 12px rgba(15,23,42,.07),
                0 0 0 1px rgba(15,23,42,.02);
-  --shadow-lg: 0 1px 2px rgba(15,23,42,.05),
-               0 8px 24px rgba(15,23,42,.08),
-               0 16px 48px rgba(15,23,42,.04);
-  --shadow-xl: 0 4px 8px rgba(15,23,42,.06),
-               0 16px 48px rgba(15,23,42,.12),
-               0 32px 80px rgba(15,23,42,.06);
-  /* Inset highlight — the top-edge sheen that makes surfaces feel real */
-  --highlight-top: inset 0 1px 0 rgba(255,255,255,.6);
-  --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.85);
-  /* Pressed inset — used on :active to simulate compression */
-  --inset-pressed: inset 0 1px 2px rgba(15,23,42,.06);
+  --shadow-lg: 0 1px 2px rgba(15,23,42,.06),
+               0 8px 24px rgba(15,23,42,.10),
+               0 16px 48px rgba(15,23,42,.05);
+  --shadow-xl: 0 4px 8px rgba(15,23,42,.07),
+               0 16px 48px rgba(15,23,42,.14),
+               0 32px 80px rgba(15,23,42,.07);
+  /* Hover/lift variants — used on interactive surfaces. */
+  --shadow-sm-hover: 0 1px 3px rgba(15,23,42,.07),
+                     0 6px 16px -2px rgba(15,23,42,.07);
+  --shadow-md-hover: 0 1px 3px rgba(15,23,42,.06),
+                     0 8px 24px -2px rgba(15,23,42,.10);
+  /* Inset highlight — top-edge sheen that gives surfaces real material */
+  --highlight-top: inset 0 1px 0 rgba(255,255,255,.7);
+  --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.9);
+  /* Pressed inset — :active compression */
+  --inset-pressed: inset 0 1px 2px rgba(15,23,42,.07);
 
   /* ── Blur (glass surfaces) ───────────────────────────────── */
   --blur-sm: 6px;
@@ -111,7 +125,9 @@ body{
   font-size:var(--fs-base);
   line-height:1.5;
   color:var(--text);
-  background:var(--canvas);
+  background-color:var(--canvas);
+  background-image:var(--canvas-grad);
+  background-attachment:fixed;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
   font-feature-settings:"cv02","cv03","cv04","cv11";
@@ -684,8 +700,11 @@ a{color:inherit;text-decoration:none}
 .table-zebra tbody tr:nth-child(even):hover{background:rgba(244,246,251,.8)}
 
 /* Clickable rows */
-.table-clickable tbody tr{cursor:pointer}
-.table-clickable tbody tr:hover{background:var(--accent-soft)}
+.table-clickable tbody tr{cursor:pointer;transition:background var(--t-fast), box-shadow var(--t-fast)}
+.table-clickable tbody tr:hover{
+  background:var(--accent-soft);
+  box-shadow:inset 3px 0 0 var(--accent);
+}
 .cell-name{font-weight:600}
 .cell-name-sub{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400;margin-top:2px}
 .cell-contact{color:var(--text-muted);font-size:var(--fs-sm);line-height:1.4}
@@ -16697,7 +16716,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507l"></script>
+<script type="module" src="./live.js?v=20260507m"></script>
 
 </body>
 </html>
