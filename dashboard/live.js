@@ -684,20 +684,23 @@ window.licApplyAll         = function () { /* superseded */ };
 }
 
 // ─── Drivers · Attendance (live) ───────────────────────────────────────────
+// The attendance report now renders against the policy decay window —
+// it's the operator's "standing attendance" view, not a what-happened-
+// in-the-last-N-days slice.  Window selector dropped per direction.
+let _attReportSort = { col: "points", dir: "desc" };
+let _attReportRows = [];
 
-let _attLiveWindow = 30; // days; mirrors the mockup's filter chip
-
-// Window cycle chip: keep the mockup's 30/60/90 cycle but refresh live data.
+// Click a sortable column header → toggle direction (or switch column).
 document.addEventListener("click", (e) => {
-  const chip = e.target.closest("#att-window-chip");
-  if (!chip) return;
-  const txt = chip.textContent || "";
-  const match = txt.match(/(\d+)/);
-  const cur = match ? parseInt(match[1], 10) : 30;
-  const seq = [30, 60, 90];
-  _attLiveWindow = seq[(seq.indexOf(cur) + 1) % seq.length];
-  chip.textContent = `Window: ${_attLiveWindow} days`;
-  loadAttendanceLive();
+  const th = e.target.closest("[data-rr-att-sort]");
+  if (!th) return;
+  const col = th.dataset.rrAttSort;
+  if (_attReportSort.col === col) {
+    _attReportSort.dir = _attReportSort.dir === "desc" ? "asc" : "desc";
+  } else {
+    _attReportSort = { col, dir: ["driver", "station", "status"].includes(col) ? "asc" : "desc" };
+  }
+  _renderAttReportTbody();
 });
 
 
@@ -705,7 +708,12 @@ async function loadAttendanceLive() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
-  const sinceDate = new Date(); sinceDate.setDate(sinceDate.getDate() - _attLiveWindow);
+  // Window = the policy decay window.  This is the "standing
+  // attendance" view, so it always reflects what's currently scoring
+  // toward each driver's running total.
+  const POLICY = _getAttPolicy();
+  const decay  = Number(POLICY.decay_days) || 90;
+  const sinceDate = new Date(); sinceDate.setDate(sinceDate.getDate() - decay);
   const sinceIso  = fmtIsoDate(sinceDate);
   const todayIso  = fmtIsoDate(new Date());
 
@@ -730,8 +738,6 @@ async function loadAttendanceLive() {
   const shifts  = shiftsRes.data  || [];
 
   // Per-driver tally — every column accumulates from check-in clicks.
-  // 'completed' = Present; 'late' = Late; 'called_off' = Callout;
-  // 'no_show' = No-show; 'vto' = Voluntary time off (no-fault).
   const acc = new Map();
   for (const sh of shifts) {
     if (!sh.driver_id) continue;
@@ -748,30 +754,20 @@ async function loadAttendanceLive() {
     }
   }
 
-  // Pull policy from saved DSP metadata (operator-editable in Policy tab).
-  const POLICY = _getAttPolicy();
-
   let totalScheduled = 0, totalIncidents = 0, totalVto = 0, inAction = 0;
   const todayMs = Date.now();
   const rows = drivers.map(d => {
     const a = acc.get(d.id) || { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null };
-    // Occurrence model: count whichever event types the operator
-    // toggled on.  Every counted event is one occurrence.
     const occ =
         (POLICY.count_tardy   ? a.late     : 0)
       + (POLICY.count_callout ? a.callouts : 0)
       + (POLICY.count_noshow  ? a.noshows  : 0);
-    // Keep the "points" alias on each row so the rest of the report
-    // page (which reads .points) renders without changes.
     const points = occ;
     let statusLabel = "Good";
     let statusKind  = "ok";
     if (POLICY.policy_enabled === false) { statusLabel = "Policy off"; statusKind = "ok"; }
     else if (occ >= POLICY.threshold_action) { statusLabel = "Action"; statusKind = "bad"; }
     else if (occ >= POLICY.threshold_warn)   { statusLabel = "Warn";   statusKind = "warn"; }
-
-    // First-30-days strict rule: any absence inside the hire window
-    // jumps the driver to Action regardless of points.
     if (POLICY.first_30_strict && d.hire_date && occ > 0) {
       const daysSinceHire = Math.floor((todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000);
       if (daysSinceHire >= 0 && daysSinceHire <= (POLICY.first_30_window_days || 30)) {
@@ -779,16 +775,16 @@ async function loadAttendanceLive() {
         statusKind  = "bad";
       }
     }
-
     totalScheduled += a.scheduled;
     totalIncidents += occ;
     totalVto       += a.vto;
     if (statusKind !== "ok") inAction += 1;
     return { d, a, points, occ, statusLabel, statusKind };
-  }).sort((x, y) => (y.points - x.points) || (y.occ - x.occ));
+  });
 
-  // KPIs — Avg attendance = (callouts + no-shows) ÷ scheduled (operator's
-  // definition); VTO = vto ÷ scheduled. Lower = better for both.
+  _attReportRows = rows;
+
+  // KPIs.
   const absenceRate = totalScheduled > 0 ? (totalIncidents / totalScheduled * 100) : 0;
   const presentPct  = Math.round(100 - absenceRate);
   const vtoPct      = totalScheduled > 0 ? Math.round(totalVto / totalScheduled * 100) : 0;
@@ -801,17 +797,74 @@ async function loadAttendanceLive() {
   setKpi("att-kpi-rate", `${presentPct}%`, presentPct >= 95 ? "ok" : presentPct >= 90 ? "warn" : "bad");
   setKpi("att-kpi-vto", `${vtoPct}%`);
   const rateSubEl = document.getElementById("att-kpi-rate-sub");
-  if (rateSubEl) rateSubEl.textContent = `${totalIncidents} absent / ${totalScheduled} scheduled · last ${_attLiveWindow}d`;
+  if (rateSubEl) rateSubEl.textContent = `${totalIncidents} absent / ${totalScheduled} scheduled · last ${decay}d`;
   const vtoSubEl = document.getElementById("att-kpi-vto-sub");
-  if (vtoSubEl) vtoSubEl.textContent = `${totalVto} VTO / ${totalScheduled} scheduled · last ${_attLiveWindow}d`;
+  if (vtoSubEl) vtoSubEl.textContent = `${totalVto} VTO / ${totalScheduled} scheduled · last ${decay}d`;
 
-  // Table
+  _renderAttReportTbody();
+
+  const badge = document.getElementById("att-subnav-badge");
+  if (badge) {
+    if (inAction > 0) { badge.textContent = String(inAction); badge.style.display = "inline-block"; }
+    else { badge.style.display = "none"; }
+  }
+}
+
+function _renderAttReportTbody() {
   const tbody = document.getElementById("att-report-body");
   if (!tbody) return;
+  const rows = [..._attReportRows];
   if (rows.length === 0) {
     tbody.innerHTML = `<tr><td colspan="13" style="padding:24px;text-align:center;color:var(--text-subtle)">No drivers yet</td></tr>`;
     return;
   }
+
+  // Apply current sort.  Direction: asc / desc.  Each column maps to
+  // a comparator-friendly value via the keyOf table below.
+  const STATUS_RANK = { "Action · first-30 rule": 3, "Action": 2, "Warn": 1, "Good": 0, "Policy off": -1 };
+  const keyOf = {
+    driver:    (r) => (displayDriverName(r.d) || "").toLowerCase(),
+    station:   (r) => (r.d.station?.code || "").toLowerCase(),
+    scheduled: (r) => r.a.scheduled,
+    present:   (r) => r.a.present,
+    late:      (r) => r.a.late,
+    callouts:  (r) => r.a.callouts,
+    noshows:   (r) => r.a.noshows,
+    vto:       (r) => r.a.vto,
+    points:    (r) => r.points,
+    occ:       (r) => r.occ,
+    status:    (r) => STATUS_RANK[r.statusLabel] ?? 0,
+    last:      (r) => r.a.last || "",
+  };
+  const k = keyOf[_attReportSort.col] || keyOf.points;
+  const dir = _attReportSort.dir === "asc" ? 1 : -1;
+  rows.sort((x, y) => {
+    const a = k(x), b = k(y);
+    if (a < b) return -1 * dir;
+    if (a > b) return  1 * dir;
+    // Tie-break on driver name asc.
+    const xn = (displayDriverName(x.d) || "").toLowerCase();
+    const yn = (displayDriverName(y.d) || "").toLowerCase();
+    return xn < yn ? -1 : xn > yn ? 1 : 0;
+  });
+
+  // Repaint header carets so the active sort is visible.
+  const thead = document.getElementById("att-report-thead");
+  if (thead) {
+    thead.querySelectorAll("[data-rr-att-sort]").forEach(th => {
+      const col = th.dataset.rrAttSort;
+      const base = th.textContent.replace(/\s*[▲▼]\s*$/, "");
+      th.textContent = base;
+      if (col === _attReportSort.col) {
+        th.appendChild(document.createTextNode(" "));
+        const arrow = document.createElement("span");
+        arrow.style.fontSize = "9px";
+        arrow.textContent = _attReportSort.dir === "asc" ? "▲" : "▼";
+        th.appendChild(arrow);
+      }
+    });
+  }
+
   tbody.innerHTML = rows.map(r => {
     const display = displayDriverName(r.d);
     const initials = displayDriverInitials(r.d);
@@ -834,13 +887,6 @@ async function loadAttendanceLive() {
       <td></td>
     </tr>`;
   }).join("");
-
-  // Subnav badge — number of drivers in warn/action.
-  const badge = document.getElementById("att-subnav-badge");
-  if (badge) {
-    if (inAction > 0) { badge.textContent = String(inAction); badge.style.display = "inline-block"; }
-    else { badge.style.display = "none"; }
-  }
 }
 
 // ─── Today's check-in (live) ───────────────────────────────────────────────
