@@ -765,21 +765,33 @@ async function loadAttendanceLive() {
     const points = occ;
     let statusLabel = "Good";
     let statusKind  = "ok";
-    if (POLICY.policy_enabled === false) { statusLabel = "Policy off"; statusKind = "ok"; }
-    else if (occ >= POLICY.threshold_action) { statusLabel = "Action"; statusKind = "bad"; }
-    else if (occ >= POLICY.threshold_warn)   { statusLabel = "Warn";   statusKind = "warn"; }
+    // Coaching label = where this driver currently sits on the discipline
+    // ladder. This is what operators actually act on (and what the daily
+    // attendance card recommends), so we surface it directly in the
+    // status column instead of the abstract "Warn / Action" thresholds.
+    let coachingLabel = "Clear";
+    if (POLICY.policy_enabled === false) {
+      statusLabel = "Policy off"; statusKind = "ok"; coachingLabel = "Policy off";
+    } else if (occ >= POLICY.threshold_action) {
+      statusLabel = "Action"; statusKind = "bad";
+      coachingLabel = POLICY.progressive_coaching ? "Final" : "Written";
+    } else if (occ >= POLICY.threshold_warn) {
+      statusLabel = "Warn"; statusKind = "warn";
+      coachingLabel = "Verbal";
+    }
     if (POLICY.first_30_strict && d.hire_date && occ > 0) {
       const daysSinceHire = Math.floor((todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000);
       if (daysSinceHire >= 0 && daysSinceHire <= (POLICY.first_30_window_days || 30)) {
         statusLabel = "Action · first-30 rule";
         statusKind  = "bad";
+        coachingLabel = "Written · 1st 30";
       }
     }
     totalScheduled += a.scheduled;
     totalIncidents += occ;
     totalVto       += a.vto;
     if (statusKind !== "ok") inAction += 1;
-    return { d, a, points, occ, statusLabel, statusKind };
+    return { d, a, points, occ, statusLabel, statusKind, coachingLabel };
   });
 
   _attReportRows = rows;
@@ -843,7 +855,9 @@ function _renderAttReportTbody() {
 
   // Apply current sort.  Direction: asc / desc.  Each column maps to
   // a comparator-friendly value via the keyOf table below.
-  const STATUS_RANK = { "Action · first-30 rule": 3, "Action": 2, "Warn": 1, "Good": 0, "Policy off": -1 };
+  // Coaching column ranks by ladder severity so a click sorts most-
+  // urgent → clear (Termination > Final > Written > Verbal > Clear).
+  const COACHING_RANK = { "Termination": 5, "Final": 4, "Written · 1st 30": 3, "Written": 3, "Verbal": 2, "Clear": 0, "Policy off": -1 };
   const keyOf = {
     driver:    (r) => (displayDriverName(r.d) || "").toLowerCase(),
     station:   (r) => (r.d.station?.code || "").toLowerCase(),
@@ -855,7 +869,7 @@ function _renderAttReportTbody() {
     vto:       (r) => r.a.vto,
     points:    (r) => r.points,
     occ:       (r) => r.occ,
-    status:    (r) => STATUS_RANK[r.statusLabel] ?? 0,
+    status:    (r) => COACHING_RANK[r.coachingLabel] ?? 0,
     last:      (r) => r.a.last || "",
   };
   const k = keyOf[_attReportSort.col] || keyOf.points;
@@ -907,7 +921,7 @@ function _renderAttReportTbody() {
       <td style="text-align:right">${r.a.vto}</td>
       <td style="text-align:right;font-weight:600">${r.points}</td>
       <td style="text-align:right">${r.occ}</td>
-      <td><span class="status-pill status-pill-${statusVariant}">${escapeHtml(r.statusLabel)}</span></td>
+      <td><span class="status-pill status-pill-${statusVariant}" title="${escapeHtml(r.statusLabel)}">${escapeHtml(r.coachingLabel)}</span></td>
       <td>${last}</td>
       <td></td>
     </tr>`;
@@ -12478,6 +12492,8 @@ function _rrTabId(el) {
   return el.dataset.rrTab
     || el.dataset.pipesub
     || el.dataset.sub
+    || el.dataset.stage
+    || el.dataset.tab
     || el.dataset.rrDdTab
     || null;
 }
