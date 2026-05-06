@@ -126,8 +126,16 @@ html,body{
   touch-action:none;
 }
 body{
-  background:var(--bg);
-  background-image:var(--bg-grad);
+  background-color:var(--bg);
+  /* Same dot-grid watermark as the dashboard so both surfaces share
+     the same canvas texture grammar.  Slightly tighter spacing (20px)
+     for mobile reading distance. */
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><circle cx='1' cy='1' r='1' fill='%230F172A' fill-opacity='0.045'/></svg>"),
+    var(--bg-grad);
+  background-attachment:fixed, fixed;
+  background-repeat:repeat, no-repeat;
+  background-size:20px 20px, auto;
   color:var(--text);
   font:16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -148,8 +156,10 @@ a{color:var(--accent);text-decoration:none}
   inset:0;
   width:100%;
   height:100dvh;
-  background:var(--bg);
-  background-image:var(--bg-grad);
+  /* Transparent so the body's dot-grid watermark + linear gradient
+     shows through.  Without this, #app covers body's bg entirely
+     and the pattern never renders on the driver app. */
+  background:transparent;
   /* Don't add safe-area-inset padding here — the header pushes itself
      down with its own padding instead, so it stays as the only thing
      under the iPhone notch. */
