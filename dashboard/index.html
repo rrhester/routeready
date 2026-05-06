@@ -12,25 +12,9 @@
    DESIGN TOKENS
    ───────────────────────────────────────────────────────────── */
 :root{
-  /* ── Surfaces (multi-layered material system) ─────────────── */
+  /* ── Surfaces ──────────────────────────────────────────────── */
   --canvas:#F4F6FB;
-  /* Watermark depth layer baked into the canvas gradient.  Three
-     ultra-soft asymmetric radial shapes (top-right cool brand,
-     lower-left slate, lower-middle indigo) with very wide falloffs
-     read as dissolved blur without paying for filter:blur on a
-     full-screen layer.  Opacities 5/4/3% — sub-perceptual; remove
-     and the canvas reads flat. */
-  /* Watermark: soft visible shapes (not sub-perceptual).  Iteration
-     after real-use feedback that lower opacities + corner-anchoring
-     read as nothing.  Centers pulled inward, falloffs tightened to
-     55%, peak opacities raised so the depth actually registers.
-     Base color restored to the original neutral so the canvas
-     doesn't read overall blue. */
-  --canvas-grad:
-    radial-gradient(ellipse 1100px 800px at 88% 12%,  rgba(20,110,180,.20)  0%, transparent 55%),
-    radial-gradient(ellipse 1200px 900px at 8%  78%, rgba(15,23,42,.16)    0%, transparent 55%),
-    radial-gradient(ellipse 700px  600px at 65% 95%, rgba(99,102,241,.10)  0%, transparent 55%),
-    linear-gradient(180deg, #F4F6FB 0%, #EEF1F7 100%);
+  --canvas-grad:linear-gradient(180deg, #F4F6FB 0%, #EEF1F7 100%);
   --surface:#FFFFFF;
   --surface-elevated:#FFFFFF;
   --surface-grad:linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(252,253,255,1) 100%);
@@ -134,20 +118,6 @@ body{
   -moz-osx-font-smoothing:grayscale;
   font-feature-settings:"cv02","cv03","cv04","cv11";
   text-rendering:optimizeLegibility;
-}
-/* Micro-grain — fixed overlay, no z-index gymnastics.
-   pointer-events:none means it never blocks interaction; multiply
-   blend at 2.2% darkens by an imperceptible amount but kills the
-   plasticky flat-white feel on large empty surfaces. */
-body::after{
-  content:"";
-  position:fixed;
-  inset:0;
-  pointer-events:none;
-  opacity:.022;
-  mix-blend-mode:multiply;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size:220px 220px;
 }
 button{font-family:inherit;cursor:pointer}
 a{color:inherit;text-decoration:none}
@@ -16731,7 +16701,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507e"></script>
+<script type="module" src="./live.js?v=20260507f"></script>
 
 </body>
 </html>
