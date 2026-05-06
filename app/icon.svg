@@ -1,5 +1,58 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="92" fill="#0f172a"/>
-  <text x="256" y="298" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="180" font-weight="800" letter-spacing="-6" fill="#ffffff">RR</text>
-  <circle cx="256" cy="384" r="14" fill="#3b82f6"/>
+  <defs>
+    <!-- Soft sky-blue background like the brand reference -->
+    <linearGradient id="rr-icon-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CFE0F2"/>
+      <stop offset="100%" stop-color="#9CBEDF"/>
+    </linearGradient>
+    <!-- Brand-blue pin gradient (cyan top → deeper blue bottom) -->
+    <linearGradient id="rr-icon-pin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3FA0E5"/>
+      <stop offset="55%" stop-color="#0F6CBD"/>
+      <stop offset="100%" stop-color="#0B5BA1"/>
+    </linearGradient>
+    <!-- Soft inner highlight for the 3D-ish depth on the pin -->
+    <radialGradient id="rr-icon-glow" cx="35%" cy="25%" r="60%">
+      <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
+      <stop offset="55%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <!-- R letter cutout mask so the lighter background shows through -->
+    <mask id="rr-icon-r-cut">
+      <rect width="512" height="512" fill="#fff"/>
+      <text x="240" y="296" text-anchor="middle"
+            font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Inter, sans-serif"
+            font-size="190" font-weight="900" letter-spacing="-4"
+            fill="#000">R</text>
+    </mask>
+    <!-- Soft drop shadow under the pin -->
+    <filter id="rr-icon-shadow" x="-20%" y="-10%" width="140%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="6" result="off"/>
+      <feComponentTransfer><feFuncA type="linear" slope=".30"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded-square background plate -->
+  <rect width="512" height="512" rx="92" fill="url(#rr-icon-bg)"/>
+
+  <!-- Subtle horizon band suggesting a road / landscape -->
+  <path d="M0 380 C140 330 280 360 380 350 C440 344 500 360 512 364 L512 512 L0 512 Z"
+        fill="rgba(15,108,189,.12)"/>
+
+  <!-- White path / road curving under the pin -->
+  <path d="M256 460 C290 430 330 410 380 400 C430 390 470 392 512 396 L512 460 C470 456 430 454 388 462 C346 470 302 478 256 484 C210 478 166 470 124 462 C80 454 40 456 0 460 L0 396 C40 392 80 390 132 400 C182 410 222 430 256 460 Z"
+        fill="rgba(255,255,255,.40)"/>
+
+  <!-- Pin shape (centered slightly above the road) — R cut out -->
+  <g filter="url(#rr-icon-shadow)">
+    <path d="M240 90 C158 90 96 152 96 234 C96 280 124 326 174 364 L240 412 L306 364 C356 326 384 280 384 234 C384 152 322 90 240 90 Z"
+          fill="url(#rr-icon-pin)"
+          mask="url(#rr-icon-r-cut)"/>
+  </g>
+  <!-- Inner top-left highlight on the pin for the 3D ish glow -->
+  <path d="M240 90 C158 90 96 152 96 234 C96 280 124 326 174 364 L240 412 L306 364 C356 326 384 280 384 234 C384 152 322 90 240 90 Z"
+        fill="url(#rr-icon-glow)"
+        mask="url(#rr-icon-r-cut)"
+        style="mix-blend-mode:screen;pointer-events:none"/>
 </svg>
