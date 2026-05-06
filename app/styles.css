@@ -508,18 +508,24 @@ select.field{
 }
 
 /* ── Toast ──────────────────────────────────────────────────── */
+/* Mirrors dashboard toast variant names so a kind="success" call
+   from shared-pattern code reads correctly on both surfaces.
+   Mobile keeps the simpler full-width-near-tab-bar style. */
 .toast{
   position:fixed;bottom:calc(var(--tab-h) + 16px + env(safe-area-inset-bottom, 0px));
   left:50%;transform:translateX(-50%);
   background:var(--text);color:var(--surface);
-  padding:10px 16px;border-radius:8px;font-size:var(--fs-md);
+  padding:10px 16px;border-radius:var(--r-md);font-size:var(--fs-md);font-weight:500;
   box-shadow:var(--shadow-md);z-index:30;
   opacity:0;pointer-events:none;transition:opacity .2s;
   max-width:90vw;text-align:center;
+  border-left:3px solid var(--accent);
 }
 .toast.show{opacity:1}
-.toast.warn{background:var(--red);color:#fff}
-.toast.ok{background:var(--green);color:#fff}
+.toast.success,.toast.ok{background:var(--green);color:#fff;border-left-color:var(--green)}
+.toast.warn{background:var(--amber);color:#fff;border-left-color:var(--amber)}
+.toast.error,.toast.danger{background:var(--red);color:#fff;border-left-color:var(--red)}
+.toast.info{border-left-color:var(--accent)}
 
 /* ── Chat ───────────────────────────────────────────────────── */
 /* Chat is a special case: the composer must NEVER move, the messages
