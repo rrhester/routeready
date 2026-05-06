@@ -147,7 +147,6 @@ begin
   if v_body is not null and length(v_body) > 2000 then
     raise exception 'too_long' using errcode = 'P0001';
   end if;
-<<<<<<< HEAD
   -- Anon storage uploads aren't path-scoped (RLS can't read the
   -- driver session token), so verify here that the attachment lives
   -- under the calling driver's <dsp_id>/<driver_id>/ path before we
@@ -160,8 +159,6 @@ begin
       raise exception 'invalid_attachment_path' using errcode = '42501';
     end if;
   end if;
-=======
->>>>>>> origin/main
 
   insert into public.driver_messages
     (driver_id, dsp_id, sender_kind, body,
