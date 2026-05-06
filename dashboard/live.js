@@ -2790,13 +2790,31 @@ document.addEventListener("click", async (e) => {
 
   const verb = ap ? "Approved" : "Declined";
   const tone = ap ? "var(--green)" : "var(--text-subtle)";
-  row.style.opacity = "0.55";
   btnCell.innerHTML = `<span style="font-size:var(--fs-xs);font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
   const tailParts = [];
   if (data?.auto_fired) tailParts.push("driver coached");
   else if (ap)          tailParts.push("queued for coaching drawer");
   const tail = tailParts.length ? " · " + tailParts.join(" · ") : "";
   toast(`${verb}${tail}`, "success");
+  // Fade + remove the row so the operator's queue visibly shrinks.
+  // 600ms gives them time to register the inline confirmation pill
+  // before it disappears.  After removal, refresh the Today's Plan
+  // data so the wave KPIs reflect the new shift status.
+  row.style.transition = "opacity .35s ease, transform .35s ease, max-height .35s ease, padding .35s ease, margin .35s ease";
+  setTimeout(() => {
+    row.style.opacity = "0";
+    row.style.transform = "translateX(8px)";
+    row.style.maxHeight = "0";
+    row.style.paddingTop = "0";
+    row.style.paddingBottom = "0";
+    row.style.marginTop = "0";
+    row.style.marginBottom = "0";
+    row.style.overflow = "hidden";
+    setTimeout(() => {
+      row.remove();
+      if (typeof _refreshTodayPlanData === "function") _refreshTodayPlanData();
+    }, 380);
+  }, 600);
 });
 
 function _renderTpCoverage(data, error) {
