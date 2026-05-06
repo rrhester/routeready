@@ -11246,8 +11246,8 @@ window.goto = function (view) {
 // Reset every view to its first sub-tab when the operator navigates
 // to it.  Without this the dashboard remembers the last sub-tab they
 // were on (e.g. they leave Drivers from the Coaching tab, come back
-// later, and land on Coaching).  Most operators want a clean start
-// from the primary view every time.
+// later, and land on Coaching).  Operators want a clean start from
+// the primary view every time, on EVERY sidebar item.
 const _origGotoForSubReset = window.goto;
 window.goto = function (view) {
   if (typeof _origGotoForSubReset === "function") _origGotoForSubReset(view);
@@ -11255,13 +11255,50 @@ window.goto = function (view) {
   setTimeout(() => {
     const activeView = document.getElementById("view-" + view);
     if (!activeView) return;
-    // Pick the first subnav button — works for both .subnav (Drivers,
-    // Schedule, Pipeline, Workflows) and .att-tabstrip (Drivers →
-    // Attendance, after the user reorders subtabs).
+
+    // Top-level subnav (Drivers / Schedule / Pipeline / Workflows /
+    // Performance / Fleet / Finances / Today).  Click the first
+    // subnav-item in document order so the operator lands on the
+    // primary sub-view of every sidebar function.
     const firstSub = activeView.querySelector(".subnav .subnav-item, .subnav-item");
     if (firstSub && !firstSub.classList.contains("active")) firstSub.click();
+
+    // Settings has its own pane navigation (settings-nav-item /
+    // setSettingsSection), not the .subnav structure.  Reset to the
+    // first one too so opening the gear icon always lands on
+    // Workspace rather than wherever they were last time.
+    if (view === "settings") {
+      const firstSetting = activeView.querySelector(".settings-nav-item");
+      if (firstSetting && !firstSetting.classList.contains("active")) firstSetting.click();
+    }
+
+    // Drivers → Attendance has its own nested tabstrip (History /
+    // Report / Event log).  When the operator returns to Drivers
+    // and the sub-tab reset above lands on Roster, that's fine.
+    // But if they navigate back into Attendance later, we want it
+    // to start on the first tab in the strip too — handled by the
+    // drSub wrap below.
   }, 0);
 };
+
+// drSub wrap — when the operator clicks Drivers → Attendance from
+// the subnav, reset the att-tabstrip to its first tab so they don't
+// land on whatever they had open last.
+const _origDrSubForSubReset = window.drSub;
+if (typeof _origDrSubForSubReset === "function") {
+  window.drSub = function (sub) {
+    const r = _origDrSubForSubReset(sub);
+    if (sub === "attendance") {
+      setTimeout(() => {
+        const strip = document.getElementById("rr-att-tabstrip");
+        if (!strip) return;
+        const first = strip.querySelector("[data-att]");
+        if (first && !first.classList.contains("active")) first.click();
+      }, 0);
+    }
+    return r;
+  };
+}
 
 const _origRefreshSched = refreshActiveView;
 function refreshActiveViewWithSched() {
