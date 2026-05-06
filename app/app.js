@@ -645,10 +645,16 @@ function chatBubbleHtml(m) {
   const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   // Auto-link http(s) URLs in the body so the driver can tap a
   // coaching-link or any other URL dispatch sends.  Escape first,
-  // then swap in <a> tags — this keeps it safe from injection.
+  // then swap in <a> tags — this keeps it safe from injection.  The
+  // /i flag handles uppercased schemes; the trailing-punctuation
+  // strip keeps a sentence-ending period from being included in the
+  // link target (so href = "…html?t=abc", not "…html?t=abc.").
   const body = escapeHtml(m.body).replace(/\n/g, "<br>")
-    .replace(/(https?:\/\/[^\s<]+)/g, (url) =>
-      `<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:600">${url}</a>`);
+    .replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
+      const trim = raw.replace(/[.,;:!?)\]>]+$/, "");
+      const tail = raw.slice(trim.length);
+      return `<a href="${trim}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;font-weight:600;word-break:break-all">${trim}</a>${tail}`;
+    });
   return `
     <div class="chat-bubble ${mine ? "mine" : "theirs"}">
       <div class="chat-body">${body}</div>
