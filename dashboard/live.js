@@ -8136,8 +8136,8 @@ function _renderAvailabilityRows() {
       : "";
 
     const actions = isPending
-      ? `<div style="display:flex;gap:8px;align-items:center">
-           <button class="btn btn-sm" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
+      ? `<div style="display:flex;gap:var(--s-2);align-items:center">
+           <button class="btn btn-sm btn-danger" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
            <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
          </div>`
       : `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">—</div>`;
@@ -12067,21 +12067,21 @@ function timeOffRow(r) {
   const range = r.start_date === r.end_date
     ? new Date(r.start_date + "T12:00:00").toLocaleDateString()
     : `${new Date(r.start_date + "T12:00:00").toLocaleDateString()} → ${new Date(r.end_date + "T12:00:00").toLocaleDateString()}`;
-  const statusColor = {
-    pending:   "color:#B45309",
-    approved:  "color:var(--green)",
-    denied:    "color:var(--red)",
-    cancelled: "color:var(--text-subtle)",
-  }[r.status];
+  const statusVariant = {
+    pending:   "pending",
+    approved:  "approved",
+    denied:    "denied",
+    cancelled: "neutral",
+  }[r.status] || "neutral";
   return `
-    <div style="display:grid;grid-template-columns:1fr 1fr 100px 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
-      <div><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.drivers?.full_name || "—")}</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 110px 1fr auto;gap:var(--s-3);align-items:center;padding:var(--s-3) var(--s-4);border-top:1px solid var(--border)">
+      <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.drivers?.full_name || "—")}</div>
       <div style="font-size:var(--fs-sm)">${range}</div>
-      <div style="font-size:var(--fs-xs);font-weight:700;${statusColor};text-transform:uppercase">${r.status}</div>
+      <div><span class="status-pill status-pill-${statusVariant}">${escapeHtml(r.status)}</span></div>
       <div style="font-size:var(--fs-sm);color:var(--text-subtle)">${escapeHtml(r.reason || "")}</div>
-      <div>${r.status === "pending" ? `
-        <button class="btn btn-sm" data-rr-time-off-decide="${r.id}" data-decision="approve">Approve</button>
-        <button class="btn btn-sm" data-rr-time-off-decide="${r.id}" data-decision="deny" style="color:var(--red)">Deny</button>
+      <div style="display:flex;gap:var(--s-2);justify-content:flex-end">${r.status === "pending" ? `
+        <button class="btn btn-sm btn-danger" data-rr-time-off-decide="${r.id}" data-decision="deny">Deny</button>
+        <button class="btn btn-sm btn-primary" data-rr-time-off-decide="${r.id}" data-decision="approve">Approve</button>
       ` : ""}</div>
     </div>`;
 }
