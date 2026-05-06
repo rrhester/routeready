@@ -11928,9 +11928,21 @@ window.goto = function (view) {
 
     // Top-level subnav (Drivers / Schedule / Pipeline / Workflows /
     // Performance / Fleet / Finances / Today).  Click the first
-    // subnav-item in document order so the operator lands on the
-    // primary sub-view of every sidebar function.
-    const firstSub = activeView.querySelector(".subnav .subnav-item, .subnav-item");
+    // tab-id-bearing subnav-item in document order so the operator
+    // lands on the primary sub-view of every sidebar function.
+    //
+    // The selector intentionally requires [data-sub] or [data-pipesub]
+    // — Schedule's "Plan ↗" link is also a .subnav-item but its
+    // onclick is goto('okami'), and the tab-bar reorder logic
+    // (_rrApplyTabbarOrder) appends every tracked tab to the end of
+    // the bar, which shoves untracked children like Plan ↗ to the
+    // FRONT.  Without the [data-sub] guard, Plan ↗ becomes "firstSub"
+    // and we auto-click it — bouncing the operator off Schedule and
+    // back into OKAMI a frame after they navigate to Schedule.
+    const firstSub = activeView.querySelector(
+      ".subnav .subnav-item[data-sub], .subnav .subnav-item[data-pipesub], " +
+      ".subnav-item[data-sub], .subnav-item[data-pipesub]"
+    );
     if (firstSub && !firstSub.classList.contains("active")) firstSub.click();
 
     // Settings has its own pane navigation (settings-nav-item /
@@ -12184,7 +12196,21 @@ function _rrApplyTabbarOrder(bar) {
   // which would re-trigger the observer and infinite-loop.
   const current = tabs.map(t => _rrTabId(t));
   if (target.length === current.length && target.every((id, i) => id === current[i])) return;
-  for (const id of target) bar.appendChild(byId.get(id));
+  // Anchor the tracked tabs against the first untracked sibling so
+  // stragglers like Schedule's "Plan ↗" link (a .subnav-item with no
+  // tab id) don't get shoved to the front when every tracked tab is
+  // appended past them — that bug bounced operators out of Schedule
+  // back into OKAMI a frame after navigation.
+  const tracked = new Set(tabs);
+  let anchor = null;
+  for (const child of bar.children) {
+    if (!tracked.has(child)) { anchor = child; break; }
+  }
+  for (const id of target) {
+    const node = byId.get(id);
+    if (anchor) bar.insertBefore(node, anchor);
+    else bar.appendChild(node);
+  }
 }
 
 function _rrSaveTabbarOrder(bar) {
