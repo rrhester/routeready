@@ -920,7 +920,45 @@ a{color:inherit;text-decoration:none}
 /* ─────────────────────────────────────────────────────────────
    DRIVERS PAGE
    ───────────────────────────────────────────────────────────── */
-.driver-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+.driver-stat-row{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+@media (max-width:1300px){.driver-stat-row{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.driver-stat-row{grid-template-columns:repeat(2,1fr)}}
+.stat-mini-clickable{
+  cursor:pointer;user-select:none;position:relative;
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.stat-mini-clickable:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+.stat-mini-clickable.active{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+.stat-mini-clickable.active::after{
+  content:"";position:absolute;left:50%;bottom:-7px;
+  width:14px;height:14px;background:var(--surface);
+  border-left:1px solid var(--accent);border-top:1px solid var(--accent);
+  transform:translateX(-50%) rotate(45deg);
+}
+/* Subtle time-frame switch button — top-right of a KPI tile.  Stays
+   muted by default, brightens on hover. */
+.rr-tf-icon{
+  position:absolute;top:8px;right:8px;
+  width:22px;height:22px;border:0;background:transparent;
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--text-subtle);cursor:pointer;border-radius:5px;
+  transition:color var(--t-fast), background var(--t-fast);
+}
+.rr-tf-icon:hover{color:var(--accent);background:var(--accent-soft)}
+.rr-tf-popover{
+  position:absolute;top:32px;right:8px;z-index:5;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;box-shadow:var(--shadow-md, 0 6px 20px rgba(0,0,0,.12));
+  padding:4px;display:flex;flex-direction:column;gap:2px;min-width:120px;
+}
+.rr-tf-popover button{
+  appearance:none;background:transparent;border:0;font:inherit;
+  font-size:var(--fs-sm);color:var(--text);text-align:left;
+  padding:6px 10px;border-radius:5px;cursor:pointer;
+}
+.rr-tf-popover button:hover{background:var(--canvas)}
+.rr-tf-popover button.active{background:var(--accent);color:#fff}
+
 .stat-mini{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
   padding:var(--s-4) var(--s-5);
@@ -5205,7 +5243,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <!-- Drivers sub-nav: Roster · Insights · Attendance -->
         <div class="subnav" data-rr-tabbar="drivers">
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
-          <button class="subnav-item" data-sub="insights" onclick="drSub('insights')">Insights</button>
           <button class="subnav-item" data-sub="licenses" onclick="drSub('licenses')">Licenses</button>
           <button class="subnav-item" data-sub="attendance" onclick="drSub('attendance')">Attendance</button>
           <button class="subnav-item" data-sub="coaching" onclick="drSub('coaching')">Coaching <span id="rr-coach-feed-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
@@ -5216,11 +5253,22 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <div class="dr-subview active" id="dr-sub-roster">
 
         <div class="driver-stat-row">
-          <div class="stat-mini"><div class="stat-mini-label">Active</div><div class="stat-mini-value">78</div><div class="stat-mini-sub">2 onboarding · 4 inactive</div></div>
-          <div class="stat-mini"><div class="stat-mini-label">Avg score</div><div class="stat-mini-value">81</div><div class="stat-mini-sub">Fleet 30-day</div></div>
-          <div class="stat-mini"><div class="stat-mini-label">At risk</div><div class="stat-mini-value" style="color:var(--amber)">5</div><div class="stat-mini-sub">Below 75</div></div>
-          <div class="stat-mini"><div class="stat-mini-label">Coached this week</div><div class="stat-mini-value">12</div><div class="stat-mini-sub">8 SMS · 4 in-person</div></div>
+          <div class="stat-mini"><div class="stat-mini-label">Active</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
+          <div class="stat-mini"><div class="stat-mini-label">Avg score</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
+          <div class="stat-mini"><div class="stat-mini-label">At risk</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
+          <div class="stat-mini"><div class="stat-mini-label">Coached this week</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
+          <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="tenure" role="button" tabindex="0" aria-label="Open average tenure detail">
+            <div class="stat-mini-label">Avg tenure</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
+          </div>
+          <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="turnover" role="button" tabindex="0" aria-label="Open turnover detail">
+            <div class="stat-mini-label">Turnover</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
+            <button class="rr-tf-icon" data-rr-roster-tf-toggle="turnover" type="button" aria-label="Switch time frame" title="Switch time frame"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></button>
+          </div>
         </div>
+
+        <!-- Roster KPI drill-down panel · opens when an operator clicks
+             one of the six KPI tiles above. -->
+        <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
         <div class="stage-tabs" data-rr-tabbar="drivers-stage">
           <button class="stage-tab active" data-stage="active" onclick="filterDriversStage(this)">Active <span class="stage-tab-count">78</span></button>
@@ -5253,166 +5301,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         </div>
 
         </div><!-- /dr-sub-roster -->
-
-        <!-- INSIGHTS SUB-VIEW — driver intelligence -->
-        <div class="dr-subview" id="dr-sub-insights">
-
-          <div class="di-grid">
-            <div class="di-card">
-              <div class="di-label">Total active drivers</div>
-              <div class="di-val" id="rr-di-total">—</div>
-              <div class="di-sub" id="rr-di-total-sub">Active + onboarding</div>
-            </div>
-            <div class="di-card">
-              <div class="di-label">Avg tenure</div>
-              <div class="di-val" id="rr-di-tenure">—</div>
-              <div class="di-sub" id="rr-di-tenure-sub">From hire date</div>
-            </div>
-            <div class="di-card">
-              <div class="di-label-row">
-                <div class="di-label">Turnover</div>
-                <select class="di-tf" data-rr-di-tf="turnover">
-                  <option value="7">7d</option>
-                  <option value="30" selected>30d</option>
-                  <option value="60">60d</option>
-                  <option value="90">90d</option>
-                  <option value="365">1y</option>
-                </select>
-              </div>
-              <div class="di-val" id="rr-di-turnover-30">—</div>
-              <div class="di-sub" id="rr-di-turnover-30-sub">Drivers terminated in window</div>
-            </div>
-            <div class="di-card">
-              <div class="di-label">Annualized turnover</div>
-              <div class="di-val" id="rr-di-turnover-annual">—</div>
-              <div class="di-sub" id="rr-di-turnover-annual-sub">Industry avg ~35%</div>
-            </div>
-          </div>
-
-          <div class="di-grid" style="margin-bottom:var(--s-5)">
-            <div class="di-card">
-              <div class="di-label-row">
-                <div class="di-label">First-N retention</div>
-                <select class="di-tf" data-rr-di-tf="past">
-                  <option value="30" selected>30d</option>
-                  <option value="60">60d</option>
-                  <option value="90">90d</option>
-                </select>
-              </div>
-              <div class="di-val" id="rr-di-past30">—</div>
-              <div class="di-sub" id="rr-di-past30-sub">Active drivers past window</div>
-            </div>
-            <div class="di-card">
-              <div class="di-label">At-risk drivers</div>
-              <div class="di-val" id="rr-di-atrisk">—</div>
-              <div class="di-sub">Score &lt; 75 OR attendance flag</div>
-            </div>
-            <div class="di-card">
-              <div class="di-label">Avg fleet score</div>
-              <div class="di-val" id="rr-di-fleetscore">—</div>
-              <div class="di-sub" id="rr-di-fleetscore-sub">Last 30 days</div>
-            </div>
-            <div class="di-card">
-              <div class="di-label-row">
-                <div class="di-label">Avg attendance</div>
-                <select class="di-tf" data-rr-di-tf="attendance">
-                  <option value="7">7d</option>
-                  <option value="30" selected>30d</option>
-                  <option value="60">60d</option>
-                  <option value="90">90d</option>
-                </select>
-              </div>
-              <div class="di-val" id="rr-di-attendance">—</div>
-              <div class="di-sub" id="rr-di-attendance-sub">Callouts + no-shows / scheduled</div>
-            </div>
-          </div>
-
-          <div class="di-section">
-            <h3 class="di-section-title">Tenure distribution</h3>
-            <div class="di-bar-row">
-              <span class="di-bar-label">0–30 days</span>
-              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-0-30"></div></div>
-              <div class="di-bar-count" id="rr-di-cnt-0-30">0</div>
-            </div>
-            <div class="di-bar-row">
-              <span class="di-bar-label">30–90 days</span>
-              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-30-90"></div></div>
-              <div class="di-bar-count" id="rr-di-cnt-30-90">0</div>
-            </div>
-            <div class="di-bar-row">
-              <span class="di-bar-label">90 days – 1 year</span>
-              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-90-365"></div></div>
-              <div class="di-bar-count" id="rr-di-cnt-90-365">0</div>
-            </div>
-            <div class="di-bar-row">
-              <span class="di-bar-label">1–2 years</span>
-              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-365-730"></div></div>
-              <div class="di-bar-count" id="rr-di-cnt-365-730">0</div>
-            </div>
-            <div class="di-bar-row">
-              <span class="di-bar-label">2+ years</span>
-              <div class="di-bar-track"><div class="di-bar-fill" style="width:0%;background:var(--text-muted)" id="rr-di-bar-730plus"></div></div>
-              <div class="di-bar-count" id="rr-di-cnt-730plus">0</div>
-            </div>
-            <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5" id="rr-di-insight">
-              <strong style="color:var(--text)">Insight:</strong> Loading…
-            </div>
-          </div>
-
-          <!-- Day-of-week absence pattern · rolling 90 days -->
-          <div class="di-section" id="rr-di-dow-section" style="margin-top:var(--s-4)">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-              <div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <h3 class="di-section-title" style="margin:0">Absence by day of week</h3>
-                  <button type="button" id="rr-di-dow-info" title="Show the math behind this insight"
-                    style="border:0;background:transparent;color:var(--text-subtle);cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                  </button>
-                </div>
-                <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0">Callouts + no-shows ÷ shifts that had an outcome, grouped by day of week.</p>
-              </div>
-              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-                <select class="di-tf" data-rr-di-tf="dow">
-                  <option value="30">30d</option>
-                  <option value="60">60d</option>
-                  <option value="90" selected>90d</option>
-                  <option value="180">180d</option>
-                  <option value="365">1y</option>
-                </select>
-                <div style="font-size:var(--fs-xs);color:var(--text-subtle);text-align:right" id="rr-di-dow-summary"></div>
-              </div>
-            </div>
-            <div id="rr-di-dow-bars">
-              <div class="rr-loading">Loading</div>
-            </div>
-            <div style="margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5" id="rr-di-dow-insight"></div>
-          </div>
-
-          <!-- ─── AVAILABILITY INSIGHTS (relocated from Drivers → Availability) ─── -->
-          <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:24px">
-            <div style="margin-bottom:12px">
-              <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em">Availability insights</div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Pulled from each driver's saved availability and the next four weeks of OKAMI demand.</div>
-            </div>
-            <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
-            <div data-rr-avail-byday-card class="card" style="margin-bottom:var(--s-4)">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-                <div>
-                  <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">Driver availability by day</div>
-                  <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:4px 0 0">What share of your active roster is available each day of the week.</p>
-                </div>
-                <div style="font-size:var(--fs-xs);color:var(--text-subtle);text-align:right" data-rr-avail-summary></div>
-              </div>
-              <div data-rr-avail-bars>
-                <div class="rr-loading">Loading</div>
-              </div>
-              <div data-rr-avail-insight style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5"></div>
-            </div>
-            <div data-rr-avail-repeats style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px"></div>
-          </div>
-
-        </div><!-- /dr-sub-insights -->
 
 
         <!-- ═══════════════════════════════════════════════════════
@@ -5511,16 +5399,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                localStorage in dashboard/live.js so each operator keeps
                their own preferred layout. -->
           <div class="att-tabstrip" id="rr-att-tabstrip">
-            <button class="att-tab"        draggable="true" data-att="history" onclick="attTab('history')">History</button>
             <button class="att-tab active" draggable="true" data-att="report"  onclick="attTab('report')">Report</button>
             <button class="att-tab"        draggable="true" data-att="log"     onclick="attTab('log')">Event log <span id="att-log-count" style="display:none"></span></button>
-          </div>
-
-          <!-- ─── HISTORY PANE ────────────────────────────────── -->
-          <div class="att-pane" id="att-pane-history">
-            <div id="rr-att-history-shell">
-              <div class="rr-loading">Loading attendance history</div>
-            </div>
           </div>
 
           <!-- ─── REPORT PANE ─────────────────────────────────── -->
@@ -5662,41 +5542,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                navigation away from this subview. -->
           <div id="rr-avail-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
-          <!-- Repeat-requesters insight (filled by _renderAvailabilityKpis) -->
-          <div data-rr-avail-repeats class="card card-compact" style="margin-bottom:var(--s-4)"></div>
-
           <div class="card card-flush">
-            <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-              <div>
-                <div style="font-size:var(--fs-base);font-weight:700">Pending availability requests</div>
-                <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Approvals stay in effect for 3 weeks from approval date.</div>
-              </div>
-              <button id="rr-avail-settings-toggle" class="icon-btn" title="Availability settings" aria-label="Availability settings" style="border:1px solid var(--border)">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              </button>
+            <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
+              <div style="font-size:var(--fs-base);font-weight:700">Pending availability requests</div>
+              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Approvals stay in effect for 3 weeks from approval date. Tweak lead-time, auto-responses, or blackout windows in Settings → Availability rules (gear icon, top-right of the page).</div>
             </div>
             <div id="rr-avail-req-list">
               <div class="rr-loading">Loading requests</div>
-            </div>
-          </div>
-
-          <!-- Settings drawer · opened by the gear icon above -->
-          <div id="rr-avail-settings-modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)document.getElementById('rr-avail-settings-modal').style.display='none'">
-            <div class="modal-card" style="max-width:680px;width:92vw;max-height:88vh;display:flex;flex-direction:column">
-              <div class="modal-head">
-                <div>
-                  <p class="modal-title">Availability settings</p>
-                  <p class="modal-sub">Lead time, auto-response templates, and blackout windows</p>
-                </div>
-                <button class="modal-close" onclick="document.getElementById('rr-avail-settings-modal').style.display='none'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-              </div>
-              <div class="modal-body" style="overflow-y:auto">
-                <div style="font-size:var(--fs-md);font-weight:700;margin-bottom:8px">Lead time &amp; auto-responses</div>
-                <div data-rr-avail-settings></div>
-                <div style="font-size:var(--fs-md);font-weight:700;margin:18px 0 8px">Blackout dates</div>
-                <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px">Drivers can't submit availability changes during these windows.</div>
-                <div data-rr-avail-blackouts></div>
-              </div>
             </div>
           </div>
 
@@ -16437,7 +16289,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507ad"></script>
+<script type="module" src="./live.js?v=20260507ae"></script>
 
 </body>
 </html>

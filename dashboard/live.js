@@ -387,11 +387,12 @@ window.filterPipelineStage = function (btn) {
 
 const _legacyGoto = window.goto;
 window.goto = function (view) {
-  if (typeof _closeAttKpiDetail === "function")    _closeAttKpiDetail();
-  if (typeof _closeAvailKpiDetail === "function")  _closeAvailKpiDetail();
+  if (typeof _closeAttKpiDetail === "function")     _closeAttKpiDetail();
+  if (typeof _closeAvailKpiDetail === "function")   _closeAvailKpiDetail();
+  if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
-  if (view === "drivers")   { loadDriversRoster(); loadDriverInsights(); }
+  if (view === "drivers")   loadDriversRoster();
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); }
   if (view === "messages")  loadDriverChatInbox();
@@ -417,7 +418,7 @@ async function loadDriversRoster() {
   if (!tbody) return;
 
   const { data: rows, error } = await sb.from("drivers")
-    .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score,
+    .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
              background_check_completed_at, drug_test_completed_at,
              training_scheduled_at, training_date,
              station:station_id (code)`)
@@ -2558,7 +2559,6 @@ window.attTab = function (name) {
     return;
   }
   if (typeof _legacyAttTab === "function") _legacyAttTab(name);
-  if (name === "history") loadAttendanceHistory();
   if (name === "report")  loadAttendanceLive();
   if (name === "log")     loadAttendanceEventLog();
 };
@@ -3472,77 +3472,6 @@ async function loadTodayAttendance() {
 }
 
 
-// ─── Drivers · Attendance · History ────────────────────────────────────
-async function loadAttendanceHistory(opts) {
-  const wrap = document.getElementById("rr-att-history-shell");
-  if (!wrap) return;
-  const today = new Date();
-  const fmt = (d) => d.toISOString().slice(0, 10);
-  const defaultFrom = fmt(new Date(today.getTime() - 30 * 86400000));
-  const defaultTo   = fmt(today);
-  const fromIso = opts?.from || defaultFrom;
-  const toIso   = opts?.to   || defaultTo;
-
-  wrap.innerHTML = `<div class="rr-loading">Loading</div>`;
-
-  const { data, error } = await sb.rpc("attendance_history", { p_from: fromIso, p_to: toIso, p_driver_id: null });
-  if (error) {
-    wrap.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</div>`;
-    return;
-  }
-  const summary = data?.summary_by_driver || [];
-  const events  = data?.rows || [];
-
-  const sumRows = summary.length === 0
-    ? `<div class="rr-empty-inline">No finalized attendance in range.</div>`
-    : summary.map(s => `
-      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-size:var(--fs-md);align-items:center">
-        <div style="font-weight:600">${escapeHtml(s.driver_name)}</div>
-        <div style="text-align:right;color:var(--green);font-weight:600">${s.present}</div>
-        <div style="text-align:right;color:var(--amber);font-weight:600">${s.tardy}</div>
-        <div style="text-align:right;color:var(--red);font-weight:600">${s.ncns}</div>
-        <div style="text-align:right;color:var(--text-muted)">${s.absent}</div>
-        <div style="text-align:right;color:var(--text-muted)">${s.excused}</div>
-        <div style="text-align:right;font-weight:700">${s.total}</div>
-      </div>`).join("");
-
-  wrap.innerHTML = `
-    <div style="display:flex;gap:10px;margin-bottom:14px;align-items:end">
-      <div>
-        <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">From</label>
-        <input type="date" id="rr-att-hist-from" value="${escapeHtml(fromIso)}" class="form-input form-input-sm"/>
-      </div>
-      <div>
-        <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">To</label>
-        <input type="date" id="rr-att-hist-to" value="${escapeHtml(toIso)}" class="form-input form-input-sm"/>
-      </div>
-      <button class="btn btn-sm btn-primary" id="rr-att-hist-go">Apply</button>
-    </div>
-
-    <div class="card card-flush" style="margin-bottom:var(--s-4)">
-      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px 70px;gap:8px;padding:10px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
-        <div>Driver</div>
-        <div style="text-align:right">Present</div>
-        <div style="text-align:right">Tardy</div>
-        <div style="text-align:right">NCNS</div>
-        <div style="text-align:right">Absent</div>
-        <div style="text-align:right">Excused</div>
-        <div style="text-align:right">Total</div>
-      </div>
-      ${sumRows}
-    </div>
-
-    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">${events.length} finalized event${events.length === 1 ? "" : "s"} · only finalized days appear in the permanent record.</div>
-  `;
-
-  document.getElementById("rr-att-hist-go").addEventListener("click", () => {
-    loadAttendanceHistory({
-      from: document.getElementById("rr-att-hist-from").value,
-      to:   document.getElementById("rr-att-hist-to").value,
-    });
-  });
-}
-
 
 async function loadDriverLicensesView() {
   const body = document.getElementById("lic-renewals-body");
@@ -3630,14 +3559,14 @@ const _legacyDrSub = window.drSub;
 window.drSub = function (sub) {
   // Close any open KPI drilldowns on subview navigation so they
   // don't reappear when the operator comes back to the page.
-  if (typeof _closeAttKpiDetail === "function")    _closeAttKpiDetail();
-  if (typeof _closeAvailKpiDetail === "function")  _closeAvailKpiDetail();
+  if (typeof _closeAttKpiDetail === "function")     _closeAttKpiDetail();
+  if (typeof _closeAvailKpiDetail === "function")   _closeAvailKpiDetail();
+  if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
-  if (sub === "attendance")   { loadAttendanceLive(); loadAttendanceHistory(); _rrInitAttTabDnD(); }
+  if (sub === "attendance")   { loadAttendanceLive(); _rrInitAttTabDnD(); }
   if (sub === "coaching")     loadCoachingFeed();
-  if (sub === "insights")     loadDriverInsights();
   if (sub === "availability") loadAvailabilityRequests();
   _swapDriversCta(sub);
 };
@@ -3728,342 +3657,6 @@ async function openCoachDriverPicker() {
   });
 }
 
-// ─── Drivers · Insights (KPIs + tenure distribution) ───────────────────
-// Per-card timeframe selections (days). Persisted per-user in localStorage.
-function _diTf(card, fallback) {
-  try {
-    const v = parseInt(localStorage.getItem("rr.insights.tf." + card) || "", 10);
-    if (Number.isFinite(v) && v > 0) return v;
-  } catch {}
-  return fallback;
-}
-function _diSetTf(card, days) {
-  try { localStorage.setItem("rr.insights.tf." + card, String(days)); } catch {}
-}
-
-// Dropdown change → save + re-render. Bound once at document level so we
-// don't double-bind across re-renders.
-document.addEventListener("change", (e) => {
-  const sel = e.target.closest?.("[data-rr-di-tf]");
-  if (!sel) return;
-  const card = sel.dataset.rrDiTf;
-  const days = parseInt(sel.value, 10) || 30;
-  _diSetTf(card, days);
-  loadDriverInsights();
-});
-
-async function loadDriverInsights() {
-  const root = document.getElementById("dr-sub-insights");
-  if (!root) return;
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-
-  // Pull availability data + render the by-day insights into the
-  // relocated panel at the bottom of this page.  Cheap re-call —
-  // _renderAvailability* short-circuits if the anchor isn't in the
-  // DOM, so this is safe to fire even when the operator's parked on
-  // another sub-tab.
-  loadAvailabilityRequests();
-  loadScheduleInsights();
-
-  // Apply persisted timeframe selections to the dropdowns before reading.
-  document.querySelectorAll("[data-rr-di-tf]").forEach(sel => {
-    const card = sel.dataset.rrDiTf;
-    const saved = _diTf(card, parseInt(sel.value, 10) || 30);
-    sel.value = String(saved);
-  });
-
-  const today = new Date();
-  const todayMs = today.getTime();
-  const tfTurnover   = _diTf("turnover",   30);
-  const tfPast       = _diTf("past",       30);
-  const tfAttendance = _diTf("attendance", 30);
-  const tfDow        = _diTf("dow",        90);
-
-  // Widest window we need to fetch: max of the per-card windows + a bit
-  // of headroom for the prior-period delta on turnover (2× window).
-  const fetchDays = Math.max(90, tfTurnover * 2, tfPast, tfAttendance, tfDow);
-  const fetchAgoIso = fmtIsoDate(addDays(today, -fetchDays));
-  const dowAgoIso   = fmtIsoDate(addDays(today, -tfDow));
-
-  const [allDrvRes, shiftsRes, shifts90Res] = await Promise.all([
-    // Note: drivers schema has no terminated_at column. We use updated_at
-    // as a rough proxy for "when this driver moved to terminated".
-    sb.from("drivers")
-      .select("id, status, hire_date, updated_at, score, metadata")
-      .eq("dsp_id", dspId),
-    sb.from("shifts").select("driver_id, status, date")
-      .eq("dsp_id", dspId)
-      .gte("date", fetchAgoIso)
-      .lte("date", fmtIsoDate(today)),
-    sb.from("shifts").select("status, date")
-      .eq("dsp_id", dspId)
-      .gte("date", dowAgoIso)
-      .lte("date", fmtIsoDate(today))
-      .in("status", ["completed", "called_off", "no_show", "late", "vto"]),
-  ]);
-
-  const ago30Iso = fmtIsoDate(addDays(today, -tfTurnover));
-  const ago60Iso = fmtIsoDate(addDays(today, -tfTurnover * 2));
-
-  if (allDrvRes?.error) {
-    console.warn("insights load (drivers):", allDrvRes.error);
-    return;
-  }
-
-  const drivers = (allDrvRes?.data || []);
-  const shifts  = (shiftsRes?.data  || []);
-
-  // Active count = active + onboarding (not terminated/inactive/leave).
-  const active = drivers.filter(d => d.status === "active" || d.status === "onboarding");
-  const totalActive = active.length;
-
-  // Tenure (months since hire_date) for active drivers only.
-  const tenureMonths = active
-    .filter(d => d.hire_date)
-    .map(d => (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24 * 30.4375));
-  tenureMonths.sort((a, b) => a - b);
-  const avgTenure = tenureMonths.length
-    ? tenureMonths.reduce((s, n) => s + n, 0) / tenureMonths.length
-    : 0;
-  const medianTenure = tenureMonths.length
-    ? tenureMonths[Math.floor(tenureMonths.length / 2)]
-    : 0;
-  const longestMonths = tenureMonths.length ? tenureMonths[tenureMonths.length - 1] : 0;
-
-  // Turnover — use updated_at as a proxy for termination date since the
-  // schema doesn't track it explicitly. Filter by status='terminated'.
-  const termsLast30 = drivers.filter(d =>
-    d.status === "terminated" && d.updated_at && d.updated_at.slice(0, 10) >= ago30Iso
-  ).length;
-  const termsPrior30 = drivers.filter(d => {
-    if (d.status !== "terminated" || !d.updated_at) return false;
-    const dIso = d.updated_at.slice(0, 10);
-    return dIso >= ago60Iso && dIso < ago30Iso;
-  }).length;
-  // Anchor denominator at total roster size (active + recently-terminated).
-  const denom = Math.max(1, totalActive + termsLast30);
-  const turnover30Pct = (termsLast30 / denom) * 100;
-  const turnoverPriorPct = (termsPrior30 / denom) * 100;
-  const annualized = turnover30Pct * 12;
-
-  // First-N retention (drivers past N days) — active drivers whose
-  // hire_date is at least N days ago. N comes from the per-card timeframe.
-  const past30 = active.filter(d => d.hire_date &&
-    (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) >= (tfPast * 86400000)).length;
-  const past30Pct = totalActive > 0 ? Math.round((past30 / totalActive) * 100) : 0;
-
-  // At-risk = active drivers with score < 75 OR an attendance/safety flag.
-  // Attendance flag: 2+ callouts/no-shows in the chosen attendance window.
-  const attCutoffIso = fmtIsoDate(addDays(today, -tfAttendance));
-  const absencesByDriver = new Map();
-  for (const sh of shifts) {
-    if (sh.date < attCutoffIso) continue;
-    if (sh.status === "called_off" || sh.status === "no_show") {
-      absencesByDriver.set(sh.driver_id, (absencesByDriver.get(sh.driver_id) || 0) + 1);
-    }
-  }
-  const atRisk = active.filter(d => {
-    const lowScore = (d.score != null) && Number(d.score) < 75;
-    const flag = (absencesByDriver.get(d.id) || 0) >= 2;
-    return lowScore || flag;
-  }).length;
-
-  // Avg fleet score = mean of d.score across active with a value.
-  const scored = active.filter(d => d.score != null && Number.isFinite(Number(d.score)));
-  const avgScore = scored.length
-    ? Math.round(scored.reduce((s, d) => s + Number(d.score), 0) / scored.length)
-    : null;
-
-  // Avg attendance over the chosen window: (scheduled - absences) / scheduled.
-  let scheduled30 = 0, absent30 = 0;
-  for (const sh of shifts) {
-    if (!sh.driver_id) continue;
-    if (sh.date < attCutoffIso) continue;
-    if (["scheduled", "completed", "called_off", "no_show", "late"].includes(sh.status)) scheduled30 += 1;
-    if (sh.status === "called_off" || sh.status === "no_show") absent30 += 1;
-  }
-  const attendancePct = scheduled30 > 0 ? Math.round(((scheduled30 - absent30) / scheduled30) * 100) : null;
-
-  // Tenure buckets (in days).
-  const buckets = { "0-30": 0, "30-90": 0, "90-365": 0, "365-730": 0, "730plus": 0 };
-  for (const d of active) {
-    if (!d.hire_date) continue;
-    const days = (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000;
-    if      (days < 30)       buckets["0-30"]    += 1;
-    else if (days < 90)       buckets["30-90"]   += 1;
-    else if (days < 365)      buckets["90-365"]  += 1;
-    else if (days < 730)      buckets["365-730"] += 1;
-    else                      buckets["730plus"] += 1;
-  }
-  const bucketMax = Math.max(1, ...Object.values(buckets));
-
-  // ─── Apply to DOM ───
-  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-  const setHtml = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
-  const setVal = (id, text, cls) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = text;
-    if (cls) el.className = `di-val ${cls}`;
-    else el.className = "di-val";
-  };
-
-  setVal("rr-di-total", String(totalActive));
-  set("rr-di-total-sub", `Active + onboarding`);
-
-  if (tenureMonths.length === 0) {
-    setVal("rr-di-tenure", "—");
-    set("rr-di-tenure-sub", "Set hire dates to see tenure");
-  } else {
-    setHtml("rr-di-tenure", `${avgTenure.toFixed(1)}<span class="frac"> mo</span>`);
-    set("rr-di-tenure-sub", `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`);
-  }
-
-  // Insights tiles are intentionally rendered without stoplight
-  // colors — operators want a neutral read of the numbers, not a
-  // green/amber/red verdict baked into the dashboard.
-  setVal("rr-di-turnover-30",
-    totalActive === 0 ? "—" : `${turnover30Pct.toFixed(0)}%`);
-  const trendDelta = turnover30Pct - turnoverPriorPct;
-  set("rr-di-turnover-30-sub",
-    termsLast30 + termsPrior30 === 0 ? `No terminations in last ${tfTurnover * 2}d`
-    : `${termsLast30} term${termsLast30 === 1 ? "" : "s"} last ${tfTurnover}d · ${trendDelta >= 0 ? "+" : ""}${trendDelta.toFixed(1)}% vs prior ${tfTurnover}d`);
-
-  setVal("rr-di-turnover-annual",
-    totalActive === 0 ? "—" : `${Math.round(annualized)}%`);
-  set("rr-di-turnover-annual-sub", `Industry avg ~35% · ${annualized < 35 ? "below avg" : "above avg"}`);
-
-  setVal("rr-di-past30",
-    totalActive === 0 ? "—" : `${past30}`);
-  setHtml("rr-di-past30", `${past30}<span class="frac"> / ${totalActive}</span>`);
-  set("rr-di-past30-sub", `First-${tfPast} retention: ${past30Pct}%`);
-
-  setVal("rr-di-atrisk", String(atRisk));
-
-  if (avgScore == null) {
-    setVal("rr-di-fleetscore", "—");
-    set("rr-di-fleetscore-sub", "No fleet scores recorded yet");
-  } else {
-    setVal("rr-di-fleetscore", String(avgScore));
-    set("rr-di-fleetscore-sub", `Across ${scored.length} scored driver${scored.length === 1 ? "" : "s"}`);
-  }
-
-  if (attendancePct == null) {
-    setVal("rr-di-attendance", "—");
-    set("rr-di-attendance-sub", `No shifts in last ${tfAttendance}d`);
-  } else {
-    setVal("rr-di-attendance", `${attendancePct}%`);
-    set("rr-di-attendance-sub", `${absent30} callouts/no-shows / ${scheduled30} scheduled`);
-  }
-
-  // Tenure distribution bars + counts.
-  const setBar = (key, count) => {
-    const widthPct = Math.round((count / bucketMax) * 100);
-    const bar = document.getElementById(`rr-di-bar-${key}`);
-    const cnt = document.getElementById(`rr-di-cnt-${key}`);
-    if (bar) bar.style.width = `${widthPct}%`;
-    if (cnt) cnt.textContent = String(count);
-  };
-  setBar("0-30",    buckets["0-30"]);
-  setBar("30-90",   buckets["30-90"]);
-  setBar("90-365",  buckets["90-365"]);
-  setBar("365-730", buckets["365-730"]);
-  setBar("730plus", buckets["730plus"]);
-
-  // Insight footer.
-  const under90 = buckets["0-30"] + buckets["30-90"];
-  const under90Pct = totalActive > 0 ? Math.round((under90 / totalActive) * 100) : 0;
-  const insightEl = document.getElementById("rr-di-insight");
-  if (insightEl) {
-    if (totalActive === 0) {
-      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> No active drivers yet — add drivers to see the tenure picture.`;
-    } else if (under90Pct >= 30) {
-      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> ${under90Pct}% of your roster is under 90 days. The first-90 cliff is your biggest retention risk — focus coaching here.`;
-    } else if (buckets["730plus"] >= Math.ceil(totalActive * 0.25)) {
-      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> ${buckets["730plus"]} of ${totalActive} drivers have 2+ years tenure. Strong retention — protect this group from burnout.`;
-    } else {
-      insightEl.innerHTML = `<strong style="color:var(--text)">Insight:</strong> Tenure is balanced — no single bucket dominates.`;
-    }
-  }
-
-  // ─── Day-of-week absence pattern · rolling tfDow window ───
-  const shifts90 = shifts90Res?.data || [];
-  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
-  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-  const JS_DOW = { 0:"sun", 1:"mon", 2:"tue", 3:"wed", 4:"thu", 5:"fri", 6:"sat" };
-
-  // Per-day: total = shifts that had any outcome (excludes pure 'scheduled'
-  // since we don't know yet); absences = called_off + no_show.
-  const dowTotal   = Object.fromEntries(DOW.map(d => [d, 0]));
-  const dowAbsent  = Object.fromEntries(DOW.map(d => [d, 0]));
-  let totalShifts90 = 0, totalAbsent90 = 0;
-  for (const sh of shifts90) {
-    const dow = JS_DOW[new Date(sh.date + "T12:00:00").getDay()];
-    dowTotal[dow] += 1;
-    totalShifts90 += 1;
-    if (sh.status === "called_off" || sh.status === "no_show") {
-      dowAbsent[dow] += 1;
-      totalAbsent90 += 1;
-    }
-  }
-  const overallRate = totalShifts90 > 0 ? (totalAbsent90 / totalShifts90) * 100 : 0;
-
-  const dowBars = document.getElementById("rr-di-dow-bars");
-  const dowSummary = document.getElementById("rr-di-dow-summary");
-  const dowInsight = document.getElementById("rr-di-dow-insight");
-
-  if (totalShifts90 === 0) {
-    if (dowBars) dowBars.innerHTML = `<div class="rr-empty-inline">No shift outcomes in the last ${tfDow} days yet.</div>`;
-    if (dowSummary) dowSummary.textContent = "";
-    if (dowInsight) dowInsight.innerHTML = `Patterns will appear once a few weeks of attendance data flows in.`;
-  } else {
-    const rates = DOW.map(d => ({
-      day: d,
-      total: dowTotal[d],
-      absent: dowAbsent[d],
-      rate: dowTotal[d] > 0 ? (dowAbsent[d] / dowTotal[d]) * 100 : 0,
-    }));
-    const maxRate = Math.max(1, ...rates.map(r => r.rate));
-
-    if (dowBars) {
-      dowBars.innerHTML = rates.map(r => {
-        const widthPct = Math.round((r.rate / maxRate) * 100);
-        const note = r.total === 0 ? "no shifts" : `${r.absent}/${r.total} absent`;
-        return `
-        <div style="display:grid;grid-template-columns:60px 1fr 80px 100px;align-items:center;gap:12px;padding:6px 0">
-          <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${DOW_LABEL[r.day]}</div>
-          <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
-            <div style="background:${r.total === 0 ? "var(--text-muted)" : "var(--text-muted)"};height:100%;width:${widthPct}%;transition:width .3s"></div>
-          </div>
-          <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${r.total === 0 ? "—" : r.rate.toFixed(1) + "%"}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${note}</div>
-        </div>`;
-      }).join("");
-    }
-    if (dowSummary) {
-      dowSummary.textContent = `${totalAbsent90} / ${totalShifts90} shifts (${overallRate.toFixed(1)}% overall) · last ${tfDow}d`;
-    }
-    if (dowInsight) {
-      const sortedDesc = [...rates].filter(r => r.total >= 3).sort((a, b) => b.rate - a.rate);
-      const worst = sortedDesc[0];
-      const best  = sortedDesc[sortedDesc.length - 1];
-      const lines = [];
-      if (worst && best && worst.rate > best.rate * 1.5 && worst.rate > 5) {
-        lines.push(`<strong style="color:var(--text)">${DOW_LABEL[worst.day]} is your weakest day</strong> — ${worst.rate.toFixed(1)}% absence vs. ${best.rate.toFixed(1)}% on ${DOW_LABEL[best.day]}. ${worst.rate >= overallRate * 1.5 ? "Consider VTO offers earlier in the week, scheduling backups, or coaching repeat offenders." : "Worth a focused look at coaching trends."}`);
-      } else if (overallRate < 5 && totalAbsent90 > 0) {
-        lines.push(`<strong style="color:var(--text)">No strong day pattern.</strong> Absences are spread across the week and overall rate (${overallRate.toFixed(1)}%) is healthy.`);
-      } else if (totalAbsent90 === 0) {
-        lines.push(`<strong style="color:var(--text)">Zero callouts or no-shows in the last 90 days.</strong> Whatever you're doing, keep it up.`);
-      } else {
-        lines.push(`Overall absence rate is ${overallRate.toFixed(1)}%. Days are roughly even — no single day stands out.`);
-      }
-      dowInsight.innerHTML = lines.join("");
-    }
-  }
-
-  _dowMath = { dowTotal, dowAbsent, totalShifts90, totalAbsent90, overallRate };
-}
 
 let _dowMath = null;
 document.addEventListener("click", (e) => {
@@ -4234,17 +3827,26 @@ function renderDriverStatusBadge(s) {
   return `<span class="tag" style="${v.style}">${v.label}</span>`;
 }
 
+// Roster turnover window — operator can switch via the small clock
+// icon on the Turnover KPI tile. Persisted to localStorage so the
+// choice carries across sessions.
+const _RR_TURNOVER_TF_KEY = "rr.roster.turnover-tf";
+let _rosterTurnoverDays = (() => {
+  const v = parseInt(localStorage.getItem(_RR_TURNOVER_TF_KEY) || "30", 10);
+  return [30, 90, 365].includes(v) ? v : 30;
+})();
+// Cached roster computation so the drilldown renderers don't redo
+// the math.  Refreshed in refreshDriverStatRow().
+let _rosterStats = null;
+
 async function refreshDriverStatRow(rows) {
   // Active / onboarding / inactive counts.
   const counts = { active: 0, onboarding: 0, leave: 0, inactive: 0, terminated: 0 };
   for (const r of rows) counts[r.status] = (counts[r.status] || 0) + 1;
   const inactiveTotal = (counts.inactive || 0) + (counts.leave || 0) + (counts.terminated || 0);
 
-  // At-risk: drivers with status='active' AND score < 70 (placeholder
-  // until the at-risk model lands).
   const atRiskCount = rows.filter(r => r.status === "active" && (r.score ?? 999) < 70).length;
 
-  // Update the stage-tab badges (Active / Onboarding / At risk / Inactive).
   const tabCounts = {
     active:     counts.active,
     onboarding: counts.onboarding,
@@ -4256,39 +3858,326 @@ async function refreshDriverStatRow(rows) {
     if (el) el.textContent = n;
   });
 
-  // Coachings in last 7 days.
   const sevenAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   const { count: coachedCount } = await sb.from("coachings")
     .select("*", { count: "exact", head: true })
     .eq("dsp_id", window.RR.dsp.id)
     .gte("occurred_at", sevenAgo);
 
-  // Avg score (over rows that have a score).
   const scored = rows.filter(r => r.score != null);
   const avgScore = scored.length === 0
     ? "—"
     : Math.round(scored.reduce((s, r) => s + Number(r.score), 0) / scored.length);
 
-  const tiles = document.querySelectorAll(".driver-stat-row .stat-mini");
-  if (tiles.length >= 4) {
-    setStatTile(tiles[0], "Active",  counts.active,  `${counts.onboarding} onboarding · ${inactiveTotal} inactive`);
-    setStatTile(tiles[1], "Avg score", avgScore,     "Per-driver score, latest");
-    setStatTile(tiles[2], "At risk", atRiskCount,    "Active drivers below 70");
-    setStatTile(tiles[3], "Coached this week", coachedCount ?? 0, "From the coachings log");
+  // Avg tenure (months) across active + onboarding drivers with hire dates.
+  const todayMs = Date.now();
+  const active = rows.filter(r => r.status === "active" || r.status === "onboarding");
+  const totalActive = active.length;
+  const tenureMonths = active
+    .filter(d => d.hire_date)
+    .map(d => (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24 * 30.4375))
+    .sort((a, b) => a - b);
+  const avgTenure = tenureMonths.length
+    ? tenureMonths.reduce((s, n) => s + n, 0) / tenureMonths.length
+    : null;
+  const medianTenure = tenureMonths.length
+    ? tenureMonths[Math.floor(tenureMonths.length / 2)]
+    : 0;
+  const longestMonths = tenureMonths.length ? tenureMonths[tenureMonths.length - 1] : 0;
+
+  // Turnover — terminations in the rolling window. The schema doesn't
+  // track a terminated_at column; updated_at on a status='terminated'
+  // row is the closest proxy.
+  const winDays   = _rosterTurnoverDays;
+  const winCutoff = new Date(todayMs - winDays * 86400000).toISOString();
+  const priorCutoff = new Date(todayMs - winDays * 2 * 86400000).toISOString();
+  const termsLastWin = rows.filter(r =>
+    r.status === "terminated" && r.updated_at && r.updated_at >= winCutoff
+  );
+  const termsPriorWin = rows.filter(r => {
+    if (r.status !== "terminated" || !r.updated_at) return false;
+    return r.updated_at >= priorCutoff && r.updated_at < winCutoff;
+  });
+  const turnoverDenom = Math.max(1, totalActive + termsLastWin.length);
+  const turnoverPct      = (termsLastWin.length  / turnoverDenom) * 100;
+  const turnoverPriorPct = (termsPriorWin.length / turnoverDenom) * 100;
+  const turnoverDelta    = turnoverPct - turnoverPriorPct;
+
+  // Tenure buckets for the drilldown.
+  const tenureBuckets = { "0-30": 0, "30-90": 0, "90-365": 0, "365-730": 0, "730plus": 0 };
+  for (const d of active) {
+    if (!d.hire_date) continue;
+    const days = (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000;
+    if      (days < 30)   tenureBuckets["0-30"]   += 1;
+    else if (days < 90)   tenureBuckets["30-90"]  += 1;
+    else if (days < 365)  tenureBuckets["90-365"] += 1;
+    else if (days < 730)  tenureBuckets["365-730"]+= 1;
+    else                  tenureBuckets["730plus"]+= 1;
   }
+
+  // Stash everything the drilldowns need so they can render without
+  // re-computing or re-fetching.
+  _rosterStats = {
+    totalActive, atRiskCount, avgScore,
+    tenureMonths, avgTenure, medianTenure, longestMonths,
+    tenureBuckets,
+    winDays,
+    termsLastWin, termsPriorWin,
+    turnoverPct, turnoverPriorPct, turnoverDelta,
+  };
+
+  const tiles = document.querySelectorAll(".driver-stat-row .stat-mini");
+  if (tiles.length >= 6) {
+    setStatTile(tiles[0], "Active", counts.active, `${counts.onboarding} onboarding · ${inactiveTotal} inactive`);
+    setStatTile(tiles[1], "Avg score", avgScore, "Per-driver score, latest");
+    setStatTile(tiles[2], "At risk", atRiskCount, "Active drivers below 70");
+    setStatTile(tiles[3], "Coached this week", coachedCount ?? 0, "From the coachings log");
+    setStatTile(tiles[4], "Avg tenure",
+      avgTenure == null ? "—" : `${avgTenure.toFixed(1)} mo`,
+      avgTenure == null
+        ? "Set hire dates to see tenure"
+        : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`);
+    const winLabel = winDays === 365 ? "1 yr" : `${winDays}d`;
+    setStatTile(tiles[5], "Turnover",
+      `${turnoverPct.toFixed(0)}%`,
+      termsLastWin.length === 0
+        ? `0 terms in last ${winLabel}`
+        : `${termsLastWin.length} term${termsLastWin.length === 1 ? "" : "s"} last ${winLabel} · ${turnoverDelta >= 0 ? "+" : ""}${turnoverDelta.toFixed(1)}% vs prior`);
+  }
+
+  // Re-render the open drilldown if one was active.
+  if (_rosterKpiDetail) _renderRosterKpiDetail();
 }
 
 function setStatTile(tile, label, value, sub) {
   tile.querySelector(".stat-mini-label").textContent = label;
   const valEl = tile.querySelector(".stat-mini-value");
   valEl.textContent = value;
-  // Force the at-risk count to render in the regular text color rather
-  // than the legacy mockup amber.  The number itself still tells the
-  // story; tinting it orange when there's no risk read like a warning.
   valEl.style.color = "";
   const s = tile.querySelector(".stat-mini-sub");
   if (s) s.textContent = sub;
 }
+
+// ─── Roster KPI drill-down · Avg tenure + Turnover ─────────────────────
+let _rosterKpiDetail = null;   // 'tenure' | 'turnover' | null
+
+function _closeRosterKpiDetail() {
+  _rosterKpiDetail = null;
+  const panel = document.getElementById("rr-roster-kpi-detail");
+  if (panel) { panel.style.display = "none"; panel.innerHTML = ""; }
+  document.querySelectorAll("[data-rr-roster-kpi]").forEach(el => el.classList.remove("active"));
+  // Close any open time-frame popover too.
+  document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+}
+
+function _renderRosterKpiDetail() {
+  const panel = document.getElementById("rr-roster-kpi-detail");
+  if (!panel) return;
+  document.querySelectorAll("[data-rr-roster-kpi]").forEach(el => {
+    el.classList.toggle("active", el.dataset.rrRosterKpi === _rosterKpiDetail);
+  });
+  if (!_rosterKpiDetail || !_rosterStats) {
+    panel.style.display = "none"; panel.innerHTML = "";
+    return;
+  }
+  panel.style.display = "block";
+
+  const s = _rosterStats;
+
+  if (_rosterKpiDetail === "tenure") {
+    // Tenure-distribution bar chart — same buckets the old Insights
+    // page used so operators see the histogram they're used to.
+    const order = ["0-30", "30-90", "90-365", "365-730", "730plus"];
+    const labels = {
+      "0-30":    "First 30 days",
+      "30-90":   "30 – 90 days",
+      "90-365":  "90 days – 1 year",
+      "365-730": "1 – 2 years",
+      "730plus": "2+ years",
+    };
+    const max = Math.max(1, ...order.map(k => s.tenureBuckets[k] || 0));
+    const total = order.reduce((sum, k) => sum + (s.tenureBuckets[k] || 0), 0);
+    const rows = order.map(k => {
+      const n = s.tenureBuckets[k] || 0;
+      const pct = total ? Math.round((n / total) * 100) : 0;
+      const w = (n / max) * 100;
+      return `<div style="display:grid;grid-template-columns:160px 1fr 90px;gap:14px;align-items:center;padding:8px 0">
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${labels[k]}</div>
+        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:var(--accent);height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
+        </div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
+      </div>`;
+    }).join("");
+    panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
+      <div style="margin-bottom:var(--s-3)">
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Tenure distribution</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Active + onboarding drivers grouped by how long they've been on the team. Avg ${s.avgTenure == null ? "—" : s.avgTenure.toFixed(1) + " mo"} · median ${s.medianTenure.toFixed(0)} mo.</div>
+      </div>
+      ${rows}
+    </div>`;
+    return;
+  }
+
+  if (_rosterKpiDetail === "turnover") {
+    // Turnover-source breakdown.  We surface the actual termination
+    // events in the window plus a quick station + tenure-at-departure
+    // breakdown so the operator can see *where* the bulk is coming from.
+    const winLabel = s.winDays === 365 ? "the last year" : `the last ${s.winDays} days`;
+    const terms = s.termsLastWin || [];
+
+    // Tenure-at-termination buckets — answers "are we losing rookies
+    // or veterans?". Uses hire_date → updated_at gap.
+    const buckets = { "0-30": 0, "30-90": 0, "90-365": 0, "365plus": 0, "no_hire": 0 };
+    const stationCounts = new Map();
+    for (const t of terms) {
+      const stationCode = t.station?.code || "—";
+      stationCounts.set(stationCode, (stationCounts.get(stationCode) || 0) + 1);
+      if (!t.hire_date) { buckets["no_hire"]++; continue; }
+      const daysAtTerm = (new Date(t.updated_at).getTime() - new Date(t.hire_date + "T12:00:00").getTime()) / 86400000;
+      if      (daysAtTerm < 30)  buckets["0-30"]++;
+      else if (daysAtTerm < 90)  buckets["30-90"]++;
+      else if (daysAtTerm < 365) buckets["90-365"]++;
+      else                       buckets["365plus"]++;
+    }
+
+    // Recent terminations list (most-recent first, capped at 8).
+    const recent = terms
+      .slice()
+      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+      .slice(0, 8);
+    const recentRows = recent.length === 0
+      ? `<div class="rr-empty-inline" style="padding:24px 0">No terminations in ${winLabel} — that's the best read on retention.</div>`
+      : recent.map(t => {
+          const tenureAtTerm = t.hire_date
+            ? Math.floor((new Date(t.updated_at).getTime() - new Date(t.hire_date + "T12:00:00").getTime()) / 86400000)
+            : null;
+          const ago = Math.floor((Date.now() - new Date(t.updated_at).getTime()) / 86400000);
+          const display = rrTitleCaseName(displayDriverName(t) || t.full_name || "Driver");
+          return `<div style="display:grid;grid-template-columns:1fr 100px 110px 80px;gap:14px;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:var(--fs-sm)">
+            <div style="font-weight:600;color:var(--text)">${escapeHtml(display)}</div>
+            <div style="color:var(--text-muted)">${escapeHtml(t.station?.code || "—")}</div>
+            <div style="color:var(--text-muted)">${tenureAtTerm == null ? "—" : tenureAtTerm + "d at term"}</div>
+            <div style="color:var(--text-subtle);text-align:right">${ago}d ago</div>
+          </div>`;
+        }).join("");
+
+    // Tenure-at-termination bars.
+    const bktOrder = ["0-30", "30-90", "90-365", "365plus", "no_hire"];
+    const bktLabel = {
+      "0-30":    "Lost in first 30 days",
+      "30-90":   "Lost 30 – 90 days in",
+      "90-365":  "Lost 90 days – 1 year in",
+      "365plus": "Lost after 1+ year",
+      "no_hire": "No hire date on file",
+    };
+    const bktTotal = bktOrder.reduce((sum, k) => sum + buckets[k], 0);
+    const bktMax   = Math.max(1, ...bktOrder.map(k => buckets[k]));
+    const bktBars = bktOrder.map(k => {
+      const n = buckets[k];
+      if (n === 0 && k === "no_hire") return "";
+      const pct = bktTotal ? Math.round((n / bktTotal) * 100) : 0;
+      const w   = (n / bktMax) * 100;
+      const isRookie = k === "0-30" || k === "30-90";
+      return `<div style="display:grid;grid-template-columns:200px 1fr 80px;gap:14px;align-items:center;padding:6px 0">
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${bktLabel[k]}</div>
+        <div style="background:var(--canvas);border-radius:6px;height:12px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:${isRookie ? "var(--red)" : "var(--accent)"};height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
+        </div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
+      </div>`;
+    }).join("");
+
+    // Station breakdown.
+    const stationRows = [...stationCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([code, n]) => {
+        const pct = bktTotal ? Math.round((n / bktTotal) * 100) : 0;
+        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);font-size:var(--fs-sm)">
+          <span style="font-weight:600">${escapeHtml(code)}</span>
+          <span style="color:var(--text-muted)"><strong style="color:var(--text)">${n}</strong> · ${pct}%</span>
+        </div>`;
+      }).join("");
+
+    panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
+      <div style="margin-bottom:var(--s-4)">
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Where the turnover is coming from</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${terms.length} termination${terms.length === 1 ? "" : "s"} across ${winLabel}. Use the clock icon on the KPI tile to switch the window.</div>
+      </div>
+
+      ${terms.length > 0 ? `
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s-4)">
+        <div>
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Tenure at termination</div>
+          ${bktBars}
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px;line-height:1.5">Red bars = early-tenure attrition. Concentrated red usually points to onboarding / fit issues; concentrated blue points to long-tenure burnout or coaching gaps.</div>
+        </div>
+        <div>
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">By station</div>
+          ${stationRows}
+        </div>
+      </div>
+
+      <div style="margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px solid var(--border)">
+        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Recent terminations</div>
+        ${recentRows}
+      </div>` : recentRows}
+    </div>`;
+    return;
+  }
+}
+
+// Click handler for the Roster KPI tiles.
+document.addEventListener("click", (e) => {
+  // Time-frame icon — open / close the popover.
+  const tfBtn = e.target.closest("[data-rr-roster-tf-toggle]");
+  if (tfBtn) {
+    e.stopPropagation();
+    e.preventDefault();
+    const tile = tfBtn.closest(".stat-mini");
+    if (!tile) return;
+    const existing = tile.querySelector(".rr-tf-popover");
+    if (existing) { existing.remove(); return; }
+    // Close any other open popovers.
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+    const opts = [{ d: 30, l: "30 days" }, { d: 90, l: "90 days" }, { d: 365, l: "1 year" }];
+    const pop = document.createElement("div");
+    pop.className = "rr-tf-popover";
+    pop.innerHTML = opts.map(o =>
+      `<button data-rr-roster-tf="${o.d}" class="${o.d === _rosterTurnoverDays ? "active" : ""}">${o.l}</button>`
+    ).join("");
+    tile.appendChild(pop);
+    return;
+  }
+  // Time-frame option click.
+  const tfOpt = e.target.closest("[data-rr-roster-tf]");
+  if (tfOpt) {
+    _rosterTurnoverDays = parseInt(tfOpt.dataset.rrRosterTf, 10) || 30;
+    try { localStorage.setItem(_RR_TURNOVER_TF_KEY, String(_rosterTurnoverDays)); } catch {}
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+    if (typeof refreshDriverStatRow === "function" && Array.isArray(_rosterRows)) {
+      refreshDriverStatRow(_rosterRows);
+    }
+    return;
+  }
+  // Click outside any popover closes them.
+  if (!e.target.closest(".rr-tf-icon, .rr-tf-popover")) {
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+  }
+  // KPI tile click → open / toggle drilldown.
+  const card = e.target.closest("[data-rr-roster-kpi]");
+  if (!card) return;
+  const kpi = card.dataset.rrRosterKpi;
+  _rosterKpiDetail = (_rosterKpiDetail === kpi) ? null : kpi;
+  _renderRosterKpiDetail();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const card = e.target.closest("[data-rr-roster-kpi]");
+  if (!card) return;
+  e.preventDefault();
+  card.click();
+});
 
 function tenureLabel(hireDate) {
   const d = new Date(hireDate);
@@ -8252,18 +8141,11 @@ function _renderAvailabilityShell() {
   if (host.dataset.rrShell === "1") return;
   host.dataset.rrShell = "1";
 
-  // KPIs / repeats / settings / blackouts containers all live in static
-  // HTML now (with data-rr-avail-* attribute selectors that match what
-  // the renderers expect).  Earlier this function injected its own
-  // copies with id selectors that didn't match — so KPIs and the
-  // settings/blackouts panels never rendered.  Now we just wire the
-  // gear-icon toggle for the settings drawer.
-  const gear   = document.getElementById("rr-avail-settings-toggle");
-  const drawer = document.getElementById("rr-avail-settings-modal");
-  if (gear && drawer && !gear.dataset.rrWired) {
-    gear.dataset.rrWired = "1";
-    gear.addEventListener("click", () => { drawer.style.display = "flex"; });
-  }
+  // The page-level settings drawer was removed; lead-time / auto-
+  // responses / blackout windows now live exclusively in
+  // Settings → Availability rules (reachable via the topbar gear).
+  // KPI / settings / blackouts containers still live in static HTML
+  // — the renderers populate them in place.
 
   const list = document.getElementById("rr-avail-req-list");
   if (list) {
@@ -8539,21 +8421,6 @@ function _renderAvailabilityKpis(k, rows) {
   // or RPC roundtrip finished).  Closed-by-default behavior is preserved
   // — _availKpiDetailKpi only gets set by an explicit click.
   if (_availKpiDetailKpi) _renderAvailKpiDetail();
-
-  const repeatEl = host.querySelector("[data-rr-avail-repeats]");
-  if (!repeatEl) return;
-  const repeats = Array.isArray(k.repeat_requesters_30d) ? k.repeat_requesters_30d : [];
-  const repeatList = repeats.length === 0
-    ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No drivers have submitted more than once in the last 30 days.</div>`
-    : repeats.slice(0, 12).map(r => `
-        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:var(--fs-md)">
-          <span>${escapeHtml(r.driver_name || "")}</span>
-          <span style="font-weight:600">${r.count} requests</span>
-        </div>`).join("");
-  repeatEl.innerHTML = `
-    <div style="font-size:var(--fs-md);font-weight:700;margin-bottom:8px">Repeat requesters · 30 days</div>
-    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
-    ${repeatList}`;
 }
 
 // ─── Availability KPI drilldown panel ────────────────────────────────
