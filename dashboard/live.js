@@ -938,8 +938,8 @@ function _renderAttReportTbody() {
 // cached at the maximum range we've seen so toggling 30/90/365 doesn't
 // re-hit the network unless the user widens the window.
 //
-//   rate   → SVG line chart of daily attendance rate
-//   vto    → SVG line chart of daily VTO rate
+//   rate   → distribution of absences (callouts + no-shows) by weekday
+//   vto    → distribution of VTO events by weekday
 //   action → bar breakdown: % of team at each coaching ladder rung
 //            (suppressed with a friendly note when the policy is off)
 
@@ -986,34 +986,48 @@ function _attKpiSliceToRange(rows, rangeDays) {
   return rows.filter(r => new Date(r.date + "T12:00:00").getTime() >= cutoffMs);
 }
 
-// Inline SVG line chart.  Y axis is fixed 0–100% for rate views;
-// dot per day, smooth path, faint area fill, three x-labels.
-function _attLineChart(points, opts) {
-  const { color = "var(--accent)", title = "" } = opts || {};
-  if (!points.length) return `<div class="rr-empty-inline" style="padding:40px 0">No data in range</div>`;
-  const W = 760, H = 240, PL = 36, PR = 12, PT = 14, PB = 28;
-  const xMax = points.length - 1;
-  const x = (i) => PL + (W - PL - PR) * (xMax === 0 ? 0.5 : (i / xMax));
-  const y = (v) => PT + (H - PT - PB) * (1 - Math.max(0, Math.min(100, v)) / 100);
-  const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ");
-  const area = `${path} L ${x(xMax).toFixed(1)} ${y(0).toFixed(1)} L ${x(0).toFixed(1)} ${y(0).toFixed(1)} Z`;
-  const grid = [0, 25, 50, 75, 100].map(v => `
-    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="rgba(15,23,42,.06)" stroke-width="1"/>
-    <text x="${PL - 6}" y="${y(v).toFixed(1)}" font-size="10" fill="var(--text-subtle)" text-anchor="end" dy="3">${v}%</text>`
-  ).join("");
-  const xIdx = xMax === 0 ? [0] : [0, Math.floor(xMax / 2), xMax];
-  const xLabels = xIdx.map(i => {
-    const d = new Date(points[i].date + "T12:00:00");
-    const lbl = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    return `<text x="${x(i).toFixed(1)}" y="${H - 8}" font-size="10" fill="var(--text-subtle)" text-anchor="middle">${lbl}</text>`;
-  }).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:auto;display:block;max-height:280px"
-              role="img" aria-label="${escapeHtml(title)}">
-    ${grid}
-    <path d="${area}" fill="${color}" fill-opacity="0.10"/>
-    <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    ${xLabels}
-  </svg>`;
+// Group daily rows into a 7-bucket weekday distribution.  valueFn
+// pulls the metric per row (e.g. callouts+noshows for the rate view,
+// vto for the VTO view).  Output buckets are Mon..Sun so the work-week
+// reads left-to-right naturally for a logistics audience.
+function _attKpiByWeekday(rows, valueFn) {
+  const labels = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  const buckets = [0,0,0,0,0,0,0];
+  let total = 0;
+  for (const r of rows) {
+    const v = valueFn(r);
+    if (!v) continue;
+    const dow = new Date(r.date + "T12:00:00").getDay(); // 0=Sun..6=Sat
+    const idx = (dow + 6) % 7;                            // shift so Mon=0..Sun=6
+    buckets[idx] += v;
+    total += v;
+  }
+  return { labels, buckets, total };
+}
+
+function _attKpiWeekdayBars(rows, valueFn, opts) {
+  const { color = "var(--accent)", noun = "events", emptyMessage = "No events in range." } = opts || {};
+  const { labels, buckets, total } = _attKpiByWeekday(rows, valueFn);
+  if (total === 0) {
+    return `<div class="rr-empty-inline" style="padding:32px 0">${escapeHtml(emptyMessage)}</div>`;
+  }
+  const max = Math.max(...buckets);
+  // Bar width is scaled to the busiest weekday so the differences are
+  // legible; the % label still reflects share of the total.
+  return labels.map((label, i) => {
+    const n   = buckets[i];
+    const pct = (n / total) * 100;
+    const w   = max > 0 ? (n / max) * 100 : 0;
+    return `<div style="display:grid;grid-template-columns:96px 1fr 88px;gap:14px;align-items:center;padding:8px 0">
+      <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${label}</div>
+      <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+        <div style="background:${color};height:100%;width:${w.toFixed(1)}%;transition:width var(--t-fast)"></div>
+      </div>
+      <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right">
+        <strong style="color:var(--text)">${n}</strong> · ${pct.toFixed(0)}%
+      </div>
+    </div>`;
+  }).join("") + `<div style="font-size:var(--fs-xs);color:var(--text-subtle);padding-top:8px;border-top:1px solid var(--border);margin-top:8px">${total} ${noun} across ${_attKpiDetailRange === 365 ? "the last year" : "the last " + _attKpiDetailRange + " days"}.</div>`;
 }
 
 function _attRangeToggleHtml(active) {
@@ -1050,6 +1064,8 @@ async function _renderAttKpiDetail() {
 
   // Coaching breakdown doesn't depend on the daily-history fetch — it
   // reads the per-driver report rows that the report already computed.
+  // Termination is intentionally excluded: a terminated driver isn't
+  // "in" the team anymore so showing them as a slice was misleading.
   if (_attKpiDetailKpi === "action") {
     const POLICY = _getAttPolicy();
     if (POLICY.policy_enabled === false) {
@@ -1061,25 +1077,27 @@ async function _renderAttKpiDetail() {
       return;
     }
     const rows = _attReportRows || [];
-    const total = rows.length;
+    const order  = ["Clear", "Verbal", "Written", "Final"];
+    const buckets = { "Clear": 0, "Verbal": 0, "Written": 0, "Final": 0 };
+    for (const r of rows) {
+      let k = (r.coachingLabel || "").startsWith("Written") ? "Written" : r.coachingLabel;
+      // Fold Termination back into Final for the breakdown — termination
+      // is a one-time action, not a population the team sits in.
+      if (k === "Termination") k = "Final";
+      if (k in buckets) buckets[k] += 1;
+      else buckets["Clear"] += 1;
+    }
+    const total = order.reduce((s, k) => s + buckets[k], 0);
     if (total === 0) {
       panel.innerHTML = _attKpiPanelShell("Corrective action", "Breakdown of the team across the coaching ladder.",
         `<div class="rr-empty-inline" style="padding:32px 0">No drivers loaded yet.</div>`);
       return;
     }
-    const buckets = { "Clear": 0, "Verbal": 0, "Written": 0, "Final": 0, "Termination": 0 };
-    for (const r of rows) {
-      const k = (r.coachingLabel || "").startsWith("Written") ? "Written" : r.coachingLabel;
-      if (k in buckets) buckets[k] += 1;
-      else buckets["Clear"] += 1;
-    }
-    const order  = ["Clear", "Verbal", "Written", "Final", "Termination"];
     const colors = {
-      "Clear":       "var(--green)",
-      "Verbal":      "var(--amber)",
-      "Written":     "var(--orange, var(--amber))",
-      "Final":       "var(--red)",
-      "Termination": "var(--red)",
+      "Clear":   "var(--green)",
+      "Verbal":  "var(--amber)",
+      "Written": "var(--orange, var(--amber))",
+      "Final":   "var(--red)",
     };
     const bars = order.map(k => {
       const n = buckets[k];
@@ -1098,7 +1116,7 @@ async function _renderAttKpiDetail() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3);margin-bottom:var(--s-3)">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Corrective action breakdown</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Where the ${total} active driver${total === 1 ? "" : "s"} sit on the coaching ladder right now (rolling ${POLICY.decay_days}-day window).</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Where the ${total} active driver${total === 1 ? "" : "s"} sit on the coaching ladder right now (rolling ${POLICY.decay_days}-day window). Termination is excluded — it's an outcome, not a standing.</div>
         </div>
       </div>
       ${bars}
@@ -1106,40 +1124,29 @@ async function _renderAttKpiDetail() {
     return;
   }
 
-  // Rate + VTO views need the daily-history fetch.
-  panel.innerHTML = _attKpiPanelShell(
-    _attKpiDetailKpi === "rate" ? "Attendance rate by day" : "VTO rate by day",
-    _attKpiDetailKpi === "rate"
-      ? "% of scheduled shifts attended (present + late) by day."
-      : "% of scheduled shifts taken as voluntary time off, by day.",
-    `<div class="rr-loading">Loading…</div>`
-  );
+  // Rate + VTO views: weekday distribution.  The chart answers
+  // "which day of the week do these events cluster on?" so a DSP can
+  // see if Mondays are absence-heavy or VTO clusters around weekends.
+  const isRate = _attKpiDetailKpi === "rate";
+  const title  = isRate ? "Absences by day of the week" : "VTO by day of the week";
+  const sub    = isRate
+    ? "Distribution of callouts + no-shows across each weekday."
+    : "Distribution of VTO events across each weekday.";
+
+  panel.innerHTML = _attKpiPanelShell(title, sub, `<div class="rr-loading">Loading…</div>`);
 
   const hist = await _ensureAttKpiHistory(_attKpiDetailRange);
   if (!hist) {
-    panel.innerHTML = _attKpiPanelShell(
-      _attKpiDetailKpi === "rate" ? "Attendance rate by day" : "VTO rate by day",
-      "",
-      `<div class="rr-empty-inline" style="padding:32px 0">Couldn't load history — try again.</div>`
-    );
+    panel.innerHTML = _attKpiPanelShell(title, sub,
+      `<div class="rr-empty-inline" style="padding:32px 0">Couldn't load history — try again.</div>`);
     return;
   }
-  const sliced = _attKpiSliceToRange(hist.byDay, _attKpiDetailRange);
-  const points = sliced.map(d => {
-    const value = d.scheduled === 0
-      ? 0
-      : _attKpiDetailKpi === "rate"
-        ? ((d.present + d.late) / d.scheduled) * 100
-        : (d.vto / d.scheduled) * 100;
-    return { date: d.date, value };
-  });
-  const isRate = _attKpiDetailKpi === "rate";
-  const color  = isRate ? "var(--green)" : "var(--accent)";
-  const title  = isRate ? "Attendance rate by day" : "VTO rate by day";
-  const sub    = isRate
-    ? "% of scheduled shifts attended (present + late) by day."
-    : "% of scheduled shifts taken as voluntary time off, by day.";
-  panel.innerHTML = _attKpiPanelShell(title, sub, _attLineChart(points, { color, title }));
+  const sliced  = _attKpiSliceToRange(hist.byDay, _attKpiDetailRange);
+  const valueFn = isRate ? (r) => r.callouts + r.noshows : (r) => r.vto;
+  const opts = isRate
+    ? { color: "var(--red)",    noun: "absences",   emptyMessage: "No callouts or no-shows in range — nice." }
+    : { color: "var(--accent)", noun: "VTO events", emptyMessage: "No VTO events in range." };
+  panel.innerHTML = _attKpiPanelShell(title, sub, _attKpiWeekdayBars(sliced, valueFn, opts));
 }
 
 // Click handler: KPI card opens / closes its own detail panel.
