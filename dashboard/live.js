@@ -1116,24 +1116,50 @@ async function _renderAttKpiDetail() {
       "Written": "var(--orange, var(--amber))",
       "Final":   "var(--red)",
     };
-    const bars = order.map(k => {
-      const n = buckets[k];
+    const blurbs = {
+      "Clear":   "no active coaching",
+      "Verbal":  "1 occurrence in window",
+      "Written": "2 occurrences in window",
+      "Final":   "3+ occurrences in window",
+    };
+
+    // Top-of-panel stacked bar — gives the operator a single visual of
+    // how the team splits across all four levels at a glance.
+    const stack = order.map(k => {
+      const pct = total ? (buckets[k] / total) * 100 : 0;
+      return pct > 0
+        ? `<div title="${k}: ${buckets[k]} drivers (${Math.round(pct)}%)" style="background:${colors[k]};width:${pct}%;height:100%"></div>`
+        : "";
+    }).join("");
+
+    // Per-level rows lead with the % so the accountability distribution
+    // is the headline number; count + descriptor support it.
+    const rowsHtml = order.map(k => {
+      const n   = buckets[k];
       const pct = total ? Math.round((n / total) * 100) : 0;
-      return `<div style="display:grid;grid-template-columns:96px 1fr 70px;gap:14px;align-items:center;padding:8px 0">
-        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${k}</div>
-        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
-          <div style="background:${colors[k]};height:100%;width:${pct}%;transition:width var(--t-fast)"></div>
+      return `<div style="display:grid;grid-template-columns:88px 12px 1fr;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--border)">
+        <div style="text-align:right">
+          <div style="font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1">${pct}%</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">of team</div>
         </div>
-        <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
+        <div style="width:6px;height:36px;background:${colors[k]};border-radius:3px"></div>
+        <div>
+          <div style="font-size:var(--fs-base);font-weight:700;color:var(--text)">${k}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px"><strong style="color:var(--text-muted)">${n} driver${n === 1 ? "" : "s"}</strong> · ${blurbs[k]}</div>
+        </div>
       </div>`;
     }).join("");
-    // No range toggle for the coaching breakdown — it reflects the
-    // current report (which already uses the policy decay window).
+
     panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
-      <div style="margin-bottom:var(--s-3)">
+      <div style="margin-bottom:var(--s-4)">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Corrective action breakdown</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${total} active driver${total === 1 ? "" : "s"} across the coaching ladder right now.</div>
       </div>
-      ${bars}
+      <div style="display:flex;height:14px;background:var(--canvas);border:1px solid var(--border);border-radius:7px;overflow:hidden;margin-bottom:8px">${stack}</div>
+      <div style="display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-3)">
+        <span>Lowest accountability</span><span>Highest</span>
+      </div>
+      ${rowsHtml}
     </div>`;
     return;
   }
