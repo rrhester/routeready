@@ -6463,11 +6463,11 @@ async function openDriverDrawer(driverId) {
     _ddDriver = { driver: { id: null, status: "onboarding", hire_date: fmtIsoDate(new Date()) }, coachings: [], documents: [] };
     document.getElementById("rr-dd-title").textContent = "Add driver";
     document.getElementById("rr-dd-sub").textContent = "New record";
-    // License / Coaching / Documents tabs need an existing driver — disable.
-    drawer.querySelectorAll(".dd-tab").forEach(t => {
-      const k = t.getAttribute("data-rr-dd-tab");
-      if (k !== "overview") { t.disabled = true; t.style.opacity = "0.4"; t.style.cursor = "not-allowed"; }
-    });
+    // All tabs are clickable in CREATE mode so the operator can see
+    // every field they'll fill out.  The per-tab save handlers still
+    // require an existing driver record (Availability / License / DOT
+    // / Documents all reference drivers.id) — they toast a "Save the
+    // record first" prompt when triggered before the Overview save.
     renderDriverDrawerTab();
   }
 }
