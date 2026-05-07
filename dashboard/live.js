@@ -194,6 +194,14 @@ const STAGE_LABELS = {
   booking_scheduled: "Booking scheduled",
 };
 
+// Some upstream systems hand us applicant names in ALL CAPS; render
+// them title-cased so the Pipeline cards don't shout. Word-boundary
+// regex handles hyphens, apostrophes, and other separators correctly
+// (e.g. "MARY-JANE O'BRIEN" → "Mary-Jane O'Brien").
+function rrTitleCaseName(s) {
+  return (s || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function renderApplicantCard(a) {
   const stage = a.pipeline_stage;
   const slug  = (a.full_name || "").toLowerCase().replace(/\s+/g, "-");
@@ -223,7 +231,7 @@ function renderApplicantCard(a) {
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
       <div class="pa-row">
         <div class="pa-id">
-          <div class="pa-name">${a.full_name ?? ""}</div>
+          <div class="pa-name">${escapeHtml(rrTitleCaseName(a.full_name))}</div>
           <div class="pa-sub">${subtitle}</div>
         </div>
         <span class="pa-stage-pill ${stage}">${STAGE_LABELS[stage] ?? stage}</span>
@@ -4199,7 +4207,7 @@ async function doAddApplicant() {
 
   closeModal("modal-add-applicant");
   await loadPipeline("all");
-  toast(`${applicant.full_name} added · screening invite queued`, "success");
+  toast(`${rrTitleCaseName(applicant.full_name)} added · screening invite queued`, "success");
 }
 
 // ─── Add driver ────────────────────────────────────────────────────────────
@@ -5716,7 +5724,7 @@ async function loadCalBookingsList() {
         <div style="display:grid;grid-template-columns:90px 1fr auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid var(--border)">
           <div style="font-variant-numeric:tabular-nums;font-size:var(--fs-md);font-weight:600">${start}<div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${end}</div></div>
           <div>
-            <div style="font-size:var(--fs-md);font-weight:600;margin-bottom:2px">${escapeHtml(a.full_name || "Unknown")}</div>
+            <div style="font-size:var(--fs-md);font-weight:600;margin-bottom:2px">${escapeHtml(rrTitleCaseName(a.full_name) || "Unknown")}</div>
             <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${[a.phone, a.email].filter(Boolean).join(" · ") || "no contact on file"}</div>
             <div style="margin-top:6px">${kindBadge}${statusBadge}</div>
           </div>
