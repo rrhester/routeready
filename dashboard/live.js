@@ -2546,6 +2546,9 @@ document.addEventListener("click", (e) => {
   if (e.target.closest('.settings-nav-item[data-set="availability"]')) {
     setTimeout(() => loadAvailabilityRequests(), 0);
   }
+  if (e.target.closest('.settings-nav-item[data-set="team"]')) {
+    setTimeout(() => loadTeamMembers(), 0);
+  }
   // Screening / Messages / Referrals were moved here from the Pipeline
   // subnav. Each section reuses the loader that previously fired on the
   // pipeSub click — same DOM ids inside the section, no other changes.
@@ -2559,6 +2562,126 @@ document.addEventListener("click", (e) => {
     setTimeout(() => loadReferralsTab(), 0);
   }
 });
+
+// ─── Settings · Team ─────────────────────────────────────────────────────
+//
+// Hydrates the Team section with live app_users rows for the caller's
+// DSP, and wires the "Invite team member" button to a modal that calls
+// the invite-team-member edge function.
+
+async function loadTeamMembers() {
+  const list = document.getElementById("rr-team-list");
+  if (!list) return;
+  const dspId  = window.RR?.dsp?.id;
+  const meId   = window.RR?.user?.id;
+  if (!dspId) { list.innerHTML = `<div class="rr-empty-inline">No DSP context</div>`; return; }
+
+  list.innerHTML = `<div class="rr-loading">Loading team</div>`;
+  const { data, error } = await sb
+    .from("app_users")
+    .select("id, email, full_name, role, active, created_at")
+    .eq("dsp_id", dspId)
+    .order("role", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) {
+    list.innerHTML = `<div class="rr-empty-inline" style="color:var(--red)">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const rows = data || [];
+  if (rows.length === 0) {
+    list.innerHTML = `<div class="rr-empty-inline">No team members yet — use the button below to send the first invite.</div>`;
+    return;
+  }
+  const initialsOf = (s) => (s || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  const ageDays = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+  const ageLabel = (iso) => {
+    const d = ageDays(iso);
+    if (d === 0)  return "added today";
+    if (d === 1)  return "added 1 day ago";
+    if (d < 30)   return `added ${d} days ago`;
+    if (d < 365)  return `added ${Math.floor(d / 30)} mo ago`;
+    return `added ${Math.floor(d / 365)} y ago`;
+  };
+  list.innerHTML = rows.map(r => {
+    const isMe   = r.id === meId;
+    const initials = initialsOf(r.full_name || r.email);
+    const sub = isMe ? `${r.email} · you` : `${r.email} · ${ageLabel(r.created_at)}`;
+    const pillClass = r.role === "owner" ? "owner" : (r.role === "ops" ? "coach" : "");
+    return `<div class="member-row">
+      <div class="dsp-avatar" style="width:32px;height:32px;font-size:var(--fs-xs)">${escapeHtml(initials)}</div>
+      <div>
+        <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.full_name || r.email)}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(sub)}</div>
+      </div>
+      <span class="role-pill ${pillClass}">${escapeHtml(r.role.charAt(0).toUpperCase() + r.role.slice(1))}</span>
+      <button class="btn btn-sm" disabled title="Edit coming soon">Edit</button>
+    </div>`;
+  }).join("");
+}
+
+// Open the invite modal.
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#rr-team-invite-open")) {
+    const modal = document.getElementById("modal-team-invite");
+    if (!modal) return;
+    modal.style.display = "flex";
+    document.getElementById("rr-team-invite-email").value = "";
+    document.getElementById("rr-team-invite-name").value  = "";
+    document.getElementById("rr-team-invite-role").value  = "dispatcher";
+    const status = document.getElementById("rr-team-invite-status");
+    if (status) status.textContent = "";
+    setTimeout(() => document.getElementById("rr-team-invite-email")?.focus(), 50);
+  }
+});
+
+// Submit the invite — calls the invite-team-member edge function.
+document.addEventListener("submit", async (e) => {
+  if (e.target?.id !== "rr-team-invite-form") return;
+  e.preventDefault();
+  const email   = document.getElementById("rr-team-invite-email").value.trim().toLowerCase();
+  const name    = document.getElementById("rr-team-invite-name").value.trim();
+  const role    = document.getElementById("rr-team-invite-role").value;
+  const status  = document.getElementById("rr-team-invite-status");
+  const submit  = document.getElementById("rr-team-invite-submit");
+  if (!email) return;
+
+  if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Sending…"; }
+  submit.disabled = true;
+
+  try {
+    const { data, error } = await sb.functions.invoke("invite-team-member", {
+      method: "POST",
+      body: { email, full_name: name, role },
+    });
+    if (error || data?.error) {
+      const msg = data?.error || error?.message || "Invite failed";
+      if (status) { status.style.color = "var(--red)"; status.textContent = _humanInviteError(msg); }
+      submit.disabled = false;
+      return;
+    }
+    if (status) { status.style.color = "var(--green)"; status.textContent = "Invite sent. They'll receive a magic-link email."; }
+    toast("Invite sent to " + email, "success");
+    setTimeout(() => {
+      document.getElementById("modal-team-invite").style.display = "none";
+      submit.disabled = false;
+      loadTeamMembers();
+    }, 900);
+  } catch (err) {
+    if (status) { status.style.color = "var(--red)"; status.textContent = String(err?.message || err); }
+    submit.disabled = false;
+  }
+});
+
+function _humanInviteError(raw) {
+  const m = String(raw);
+  if (m.includes("already_on_team"))    return "That email is already on your team.";
+  if (m.includes("invalid_email"))      return "That doesn't look like a valid email.";
+  if (m.includes("invalid_role"))       return "Pick a valid role.";
+  if (m.includes("not_authenticated"))  return "Your session expired — refresh the page and try again.";
+  if (m.includes("no_profile"))         return "Your account isn't linked to a tenant.";
+  if (m.includes("insufficient_role"))  return "Only owners and ops can invite teammates.";
+  return m;
+}
 
 // Attendance subtab order is operator-preference.  Drag to reorder;
 // the order is persisted per browser via localStorage so it survives
