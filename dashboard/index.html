@@ -255,12 +255,15 @@ a{color:inherit;text-decoration:none}
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
   height:56px;
-  background:var(--surface);
+  background:#fff url("./header-bg.png") right center / cover no-repeat;
   border-bottom:1px solid var(--border);
   display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
   position:sticky;top:0;z-index:10;
   box-shadow:0 1px 0 rgba(15,23,42,.02), 0 4px 12px -6px rgba(15,23,42,.06);
 }
+/* Settings cog sits on top of the wave artwork; bump it visually so the
+   gear stays legible against the blue gradient at the right edge. */
+.topbar .icon-btn{position:relative;z-index:1;background:rgba(255,255,255,.7);backdrop-filter:saturate(140%) blur(6px)}
 .topbar-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
 .topbar-context{font-size:var(--fs-sm);color:var(--text-subtle);margin-left:var(--s-3)}
 .topbar-spacer{flex:1}
