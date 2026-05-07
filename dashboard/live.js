@@ -379,6 +379,7 @@ window.filterPipelineStage = function (btn) {
 
 const _legacyGoto = window.goto;
 window.goto = function (view) {
+  if (typeof _closeAttKpiDetail === "function") _closeAttKpiDetail();
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
   if (view === "drivers")   { loadDriversRoster(); loadDriverInsights(); }
@@ -942,6 +943,17 @@ function _renderAttReportTbody() {
 let _attKpiDetailKpi   = null;        // 'rate' | 'vto' | 'action' | null
 let _attKpiDetailRange = 90;          // 30 | 90 | 365
 let _attKpiHistory     = null;        // { range:Number, byDay:Array<{date,scheduled,present,late,callouts,noshows,vto}> }
+
+// Hide the KPI drilldown panel and reset state.  Called whenever the
+// operator navigates away from the report so they always come back to
+// a closed-by-default report — no stale "the panel I left open last
+// time" surprises.
+function _closeAttKpiDetail() {
+  _attKpiDetailKpi = null;
+  const panel = document.getElementById("rr-att-kpi-detail");
+  if (panel) { panel.style.display = "none"; panel.innerHTML = ""; }
+  document.querySelectorAll("[data-rr-att-kpi]").forEach(el => el.classList.remove("active"));
+}
 
 async function _ensureAttKpiHistory(rangeDays) {
   const dspId = window.RR?.dsp?.id;
@@ -2492,6 +2504,10 @@ async function loadAttendanceEventLog() {
 // load; wrap it so we can also fire our live loaders.
 const _legacyAttTab = window.attTab;
 window.attTab = function (name) {
+  // Always close the report's KPI drilldown when switching tabs so a
+  // panel left open before doesn't reappear when the operator comes
+  // back to the Report tab.
+  if (typeof _closeAttKpiDetail === "function") _closeAttKpiDetail();
   // Redirect any lingering "today" call to history — the Today pane was
   // moved to the sidebar Today's Plan page.
   if (name === "today") name = "history";
@@ -3454,6 +3470,9 @@ function renderLicenseRow(d) {
 
 const _legacyDrSub = window.drSub;
 window.drSub = function (sub) {
+  // Close any open report KPI drilldown on subview navigation so it
+  // doesn't reappear when the operator comes back to Attendance.
+  if (typeof _closeAttKpiDetail === "function") _closeAttKpiDetail();
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
