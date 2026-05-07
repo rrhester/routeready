@@ -8331,7 +8331,7 @@ async function loadAvailabilityRequests() {
     sb.rpc("availability_blackout_list"),
     sb.rpc("availability_settings_get"),
     sb.from("drivers")
-      .select("id, status, metadata")
+      .select("id, status, score, metadata")
       .eq("dsp_id", window.RR.dsp.id)
       .in("status", ["active", "onboarding"]),
     sb.rpc("okami_grid", { p_start: startIso, p_weeks: 4 }),
@@ -8380,7 +8380,12 @@ function _buildAvailImpactCtx(drivers, okamiGrid) {
     const days = d.metadata?.availability?.days;
     const arr = Array.isArray(days) ? days.filter(x => supplyByDow[x] !== undefined) : [];
     for (const dow of arr) supplyByDow[dow] += 1;
-    driverDays.push({ id: d.id, name: d.full_name || d.preferred_name || "", days: arr });
+    driverDays.push({
+      id:    d.id,
+      name:  d.full_name || d.preferred_name || "",
+      days:  arr,
+      score: typeof d.score === "number" ? d.score : null,
+    });
   }
   const demandByDow = Object.fromEntries(DOW.map(d => [d, 0]));
   const JS_DOW = { 0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat" };
@@ -8472,6 +8477,8 @@ function _computeAvailKpis() {
   };
 
   // FT / PT split — assume 1 day = 10 hours; ≥4 days = FT, ≤3 = PT.
+  // Surfaced as a single % so the KPI reads "X% of drivers are FT" at
+  // a glance; raw counts move to the supporting sub-line.
   let ft = 0, pt = 0;
   for (const d of ctx.driverDays) {
     if (d.days.length >= 4) ft++;
@@ -8480,9 +8487,9 @@ function _computeAvailKpis() {
   }
   const ratioPct = (ft + pt) > 0 ? Math.round((ft / (ft + pt)) * 100) : 0;
   out.ftpt = {
-    display: `${ft} / ${pt}`,
-    sub:     `${ratioPct}% full-time · 4+ days = FT`,
-    ft, pt,
+    display: `${ratioPct}%`,
+    sub:     `${ft} FT · ${pt} PT  ·  4+ days = FT`,
+    ft, pt, ratioPct,
   };
 
   // Avg days / driver — only across drivers who set any availability.
@@ -8523,7 +8530,7 @@ function _renderAvailabilityKpis(k, rows) {
     </div>`;
   el.innerHTML = [
     card("leastCovered", "Least covered day", kpis.leastCovered.display, kpis.leastCovered.sub),
-    card("ftpt",         "FT / PT split",     kpis.ftpt.display,         kpis.ftpt.sub),
+    card("ftpt",         "Full-time drivers", kpis.ftpt.display,         kpis.ftpt.sub),
     card("avgDays",      "Avg days / driver", kpis.avgDays.display,      kpis.avgDays.sub),
     card("weekend",      "Weekend coverage",  kpis.weekend.display,      kpis.weekend.sub),
   ].join("");
@@ -8611,55 +8618,57 @@ function _renderAvailKpiDetail() {
   }
 
   if (_availKpiDetailKpi === "ftpt") {
-    // Flex capacity calculator.
-    // 1 day of availability = 1 shift = 10 hours.
-    const drivers = ctx.driverDays.filter(d => d.days.length > 0);
-    const ftDrivers = drivers.filter(d => d.days.length >= 4);
-    const ptDrivers = drivers.filter(d => d.days.length <= 3);
-    const currentShifts = drivers.reduce((s, d) => s + d.days.length, 0);
-    // "If PT worked 4 days" — bring every PT driver up to 4.
-    const ptTo4Add = ptDrivers.reduce((s, d) => s + Math.max(0, 4 - d.days.length), 0);
-    // "If everyone worked 5 days" — bring everyone up to 5 (capped).
-    const allTo5Add = drivers.reduce((s, d) => s + Math.max(0, 5 - d.days.length), 0);
+    // Composite-score comparison: FT vs PT averages.
+    // Score is the per-driver composite (0–100) on the drivers table;
+    // we compare the two groups' averages so operators can see whether
+    // their FT roster outperforms their PT roster (or vice versa).
+    const ftDrivers = ctx.driverDays.filter(d => d.days.length >= 4);
+    const ptDrivers = ctx.driverDays.filter(d => d.days.length > 0 && d.days.length <= 3);
 
-    const row = (label, shifts, hours, badge) => `
-      <div style="display:grid;grid-template-columns:1fr 110px 110px 120px;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)">
-        <div>
-          <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${label}</div>
-          ${badge ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${badge}</div>` : ""}
+    const ftScored = ftDrivers.filter(d => typeof d.score === "number");
+    const ptScored = ptDrivers.filter(d => typeof d.score === "number");
+    const avg = (arr) => arr.length === 0 ? null : arr.reduce((s, d) => s + d.score, 0) / arr.length;
+    const ftAvg = avg(ftScored);
+    const ptAvg = avg(ptScored);
+    const fmt   = (v) => v == null ? "—" : v.toFixed(1);
+
+    // Tier color for a score: green ≥ 85, amber 70–84, red < 70.
+    const tier = (v) => v == null ? "var(--text-subtle)" : v >= 85 ? "var(--green)" : v >= 70 ? "var(--amber)" : "var(--red)";
+
+    const card = (label, count, scored, avgVal, sub) => `
+      <div style="background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:18px 20px">
+        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">${label}</div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px">
+          <div style="font-size:36px;font-weight:700;color:${tier(avgVal)};letter-spacing:-.02em;line-height:1">${fmt(avgVal)}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">avg composite score</div>
         </div>
-        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${shifts}</div>
-        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${hours}</div>
-        <div style="text-align:right;font-size:var(--fs-md);font-weight:600;color:${shifts > 0 ? "var(--green)" : "var(--text-subtle)"};font-variant-numeric:tabular-nums">${badge ? `+${shifts} shifts` : ""}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px;line-height:1.5">${sub}<br/>${scored} of ${count} ${count === 1 ? "driver has" : "drivers have"} a score on file</div>
       </div>`;
 
-    const head = `
-      <div style="display:grid;grid-template-columns:1fr 110px 110px 120px;gap:14px;padding:0 0 8px;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
-        <div>Scenario</div>
-        <div style="text-align:right">Shifts / wk</div>
-        <div style="text-align:right">Hours / wk</div>
-        <div style="text-align:right">Δ vs current</div>
-      </div>`;
+    let delta = "";
+    if (ftAvg != null && ptAvg != null) {
+      const diff = Math.abs(ftAvg - ptAvg);
+      const winner = ftAvg > ptAvg ? "Full-time" : (ptAvg > ftAvg ? "Part-time" : null);
+      if (winner) {
+        delta = `<div style="margin-top:var(--s-3);padding:12px 14px;background:var(--accent-soft);border-radius:8px;font-size:var(--fs-sm);color:var(--text);line-height:1.5">
+          <strong>${winner} drivers score ${diff.toFixed(1)} points higher</strong> on average than the other group.
+        </div>`;
+      } else {
+        delta = `<div style="margin-top:var(--s-3);padding:12px 14px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">Both groups average the same composite score.</div>`;
+      }
+    }
 
-    const body = `
-      ${head}
-      <div style="display:grid;grid-template-columns:1fr 110px 110px 120px;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
-        <div>
-          <div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">Current</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${ftDrivers.length} FT (4+ days) · ${ptDrivers.length} PT (≤3 days)</div>
-        </div>
-        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${currentShifts}</div>
-        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${currentShifts * 10}</div>
-        <div></div>
-      </div>
-      ${row(`If every PT driver worked 4 days`,    ptTo4Add,  ptTo4Add * 10,  `Move ${ptDrivers.length} PT driver${ptDrivers.length === 1 ? "" : "s"} up to FT`)}
-      ${row(`If every driver worked 5 days`,      allTo5Add, allTo5Add * 10, `Stretch goal across all ${drivers.length} drivers`)}
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px;line-height:1.5">Math assumes 1 day of availability = 1 shift = 10 hours. FT = 4+ available days, PT = 1–3.</div>`;
+    const empty = (ftScored.length + ptScored.length === 0)
+      ? `<div class="rr-empty-inline" style="padding:20px 0;margin-top:var(--s-3)">No driver scores on file yet — composite scores live on the Drivers table; once they're populated this comparison fills in.</div>`
+      : "";
 
     panel.innerHTML = _availKpiPanelShell(
-      "Flex capacity",
-      `What you'd unlock by raising part-time drivers — or pushing everyone to a 5-day week.`,
-      body);
+      "Composite score · FT vs PT",
+      `Side-by-side average of each driver's composite score (0–100). FT = 4+ available days, PT = 1–3.`,
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)">
+        ${card("Full-time", ftDrivers.length, ftScored.length, ftAvg, `4+ available days per week`)}
+        ${card("Part-time", ptDrivers.length, ptScored.length, ptAvg, `1–3 available days per week`)}
+      </div>${delta}${empty}`);
     return;
   }
 
