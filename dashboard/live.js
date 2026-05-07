@@ -10522,45 +10522,38 @@ document.addEventListener("click", async (e) => {
     const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || "UTC";
 
     const status = document.getElementById("rr-set-sched-status");
-    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving as DSP default…"; }
+    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving for first 4 weeks…"; }
 
-    // Save as the DSP-default row (week_start IS NULL) so the settings
-    // apply to every week — past and future — that doesn't have a
-    // per-week override. Operator wanted Settings to govern all weeks
-    // in the planning view, not just whichever week was active.
-    const { error: upErr } = await sb.rpc("upsert_scheduling_settings", {
-      p_payload: {
-        week_start: null,
-        default_block_hours: block,
-        cushion_pct: cushion,
-        max_days_per_week: maxDays,
-        allow_availability_override: allowOverride,
-        waves,
-        timezone: tz,
-      },
-    });
-    if (upErr) {
-      if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; }
-      return;
-    }
-    if (status) status.textContent = "Saved · syncing first 4 weeks…";
-
-    // Regenerate the planning horizon (current week + next 3) so the
-    // operator sees the change reflected across what they actually
-    // staff against. Beyond week 4, the new DSP-default settings
-    // pick up automatically the moment the operator navigates there.
+    // Build the planning horizon: current week + next 3.  We save a
+    // per-week row for each (the scheduling_settings.week_start
+    // column is NOT NULL, so we can't write a single dsp-default
+    // row — multiple per-week rows is the supported pattern).
+    const baseMonday = startOfWeekMonday(new Date());
     const weekStarts = [];
-    const startDate = new Date(_schedStart + "T12:00:00");
     for (let i = 0; i < 4; i++) {
-      const w = new Date(startDate); w.setDate(w.getDate() + i * 7);
-      weekStarts.push(fmtIsoDate(w));
+      weekStarts.push(fmtIsoDate(addDays(baseMonday, i * 7)));
     }
+
+    const payloadCommon = {
+      default_block_hours: block,
+      cushion_pct: cushion,
+      max_days_per_week: maxDays,
+      allow_availability_override: allowOverride,
+      waves,
+      timezone: tz,
+    };
 
     let cushionDelta = 0;
-    let regenFailed = null;
+    let failed = null;
     for (const ws of weekStarts) {
+      const { error: upErr } = await sb.rpc("upsert_scheduling_settings", {
+        p_payload: { week_start: ws, ...payloadCommon },
+      });
+      if (upErr) { failed = `${ws}: ${upErr.message}`; break; }
+
       const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
-      if (regenErr) { regenFailed = `${ws}: ${regenErr.message}`; break; }
+      if (regenErr) { failed = `${ws}: ${regenErr.message}`; break; }
+
       try {
         const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: ws });
         if (cushionErr) console.warn(`apply_cushion_to_week (${ws}):`, cushionErr.message);
@@ -10570,9 +10563,9 @@ document.addEventListener("click", async (e) => {
       }
     }
 
-    if (regenFailed) {
-      if (status) { status.style.color = "var(--red)"; status.textContent = "Saved · sync failed: " + regenFailed; }
-      toast("Settings saved · sync failed: " + regenFailed, "warn");
+    if (failed) {
+      if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + failed; }
+      toast("Settings save failed: " + failed, "warn");
       return;
     }
 
@@ -11527,13 +11520,29 @@ async function renderScheduleWeek() {
   for (const list of virtualByDate.values()) totalVirtual += list.length;
 
   // ── Toolbar
-  const labelEl = sub.querySelector(".sched-week-label");
-  if (labelEl) {
-    labelEl.textContent = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
-  }
-  const subLineEl = sub.querySelector(".sched-week-sub");
-  if (subLineEl) {
-    subLineEl.innerHTML = `<span style="color:var(--accent-text);cursor:pointer" data-rr-goto-okami>Adjust in OKAMI →</span>`;
+  // Populate the 4-week tab strip. The first tab is always the actual
+  // current week; the next three are the following weeks. Whichever
+  // tab matches _schedStart gets the active state.
+  const tabsEl = sub.querySelector("#rr-sched-week-tabs");
+  if (tabsEl) {
+    const today = new Date();
+    const baseMonday = startOfWeekMonday(today);
+    const fmtRange = (m) => {
+      const e = addDays(m, 6);
+      const sameMonth = m.getMonth() === e.getMonth();
+      return sameMonth
+        ? `${m.toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${e.getDate()}`
+        : `${m.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${e.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    };
+    const activeIso = _schedStart || fmtIsoDate(baseMonday);
+    tabsEl.querySelectorAll(".sched-week-tab").forEach((btn) => {
+      const offset = parseInt(btn.dataset.rrWeekOffset, 10) || 0;
+      const monday = addDays(baseMonday, offset * 7);
+      const iso = fmtIsoDate(monday);
+      btn.dataset.rrWeekStart = iso;
+      btn.textContent = offset === 0 ? "Current week" : fmtRange(monday);
+      btn.classList.toggle("active", iso === activeIso);
+    });
   }
 
   // Page-sub line in the header (Schedule view) — replace the mockup
@@ -12002,24 +12011,14 @@ function bindSchedWeekNav() {
   _schedNavBound = true;
 
   sub.addEventListener("click", (e) => {
-    const arrow = e.target.closest(".sched-week-arrow");
-    if (arrow) {
-      const arrows = sub.querySelectorAll(".sched-week-nav .sched-week-arrow");
-      const isPrev = arrows[0] === arrow;
-      const cur = new Date((_schedStart || fmtIsoDate(startOfWeekMonday(new Date()))) + "T12:00:00");
-      _schedStart = fmtIsoDate(addDays(cur, isPrev ? -7 : 7));
+    // 4-week tab strip — replaces the prev/next/Today buttons.
+    const tab = e.target.closest(".sched-week-tab");
+    if (tab && tab.dataset.rrWeekStart) {
+      _schedStart = tab.dataset.rrWeekStart;
       renderScheduleWeek();
       loadSchedulingSettings();
       return;
     }
-    const todayBtn = e.target.closest(".sched-week-nav .btn");
-    if (todayBtn && todayBtn.textContent.trim() === "Today") {
-      _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
-      renderScheduleWeek();
-      loadSchedulingSettings();
-      return;
-    }
-    if (e.target.closest("[data-rr-goto-okami]"))   { if (typeof window.goto === "function") window.goto("okami"); return; }
     if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
 
     // Click an ASSIGNED shift chip (not open, off, or timeoff) → confirm + delete.
