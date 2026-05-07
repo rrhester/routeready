@@ -2991,26 +2991,41 @@ window.attTab = function (name) {
   if (name === "log")     loadAttendanceEventLog();
 };
 
-// Hide / show the Report tab + auto-route to the Event log when the
-// attendance policy is OFF.  The Event log is the only meaningful
-// view in that mode — the Report's points / occurrences / ladder
-// columns rely on the policy to be interpretable.
+// Hide / show the right tab based on the attendance policy state.
+// One surface per mode:
+//   • Policy OFF → Event log only.  Operator coaches manually per
+//                  event from the log.
+//   • Policy ON  → Report only.  Same data, packaged per-driver
+//                  with points + ladder.  The Event log would just
+//                  be a redundant chronological view of the same
+//                  shifts the Report already aggregates.
 function _rrApplyAttPolicyMode() {
   const policy   = (typeof _getAttPolicy === "function") ? _getAttPolicy() : {};
   const isOn     = policy.policy_enabled !== false;
-  const reportTab = document.querySelector('#rr-att-tabstrip [data-att="report"]');
+  const reportTab  = document.querySelector('#rr-att-tabstrip [data-att="report"]');
   const reportPane = document.getElementById("att-pane-report");
   const logTab     = document.querySelector('#rr-att-tabstrip [data-att="log"]');
   const logPane    = document.getElementById("att-pane-log");
   if (!reportTab || !logTab) return;
 
   if (isOn) {
+    // Report visible, Event log hidden.  If the Event log was active
+    // when the policy got turned on, flip the active tab + pane to
+    // Report so the operator isn't staring at a hidden surface.
     reportTab.style.display = "";
+    logTab.style.display    = "none";
+    if (logTab.classList.contains("active")) {
+      logTab.classList.remove("active");
+      reportTab.classList.add("active");
+      if (logPane)    logPane.classList.remove("active");
+      if (reportPane) reportPane.classList.add("active");
+      loadAttendanceLive();
+    }
   } else {
+    // Event log visible, Report hidden.  Flip active to Event log
+    // when needed for the same reason.
     reportTab.style.display = "none";
-    // If the Report tab was active when the policy got turned off,
-    // flip to the Event log so the operator isn't staring at a hidden
-    // pane behind a missing button.
+    logTab.style.display    = "";
     if (reportTab.classList.contains("active")) {
       reportTab.classList.remove("active");
       logTab.classList.add("active");
