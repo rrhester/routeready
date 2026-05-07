@@ -6129,7 +6129,12 @@ async function saveVideoScreeningSettings() {
 window.openDriverDetail = function () { /* superseded by openDriverDrawer */ };
 
 let _ddDriver = null;
-let _ddTab = "overview";
+let _ddTab = "profile";
+// Buffer for fields edited on a tab the user later switches away from.
+// renderDriverDrawerTab() rebuilds the body each time, so without this the
+// values typed into Profile would be lost when the operator clicked
+// Employment.  Save merges _ddPending with the currently visible inputs.
+let _ddPending = {};
 
 // Coaching-only drawer. Opens from the global Coaching feed when an
 // operator clicks a driver row. Shows just that driver's coaching
@@ -6409,29 +6414,45 @@ async function openDriverDrawer(driverId) {
   drawer.innerHTML = `
     <style>
       #rr-dd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
-      #rr-dd-panel{width:560px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
-      .dd-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-      .dd-head h3{margin:0;font-size:18px;font-weight:600}
+      #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
+      .dd-head{padding:20px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+      .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
-      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:8px;margin:14px 22px 0}
-      .dd-tab{flex:1;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 12px;border-radius:6px;cursor:pointer}
+      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:9px;margin:16px 28px 0}
+      .dd-tab{flex:1;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 12px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
+      .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
-      .dd-body{padding:18px 22px;flex:1}
-      .dd-row{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--border)}
+      .dd-body{padding:22px 28px;flex:1}
+      /* Section header inside a tab — visually breaks up long forms and
+         carries the self-serve vs DSP-only contract for the upcoming
+         driver-app integration. */
+      .dd-section{margin:0 0 18px;padding:0}
+      .dd-section + .dd-section{margin-top:24px;padding-top:18px;border-top:1px solid var(--border)}
+      .dd-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+      .dd-section-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em}
+      .dd-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.4}
+      .dd-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px;white-space:nowrap}
+      .dd-badge.driver{background:var(--green-soft);color:var(--green)}
+      .dd-badge.dsp{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+      .dd-row{display:grid;grid-template-columns:180px 1fr;gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}
       .dd-row:first-of-type{border-top:0}
       .dd-row label{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
-      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:var(--fs-md);color:var(--text)}
+      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font:inherit;font-size:var(--fs-md);color:var(--text)}
       .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent)}
-      .dd-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);position:sticky;bottom:0}
+      .dd-foot{padding:14px 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);position:sticky;bottom:0}
       .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
       .dd-list-row:first-of-type{border-top:0}
       .dd-list-title{font-size:var(--fs-md);font-weight:600}
       .dd-list-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+      .dd-callout{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:8px;font-size:var(--fs-sm);line-height:1.5}
+      .dd-callout.warn{background:var(--amber-soft);color:var(--text)}
+      .dd-callout.warn strong{color:var(--amber)}
+      .dd-callout svg{flex-shrink:0;margin-top:2px}
     </style>
     <div id="rr-dd-panel">
       <div class="dd-head">
         <div style="display:flex;align-items:center;gap:14px;min-width:0">
-          <div class="avatar-sm" id="rr-dd-avatar" data-rr-driver-id="" style="width:44px;height:44px;font-size:var(--fs-lg);flex-shrink:0">--</div>
+          <div class="avatar-sm" id="rr-dd-avatar" data-rr-driver-id="" style="width:48px;height:48px;font-size:var(--fs-lg);flex-shrink:0">--</div>
           <div style="min-width:0">
             <h3 id="rr-dd-title">Driver record</h3>
             <div class="sub" id="rr-dd-sub"></div>
@@ -6440,10 +6461,10 @@ async function openDriverDrawer(driverId) {
         <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
       </div>
       <div class="dd-tabs">
-        <button type="button" class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
+        <button type="button" class="dd-tab active" data-rr-dd-tab="profile">Profile</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="license">License &amp; Certs</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="license">License</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="dot">DOT</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
@@ -6455,7 +6476,8 @@ async function openDriverDrawer(driverId) {
     if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) drawer.remove();
   });
 
-  _ddTab = "overview";
+  _ddTab = "profile";
+  _ddPending = {};
   if (driverId) {
     await loadDriverDrawer(driverId);
   } else {
@@ -6513,15 +6535,25 @@ async function loadDriverDrawer(driverId) {
   renderDriverDrawerTab();
 }
 
+// Capture every visible data-rr-dd-field input into _ddPending so its
+// value survives a tab switch (each tab re-renders the body from scratch).
+function _ddCaptureVisibleFields() {
+  document.querySelectorAll("#rr-dd-drawer [data-rr-dd-field]").forEach(el => {
+    const name = el.getAttribute("data-rr-dd-field");
+    _ddPending[name] = el.type === "checkbox" ? el.checked : el.value;
+  });
+}
+
 function renderDriverDrawerTab() {
+  _ddCaptureVisibleFields();
   document.querySelectorAll("#rr-dd-drawer .dd-tab").forEach(t => {
     t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
   });
   const body = document.getElementById("rr-dd-body");
-  if (_ddTab === "overview")     renderOverviewForm(body, _ddDriver.driver);
-  if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
+  if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
+  if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
-  if (_ddTab === "dot")          renderDotTab(body, _ddDriver.driver);
+  if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
   setDriverDrawerFoot();
@@ -6530,7 +6562,7 @@ function renderDriverDrawerTab() {
 function setDriverDrawerFoot() {
   const foot = document.getElementById("rr-dd-foot");
   if (!foot) return;
-  if (_ddTab === "overview" || _ddTab === "license" || _ddTab === "dot") {
+  if (_ddTab === "profile" || _ddTab === "employment" || _ddTab === "license") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`;
   } else if (_ddTab === "availability") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
@@ -6560,53 +6592,157 @@ function renderAvailabilityTab(body, d) {
     </div>`;
 }
 
-async function renderOverviewForm(body, d) {
+// _ddVal — read a field's display value, preferring an unsaved edit
+// captured on a prior tab over the canonical record value.  Lets the
+// operator type into Profile, switch to Employment, hit Save, and have
+// both sets of changes land in the same RPC call.
+function _ddVal(name, fallback) {
+  return Object.prototype.hasOwnProperty.call(_ddPending, name) ? _ddPending[name] : (fallback ?? "");
+}
+
+// Profile — what the driver themselves can edit from the driver app.
+// Identity / contact / emergency contact.  Carries the green "Driver
+// self-serve" badge so operators know these fields will be writeable
+// from the driver app.
+function renderProfileTab(body, d) {
   const showPronouns = window.RR.dsp?.metadata?.drivers?.show_pronouns !== false;
   const v = (s) => escapeHtml(s ?? "");
-  const stations = await getDriverStationsCached();
-  const stationOptions = `<option value="">— No station —</option>` +
-    stations.map(s => `<option value="${s.id}" ${s.id === d.station_id ? "selected" : ""}>${escapeHtml(s.code)}${s.name ? ` · ${escapeHtml(s.name)}` : ""}</option>`).join("");
-  const payRate = d.metadata?.pay?.hourly_rate ?? "";
   body.innerHTML = `
-    <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" data-rr-capitalize autocapitalize="words" value="${v(d.full_name)}"/></div>
-    <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" data-rr-capitalize autocapitalize="words" value="${v(d.preferred_name)}"/></div>
-    ${showPronouns ? `<div class="dd-row"><label>Pronouns</label><input data-rr-dd-field="pronouns" placeholder="he/him · she/her · they/them" value="${v(d.pronouns)}"/></div>` : ""}
-    <div class="dd-row"><label>Phone</label><input data-rr-dd-field="phone" value="${v(d.phone)}"/></div>
-    <div class="dd-row"><label>Email</label><input data-rr-dd-field="email" value="${v(d.email)}"/></div>
-    <div class="dd-row"><label>Address</label><input data-rr-dd-field="address" value="${v(d.address)}"/></div>
-    <div class="dd-row"><label>Birthday</label><input type="date" data-rr-dd-field="birthday" value="${v(d.birthday)}"/></div>
-    <div class="dd-row"><label>Station</label>
-      <select data-rr-dd-field="station_id">${stationOptions}</select>
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Identity</div>
+          <div class="dd-section-sub">Name and personal details shown across the dashboard and driver app.</div>
+        </div>
+        <span class="dd-badge driver">Driver self-serve</span>
+      </div>
+      <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" data-rr-capitalize autocapitalize="words" value="${v(_ddVal("full_name", d.full_name))}"/></div>
+      <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" data-rr-capitalize autocapitalize="words" value="${v(_ddVal("preferred_name", d.preferred_name))}"/></div>
+      ${showPronouns ? `<div class="dd-row"><label>Pronouns</label><input data-rr-dd-field="pronouns" placeholder="he/him · she/her · they/them" value="${v(_ddVal("pronouns", d.pronouns))}"/></div>` : ""}
     </div>
-    <div class="dd-row"><label>Hire date</label><input type="date" data-rr-dd-field="hire_date" value="${v(d.hire_date)}"/></div>
-    <div class="dd-row"><label>Status</label>
-      <select data-rr-dd-field="status">
-        ${["onboarding","active","leave","inactive","terminated"].map(s => `<option value="${s}" ${s === d.status ? "selected" : ""}>${s}</option>`).join("")}
-      </select>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Contact</div>
+          <div class="dd-section-sub">How RouteReady reaches the driver — phone for SMS, email for magic-link sign-in.</div>
+        </div>
+        <span class="dd-badge driver">Driver self-serve</span>
+      </div>
+      <div class="dd-row"><label>Phone</label><input data-rr-dd-field="phone" value="${v(_ddVal("phone", d.phone))}"/></div>
+      <div class="dd-row"><label>Email</label><input type="email" data-rr-dd-field="email" value="${v(_ddVal("email", d.email))}"/></div>
+      <div class="dd-row"><label>Address</label><input data-rr-dd-field="address" value="${v(_ddVal("address", d.address))}"/></div>
     </div>
-    <div class="dd-row"><label>Pay rate</label>
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="color:var(--text-subtle)">$</span>
-        <input type="number" min="0" max="200" step="0.01" data-rr-dd-field="pay_hourly" placeholder="22.50" value="${v(payRate)}" style="max-width:120px"/>
-        <span style="color:var(--text-subtle);font-size:var(--fs-sm)">/ hour</span>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Emergency contact</div>
+          <div class="dd-section-sub">Who to call if the driver is in an accident or medical emergency.</div>
+        </div>
+        <span class="dd-badge driver">Driver self-serve</span>
+      </div>
+      <div class="dd-row"><label>Contact name</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(_ddVal("emergency_contact_name", d.emergency_contact_name))}"/></div>
+      <div class="dd-row"><label>Contact phone</label><input data-rr-dd-field="emergency_contact_phone" placeholder="Phone" value="${v(_ddVal("emergency_contact_phone", d.emergency_contact_phone))}"/></div>
+    </div>`;
+}
+
+// Employment — DSP-only.  Status / station / dates / pay / onboarding
+// milestones / driver-app invite.  The driver app does NOT show this
+// data: it's the operator's record of how the driver fits into the
+// business.
+async function renderEmploymentTab(body, d) {
+  const v = (s) => escapeHtml(s ?? "");
+  const stations = await getDriverStationsCached();
+  const currentStation = _ddVal("station_id", d.station_id);
+  const stationOptions = `<option value="">— No station —</option>` +
+    stations.map(s => `<option value="${s.id}" ${s.id === currentStation ? "selected" : ""}>${escapeHtml(s.code)}${s.name ? ` · ${escapeHtml(s.name)}` : ""}</option>`).join("");
+  const currentStatus = _ddVal("status", d.status);
+  const payRate = _ddVal("pay_hourly", d.metadata?.pay?.hourly_rate ?? "");
+  body.innerHTML = `
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Assignment</div>
+          <div class="dd-section-sub">Where this driver works and their current employment state.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
+      </div>
+      <div class="dd-row"><label>Status</label>
+        <select data-rr-dd-field="status">
+          ${["onboarding","active","leave","inactive","terminated"].map(s => `<option value="${s}" ${s === currentStatus ? "selected" : ""}>${s}</option>`).join("")}
+        </select>
+      </div>
+      <div class="dd-row"><label>Station</label>
+        <select data-rr-dd-field="station_id">${stationOptions}</select>
       </div>
     </div>
-    <div class="dd-row"><label>Emergency contact</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(d.emergency_contact_name)}"/></div>
-    <div class="dd-row"><label>Emergency phone</label><input data-rr-dd-field="emergency_contact_phone" placeholder="Phone" value="${v(d.emergency_contact_phone)}"/></div>
-    <div class="dd-row"><label>Background check</label><input type="datetime-local" data-rr-dd-field="background_check_completed_at" value="${v((d.background_check_completed_at || '').slice(0,16))}"/></div>
-    <div class="dd-row"><label>Drug test</label><input type="datetime-local" data-rr-dd-field="drug_test_completed_at" value="${v((d.drug_test_completed_at || '').slice(0,16))}"/></div>
-    <div class="dd-row"><label>Training scheduled</label><input type="datetime-local" data-rr-dd-field="training_scheduled_at" value="${v((d.training_scheduled_at || '').slice(0,16))}"/></div>
-    <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(d.training_date)}"/></div>
-    <div class="dd-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
-      <label>Driver app</label>
-      <div>
-        <button type="button" class="btn btn-sm" data-rr-issue-invite>Generate invite code</button>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Driver enters this on the RouteReady app at <strong>gorouteready.com/app/</strong>. One active code at a time · expires in 14 days.</div>
-        <div data-rr-invite-display style="margin-top:10px;display:none"></div>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Dates</div>
+          <div class="dd-section-sub">Birthday is used for tier eligibility and milestone reminders.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
+      </div>
+      <div class="dd-row"><label>Birthday</label><input type="date" data-rr-dd-field="birthday" value="${v(_ddVal("birthday", d.birthday))}"/></div>
+      <div class="dd-row"><label>Hire date</label><input type="date" data-rr-dd-field="hire_date" value="${v(_ddVal("hire_date", d.hire_date))}"/></div>
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Compensation</div>
+          <div class="dd-section-sub">Used to project payroll on the schedule grid.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
+      </div>
+      <div class="dd-row"><label>Pay rate</label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="color:var(--text-subtle)">$</span>
+          <input type="number" min="0" max="200" step="0.01" data-rr-dd-field="pay_hourly" placeholder="22.50" value="${v(payRate)}" style="max-width:140px"/>
+          <span style="color:var(--text-subtle);font-size:var(--fs-sm)">/ hour</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Onboarding</div>
+          <div class="dd-section-sub">Milestones recorded by the DSP during hire.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
+      </div>
+      <div class="dd-row"><label>Background check</label><input type="datetime-local" data-rr-dd-field="background_check_completed_at" value="${v((_ddVal("background_check_completed_at", d.background_check_completed_at) || '').slice(0,16))}"/></div>
+      <div class="dd-row"><label>Drug test</label><input type="datetime-local" data-rr-dd-field="drug_test_completed_at" value="${v((_ddVal("drug_test_completed_at", d.drug_test_completed_at) || '').slice(0,16))}"/></div>
+      <div class="dd-row"><label>Training scheduled</label><input type="datetime-local" data-rr-dd-field="training_scheduled_at" value="${v((_ddVal("training_scheduled_at", d.training_scheduled_at) || '').slice(0,16))}"/></div>
+      <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(_ddVal("training_date", d.training_date))}"/></div>
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Driver app access</div>
+          <div class="dd-section-sub">Issue an invite code so the driver can sign into the RouteReady app.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
+      </div>
+      <div class="dd-row" style="grid-template-columns:1fr;gap:10px">
+        <div>
+          <button type="button" class="btn btn-sm" data-rr-issue-invite>Generate invite code</button>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Driver enters this on the RouteReady app at <strong>gorouteready.com/app/</strong>. One active code at a time · expires in 14 days.</div>
+          <div data-rr-invite-display style="margin-top:10px;display:none"></div>
+        </div>
       </div>
     </div>`;
 }
 
+// License & Certs — license number / image upload (driver self-serve)
+// + expiration verification + DOT/XL certs (DSP only).  When the
+// driver has uploaded an image but no expiration date is on file, an
+// amber callout reminds the DSP to type the date off the photo.
 async function renderLicenseTab(body, d) {
   const v = (s) => escapeHtml(s ?? "");
   // Resolve a viewable URL for the stored DL image, if any.
@@ -6618,9 +6754,10 @@ async function renderLicenseTab(body, d) {
   }
 
   // Expiry visual: pill colors past = red, ≤30 days = amber, else neutral.
+  const currentExpiry = _ddVal("dl_expires_on", d.dl_expires_on);
   let expiryPill = '<span style="color:var(--text-subtle);font-size:var(--fs-sm)">No expiry on file</span>';
-  if (d.dl_expires_on) {
-    const exp = new Date(d.dl_expires_on);
+  if (currentExpiry) {
+    const exp = new Date(currentExpiry);
     const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
     let style = "background:var(--canvas);color:var(--text-muted)";
     let suffix = `${days} days from today`;
@@ -6629,56 +6766,82 @@ async function renderLicenseTab(body, d) {
     expiryPill = `<span class="tag" style="${style}">${exp.toLocaleDateString()} · ${suffix}</span>`;
   }
 
+  // The verification callout fires when the driver has uploaded an
+  // image but the expiration date is still blank — a real-world
+  // scenario once the driver app DL upload ships.
+  const needsVerify = !!d.dl_image_path && !currentExpiry;
+  const verifyCallout = needsVerify ? `
+    <div class="dd-callout warn" style="margin-top:12px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <div><strong>Verification needed.</strong> Driver uploaded a license image but no expiration is on file. Read the date off the photo and enter it above.</div>
+    </div>` : "";
+
+  const dotChecked = _ddVal("dot_certified", d.dot_certified) ? "checked" : "";
+  const xlChecked  = _ddVal("xl_certified",  d.xl_certified)  ? "checked" : "";
+
   body.innerHTML = `
-    <div class="dd-row"><label>License number</label><input data-rr-dd-field="dl_number" placeholder="DL number" value="${v(d.dl_number)}"/></div>
-    <div class="dd-row"><label>Expiration</label>
-      <div>
-        <input type="date" data-rr-dd-field="dl_expires_on" value="${v(d.dl_expires_on)}" style="margin-bottom:6px"/>
-        ${expiryPill}
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Driver's license</div>
+          <div class="dd-section-sub">Driver enters the number and uploads a photo from the app. The DSP verifies the expiration date.</div>
+        </div>
+        <span class="dd-badge driver">Driver upload</span>
+      </div>
+      <div class="dd-row"><label>License number</label><input data-rr-dd-field="dl_number" placeholder="DL number" value="${v(_ddVal("dl_number", d.dl_number))}"/></div>
+      <div class="dd-row"><label>Expiration <span class="dd-badge dsp" style="margin-left:6px">DSP verifies</span></label>
+        <div>
+          <input type="date" data-rr-dd-field="dl_expires_on" value="${v(currentExpiry)}" style="margin-bottom:6px"/>
+          ${expiryPill}
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">License image</div>
+        ${imgUrl
+          ? `<a href="${imgUrl}" target="_blank" rel="noreferrer" style="display:block">
+               <img src="${imgUrl}" style="max-width:100%;max-height:320px;border:1px solid var(--border);border-radius:8px;background:var(--canvas)" alt="Drivers license"/>
+             </a>
+             <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+               <input type="file" id="rr-dl-file" accept="image/*" />
+               <button class="btn btn-sm" data-rr-dl-upload>Replace</button>
+               <button class="btn btn-sm" data-rr-dl-remove style="color:var(--red)">Remove</button>
+             </div>`
+          : `<div style="border:1px dashed var(--border);border-radius:8px;padding:24px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);margin-bottom:10px">No image uploaded yet. Driver can upload from the app, or you can attach one here.</div>
+             <div style="display:flex;gap:8px;align-items:center">
+               <input type="file" id="rr-dl-file" accept="image/*" />
+               <button class="btn btn-primary btn-sm" data-rr-dl-upload>Upload license image</button>
+             </div>`}
+        ${verifyCallout}
       </div>
     </div>
 
-    <div style="margin-top:18px">
-      <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">License image</div>
-      ${imgUrl
-        ? `<a href="${imgUrl}" target="_blank" rel="noreferrer" style="display:block">
-             <img src="${imgUrl}" style="max-width:100%;max-height:280px;border:1px solid var(--border);border-radius:8px;background:var(--canvas)" alt="Drivers license"/>
-           </a>
-           <div style="margin-top:8px;display:flex;gap:8px">
-             <input type="file" id="rr-dl-file" accept="image/*" />
-             <button class="btn btn-sm" data-rr-dl-upload>Replace</button>
-             <button class="btn btn-sm" data-rr-dl-remove style="color:var(--red)">Remove</button>
-           </div>`
-        : `<div style="border:1px dashed var(--border);border-radius:8px;padding:24px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);margin-bottom:10px">No image uploaded yet.</div>
-           <div style="display:flex;gap:8px;align-items:center">
-             <input type="file" id="rr-dl-file" accept="image/*" />
-             <button class="btn btn-primary btn-sm" data-rr-dl-upload>Upload license image</button>
-           </div>`}
-    </div>`;
-}
-
-function renderDotTab(body, d) {
-  const dotChecked = d.dot_certified ? "checked" : "";
-  const xlChecked  = d.xl_certified  ? "checked" : "";
-  body.innerHTML = `
-    <div class="dd-row" style="align-items:flex-start">
-      <label>DOT certification</label>
-      <div>
-        <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
-          <input type="checkbox" data-rr-dd-field="dot_certified" ${dotChecked} style="cursor:pointer;width:16px;height:16px"/>
-          <span style="font-size:var(--fs-md);color:var(--text)">Driver is DOT certified</span>
-        </label>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Step Van routes. Smart Fill blocks DOT-required service types unless this is checked.</div>
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Certifications</div>
+          <div class="dd-section-sub">Smart Fill uses these gates to decide who can be assigned to certified service types.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
       </div>
-    </div>
-    <div class="dd-row" style="align-items:flex-start">
-      <label>XL certification</label>
-      <div>
-        <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
-          <input type="checkbox" data-rr-dd-field="xl_certified" ${xlChecked} style="cursor:pointer;width:16px;height:16px"/>
-          <span style="font-size:var(--fs-md);color:var(--text)">Driver is XL certified</span>
-        </label>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Extra-Large vans. Smart Fill blocks XL routes unless this is checked.</div>
+      <div class="dd-row" style="align-items:flex-start">
+        <label>DOT certification</label>
+        <div>
+          <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
+            <input type="checkbox" data-rr-dd-field="dot_certified" ${dotChecked} style="cursor:pointer;width:16px;height:16px"/>
+            <span style="font-size:var(--fs-md);color:var(--text)">Driver is DOT certified</span>
+          </label>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Step Van routes. Smart Fill blocks DOT-required service types unless this is checked.</div>
+        </div>
+      </div>
+      <div class="dd-row" style="align-items:flex-start">
+        <label>XL certification</label>
+        <div>
+          <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
+            <input type="checkbox" data-rr-dd-field="xl_certified" ${xlChecked} style="cursor:pointer;width:16px;height:16px"/>
+            <span style="font-size:var(--fs-md);color:var(--text)">Driver is XL certified</span>
+          </label>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Extra-Large vans. Smart Fill blocks XL routes unless this is checked.</div>
+        </div>
       </div>
     </div>`;
 }
@@ -7686,7 +7849,10 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("[data-rr-dd-save]")) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    const payload = {};
+    // Start with anything captured from tabs the operator already
+    // navigated away from, then layer the currently visible inputs on
+    // top so live edits win.
+    const payload = { ..._ddPending };
     document.querySelectorAll("#rr-dd-drawer [data-rr-dd-field]").forEach(el => {
       const name = el.getAttribute("data-rr-dd-field");
       payload[name] = el.type === "checkbox" ? el.checked : el.value;
@@ -7740,6 +7906,7 @@ document.addEventListener("click", async (e) => {
       }
       const drawer = document.getElementById("rr-dd-drawer");
       if (drawer) drawer.remove();
+      _ddPending = {};
       await loadDriversRoster();
       toast(`${insertRow.full_name} added`, "success");
       return;
@@ -7774,6 +7941,7 @@ document.addEventListener("click", async (e) => {
     toast("Driver record saved", "success");
     const drawer2 = document.getElementById("rr-dd-drawer");
     if (drawer2) drawer2.remove();
+    _ddPending = {};
     await loadDriversRoster();
     return;
   }
