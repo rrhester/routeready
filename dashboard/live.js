@@ -890,12 +890,65 @@ async function loadAttendanceLive() {
   }
 }
 
+// Filter chip state for the Attendance Report overview.
+let _attReportFilter = "all";
+
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest("#rr-att-filters [data-rr-att-filter]");
+  if (!chip) return;
+  e.preventDefault();
+  _attReportFilter = chip.getAttribute("data-rr-att-filter");
+  document.querySelectorAll("#rr-att-filters [data-rr-att-filter]").forEach(c =>
+    c.classList.toggle("active", c === chip));
+  _renderAttReportTbody();
+});
+
+// Repaint the policy snapshot banner above the table.  Reads from
+// _attReportRows directly so it always matches what's rendered.
+function _renderAttSnapshot() {
+  const el = document.getElementById("rr-att-snapshot");
+  if (!el) return;
+  const rows = _attReportRows || [];
+  if (rows.length === 0) { el.style.display = "none"; return; }
+  const counts = { Termination: 0, Final: 0, Written: 0, Verbal: 0, Clear: 0 };
+  for (const r of rows) {
+    const k = r.coachingLabel === "Written · 1st 30" ? "Written"
+            : (r.coachingLabel === "Policy off" ? "Clear" : r.coachingLabel);
+    if (counts[k] != null) counts[k] += 1;
+  }
+  el.style.display = "block";
+  el.innerHTML = `
+    <div class="att-snapshot-row">
+      <span class="att-snapshot-title">${rows.length} drivers ·</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#7f1d1d"></span>${counts.Termination} Termination</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#dc2626"></span>${counts.Final} Final</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#c2410c"></span>${counts.Written} Written</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#d97706"></span>${counts.Verbal} Verbal</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#15803d"></span>${counts.Clear} Clear</span>
+    </div>`;
+}
+
 function _renderAttReportTbody() {
   const tbody = document.getElementById("att-report-body");
   if (!tbody) return;
-  const rows = [..._attReportRows];
+  _renderAttSnapshot();
+  let rows = [..._attReportRows];
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="14"><div class="rr-empty-inline">No drivers yet</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="rr-empty-inline">No drivers yet</div></td></tr>`;
+    return;
+  }
+  // Apply filter chip.  "atrisk" = anyone past Clear; "recent" = has
+  // coaching < 14d ago; "uncoached" = no coaching in window.
+  const fourteen = Date.now() - 14 * 86400000;
+  if (_attReportFilter === "atrisk") {
+    rows = rows.filter(r => r.coachingLabel !== "Clear" && r.coachingLabel !== "Policy off");
+  } else if (_attReportFilter === "recent") {
+    rows = rows.filter(r => r.lastCoach && new Date(r.lastCoach.occurred_at).getTime() >= fourteen);
+  } else if (_attReportFilter === "uncoached") {
+    rows = rows.filter(r => !r.lastCoach);
+  }
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="rr-empty-inline">No drivers match this filter.</div></td></tr>`;
     return;
   }
 
@@ -951,11 +1004,23 @@ function _renderAttReportTbody() {
     });
   }
 
-  // Map the ladder label this row currently sits on to the
-  // coaching_severity enum value the Send-coaching modal pre-fills.
-  // "Clear" / "Policy off" rows still get the button (the dispatcher
-  // may want to send a Verbal coaching for context that hasn't yet
-  // crossed the threshold), defaulting to Verbal.
+  // Group rows by ladder rung so the highest-priority drivers float
+  // to the top with a clear section header.  Override the user's
+  // sort only when no explicit column sort is active (default points
+  // desc maps cleanly to ladder grouping anyway).
+  const groupOrder  = ["Termination", "Final", "Written", "Written · 1st 30", "Verbal", "Clear", "Policy off"];
+  const groupLabels = { "Termination": "Termination", "Final": "Final", "Written": "Written", "Written · 1st 30": "Written (first-30)", "Verbal": "Verbal", "Clear": "Clear", "Policy off": "Policy off" };
+  const buckets = new Map();
+  for (const lbl of groupOrder) buckets.set(lbl, []);
+  for (const r of rows) {
+    const key = buckets.has(r.coachingLabel) ? r.coachingLabel : "Clear";
+    buckets.get(key).push(r);
+  }
+  // Within a bucket, sort by points desc then driver name.
+  for (const [, list] of buckets) {
+    list.sort((x, y) => (y.points - x.points) || (displayDriverName(x.d) || "").localeCompare(displayDriverName(y.d) || ""));
+  }
+
   const RECOMMEND = {
     "Termination":      "termination",
     "Final":            "final",
@@ -966,19 +1031,17 @@ function _renderAttReportTbody() {
     "Policy off":       "verbal",
   };
 
-  tbody.innerHTML = rows.map(r => {
+  const renderRow = (r) => {
     const display = displayDriverName(r.d);
     const initials = displayDriverInitials(r.d);
     const station = r.d.station?.code || "—";
-    const last = r.a.last ? new Date(r.a.last + "T12:00:00").toLocaleDateString() : "—";
+    const lastEv  = r.a.last ? new Date(r.a.last + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
     const statusVariant = r.statusKind === "bad"  ? "danger"
                         : r.statusKind === "warn" ? "warning"
-                        : r.statusKind === "good" ? "success"
                         : "neutral";
     const sev = RECOMMEND[r.coachingLabel] || "verbal";
     const summary = `${r.coachingLabel} · ${r.a.callouts} callout${r.a.callouts === 1 ? "" : "s"}, ${r.a.noshows} no-show${r.a.noshows === 1 ? "" : "s"}, ${r.a.late} late`;
 
-    // Last coaching cell — actual sent state, not the ladder forecast.
     let lastCoachCell = `<span style="color:var(--text-subtle)">—</span>`;
     let sendBtnLabel  = "Send coaching";
     let sendBtnTitle  = "Send coaching · pre-filled with ladder recommendation";
@@ -996,31 +1059,20 @@ function _renderAttReportTbody() {
       } else {
         ackChip = `<span class="att-coach-chip" title="No driver action required">Sent</span>`;
       }
-      const countSuffix = r.coachCount > 1 ? ` <span style="color:var(--text-subtle)">· ${r.coachCount} this window</span>` : "";
-      lastCoachCell = `<div style="display:flex;flex-direction:column;gap:2px"><div style="font-weight:600;font-size:var(--fs-sm)">${escapeHtml(sevLabel)}<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(when)}</span>${countSuffix}</div>${ackChip}</div>`;
-
-      // Send-coaching button defaults to a neutral "Send another"
-      // when there's already a recent coaching, so a dispatcher
-      // doesn't accidentally double-fire on the same standing.
+      lastCoachCell = `<div style="display:flex;flex-direction:column;gap:2px"><div style="font-weight:600;font-size:var(--fs-sm)">${escapeHtml(sevLabel)}<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(when)}</span></div>${ackChip}</div>`;
       sendBtnLabel = "Send another";
       sendBtnTitle = `Already sent ${sevLabel} ${when}. Send another only if a new event has occurred.`;
       sendBtnExtra = " btn-ghost";
     }
 
-    return `<tr>
-      <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name" data-rr-driver-id="${r.d.id}">${escapeHtml(display)}</div></div></div></td>
+    // Whole row is clickable → opens drawer on Attendance tab.
+    return `<tr data-rr-att-row="${escapeHtml(r.d.id)}" style="cursor:pointer">
+      <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
-      <td style="text-align:right">${r.a.scheduled}</td>
-      <td style="text-align:right">${r.a.present}</td>
-      <td style="text-align:right">${r.a.late}</td>
-      <td style="text-align:right">${r.a.callouts}</td>
-      <td style="text-align:right">${r.a.noshows}</td>
-      <td style="text-align:right">${r.a.vto}</td>
-      <td style="text-align:right;font-weight:600">${r.points}</td>
-      <td style="text-align:right">${r.occ}</td>
       <td><span class="status-pill status-pill-${statusVariant}" title="${escapeHtml(r.statusLabel)}">${escapeHtml(r.coachingLabel)}</span></td>
+      <td style="text-align:right;font-weight:600">${r.points}</td>
+      <td>${escapeHtml(lastEv)}</td>
       <td>${lastCoachCell}</td>
-      <td>${last}</td>
       <td style="text-align:right"><button class="btn btn-sm${sendBtnExtra}" type="button"
         data-rr-coach-report="1"
         data-rr-coach-driver="${escapeHtml(r.d.id)}"
@@ -1034,7 +1086,16 @@ function _renderAttReportTbody() {
         data-rr-coach-late="${r.a.late}"
         title="${escapeHtml(sendBtnTitle)}">${escapeHtml(sendBtnLabel)}</button></td>
     </tr>`;
-  }).join("");
+  };
+
+  let html = "";
+  for (const lbl of groupOrder) {
+    const list = buckets.get(lbl) || [];
+    if (list.length === 0) continue;
+    html += `<tr><td colspan="7" class="att-group-head">${escapeHtml(groupLabels[lbl] || lbl)} <span class="count">· ${list.length}</span></td></tr>`;
+    html += list.map(renderRow).join("");
+  }
+  tbody.innerHTML = html;
 }
 
 // Severity → human label for the Last coaching column on the
@@ -7121,7 +7182,11 @@ async function openCoachingPrintView(driverId) {
   w.document.close();
 }
 
-async function openDriverDrawer(driverId) {
+async function openDriverDrawer(driverId, opts) {
+  // opts.tab — open the drawer with that tab pre-selected (e.g. the
+  // Attendance Report row click drops the operator straight into the
+  // driver's Attendance tab).
+  const initialTab = (opts && opts.tab) || "profile";
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
   drawer = document.createElement("div");
@@ -7179,6 +7244,7 @@ async function openDriverDrawer(driverId) {
         <button type="button" class="dd-tab active" data-rr-dd-tab="profile">Profile</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="license">License &amp; Certs</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
@@ -7191,7 +7257,7 @@ async function openDriverDrawer(driverId) {
     if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) drawer.remove();
   });
 
-  _ddTab = "profile";
+  _ddTab = initialTab;
   _ddPending = {};
   if (driverId) {
     await loadDriverDrawer(driverId);
@@ -7268,6 +7334,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
   if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
+  if (_ddTab === "attendance")   renderAttendanceTab(body, _ddDriver.driver);
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
@@ -7558,6 +7625,180 @@ async function renderLicenseTab(body, d) {
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Extra-Large vans. Smart Fill blocks XL routes unless this is checked.</div>
         </div>
       </div>
+    </div>`;
+}
+
+// ─── Driver drawer · Attendance tab ───────────────────────────────────
+//
+// Per-driver attendance report: where the driver currently stands
+// against the policy, recent stats, every counted event in the
+// window, every coaching they've received.  Lets the dispatcher get
+// the full story without leaving the drawer.
+async function renderAttendanceTab(body, d) {
+  if (!d || !d.id) {
+    body.innerHTML = `<div class="rr-empty-inline">Save the driver record first, then their attendance history will appear here.</div>`;
+    return;
+  }
+  body.innerHTML = `<div class="rr-loading">Loading</div>`;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+
+  const evalP = (typeof _evalPolicy === "function") ? _evalPolicy() : null;
+  const decay = evalP?.decay_days || 90;
+  const sinceDate = new Date(); sinceDate.setDate(sinceDate.getDate() - decay);
+  const sinceIso  = fmtIsoDate(sinceDate);
+  const todayIso  = fmtIsoDate(new Date());
+
+  const [shiftsRes, coachRes] = await Promise.all([
+    sb.from("shifts")
+      .select("id, date, status")
+      .eq("dsp_id", dspId)
+      .eq("driver_id", d.id)
+      .gte("date", sinceIso)
+      .lte("date", todayIso)
+      .order("date", { ascending: false }),
+    sb.from("coachings")
+      .select("id, severity, occurred_at, acknowledged_at, signed_at, delivery_required, summary, notes, triggering_shift_id")
+      .eq("dsp_id", dspId)
+      .eq("driver_id", d.id)
+      .eq("topic", "attendance")
+      .eq("driver_visible", true)
+      .gte("occurred_at", sinceDate.toISOString())
+      .is("archived_at", null)
+      .order("occurred_at", { ascending: false }),
+  ]);
+
+  const shifts    = shiftsRes?.data    || [];
+  const coachings = coachRes?.data     || [];
+
+  // Stats over the policy window.
+  const sched   = shifts.length;
+  const present = shifts.filter(s => s.status === "completed").length;
+  const late    = shifts.filter(s => s.status === "late").length;
+  const callout = shifts.filter(s => s.status === "called_off").length;
+  const noshow  = shifts.filter(s => s.status === "no_show").length;
+  const vto     = shifts.filter(s => s.status === "vto").length;
+  const attRate = sched > 0 ? Math.round(((present + late) / sched) * 100) : 0;
+
+  // Points & ladder rung from the policy blocks.
+  const ptsCallout = evalP?.events?.callout ? Number(evalP.events.callout.points) || 0 : 0;
+  const ptsNoshow  = evalP?.events?.no_show ? Number(evalP.events.no_show.points) || 0 : 0;
+  const ptsLate    = evalP?.events?.late    ? Number(evalP.events.late.points)    || 0 : 0;
+  const points = (callout * ptsCallout) + (noshow * ptsNoshow) + (late * ptsLate);
+
+  let standingLabel = "Clear";
+  let standingClass = "ok";
+  let nextRung = null;
+  let pointsToNext = 0;
+  if (evalP && evalP.enabled) {
+    const rung = (typeof _evalLadderRung === "function") ? _evalLadderRung(evalP, points) : null;
+    if (rung) {
+      standingLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[rung.severity]) || rung.severity;
+      standingClass = rung.severity === "verbal" ? "warn" : "bad";
+    }
+    // Forecast — find the next-higher unreached rung.
+    for (const r of (evalP.ladder || [])) {
+      if (r.threshold > points) { nextRung = r; pointsToNext = r.threshold - points; break; }
+    }
+  } else {
+    standingLabel = "Policy off";
+  }
+
+  // Build per-shift event rows so the timeline shows the coaching
+  // (if any) that each event triggered.
+  const coachByShift = new Map();
+  for (const c of coachings) {
+    if (c.triggering_shift_id && !coachByShift.has(c.triggering_shift_id)) coachByShift.set(c.triggering_shift_id, c);
+  }
+  const eventRows = shifts
+    .filter(s => ["called_off", "no_show", "late"].includes(s.status))
+    .map(s => {
+      const label  = s.status === "called_off" ? "Callout" : s.status === "no_show" ? "No-show" : "Late";
+      const color  = s.status === "called_off" ? "var(--amber)" : s.status === "no_show" ? "var(--red)" : "var(--text-muted)";
+      const points = s.status === "called_off" ? ptsCallout : s.status === "no_show" ? ptsNoshow : ptsLate;
+      const c = coachByShift.get(s.id);
+      const triggered = c
+        ? ` <span style="color:var(--text-subtle);font-size:var(--fs-xs)">→ triggered ${escapeHtml(_COACHING_SEV_LABEL?.[c.severity] || c.severity)}</span>`
+        : "";
+      return `
+        <div class="att-tl-row">
+          <div class="att-tl-date">${new Date(s.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+          <div class="att-tl-event"><span style="color:${color};font-weight:600">${escapeHtml(label)}</span>${triggered}</div>
+          <div class="att-tl-pts" style="color:var(--text-subtle);font-size:var(--fs-xs)">${points > 0 ? "+" + points + " pt" + (points === 1 ? "" : "s") : "—"}</div>
+        </div>`;
+    }).join("");
+
+  const coachRows = coachings.map(c => {
+    const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity;
+    const ack = c.acknowledged_at
+      ? `<span class="att-coach-chip done">✓ ${c.signed_at ? "Signed" : "Acknowledged"}</span>`
+      : (c.delivery_required && c.delivery_required !== "none"
+          ? `<span class="att-coach-chip pending">Awaiting ack</span>`
+          : `<span class="att-coach-chip">Sent</span>`);
+    return `
+      <div class="att-tl-row">
+        <div class="att-tl-date">${new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+        <div class="att-tl-event"><span style="font-weight:600">${escapeHtml(sevLabel)}</span>${c.summary ? ` <span style="color:var(--text-subtle)">· ${escapeHtml(c.summary)}</span>` : ""}</div>
+        <div class="att-tl-pts">${ack}</div>
+      </div>`;
+  }).join("");
+
+  const forecast = evalP && evalP.enabled && nextRung
+    ? `<div class="dd-callout warn" style="margin-top:8px">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+         <div><strong>${pointsToNext} more point${pointsToNext === 1 ? "" : "s"}</strong> until ${escapeHtml(_COACHING_SEV_LABEL?.[nextRung.severity] || nextRung.severity)} (${escapeHtml(String(nextRung.threshold))} pts).</div>
+       </div>`
+    : "";
+
+  body.innerHTML = `
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Current standing</div>
+          <div class="dd-section-sub">Last ${decay} days · per the active attendance policy</div>
+        </div>
+        <span class="status-pill status-pill-${standingClass === "warn" ? "warning" : standingClass === "bad" ? "danger" : "neutral"}">${escapeHtml(standingLabel)}</span>
+      </div>
+      <div class="att-stat-grid">
+        <div class="att-stat"><div class="att-stat-label">Points</div><div class="att-stat-value">${points}</div></div>
+        <div class="att-stat"><div class="att-stat-label">Attendance</div><div class="att-stat-value">${attRate}%</div></div>
+        <div class="att-stat"><div class="att-stat-label">Scheduled</div><div class="att-stat-value">${sched}</div></div>
+        <div class="att-stat"><div class="att-stat-label">Callouts</div><div class="att-stat-value">${callout}</div></div>
+        <div class="att-stat"><div class="att-stat-label">No-shows</div><div class="att-stat-value">${noshow}</div></div>
+        <div class="att-stat"><div class="att-stat-label">Late</div><div class="att-stat-value">${late}</div></div>
+        <div class="att-stat"><div class="att-stat-label">VTO</div><div class="att-stat-value">${vto}</div></div>
+      </div>
+      ${forecast}
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Attendance timeline</div>
+          <div class="dd-section-sub">Every counted event in the window.</div>
+        </div>
+      </div>
+      ${eventRows || '<div class="rr-empty-inline">No callouts, no-shows, or late arrivals in the last ' + decay + ' days.</div>'}
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Coachings</div>
+          <div class="dd-section-sub">Sent under the attendance policy.</div>
+        </div>
+        <button type="button" class="btn btn-sm" data-rr-coach-report="1"
+          data-rr-coach-driver="${escapeHtml(d.id)}"
+          data-rr-coach-driver-name="${escapeHtml(displayDriverName(d) || "")}"
+          data-rr-coach-severity="${escapeHtml((evalP?.ladder?.find(r => r.threshold > 0)?.severity) || "verbal")}"
+          data-rr-coach-summary="Attendance · ${callout} callout${callout === 1 ? "" : "s"}, ${noshow} no-show${noshow === 1 ? "" : "s"}, ${late} late"
+          data-rr-coach-points="${points}"
+          data-rr-coach-callouts="${callout}"
+          data-rr-coach-noshows="${noshow}"
+          data-rr-coach-late="${late}"
+          data-rr-coach-occ="${callout + noshow + late}">Send coaching</button>
+      </div>
+      ${coachRows || '<div class="rr-empty-inline">No coachings yet.</div>'}
     </div>`;
 }
 
@@ -8476,6 +8717,13 @@ document.addEventListener("click", async (e) => {
   if (coachRow && !e.target.closest("button, a[href], input, select, textarea, [data-rr-no-drawer]")) {
     const id = coachRow.getAttribute("data-rr-coach-feed-driver");
     if (id) { e.preventDefault(); await openCoachingDrawer(id); return; }
+  }
+  // Attendance Report row → open drawer on the Attendance tab so the
+  // operator drills into the per-driver report directly.
+  const attRow = e.target.closest("#att-report-body [data-rr-att-row]");
+  if (attRow && !e.target.closest("button, a[href], input, select, textarea, [data-rr-no-drawer]")) {
+    const id = attRow.getAttribute("data-rr-att-row");
+    if (id) { e.preventDefault(); await openDriverDrawer(id, { tab: "attendance" }); return; }
   }
   // Open drawer from any element marked with data-rr-driver-id (e.g. driver
   // names anywhere on the dashboard — scorecards, schedule chips, attendance

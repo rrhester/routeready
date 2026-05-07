@@ -5404,6 +5404,26 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .pol-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:var(--s-4);margin-bottom:var(--s-3)}
           .pol-section-title{font-size:var(--fs-md);font-weight:600;color:var(--text);margin:0 0 4px 0}
           .pol-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin:0 0 var(--s-3) 0;line-height:1.4}
+          /* Attendance · driver-drawer Attendance tab */
+          .att-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:10px}
+          .att-stat{background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+          .att-stat-label{font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase}
+          .att-stat-value{font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-top:2px}
+          .att-tl-row{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:var(--fs-sm)}
+          .att-tl-row:first-of-type{border-top:0}
+          .att-tl-date{color:var(--text-subtle);font-weight:600}
+          /* Attendance Report · overview redesign */
+          .att-snapshot{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+          .att-snapshot-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+          .att-snapshot-title{font-size:var(--fs-sm);color:var(--text-subtle);margin-right:4px}
+          .att-snapshot-pip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm)}
+          .att-snapshot-pip-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+          .att-filter-row{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+          .att-filter-chip{padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer}
+          .att-filter-chip.active{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+          .att-group-head{display:flex;align-items:center;gap:8px;padding:10px 0 6px;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase}
+          .att-group-head .count{color:var(--text-subtle);font-weight:500}
+
           /* Attendance policy editor — structured form */
           .rr-pol-row{display:flex;align-items:center;gap:8px;font-size:var(--fs-md);color:var(--text);padding:6px 0}
           .rr-pol-row input[type=number]{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-md);color:var(--text);width:80px}
@@ -5495,32 +5515,29 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                  by clicking one of the three KPI cards above. -->
             <div id="rr-att-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
-            <div class="toolbar">
-              <div class="toolbar-left">
-                <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Click a column to sort</span>
-              </div>
-              <div class="toolbar-right">
+            <!-- Policy snapshot banner — populated by loadAttendanceLive -->
+            <div id="rr-att-snapshot" class="att-snapshot" style="display:none"></div>
+
+            <div class="att-filter-row" id="rr-att-filters" role="tablist">
+              <button type="button" class="att-filter-chip active" data-rr-att-filter="all">All drivers</button>
+              <button type="button" class="att-filter-chip" data-rr-att-filter="atrisk">At risk only</button>
+              <button type="button" class="att-filter-chip" data-rr-att-filter="recent">Recently coached</button>
+              <button type="button" class="att-filter-chip" data-rr-att-filter="uncoached">Not coached</button>
+              <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px">
                 <button class="btn btn-sm btn-ghost btn-icon" onclick="attExportCsv()" title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
-              </div>
+              </span>
             </div>
 
             <div class="table-wrap">
-              <table class="table table-compact table-zebra" id="att-report-table">
+              <table class="table table-compact" id="att-report-table">
                 <thead id="att-report-thead">
                   <tr>
                     <th data-rr-att-sort="driver"     style="cursor:pointer;user-select:none">Driver</th>
                     <th data-rr-att-sort="station"    style="cursor:pointer;user-select:none">Station</th>
-                    <th data-rr-att-sort="scheduled"  style="cursor:pointer;user-select:none;text-align:right">Scheduled</th>
-                    <th data-rr-att-sort="present"    style="cursor:pointer;user-select:none;text-align:right">Present</th>
-                    <th data-rr-att-sort="late"       style="cursor:pointer;user-select:none;text-align:right">Late</th>
-                    <th data-rr-att-sort="callouts"   style="cursor:pointer;user-select:none;text-align:right">Callouts</th>
-                    <th data-rr-att-sort="noshows"    style="cursor:pointer;user-select:none;text-align:right">No-shows</th>
-                    <th data-rr-att-sort="vto"        style="cursor:pointer;user-select:none;text-align:right" title="Voluntary Time Off — manager-offered opt-out, not counted against attendance">VTO</th>
+                    <th data-rr-att-sort="status"     style="cursor:pointer;user-select:none">Standing</th>
                     <th data-rr-att-sort="points"     style="cursor:pointer;user-select:none;text-align:right">Points</th>
-                    <th data-rr-att-sort="occ"        style="cursor:pointer;user-select:none;text-align:right">Occ.</th>
-                    <th data-rr-att-sort="status"     style="cursor:pointer;user-select:none" title="Where this driver currently sits on the progressive ladder based on points">Coaching</th>
-                    <th data-rr-att-sort="lastcoach"  style="cursor:pointer;user-select:none" title="Most recent coaching actually sent to this driver (vs. the ladder forecast on the left)">Last coaching</th>
-                    <th data-rr-att-sort="last"       style="cursor:pointer;user-select:none">Last incident</th>
+                    <th data-rr-att-sort="last"       style="cursor:pointer;user-select:none">Last event</th>
+                    <th data-rr-att-sort="lastcoach"  style="cursor:pointer;user-select:none">Last coaching</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -5529,7 +5546,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             </div>
 
             <div style="margin-top:var(--s-3);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5">
-              <strong style="color:var(--text)">How this is computed:</strong> events come from Today's check-in (Present / Late / Call-out / No-show buttons). Points and occurrences apply the Policy builder settings, with decay and exempt categories. Click a row to see the full timeline.
+              Click any row to open the driver's full attendance report.
             </div>
 
           </div><!-- /att-pane-report -->
@@ -15804,7 +15821,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507bc"></script>
+<script type="module" src="./live.js?v=20260507bd"></script>
 
 </body>
 </html>
