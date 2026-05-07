@@ -216,6 +216,8 @@ const routes = {
   "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
+  "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
+  "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
@@ -574,6 +576,36 @@ function renderTasksHub() {
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
     });
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+  }).catch(() => {});
+
+  // Coaching feed — single card that opens the unified /tasks/coaching
+  // list.  Any coaching with delivery_required = ack/sign that's
+  // unacknowledged counts toward the "X to acknowledge" badge.
+  sb.rpc("driver_list_coachings", { p_token: session.token }).then(({ data, error }) => {
+    if (error) return;
+    const list = Array.isArray(data) ? data : [];
+    if (list.length === 0) return;
+    const pending = list.filter(c =>
+      c.delivery_required && c.delivery_required !== "none" && !c.acknowledged_at
+    ).length;
+    const slot = document.getElementById("rr-tasks-onboarding-slot");
+    if (!slot) return;
+    const sub = pending > 0
+      ? `${pending} to acknowledge`
+      : `${list.length} note${list.length === 1 ? "" : "s"} from your dispatcher`;
+    slot.insertAdjacentHTML("beforeend", taskCardHtml({
+      route: "/tasks/coaching",
+      title: "Coaching",
+      sub,
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    }));
+    slot.querySelectorAll("[data-task-route]").forEach(el => {
+      // Only attach to ones that don't already have a handler — re-runs
+      // would otherwise stack listeners.
+      if (el.dataset.rrBound) return;
+      el.dataset.rrBound = "1";
+      el.addEventListener("click", () => navigate(el.dataset.taskRoute));
+    });
   }).catch(() => {});
 
   // Published forms — append one card per form when the RPC returns.
@@ -1723,6 +1755,215 @@ function _collectFormAnswers(fields) {
   // returning.  Fast path uses cached position; slow path returns
   // null and the dispatcher sees an empty GPS answer.
   return out;
+}
+
+
+// ── Coaching feed ───────────────────────────────────────────────────
+//
+// Single unified feed of every coaching the dispatcher has sent to
+// this driver, regardless of category (attendance / safety / quality
+// / other).  Tap a row to open the detail screen, where the driver
+// completes the required action (acknowledgment, signature, or
+// both).  Once cleared, the row stays visible (so the driver can
+// scroll back through their history) but is marked Acknowledged.
+const _COACHING_LABELS = {
+  topic: { attendance: "Attendance", safety: "Safety", quality: "Quality", performance: "Performance",
+           behavior: "Behavior", recognition: "Recognition", scorecard: "Scorecard",
+           conduct: "Conduct", theft: "Theft", other: "Other" },
+  severity: { note: "Note", info: "Note", verbal: "Verbal", concern: "Verbal",
+              written: "Written", warning: "Written", final: "Final", termination: "Termination" },
+};
+
+async function renderCoachingFeed() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data, error } = await sb.rpc("driver_list_coachings", { p_token: session.token });
+  if (error) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load coaching.<br><small>${escapeHtml(error.message)}</small></div>`;
+    return;
+  }
+  const list = Array.isArray(data) ? data : [];
+  if (list.length === 0) {
+    main.innerHTML = `<div class="empty-state">No coaching from your dispatcher yet.</div>`;
+    return;
+  }
+
+  // Cache the list so the detail screen has it without re-fetching.
+  window._rrCoachings = list;
+
+  main.innerHTML = `<div class="coaching-feed">${list.map(_coachingRowHtml).join("")}</div>`;
+  main.querySelectorAll("[data-rr-coaching]").forEach(el => {
+    el.addEventListener("click", () => navigate(`/tasks/coaching/one?id=${encodeURIComponent(el.dataset.rrCoaching)}`));
+  });
+}
+
+function _coachingRowHtml(c) {
+  const topic    = _COACHING_LABELS.topic[c.topic] || c.topic;
+  const severity = _COACHING_LABELS.severity[c.severity] || c.severity;
+  const date     = c.occurred_at ? new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  const needsAction = c.delivery_required && c.delivery_required !== "none" && !c.acknowledged_at;
+  const cls = `coaching-row${needsAction ? " coaching-row-pending" : ""}`;
+  const status = needsAction
+    ? `<span class="coaching-status pending">Action needed</span>`
+    : (c.acknowledged_at
+        ? `<span class="coaching-status done">Acknowledged</span>`
+        : `<span class="coaching-status">Note</span>`);
+  return `
+    <div class="${cls}" data-rr-coaching="${escapeHtml(c.id)}">
+      <div class="coaching-row-head">
+        <span class="coaching-badge cat-${escapeHtml(c.topic || "other")}">${escapeHtml(topic)}</span>
+        <span class="coaching-badge sev-${escapeHtml(c.severity || "note")}">${escapeHtml(severity)}</span>
+        <span class="coaching-row-date">${escapeHtml(date)}</span>
+      </div>
+      <div class="coaching-row-summary">${escapeHtml(c.summary || c.notes || "Coaching from your dispatcher")}</div>
+      <div class="coaching-row-foot">
+        <span class="coaching-row-by">${escapeHtml(c.coached_by_name || "Dispatcher")}</span>
+        ${status}
+      </div>
+    </div>`;
+}
+
+async function renderCoachingDetail() {
+  const main = document.getElementById("main");
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const id = routeQuery().get("id");
+  if (!id) { navigate("/tasks/coaching"); return; }
+
+  // Try the cached list first (fast back-and-forth from feed → detail).
+  let coaching = (window._rrCoachings || []).find(c => c.id === id);
+  if (!coaching) {
+    main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+    const { data, error } = await sb.rpc("driver_list_coachings", { p_token: session.token });
+    if (error) { main.innerHTML = `<div class="empty-state" style="color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
+    coaching = (data || []).find(c => c.id === id);
+    window._rrCoachings = data || [];
+  }
+  if (!coaching) { navigate("/tasks/coaching"); return; }
+
+  const topic    = _COACHING_LABELS.topic[coaching.topic] || coaching.topic;
+  const severity = _COACHING_LABELS.severity[coaching.severity] || coaching.severity;
+  const date     = coaching.occurred_at ? new Date(coaching.occurred_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+
+  const needsAck  = coaching.delivery_required === "ack" || coaching.delivery_required === "ack_and_sign";
+  const needsSign = coaching.delivery_required === "sign" || coaching.delivery_required === "ack_and_sign";
+  const cleared   = !!coaching.acknowledged_at;
+
+  let footHtml = "";
+  if (cleared) {
+    const when = new Date(coaching.acknowledged_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    footHtml = `<div class="coaching-cleared">Acknowledged ${escapeHtml(when)}</div>`;
+  } else if (coaching.delivery_required === "none") {
+    footHtml = `<div class="coaching-cleared">No action required.</div>`;
+  } else {
+    footHtml = `
+      ${needsSign ? `
+        <div class="coaching-sign-section">
+          <div class="coaching-sign-label">Sign with your finger or stylus</div>
+          <canvas id="rr-coach-sigpad" class="coaching-sigpad" width="600" height="180"></canvas>
+          <button type="button" class="btn btn-ghost btn-sm" id="rr-coach-sig-clear" style="margin-top:6px">Clear</button>
+        </div>` : ""}
+      <button type="button" class="btn btn-primary btn-block" id="rr-coach-ack" style="margin-top:14px">
+        ${needsSign && needsAck ? "Sign &amp; Acknowledge" : (needsSign ? "Sign" : "I understand")}
+      </button>`;
+  }
+
+  main.innerHTML = `
+    <div class="coaching-detail">
+      <div class="coaching-detail-head">
+        <span class="coaching-badge cat-${escapeHtml(coaching.topic || "other")}">${escapeHtml(topic)}</span>
+        <span class="coaching-badge sev-${escapeHtml(coaching.severity || "note")}">${escapeHtml(severity)}</span>
+      </div>
+      <div class="coaching-detail-meta">${escapeHtml(date)} · from ${escapeHtml(coaching.coached_by_name || "Dispatcher")}</div>
+      ${coaching.summary ? `<div class="coaching-detail-summary">${escapeHtml(coaching.summary)}</div>` : ""}
+      ${coaching.notes   ? `<div class="coaching-detail-notes">${escapeHtml(coaching.notes)}</div>` : ""}
+      <div class="coaching-detail-foot">${footHtml}</div>
+    </div>`;
+
+  if (needsSign && !cleared) {
+    _initSignaturePad("rr-coach-sigpad", "rr-coach-sig-clear");
+  }
+  const ackBtn = document.getElementById("rr-coach-ack");
+  if (ackBtn) {
+    ackBtn.addEventListener("click", () => _submitCoachingAck(coaching, needsSign));
+  }
+}
+
+async function _submitCoachingAck(coaching, needsSign) {
+  const session = readSession();
+  const ackBtn = document.getElementById("rr-coach-ack");
+  let signature = null;
+  if (needsSign) {
+    const canvas = document.getElementById("rr-coach-sigpad");
+    if (!canvas || !canvas._rrHasInk) { toast("Please sign first", "warn"); return; }
+    signature = canvas.toDataURL("image/png");
+  }
+  if (ackBtn) { ackBtn.disabled = true; ackBtn.textContent = "Saving…"; }
+  const { error } = await sb.rpc("driver_ack_coaching", {
+    p_token: session.token,
+    p_coaching_id: coaching.id,
+    p_signature_b64: signature,
+  });
+  if (error) {
+    if (ackBtn) { ackBtn.disabled = false; ackBtn.textContent = needsSign ? "Sign & Acknowledge" : "I understand"; }
+    toast("Save failed: " + error.message, "warn");
+    return;
+  }
+  // Drop the cached list so the next feed load is fresh.
+  window._rrCoachings = null;
+  toast("Acknowledged", "ok");
+  navigate("/tasks/coaching");
+}
+
+// Lightweight canvas signature pad.  Tracks both pointer and touch
+// events for cross-platform support; sets canvas._rrHasInk = true
+// when the user has drawn at least one stroke so the submit handler
+// can validate.
+function _initSignaturePad(canvasId, clearBtnId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  // High-DPI: scale the backing buffer to match the visual size.
+  const ratio = Math.max(1, window.devicePixelRatio || 1);
+  const cssW = canvas.clientWidth || canvas.width;
+  const cssH = canvas.clientHeight || canvas.height;
+  canvas.width = cssW * ratio; canvas.height = cssH * ratio;
+  ctx.scale(ratio, ratio);
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#0B1220";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, cssW, cssH);
+  canvas._rrHasInk = false;
+
+  let drawing = false;
+  const pos = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  };
+  const start = (e) => { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); };
+  const move  = (e) => { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); canvas._rrHasInk = true; e.preventDefault(); };
+  const end   = (e) => { drawing = false; e.preventDefault?.(); };
+
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", move);
+  canvas.addEventListener("mouseup",   end);
+  canvas.addEventListener("mouseleave", end);
+  canvas.addEventListener("touchstart", start, { passive: false });
+  canvas.addEventListener("touchmove",  move,  { passive: false });
+  canvas.addEventListener("touchend",   end);
+
+  const clearBtn = document.getElementById(clearBtnId);
+  if (clearBtn) clearBtn.addEventListener("click", () => {
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, cssW, cssH);
+    canvas._rrHasInk = false;
+  });
 }
 
 // ── Check-in / check-out / report missed day on the Profile page ─────
