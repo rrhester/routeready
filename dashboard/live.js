@@ -10543,37 +10543,46 @@ document.addEventListener("click", async (e) => {
       if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; }
       return;
     }
-    if (status) status.textContent = "Saved · syncing current week…";
+    if (status) status.textContent = "Saved · syncing first 4 weeks…";
 
-    // Regenerate the week the operator is currently viewing so the
-    // change is visible immediately.  Future weeks pull the new
-    // default automatically when the operator navigates to them.
-    const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: _schedStart });
-    if (regenErr) {
-      if (status) { status.style.color = "var(--red)"; status.textContent = "Saved · sync failed: " + regenErr.message; }
-      toast("Settings saved · sync failed: " + regenErr.message, "warn");
-      return;
+    // Regenerate the planning horizon (current week + next 3) so the
+    // operator sees the change reflected across what they actually
+    // staff against. Beyond week 4, the new DSP-default settings
+    // pick up automatically the moment the operator navigates there.
+    const weekStarts = [];
+    const startDate = new Date(_schedStart + "T12:00:00");
+    for (let i = 0; i < 4; i++) {
+      const w = new Date(startDate); w.setDate(w.getDate() + i * 7);
+      weekStarts.push(fmtIsoDate(w));
     }
 
     let cushionDelta = 0;
-    try {
-      const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: _schedStart });
-      if (cushionErr) {
-        console.warn("apply_cushion_to_week:", cushionErr.message);
-      } else {
-        cushionDelta = data || 0;
+    let regenFailed = null;
+    for (const ws of weekStarts) {
+      const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
+      if (regenErr) { regenFailed = `${ws}: ${regenErr.message}`; break; }
+      try {
+        const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: ws });
+        if (cushionErr) console.warn(`apply_cushion_to_week (${ws}):`, cushionErr.message);
+        else cushionDelta += (data || 0);
+      } catch (e) {
+        console.warn(`apply_cushion_to_week (${ws}) threw:`, e);
       }
-    } catch (e) {
-      console.warn("apply_cushion_to_week threw:", e);
+    }
+
+    if (regenFailed) {
+      if (status) { status.style.color = "var(--red)"; status.textContent = "Saved · sync failed: " + regenFailed; }
+      toast("Settings saved · sync failed: " + regenFailed, "warn");
+      return;
     }
 
     if (status) {
       status.style.color = "var(--green)";
       const cushionNote = cushionDelta !== 0 ? ` · cushion ${cushionDelta > 0 ? "+" : ""}${cushionDelta}` : "";
-      status.textContent = `Saved · applies to all weeks ✓${cushionNote}`;
+      status.textContent = `Saved · applied to first 4 weeks ✓${cushionNote}`;
     }
     setTimeout(() => { if (status) status.textContent = ""; }, 3000);
-    toast("Scheduling settings saved · applies to all weeks", "success");
+    toast("Scheduling settings saved · applied to first 4 weeks", "success");
 
     // Refresh schedule view if active.
     if (typeof renderScheduleWeek === "function") {
@@ -11606,22 +11615,27 @@ async function renderScheduleWeek() {
   // Rule violations across assigned shifts in the week (now includes WOC).
   const violations = await _computeWeekViolations(grid.shifts || [], drivers, timeOff, _schedStart, fmtIsoDate(weekEnd));
 
+  // Render the Schedule KPIs using the same .stat-mini pattern that
+  // Drivers Roster + the rest of the dashboard uses, so the cards
+  // read at the same scale as the other KPI strips operators see.
   let kpis = sub.querySelector("#rr-sched-kpis");
   if (!kpis) {
     kpis = document.createElement("div");
     kpis.id = "rr-sched-kpis";
-    kpis.style.cssText = "display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:var(--s-3)";
+    kpis.className = "driver-stat-row";
+    kpis.style.cssText = "grid-template-columns:repeat(5,minmax(0,1fr))";
     const toolbar = sub.querySelector(".sched-toolbar");
     if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
   } else {
-    kpis.style.gridTemplateColumns = "repeat(5,minmax(0,1fr))";
+    kpis.className = "driver-stat-row";
+    kpis.style.cssText = "grid-template-columns:repeat(5,minmax(0,1fr))";
   }
   const kpiCard = (label, value, sublabel, tone) => {
-    const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "var(--text)";
-    return `<div class="card card-compact" style="border-radius:var(--r-md);padding:10px 12px">
-      <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">${label}</div>
-      <div style="font-size:18px;font-weight:700;color:${c};letter-spacing:-.02em;margin-top:2px;line-height:1.2">${value}</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${sublabel}</div>
+    const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "";
+    return `<div class="stat-mini">
+      <div class="stat-mini-label">${label}</div>
+      <div class="stat-mini-value"${c ? ` style="color:${c}"` : ""}>${value}</div>
+      <div class="stat-mini-sub">${sublabel}</div>
     </div>`;
   };
   const coverageTone = pct >= 100 ? "ok" : pct >= 90 ? "warn" : "bad";
