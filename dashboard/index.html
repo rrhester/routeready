@@ -3201,24 +3201,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .cl-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 
-/* "Pin to dashboard" overlay button — appears on hover, on form/checklist source cards */
-.pin-to-dash{
-  position:absolute;top:10px;right:10px;
-  width:30px;height:30px;
-  display:inline-flex;align-items:center;justify-content:center;
-  background:var(--surface);border:1px solid var(--border);border-radius:8px;
-  color:var(--text-subtle);cursor:pointer;
-  opacity:0;transform:translateY(-2px);
-  transition:opacity .15s, transform .15s, color .12s, border-color .12s;
-  z-index:2;
-}
-.cl-card:hover .pin-to-dash, .form-card:hover .pin-to-dash,
-.cl-card:focus-within .pin-to-dash, .form-card:focus-within .pin-to-dash,
-.pin-to-dash.is-pinned{opacity:1;transform:translateY(0)}
-.pin-to-dash:hover{color:var(--accent);border-color:var(--accent)}
-.pin-to-dash svg{width:14px;height:14px;stroke-width:2}
-.pin-to-dash.is-pinned{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
-.pin-to-dash.is-pinned svg{fill:var(--accent)}
 .cl-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .cl-card-icon{
   width:36px;height:36px;border-radius:var(--r-md);
@@ -4508,9 +4490,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           <button class="subnav-item active" data-pipesub="funnel" onclick="pipeSub('funnel')">Funnel</button>
           <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
           <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
-          <button class="subnav-item" data-pipesub="screening" onclick="pipeSub('screening')">Screening</button>
-          <button class="subnav-item" data-pipesub="messages" onclick="pipeSub('messages')">Messages</button>
-          <button class="subnav-item" data-pipesub="referrals" onclick="pipeSub('referrals')">Referrals</button>
         </div>
 
         <!-- FUNNEL SUB-VIEW -->
@@ -4569,32 +4548,32 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         </div>
 
         <div class="hp-stats-banner">
-          <div class="hp-stat" data-rr-pinnable data-rr-pin-kind="kpi" data-rr-pin-ref="contacted_pct" data-rr-pin-label="Contacted %">
+          <div class="hp-stat">
             <div class="hp-stat-label">Contacted</div>
             <div class="hp-stat-value"><span id="hp-contacted-pct">0</span>%</div>
             <div class="hp-stat-trend">Sent a screening invite</div>
           </div>
-          <div class="hp-stat" data-rr-pinnable data-rr-pin-kind="kpi" data-rr-pin-ref="passed_pct" data-rr-pin-label="Screening passed %">
+          <div class="hp-stat">
             <div class="hp-stat-label">Screening passed</div>
             <div class="hp-stat-value"><span id="hp-passed-pct">0</span>%</div>
             <div class="hp-stat-trend">Cleared screening + still active</div>
           </div>
-          <div class="hp-stat" data-rr-pinnable data-rr-pin-kind="kpi" data-rr-pin-ref="booked_rate" data-rr-pin-label="Booked rate">
+          <div class="hp-stat">
             <div class="hp-stat-label">Booked rate</div>
             <div class="hp-stat-value"><span id="hp-booked-pct">0</span>%</div>
             <div class="hp-stat-trend" id="hp-booked-sub">Of those sent a booking link</div>
           </div>
-          <div class="hp-stat" data-rr-pinnable data-rr-pin-kind="kpi" data-rr-pin-ref="show_rate" data-rr-pin-label="Show rate">
+          <div class="hp-stat">
             <div class="hp-stat-label">Show rate</div>
             <div class="hp-stat-value"><span id="hp-show-rate">75</span>%</div>
             <div class="hp-stat-trend">Of those who booked</div>
           </div>
-          <div class="hp-stat" data-rr-pinnable data-rr-pin-kind="kpi" data-rr-pin-ref="hire_rate" data-rr-pin-label="Hire rate">
+          <div class="hp-stat">
             <div class="hp-stat-label">Hire rate</div>
             <div class="hp-stat-value"><span id="hp-hire-rate">75</span>%</div>
             <div class="hp-stat-trend">Of candidates who showed</div>
           </div>
-          <div class="hp-stat" data-rr-pinnable data-rr-pin-kind="kpi" data-rr-pin-ref="e2e_pct" data-rr-pin-label="End-to-end conversion">
+          <div class="hp-stat">
             <div class="hp-stat-label">End-to-end</div>
             <div class="hp-stat-value"><span id="hp-e2e">0</span>%</div>
             <div class="hp-stat-trend" id="hp-e2e-sub">Hired ÷ total applicants</div>
@@ -5206,190 +5185,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           </div>
         </div><!-- /pipe-sub-calendar -->
 
-
-        <!-- SCREENING QUESTIONS SUB-VIEW -->
-        <div class="pipe-subview" id="pipe-sub-screening" style="display:none">
-          <div style="margin-bottom:var(--s-3)">
-            <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Screening questions</h3>
-            <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)" id="rr-screening-sub">The questions an applicant answers before booking.</p>
-          </div>
-          <div class="cal-edit-card" style="padding:14px 18px">
-            <div data-rr-questions></div>
-            <div data-rr-questions-footer style="margin-top:14px">
-              <button class="btn" data-rr-add-question>+ Add question</button>
-            </div>
-          </div>
-
-          <div style="margin-top:var(--s-5);margin-bottom:var(--s-3)">
-            <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Video screening</h3>
-            <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)">Optional 60-second intro video the applicant records after passing the question screen.</p>
-          </div>
-          <div class="cal-edit-card">
-            <div class="cal-edit-section">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-                <div>
-                  <div class="cal-edit-label" style="margin-bottom:0">Enable video screening</div>
-                  <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">When on, the screening page also asks the applicant to record a short intro.</div>
-                </div>
-                <button class="ref-toggle" id="rr-video-enabled-toggle" data-rr-video-toggle></button>
-              </div>
-            </div>
-            <div class="cal-edit-section">
-              <div class="cal-edit-label">Video prompt shown to the applicant</div>
-              <textarea id="rr-video-prompt" class="cal-edit-input" style="min-height:64px;font-family:inherit" placeholder="In 60 seconds, tell us why you'd be a great fit for our team."></textarea>
-            </div>
-            <div class="cal-edit-section">
-              <div class="cal-edit-label">Maximum recording length (seconds)</div>
-              <input id="rr-video-max-seconds" type="number" min="15" max="180" step="15" class="cal-edit-input" style="max-width:120px" value="60" />
-            </div>
-            <div class="cal-edit-foot">
-              <div class="cal-edit-status" id="rr-video-status"></div>
-            </div>
-          </div>
-        </div><!-- /pipe-sub-screening -->
-
-
-        <!-- MESSAGES SUB-VIEW -->
-        <div class="pipe-subview" id="pipe-sub-messages" style="display:none">
-          <div style="margin-bottom:var(--s-3)">
-            <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Hiring messages</h3>
-            <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)">Customize the SMS and email applicants and drivers receive at every step. Tokens like <code>{{first_name}}</code> and <code>{{link}}</code> are filled in automatically. Paste links right into the body.</p>
-          </div>
-          <style>
-            .msg-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-            .msg-row{display:grid;grid-template-columns:200px 64px 1fr 86px;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--border)}
-            .msg-row:first-of-type{border-top:0}
-            .msg-row-label{font-size:var(--fs-md);font-weight:600}
-            .msg-row-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-            .msg-channel-pill{font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:5px;letter-spacing:.04em;text-transform:uppercase;text-align:center}
-            .msg-channel-pill.sms{background:var(--accent-soft);color:var(--accent-text)}
-            .msg-channel-pill.email{background:rgba(124,58,237,.14);color:#7C3AED}
-            .msg-body-preview{font-size:var(--fs-sm);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          </style>
-          <div class="msg-card" id="rr-messages-list">
-            <div class="rr-loading">Loading templates</div>
-          </div>
-        </div><!-- /pipe-sub-messages -->
-
-
-        <!-- REFERRALS SUB-VIEW -->
-        <!-- REFERRALS SUB-VIEW -->
-        <div class="pipe-subview" id="pipe-sub-referrals" style="display:none">
-
-          <!-- KPI strip -->
-          <div class="pipeline-kpis">
-            <div class="pipeline-kpi">
-              <div class="pipeline-kpi-label">Active referrals</div>
-              <div class="pipeline-kpi-value"><span id="ref-active">0</span><span class="frac"> in flight</span></div>
-              <div class="pipeline-kpi-trend" id="ref-active-sub">applicants in screening + booking</div>
-            </div>
-            <div class="pipeline-kpi">
-              <div class="pipeline-kpi-label">Referral hires</div>
-              <div class="pipeline-kpi-value"><span id="ref-hired">0</span><span class="frac"> all-time</span></div>
-              <div class="pipeline-kpi-trend" id="ref-hired-sub">since the program launched</div>
-            </div>
-            <div class="pipeline-kpi">
-              <div class="pipeline-kpi-label">Payout per hire</div>
-              <div class="pipeline-kpi-value">$<span id="ref-payout">0</span></div>
-              <div class="pipeline-kpi-trend">Edit in the settings card →</div>
-            </div>
-            <div class="pipeline-kpi">
-              <div class="pipeline-kpi-label">Auto-invite</div>
-              <div class="pipeline-kpi-value" id="ref-auto-status">Off</div>
-              <div class="pipeline-kpi-trend" id="ref-auto-sub">New hires don't get a referral SMS automatically.</div>
-            </div>
-          </div>
-
-          <style>
-            .ref-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin-top:var(--s-4)}
-            @media (max-width:980px){.ref-grid{grid-template-columns:1fr}}
-            .ref-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
-            .ref-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
-            .ref-card-title{font-size:var(--fs-base);font-weight:600}
-            .ref-card-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-            .ref-leader-row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border)}
-            .ref-leader-row:first-of-type{border-top:0}
-            .ref-leader-rank{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700}
-            .ref-leader-name{font-size:var(--fs-md);font-weight:600}
-            .ref-leader-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
-            .ref-leader-count{font-size:var(--fs-base);font-weight:700;color:var(--text)}
-            .ref-leader-count .lbl{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-left:4px;letter-spacing:.04em;text-transform:uppercase}
-            .ref-set-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}
-            .ref-set-row:first-of-type{border-top:0}
-            .ref-set-label{font-size:var(--fs-md);font-weight:500}
-            .ref-set-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-            .ref-set-input{background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font:inherit;font-size:var(--fs-md);color:var(--text);width:90px;text-align:right}
-            .ref-set-input:focus{outline:none;border-color:var(--accent)}
-            .ref-toggle{position:relative;width:36px;height:20px;background:var(--border);border-radius:10px;cursor:pointer;transition:background .15s;border:0;padding:0}
-            .ref-toggle.on{background:var(--accent)}
-            .ref-toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left .15s}
-            .ref-toggle.on::after{left:18px}
-            .ref-action-btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer}
-            .ref-action-btn[disabled]{opacity:.5;cursor:not-allowed}
-            .ref-action-btn.ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
-          </style>
-
-          <div class="ref-grid">
-            <!-- Leaderboard -->
-            <div class="ref-card">
-              <div class="ref-card-head">
-                <div>
-                  <div class="ref-card-title">Top referring drivers</div>
-                  <div class="ref-card-sub">All-time hires attributed to each driver.</div>
-                </div>
-                <button class="ref-action-btn ghost" data-rr-send-campaign>Send to all drivers</button>
-              </div>
-              <div id="ref-leaderboard">
-                <div class="rr-loading">Loading</div>
-              </div>
-            </div>
-
-            <!-- Settings -->
-            <div class="ref-card">
-              <div class="ref-card-head">
-                <div>
-                  <div class="ref-card-title">Program settings</div>
-                  <div class="ref-card-sub">Saved instantly. Affects future hires only.</div>
-                </div>
-              </div>
-              <div class="ref-set-row">
-                <div>
-                  <div class="ref-set-label">Auto-invite new hires</div>
-                  <div class="ref-set-help">Send each new driver their referral link some weeks after their hire date.</div>
-                </div>
-                <button class="ref-toggle" id="ref-toggle-enabled" data-rr-ref-enabled></button>
-              </div>
-              <div class="ref-set-row">
-                <div>
-                  <div class="ref-set-label">Send referral link how many weeks after hire?</div>
-                  <div class="ref-set-help">Drivers who've been with you a while are more likely to refer good fits.</div>
-                </div>
-                <input type="number" min="0" max="52" class="ref-set-input" id="ref-weeks" value="4" />
-              </div>
-              <div class="ref-set-row">
-                <div>
-                  <div class="ref-set-label">Payout per successful referral</div>
-                  <div class="ref-set-help">In US dollars. Set 0 to track referrals without paying out.</div>
-                </div>
-                <input type="number" min="0" step="25" class="ref-set-input" id="ref-payout-input" value="0" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Public link preview / copy -->
-          <div class="ref-card" style="margin-top:var(--s-4)">
-            <div class="ref-card-head">
-              <div>
-                <div class="ref-card-title">Your master referral link</div>
-                <div class="ref-card-sub">Use as a fallback when a driver hasn't received their personal link yet. Driver-attributed links are unique per driver.</div>
-              </div>
-              <button class="ref-action-btn" data-rr-copy-master-ref>Copy link</button>
-            </div>
-            <div id="ref-master-link" style="font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-sm);color:var(--text-muted);background:var(--canvas);border:1px dashed var(--border);border-radius:6px;padding:10px 12px">…</div>
-          </div>
-
-        </div><!-- /pipe-sub-referrals -->
-
       </div>
     </div>
 
@@ -5964,7 +5759,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
             <button class="settings-nav-item" data-set="integrations" onclick="setSettingsSection(this)">Integrations</button>
             <button class="settings-nav-item" data-set="hiring" onclick="setSettingsSection(this)">Hiring criteria</button>
-            <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Referral program</button>
+            <button class="settings-nav-item" data-set="screening-questions" onclick="setSettingsSection(this)">Screening questions</button>
+            <button class="settings-nav-item" data-set="hiring-messages" onclick="setSettingsSection(this)">Hiring messages</button>
+            <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="attendance" onclick="setSettingsSection(this)">Attendance policy</button>
@@ -6266,12 +6063,192 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             </div>
 
             <!-- SCREENING QUESTIONS SECTION -->
+            <div class="settings-section hidden" data-set="screening-questions">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Screening questions</h2>
+                <p class="settings-section-sub">The questions an applicant answers before booking, plus an optional 60-second intro-video step.</p>
+              </div>
+
+              <div style="margin-bottom:var(--s-3)">
+                <h3 style="margin:0;font-size:var(--fs-md);font-weight:600">Screening questions</h3>
+                <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)" id="rr-screening-sub">The questions an applicant answers before booking.</p>
+              </div>
+              <div class="cal-edit-card" style="padding:14px 18px">
+                <div data-rr-questions></div>
+                <div data-rr-questions-footer style="margin-top:14px">
+                  <button class="btn" data-rr-add-question>+ Add question</button>
+                </div>
+              </div>
+
+              <div style="margin-top:var(--s-5);margin-bottom:var(--s-3)">
+                <h3 style="margin:0;font-size:var(--fs-md);font-weight:600">Video screening</h3>
+                <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)">Optional 60-second intro video the applicant records after passing the question screen.</p>
+              </div>
+              <div class="cal-edit-card">
+                <div class="cal-edit-section">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                    <div>
+                      <div class="cal-edit-label" style="margin-bottom:0">Enable video screening</div>
+                      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">When on, the screening page also asks the applicant to record a short intro.</div>
+                    </div>
+                    <button class="ref-toggle" id="rr-video-enabled-toggle" data-rr-video-toggle></button>
+                  </div>
+                </div>
+                <div class="cal-edit-section">
+                  <div class="cal-edit-label">Video prompt shown to the applicant</div>
+                  <textarea id="rr-video-prompt" class="cal-edit-input" style="min-height:64px;font-family:inherit" placeholder="In 60 seconds, tell us why you'd be a great fit for our team."></textarea>
+                </div>
+                <div class="cal-edit-section">
+                  <div class="cal-edit-label">Maximum recording length (seconds)</div>
+                  <input id="rr-video-max-seconds" type="number" min="15" max="180" step="15" class="cal-edit-input" style="max-width:120px" value="60" />
+                </div>
+                <div class="cal-edit-foot">
+                  <div class="cal-edit-status" id="rr-video-status"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- HIRING MESSAGES SECTION -->
+            <div class="settings-section hidden" data-set="hiring-messages">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Hiring messages</h2>
+                <p class="settings-section-sub">Customize the SMS and email applicants and drivers receive at every step. Tokens like <code>{{first_name}}</code> and <code>{{link}}</code> are filled in automatically. Paste links right into the body.</p>
+              </div>
+              <style>
+                .msg-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+                .msg-row{display:grid;grid-template-columns:200px 64px 1fr 86px;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--border)}
+                .msg-row:first-of-type{border-top:0}
+                .msg-row-label{font-size:var(--fs-md);font-weight:600}
+                .msg-row-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+                .msg-channel-pill{font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:5px;letter-spacing:.04em;text-transform:uppercase;text-align:center}
+                .msg-channel-pill.sms{background:var(--accent-soft);color:var(--accent-text)}
+                .msg-channel-pill.email{background:rgba(124,58,237,.14);color:#7C3AED}
+                .msg-body-preview{font-size:var(--fs-sm);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+              </style>
+              <div class="msg-card" id="rr-messages-list">
+                <div class="rr-loading">Loading templates</div>
+              </div>
+            </div>
 
             <!-- REFERRAL PROGRAM SECTION -->
             <div class="settings-section hidden" data-set="referrals">
               <div class="settings-section-head">
-                <h2 class="settings-section-title">Referral program</h2>
-                <p class="settings-section-sub">Set the dollar amounts paid to a referrer at each milestone. When you hire a referrer-attributed applicant, all four payouts are scheduled automatically. Edit anytime — changes affect future hires only.</p>
+                <h2 class="settings-section-title">Hiring referrals</h2>
+                <p class="settings-section-sub">Live KPIs, leaderboard, auto-invite, and the milestone payout structure for every successful referral. Edits affect future hires only.</p>
+              </div>
+
+              <!-- KPI strip -->
+              <div class="pipeline-kpis">
+                <div class="pipeline-kpi">
+                  <div class="pipeline-kpi-label">Active referrals</div>
+                  <div class="pipeline-kpi-value"><span id="ref-active">0</span><span class="frac"> in flight</span></div>
+                  <div class="pipeline-kpi-trend" id="ref-active-sub">applicants in screening + booking</div>
+                </div>
+                <div class="pipeline-kpi">
+                  <div class="pipeline-kpi-label">Referral hires</div>
+                  <div class="pipeline-kpi-value"><span id="ref-hired">0</span><span class="frac"> all-time</span></div>
+                  <div class="pipeline-kpi-trend" id="ref-hired-sub">since the program launched</div>
+                </div>
+                <div class="pipeline-kpi">
+                  <div class="pipeline-kpi-label">Payout per hire</div>
+                  <div class="pipeline-kpi-value">$<span id="ref-payout">0</span></div>
+                  <div class="pipeline-kpi-trend">Edit in the milestones table below</div>
+                </div>
+                <div class="pipeline-kpi">
+                  <div class="pipeline-kpi-label">Auto-invite</div>
+                  <div class="pipeline-kpi-value" id="ref-auto-status">Off</div>
+                  <div class="pipeline-kpi-trend" id="ref-auto-sub">New hires don't get a referral SMS automatically.</div>
+                </div>
+              </div>
+
+              <style>
+                .ref-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin-top:var(--s-4)}
+                @media (max-width:980px){.ref-grid{grid-template-columns:1fr}}
+                .ref-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
+                .ref-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
+                .ref-card-title{font-size:var(--fs-base);font-weight:600}
+                .ref-card-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+                .ref-leader-row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border)}
+                .ref-leader-row:first-of-type{border-top:0}
+                .ref-leader-rank{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700}
+                .ref-leader-name{font-size:var(--fs-md);font-weight:600}
+                .ref-leader-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
+                .ref-leader-count{font-size:var(--fs-base);font-weight:700;color:var(--text)}
+                .ref-leader-count .lbl{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-left:4px;letter-spacing:.04em;text-transform:uppercase}
+                .ref-set-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}
+                .ref-set-row:first-of-type{border-top:0}
+                .ref-set-label{font-size:var(--fs-md);font-weight:500}
+                .ref-set-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+                .ref-set-input{background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font:inherit;font-size:var(--fs-md);color:var(--text);width:90px;text-align:right}
+                .ref-set-input:focus{outline:none;border-color:var(--accent)}
+                .ref-toggle{position:relative;width:36px;height:20px;background:var(--border);border-radius:10px;cursor:pointer;transition:background .15s;border:0;padding:0}
+                .ref-toggle.on{background:var(--accent)}
+                .ref-toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left .15s}
+                .ref-toggle.on::after{left:18px}
+                .ref-action-btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer}
+                .ref-action-btn[disabled]{opacity:.5;cursor:not-allowed}
+                .ref-action-btn.ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+              </style>
+
+              <div class="ref-grid">
+                <!-- Leaderboard -->
+                <div class="ref-card">
+                  <div class="ref-card-head">
+                    <div>
+                      <div class="ref-card-title">Top referring drivers</div>
+                      <div class="ref-card-sub">All-time hires attributed to each driver.</div>
+                    </div>
+                    <button class="ref-action-btn ghost" data-rr-send-campaign>Send to all drivers</button>
+                  </div>
+                  <div id="ref-leaderboard">
+                    <div class="rr-loading">Loading</div>
+                  </div>
+                </div>
+
+                <!-- Auto-invite + cadence -->
+                <div class="ref-card">
+                  <div class="ref-card-head">
+                    <div>
+                      <div class="ref-card-title">Auto-invite</div>
+                      <div class="ref-card-sub">Saved instantly. Affects future hires only.</div>
+                    </div>
+                  </div>
+                  <div class="ref-set-row">
+                    <div>
+                      <div class="ref-set-label">Auto-invite new hires</div>
+                      <div class="ref-set-help">Send each new driver their referral link some weeks after their hire date.</div>
+                    </div>
+                    <button class="ref-toggle" id="ref-toggle-enabled" data-rr-ref-enabled></button>
+                  </div>
+                  <div class="ref-set-row">
+                    <div>
+                      <div class="ref-set-label">Send referral link how many weeks after hire?</div>
+                      <div class="ref-set-help">Drivers who've been with you a while are more likely to refer good fits.</div>
+                    </div>
+                    <input type="number" min="0" max="52" class="ref-set-input" id="ref-weeks" value="4" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Public link preview / copy -->
+              <div class="ref-card" style="margin-top:var(--s-4)">
+                <div class="ref-card-head">
+                  <div>
+                    <div class="ref-card-title">Your master referral link</div>
+                    <div class="ref-card-sub">Use as a fallback when a driver hasn't received their personal link yet. Driver-attributed links are unique per driver.</div>
+                  </div>
+                  <button class="ref-action-btn" data-rr-copy-master-ref>Copy link</button>
+                </div>
+                <div id="ref-master-link" style="font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-sm);color:var(--text-muted);background:var(--canvas);border:1px dashed var(--border);border-radius:6px;padding:10px 12px">…</div>
+              </div>
+
+              <!-- Milestone payouts (existing settings) -->
+              <h4 style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-5) 0 8px 0">Milestone payouts</h4>
+              <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 var(--s-3) 0;line-height:1.5">Set the dollar amounts paid to a referrer at each milestone. When you hire a referrer-attributed applicant, all four payouts are scheduled automatically.</p>
+
+              <div class="form-row">
+                <div><div class="form-label">Enable referral program</div><div class="form-help">When off, hiring an attributed applicant doesn't schedule payouts.</div></div>
+                <div><label class="toggle"><input type="checkbox" id="ref-enabled" checked /><span class="toggle-slider"></span></label></div>
               </div>
 
               <div class="form-row">
@@ -10699,7 +10676,6 @@ Evidence attached:
         <div style="display:flex;flex-direction:column;gap:6px">
           <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);cursor:pointer"><input type="checkbox" />Require acknowledgment (driver taps to confirm read)</label>
           <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);cursor:pointer"><input type="checkbox" />Allow replies (creates a thread per driver)</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);cursor:pointer"><input type="checkbox" />Pin to top of driver inbox</label>
         </div>
       </div>
 
@@ -12266,254 +12242,6 @@ Evidence attached:
     toast('Queue reset · all tasks restored');
   }
 
-  // ─── TASK CARD PIN / DISMISS / RESTORE ──────────────────────
-  // Persistence keyed by data-task-key. Pinned cards float to top via CSS order.
-  var DASH_CARDS_KEY = 'rr.dashboard.cards.v1';
-  function _readCardState(){
-    try { return JSON.parse(localStorage.getItem(DASH_CARDS_KEY)) || {pinned:[], deleted:[]}; }
-    catch (e) { return {pinned:[], deleted:[]}; }
-  }
-  function _writeCardState(state){
-    try { localStorage.setItem(DASH_CARDS_KEY, JSON.stringify(state)); } catch (e) {}
-  }
-  function _applyCardState(){
-    var state = _readCardState();
-    var cards = document.querySelectorAll('#action-queue .task-card');
-    cards.forEach(function(c){
-      var key = c.getAttribute('data-task-key');
-      if (!key) return;
-      c.classList.toggle('pinned', state.pinned.indexOf(key) !== -1);
-      c.classList.toggle('deleted', state.deleted.indexOf(key) !== -1);
-    });
-    _refreshRestoreBtn(state);
-    if (typeof updateQueueProgress === 'function') updateQueueProgress();
-  }
-  function _refreshRestoreBtn(state){
-    var btn = document.getElementById('db-restore');
-    var n = document.getElementById('db-deleted-n');
-    if (!btn) return;
-    var count = (state || _readCardState()).deleted.length;
-    if (n) n.textContent = count;
-    btn.style.display = count > 0 ? 'inline-flex' : 'none';
-  }
-  function pinTaskCard(toolEl){
-    var card = toolEl.closest('.task-card');
-    if (!card) return;
-    var key = card.getAttribute('data-task-key');
-    var state = _readCardState();
-    var i = state.pinned.indexOf(key);
-    if (i === -1) { state.pinned.push(key); card.classList.add('pinned'); toast('Pinned to top'); }
-    else { state.pinned.splice(i, 1); card.classList.remove('pinned'); toast('Unpinned'); }
-    _writeCardState(state);
-  }
-  function dismissTaskCard(toolEl){
-    var card = toolEl.closest('.task-card');
-    if (!card) return;
-    var key = card.getAttribute('data-task-key');
-    var state = _readCardState();
-    if (state.deleted.indexOf(key) === -1) state.deleted.push(key);
-    // unpin if pinned
-    var pi = state.pinned.indexOf(key);
-    if (pi !== -1) state.pinned.splice(pi, 1);
-    _writeCardState(state);
-    card.classList.add('deleted');
-    card.classList.remove('pinned');
-    _refreshRestoreBtn(state);
-    if (typeof updateQueueProgress === 'function') updateQueueProgress();
-    toast('Card dismissed · use Restore to bring back');
-  }
-  function restoreTaskCards(){
-    _writeCardState({pinned: _readCardState().pinned, deleted: []});
-    document.querySelectorAll('#action-queue .task-card.deleted').forEach(function(c){
-      c.classList.remove('deleted');
-    });
-    _refreshRestoreBtn();
-    if (typeof updateQueueProgress === 'function') updateQueueProgress();
-    toast('Restored dismissed cards');
-  }
-  document.addEventListener('DOMContentLoaded', _applyCardState);
-
-  // ─── PIN ANY WORKFLOW (form / checklist) TO THE DASHBOARD ───
-  // Adds a pin button to each .form-card and .cl-card. Clicking saves the
-  // item to localStorage; the dashboard renders it as a live task card that
-  // re-reads the source DOM each time the dashboard view is opened.
-  var DASH_PINS_KEY = 'rr.dashboard.pins.v1';
-  function _readPins(){
-    try { return JSON.parse(localStorage.getItem(DASH_PINS_KEY)) || []; }
-    catch (e) { return []; }
-  }
-  function _writePins(arr){
-    try { localStorage.setItem(DASH_PINS_KEY, JSON.stringify(arr)); } catch (e) {}
-  }
-  function _slug(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
-  function _pinId(kind, name){ return kind + '-' + _slug(name); }
-
-  // Read live state from a source .cl-card or .form-card
-  function _readWorkflowSnapshot(srcEl){
-    if (!srcEl) return null;
-    var isChecklist = srcEl.classList.contains('cl-card');
-    var kind = isChecklist ? 'checklist' : 'form';
-    var nameEl = srcEl.querySelector(isChecklist ? '.cl-card-name' : '.form-card-title');
-    if (!nameEl) return null;
-    var name = nameEl.textContent.trim();
-    var id = _pinId(kind, name);
-    var snap = { id: id, kind: kind, name: name };
-    if (isChecklist) {
-      var cat = srcEl.querySelector('.cl-card-cat'); snap.cat = cat ? cat.textContent.trim() : '';
-      var meta = srcEl.querySelector('.cl-card-meta'); snap.meta = meta ? meta.textContent.trim() : '';
-      var fill = srcEl.querySelector('.cl-card-progress-fill');
-      snap.pct = fill ? parseInt(fill.style.width, 10) || 0 : 0;
-      snap.fillCls = fill && /\b(warn|bad)\b/.test(fill.className) ? fill.className.split(' ').filter(function(c){return c==='warn'||c==='bad';})[0] : '';
-      var foot = srcEl.querySelector('.cl-card-foot');
-      if (foot) {
-        var spans = foot.querySelectorAll('span');
-        snap.footMain = spans[0] ? spans[0].textContent.trim() : '';
-        snap.footSub  = spans[1] ? spans[1].textContent.trim() : '';
-      }
-      var status = srcEl.querySelector('.cl-card-status');
-      snap.status = status ? status.textContent.trim() : '';
-    } else {
-      var desc = srcEl.querySelector('.form-card-desc'); snap.meta = desc ? desc.textContent.trim() : '';
-      var stats = srcEl.querySelector('.form-card-stats');
-      if (stats) {
-        var ss = stats.querySelectorAll('span');
-        snap.statText = Array.prototype.map.call(ss, function(s){ return s.textContent.trim(); }).join(' · ');
-      }
-      var fstatus = srcEl.querySelector('.form-card-status');
-      snap.status = fstatus ? fstatus.textContent.trim() : '';
-    }
-    return snap;
-  }
-
-  // Find source card by id (kind-slug) — scans all forms + checklists
-  function _findSourceById(id){
-    var nodes = document.querySelectorAll('.cl-card, .form-card');
-    for (var i = 0; i < nodes.length; i++) {
-      var snap = _readWorkflowSnapshot(nodes[i]);
-      if (snap && snap.id === id) return nodes[i];
-    }
-    return null;
-  }
-
-  function pinWorkflow(srcEl){
-    var snap = _readWorkflowSnapshot(srcEl);
-    if (!snap) return;
-    var pins = _readPins();
-    var idx = pins.indexOf(snap.id);
-    if (idx === -1) {
-      pins.push(snap.id); _writePins(pins);
-      _setPinBtnState(srcEl, true);
-      toast('Pinned to dashboard · ' + snap.name);
-    } else {
-      pins.splice(idx, 1); _writePins(pins);
-      _setPinBtnState(srcEl, false);
-      toast('Unpinned from dashboard');
-    }
-    renderPinnedWorkflows();
-  }
-  function unpinWorkflowById(id){
-    var pins = _readPins();
-    var idx = pins.indexOf(id);
-    if (idx !== -1) { pins.splice(idx, 1); _writePins(pins); }
-    var src = _findSourceById(id);
-    if (src) _setPinBtnState(src, false);
-    renderPinnedWorkflows();
-    toast('Unpinned from dashboard');
-  }
-  function _setPinBtnState(srcEl, isPinned){
-    var btn = srcEl.querySelector('.pin-to-dash');
-    if (!btn) return;
-    btn.classList.toggle('is-pinned', !!isPinned);
-    btn.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
-    btn.setAttribute('title', isPinned ? 'Unpin from dashboard' : 'Pin to dashboard');
-  }
-
-  // Inject the pin button on every form/checklist card on first load
-  function _injectPinButtons(){
-    var pins = _readPins();
-    document.querySelectorAll('.cl-card, .form-card').forEach(function(card){
-      if (card.querySelector('.pin-to-dash')) return; // idempotent
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'pin-to-dash';
-      btn.setAttribute('aria-label', 'Pin to dashboard');
-      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>';
-      btn.addEventListener('click', function(e){
-        e.stopPropagation(); e.preventDefault();
-        pinWorkflow(card);
-      });
-      card.appendChild(btn);
-      var snap = _readWorkflowSnapshot(card);
-      if (snap && pins.indexOf(snap.id) !== -1) _setPinBtnState(card, true);
-    });
-  }
-
-  // Render pinned workflows as task cards inside #action-queue
-  function renderPinnedWorkflows(){
-    var queue = document.getElementById('action-queue');
-    if (!queue) return;
-    // Remove old pinned-workflow cards (we re-render each time for live data)
-    queue.querySelectorAll('.task-card.pinned-workflow').forEach(function(c){ c.remove(); });
-    var pins = _readPins();
-    pins.forEach(function(id){
-      var src = _findSourceById(id);
-      if (!src) return;
-      var snap = _readWorkflowSnapshot(src);
-      if (!snap) return;
-      queue.appendChild(_buildPinnedCard(snap));
-    });
-    if (typeof updateQueueProgress === 'function') updateQueueProgress();
-  }
-
-  function _buildPinnedCard(snap){
-    var card = document.createElement('div');
-    card.className = 'task-card pinned-workflow';
-    card.setAttribute('data-pin-id', snap.id);
-    card.setAttribute('data-sev', 'info');
-    var eyebrow = (snap.kind === 'checklist' ? 'Checklist' : 'Form') + (snap.cat ? ' · ' + snap.cat : '');
-    var countText = '';
-    if (snap.kind === 'checklist' && snap.footMain) {
-      var m = snap.footMain.match(/(\d+\s+of\s+\d+)/i);
-      countText = m ? m[1] : (snap.status || '');
-    } else if (snap.kind === 'form') {
-      countText = snap.status || '';
-    }
-    var progressHTML = '';
-    if (snap.kind === 'checklist') {
-      var fillCls = snap.fillCls ? (' ' + snap.fillCls) : '';
-      progressHTML = '<div class="cl-card-progress" style="margin-top:6px"><div class="cl-card-progress-fill' + fillCls + '" style="width:' + snap.pct + '%"></div></div>';
-    }
-    var subline = snap.kind === 'checklist'
-      ? (snap.footSub || snap.meta || '')
-      : (snap.statText || snap.meta || '');
-    var targetView = snap.kind === 'checklist' ? 'checklists' : 'forms';
-    card.innerHTML =
-      '<div class="task-tools">' +
-        '<button class="task-tool" type="button" aria-label="Unpin" title="Remove from dashboard" onclick="event.stopPropagation();unpinWorkflowById(\'' + snap.id + '\')">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-        '</button>' +
-      '</div>' +
-      '<div class="task-head">' +
-        '<span class="task-eyebrow">' + _esc(eyebrow) + '</span>' +
-        (countText ? '<span class="task-count">' + _esc(countText) + '</span>' : '') +
-      '</div>' +
-      '<h3 class="task-title">' + _esc(snap.name) + '</h3>' +
-      progressHTML +
-      (subline ? '<p class="task-msg">' + _esc(subline) + '</p>' : '') +
-      '<button class="task-cta" type="button" onclick="goto(\'' + targetView + '\')">' +
-        'Open ' + (snap.kind === 'checklist' ? 'checklist' : 'form') +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
-      '</button>';
-    return card;
-  }
-  function _esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
-
-  // Re-render pinned workflows whenever the dashboard view becomes active
-  // (so progress updates reflect changes the user made elsewhere)
-  document.addEventListener('DOMContentLoaded', function(){
-    _injectPinButtons();
-    renderPinnedWorkflows();
-  });
 
   function goto(view){
     // Interview Day is now a sub-tab inside the Pipeline view.
@@ -12528,8 +12256,6 @@ Evidence attached:
     document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
     var navBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
     if (navBtn) navBtn.classList.add('active');
-    // Refresh pinned workflow cards with live progress whenever returning to dashboard
-    if (view === 'dashboard' && typeof renderPinnedWorkflows === 'function') renderPinnedWorkflows();
     var titles = {
       dashboard: 'Dashboard',
       pipeline: 'Hiring Pipeline',
@@ -13636,7 +13362,9 @@ Evidence attached:
     team: { title:'Team', sub:'Manage team members and roles.' },
     integrations: { title:'Integrations', sub:'Connected services that power the dashboard.' },
     hiring: { title:'Hiring criteria', sub:'Score thresholds, deal-breakers, and required answers.' },
-    screening: { title:'Screening questions', sub:'Library of questions sent to applicants via SMS.' },
+    'screening-questions': { title:'Screening questions', sub:'Questions an applicant answers before booking, plus optional video intro.' },
+    'hiring-messages': { title:'Hiring messages', sub:'SMS + email templates applicants and drivers receive at every step.' },
+    referrals: { title:'Hiring referrals', sub:'KPIs, leaderboard, auto-invite, milestone payouts.' },
     sms: { title:'SMS & messaging', sub:'Quiet hours, opt-out handling, default templates.' },
     video: { title:'Video screening', sub:'Recorded video introductions from applicants.' },
     billing: { title:'Billing', sub:'Subscription, invoices, payment method.' }
@@ -16724,7 +16452,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507x"></script>
+<script type="module" src="./live.js?v=20260507y"></script>
 
 </body>
 </html>

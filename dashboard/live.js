@@ -220,9 +220,7 @@ function renderApplicantCard(a) {
     : "";
 
   return `
-    <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}"
-         data-rr-pinnable data-rr-pin-kind="applicant" data-rr-pin-ref="${a.id}"
-         data-rr-pin-label="${escapeHtml(a.full_name ?? "Applicant")}">
+    <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
       <div class="pa-row">
         <div class="pa-id">
           <div class="pa-name">${a.full_name ?? ""}</div>
@@ -638,9 +636,7 @@ function renderDriverRow(d) {
   // "Active" by definition.  The Active / Onboarding / At risk /
   // Inactive stage tabs above already split that.
   return `
-    <tr data-driver-id="${d.id}" data-rr-open-driver
-        data-rr-pinnable data-rr-pin-kind="driver" data-rr-pin-ref="${d.id}"
-        data-rr-pin-label="${escapeHtml(display || "Driver")}">
+    <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
@@ -1113,11 +1109,8 @@ async function _renderAttKpiDetail() {
     // No range toggle for the coaching breakdown — it reflects the
     // current report (which already uses the policy decay window).
     panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3);margin-bottom:var(--s-3)">
-        <div>
-          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Corrective action breakdown</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Where the ${total} active driver${total === 1 ? "" : "s"} sit on the coaching ladder right now (rolling ${POLICY.decay_days}-day window). Termination is excluded — it's an outcome, not a standing.</div>
-        </div>
+      <div style="margin-bottom:var(--s-3)">
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Corrective action breakdown</div>
       </div>
       ${bars}
     </div>`;
@@ -2527,6 +2520,18 @@ document.addEventListener("click", (e) => {
   }
   if (e.target.closest('.settings-nav-item[data-set="availability"]')) {
     setTimeout(() => loadAvailabilityRequests(), 0);
+  }
+  // Screening / Messages / Referrals were moved here from the Pipeline
+  // subnav. Each section reuses the loader that previously fired on the
+  // pipeSub click — same DOM ids inside the section, no other changes.
+  if (e.target.closest('.settings-nav-item[data-set="screening-questions"]')) {
+    setTimeout(() => loadScreeningQuestionsList(), 0);
+  }
+  if (e.target.closest('.settings-nav-item[data-set="hiring-messages"]')) {
+    setTimeout(() => loadMessagesTab(), 0);
+  }
+  if (e.target.closest('.settings-nav-item[data-set="referrals"]')) {
+    setTimeout(() => loadReferralsTab(), 0);
   }
 });
 
@@ -5122,14 +5127,13 @@ document.addEventListener("click", async (e) => {
 }, true);
 
 // Hook pipeSub so switching to a tab kicks off the right load.
+// Screening, Messages, and Referrals were moved to Settings → gear so the
+// Pipeline subnav now only handles Funnel / Interview Day / Calendar.
 const _legacyPipeSub = window.pipeSub;
 window.pipeSub = function (sub) {
   if (typeof _legacyPipeSub === "function") _legacyPipeSub(sub);
   if (sub === "interview") loadInterviewDay();
   if (sub === "calendar")  loadCalendarTab();
-  if (sub === "referrals") loadReferralsTab();
-  if (sub === "screening") loadScreeningQuestionsList();
-  if (sub === "messages")  loadMessagesTab();
 };
 
 
@@ -5375,7 +5379,7 @@ function renderCalAvailabilityEditor(payload) {
       }).join(" &nbsp;·&nbsp; ");
 
   card.innerHTML = `
-    <div class="cal-edit-section" style="background:var(--canvas);padding:12px 14px;border-radius:8px;margin-bottom:14px">
+    <div class="cal-edit-section" data-rr-cal-summary style="background:var(--canvas);padding:12px 14px;border-radius:8px;margin-bottom:14px">
       <div class="cal-edit-label" style="margin-bottom:6px">Current availability</div>
       <div style="font-size:var(--fs-md);line-height:1.5">${summaryHtml}</div>
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Time zone: ${escapeHtml(tz)}</div>
@@ -5547,10 +5551,64 @@ async function saveCalAvailability() {
   status.className = "cal-edit-status ok";
   status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
   toast("Availability saved", "success");
-  // Re-render the editor so the "Current availability" banner reflects
-  // the just-saved state. Also reloads bookings in case the new tz
-  // shifted any visible times.
-  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor()]);
+  // Update only the "Current availability" banner from the just-saved
+  // state. Re-rendering the entire editor after every save was wiping
+  // the user's in-flight edits — operators reported it as the editor
+  // "blinking and resetting the page" when they tried to save a date.
+  // The bookings list still reloads since a tz change can shift times.
+  _refreshCalAvailabilityBanner(tz, availability);
+  loadCalBookingsList();
+}
+
+// Rebuild only the "Current availability" summary banner without
+// touching the rest of the editor.  Mirrors the logic in
+// renderCalAvailabilityEditor() that builds the same banner on first
+// render — keep them in sync if either side changes.
+function _refreshCalAvailabilityBanner(tz, availability) {
+  const card = document.getElementById("cal-edit-card");
+  if (!card) return;
+  const banner = card.querySelector("[data-rr-cal-summary]");
+  if (!banner) return;
+
+  const perDay = { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] };
+  for (const block of (availability || [])) {
+    const start = (block.startTime || "09:00:00").slice(0, 5);
+    const end   = (block.endTime   || "17:00:00").slice(0, 5);
+    for (const d of (block.days || [])) if (perDay[d]) perDay[d].push({ start, end });
+  }
+  for (const d of Object.keys(perDay)) perDay[d].sort((a, b) => a.start.localeCompare(b.start));
+
+  const fmt12 = (hhmm) => {
+    const [h, m] = (hhmm || "").split(":").map(Number);
+    if (!Number.isFinite(h)) return hhmm;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12  = (h % 12) || 12;
+    return `${h12}:${String(m || 0).padStart(2, "0")} ${ampm}`;
+  };
+  const winSig  = (w) => w.map(x => `${x.start}-${x.end}`).sort().join("|");
+  const winText = (w) => w.map(x => `${fmt12(x.start)} – ${fmt12(x.end)}`).join(", ");
+  const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const groups = [];
+  for (let d = 0; d < 7; d++) {
+    const w = perDay[d];
+    if (!w || w.length === 0) continue;
+    const sig = winSig(w);
+    const last = groups[groups.length - 1];
+    if (last && last.sig === sig && last.endDay === d - 1) last.endDay = d;
+    else groups.push({ startDay: d, endDay: d, sig, windows: w });
+  }
+  const summaryHtml = groups.length === 0
+    ? `<span style="color:var(--red);font-weight:600">No availability set</span> — applicants can't book interviews until at least one day is enabled below.`
+    : groups.map(g => {
+        const days = g.startDay === g.endDay
+          ? DAY_LABELS[g.startDay]
+          : `${DAY_LABELS[g.startDay]}–${DAY_LABELS[g.endDay]}`;
+        return `<strong style="color:var(--text)">${days}</strong> <span style="color:var(--text-subtle)">${escapeHtml(winText(g.windows))}</span>`;
+      }).join(" &nbsp;·&nbsp; ");
+  banner.innerHTML = `
+    <div class="cal-edit-label" style="margin-bottom:6px">Current availability</div>
+    <div style="font-size:var(--fs-md);line-height:1.5">${summaryHtml}</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Time zone: ${escapeHtml(tz)}</div>`;
 }
 
 // Auto-save: any change inside the availability editor (day toggle, time
@@ -8934,9 +8992,6 @@ function refreshActiveView() {
       loadPipelineKpis();
     } else if (sub === "pipe-sub-interview")  loadInterviewDay();
     else if (sub === "pipe-sub-calendar")     loadCalendarTab();
-    else if (sub === "pipe-sub-screening")    loadScreeningQuestionsList();
-    else if (sub === "pipe-sub-messages")     loadMessagesTab();
-    else if (sub === "pipe-sub-referrals")    loadReferralsTab();
   } else if (activeView === "view-drivers") {
     const subActive = document.querySelector(".dr-subview.active")?.id;
     if (subActive === "dr-sub-licenses") loadDriverLicensesView();
@@ -9050,297 +9105,6 @@ function wireSidebarDrag() {
 applyStoredNavOrder();
 wireSidebarDrag();
 
-
-// ─── Pin to Dashboard ─────────────────────────────────────────────────────
-//
-// Generalized pinning. Any element marked with the data attributes
-//
-//   data-rr-pinnable
-//   data-rr-pin-kind="kpi" | "applicant" | "driver"
-//   data-rr-pin-ref="<id-or-key>"
-//   data-rr-pin-label="<friendly label>"
-//
-// becomes pinnable. Long-press (~500ms mousedown / touchstart) reveals
-// a small floating "📌 Pin" button. Click it to pin / unpin. Pinned
-// items render as cards on the Dashboard view.
-//
-// Storage: localStorage 'rr-pins-v2' = [{kind, ref, label}, …].
-// Cross-device persistence (per app_user) lands in a follow-up.
-
-const RR_PINS_KEY = "rr-pins-v2";
-function readPins() {
-  try { return JSON.parse(localStorage.getItem(RR_PINS_KEY) || "[]"); }
-  catch { return []; }
-}
-function writePins(pins) {
-  localStorage.setItem(RR_PINS_KEY, JSON.stringify(pins));
-}
-function isPinned(kind, ref) {
-  return readPins().some(p => p.kind === kind && p.ref === ref);
-}
-function togglePin(kind, ref, label) {
-  const pins = readPins();
-  const idx = pins.findIndex(p => p.kind === kind && p.ref === ref);
-  if (idx >= 0) pins.splice(idx, 1);
-  else          pins.push({ kind, ref, label, pinned_at: new Date().toISOString() });
-  writePins(pins);
-  renderPinnedDashboard();
-  return idx < 0;
-}
-
-let _pressTimer = null;
-let _pressTarget = null;
-
-function startPress(e, target) {
-  _pressTarget = target;
-  _pressTimer = setTimeout(() => {
-    if (_pressTarget) showPinOverlay(_pressTarget);
-  }, 500);
-}
-function cancelPress() {
-  if (_pressTimer) { clearTimeout(_pressTimer); _pressTimer = null; }
-  _pressTarget = null;
-}
-
-document.addEventListener("mousedown", (e) => {
-  if (e.button !== 0) return;
-  // Don't long-press on actual buttons / form fields inside pinnables.
-  if (e.target.closest("button, input, select, textarea, a")) return;
-  const target = e.target.closest("[data-rr-pinnable]");
-  if (target) startPress(e, target);
-});
-document.addEventListener("mouseup", cancelPress);
-document.addEventListener("mouseleave", cancelPress);
-document.addEventListener("touchstart", (e) => {
-  if (e.target.closest("button, input, select, textarea, a")) return;
-  const target = e.target.closest("[data-rr-pinnable]");
-  if (target) startPress(e, target);
-}, { passive: true });
-document.addEventListener("touchend", cancelPress);
-document.addEventListener("touchcancel", cancelPress);
-
-function showPinOverlay(target) {
-  const kind  = target.getAttribute("data-rr-pin-kind");
-  const ref   = target.getAttribute("data-rr-pin-ref");
-  const label = target.getAttribute("data-rr-pin-label");
-  if (!kind || !ref) return;
-
-  // Remove any existing overlay.
-  document.getElementById("rr-pin-overlay")?.remove();
-
-  const rect = target.getBoundingClientRect();
-  const pinned = isPinned(kind, ref);
-
-  const ov = document.createElement("div");
-  ov.id = "rr-pin-overlay";
-  ov.style.cssText = `
-    position:fixed; z-index:9998;
-    left:${Math.min(rect.right - 180, window.innerWidth - 200)}px;
-    top:${Math.max(8, rect.top - 44)}px;
-    background:var(--surface); border:1px solid var(--border);
-    border-radius:10px; padding:6px 6px 6px 10px;
-    box-shadow:0 6px 20px rgba(0,0,0,.25);
-    display:flex; align-items:center; gap:8px;
-    animation:rr-pop .12s ease-out;
-    font-size:var(--fs-sm);
-  `;
-  ov.innerHTML = `
-    <button class="btn btn-sm btn-primary" data-rr-pin-confirm style="font-size:var(--fs-sm);display:flex;align-items:center;gap:6px;margin:0">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>
-      ${pinned ? "Unpin" : "Pin to dashboard"}
-    </button>
-    <button data-rr-pin-cancel aria-label="Cancel" style="background:none;border:0;font-size:18px;line-height:1;padding:2px 6px;cursor:pointer;color:var(--text-muted)">×</button>`;
-  document.body.appendChild(ov);
-
-  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
-  const onKey = (e) => { if (e.key === "Escape") close(); };
-  document.addEventListener("keydown", onKey);
-
-  ov.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.target.closest("[data-rr-pin-cancel]")) { close(); return; }
-    if (e.target.closest("[data-rr-pin-confirm]")) {
-      const nowPinned = togglePin(kind, ref, label);
-      toast(nowPinned ? `Pinned "${label}"` : `Unpinned "${label}"`, "success");
-      close();
-    }
-  });
-}
-
-
-// ─── Hover pin icon (the easy desktop path) ──────────────────────────────
-//
-// In addition to the long-press gesture, every pinnable element gets a
-// small floating pin icon visible on hover. One click toggles. This is
-// the primary desktop interaction; long-press is the touch fallback.
-
-function ensurePinIcon(el) {
-  if (el.querySelector(":scope > .rr-pin-icon")) return;
-  const kind = el.getAttribute("data-rr-pin-kind");
-  const ref  = el.getAttribute("data-rr-pin-ref");
-  if (!kind || !ref) return;
-
-  // Position the icon absolutely; only show on hover. Inline styles so
-  // we don't need extra CSS edits in the static HTML.
-  if (getComputedStyle(el).position === "static") el.style.position = "relative";
-  const icon = document.createElement("button");
-  icon.className = "rr-pin-icon";
-  icon.type = "button";
-  icon.setAttribute("aria-label", "Pin to dashboard");
-  icon.setAttribute("title", "Pin to dashboard");
-  icon.style.cssText = `
-    position:absolute; top:6px; right:6px; z-index:5;
-    background:var(--surface); border:1px solid var(--border);
-    border-radius:6px; padding:4px;
-    width:24px; height:24px; cursor:pointer;
-    display:none; align-items:center; justify-content:center;
-    color:var(--text-muted);
-  `;
-  icon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5V8a5.5 5.5 0 0 0-11 0v5.5z"/></svg>`;
-  el.appendChild(icon);
-
-  el.addEventListener("mouseenter", () => { icon.style.display = "flex"; updatePinIconState(icon, kind, ref); });
-  el.addEventListener("mouseleave", () => { icon.style.display = "none"; });
-  icon.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const lab = el.getAttribute("data-rr-pin-label");
-    const nowPinned = togglePin(kind, ref, lab);
-    updatePinIconState(icon, kind, ref);
-    toast(nowPinned ? `Pinned "${lab}"` : `Unpinned "${lab}"`, "success");
-  });
-}
-
-function updatePinIconState(icon, kind, ref) {
-  const on = isPinned(kind, ref);
-  icon.style.color      = on ? "var(--accent-text)" : "var(--text-muted)";
-  icon.style.background = on ? "var(--accent-soft)" : "var(--surface)";
-  icon.style.borderColor = on ? "var(--accent)"     : "var(--border)";
-}
-
-// Walk the DOM whenever a render changes things, to ensure all pinnable
-// elements have their hover icon. MutationObserver handles dynamic
-// renders (loadPipeline, loadDriversRoster, etc.).
-function syncPinIcons() {
-  document.querySelectorAll("[data-rr-pinnable]").forEach(ensurePinIcon);
-}
-syncPinIcons();
-new MutationObserver(syncPinIcons).observe(document.body, { childList: true, subtree: true });
-
-
-// ─── Dashboard pinned cards ──────────────────────────────────────────────
-
-function renderPinnedDashboard() {
-  const queue = document.getElementById("action-queue");
-  if (!queue) return;
-  // Wipe previously-rendered RR pinned cards (idempotent re-render).
-  queue.querySelectorAll(".task-card.rr-pinned").forEach(c => c.remove());
-
-  const pins = readPins();
-  if (pins.length === 0) return;
-
-  for (const p of pins) {
-    const card = buildPinnedCard(p);
-    if (card) queue.insertBefore(card, queue.firstChild);
-  }
-}
-
-function buildPinnedCard(p) {
-  const card = document.createElement("div");
-  card.className = "task-card rr-pinned";
-  card.dataset.sev = "info";
-  card.dataset.rrPinKind = p.kind;
-  card.dataset.rrPinRef  = p.ref;
-
-  card.innerHTML = `
-    <div class="task-tools">
-      <button class="task-tool" type="button" aria-label="Unpin"
-              onclick="event.stopPropagation();window.RR_unpin('${p.kind}','${p.ref}');">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="task-head">
-      <div class="task-eyebrow">${p.kind === "kpi" ? "Pipeline KPI" : p.kind === "applicant" ? "Applicant" : p.kind === "driver" ? "Driver" : p.kind}</div>
-      <div class="task-title">${escapeHtml(p.label || p.ref)}</div>
-    </div>
-    <div class="task-msg" data-rr-pin-body>Loading…</div>
-  `;
-  // Async hydrate the card body based on kind.
-  hydratePinnedCard(card, p);
-  return card;
-}
-
-window.RR_unpin = function (kind, ref) {
-  const pins = readPins().filter(p => !(p.kind === kind && p.ref === ref));
-  writePins(pins);
-  renderPinnedDashboard();
-  toast("Unpinned", "warn");
-};
-
-async function hydratePinnedCard(card, p) {
-  const body = card.querySelector("[data-rr-pin-body]");
-  if (!body) return;
-
-  if (p.kind === "kpi") {
-    const [{ data: k }, { data: f }] = await Promise.all([
-      sb.rpc("pipeline_kpis",        { p_window_days: 28 }),
-      sb.rpc("pipeline_funnel_kpis", { p_window_days: 28 }),
-    ]);
-    const map = {
-      contacted_pct: f?.contacted_pct,
-      passed_pct:    f?.passed_pct,
-      booked_rate:   f?.booked_rate,
-      e2e_pct:       f?.e2e_pct,
-      show_rate:     k ? Math.round(Number(k.show_rate ?? 0) * 100) : 0,
-      hire_rate:     k ? Math.round(Number(k.hire_rate ?? 0) * 100) : 0,
-    };
-    const v = map[p.ref];
-    body.innerHTML = `<span style="font-size:32px;font-weight:700;color:var(--text);letter-spacing:-.02em">${v ?? "—"}%</span>`;
-    return;
-  }
-
-  if (p.kind === "applicant") {
-    const { data: a } = await sb.from("applicants")
-      .select("id, full_name, status, phone, email")
-      .eq("id", p.ref).maybeSingle();
-    if (!a) { body.innerHTML = `<span style="color:var(--text-subtle)">Removed.</span>`; return; }
-    body.innerHTML = `<strong>${escapeHtml(a.full_name)}</strong> · ${a.status}<br/><span style="color:var(--text-subtle);font-size:var(--fs-sm)">${a.phone || a.email || ""}</span>`;
-    return;
-  }
-
-  if (p.kind === "driver") {
-    const { data: d } = await sb.from("drivers")
-      .select("id, full_name, status, hire_date")
-      .eq("id", p.ref).maybeSingle();
-    if (!d) { body.innerHTML = `<span style="color:var(--text-subtle)">Removed.</span>`; return; }
-    const days = d.hire_date ? Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000) : null;
-    body.innerHTML = `<strong>${escapeHtml(displayDriverName(d))}</strong> · ${d.status}${days != null ? ` · ${days}d` : ""}`;
-    return;
-  }
-
-  body.innerHTML = `<span style="color:var(--text-subtle)">Pinned (${p.kind})</span>`;
-}
-
-// Re-render pinned dashboard cards on dashboard view + on data change.
-const _origRefresh = refreshActiveView;
-function refreshWithPins() {
-  _origRefresh();
-  if (document.querySelector(".view.active")?.id === "view-dashboard") {
-    renderPinnedDashboard();
-    if (typeof loadDashboardTasks === "function") loadDashboardTasks();
-    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
-  }
-}
-window.addEventListener("focus", () => {
-  if (document.querySelector(".view.active")?.id === "view-dashboard") {
-    renderPinnedDashboard();
-    if (typeof loadDashboardTasks === "function") loadDashboardTasks();
-    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
-    if (typeof loadTodayPlan === "function") loadTodayPlan();
-  }
-});
-
 // Initial load: if the dashboard is the active view at boot, populate
 // the tasks card AND the Today's Plan body.  Without the loadTodayPlan
 // kick the page sat on the static "Loading today's plan…" placeholder
@@ -9353,16 +9117,9 @@ if (document.querySelector(".view.active")?.id === "view-dashboard") {
   }, 0);
 }
 
-// Initial render on load.
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", renderPinnedDashboard);
-} else {
-  renderPinnedDashboard();
-}
-
-// Pop animation
+// Inline runtime styles for live-rendered surfaces.
 const _styleEl = document.createElement("style");
-_styleEl.textContent = `@keyframes rr-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}} [data-rr-pinnable]{user-select:none}
+_styleEl.textContent = `
 [data-rr-pool-shift]{cursor:grab}
 [data-rr-pool-shift]:hover{box-shadow:0 1px 4px rgba(0,0,0,.06);transform:translateY(-1px)}
 [data-rr-pool-shift].rr-dragging{opacity:.5}
