@@ -9576,7 +9576,41 @@ let _schedDriverList = [];
 // wave assignment that week), or "hours" (by hours scheduled, desc).
 // Session-only — not persisted across reloads.
 let _schedDriverSort = "alpha";
-let _schedDriverSortBound = false;
+
+// Click handler for the schedule driver-sort icon — opens a small
+// popover with three options (matches the Turnover KPI pattern).
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("#rr-sched-driver-sort-toggle");
+  if (btn) {
+    e.stopPropagation();
+    e.preventDefault();
+    const head = btn.parentElement;
+    const existing = head.querySelector(".rr-tf-popover");
+    if (existing) { existing.remove(); return; }
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+    const opts = [
+      { v: "alpha", l: "A – Z" },
+      { v: "wave",  l: "By wave" },
+      { v: "hours", l: "By hours" },
+    ];
+    const pop = document.createElement("div");
+    pop.className = "rr-tf-popover";
+    pop.style.top = "26px";
+    pop.style.right = "0";
+    pop.innerHTML = opts.map(o =>
+      `<button data-rr-sched-sort="${o.v}" class="${o.v === _schedDriverSort ? "active" : ""}">${o.l}</button>`
+    ).join("");
+    head.appendChild(pop);
+    return;
+  }
+  const opt = e.target.closest("[data-rr-sched-sort]");
+  if (opt) {
+    _schedDriverSort = opt.dataset.rrSchedSort || "alpha";
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+    if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+    return;
+  }
+});
 let _okamiStart = null;
 let _schedStart = null;
 
@@ -11251,19 +11285,10 @@ async function renderScheduleWeek() {
 
   _schedDriverList = drivers; // existing add-shift modal reads this list
 
-  // Bind the driver-column sort dropdown once. Re-renders the schedule
-  // when the operator changes mode without round-tripping the server.
-  const sortSel = document.getElementById("rr-sched-driver-sort");
-  if (sortSel) {
-    sortSel.value = _schedDriverSort;
-    if (!_schedDriverSortBound) {
-      _schedDriverSortBound = true;
-      sortSel.addEventListener("change", () => {
-        _schedDriverSort = sortSel.value || "alpha";
-        renderScheduleWeek();
-      });
-    }
-  }
+  // Driver-column sort lives in a small popover behind a sort icon —
+  // matches the Turnover KPI's time-frame switcher pattern (see
+  // .rr-tf-icon / .rr-tf-popover).  Bound once at document level
+  // below; nothing to wire here per render.
 
   // Index shifts by driver/date and collect open shifts by date.
   const shiftsByDriverDate = new Map();
