@@ -912,6 +912,21 @@ function _renderAttReportTbody() {
     });
   }
 
+  // Map the ladder label this row currently sits on to the
+  // coaching_severity enum value the Send-coaching modal pre-fills.
+  // "Clear" / "Policy off" rows still get the button (the dispatcher
+  // may want to send a Verbal coaching for context that hasn't yet
+  // crossed the threshold), defaulting to Verbal.
+  const RECOMMEND = {
+    "Termination":      "termination",
+    "Final":            "final",
+    "Written":          "written",
+    "Written · 1st 30": "written",
+    "Verbal":           "verbal",
+    "Clear":            "verbal",
+    "Policy off":       "verbal",
+  };
+
   tbody.innerHTML = rows.map(r => {
     const display = displayDriverName(r.d);
     const initials = displayDriverInitials(r.d);
@@ -921,6 +936,8 @@ function _renderAttReportTbody() {
                         : r.statusKind === "warn" ? "warning"
                         : r.statusKind === "good" ? "success"
                         : "neutral";
+    const sev = RECOMMEND[r.coachingLabel] || "verbal";
+    const summary = `${r.coachingLabel} · ${r.a.callouts} callout${r.a.callouts === 1 ? "" : "s"}, ${r.a.noshows} no-show${r.a.noshows === 1 ? "" : "s"}, ${r.a.late} late`;
     return `<tr>
       <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name" data-rr-driver-id="${r.d.id}">${escapeHtml(display)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
@@ -934,7 +951,18 @@ function _renderAttReportTbody() {
       <td style="text-align:right">${r.occ}</td>
       <td><span class="status-pill status-pill-${statusVariant}" title="${escapeHtml(r.statusLabel)}">${escapeHtml(r.coachingLabel)}</span></td>
       <td>${last}</td>
-      <td></td>
+      <td style="text-align:right"><button class="btn btn-sm" type="button"
+        data-rr-coach-report="1"
+        data-rr-coach-driver="${escapeHtml(r.d.id)}"
+        data-rr-coach-driver-name="${escapeHtml(display)}"
+        data-rr-coach-severity="${escapeHtml(sev)}"
+        data-rr-coach-summary="${escapeHtml(summary)}"
+        data-rr-coach-points="${r.points}"
+        data-rr-coach-occ="${r.occ}"
+        data-rr-coach-callouts="${r.a.callouts}"
+        data-rr-coach-noshows="${r.a.noshows}"
+        data-rr-coach-late="${r.a.late}"
+        title="Send coaching · pre-filled with ladder recommendation">Send coaching</button></td>
     </tr>`;
   }).join("");
 }
@@ -2215,6 +2243,14 @@ const _ATT_DEFAULT_POLICY = {
   auto_verbal:      false,
   auto_written:     false,
   auto_final:       false,
+  // Per-severity delivery requirement — what the driver must do in
+  // the RouteReady app to clear an auto-fired coaching of that
+  // level.  Surfaces as the default in the manual Send-coaching
+  // modal too, so dispatchers don't reset it every time.
+  delivery_verbal:      "ack",
+  delivery_written:     "ack_and_sign",
+  delivery_final:       "ack_and_sign",
+  delivery_termination: "ack_and_sign",
   // First-30-days strict rule: any callout/no-show inside the
   // probationary window jumps the driver straight to Action.
   first_30_strict: false,
@@ -2235,6 +2271,37 @@ function _getAttPolicy() {
   delete merged.progressive_coaching;
   delete merged.auto_coaching_actions;
   return merged;
+}
+
+// Per-level row in the Coaching ladder section.  Combines an
+// auto-fire toggle (locked off for Termination) with a delivery
+// dropdown so the Settings page captures everything the Phase 2
+// flows need: when do we auto-fire, and what does the driver do
+// to clear an automatic OR a manual coaching of that level?
+function _attLevelRow(p, level, label, autoLocked, blurb) {
+  const autoField = "auto_" + level;
+  const delField  = "delivery_" + level;
+  const autoOn    = !autoLocked && !!p[autoField];
+  const deliveryOpts = [
+    ["none",         "No action required"],
+    ["ack",          "Acknowledge"],
+    ["sign",         "Sign"],
+    ["ack_and_sign", "Acknowledge & sign"],
+  ].map(([v, lbl]) => `<option value="${v}" ${p[delField] === v ? "selected" : ""}>${escapeHtml(lbl)}</option>`).join("");
+  return `
+    <div style="display:grid;grid-template-columns:120px 1fr 220px;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border)">
+      <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(label)}</div>
+      <div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:${autoLocked ? "not-allowed" : "pointer"};opacity:${autoLocked ? ".55" : "1"}">
+          <input type="checkbox" ${autoLocked ? "disabled" : ""} ${autoOn ? "checked" : ""} data-rr-att-field-bool="${autoField}"/>
+          <span style="font-size:var(--fs-sm);color:var(--text)">Auto-fire on Approve</span>
+        </label>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.4">${blurb}</div>
+      </div>
+      <select class="form-input" data-rr-att-field="${delField}" style="height:auto;padding:8px 10px">
+        ${deliveryOpts}
+      </select>
+    </div>`;
 }
 
 async function loadAttendancePolicy() {
@@ -2347,19 +2414,16 @@ async function loadAttendancePolicy() {
       ${toggleRow("auto_coaching", "Auto-coach when an event is approved",
         "When ON, approving an event on the daily attendance card automatically logs the coaching to the driver's record and posts an in-app message in the RouteReady driver app for the levels you toggle below. Anything you don't auto-fire drops into the coaching drawer for a leader to finalize manually.<br>When OFF, every approved event drops into the coaching drawer regardless of level.")}
 
-      <!-- Per-level auto-approval (only meaningful when auto_coaching is ON) -->
-      <div id="rr-att-auto-levels" style="margin-top:6px;border-top:1px solid var(--border);padding-top:10px;${p.auto_coaching ? "" : "opacity:.45;pointer-events:none"}">
-        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Levels that auto-fire</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:6px;line-height:1.5">For any level you toggle on, the driver will receive an automatic message in the RouteReady driver app on Approve. Levels you leave off route to the coaching drawer for a leader to finalize.</div>
-        ${toggleRow("auto_verbal",  "Verbal coaching auto-fires",
-          "On Approve, log the verbal coaching and message the driver in the RouteReady app.")}
-        ${toggleRow("auto_written", "Written warning auto-fires",
-          "On Approve, log the written warning and message the driver in the RouteReady app.")}
-        ${toggleRow("auto_final",   "Final written warning auto-fires",
-          "On Approve, log the final written warning and message the driver in the RouteReady app.")}
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);padding:8px 0 0;line-height:1.5">
-          <strong>Termination is never auto-approved.</strong> A leader always confirms a termination from the coaching drawer.
-        </div>
+      <!-- Per-level config (only meaningful when auto_coaching is ON, but
+           the delivery dropdowns also seed defaults the manual Send-
+           coaching modal pulls from on the Attendance Report rows). -->
+      <div id="rr-att-auto-levels" style="margin-top:6px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Per-level behavior</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px;line-height:1.5">For each rung, choose whether the dashboard fires the coaching automatically when an event is approved, and what the driver must do in the RouteReady app to clear it. The delivery picker also seeds the default when you Send coaching manually from the Attendance Report.</div>
+        ${_attLevelRow(p, "verbal",      "Verbal",       false, "1st event in window")}
+        ${_attLevelRow(p, "written",     "Written",      false, "2nd event")}
+        ${_attLevelRow(p, "final",       "Final",        false, "3rd event")}
+        ${_attLevelRow(p, "termination", "Termination",  true,  "4th event · auto-fire disabled by design — a leader always confirms")}
       </div>
     </div>
 
@@ -2382,7 +2446,16 @@ document.addEventListener("click", async (e) => {
     const status = document.getElementById("rr-att-policy-status");
     const fields = {};
     document.querySelectorAll("[data-rr-att-field]").forEach(el => {
-      fields[el.dataset.rrAttField] = Number(el.value);
+      const key = el.dataset.rrAttField;
+      const raw = el.value;
+      // Numeric thresholds vs string-keyed enums (delivery_*).  The
+      // delivery_* keys carry coaching_delivery enum values; keep them
+      // as strings so they survive the round-trip into dsps.metadata.
+      if (key.startsWith("delivery_")) {
+        fields[key] = raw;
+      } else {
+        fields[key] = Number(raw);
+      }
     });
     document.querySelectorAll("[data-rr-att-field-bool]").forEach(el => {
       fields[el.dataset.rrAttFieldBool] = !!el.checked;
@@ -2551,19 +2624,49 @@ async function loadAttendanceEventLog() {
 let _coachCtx = null;
 
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-rr-coach-event]");
-  if (!btn) return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  _coachCtx = {
-    event_id:    btn.getAttribute("data-rr-coach-event") || null,
-    driver_id:   btn.getAttribute("data-rr-coach-driver"),
-    driver_name: btn.getAttribute("data-rr-coach-driver-name") || "Driver",
-    event_label: btn.getAttribute("data-rr-coach-event-label") || "Event",
-    event_date:  btn.getAttribute("data-rr-coach-event-date") || "",
-    topic:       "attendance",
-  };
-  _openSendCoachingModal(_coachCtx);
+  // Event log row → soft-touch path (severity defaults to Verbal,
+  // the Note option is available because policy may be off).
+  const evBtn = e.target.closest("[data-rr-coach-event]");
+  if (evBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    _coachCtx = {
+      source:      "event_log",
+      event_id:    evBtn.getAttribute("data-rr-coach-event") || null,
+      driver_id:   evBtn.getAttribute("data-rr-coach-driver"),
+      driver_name: evBtn.getAttribute("data-rr-coach-driver-name") || "Driver",
+      event_label: evBtn.getAttribute("data-rr-coach-event-label") || "Event",
+      event_date:  evBtn.getAttribute("data-rr-coach-event-date") || "",
+      topic:       "attendance",
+    };
+    _openSendCoachingModal(_coachCtx);
+    return;
+  }
+  // Attendance Report row → ladder-aware path.  Severity comes from
+  // the row's coaching label; delivery default comes from policy.
+  const repBtn = e.target.closest("[data-rr-coach-report]");
+  if (repBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const sev = repBtn.getAttribute("data-rr-coach-severity") || "verbal";
+    const policy = _getAttPolicy();
+    const delDefault = policy["delivery_" + sev] || "ack";
+    _coachCtx = {
+      source:           "report",
+      driver_id:        repBtn.getAttribute("data-rr-coach-driver"),
+      driver_name:      repBtn.getAttribute("data-rr-coach-driver-name") || "Driver",
+      severity:         sev,
+      delivery_default: delDefault,
+      summary:          repBtn.getAttribute("data-rr-coach-summary") || "",
+      points:           repBtn.getAttribute("data-rr-coach-points") || "0",
+      occ:              repBtn.getAttribute("data-rr-coach-occ")    || "0",
+      callouts:         repBtn.getAttribute("data-rr-coach-callouts") || "0",
+      noshows:          repBtn.getAttribute("data-rr-coach-noshows")  || "0",
+      late:             repBtn.getAttribute("data-rr-coach-late")     || "0",
+      topic:            "attendance",
+    };
+    _openSendCoachingModal(_coachCtx);
+  }
 });
 
 function _openSendCoachingModal(ctx) {
@@ -2572,39 +2675,60 @@ function _openSendCoachingModal(ctx) {
   m = document.createElement("div");
   m.id = "rr-send-coach-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
-  const dateStr = ctx.event_date ? new Date(ctx.event_date + "T12:00:00").toLocaleDateString() : "";
+
+  const fromReport  = ctx.source === "report";
+  const dateStr     = ctx.event_date ? new Date(ctx.event_date + "T12:00:00").toLocaleDateString() : "";
+  const subtitle    = fromReport
+    ? `${escapeHtml(ctx.driver_name)} · ladder · ${escapeHtml(ctx.points)} pts · ${escapeHtml(ctx.occ)} occurrences`
+    : `${escapeHtml(ctx.driver_name)} · ${escapeHtml(ctx.event_label || "")}${dateStr ? " · " + escapeHtml(dateStr) : ""}`;
+  const sevDefault  = ctx.severity || "verbal";
+  const delDefault  = ctx.delivery_default || "ack";
+  const summaryVal  = fromReport
+    ? (ctx.summary || `Attendance · ${ctx.driver_name}`)
+    : `${ctx.event_label || ""}${dateStr ? " on " + dateStr : ""}`;
+  const notesPrefill = fromReport
+    ? `Over the last 90 days you've had ${ctx.callouts} callout${ctx.callouts === "1" ? "" : "s"}, ${ctx.noshows} no-show${ctx.noshows === "1" ? "" : "s"}, and ${ctx.late} late arrival${ctx.late === "1" ? "" : "s"} (${ctx.points} points · ${ctx.occ} occurrences). Let's talk about how to get back on track.`
+    : "";
+
+  // Note severity is hidden when launched from the Report — that path
+  // is for ladder-tracking, and Note doesn't advance the ladder.
+  const noteOption = fromReport ? "" : `<option value="note">Note · informational, no ladder advancement</option>`;
+
+  const sel = (v) => v === sevDefault ? "selected" : "";
+  const dsel = (v) => v === delDefault ? "selected" : "";
+
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:520px;max-width:100%;max-height:90vh;overflow-y:auto;padding:22px 24px;box-shadow:var(--shadow-lg)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em">Send coaching</div>
-          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px">${escapeHtml(ctx.driver_name)} · ${escapeHtml(ctx.event_label)}${dateStr ? " · " + escapeHtml(dateStr) : ""}</div>
+          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px">${subtitle}</div>
         </div>
         <button type="button" id="rr-coach-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 4px;line-height:1">×</button>
       </div>
 
-      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Severity</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Severity${fromReport ? ' <span style="color:var(--accent);font-weight:600;text-transform:none;letter-spacing:0">· ladder recommendation</span>' : ''}</label>
       <select id="rr-coach-sev" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px">
-        <option value="note">Note · informational, no ladder advancement</option>
-        <option value="verbal" selected>Verbal · soft warning</option>
-        <option value="written">Written · documented warning</option>
-        <option value="final">Final · last warning before termination</option>
-        <option value="termination">Termination · separation</option>
+        ${noteOption}
+        <option value="verbal"      ${sel("verbal")}>Verbal · soft warning</option>
+        <option value="written"     ${sel("written")}>Written · documented warning</option>
+        <option value="final"       ${sel("final")}>Final · last warning before termination</option>
+        <option value="termination" ${sel("termination")}>Termination · separation</option>
       </select>
 
-      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Driver must</label>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Driver must${fromReport ? ' <span style="color:var(--accent);font-weight:600;text-transform:none;letter-spacing:0">· policy default</span>' : ''}</label>
       <select id="rr-coach-delivery" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px">
-        <option value="none">Read only · no action required</option>
-        <option value="ack" selected>Acknowledge · tap "I understand"</option>
-        <option value="sign">Sign · capture signature</option>
-        <option value="ack_and_sign">Acknowledge &amp; sign</option>
+        <option value="none"         ${dsel("none")}>Read only · no action required</option>
+        <option value="ack"          ${dsel("ack")}>Acknowledge · tap "I understand"</option>
+        <option value="sign"         ${dsel("sign")}>Sign · capture signature</option>
+        <option value="ack_and_sign" ${dsel("ack_and_sign")}>Acknowledge &amp; sign</option>
       </select>
 
       <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Headline</label>
-      <input type="text" id="rr-coach-summary" placeholder="One-line summary the driver sees first" value="${escapeHtml(ctx.event_label)}${dateStr ? " on " + escapeHtml(dateStr) : ""}" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px"/>
+      <input type="text" id="rr-coach-summary" placeholder="One-line summary the driver sees first" value="${escapeHtml(summaryVal)}" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px"/>
 
       <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Message</label>
-      <textarea id="rr-coach-notes" rows="5" placeholder="What you'd like the driver to know" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);font-family:inherit;line-height:1.5;resize:vertical"></textarea>
+      <textarea id="rr-coach-notes" rows="5" placeholder="What you'd like the driver to know" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);font-family:inherit;line-height:1.5;resize:vertical">${escapeHtml(notesPrefill)}</textarea>
 
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
         <button type="button" class="btn" id="rr-coach-cancel">Cancel</button>
@@ -2644,7 +2768,10 @@ function _openSendCoachingModal(ctx) {
     }
     toast("Coaching sent to " + ctx.driver_name, "success");
     close();
-    if (typeof loadAttendanceEventLog === "function") loadAttendanceEventLog();
+    // Refresh whichever surface launched the modal so the operator
+    // sees their action reflected immediately.
+    if (ctx.source === "report" && typeof loadAttendanceLive === "function") loadAttendanceLive();
+    else if (typeof loadAttendanceEventLog === "function")                   loadAttendanceEventLog();
   });
 }
 
