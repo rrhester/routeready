@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RouteReady · topbar background.
+  Premium SaaS feel: soft white canvas, ethereal flowing topographic
+  lines, three layered wave crests rising gradually from the bottom-
+  right in the brand-blue family.
+  Designed at 3200×112 for the 56 px topbar at 2× retina.
+  preserveAspectRatio="xMidYMid slice" + CSS background-size: cover
+  crops gracefully on narrow viewports.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 3200 112" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Canvas: warm-to-cool wash. Most of the bar reads as white. -->
+    <linearGradient id="rrCanvas" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"    stop-color="#ffffff"/>
+      <stop offset="0.5"  stop-color="#fcfdff"/>
+      <stop offset="1"    stop-color="#eef3fb"/>
+    </linearGradient>
+
+    <!-- Wave fills: each crest dissolves into white, trough sits in
+         soft brand blue. Layered back → middle → front for depth. -->
+    <linearGradient id="rrWBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#dde8f6" stop-opacity="0"/>
+      <stop offset="1"    stop-color="#a8c2eb" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="rrWMid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#c1d6f0" stop-opacity="0"/>
+      <stop offset="1"    stop-color="#88aedd" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="rrWFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#a3bfea" stop-opacity="0"/>
+      <stop offset="1"    stop-color="#5e8fd0" stop-opacity="0.65"/>
+    </linearGradient>
+
+    <!-- Top-edge softener — keeps the bar feeling "lifted". -->
+    <linearGradient id="rrTopLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 1. Canvas wash. -->
+  <rect width="3200" height="112" fill="url(#rrCanvas)"/>
+
+  <!-- 2. Topographic flow lines — full-width gentle curves so the
+       artwork reads as flowing across the whole bar, not just the
+       wave on the right. -->
+  <g stroke="#7d9fd0" stroke-width="0.6" fill="none" opacity="0.16">
+    <path d="M -50 22 C 500 12 1100 36 1700 24 S 2700 14 3260 28"/>
+    <path d="M -50 40 C 500 30 1100 56 1700 44 S 2700 32 3260 46"/>
+    <path d="M -50 60 C 500 48 1100 76 1700 62 S 2700 50 3260 64"/>
+    <path d="M -50 80 C 500 68 1100 96 1700 82 S 2700 70 3260 84"/>
+    <path d="M -50 100 C 500 88 1100 116 1700 102 S 2700 90 3260 104"/>
+  </g>
+
+  <!-- 3. Back wave: enters at the left bottom, rises gradually,
+       crest peaks around the right third. Broadest + softest. -->
+  <path d="M -50 112
+           C  600 110  1100 80  1600 65
+           C 2050 55  2400 30  2700 18
+           C 2950 10  3150 14  3260 24
+           L 3260 112 Z"
+        fill="url(#rrWBack)"/>
+
+  <!-- 4. Middle wave: enters lower, rises later than the back wave
+       so a slice of back wave shows through. -->
+  <path d="M -50 112
+           C  600 112  1300 96  1800 82
+           C 2200 70  2550 48  2850 38
+           C 3050 32  3200 36  3260 44
+           L 3260 112 Z"
+        fill="url(#rrWMid)"/>
+
+  <!-- 5. Front wave: enters latest, deepest brand blue, narrowest
+       crest on the right. Anchors the bar's right side. -->
+  <path d="M -50 112
+           C  800 112  1700 108  2200 96
+           C 2500 88  2750 72  2950 60
+           C 3100 52  3220 56  3260 64
+           L 3260 112 Z"
+        fill="url(#rrWFront)"/>
+
+  <!-- 6. Top-edge highlight (last so it sits over the waves). -->
+  <rect width="3200" height="32" fill="url(#rrTopLight)"/>
+</svg>
