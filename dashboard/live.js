@@ -737,12 +737,14 @@ async function loadAttendanceLive() {
       .lte("date", todayIso),
     // Most recent attendance coaching per driver inside the decay
     // window.  Drives the new Last coaching column + Send button
-    // "already sent" state so the Report actually reflects what
-    // auto-coach (and manual sends) have done.
+    // "already sent" state.  driver_visible=true filter excludes the
+    // legacy "Queued" rows that 0085 archives but defends against
+    // anything that slipped through.
     sb.from("coachings")
-      .select("id, driver_id, severity, occurred_at, acknowledged_at, signed_at, delivery_required, driver_visible")
+      .select("id, driver_id, severity, occurred_at, acknowledged_at, signed_at, delivery_required")
       .eq("dsp_id", dspId)
       .eq("topic", "attendance")
+      .eq("driver_visible", true)
       .gte("occurred_at", sinceDate.toISOString())
       .is("archived_at", null)
       .order("occurred_at", { ascending: false }),
@@ -977,9 +979,7 @@ function _renderAttReportTbody() {
       const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[lc.severity]) || lc.severity;
       const when     = lc.occurred_at ? _relTimeAgo(lc.occurred_at) : "";
       let ackChip;
-      if (lc.driver_visible === false) {
-        ackChip = `<span class="att-coach-chip pending" title="Queued for the coaching drawer — driver hasn't seen it yet">Queued</span>`;
-      } else if (lc.acknowledged_at) {
+      if (lc.acknowledged_at) {
         const ackBy = lc.signed_at ? "Signed" : "Acknowledged";
         ackChip = `<span class="att-coach-chip done" title="${escapeHtml(ackBy)} ${escapeHtml(_relTimeAgo(lc.acknowledged_at))}">✓ ${escapeHtml(ackBy)}</span>`;
       } else if (lc.delivery_required && lc.delivery_required !== "none") {
@@ -2660,9 +2660,10 @@ async function loadAttendanceEventLog() {
   if (sinceIso) shiftsQ = shiftsQ.gte("date", sinceIso);
 
   let coachQ = sb.from("coachings")
-    .select("id, severity, triggering_shift_id, occurred_at, acknowledged_at, signed_at, driver_visible")
+    .select("id, severity, triggering_shift_id, occurred_at, acknowledged_at, signed_at")
     .eq("dsp_id", dspId)
     .eq("topic", "attendance")
+    .eq("driver_visible", true)
     .not("triggering_shift_id", "is", null)
     .is("archived_at", null)
     .order("occurred_at", { ascending: false });
@@ -2760,12 +2761,9 @@ async function loadAttendanceEventLog() {
           let coachCell;
           if (c) {
             const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity;
-            const ackState = c.driver_visible === false ? "Queued"
-                            : c.acknowledged_at ? (c.signed_at ? "Signed" : "Acknowledged")
-                            : "Awaiting ack";
-            const chipCls = (ackState === "Acknowledged" || ackState === "Signed") ? "done"
-                           : ackState === "Awaiting ack" ? "pending" : "";
-            coachCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start"><span style="font-size:var(--fs-sm);font-weight:600">${escapeHtml(sevLabel)} <span style="color:var(--text-subtle);font-weight:500">· ${escapeHtml(_relTimeAgo(c.occurred_at))}</span></span><span class="att-coach-chip ${chipCls}">${ackState === "Queued" ? "" : "✓ "}${escapeHtml(ackState)}</span></div>`;
+            const ackState = c.acknowledged_at ? (c.signed_at ? "Signed" : "Acknowledged") : "Awaiting ack";
+            const chipCls  = ackState === "Awaiting ack" ? "pending" : "done";
+            coachCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start"><span style="font-size:var(--fs-sm);font-weight:600">${escapeHtml(sevLabel)} <span style="color:var(--text-subtle);font-weight:500">· ${escapeHtml(_relTimeAgo(c.occurred_at))}</span></span><span class="att-coach-chip ${chipCls}">✓ ${escapeHtml(ackState)}</span></div>`;
           } else {
             coachCell = `<span style="color:var(--text-subtle)">—</span>`;
           }
