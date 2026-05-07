@@ -339,6 +339,19 @@ a{color:inherit;text-decoration:none}
   background:var(--canvas);color:var(--text-muted);
   border:1px solid transparent;white-space:nowrap;
 }
+/* Last-coaching chip on the Attendance Report — compact ack/sign
+   indicator that tells the dispatcher whether the coaching has
+   landed with the driver. */
+.att-coach-chip{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:1px 7px;border-radius:8px;
+  font-size:10px;font-weight:700;line-height:1.5;
+  letter-spacing:.04em;text-transform:uppercase;
+  background:var(--canvas);color:var(--text-muted);
+  border:1px solid var(--border);white-space:nowrap;align-self:flex-start;
+}
+.att-coach-chip.pending{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+.att-coach-chip.done   {background:var(--green-soft);color:var(--green);border-color:transparent}
 .status-pill-pending,
 .status-pill-warning{background:var(--amber-soft);color:var(--amber)}
 .status-pill-success,
@@ -5480,7 +5493,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                     <th data-rr-att-sort="vto"        style="cursor:pointer;user-select:none;text-align:right" title="Voluntary Time Off — manager-offered opt-out, not counted against attendance">VTO</th>
                     <th data-rr-att-sort="points"     style="cursor:pointer;user-select:none;text-align:right">Points</th>
                     <th data-rr-att-sort="occ"        style="cursor:pointer;user-select:none;text-align:right">Occ.</th>
-                    <th data-rr-att-sort="status"     style="cursor:pointer;user-select:none">Coaching</th>
+                    <th data-rr-att-sort="status"     style="cursor:pointer;user-select:none" title="Where this driver currently sits on the progressive ladder based on points">Coaching</th>
+                    <th data-rr-att-sort="lastcoach"  style="cursor:pointer;user-select:none" title="Most recent coaching actually sent to this driver (vs. the ladder forecast on the left)">Last coaching</th>
                     <th data-rr-att-sort="last"       style="cursor:pointer;user-select:none">Last incident</th>
                     <th></th>
                   </tr>
@@ -15765,7 +15779,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507aw"></script>
+<script type="module" src="./live.js?v=20260507ax"></script>
 
 </body>
 </html>
