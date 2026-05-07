@@ -534,59 +534,63 @@ function fmtTime(iso) {
 // One screen, four cards. Each card represents a workflow the driver
 // completes during their shift. Status pills (Required / Pending /
 // Done) make the day's open work obvious at a glance.
-async function renderTasksHub() {
+function renderTasksHub() {
   setHeader("Tasks", "");
   const main = document.getElementById("main");
 
-  // Two parallel calls to keep TTFB low — driver_get_profile drives
-  // the Onboarding card, driver_list_forms drives the Forms cards.
-  // Both can fail independently; the hub still renders what it has.
-  let isOnboarding = false;
-  let publishedForms = [];
-  const session = readSession();
-  if (session?.token) {
-    const [profRes, formsRes] = await Promise.all([
-      sb.rpc("driver_get_profile", { p_token: session.token }).catch(() => ({ data: null })),
-      sb.rpc("driver_list_forms",  { p_token: session.token }).catch(() => ({ data: [] })),
-    ]);
-    isOnboarding = profRes.data?.status === "onboarding";
-    publishedForms = Array.isArray(formsRes.data) ? formsRes.data : [];
-  }
-
-  const cards = [];
-  if (isOnboarding) {
-    cards.push({
-      route: "/tasks/onboarding", title: "Onboarding", sub: "Steps to get hired",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
-    });
-  }
-  cards.push(
+  // Render the always-on cards FIRST so the page never stays on the
+  // loader even when a network call hangs or a migration's missing.
+  // The Onboarding card (driver_get_profile) and Forms cards
+  // (driver_list_forms) are fetched in the background and spliced in
+  // when their responses land.
+  const baseCards = [
     { route: "/tasks/availability", title: "Availability", sub: "Days you can work",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
     { route: "/tasks/attendance",   title: "Attendance",   sub: "Today's status and policy",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
-  );
-  // Append a card per published form.  Forms with once_per_driver +
-  // an existing submission stay visible but show a "Submitted" sub
-  // line so the driver knows it's done — re-tap shows the success
-  // screen.
-  for (const f of publishedForms) {
-    const oncePer = !!f.settings?.once_per_driver;
-    const done = oncePer && f.submission_count > 0;
-    cards.push({
-      route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
-      title: f.title || "Untitled form",
-      sub:   done
-        ? `Submitted · ${new Date(f.last_submitted_at).toLocaleDateString()}`
-        : (f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`),
-      icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
-    });
-  }
-
-  main.innerHTML = cards.map(taskCardHtml).join("");
+  ];
+  main.innerHTML = `<div id="rr-tasks-onboarding-slot"></div>${baseCards.map(taskCardHtml).join("")}<div id="rr-tasks-forms-slot"></div>`;
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
+
+  const session = readSession();
+  if (!session?.token) return;
+
+  // Onboarding card — only when status === 'onboarding'.
+  sb.rpc("driver_get_profile", { p_token: session.token }).then(({ data, error }) => {
+    if (error || !data || data.status !== "onboarding") return;
+    const slot = document.getElementById("rr-tasks-onboarding-slot");
+    if (!slot) return;
+    slot.innerHTML = taskCardHtml({
+      route: "/tasks/onboarding", title: "Onboarding", sub: "Steps to get hired",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    });
+    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+  }).catch(() => {});
+
+  // Published forms — append one card per form when the RPC returns.
+  // Server might be missing migration 0081 in early upgrades; we
+  // swallow and skip silently rather than block the rest of Tasks.
+  sb.rpc("driver_list_forms", { p_token: session.token }).then(({ data, error }) => {
+    if (error) return;
+    const forms = Array.isArray(data) ? data : [];
+    const slot = document.getElementById("rr-tasks-forms-slot");
+    if (!slot || forms.length === 0) return;
+    slot.innerHTML = forms.map(f => {
+      const oncePer = !!f.settings?.once_per_driver;
+      const done = oncePer && f.submission_count > 0;
+      return taskCardHtml({
+        route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
+        title: f.title || "Untitled form",
+        sub:   done
+          ? `Submitted · ${new Date(f.last_submitted_at).toLocaleDateString()}`
+          : (f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`),
+        icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+      });
+    }).join("");
+    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+  }).catch(() => {});
 }
 function taskCardHtml(c) {
   return `
