@@ -5967,26 +5967,47 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 <h2 class="settings-section-title">Team</h2>
                 <p class="settings-section-sub">Manage who has access to RouteReady and what they can do.</p>
               </div>
-              <div class="member-row">
-                <div class="dsp-avatar" style="width:32px;height:32px;font-size:var(--fs-xs)">RH</div>
-                <div><div style="font-size:var(--fs-md);font-weight:600">Ryan Hester</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">ryan@cardinallogistics.com · you</div></div>
-                <span class="role-pill owner">Owner</span>
-                <button class="btn btn-sm">Edit</button>
-              </div>
-              <div class="member-row">
-                <div class="dsp-avatar" style="width:32px;height:32px;font-size:var(--fs-xs);background:linear-gradient(135deg,#7C3AED,#A855F7)">JN</div>
-                <div><div style="font-size:var(--fs-md);font-weight:600">Jaime Navarro</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">jaime@cardinallogistics.com · added 2 mo ago</div></div>
-                <span class="role-pill coach">Coach</span>
-                <button class="btn btn-sm">Edit</button>
-              </div>
-              <div class="member-row">
-                <div class="dsp-avatar" style="width:32px;height:32px;font-size:var(--fs-xs);background:linear-gradient(135deg,#16A34A,#22C55E)">AM</div>
-                <div><div style="font-size:var(--fs-md);font-weight:600">Alex Mendez</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">alex@cardinallogistics.com · invite pending</div></div>
-                <span class="role-pill">Viewer</span>
-                <button class="btn btn-sm">Resend</button>
+              <div id="rr-team-list">
+                <div class="rr-loading">Loading team</div>
               </div>
               <div style="margin-top:var(--s-3)">
-                <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Invite team member</button>
+                <button class="btn btn-primary" id="rr-team-invite-open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Invite team member</button>
+              </div>
+            </div>
+
+            <!-- Invite team member modal -->
+            <div class="modal-backdrop" id="modal-team-invite" style="display:none" onclick="if(event.target===this)document.getElementById('modal-team-invite').style.display='none'">
+              <div class="modal-card" style="max-width:460px;width:92vw">
+                <div class="modal-head">
+                  <div>
+                    <p class="modal-title">Invite team member</p>
+                    <p class="modal-sub">They'll receive a magic-link email with no password required.</p>
+                  </div>
+                  <button class="modal-close" onclick="document.getElementById('modal-team-invite').style.display='none'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+                <form class="modal-body" id="rr-team-invite-form" style="display:flex;flex-direction:column;gap:var(--s-3)">
+                  <label style="display:block">
+                    <span style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Email</span>
+                    <input type="email" required autocomplete="email" class="form-input form-input-block" id="rr-team-invite-email" placeholder="name@example.com"/>
+                  </label>
+                  <label style="display:block">
+                    <span style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Full name <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)">(optional)</span></span>
+                    <input type="text" class="form-input form-input-block" id="rr-team-invite-name" placeholder="First Last"/>
+                  </label>
+                  <label style="display:block">
+                    <span style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Role</span>
+                    <select class="form-input form-input-block" id="rr-team-invite-role">
+                      <option value="dispatcher" selected>Dispatcher · day-to-day operator</option>
+                      <option value="ops">Ops · multi-station / can invite</option>
+                      <option value="owner">Owner · full access</option>
+                    </select>
+                  </label>
+                  <div id="rr-team-invite-status" style="font-size:var(--fs-sm);color:var(--text-subtle);min-height:18px"></div>
+                  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+                    <button type="button" class="btn" onclick="document.getElementById('modal-team-invite').style.display='none'">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="rr-team-invite-submit">Send invite</button>
+                  </div>
+                </form>
               </div>
             </div>
 
@@ -16416,7 +16437,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507aa"></script>
+<script type="module" src="./live.js?v=20260507ab"></script>
 
 </body>
 </html>
