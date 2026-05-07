@@ -13,7 +13,7 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-const SHELL_CACHE = "rr-app-shell-v46";
+const SHELL_CACHE = "rr-app-shell-v47";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -43,14 +43,18 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
-  // Same-origin static assets: cache-first, network-fallback.
+  // Same-origin static assets: NETWORK-FIRST.  Cache-first held
+  // users on a stale app.js even after we bumped ?v= because iOS
+  // PWA SW updates are unreliable.  Network-first means every
+  // reload tries fresh; the cache fallback keeps offline launches
+  // working.
   if (url.origin === location.origin && SHELL_FILES.some((f) => url.pathname.endsWith(f.replace(/^\.\//, "")))) {
     event.respondWith(
-      caches.match(req).then((cached) => cached || fetch(req).then((res) => {
+      fetch(req).then((res) => {
         const copy = res.clone();
         caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
         return res;
-      }))
+      }).catch(() => caches.match(req))
     );
     return;
   }

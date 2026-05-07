@@ -18,7 +18,14 @@ window.RR_DRIVER = { sb, driver: null };
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js")
-      .then(() => syncSwSession(readSession()))
+      .then((reg) => {
+        syncSwSession(readSession());
+        // Force the SW to check for an updated sw.js on every load.
+        // iOS otherwise holds onto a stale SW for 24h+, which leaves
+        // home-screen PWA installs stuck on whatever SW shipped at
+        // install time.
+        try { reg.update(); } catch (_) {}
+      })
       .catch((err) => console.warn("SW reg failed:", err));
   });
 }
