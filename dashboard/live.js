@@ -1049,10 +1049,15 @@ function _attKpiWeekdayBars(rows, valueFn, opts) {
 }
 
 function _attRangeToggleHtml(active) {
-  const opt = (n, label) => `<button class="${n === active ? "active" : ""}" data-rr-att-range="${n}" type="button">${label}</button>`;
-  return `<div class="rr-att-range" role="tablist" aria-label="Time range">
-    ${opt(30, "30 days")}${opt(90, "90 days")}${opt(365, "1 year")}
-  </div>`;
+  // Subtle clock-icon affordance — opens a small popover with the
+  // three windows. Matches the Turnover KPI's switcher pattern.
+  const label = active === 365 ? "1 year" : `${active} days`;
+  return `<button id="rr-att-range-toggle" type="button"
+    style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--border);background:var(--surface);border-radius:8px;cursor:pointer;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);position:relative"
+    title="Switch time frame" aria-label="Switch time frame">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+    <span>${label}</span>
+  </button>`;
 }
 
 function _attKpiPanelShell(title, sub, body) {
@@ -1199,11 +1204,34 @@ document.addEventListener("click", (e) => {
     _renderAttKpiDetail();
     return;
   }
+  // Time-frame toggle button → small popover with 30 / 90 / 1y.
+  const tfBtn = e.target.closest("#rr-att-range-toggle");
+  if (tfBtn) {
+    e.stopPropagation();
+    e.preventDefault();
+    const existing = tfBtn.querySelector(".rr-tf-popover");
+    if (existing) { existing.remove(); return; }
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+    const opts = [{ d: 30, l: "30 days" }, { d: 90, l: "90 days" }, { d: 365, l: "1 year" }];
+    const pop = document.createElement("div");
+    pop.className = "rr-tf-popover";
+    pop.style.top = "30px"; pop.style.right = "0";
+    pop.innerHTML = opts.map(o =>
+      `<button data-rr-att-range="${o.d}" class="${o.d === _attKpiDetailRange ? "active" : ""}">${o.l}</button>`
+    ).join("");
+    tfBtn.appendChild(pop);
+    return;
+  }
   const range = e.target.closest("[data-rr-att-range]");
   if (range) {
     _attKpiDetailRange = Number(range.dataset.rrAttRange) || 90;
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
     _renderAttKpiDetail();
     return;
+  }
+  // Click outside the toggle closes any open popover.
+  if (!e.target.closest("#rr-att-range-toggle, .rr-tf-popover")) {
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
   }
 });
 // Keyboard activation for the role="button" KPI cards.
@@ -2582,6 +2610,7 @@ async function loadTeamMembers() {
     .from("app_users")
     .select("id, email, full_name, role, active, created_at")
     .eq("dsp_id", dspId)
+    .eq("active", true)
     .order("role", { ascending: true })
     .order("created_at", { ascending: true });
   if (error) {
@@ -2608,17 +2637,49 @@ async function loadTeamMembers() {
     const initials = initialsOf(r.full_name || r.email);
     const sub = isMe ? `${r.email} · you` : `${r.email} · ${ageLabel(r.created_at)}`;
     const pillClass = r.role === "owner" ? "owner" : (r.role === "ops" ? "coach" : "");
+    const roleOpts = ["owner","ops","dispatcher"].map(opt =>
+      `<option value="${opt}" ${opt === r.role ? "selected" : ""}>${opt.charAt(0).toUpperCase() + opt.slice(1)}</option>`
+    ).join("");
     return `<div class="member-row">
       <div class="dsp-avatar" style="width:32px;height:32px;font-size:var(--fs-xs)">${escapeHtml(initials)}</div>
       <div>
         <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.full_name || r.email)}</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(sub)}</div>
       </div>
-      <span class="role-pill ${pillClass}">${escapeHtml(r.role.charAt(0).toUpperCase() + r.role.slice(1))}</span>
-      <button class="btn btn-sm" disabled title="Edit coming soon">Edit</button>
+      <select class="form-input" style="width:140px;padding:4px 8px;font-size:var(--fs-sm)" data-rr-team-role="${r.id}" ${isMe ? "disabled title='Cannot change your own role'" : ""}>${roleOpts}</select>
+      <button class="btn btn-sm btn-danger" data-rr-team-remove="${r.id}" data-rr-team-name="${escapeHtml(r.full_name || r.email)}" ${isMe ? "disabled title='Cannot remove yourself'" : ""}>Remove</button>
     </div>`;
   }).join("");
 }
+
+// Inline role-change save (no modal — change the select, hits the
+// app_users row immediately).
+document.addEventListener("change", async (e) => {
+  const sel = e.target.closest("[data-rr-team-role]");
+  if (!sel) return;
+  const id = sel.getAttribute("data-rr-team-role");
+  const role = sel.value;
+  const { error } = await sb.from("app_users").update({ role }).eq("id", id);
+  if (error) { toast("Save failed: " + error.message, "warn"); loadTeamMembers(); return; }
+  toast("Role updated", "success");
+});
+
+// Remove member — soft-delete via active=false so any audit/coaching
+// rows that reference them still resolve. Keeps the auth.users row
+// intact (no privileged admin call needed); the app login gate already
+// rejects inactive app_users.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-team-remove]");
+  if (!btn) return;
+  const id   = btn.getAttribute("data-rr-team-remove");
+  const name = btn.getAttribute("data-rr-team-name") || "this teammate";
+  if (!confirm(`Remove ${name} from the team? They'll lose dashboard access immediately. Re-invite them later if needed.`)) return;
+  btn.disabled = true;
+  const { error } = await sb.from("app_users").update({ active: false }).eq("id", id);
+  if (error) { toast("Remove failed: " + error.message, "warn"); btn.disabled = false; return; }
+  toast(`Removed ${name}`, "warn");
+  loadTeamMembers();
+});
 
 // Open the invite modal.
 document.addEventListener("click", (e) => {
@@ -8695,8 +8756,10 @@ document.addEventListener("keydown", (e) => {
 });
 
 function _renderAvailabilityBlackouts(rows) {
-  const host = document.getElementById("dr-sub-availability");
-  const el = host?.querySelector("[data-rr-avail-blackouts]");
+  // The blackout container moved from the Availability page modal
+  // (deleted) to Settings → Availability rules.  Look up the element
+  // anywhere in the document rather than scoping to dr-sub-availability.
+  const el = document.querySelector("[data-rr-avail-blackouts]");
   if (!el) return;
   const list = (rows || []).map(b => `
     <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;font-size:var(--fs-md)">
@@ -8739,8 +8802,10 @@ function _renderAvailabilityBlackouts(rows) {
 }
 
 function _renderAvailabilitySettingsPanel(s) {
-  const host = document.getElementById("dr-sub-availability");
-  const el = host?.querySelector("[data-rr-avail-settings]");
+  // Like _renderAvailabilityBlackouts above — the settings form lives
+  // in Settings → Availability rules now, so query the document
+  // globally instead of scoping to dr-sub-availability.
+  const el = document.querySelector("[data-rr-avail-settings]");
   if (!el) return;
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:8px;align-items:start">
