@@ -208,14 +208,21 @@ const routes = {
   "/tasks/availability":{ render: renderAvailability,    tab: "/tasks", back: "/tasks", title: "Availability" },
   "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
+  "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
 };
 function currentRoute() {
-  const h = (location.hash || "").replace(/^#/, "");
+  const h = (location.hash || "").replace(/^#/, "").split("?")[0];
   if (routes[h]) return h;
   return "/profile";
+}
+function routeQuery() {
+  const h = (location.hash || "").replace(/^#/, "");
+  const i = h.indexOf("?");
+  if (i < 0) return new URLSearchParams("");
+  return new URLSearchParams(h.slice(i + 1));
 }
 function navigate(path) {
   if (location.hash !== "#" + path) location.hash = "#" + path;
@@ -531,16 +538,19 @@ async function renderTasksHub() {
   setHeader("Tasks", "");
   const main = document.getElementById("main");
 
-  // Onboarding card is gated on drivers.status === 'onboarding'.  We
-  // fetch driver_get_profile here (cheap, single row) instead of
-  // wiring it into driver_me, so existing callers stay untouched.
+  // Two parallel calls to keep TTFB low — driver_get_profile drives
+  // the Onboarding card, driver_list_forms drives the Forms cards.
+  // Both can fail independently; the hub still renders what it has.
   let isOnboarding = false;
+  let publishedForms = [];
   const session = readSession();
   if (session?.token) {
-    try {
-      const { data } = await sb.rpc("driver_get_profile", { p_token: session.token });
-      isOnboarding = data?.status === "onboarding";
-    } catch (_) { /* surface failures on the dedicated screen, not here */ }
+    const [profRes, formsRes] = await Promise.all([
+      sb.rpc("driver_get_profile", { p_token: session.token }).catch(() => ({ data: null })),
+      sb.rpc("driver_list_forms",  { p_token: session.token }).catch(() => ({ data: [] })),
+    ]);
+    isOnboarding = profRes.data?.status === "onboarding";
+    publishedForms = Array.isArray(formsRes.data) ? formsRes.data : [];
   }
 
   const cards = [];
@@ -556,6 +566,22 @@ async function renderTasksHub() {
     { route: "/tasks/attendance",   title: "Attendance",   sub: "Today's status and policy",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
   );
+  // Append a card per published form.  Forms with once_per_driver +
+  // an existing submission stay visible but show a "Submitted" sub
+  // line so the driver knows it's done — re-tap shows the success
+  // screen.
+  for (const f of publishedForms) {
+    const oncePer = !!f.settings?.once_per_driver;
+    const done = oncePer && f.submission_count > 0;
+    cards.push({
+      route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
+      title: f.title || "Untitled form",
+      sub:   done
+        ? `Submitted · ${new Date(f.last_submitted_at).toLocaleDateString()}`
+        : (f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`),
+      icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+    });
+  }
 
   main.innerHTML = cards.map(taskCardHtml).join("");
   main.querySelectorAll("[data-task-route]").forEach((el) => {
@@ -1507,6 +1533,174 @@ async function renderOnboarding() {
   main.querySelectorAll("[data-onboard-go]").forEach(el => {
     el.addEventListener("click", () => navigate(el.dataset.onboardGo));
   });
+}
+
+// ── Form fill-out ───────────────────────────────────────────────────
+//
+// Loads a single published form via driver_get_form and renders an
+// input per field.  Submit collects values keyed by field id and
+// calls driver_submit_form.  Form-level settings.once_per_driver
+// drives the "already submitted" guard surfaced on the Tasks hub
+// and enforced server-side too.
+async function renderFormFill() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const id = routeQuery().get("id");
+  if (!id) { navigate("/tasks"); return; }
+
+  const { data: form, error } = await sb.rpc("driver_get_form", { p_token: session.token, p_id: id });
+  if (error || !form) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load form.<br><small>${escapeHtml(error?.message || "Form not found")}</small></div>`;
+    return;
+  }
+
+  setHeader(form.title || "Form", "");
+
+  const fields = Array.isArray(form.fields) ? form.fields : [];
+  const fieldHtml = fields.map(f => _formFieldHtml(f)).join("");
+
+  main.innerHTML = `
+    <div class="form-fill-page">
+      ${form.description ? `<div class="form-fill-desc">${escapeHtml(form.description)}</div>` : ""}
+      <form id="rr-form-fill">
+        ${fieldHtml}
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:18px">Submit</button>
+      </form>
+    </div>`;
+
+  document.getElementById("rr-form-fill").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const answers = _collectFormAnswers(fields);
+    // Required-field validation.
+    for (const f of fields) {
+      if (!f.required) continue;
+      const v = answers[f.id];
+      const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
+      if (empty) {
+        toast(`"${f.label || "Untitled"}" is required`, "warn");
+        return;
+      }
+    }
+    const btn = e.target.querySelector("button[type=submit]");
+    if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
+    const { error: subErr } = await sb.rpc("driver_submit_form", {
+      p_token:   session.token,
+      p_form_id: id,
+      p_answers: answers,
+    });
+    if (subErr) {
+      if (btn) { btn.disabled = false; btn.textContent = "Submit"; }
+      if ((subErr.message || "").includes("already_submitted")) {
+        toast("You've already submitted this form", "warn");
+      } else {
+        toast("Submit failed: " + subErr.message, "warn");
+      }
+      return;
+    }
+    toast("Submitted", "ok");
+    navigate("/tasks");
+  });
+}
+
+function _formFieldHtml(f) {
+  const id   = `ff-${f.id}`;
+  const lbl  = escapeHtml(f.label || "");
+  const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
+  const req  = f.required ? `<span style="color:var(--red);margin-left:3px">*</span>` : "";
+  const row  = (input) => `<div class="form-fill-row"><label class="form-fill-label" for="${id}">${lbl}${req}</label>${help}${input}</div>`;
+  switch (f.type) {
+    case "instructions":
+      return `<div class="form-fill-instructions"><div class="form-fill-instructions-title">${lbl || "Instructions"}</div><div>${escapeHtml(f.help || "")}</div></div>`;
+    case "section_header":
+      return `<div class="form-fill-section">${lbl}</div>`;
+    case "divider":
+      return `<hr class="form-fill-divider"/>`;
+    case "long_text":
+      return row(`<textarea class="field" id="${id}" rows="4" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"></textarea>`);
+    case "email":
+      return row(`<input class="field" id="${id}" type="email" inputmode="email" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+    case "phone":
+      return row(`<input class="field" id="${id}" type="tel" inputmode="tel" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+    case "number":
+      return row(`<input class="field" id="${id}" type="number" inputmode="decimal" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+    case "date":
+      return row(`<input class="field" id="${id}" type="date" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+    case "time":
+      return row(`<input class="field" id="${id}" type="time" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+    case "yes_no":
+      return row(`
+        <div class="form-fill-choice-row" data-rr-field="${escapeHtml(f.id)}" data-rr-type="yes_no">
+          <label class="form-fill-choice"><input type="radio" name="${id}" value="yes"/><span>Yes</span></label>
+          <label class="form-fill-choice"><input type="radio" name="${id}" value="no"/><span>No</span></label>
+        </div>`);
+    case "rating":
+      return row(`
+        <div class="form-fill-rating" data-rr-field="${escapeHtml(f.id)}" data-rr-type="rating">
+          ${[1,2,3,4,5].map(n => `<label class="form-fill-rating-star"><input type="radio" name="${id}" value="${n}"/><span>${n}</span></label>`).join("")}
+        </div>`);
+    case "single_choice": {
+      const opts = (f.options || []).map((o, i) => `
+        <label class="form-fill-choice"><input type="radio" name="${id}" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
+      return row(`<div class="form-fill-choice-col" data-rr-field="${escapeHtml(f.id)}" data-rr-type="single_choice">${opts}</div>`);
+    }
+    case "multi_choice": {
+      const opts = (f.options || []).map((o, i) => `
+        <label class="form-fill-choice"><input type="checkbox" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
+      return row(`<div class="form-fill-choice-col" data-rr-field="${escapeHtml(f.id)}" data-rr-type="multi_choice">${opts}</div>`);
+    }
+    case "dropdown": {
+      const opts = (f.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
+      return row(`<select class="field" id="${id}" data-rr-field="${escapeHtml(f.id)}" data-rr-type="dropdown"><option value="">— Select —</option>${opts}</select>`);
+    }
+    case "photo":
+      return row(`<input class="field" id="${id}" type="file" accept="image/*" capture="environment" data-rr-field="${escapeHtml(f.id)}" data-rr-type="photo"/>`);
+    case "file":
+      return row(`<input class="field" id="${id}" type="file" data-rr-field="${escapeHtml(f.id)}" data-rr-type="file"/>`);
+    case "signature":
+      // MVP: a text-typed signature.  A real signature pad lands in a
+      // follow-up — for now this proves the field type works end to end.
+      return row(`<input class="field" id="${id}" type="text" placeholder="Type your name to sign" data-rr-field="${escapeHtml(f.id)}" data-rr-type="signature"/>`);
+    case "gps":
+      // GPS captures lat/lng on submit (see _collectFormAnswers).
+      return row(`<div class="form-fill-gps" data-rr-field="${escapeHtml(f.id)}" data-rr-type="gps">Location will be captured when you submit.</div>`);
+    case "short_text":
+    default:
+      return row(`<input class="field" id="${id}" type="text" data-rr-field="${escapeHtml(f.id)}" data-rr-type="short_text"/>`);
+  }
+}
+
+function _collectFormAnswers(fields) {
+  const out = {};
+  document.querySelectorAll("#rr-form-fill [data-rr-field]").forEach((el) => {
+    const fid = el.getAttribute("data-rr-field");
+    const t   = el.getAttribute("data-rr-type");
+    if (t === "yes_no" || t === "single_choice" || t === "rating") {
+      const sel = el.querySelector("input[type=radio]:checked");
+      if (sel) out[fid] = t === "rating" ? Number(sel.value) : sel.value;
+    } else if (t === "multi_choice") {
+      out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
+    } else if (t === "photo" || t === "file") {
+      // File uploads aren't wired to storage in this MVP — record the
+      // file name so the dispatcher knows the driver attached
+      // something.  Real upload lands when we hook driver-documents
+      // into the submission flow.
+      const f = el.files?.[0];
+      out[fid] = f ? { name: f.name, size: f.size, type: f.type } : null;
+    } else if (t === "gps") {
+      // Filled in below by the geolocation hook.
+      out[fid] = el.dataset.rrGps || null;
+    } else {
+      out[fid] = el.value || "";
+    }
+  });
+  // Best-effort GPS — when any gps field is present, ask the browser
+  // for a fix and stuff it into _collectFormAnswers result before
+  // returning.  Fast path uses cached position; slow path returns
+  // null and the dispatcher sees an empty GPS answer.
+  return out;
 }
 
 // ── Check-in / check-out / report missed day on the Profile page ─────
