@@ -1872,10 +1872,6 @@ function _prefillWeatherInputs() {
     status.style.color = "var(--text-subtle)";
     status.textContent = `Currently saved: ${meta.lat}, ${meta.lon}`;
   }
-  const cardEl  = document.getElementById("rr-set-weather-show-card");
-  const radarEl = document.getElementById("rr-set-weather-show-radar");
-  if (cardEl)  cardEl.checked  = meta.show_card  !== false;
-  if (radarEl) radarEl.checked = meta.show_radar !== false;
 
   // DSP brand · prefill from the live record so the operator can edit it.
   const nameEl = document.getElementById("rr-set-dsp-name");
@@ -1926,31 +1922,10 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// Persist the weather card/radar toggles to dsps.metadata.weather.
-async function _saveWeatherToggle(field, value) {
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-  const status = document.getElementById("rr-set-weather-toggle-status");
-  if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
-  try {
-    const { data: dsp } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
-    const meta = dsp?.metadata || {};
-    const newWeather = { ...(meta.weather || {}), [field]: value };
-    const newMeta = { ...meta, weather: newWeather };
-    const { error } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
-    if (error) throw error;
-    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
-    if (status) { status.style.color = "var(--green, #22c55e)"; status.textContent = "Saved"; setTimeout(() => { if (status) status.textContent = ""; }, 1500); }
-    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
-  } catch (err) {
-    console.error("weather toggle save:", err);
-    if (status) { status.style.color = "var(--red)"; status.textContent = "Save failed"; }
-  }
-}
-document.addEventListener("change", (e) => {
-  if (e.target.id === "rr-set-weather-show-card")  _saveWeatherToggle("show_card",  !!e.target.checked);
-  if (e.target.id === "rr-set-weather-show-radar") _saveWeatherToggle("show_radar", !!e.target.checked);
-});
+// Note: the dashboard weather card / radar toggles were removed from
+// Settings → Workspace. Lat/lng capture stays so the system can still
+// log local weather every day for performance insights — that's done
+// by the (separate) weather-tracking job, not by this UI.
 document.addEventListener("click", (e) => {
   // Settings nav button (sidebar) or the Workspace section pill.
   if (e.target.closest('[data-rr-nav-item="settings"]') ||
@@ -3858,12 +3833,6 @@ async function refreshDriverStatRow(rows) {
     if (el) el.textContent = n;
   });
 
-  const sevenAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-  const { count: coachedCount } = await sb.from("coachings")
-    .select("*", { count: "exact", head: true })
-    .eq("dsp_id", window.RR.dsp.id)
-    .gte("occurred_at", sevenAgo);
-
   const scored = rows.filter(r => r.score != null);
   const avgScore = scored.length === 0
     ? "—"
@@ -3915,10 +3884,30 @@ async function refreshDriverStatRow(rows) {
     else                  tenureBuckets["730plus"]+= 1;
   }
 
+  // Score buckets for the Avg-score drilldown.
+  const scoreBuckets = { "90+": 0, "80-89": 0, "70-79": 0, "50-69": 0, "lt50": 0 };
+  for (const r of active) {
+    const s = r.score;
+    if (s == null || !Number.isFinite(Number(s))) continue;
+    const v = Number(s);
+    if      (v >= 90) scoreBuckets["90+"]   += 1;
+    else if (v >= 80) scoreBuckets["80-89"] += 1;
+    else if (v >= 70) scoreBuckets["70-79"] += 1;
+    else if (v >= 50) scoreBuckets["50-69"] += 1;
+    else              scoreBuckets["lt50"]  += 1;
+  }
+  // Top + bottom 5 by score, for the at-a-glance lists in the drilldown.
+  const scoredActive = active.filter(d => d.score != null);
+  const sortedByScore = scoredActive.slice().sort((a, b) => Number(b.score) - Number(a.score));
+  const topFive = sortedByScore.slice(0, 5);
+  const botFive = sortedByScore.slice(-5).reverse();
+
   // Stash everything the drilldowns need so they can render without
   // re-computing or re-fetching.
   _rosterStats = {
-    totalActive, atRiskCount, avgScore,
+    totalActive, atRiskCount,
+    avgScore, scoredCount: scored.length,
+    scoreBuckets, topFive, botFive,
     tenureMonths, avgTenure, medianTenure, longestMonths,
     tenureBuckets,
     winDays,
@@ -3927,18 +3916,18 @@ async function refreshDriverStatRow(rows) {
   };
 
   const tiles = document.querySelectorAll(".driver-stat-row .stat-mini");
-  if (tiles.length >= 6) {
+  if (tiles.length >= 5) {
     setStatTile(tiles[0], "Active", counts.active, `${counts.onboarding} onboarding · ${inactiveTotal} inactive`);
-    setStatTile(tiles[1], "Avg score", avgScore, "Per-driver score, latest");
+    setStatTile(tiles[1], "Avg score", avgScore,
+      scored.length === 0 ? "No driver scores yet" : `Across ${scored.length} scored driver${scored.length === 1 ? "" : "s"}`);
     setStatTile(tiles[2], "At risk", atRiskCount, "Active drivers below 70");
-    setStatTile(tiles[3], "Coached this week", coachedCount ?? 0, "From the coachings log");
-    setStatTile(tiles[4], "Avg tenure",
+    setStatTile(tiles[3], "Avg tenure",
       avgTenure == null ? "—" : `${avgTenure.toFixed(1)} mo`,
       avgTenure == null
         ? "Set hire dates to see tenure"
         : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`);
     const winLabel = winDays === 365 ? "1 yr" : `${winDays}d`;
-    setStatTile(tiles[5], "Turnover",
+    setStatTile(tiles[4], "Turnover",
       `${turnoverPct.toFixed(0)}%`,
       termsLastWin.length === 0
         ? `0 terms in last ${winLabel}`
@@ -3983,6 +3972,78 @@ function _renderRosterKpiDetail() {
   panel.style.display = "block";
 
   const s = _rosterStats;
+
+  if (_rosterKpiDetail === "score") {
+    // Score-distribution buckets + top + bottom drivers.  Score is a
+    // 0–100 composite on drivers.score; we tier into 90+ / 80–89 /
+    // 70–79 / 50–69 / <50 with brand-blue → red so the at-risk tail
+    // is obvious.
+    const order  = ["90+", "80-89", "70-79", "50-69", "lt50"];
+    const labels = {
+      "90+":   "90 – 100  · Top tier",
+      "80-89": "80 – 89   · Strong",
+      "70-79": "70 – 79   · Standard",
+      "50-69": "50 – 69   · At risk",
+      "lt50":  "Below 50  · Critical",
+    };
+    const colors = {
+      "90+":   "var(--green)",
+      "80-89": "var(--accent)",
+      "70-79": "var(--text-muted)",
+      "50-69": "var(--amber)",
+      "lt50":  "var(--red)",
+    };
+    const buckets = s.scoreBuckets;
+    const total = order.reduce((sum, k) => sum + (buckets[k] || 0), 0);
+    const max   = Math.max(1, ...order.map(k => buckets[k] || 0));
+    const bars  = order.map(k => {
+      const n   = buckets[k] || 0;
+      const pct = total ? Math.round((n / total) * 100) : 0;
+      const w   = (n / max) * 100;
+      return `<div style="display:grid;grid-template-columns:200px 1fr 90px;gap:14px;align-items:center;padding:8px 0">
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${labels[k]}</div>
+        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:${colors[k]};height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
+        </div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
+      </div>`;
+    }).join("");
+
+    const driverRow = (r, color) => {
+      const name = rrTitleCaseName(displayDriverName(r) || r.full_name || "Driver");
+      const station = r.station?.code || "—";
+      return `<div style="display:grid;grid-template-columns:1fr 80px 60px;gap:12px;align-items:center;padding:6px 0;border-top:1px solid var(--border);font-size:var(--fs-sm)">
+        <div style="font-weight:600;color:var(--text)">${escapeHtml(name)}</div>
+        <div style="color:var(--text-muted)">${escapeHtml(station)}</div>
+        <div style="text-align:right;font-weight:700;color:${color};font-variant-numeric:tabular-nums">${Number(r.score).toFixed(0)}</div>
+      </div>`;
+    };
+    const topList = s.topFive.length === 0
+      ? `<div class="rr-empty-inline" style="padding:14px 0">No scored drivers yet.</div>`
+      : s.topFive.map(r => driverRow(r, "var(--green)")).join("");
+    const botList = s.botFive.length === 0
+      ? `<div class="rr-empty-inline" style="padding:14px 0">No scored drivers yet.</div>`
+      : s.botFive.map(r => driverRow(r, Number(r.score) < 70 ? "var(--red)" : "var(--text)")).join("");
+
+    panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
+      <div style="margin-bottom:var(--s-4)">
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Avg score · distribution</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Fleet average is ${s.avgScore} across ${s.scoredCount} scored driver${s.scoredCount === 1 ? "" : "s"}. Bars show how the team splits across performance tiers.</div>
+      </div>
+      ${bars}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4);margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Top 5</div>
+          ${topList}
+        </div>
+        <div>
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Bottom 5</div>
+          ${botList}
+        </div>
+      </div>
+    </div>`;
+    return;
+  }
 
   if (_rosterKpiDetail === "tenure") {
     // Tenure-distribution bar chart — same buckets the old Insights
