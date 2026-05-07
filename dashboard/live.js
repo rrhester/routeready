@@ -725,7 +725,7 @@ async function loadAttendanceLive() {
   const sinceIso  = fmtIsoDate(sinceDate);
   const todayIso  = fmtIsoDate(new Date());
 
-  const [driversRes, shiftsRes] = await Promise.all([
+  const [driversRes, shiftsRes, coachingsRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, status, hire_date, station:station_id (code)")
       .eq("dsp_id", dspId)
@@ -735,6 +735,17 @@ async function loadAttendanceLive() {
       .eq("dsp_id", dspId)
       .gte("date", sinceIso)
       .lte("date", todayIso),
+    // Most recent attendance coaching per driver inside the decay
+    // window.  Drives the new Last coaching column + Send button
+    // "already sent" state so the Report actually reflects what
+    // auto-coach (and manual sends) have done.
+    sb.from("coachings")
+      .select("id, driver_id, severity, occurred_at, acknowledged_at, signed_at, delivery_required, driver_visible")
+      .eq("dsp_id", dspId)
+      .eq("topic", "attendance")
+      .gte("occurred_at", sinceDate.toISOString())
+      .is("archived_at", null)
+      .order("occurred_at", { ascending: false }),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -742,8 +753,19 @@ async function loadAttendanceLive() {
     return;
   }
 
-  const drivers = driversRes.data || [];
-  const shifts  = shiftsRes.data  || [];
+  const drivers   = driversRes.data || [];
+  const shifts    = shiftsRes.data  || [];
+  const coachings = coachingsRes?.data || [];
+
+  // Map driver_id → most recent attendance coaching.  Also remember
+  // the count so the dispatcher can tell at a glance "this driver
+  // has been coached three times in the window."
+  const lastCoachByDriver = new Map();
+  const coachCountByDriver = new Map();
+  for (const c of coachings) {
+    if (!lastCoachByDriver.has(c.driver_id)) lastCoachByDriver.set(c.driver_id, c);
+    coachCountByDriver.set(c.driver_id, (coachCountByDriver.get(c.driver_id) || 0) + 1);
+  }
 
   // Per-driver tally — every column accumulates from check-in clicks.
   const acc = new Map();
@@ -802,7 +824,9 @@ async function loadAttendanceLive() {
     totalIncidents += occ;
     totalVto       += a.vto;
     if (statusKind !== "ok") inAction += 1;
-    return { d, a, points, occ, statusLabel, statusKind, coachingLabel };
+    const lastCoach = lastCoachByDriver.get(d.id) || null;
+    const coachCount = coachCountByDriver.get(d.id) || 0;
+    return { d, a, points, occ, statusLabel, statusKind, coachingLabel, lastCoach, coachCount };
   });
 
   _attReportRows = rows;
@@ -860,7 +884,7 @@ function _renderAttReportTbody() {
   if (!tbody) return;
   const rows = [..._attReportRows];
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="13"><div class="rr-empty-inline">No drivers yet</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14"><div class="rr-empty-inline">No drivers yet</div></td></tr>`;
     return;
   }
 
@@ -869,6 +893,9 @@ function _renderAttReportTbody() {
   // Coaching column ranks by ladder severity so a click sorts most-
   // urgent → clear (Termination > Final > Written > Verbal > Clear).
   const COACHING_RANK = { "Termination": 4, "Final": 3, "Written · 1st 30": 2, "Written": 2, "Verbal": 1, "Clear": 0, "Policy off": -1 };
+  // Severity rank for the new Last coaching column — drives the
+  // sort when an operator clicks that header.
+  const SEV_RANK = { termination: 4, final: 3, written: 3, warning: 3, verbal: 1, concern: 1, note: 0, info: 0 };
   const keyOf = {
     driver:    (r) => (displayDriverName(r.d) || "").toLowerCase(),
     station:   (r) => (r.d.station?.code || "").toLowerCase(),
@@ -881,6 +908,7 @@ function _renderAttReportTbody() {
     points:    (r) => r.points,
     occ:       (r) => r.occ,
     status:    (r) => COACHING_RANK[r.coachingLabel] ?? 0,
+    lastcoach: (r) => r.lastCoach ? (SEV_RANK[r.lastCoach.severity] ?? 0) : -1,
     last:      (r) => r.a.last || "",
   };
   const k = keyOf[_attReportSort.col] || keyOf.points;
@@ -938,6 +966,38 @@ function _renderAttReportTbody() {
                         : "neutral";
     const sev = RECOMMEND[r.coachingLabel] || "verbal";
     const summary = `${r.coachingLabel} · ${r.a.callouts} callout${r.a.callouts === 1 ? "" : "s"}, ${r.a.noshows} no-show${r.a.noshows === 1 ? "" : "s"}, ${r.a.late} late`;
+
+    // Last coaching cell — actual sent state, not the ladder forecast.
+    let lastCoachCell = `<span style="color:var(--text-subtle)">—</span>`;
+    let sendBtnLabel  = "Send coaching";
+    let sendBtnTitle  = "Send coaching · pre-filled with ladder recommendation";
+    let sendBtnExtra  = "";
+    if (r.lastCoach) {
+      const lc       = r.lastCoach;
+      const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[lc.severity]) || lc.severity;
+      const when     = lc.occurred_at ? _relTimeAgo(lc.occurred_at) : "";
+      let ackChip;
+      if (lc.driver_visible === false) {
+        ackChip = `<span class="att-coach-chip pending" title="Queued for the coaching drawer — driver hasn't seen it yet">Queued</span>`;
+      } else if (lc.acknowledged_at) {
+        const ackBy = lc.signed_at ? "Signed" : "Acknowledged";
+        ackChip = `<span class="att-coach-chip done" title="${escapeHtml(ackBy)} ${escapeHtml(_relTimeAgo(lc.acknowledged_at))}">✓ ${escapeHtml(ackBy)}</span>`;
+      } else if (lc.delivery_required && lc.delivery_required !== "none") {
+        ackChip = `<span class="att-coach-chip pending" title="Driver hasn't acknowledged yet">Awaiting ack</span>`;
+      } else {
+        ackChip = `<span class="att-coach-chip" title="No driver action required">Sent</span>`;
+      }
+      const countSuffix = r.coachCount > 1 ? ` <span style="color:var(--text-subtle)">· ${r.coachCount} this window</span>` : "";
+      lastCoachCell = `<div style="display:flex;flex-direction:column;gap:2px"><div style="font-weight:600;font-size:var(--fs-sm)">${escapeHtml(sevLabel)}<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(when)}</span>${countSuffix}</div>${ackChip}</div>`;
+
+      // Send-coaching button defaults to a neutral "Send another"
+      // when there's already a recent coaching, so a dispatcher
+      // doesn't accidentally double-fire on the same standing.
+      sendBtnLabel = "Send another";
+      sendBtnTitle = `Already sent ${sevLabel} ${when}. Send another only if a new event has occurred.`;
+      sendBtnExtra = " btn-ghost";
+    }
+
     return `<tr>
       <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name" data-rr-driver-id="${r.d.id}">${escapeHtml(display)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
@@ -950,8 +1010,9 @@ function _renderAttReportTbody() {
       <td style="text-align:right;font-weight:600">${r.points}</td>
       <td style="text-align:right">${r.occ}</td>
       <td><span class="status-pill status-pill-${statusVariant}" title="${escapeHtml(r.statusLabel)}">${escapeHtml(r.coachingLabel)}</span></td>
+      <td>${lastCoachCell}</td>
       <td>${last}</td>
-      <td style="text-align:right"><button class="btn btn-sm" type="button"
+      <td style="text-align:right"><button class="btn btn-sm${sendBtnExtra}" type="button"
         data-rr-coach-report="1"
         data-rr-coach-driver="${escapeHtml(r.d.id)}"
         data-rr-coach-driver-name="${escapeHtml(display)}"
@@ -962,9 +1023,34 @@ function _renderAttReportTbody() {
         data-rr-coach-callouts="${r.a.callouts}"
         data-rr-coach-noshows="${r.a.noshows}"
         data-rr-coach-late="${r.a.late}"
-        title="Send coaching · pre-filled with ladder recommendation">Send coaching</button></td>
+        title="${escapeHtml(sendBtnTitle)}">${escapeHtml(sendBtnLabel)}</button></td>
     </tr>`;
   }).join("");
+}
+
+// Severity → human label for the Last coaching column on the
+// Attendance Report and the Event log "✓ Coached" badge.
+const _COACHING_SEV_LABEL = {
+  note: "Note", info: "Note",
+  verbal: "Verbal", concern: "Verbal",
+  written: "Written", warning: "Written",
+  final: "Final",
+  termination: "Termination",
+};
+
+// Compact "1d ago" / "3h ago" / "just now" helper.
+function _relTimeAgo(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  const diff = Date.now() - t;
+  if (diff < 60_000) return "just now";
+  const m = Math.floor(diff / 60_000);
+  if (m < 60) return m + "m ago";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + "h ago";
+  const d = Math.floor(h / 24);
+  if (d < 30) return d + "d ago";
+  return new Date(iso).toLocaleDateString();
 }
 
 // ─── Attendance KPI detail panel ──────────────────────────────────────────
@@ -2551,7 +2637,7 @@ async function loadAttendanceEventLog() {
   const since = new Date(); since.setDate(since.getDate() - policy.decay_days);
   const sinceIso = fmtIsoDate(since);
 
-  const [shiftsRes, driversRes] = await Promise.all([
+  const [shiftsRes, driversRes, coachRes] = await Promise.all([
     sb.from("shifts")
       .select("id, date, status, driver_id")
       .eq("dsp_id", dspId)
@@ -2561,6 +2647,16 @@ async function loadAttendanceEventLog() {
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, station:station_id (code), tier")
       .eq("dsp_id", dspId),
+    // Coachings tied to a shift (triggering_shift_id) so we can show
+    // ✓ Coached on rows the dispatcher has already addressed.
+    sb.from("coachings")
+      .select("id, severity, triggering_shift_id, occurred_at, acknowledged_at, signed_at, driver_visible")
+      .eq("dsp_id", dspId)
+      .eq("topic", "attendance")
+      .not("triggering_shift_id", "is", null)
+      .gte("occurred_at", since.toISOString())
+      .is("archived_at", null)
+      .order("occurred_at", { ascending: false }),
   ]);
 
   if (shiftsRes.error || driversRes.error) {
@@ -2570,6 +2666,14 @@ async function loadAttendanceEventLog() {
 
   const drvById = new Map((driversRes.data || []).map(d => [d.id, d]));
   const events = (shiftsRes.data || []).filter(sh => sh.driver_id);
+
+  // Most recent coaching per triggering shift — drives the ✓ Coached
+  // chip on the row.  Use the first match because the query is
+  // ordered desc by occurred_at.
+  const coachByShift = new Map();
+  for (const c of (coachRes?.data || [])) {
+    if (!coachByShift.has(c.triggering_shift_id)) coachByShift.set(c.triggering_shift_id, c);
+  }
 
   const countEl = document.getElementById("att-log-count");
   if (countEl) countEl.textContent = String(events.length);
@@ -2591,7 +2695,7 @@ async function loadAttendanceEventLog() {
 
   pane.innerHTML = `
     <div class="table-wrap"><table class="table">
-      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Counts</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Counts</th><th>Coaching</th><th></th></tr></thead>
       <tbody>
         ${events.map(ev => {
           const d = drvById.get(ev.driver_id);
@@ -2600,13 +2704,35 @@ async function loadAttendanceEventLog() {
           const initials = d ? displayDriverInitials(d) : "?";
           const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
           const occ = counts(ev.status) ? 1 : 0;
+
+          // ✓ Coached chip — surfaces when this event already has a
+          // coaching in the system, so the dispatcher knows not to
+          // double-fire.  Pending = driver hasn't acknowledged yet,
+          // Done = driver acknowledged or signed.
+          const c = coachByShift.get(ev.id);
+          let coachCell, sendBtn;
+          if (c) {
+            const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity;
+            const ackState = c.driver_visible === false ? "Queued"
+                            : c.acknowledged_at ? (c.signed_at ? "Signed" : "Acknowledged")
+                            : "Awaiting ack";
+            const chipCls = (ackState === "Acknowledged" || ackState === "Signed") ? "done"
+                           : ackState === "Awaiting ack" ? "pending" : "";
+            coachCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start"><span style="font-size:var(--fs-sm);font-weight:600">${escapeHtml(sevLabel)} <span style="color:var(--text-subtle);font-weight:500">· ${escapeHtml(_relTimeAgo(c.occurred_at))}</span></span><span class="att-coach-chip ${chipCls}">${ackState === "Queued" ? "" : "✓ "}${escapeHtml(ackState)}</span></div>`;
+            sendBtn = `<button class="btn btn-sm btn-ghost" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}" title="Already coached. Send another only if needed.">Send another</button>`;
+          } else {
+            coachCell = `<span style="color:var(--text-subtle)">—</span>`;
+            sendBtn = `<button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}">Send coaching</button>`;
+          }
+
           return `<tr>
             <td>${new Date(ev.date + "T12:00:00").toLocaleDateString()}</td>
             <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cell-name" data-rr-driver-id="${d?.id || ev.driver_id || ""}">${escapeHtml(display)}</div></div></div></td>
             <td>${escapeHtml(station)}</td>
             <td><span style="color:${eventColor[ev.status]};font-weight:600">${eventLabel[ev.status]}</span></td>
             <td style="text-align:right;font-weight:600;color:${occ ? "var(--text)" : "var(--text-subtle)"}">${occ ? "+1 occurrence" : "—"}</td>
-            <td style="text-align:right"><button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}">Send coaching</button></td>
+            <td>${coachCell}</td>
+            <td style="text-align:right">${sendBtn}</td>
           </tr>`;
         }).join("")}
       </tbody>
