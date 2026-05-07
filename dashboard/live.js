@@ -6439,12 +6439,12 @@ async function openDriverDrawer(driverId) {
         </div>
         <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
       </div>
-      <div class="dd-tabs" data-rr-tabbar="dd-tabs">
-        <button class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
-        <button class="dd-tab" data-rr-dd-tab="availability">Availability</button>
-        <button class="dd-tab" data-rr-dd-tab="license">License</button>
-        <button class="dd-tab" data-rr-dd-tab="dot">DOT</button>
-        <button class="dd-tab" data-rr-dd-tab="documents">Documents</button>
+      <div class="dd-tabs">
+        <button type="button" class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="license">License</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="dot">DOT</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
