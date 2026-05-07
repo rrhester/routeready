@@ -926,6 +926,44 @@ select.field{
 
 .rr-debug-banner{background:var(--amber-soft,#fef3c7);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);line-height:1.4}
 
+/* ── Coaching feed (driver-side) ────────────────────────────── */
+.coaching-feed{display:flex;flex-direction:column;gap:10px}
+.coaching-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px}
+.coaching-row:active{transform:scale(.99)}
+.coaching-row-pending{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft,#1A3956)}
+.coaching-row-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.coaching-row-summary{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.4}
+.coaching-row-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.coaching-row-by{font-weight:500}
+.coaching-row-date{margin-left:auto;font-size:var(--fs-xs);color:var(--text-subtle)}
+.coaching-status{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px;background:var(--canvas);color:var(--text-subtle);border:1px solid var(--border)}
+.coaching-status.pending{background:var(--accent-soft,#1A3956);color:var(--accent);border-color:transparent}
+.coaching-status.done{background:rgba(34,197,94,.14);color:#15803d;border-color:transparent}
+
+/* Category + severity badges */
+.coaching-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+.coaching-badge.cat-attendance{background:rgba(59,130,246,.10);color:#2563eb;border-color:transparent}
+.coaching-badge.cat-safety    {background:rgba(239,68,68,.12);color:#dc2626;border-color:transparent}
+.coaching-badge.cat-quality   {background:rgba(168,85,247,.12);color:#7c3aed;border-color:transparent}
+.coaching-badge.sev-note      {background:var(--canvas);color:var(--text-muted)}
+.coaching-badge.sev-info      {background:var(--canvas);color:var(--text-muted)}
+.coaching-badge.sev-verbal,.coaching-badge.sev-concern  {background:rgba(245,158,11,.12);color:#d97706;border-color:transparent}
+.coaching-badge.sev-written,.coaching-badge.sev-warning {background:rgba(249,115,22,.14);color:#c2410c;border-color:transparent}
+.coaching-badge.sev-final     {background:rgba(239,68,68,.12);color:#dc2626;border-color:transparent}
+.coaching-badge.sev-termination{background:rgba(127,29,29,.16);color:#7f1d1d;border-color:transparent}
+
+/* Detail screen */
+.coaching-detail{display:flex;flex-direction:column;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 18px 22px}
+.coaching-detail-head{display:flex;gap:6px;flex-wrap:wrap}
+.coaching-detail-meta{font-size:var(--fs-sm);color:var(--text-subtle)}
+.coaching-detail-summary{font-size:var(--fs-lg);font-weight:700;color:var(--text);line-height:1.35;letter-spacing:-.005em}
+.coaching-detail-notes{font-size:var(--fs-md);color:var(--text);line-height:1.55;white-space:pre-wrap}
+.coaching-detail-foot{margin-top:8px}
+.coaching-cleared{font-size:var(--fs-sm);color:var(--text-subtle);text-align:center;padding:14px 12px;background:var(--canvas);border-radius:8px}
+.coaching-sign-section{margin-top:8px}
+.coaching-sign-label{font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}
+.coaching-sigpad{display:block;width:100%;height:180px;border:1px dashed var(--border-strong);border-radius:8px;background:#FFFFFF;touch-action:none}
+
 /* ── Form fill-out (driver-side) ────────────────────────────── */
 .form-fill-page{display:flex;flex-direction:column;gap:14px}
 .form-fill-desc{font-size:var(--fs-md);color:var(--text-muted);line-height:1.5;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}

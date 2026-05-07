@@ -2518,7 +2518,7 @@ async function loadAttendanceEventLog() {
 
   pane.innerHTML = `
     <div class="table-wrap"><table class="table">
-      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Counts</th></tr></thead>
+      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Counts</th><th></th></tr></thead>
       <tbody>
         ${events.map(ev => {
           const d = drvById.get(ev.driver_id);
@@ -2533,10 +2533,119 @@ async function loadAttendanceEventLog() {
             <td>${escapeHtml(station)}</td>
             <td><span style="color:${eventColor[ev.status]};font-weight:600">${eventLabel[ev.status]}</span></td>
             <td style="text-align:right;font-weight:600;color:${occ ? "var(--text)" : "var(--text-subtle)"}">${occ ? "+1 occurrence" : "—"}</td>
+            <td style="text-align:right"><button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}">Send coaching</button></td>
           </tr>`;
         }).join("")}
       </tbody>
     </table></div>`;
+}
+
+// ─── Send coaching modal — Event log entry point ────────────────────
+//
+// Phase 1 path: dispatcher fires a coaching ad-hoc from a single
+// attendance event.  Severity choices include 'note' (no ladder
+// advancement) since this surface is for the policy-OFF / soft-touch
+// case.  delivery_required is per-coaching here — when the policy
+// is ON, the Report path will pull severity defaults from policy
+// settings instead.
+let _coachCtx = null;
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-rr-coach-event]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  _coachCtx = {
+    event_id:    btn.getAttribute("data-rr-coach-event") || null,
+    driver_id:   btn.getAttribute("data-rr-coach-driver"),
+    driver_name: btn.getAttribute("data-rr-coach-driver-name") || "Driver",
+    event_label: btn.getAttribute("data-rr-coach-event-label") || "Event",
+    event_date:  btn.getAttribute("data-rr-coach-event-date") || "",
+    topic:       "attendance",
+  };
+  _openSendCoachingModal(_coachCtx);
+});
+
+function _openSendCoachingModal(ctx) {
+  let m = document.getElementById("rr-send-coach-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-send-coach-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+  const dateStr = ctx.event_date ? new Date(ctx.event_date + "T12:00:00").toLocaleDateString() : "";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:520px;max-width:100%;max-height:90vh;overflow-y:auto;padding:22px 24px;box-shadow:var(--shadow-lg)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
+        <div>
+          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em">Send coaching</div>
+          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px">${escapeHtml(ctx.driver_name)} · ${escapeHtml(ctx.event_label)}${dateStr ? " · " + escapeHtml(dateStr) : ""}</div>
+        </div>
+        <button type="button" id="rr-coach-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 4px;line-height:1">×</button>
+      </div>
+
+      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Severity</label>
+      <select id="rr-coach-sev" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px">
+        <option value="note">Note · informational, no ladder advancement</option>
+        <option value="verbal" selected>Verbal · soft warning</option>
+        <option value="written">Written · documented warning</option>
+        <option value="final">Final · last warning before termination</option>
+        <option value="termination">Termination · separation</option>
+      </select>
+
+      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Driver must</label>
+      <select id="rr-coach-delivery" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px">
+        <option value="none">Read only · no action required</option>
+        <option value="ack" selected>Acknowledge · tap "I understand"</option>
+        <option value="sign">Sign · capture signature</option>
+        <option value="ack_and_sign">Acknowledge &amp; sign</option>
+      </select>
+
+      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Headline</label>
+      <input type="text" id="rr-coach-summary" placeholder="One-line summary the driver sees first" value="${escapeHtml(ctx.event_label)}${dateStr ? " on " + escapeHtml(dateStr) : ""}" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px"/>
+
+      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Message</label>
+      <textarea id="rr-coach-notes" rows="5" placeholder="What you'd like the driver to know" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);font-family:inherit;line-height:1.5;resize:vertical"></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
+        <button type="button" class="btn" id="rr-coach-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="rr-coach-send">Send to driver</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  const close = () => { m.remove(); _coachCtx = null; };
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  document.getElementById("rr-coach-close").addEventListener("click", close);
+  document.getElementById("rr-coach-cancel").addEventListener("click", close);
+
+  document.getElementById("rr-coach-send").addEventListener("click", async () => {
+    const sev      = document.getElementById("rr-coach-sev").value;
+    const delivery = document.getElementById("rr-coach-delivery").value;
+    const summary  = document.getElementById("rr-coach-summary").value.trim();
+    const notes    = document.getElementById("rr-coach-notes").value.trim();
+    if (!summary && !notes) { toast("Add a headline or message", "warn"); return; }
+    const sendBtn = document.getElementById("rr-coach-send");
+    sendBtn.disabled = true; sendBtn.textContent = "Sending…";
+    const payload = {
+      driver_id:           ctx.driver_id,
+      topic:               ctx.topic || "attendance",
+      severity:            sev,
+      delivery_required:   delivery,
+      summary,
+      notes,
+      triggering_shift_id: ctx.event_id || null,
+      incident_date:       ctx.event_date || null,
+    };
+    const { error } = await sb.rpc("send_coaching", { p_payload: payload });
+    if (error) {
+      sendBtn.disabled = false; sendBtn.textContent = "Send to driver";
+      toast("Send failed: " + error.message, "warn");
+      return;
+    }
+    toast("Coaching sent to " + ctx.driver_name, "success");
+    close();
+    if (typeof loadAttendanceEventLog === "function") loadAttendanceEventLog();
+  });
 }
 
 // Hook attTab — operator clicks Report / Policy / Log inside the
