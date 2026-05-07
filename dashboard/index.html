@@ -2597,6 +2597,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   padding:14px 16px;margin-top:var(--s-3);position:relative;cursor:move;
 }
 .builder-field.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.rr-field-remove{
+  position:absolute;top:6px;right:8px;background:none;border:0;cursor:pointer;
+  width:22px;height:22px;border-radius:6px;color:var(--text-subtle);font-size:18px;line-height:1;
+  display:none;
+}
+.builder-field.active .rr-field-remove{display:inline-flex;align-items:center;justify-content:center}
+.rr-field-remove:hover{background:var(--red-soft);color:var(--red)}
 .builder-field-handle{
   position:absolute;left:-22px;top:50%;transform:translateY(-50%);
   color:var(--text-subtle);font-size:var(--fs-base);
@@ -7787,10 +7794,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <div class="page-header">
           <div>
             <h1 class="page-title">Workflows</h1>
-            <p class="page-sub">Forms and checklists your drivers fill out · 12 forms published · 47 submissions this week</p>
+            <p class="page-sub" id="rr-forms-page-sub">Forms and checklists your drivers fill out</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-primary" onclick="openModal('modal-form-builder')">
+            <button class="btn btn-primary" data-rr-form-new>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Build a form
             </button>
@@ -7799,193 +7806,31 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
         <div class="subnav" data-rr-tabbar="forms">
           <button class="subnav-item active" data-sub="forms">Forms</button>
-          <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
+          <button class="subnav-item" onclick="goto('checklists')">Checklists</button>
         </div>
 
         <div class="forms-shell">
-          <!-- LEFT: forms category nav -->
           <aside class="forms-side">
             <div class="forms-side-section">Forms</div>
             <button class="forms-side-item active" onclick="formsTab(this,'my')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
-              My forms <span class="count">12</span>
+              My forms <span class="count" id="rr-forms-count-my">0</span>
             </button>
             <button class="forms-side-item" onclick="formsTab(this,'subm')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              Submissions <span class="count">47</span>
+              Submissions <span class="count">0</span>
             </button>
-            <button class="forms-side-item" onclick="formsTab(this,'tpl')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-              Templates <span class="count">8</span>
-            </button>
-            <button class="forms-side-item" onclick="formsTab(this,'analytics')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              Analytics
-            </button>
-
-            <div class="forms-side-section" style="margin-top:var(--s-3)">Categories</div>
-            <button class="forms-side-item">Pre-trip / Inspection <span class="count">3</span></button>
-            <button class="forms-side-item">Incident reports <span class="count">2</span></button>
-            <button class="forms-side-item">End-of-route <span class="count">2</span></button>
-            <button class="forms-side-item">Onboarding <span class="count">3</span></button>
-            <button class="forms-side-item">Maintenance <span class="count">2</span></button>
-            <button class="forms-side-item">Archived <span class="count">5</span></button>
           </aside>
 
-          <!-- RIGHT: forms content -->
           <main>
-            <!-- MY FORMS -->
             <div class="forms-tab" id="forms-tab-my">
-              <div class="forms-grid">
-                <div class="form-card" onclick="toast('Opens form editor with submissions')">
-                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
-                  <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-                  <div class="form-card-title">Pre-trip vehicle inspection</div>
-                  <div class="form-card-desc">14 questions · daily submission required from drivers before route start. Includes brake/tire/fluid check + photo of damage.</div>
-                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>72</strong> submitted today</span><span><strong>6</strong> pending</span></div>
-                </div>
-
-                <div class="form-card" onclick="toast('Opens form editor')">
-                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
-                  <div class="form-card-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
-                  <div class="form-card-title">Incident report</div>
-                  <div class="form-card-desc">9 fields · drivers submit on-demand for vehicle damage, customer complaint, or safety concern. Photo required.</div>
-                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>4</strong> submitted this week</span><span><strong>1</strong> needs review</span></div>
-                </div>
-
-                <div class="form-card" onclick="toast('Opens form editor')">
-                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
-                  <div class="form-card-icon" style="background:#EDE9FE;color:#6D28D9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-                  <div class="form-card-title">End-of-route checklist</div>
-                  <div class="form-card-desc">7 items · driver confirms all packages delivered, parked safely, fuel level recorded. Auto-prompted at GPS return.</div>
-                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>71</strong> submitted today</span><span><strong>0</strong> flagged</span></div>
-                </div>
-
-                <div class="form-card" onclick="toast('Opens form editor')">
-                  <span class="form-card-status draft">Draft</span>
-                  <div class="form-card-icon" style="background:var(--amber-soft);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1l9 4v6c0 5-9 11-9 11s-9-6-9-11V5z"/></svg></div>
-                  <div class="form-card-title">Customer feedback intake</div>
-                  <div class="form-card-desc">5 fields · capture customer compliments and complaints from drivers. Goes to me for review.</div>
-                  <div class="form-card-stats"><span>Last edited <strong>2 days ago</strong></span></div>
-                </div>
-
-                <div class="form-card" onclick="toast('Opens form editor')">
-                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
-                  <div class="form-card-icon" style="background:#FEF3C7;color:#92400E"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M14.31 8l5.74 9.94"/><path d="M9.69 8h11.48"/></svg></div>
-                  <div class="form-card-title">Maintenance request</div>
-                  <div class="form-card-desc">8 fields · drivers report vehicle issues with photo, severity, and next-route impact. Auto-routes to maintenance contact.</div>
-                  <div class="form-card-stats"><span><strong>78</strong> assigned</span><span><strong>2</strong> open</span><span><strong>11</strong> resolved this month</span></div>
-                </div>
-
-                <div class="form-card" onclick="toast('Opens form editor')">
-                  <span class="form-card-status"><span class="kpi-pip green"></span>Published</span>
-                  <div class="form-card-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-                  <div class="form-card-title">New driver onboarding · Day 1</div>
-                  <div class="form-card-desc">23 fields · I-9 attestation, emergency contact, direct deposit form, uniform sizing. Required within 48h of hire.</div>
-                  <div class="form-card-stats"><span><strong>4</strong> assigned</span><span><strong>3</strong> submitted</span><span><strong>1</strong> in progress</span></div>
-                </div>
-              </div>
+              <div class="forms-grid" id="rr-forms-grid"></div>
+              <div class="rr-empty-inline" id="rr-forms-empty" style="display:none">No forms yet. Click <strong>Build a form</strong> to create your first one.</div>
             </div>
 
-            <!-- SUBMISSIONS -->
             <div class="forms-tab" id="forms-tab-subm" style="display:none">
-              <div class="card card-flush">
-                <div class="subm-row" style="background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;cursor:default">
-                  <div></div><div>Form · Driver</div><div>Status</div><div>Submitted</div><div></div>
-                </div>
-                <div class="subm-row" onclick="toast('Open submission detail')">
-                  <div class="form-card-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-                  <div><div class="subm-form-name">Pre-trip inspection · Marcus Davidson</div><div class="subm-form-meta">All checks passed · no damage reported</div></div>
-                  <span class="subm-status complete">Complete</span>
-                  <div class="cell-time">7:02 AM</div>
-                  <button class="btn btn-sm">View</button>
-                </div>
-                <div class="subm-row" onclick="toast('Open submission detail')">
-                  <div class="form-card-icon" style="width:32px;height:32px;background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
-                  <div><div class="subm-form-name">Incident report · Kerwin Whitfield</div><div class="subm-form-meta">DSP sticker damaged · photo attached · KMO1-09A</div></div>
-                  <span class="subm-status flagged">Needs review</span>
-                  <div class="cell-time">1h ago</div>
-                  <button class="btn btn-sm btn-primary">Review</button>
-                </div>
-                <div class="subm-row" onclick="toast('Open submission detail')">
-                  <div class="form-card-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-                  <div><div class="subm-form-name">Pre-trip inspection · Tasha Reyes</div><div class="subm-form-meta">Tire pressure low on rear-left · noted</div></div>
-                  <span class="subm-status flagged">Action needed</span>
-                  <div class="cell-time">7:14 AM</div>
-                  <button class="btn btn-sm">View</button>
-                </div>
-                <div class="subm-row" onclick="toast('Open submission detail')">
-                  <div class="form-card-icon" style="width:32px;height:32px;background:#EDE9FE;color:#6D28D9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg></div>
-                  <div><div class="subm-form-name">End-of-route · Camille Foster</div><div class="subm-form-meta">All packages delivered · fuel 3/4 · parked KMO1-Spot 12</div></div>
-                  <span class="subm-status complete">Complete</span>
-                  <div class="cell-time">Yesterday 6:43 PM</div>
-                  <button class="btn btn-sm">View</button>
-                </div>
-                <div class="subm-row" onclick="toast('Open submission detail')">
-                  <div class="form-card-icon" style="width:32px;height:32px;background:#FEF3C7;color:#92400E"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/></svg></div>
-                  <div><div class="subm-form-name">Maintenance request · Devon Patterson</div><div class="subm-form-meta">Brake squeal on hard stops · photo of pad attached · medium urgency</div></div>
-                  <span class="subm-status flagged">Open</span>
-                  <div class="cell-time">2 days ago</div>
-                  <button class="btn btn-sm btn-primary">Open ticket</button>
-                </div>
-              </div>
+              <div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div>
             </div>
-
-            <!-- TEMPLATES -->
-            <div class="forms-tab" id="forms-tab-tpl" style="display:none">
-              <div style="margin-bottom:var(--s-4);font-size:var(--fs-md);color:var(--text-muted)">Pre-built starter forms designed for DSPs. Click any to copy into your forms.</div>
-              <div class="forms-grid">
-                <div class="form-card" onclick="openModal('modal-form-builder')">
-                  <span class="form-card-status archived">Template</span>
-                  <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
-                  <div class="form-card-title">DOT-style pre-trip inspection</div>
-                  <div class="form-card-desc">17 questions covering brakes, tires, lights, fluids, mirrors, seat belts. With photo upload for any defect.</div>
-                  <div class="form-card-stats"><span>Used by <strong>1,200+ DSPs</strong></span></div>
-                </div>
-                <div class="form-card" onclick="openModal('modal-form-builder')">
-                  <span class="form-card-status archived">Template</span>
-                  <div class="form-card-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
-                  <div class="form-card-title">Vehicle accident report</div>
-                  <div class="form-card-desc">12 fields · date/time, location, parties involved, witness info, photos, narrative. Required for insurance.</div>
-                  <div class="form-card-stats"><span>Used by <strong>980+ DSPs</strong></span></div>
-                </div>
-                <div class="form-card" onclick="openModal('modal-form-builder')">
-                  <span class="form-card-status archived">Template</span>
-                  <div class="form-card-icon" style="background:#EDE9FE;color:#6D28D9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/></svg></div>
-                  <div class="form-card-title">Fuel receipt submission</div>
-                  <div class="form-card-desc">5 fields · station, gallons, total, photo of receipt, vehicle. For mileage reimbursement.</div>
-                  <div class="form-card-stats"><span>Used by <strong>2,400+ DSPs</strong></span></div>
-                </div>
-                <div class="form-card" onclick="openModal('modal-form-builder')">
-                  <span class="form-card-status archived">Template</span>
-                  <div class="form-card-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-                  <div class="form-card-title">New hire onboarding (Day 1)</div>
-                  <div class="form-card-desc">21 fields · I-9 attestation, emergency contact, direct deposit, uniform sizing, sign-off acknowledgments.</div>
-                  <div class="form-card-stats"><span>Used by <strong>1,500+ DSPs</strong></span></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ANALYTICS -->
-            <div class="forms-tab" id="forms-tab-analytics" style="display:none">
-              <div class="report-stat-grid" style="margin-bottom:var(--s-4)">
-                <div class="kpi-card"><div class="kpi-label">Submissions this week</div><div class="kpi-value">47</div><div class="kpi-sub"><span class="kpi-pip green"></span>+12% vs last week</div></div>
-                <div class="kpi-card"><div class="kpi-label">Completion rate</div><div class="kpi-value">93%</div><div class="kpi-sub"><span class="kpi-pip green"></span>started → finished</div></div>
-                <div class="kpi-card"><div class="kpi-label">Avg time to complete</div><div class="kpi-value">2:14</div><div class="kpi-sub">across all forms</div></div>
-                <div class="kpi-card"><div class="kpi-label">Flagged submissions</div><div class="kpi-value" style="color:var(--amber)">3</div><div class="kpi-sub"><span class="kpi-pip amber"></span>need your review</div></div>
-              </div>
-
-              <div class="card">
-                <div class="card-head"><h3 class="card-title">Submission rate by form</h3></div>
-                <div class="funnel">
-                  <div class="funnel-row s1"><div class="funnel-label">Pre-trip</div><div class="funnel-bar"><div class="funnel-fill" style="width:92%">72 of 78 today</div></div><div class="funnel-count">92%</div></div>
-                  <div class="funnel-row s2"><div class="funnel-label">End-of-route</div><div class="funnel-bar"><div class="funnel-fill" style="width:91%">71 of 78 today</div></div><div class="funnel-count">91%</div></div>
-                  <div class="funnel-row s3"><div class="funnel-label">Onboarding</div><div class="funnel-bar"><div class="funnel-fill" style="width:75%">3 of 4</div></div><div class="funnel-count">75%</div></div>
-                  <div class="funnel-row s4"><div class="funnel-label">Maintenance</div><div class="funnel-bar"><div class="funnel-fill" style="width:50%">2 open of last 4</div></div><div class="funnel-count">50%</div></div>
-                </div>
-              </div>
-            </div>
-
           </main>
         </div>
       </div>
@@ -9732,142 +9577,58 @@ Evidence attached:
     <div class="modal-head">
       <div>
         <p class="modal-title">Form builder</p>
-        <p class="modal-sub">Drag fields from the left → drop in the form → edit properties on the right</p>
+        <p class="modal-sub">Click a field type on the left to add it to your form. Click a field to edit it.</p>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn btn-sm">Preview</button>
-        <button class="btn btn-sm">Save draft</button>
-        <button class="btn btn-sm btn-primary" onclick="closeModal('modal-form-builder');toast('Form published · drivers will see it now')">Publish</button>
+        <button class="btn btn-sm" data-rr-form-save>Save draft</button>
+        <button class="btn btn-sm btn-primary" data-rr-form-publish>Publish</button>
         <button class="modal-close" onclick="closeModal('modal-form-builder')" style="margin-left:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
     </div>
     <div class="builder-grid">
-      <!-- LEFT: Field palette -->
-      <div class="field-palette">
+      <div class="field-palette" id="rr-builder-palette">
         <div class="field-palette-section">Text</div>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/></svg>Short text</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>Long text</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M16 8a4 4 0 1 0-8 0v4"/></svg>Email</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/></svg>Phone</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="14" y2="15"/></svg>Number</button>
+        <button class="field-type" data-rr-add-field="short_text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/></svg>Short text</button>
+        <button class="field-type" data-rr-add-field="long_text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>Long text</button>
+        <button class="field-type" data-rr-add-field="email"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M16 8a4 4 0 1 0-8 0v4"/></svg>Email</button>
+        <button class="field-type" data-rr-add-field="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/></svg>Phone</button>
+        <button class="field-type" data-rr-add-field="number"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="14" y2="15"/></svg>Number</button>
 
         <div class="field-palette-section">Choice</div>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Single choice</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Multi-select</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>Dropdown</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Yes/No</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Rating · 1–5</button>
+        <button class="field-type" data-rr-add-field="single_choice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Single choice</button>
+        <button class="field-type" data-rr-add-field="multi_choice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Multi-select</button>
+        <button class="field-type" data-rr-add-field="dropdown"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>Dropdown</button>
+        <button class="field-type" data-rr-add-field="yes_no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Yes/No</button>
+        <button class="field-type" data-rr-add-field="rating"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Rating · 1–5</button>
 
         <div class="field-palette-section">Date &amp; time</div>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Date</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time</button>
+        <button class="field-type" data-rr-add-field="date"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Date</button>
+        <button class="field-type" data-rr-add-field="time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time</button>
 
         <div class="field-palette-section">Files &amp; photos</div>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photo capture</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>File upload</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8"/></svg>Signature</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 8-8z"/></svg>GPS location</button>
+        <button class="field-type" data-rr-add-field="photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photo capture</button>
+        <button class="field-type" data-rr-add-field="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>File upload</button>
+        <button class="field-type" data-rr-add-field="signature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8"/></svg>Signature</button>
+        <button class="field-type" data-rr-add-field="gps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 8-8z"/></svg>GPS location</button>
 
         <div class="field-palette-section">Layout</div>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16"/></svg>Section header</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/></svg>Divider</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image / instruction</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>Embed video</button>
-
-        <div class="field-palette-section">Logic</div>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>Conditional logic</button>
-        <button class="field-type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Validation rule</button>
+        <button class="field-type" data-rr-add-field="section_header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16"/></svg>Section header</button>
+        <button class="field-type" data-rr-add-field="divider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/></svg>Divider</button>
       </div>
 
-      <!-- MIDDLE: Form canvas -->
-      <div class="builder-canvas">
+      <div class="builder-canvas" id="rr-builder-canvas">
         <div class="builder-canvas-form">
-          <input class="builder-form-name" value="Pre-trip vehicle inspection" />
-          <textarea class="builder-form-desc" rows="2">Complete before starting your route. Photos required for any defects. Submit takes ~2 minutes.</textarea>
-
-          <div class="builder-field">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">Vehicle ID<span class="req">*</span></label>
-            <input class="builder-field-input" placeholder="VAN-04" disabled />
-          </div>
-
-          <div class="builder-field active">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">Tire condition<span class="req">*</span></label>
-            <div class="builder-field-radio-row">
-              <div class="builder-field-radio">All four tires inflated, no visible damage</div>
-              <div class="builder-field-radio">One or more tires need attention</div>
-            </div>
-          </div>
-
-          <div class="builder-field">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">If issue found, attach photo</label>
-            <div class="builder-field-img-placeholder">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              Photo capture · driver tap to upload from camera
-            </div>
-          </div>
-
-          <div class="builder-field">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">Brake test passed<span class="req">*</span></label>
-            <div class="builder-field-radio-row">
-              <div class="builder-field-radio">Yes — firm, even braking</div>
-              <div class="builder-field-radio">No — soft pedal or pulling</div>
-            </div>
-          </div>
-
-          <div class="builder-field">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">Fluid levels OK</label>
-            <div class="builder-field-radio-row">
-              <div class="builder-field-radio">Oil ✓</div>
-              <div class="builder-field-radio">Coolant ✓</div>
-              <div class="builder-field-radio">Washer fluid ✓</div>
-            </div>
-          </div>
-
-          <div class="builder-field">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">Fuel level at start</label>
-            <input class="builder-field-input" placeholder="Pick: Empty / 1/4 / 1/2 / 3/4 / Full" disabled />
-          </div>
-
-          <div class="builder-field">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">Notes (optional)</label>
-            <textarea class="builder-field-input" placeholder="Anything to flag for dispatch?" rows="2" disabled></textarea>
-          </div>
-
-          <div class="builder-field">
-            <span class="builder-field-handle">⋮⋮</span>
-            <label class="builder-field-label">Driver signature<span class="req">*</span></label>
-            <div class="builder-field-img-placeholder" style="background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 8px,#F1F5F9 8px,#F1F5F9 16px)">
-              Tap to sign
-            </div>
-          </div>
-
-          <button class="btn btn-primary" style="margin-top:var(--s-4);width:100%;justify-content:center">+ Drag a field here or click to add</button>
+          <input class="builder-form-name" id="rr-builder-title" placeholder="Untitled form" />
+          <textarea class="builder-form-desc" id="rr-builder-desc" rows="2" placeholder="What is this form for? (optional)"></textarea>
+          <div id="rr-builder-fields"></div>
+          <div id="rr-builder-empty" class="rr-empty-inline" style="margin-top:14px">No fields yet — click a field type on the left to add one.</div>
         </div>
       </div>
 
-      <!-- RIGHT: Field properties (for selected field) -->
-      <div class="field-props">
+      <div class="field-props" id="rr-builder-props">
         <div class="field-props-head">Field properties</div>
-        <div class="field-prop-row"><span class="field-prop-label">Field type</span><div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">Single choice</div></div>
-        <div class="field-prop-row"><span class="field-prop-label">Question</span><input class="field-prop-input" value="Tire condition" /></div>
-        <div class="field-prop-row"><span class="field-prop-label">Help text</span><input class="field-prop-input" value="Walk around vehicle, check all four tires" /></div>
-        <div class="field-prop-row"><span class="field-prop-label">Required</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
-        <div class="field-prop-row"><span class="field-prop-label">Auto-fail when</span><select class="field-prop-input"><option>One or more tires need attention</option><option>Never</option></select></div>
-        <div class="field-prop-row"><span class="field-prop-label">If "needs attention" → show next field</span><select class="field-prop-input"><option>Photo capture · "If issue found, attach photo"</option><option>None</option></select></div>
-
-        <div class="field-props-head" style="margin-top:var(--s-4)">Form-level settings</div>
-        <div class="field-prop-row"><span class="field-prop-label">Assigned to</span><div style="font-size:var(--fs-sm);color:var(--text-muted)">All KMO1 + KMO2 + KMO3 drivers (78)</div></div>
-        <div class="field-prop-row"><span class="field-prop-label">Schedule</span><div style="font-size:var(--fs-sm);color:var(--text-muted)">Daily at 6:30 AM · push notification</div></div>
-        <div class="field-prop-row"><span class="field-prop-label">Required submission</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
-        <div class="field-prop-row"><span class="field-prop-label">Submit before</span><div style="font-size:var(--fs-sm);color:var(--text-muted)">Route start time</div></div>
-        <div class="field-prop-row"><span class="field-prop-label">Notify on flagged answer</span><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+        <div class="rr-empty-inline" id="rr-builder-props-empty">Select a field to edit it.</div>
+        <div id="rr-builder-props-body" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -15993,7 +15754,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507as"></script>
+<script type="module" src="./live.js?v=20260507at"></script>
 
 </body>
 </html>

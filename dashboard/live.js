@@ -396,6 +396,7 @@ window.goto = function (view) {
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); }
   if (view === "messages")  loadDriverChatInbox();
+  if (view === "forms")     loadFormsList();
 };
 
 
@@ -13392,4 +13393,316 @@ if (document.body) {
     _rrTabbarObserver.observe(document.body, { childList: true, subtree: true });
     _rrInitAllTabbars();
   });
+}
+
+
+// ─── Forms · build / save / publish / edit ─────────────────────────────
+//
+// State for the active builder session.  _formsState.editing is the
+// row being edited (null on Create); _formsState.fields is the live
+// fields array; _formsState.selectedId is the field whose props are
+// shown on the right.  Save / Publish read from this state and
+// upsert via public.upsert_form / public.publish_form.
+const _formsState = { editing: null, fields: [], selectedId: null };
+
+const _FIELD_TYPE_LABELS = {
+  short_text: "Short text",  long_text: "Long text",
+  email: "Email",            phone: "Phone",
+  number: "Number",          single_choice: "Single choice",
+  multi_choice: "Multi-select", dropdown: "Dropdown",
+  yes_no: "Yes / No",        rating: "Rating · 1–5",
+  date: "Date",              time: "Time",
+  photo: "Photo capture",    file: "File upload",
+  signature: "Signature",    gps: "GPS location",
+  section_header: "Section header", divider: "Divider",
+};
+
+function _newFieldId() {
+  return "f_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function _defaultFieldForType(type) {
+  const base = { id: _newFieldId(), type, label: _FIELD_TYPE_LABELS[type] || "Untitled", help: "", required: false };
+  if (type === "single_choice" || type === "multi_choice" || type === "dropdown") {
+    base.options = ["Option 1", "Option 2"];
+  }
+  return base;
+}
+
+async function loadFormsList() {
+  const grid  = document.getElementById("rr-forms-grid");
+  const empty = document.getElementById("rr-forms-empty");
+  const count = document.getElementById("rr-forms-count-my");
+  const sub   = document.getElementById("rr-forms-page-sub");
+  if (!grid) return;
+  grid.innerHTML = `<div class="rr-loading">Loading</div>`;
+
+  const { data, error } = await sb.rpc("list_forms");
+  if (error) {
+    grid.innerHTML = "";
+    if (empty) { empty.style.display = "block"; empty.textContent = "Couldn't load forms: " + error.message; }
+    return;
+  }
+  const forms = data || [];
+  if (count) count.textContent = String(forms.length);
+  const published = forms.filter(f => f.status === "published").length;
+  if (sub) sub.textContent = `${forms.length} form${forms.length === 1 ? "" : "s"}${published ? " · " + published + " published" : ""}`;
+
+  if (forms.length === 0) {
+    grid.innerHTML = "";
+    if (empty) empty.style.display = "block";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  grid.innerHTML = forms.map(_formCardHtml).join("");
+}
+
+function _formCardHtml(f) {
+  const fieldCount = Array.isArray(f.fields) ? f.fields.length : 0;
+  const isPublished = f.status === "published";
+  const statusLabel = isPublished
+    ? `<span class="form-card-status"><span class="kpi-pip green"></span>Published</span>`
+    : `<span class="form-card-status draft">Draft</span>`;
+  const updated = f.updated_at ? new Date(f.updated_at).toLocaleDateString() : "";
+  return `
+    <div class="form-card" data-rr-form-edit="${escapeHtml(f.id)}">
+      ${statusLabel}
+      <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
+      <div class="form-card-title">${escapeHtml(f.title || "Untitled form")}</div>
+      <div class="form-card-desc">${escapeHtml(f.description || "")}</div>
+      <div class="form-card-stats">
+        <span><strong>${fieldCount}</strong> field${fieldCount === 1 ? "" : "s"}</span>
+        ${updated ? `<span>Updated <strong>${escapeHtml(updated)}</strong></span>` : ""}
+      </div>
+    </div>`;
+}
+
+function openFormBuilder(form) {
+  _formsState.editing = form || null;
+  _formsState.fields  = form && Array.isArray(form.fields) ? JSON.parse(JSON.stringify(form.fields)) : [];
+  _formsState.selectedId = null;
+  const titleEl = document.getElementById("rr-builder-title");
+  const descEl  = document.getElementById("rr-builder-desc");
+  if (titleEl) titleEl.value = form?.title || "";
+  if (descEl)  descEl.value  = form?.description || "";
+  _renderBuilderCanvas();
+  _renderBuilderProps();
+  if (typeof openModal === "function") openModal("modal-form-builder");
+}
+
+function _renderBuilderCanvas() {
+  const list  = document.getElementById("rr-builder-fields");
+  const empty = document.getElementById("rr-builder-empty");
+  if (!list) return;
+  if (_formsState.fields.length === 0) {
+    list.innerHTML = "";
+    if (empty) empty.style.display = "block";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  list.innerHTML = _formsState.fields.map((f, i) => _builderFieldHtml(f, i, f.id === _formsState.selectedId)).join("");
+}
+
+function _builderFieldHtml(f, idx, selected) {
+  const req = f.required ? '<span class="req">*</span>' : "";
+  const cls = selected ? "builder-field active" : "builder-field";
+  const id  = escapeHtml(f.id);
+  let body = "";
+  switch (f.type) {
+    case "short_text": case "email": case "phone": case "number":
+      body = `<input class="builder-field-input" placeholder="${escapeHtml(_FIELD_TYPE_LABELS[f.type])}" disabled />`;
+      break;
+    case "long_text":
+      body = `<textarea class="builder-field-input" rows="2" placeholder="Long answer" disabled></textarea>`;
+      break;
+    case "single_choice":
+    case "multi_choice":
+    case "dropdown": {
+      const opts = (f.options || []).map(o => `<div class="builder-field-radio">${escapeHtml(o)}</div>`).join("");
+      body = `<div class="builder-field-radio-row">${opts || '<div class="builder-field-radio">No options yet</div>'}</div>`;
+      break;
+    }
+    case "yes_no":
+      body = `<div class="builder-field-radio-row"><div class="builder-field-radio">Yes</div><div class="builder-field-radio">No</div></div>`;
+      break;
+    case "rating":
+      body = `<div style="font-size:18px;letter-spacing:4px;color:var(--text-subtle)">★ ★ ★ ★ ★</div>`;
+      break;
+    case "date":
+      body = `<input class="builder-field-input" type="date" disabled />`;
+      break;
+    case "time":
+      body = `<input class="builder-field-input" type="time" disabled />`;
+      break;
+    case "photo":
+      body = `<div class="builder-field-img-placeholder">Photo capture · driver tap to upload from camera</div>`;
+      break;
+    case "file":
+      body = `<div class="builder-field-img-placeholder">File upload</div>`;
+      break;
+    case "signature":
+      body = `<div class="builder-field-img-placeholder" style="background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 8px,#F1F5F9 8px,#F1F5F9 16px)">Tap to sign</div>`;
+      break;
+    case "gps":
+      body = `<div class="builder-field-img-placeholder">GPS location · auto-captured on submit</div>`;
+      break;
+    case "section_header":
+      return `<div class="${cls}" data-rr-field-pick="${id}" style="margin-top:14px"><div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(f.label || "Section")}</div></div>`;
+    case "divider":
+      return `<div class="${cls}" data-rr-field-pick="${id}"><hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/></div>`;
+  }
+  return `
+    <div class="${cls}" data-rr-field-pick="${id}">
+      <span class="builder-field-handle">⋮⋮</span>
+      <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove field">×</button>
+      <label class="builder-field-label">${escapeHtml(f.label || "Untitled")}${req}</label>
+      ${f.help ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:6px">${escapeHtml(f.help)}</div>` : ""}
+      ${body}
+    </div>`;
+}
+
+function _renderBuilderProps() {
+  const empty = document.getElementById("rr-builder-props-empty");
+  const body  = document.getElementById("rr-builder-props-body");
+  if (!body) return;
+  const f = _formsState.fields.find(x => x.id === _formsState.selectedId);
+  if (!f) {
+    body.style.display = "none";
+    if (empty) empty.style.display = "block";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  body.style.display = "block";
+  const hasOptions = f.type === "single_choice" || f.type === "multi_choice" || f.type === "dropdown";
+  body.innerHTML = `
+    <div class="field-prop-row"><span class="field-prop-label">Field type</span>
+      <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(_FIELD_TYPE_LABELS[f.type] || f.type)}</div></div>
+    <div class="field-prop-row"><span class="field-prop-label">Question</span>
+      <input class="field-prop-input" data-rr-prop="label" value="${escapeHtml(f.label || "")}" /></div>
+    <div class="field-prop-row"><span class="field-prop-label">Help text</span>
+      <input class="field-prop-input" data-rr-prop="help" value="${escapeHtml(f.help || "")}" /></div>
+    <div class="field-prop-row"><span class="field-prop-label">Required</span>
+      <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>
+    ${hasOptions ? `
+      <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <span class="field-prop-label">Options</span>
+        <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
+      </div>` : ""}
+    <div class="field-prop-row" style="margin-top:8px">
+      <button type="button" class="btn btn-sm" data-rr-field-remove="${escapeHtml(f.id)}" style="color:var(--red)">Delete field</button>
+    </div>`;
+}
+
+// Event delegation — palette adds, canvas selects, props edits.
+document.addEventListener("click", (e) => {
+  // Open builder in CREATE mode
+  if (e.target.closest("[data-rr-form-new]")) {
+    e.preventDefault();
+    openFormBuilder(null);
+    return;
+  }
+  // Open builder in EDIT mode
+  const card = e.target.closest("[data-rr-form-edit]");
+  if (card) {
+    e.preventDefault();
+    const id = card.getAttribute("data-rr-form-edit");
+    sb.rpc("get_form", { p_id: id }).then(({ data, error }) => {
+      if (error || !data) { toast("Couldn't load form" + (error ? ": " + error.message : ""), "warn"); return; }
+      openFormBuilder(data);
+    });
+    return;
+  }
+  // Add a field from the palette
+  const add = e.target.closest("[data-rr-add-field]");
+  if (add && document.getElementById("modal-form-builder")?.classList.contains("open")) {
+    e.preventDefault();
+    const t = add.getAttribute("data-rr-add-field");
+    const f = _defaultFieldForType(t);
+    _formsState.fields.push(f);
+    _formsState.selectedId = f.id;
+    _renderBuilderCanvas();
+    _renderBuilderProps();
+    return;
+  }
+  // Remove a field (from canvas or props panel)
+  const rm = e.target.closest("[data-rr-field-remove]");
+  if (rm) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = rm.getAttribute("data-rr-field-remove");
+    _formsState.fields = _formsState.fields.filter(f => f.id !== id);
+    if (_formsState.selectedId === id) _formsState.selectedId = null;
+    _renderBuilderCanvas();
+    _renderBuilderProps();
+    return;
+  }
+  // Pick a field for editing
+  const pick = e.target.closest("[data-rr-field-pick]");
+  if (pick) {
+    const id = pick.getAttribute("data-rr-field-pick");
+    _formsState.selectedId = id;
+    _renderBuilderCanvas();
+    _renderBuilderProps();
+    return;
+  }
+  // Save draft / Publish
+  if (e.target.closest("[data-rr-form-save]"))    { e.preventDefault(); _saveBuilder({ publish: false }); return; }
+  if (e.target.closest("[data-rr-form-publish]")) { e.preventDefault(); _saveBuilder({ publish: true });  return; }
+});
+
+// Inputs in the props panel update _formsState in place.
+document.addEventListener("input", (e) => {
+  const propEl = e.target.closest("[data-rr-prop]");
+  if (propEl) {
+    const f = _formsState.fields.find(x => x.id === _formsState.selectedId);
+    if (!f) return;
+    const key = propEl.getAttribute("data-rr-prop");
+    if (key === "required") {
+      f.required = propEl.checked;
+    } else if (key === "options") {
+      f.options = propEl.value.split("\n").map(s => s.trim()).filter(Boolean);
+    } else {
+      f[key] = propEl.value;
+    }
+    _renderBuilderCanvas();
+    return;
+  }
+  // Keep the canvas live with the title / description as the user types
+  if (e.target.id === "rr-builder-title" || e.target.id === "rr-builder-desc") {
+    // No state mirroring needed — read at save time.
+    return;
+  }
+});
+
+async function _saveBuilder({ publish }) {
+  const titleEl = document.getElementById("rr-builder-title");
+  const descEl  = document.getElementById("rr-builder-desc");
+  const title   = (titleEl?.value || "").trim() || "Untitled form";
+  const description = (descEl?.value || "").trim() || null;
+  if (publish && _formsState.fields.length === 0) {
+    toast("Add at least one field before publishing", "warn");
+    return;
+  }
+
+  const payload = {
+    title,
+    description,
+    fields:   _formsState.fields,
+    settings: _formsState.editing?.settings || {},
+  };
+  const { data: saved, error } = await sb.rpc("upsert_form", {
+    p_id:      _formsState.editing?.id || null,
+    p_payload: payload,
+  });
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+
+  if (publish && saved?.id) {
+    const { error: pubErr } = await sb.rpc("publish_form", { p_id: saved.id });
+    if (pubErr) { toast("Publish failed: " + pubErr.message, "warn"); return; }
+    toast("Form published", "success");
+  } else {
+    toast(_formsState.editing ? "Draft saved" : "Form created", "success");
+  }
+  if (typeof closeModal === "function") closeModal("modal-form-builder");
+  loadFormsList();
 }
