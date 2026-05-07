@@ -207,6 +207,7 @@ const routes = {
   "/tasks":             { render: renderTasksHub,        tab: "/tasks" },
   "/tasks/availability":{ render: renderAvailability,    tab: "/tasks", back: "/tasks", title: "Availability" },
   "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
+  "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
@@ -526,15 +527,36 @@ function fmtTime(iso) {
 // One screen, four cards. Each card represents a workflow the driver
 // completes during their shift. Status pills (Required / Pending /
 // Done) make the day's open work obvious at a glance.
-function renderTasksHub() {
+async function renderTasksHub() {
   setHeader("Tasks", "");
   const main = document.getElementById("main");
-  const cards = [
+
+  // Onboarding card is gated on drivers.status === 'onboarding'.  We
+  // fetch driver_get_profile here (cheap, single row) instead of
+  // wiring it into driver_me, so existing callers stay untouched.
+  let isOnboarding = false;
+  const session = readSession();
+  if (session?.token) {
+    try {
+      const { data } = await sb.rpc("driver_get_profile", { p_token: session.token });
+      isOnboarding = data?.status === "onboarding";
+    } catch (_) { /* surface failures on the dedicated screen, not here */ }
+  }
+
+  const cards = [];
+  if (isOnboarding) {
+    cards.push({
+      route: "/tasks/onboarding", title: "Onboarding", sub: "Steps to get hired",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    });
+  }
+  cards.push(
     { route: "/tasks/availability", title: "Availability", sub: "Days you can work",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
     { route: "/tasks/attendance",   title: "Attendance",   sub: "Today's status and policy",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
-  ];
+  );
+
   main.innerHTML = cards.map(taskCardHtml).join("");
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
@@ -1207,23 +1229,196 @@ function renderProfileHub() {
 }
 
 // ── Settings · gear icon in the top-right of the header ─────────────
-function renderSettings() {
+//
+// Two halves: an editable form (identity, contact, emergency contact,
+// license) backed by driver_get_profile / driver_update_profile /
+// driver_set_dl_image, and the existing Sign out button.  Anything the
+// DSP must verify (DL expiration, certs, employment data) is read-only
+// down on the Onboarding task — see renderOnboarding.
+async function renderSettings() {
   const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
   const session = readSession();
-  const name = session?.name || "Driver";
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data: prof, error } = await sb.rpc("driver_get_profile", { p_token: session.token });
+  if (error) {
+    if (/unauthorized|revoked|inactive/i.test(error.message || "")) {
+      writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return;
+    }
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load profile.<br><small>${escapeHtml(error.message)}</small></div>`;
+    return;
+  }
+
+  const v = (s) => escapeHtml(s ?? "");
+  const dlImgUrl = prof?.dl_image_path
+    ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-documents/${prof.dl_image_path}`
+    : null;
+  // Public bucket-style URL works when storage RLS allows anon select
+  // (migration 0079).  Falling back to a signed URL would also work but
+  // adds a round-trip; this is fine for a private-ish image whose path
+  // is a UUID-keyed string.
+
+  const dlNeedsVerify = !!prof?.dl_image_path && !prof?.dl_expires_on;
+
   main.innerHTML = `
     <div class="settings-page">
-      <div class="settings-section">
-        <div class="settings-row">
-          <div>
-            <div class="settings-label">Signed in as</div>
-            <div class="settings-value">${escapeHtml(name)}</div>
+
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div class="settings-section-title">Profile</div>
+          <div class="settings-section-sub">Update your contact info anytime.</div>
+        </div>
+        <div class="settings-form">
+          <label class="field-label" for="rr-prof-name">Full name</label>
+          <input class="field" id="rr-prof-name" type="text" value="${v(prof.full_name)}" autocomplete="name" />
+
+          <label class="field-label" for="rr-prof-pref">Preferred name</label>
+          <input class="field" id="rr-prof-pref" type="text" value="${v(prof.preferred_name)}" autocomplete="nickname" />
+
+          <label class="field-label" for="rr-prof-pron">Pronouns</label>
+          <input class="field" id="rr-prof-pron" type="text" value="${v(prof.pronouns)}" placeholder="he/him · she/her · they/them" />
+
+          <label class="field-label" for="rr-prof-phone">Phone</label>
+          <input class="field" id="rr-prof-phone" type="tel" value="${v(prof.phone)}" autocomplete="tel" inputmode="tel" />
+
+          <label class="field-label" for="rr-prof-email">Email</label>
+          <input class="field" id="rr-prof-email" type="email" value="${v(prof.email)}" autocomplete="email" inputmode="email" />
+
+          <label class="field-label" for="rr-prof-addr">Address</label>
+          <input class="field" id="rr-prof-addr" type="text" value="${v(prof.address)}" autocomplete="street-address" />
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div class="settings-section-title">Emergency contact</div>
+          <div class="settings-section-sub">Who to call if something happens on the road.</div>
+        </div>
+        <div class="settings-form">
+          <label class="field-label" for="rr-prof-ec-name">Contact name</label>
+          <input class="field" id="rr-prof-ec-name" type="text" value="${v(prof.emergency_contact_name)}" />
+
+          <label class="field-label" for="rr-prof-ec-phone">Contact phone</label>
+          <input class="field" id="rr-prof-ec-phone" type="tel" value="${v(prof.emergency_contact_phone)}" inputmode="tel" />
+        </div>
+      </section>
+
+      <button class="btn btn-primary btn-block" id="rr-prof-save" type="button">Save profile</button>
+
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div class="settings-section-title">Driver's license</div>
+          <div class="settings-section-sub">Your dispatcher confirms the expiration date.</div>
+        </div>
+        <div class="settings-form">
+          <label class="field-label" for="rr-prof-dl">License number</label>
+          <input class="field" id="rr-prof-dl" type="text" value="${v(prof.dl_number)}" autocapitalize="characters" />
+
+          ${dlImgUrl
+            ? `<div class="settings-dl-preview">
+                 <a href="${dlImgUrl}" target="_blank" rel="noreferrer">
+                   <img src="${dlImgUrl}" alt="Driver's license"/>
+                 </a>
+               </div>`
+            : `<div class="settings-dl-empty">No license image on file yet.</div>`}
+
+          ${dlNeedsVerify
+            ? `<div class="settings-callout warn">
+                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                 <span>Image uploaded — your dispatcher will confirm the expiration date.</span>
+               </div>`
+            : ""}
+
+          <input id="rr-prof-dl-file" type="file" accept="image/*" capture="environment" style="display:none" />
+          <div class="settings-dl-actions">
+            <button class="btn btn-block" id="rr-prof-dl-pick" type="button">${dlImgUrl ? "Replace license image" : "Upload license image"}</button>
+            ${dlImgUrl ? `<button class="btn btn-ghost btn-block" id="rr-prof-dl-remove" type="button" style="color:var(--red);margin-top:8px">Remove image</button>` : ""}
           </div>
         </div>
-      </div>
+      </section>
 
       <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
     </div>`;
+
+  // Save profile + license number in a single update_profile call.
+  document.getElementById("rr-prof-save").addEventListener("click", async () => {
+    const btn = document.getElementById("rr-prof-save");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const payload = {
+      full_name:               document.getElementById("rr-prof-name").value.trim(),
+      preferred_name:          document.getElementById("rr-prof-pref").value.trim(),
+      pronouns:                document.getElementById("rr-prof-pron").value.trim(),
+      phone:                   document.getElementById("rr-prof-phone").value.trim(),
+      email:                   document.getElementById("rr-prof-email").value.trim(),
+      address:                 document.getElementById("rr-prof-addr").value.trim(),
+      emergency_contact_name:  document.getElementById("rr-prof-ec-name").value.trim(),
+      emergency_contact_phone: document.getElementById("rr-prof-ec-phone").value.trim(),
+      dl_number:               document.getElementById("rr-prof-dl").value.trim(),
+    };
+    if (!payload.full_name) { btn.disabled = false; btn.textContent = "Save profile"; toast("Full name can't be empty", "warn"); return; }
+    const { error: upErr } = await sb.rpc("driver_update_profile", {
+      p_token: session.token, p_payload: payload,
+    });
+    btn.disabled = false; btn.textContent = "Save profile";
+    if (upErr) { toast("Save failed: " + upErr.message, "warn"); return; }
+    toast("Saved", "ok");
+    // Refresh header (display name may have changed) and re-render so
+    // the form reflects the canonical values from the server.
+    refreshDriverProfile(session, { force: true });
+    renderSettings();
+  });
+
+  // Image upload — open file picker, upload to driver-documents, then
+  // call driver_set_dl_image to point drivers.dl_image_path at the
+  // freshly uploaded path.  Old path is GC'd server-side.
+  document.getElementById("rr-prof-dl-pick").addEventListener("click", () => {
+    document.getElementById("rr-prof-dl-file").click();
+  });
+  document.getElementById("rr-prof-dl-file").addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast("Image too large (max 10 MB)", "warn"); return; }
+    const dspId = session.dsp_id || prof?.dsp_id;
+    const drvId = session.driver_id || prof?.id;
+    if (!dspId || !drvId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
+
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().slice(0, 8);
+    const path = `${dspId}/${drvId}/license-${Date.now()}.${ext}`;
+    const pickBtn = document.getElementById("rr-prof-dl-pick");
+    pickBtn.disabled = true; pickBtn.textContent = "Uploading…";
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, {
+      contentType: file.type, upsert: false,
+    });
+    if (upErr) {
+      pickBtn.disabled = false; pickBtn.textContent = "Upload license image";
+      toast("Upload failed: " + upErr.message, "warn");
+      return;
+    }
+    const { error: setErr } = await sb.rpc("driver_set_dl_image", {
+      p_token: session.token, p_path: path,
+    });
+    if (setErr) {
+      pickBtn.disabled = false; pickBtn.textContent = "Upload license image";
+      toast("Save failed: " + setErr.message, "warn");
+      return;
+    }
+    toast("License image saved", "ok");
+    renderSettings();
+  });
+
+  const rmBtn = document.getElementById("rr-prof-dl-remove");
+  if (rmBtn) {
+    rmBtn.addEventListener("click", async () => {
+      if (!confirm("Remove your license image?")) return;
+      rmBtn.disabled = true;
+      const { error: rmErr } = await sb.rpc("driver_clear_dl_image", { p_token: session.token });
+      rmBtn.disabled = false;
+      if (rmErr) { toast("Remove failed: " + rmErr.message, "warn"); return; }
+      toast("Image removed", "ok");
+      renderSettings();
+    });
+  }
 
   document.getElementById("rr-signout").addEventListener("click", async () => {
     if (!confirm("Sign out of RouteReady?")) return;
@@ -1234,6 +1429,83 @@ function renderSettings() {
     syncSwSession(null);
     location.hash = "";
     render();
+  });
+}
+
+// ── Onboarding task ─────────────────────────────────────────────────
+//
+// Surfaces while drivers.status === 'onboarding'.  Read-only checklist
+// of the milestones the DSP records in the dashboard's Employment tab,
+// plus quick links to the driver-editable sections (Settings) so the
+// driver can complete their half of the work.  When the DSP flips
+// status to "active", the Onboarding card disappears from the Tasks
+// hub on the next render.
+async function renderOnboarding() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data: prof, error } = await sb.rpc("driver_get_profile", { p_token: session.token });
+  if (error) {
+    if (/unauthorized|revoked|inactive/i.test(error.message || "")) {
+      writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return;
+    }
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load onboarding.<br><small>${escapeHtml(error.message)}</small></div>`;
+    return;
+  }
+
+  const profileComplete = !!(prof.phone && prof.email && prof.emergency_contact_name && prof.emergency_contact_phone);
+  const licenseUploaded = !!prof.dl_image_path && !!prof.dl_number;
+  const bgDone          = !!prof.background_check_completed_at;
+  const dtDone          = !!prof.drug_test_completed_at;
+  const trainScheduled  = !!prof.training_scheduled_at;
+  const trainDone       = !!prof.training_date && prof.training_date <= new Date().toISOString().slice(0, 10);
+
+  const items = [
+    { key: "profile",  title: "Complete your profile",     sub: "Phone, email, address, emergency contact",      done: profileComplete, action: "/settings", actionLabel: "Update profile", driverDriven: true },
+    { key: "license",  title: "Upload your driver's license", sub: "License number + photo of the card",         done: licenseUploaded, action: "/settings", actionLabel: licenseUploaded ? "Replace image" : "Upload license", driverDriven: true },
+    { key: "bg",       title: "Background check",          sub: "Recorded by your dispatcher",                   done: bgDone,          driverDriven: false },
+    { key: "drug",     title: "Drug test",                 sub: "Recorded by your dispatcher",                   done: dtDone,          driverDriven: false },
+    { key: "training", title: "Training",                  sub: trainScheduled
+                                                                  ? `Scheduled for ${new Date(prof.training_scheduled_at).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}`
+                                                                  : "Your dispatcher will schedule this",
+                       done: trainDone, driverDriven: false },
+  ];
+
+  const completedCount = items.filter(i => i.done).length;
+
+  main.innerHTML = `
+    <div class="onboarding-page">
+      <div class="onboarding-banner">
+        <div class="onboarding-banner-title">Welcome aboard${prof.preferred_name ? ", " + escapeHtml(prof.preferred_name) : ""}!</div>
+        <div class="onboarding-banner-sub">${completedCount} of ${items.length} steps complete. Your dispatcher activates your account when everything's done.</div>
+        <div class="onboarding-progress"><div class="onboarding-progress-bar" style="width:${Math.round((completedCount / items.length) * 100)}%"></div></div>
+      </div>
+
+      <section class="onboarding-list">
+        ${items.map(i => `
+          <div class="onboarding-row ${i.done ? "done" : ""}">
+            <div class="onboarding-check">
+              ${i.done
+                ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+                : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>'}
+            </div>
+            <div class="onboarding-text">
+              <div class="onboarding-title">${escapeHtml(i.title)}</div>
+              <div class="onboarding-sub">${escapeHtml(i.sub)}</div>
+              ${!i.driverDriven ? `<div class="onboarding-tag">DSP records this</div>` : ""}
+            </div>
+            ${i.action && !i.done
+              ? `<button class="btn btn-sm" data-onboard-go="${i.action}" type="button">${escapeHtml(i.actionLabel)}</button>`
+              : ""}
+          </div>
+        `).join("")}
+      </section>
+    </div>`;
+
+  main.querySelectorAll("[data-onboard-go]").forEach(el => {
+    el.addEventListener("click", () => navigate(el.dataset.onboardGo));
   });
 }
 
