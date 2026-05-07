@@ -13414,6 +13414,7 @@ const _FIELD_TYPE_LABELS = {
   date: "Date",              time: "Time",
   photo: "Photo capture",    file: "File upload",
   signature: "Signature",    gps: "GPS location",
+  instructions: "Instructions",
   section_header: "Section header", divider: "Divider",
 };
 
@@ -13426,7 +13427,46 @@ function _defaultFieldForType(type) {
   if (type === "single_choice" || type === "multi_choice" || type === "dropdown") {
     base.options = ["Option 1", "Option 2"];
   }
+  if (type === "instructions") {
+    base.label = "Instructions";
+    base.help  = "Read these before answering the questions below.";
+  }
   return base;
+}
+
+async function loadFormSubmissions() {
+  const list = document.getElementById("rr-subm-list");
+  if (!list) return;
+  list.innerHTML = `<div class="rr-loading">Loading</div>`;
+  const { data, error } = await sb.rpc("list_form_submissions", { p_form_id: null });
+  if (error) {
+    list.innerHTML = `<div class="rr-empty-inline" style="color:var(--red)">Couldn't load submissions: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const subs = data || [];
+  if (subs.length === 0) {
+    list.innerHTML = `<div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div>`;
+    return;
+  }
+  const rows = subs.map(s => {
+    const when = s.submitted_at ? new Date(s.submitted_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+    const answerCount = s.answers && typeof s.answers === "object" ? Object.keys(s.answers).length : 0;
+    return `
+      <div class="subm-row" data-rr-subm-id="${escapeHtml(s.id)}">
+        <div class="form-card-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
+        <div><div class="subm-form-name">${escapeHtml(s.form_title || "Form")} · ${escapeHtml(s.driver_name || "Driver")}</div><div class="subm-form-meta">${answerCount} answer${answerCount === 1 ? "" : "s"}</div></div>
+        <span class="subm-status complete">${escapeHtml(s.status || "submitted")}</span>
+        <div class="cell-time">${escapeHtml(when)}</div>
+        <button class="btn btn-sm" type="button">View</button>
+      </div>`;
+  }).join("");
+  list.innerHTML = `
+    <div class="card card-flush">
+      <div class="subm-row" style="background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;cursor:default">
+        <div></div><div>Form · Driver</div><div>Status</div><div>Submitted</div><div></div>
+      </div>
+      ${rows}
+    </div>`;
 }
 
 async function loadFormsList() {
@@ -13485,6 +13525,13 @@ function openFormBuilder(form) {
   const descEl  = document.getElementById("rr-builder-desc");
   if (titleEl) titleEl.value = form?.title || "";
   if (descEl)  descEl.value  = form?.description || "";
+  // Form-level settings — once_per_driver is the inverse of the
+  // "Allow multiple submissions" toggle.  Default to allow.
+  const allowResubmit = document.getElementById("rr-form-allow-resubmit");
+  if (allowResubmit) {
+    const oncePerDriver = !!form?.settings?.once_per_driver;
+    allowResubmit.checked = !oncePerDriver;
+  }
   _renderBuilderCanvas();
   _renderBuilderProps();
   if (typeof openModal === "function") openModal("modal-form-builder");
@@ -13550,6 +13597,14 @@ function _builderFieldHtml(f, idx, selected) {
       return `<div class="${cls}" data-rr-field-pick="${id}" style="margin-top:14px"><div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(f.label || "Section")}</div></div>`;
     case "divider":
       return `<div class="${cls}" data-rr-field-pick="${id}"><hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/></div>`;
+    case "instructions": {
+      const text = (f.help || "").trim();
+      return `<div class="${cls}" data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:#146EB433">
+        <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove block">×</button>
+        <div style="font-weight:700;font-size:var(--fs-md);color:var(--text);margin-bottom:6px">${escapeHtml(f.label || "Instructions")}</div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;white-space:pre-wrap">${escapeHtml(text || "Click here, then type instructions in the Help text field on the right.")}</div>
+      </div>`;
+    }
   }
   return `
     <div class="${cls}" data-rr-field-pick="${id}">
@@ -13574,15 +13629,23 @@ function _renderBuilderProps() {
   if (empty) empty.style.display = "none";
   body.style.display = "block";
   const hasOptions = f.type === "single_choice" || f.type === "multi_choice" || f.type === "dropdown";
+  const isInstructions = f.type === "instructions";
+  const labelHeading = isInstructions ? "Heading" : "Question";
+  const helpHeading  = isInstructions ? "Body" : "Help text";
+  const helpInput = isInstructions
+    ? `<textarea class="field-prop-input" data-rr-prop="help" rows="6" placeholder="What should the driver read before they start?">${escapeHtml(f.help || "")}</textarea>`
+    : `<input class="field-prop-input" data-rr-prop="help" value="${escapeHtml(f.help || "")}" />`;
+  const requiredRow = (isInstructions || f.type === "section_header" || f.type === "divider") ? "" : `
+    <div class="field-prop-row"><span class="field-prop-label">Required</span>
+      <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>`;
   body.innerHTML = `
     <div class="field-prop-row"><span class="field-prop-label">Field type</span>
       <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(_FIELD_TYPE_LABELS[f.type] || f.type)}</div></div>
-    <div class="field-prop-row"><span class="field-prop-label">Question</span>
+    <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(labelHeading)}</span>
       <input class="field-prop-input" data-rr-prop="label" value="${escapeHtml(f.label || "")}" /></div>
-    <div class="field-prop-row"><span class="field-prop-label">Help text</span>
-      <input class="field-prop-input" data-rr-prop="help" value="${escapeHtml(f.help || "")}" /></div>
-    <div class="field-prop-row"><span class="field-prop-label">Required</span>
-      <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>
+    <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(helpHeading)}</span>
+      ${helpInput}</div>
+    ${requiredRow}
     ${hasOptions ? `
       <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
         <span class="field-prop-label">Options</span>
@@ -13592,6 +13655,17 @@ function _renderBuilderProps() {
       <button type="button" class="btn btn-sm" data-rr-field-remove="${escapeHtml(f.id)}" style="color:var(--red)">Delete field</button>
     </div>`;
 }
+
+// Refresh the Submissions tab when the operator clicks into it.
+// Also refresh the My-forms grid on its own tab so submissions counts
+// reflect anything the dispatcher may have just published.
+document.addEventListener("click", (e) => {
+  const sideItem = e.target.closest("#view-forms .forms-side-item");
+  if (!sideItem) return;
+  const txt = (sideItem.textContent || "").trim().toLowerCase();
+  if (txt.startsWith("submissions")) loadFormSubmissions();
+  if (txt.startsWith("my forms"))    loadFormsList();
+});
 
 // Event delegation — palette adds, canvas selects, props edits.
 document.addEventListener("click", (e) => {
@@ -13684,11 +13758,16 @@ async function _saveBuilder({ publish }) {
     return;
   }
 
+  const allowResubmitEl = document.getElementById("rr-form-allow-resubmit");
+  const settings = {
+    ..._formsState.editing?.settings || {},
+    once_per_driver: allowResubmitEl ? !allowResubmitEl.checked : false,
+  };
   const payload = {
     title,
     description,
     fields:   _formsState.fields,
-    settings: _formsState.editing?.settings || {},
+    settings,
   };
   const { data: saved, error } = await sb.rpc("upsert_form", {
     p_id:      _formsState.editing?.id || null,

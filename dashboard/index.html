@@ -7829,7 +7829,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             </div>
 
             <div class="forms-tab" id="forms-tab-subm" style="display:none">
-              <div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div>
+              <div id="rr-subm-list"><div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div></div>
             </div>
           </main>
         </div>
@@ -9612,6 +9612,7 @@ Evidence attached:
         <button class="field-type" data-rr-add-field="gps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 8-8z"/></svg>GPS location</button>
 
         <div class="field-palette-section">Layout</div>
+        <button class="field-type" data-rr-add-field="instructions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Instructions</button>
         <button class="field-type" data-rr-add-field="section_header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16"/></svg>Section header</button>
         <button class="field-type" data-rr-add-field="divider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/></svg>Divider</button>
       </div>
@@ -9629,6 +9630,16 @@ Evidence attached:
         <div class="field-props-head">Field properties</div>
         <div class="rr-empty-inline" id="rr-builder-props-empty">Select a field to edit it.</div>
         <div id="rr-builder-props-body" style="display:none"></div>
+
+        <div class="field-props-head" style="margin-top:18px">Form settings</div>
+        <div class="field-prop-row">
+          <span class="field-prop-label">Audience</span>
+          <div style="font-size:var(--fs-sm);color:var(--text-muted)">All active drivers in your DSP</div>
+        </div>
+        <div class="field-prop-row">
+          <span class="field-prop-label">Allow multiple submissions</span>
+          <label class="toggle"><input type="checkbox" id="rr-form-allow-resubmit" checked /><span class="toggle-slider"></span></label>
+        </div>
       </div>
     </div>
   </div>
@@ -15754,7 +15765,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507at"></script>
+<script type="module" src="./live.js?v=20260507au"></script>
 
 </body>
 </html>
