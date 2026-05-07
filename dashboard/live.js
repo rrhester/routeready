@@ -718,9 +718,12 @@ async function loadAttendanceLive() {
 
   // Window = the policy decay window.  This is the "standing
   // attendance" view, so it always reflects what's currently scoring
-  // toward each driver's running total.
+  // toward each driver's running total.  EVAL is the normalized form
+  // of the operator-built block policy; POLICY is kept for legacy
+  // callers (Today's Plan still reads master toggles from it).
   const POLICY = _getAttPolicy();
-  const decay  = Number(POLICY.decay_days) || 90;
+  const EVAL   = _evalPolicy();
+  const decay  = Number(EVAL.decay_days) || 90;
   const sinceDate = new Date(); sinceDate.setDate(sinceDate.getDate() - decay);
   const sinceIso  = fmtIsoDate(sinceDate);
   const todayIso  = fmtIsoDate(new Date());
@@ -788,35 +791,41 @@ async function loadAttendanceLive() {
 
   let totalScheduled = 0, totalIncidents = 0, totalVto = 0, inAction = 0;
   const todayMs = Date.now();
+  // Per-event point values from the block policy.  An event kind that
+  // has no Event block (or 0 points) doesn't contribute to the
+  // running total — that's how the operator says "log this but don't
+  // count it" with the new builder.
+  const ptsCallout = EVAL.events.callout ? Number(EVAL.events.callout.points) || 0 : 0;
+  const ptsNoshow  = EVAL.events.no_show ? Number(EVAL.events.no_show.points) || 0 : 0;
+  const ptsLate    = EVAL.events.late    ? Number(EVAL.events.late.points)    || 0 : 0;
+  const sevToLabel = { verbal: "Verbal", written: "Written", final: "Final", termination: "Termination" };
   const rows = drivers.map(d => {
     const a = acc.get(d.id) || { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null };
-    const occ =
-        (POLICY.count_tardy   ? a.late     : 0)
-      + (POLICY.count_callout ? a.callouts : 0)
-      + (POLICY.count_noshow  ? a.noshows  : 0);
-    const points = occ;
+    // occ is still "how many counted events" — kept for the existing
+    // Occ. column.  points uses the per-event point values from
+    // the block policy.
+    const occ    = (ptsLate > 0 ? a.late : 0) + (ptsCallout > 0 ? a.callouts : 0) + (ptsNoshow > 0 ? a.noshows : 0);
+    const points = (a.late * ptsLate) + (a.callouts * ptsCallout) + (a.noshows * ptsNoshow);
+
     let statusLabel = "Good";
     let statusKind  = "ok";
-    // Coaching label = where this driver currently sits on the
-    // progressive ladder, which is just how many qualifying occurrences
-    // they've accrued in the rolling decay window:
-    //   1 → Verbal · 2 → Written · 3 → Final · 4+ → Termination
-    // This mirrors levelFor() in the daily-card flow so the report and
-    // the daily card never disagree about a driver's current rung.
     let coachingLabel = "Clear";
-    const warnFloor = Math.max(1, POLICY.threshold_warn || 1);
-    if (POLICY.policy_enabled === false) {
+
+    if (!EVAL.enabled) {
       statusLabel = "Policy off"; statusKind = "ok"; coachingLabel = "Policy off";
-    } else if (occ >= warnFloor) {
-      const step = occ - warnFloor + 1;
-      if (step <= 1)       { coachingLabel = "Verbal";      statusLabel = "Warn";   statusKind = "warn"; }
-      else if (step === 2) { coachingLabel = "Written";     statusLabel = "Action"; statusKind = "bad";  }
-      else if (step === 3) { coachingLabel = "Final";       statusLabel = "Action"; statusKind = "bad";  }
-      else                 { coachingLabel = "Termination"; statusLabel = "Action"; statusKind = "bad";  }
+    } else {
+      const rung = _evalLadderRung(EVAL, points);
+      if (rung) {
+        coachingLabel = sevToLabel[rung.severity] || rung.severity;
+        statusKind = rung.severity === "verbal" ? "warn" : "bad";
+        statusLabel = rung.severity === "verbal" ? "Warn" : "Action";
+      }
     }
-    if (POLICY.first_30_strict && d.hire_date && occ > 0) {
+    // First-30-strict — same effect as before but driven by the new
+    // block-shaped policy.
+    if (EVAL.first_30 && EVAL.first_30.active && d.hire_date && occ > 0) {
       const daysSinceHire = Math.floor((todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000);
-      if (daysSinceHire >= 0 && daysSinceHire <= (POLICY.first_30_window_days || 30)) {
+      if (daysSinceHire >= 0 && daysSinceHire <= (EVAL.first_30.days || 30)) {
         statusLabel = "Action · first-30 rule";
         statusKind  = "bad";
         if (coachingLabel === "Clear" || coachingLabel === "Verbal") coachingLabel = "Written · 1st 30";
@@ -2359,35 +2368,258 @@ function _getAttPolicy() {
   return merged;
 }
 
-// Per-level row in the Coaching ladder section.  Combines an
-// auto-fire toggle (locked off for Termination) with a delivery
-// dropdown so the Settings page captures everything the Phase 2
-// flows need: when do we auto-fire, and what does the driver do
-// to clear an automatic OR a manual coaching of that level?
-function _attLevelRow(p, level, label, autoLocked, blurb) {
-  const autoField = "auto_" + level;
-  const delField  = "delivery_" + level;
-  const autoOn    = !autoLocked && !!p[autoField];
-  const deliveryOpts = [
-    ["none",         "No action required"],
-    ["ack",          "Acknowledge"],
-    ["sign",         "Sign"],
-    ["ack_and_sign", "Acknowledge & sign"],
-  ].map(([v, lbl]) => `<option value="${v}" ${p[delField] === v ? "selected" : ""}>${escapeHtml(lbl)}</option>`).join("");
-  return `
-    <div style="display:grid;grid-template-columns:120px 1fr 220px;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border)">
-      <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(label)}</div>
-      <div>
-        <label style="display:flex;align-items:center;gap:8px;cursor:${autoLocked ? "not-allowed" : "pointer"};opacity:${autoLocked ? ".55" : "1"}">
-          <input type="checkbox" ${autoLocked ? "disabled" : ""} ${autoOn ? "checked" : ""} data-rr-att-field-bool="${autoField}"/>
-          <span style="font-size:var(--fs-sm);color:var(--text)">Auto-fire on Approve</span>
+// _evalPolicy — walk the blocks-style policy and produce a clean
+// normalized object the rest of the dashboard reads from.  Migration
+// 0086 backfills `blocks` for every existing tenant; new tenants get
+// blocks the first time the policy builder saves.  When `blocks` is
+// missing or empty (defensive), we fall back to the legacy fields so
+// nothing breaks during the rollout.
+//
+// Output shape:
+//   {
+//     enabled: bool,
+//     auto_coaching: bool,
+//     decay_days: int,
+//     events: { callout?: { points }, no_show?: { points }, late?: { points } },
+//     ladder: [{ severity, threshold, delivery, auto_fire }, ...],   // sorted by threshold asc
+//     ncns_terminates: bool,
+//     first_30:        { active: bool, days: int },
+//   }
+function _evalPolicy() {
+  const p   = window.RR?.dsp?.metadata?.attendance?.policy || {};
+  const out = {
+    enabled:         p.policy_enabled !== false,
+    auto_coaching:   !!p.auto_coaching,
+    decay_days:      90,
+    events:          {},
+    ladder:          [],
+    ncns_terminates: false,
+    first_30:        { active: false, days: 30 },
+  };
+  const blocks = Array.isArray(p.blocks) ? p.blocks : [];
+  if (blocks.length === 0) {
+    // Fallback to legacy fields — should only matter on a tenant that
+    // somehow missed the 0086 backfill.  The Report still renders.
+    const legacy = _getAttPolicy();
+    out.decay_days      = legacy.decay_days || 90;
+    if (legacy.count_callout) out.events.callout = { points: 1 };
+    if (legacy.count_noshow)  out.events.no_show = { points: 1 };
+    if (legacy.count_tardy)   out.events.late    = { points: 1 };
+    const warn = Math.max(1, legacy.threshold_warn || 1);
+    out.ladder = [
+      { severity: "verbal",      threshold: warn,     delivery: legacy.delivery_verbal      || "ack",          auto_fire: !!legacy.auto_verbal },
+      { severity: "written",     threshold: warn + 1, delivery: legacy.delivery_written     || "ack_and_sign", auto_fire: !!legacy.auto_written },
+      { severity: "final",       threshold: warn + 2, delivery: legacy.delivery_final       || "ack_and_sign", auto_fire: !!legacy.auto_final },
+      { severity: "termination", threshold: warn + 3, delivery: legacy.delivery_termination || "ack_and_sign", auto_fire: false },
+    ];
+    out.ncns_terminates = !!legacy.ncns_terminates;
+    out.first_30        = { active: !!legacy.first_30_strict, days: legacy.first_30_window_days || 30 };
+    return out;
+  }
+  for (const b of blocks) {
+    if (!b || !b.type) continue;
+    if (b.type === "window") {
+      out.decay_days = Number(b.days) > 0 ? Number(b.days) : 90;
+    } else if (b.type === "event") {
+      const k = b.kind;
+      if (k === "callout" || k === "no_show" || k === "late") {
+        out.events[k] = { points: Number(b.points) || 0 };
+      }
+    } else if (b.type === "ladder_rung") {
+      out.ladder.push({
+        severity:  b.severity || "verbal",
+        threshold: Number(b.threshold) || 0,
+        delivery:  b.delivery  || "ack",
+        auto_fire: b.severity === "termination" ? false : !!b.auto_fire,
+      });
+    } else if (b.type === "auto_escalation") {
+      if (b.kind === "ncns_terminates")  out.ncns_terminates = true;
+      if (b.kind === "first_30_strict")  out.first_30 = { active: true, days: Number(b.days) || 30 };
+    }
+    // recovery / others: ignored for now (Tier 2 scope)
+  }
+  // Ladder sorted ascending by threshold so "highest rung whose
+  // threshold ≤ points" is just a linear walk.
+  out.ladder.sort((a, b) => a.threshold - b.threshold);
+  return out;
+}
+
+// Find the ladder rung a driver currently sits at, given accumulated
+// points.  Returns null when the driver is below the lowest rung
+// (Clear) or when the policy has no ladder rungs.
+function _evalLadderRung(eval_, points) {
+  let rung = null;
+  for (const r of (eval_.ladder || [])) {
+    if (points >= r.threshold) rung = r;
+    else break;
+  }
+  return rung;
+}
+
+// Block-builder helpers — each block type knows how to render
+// itself on the canvas + edit itself in the right-hand props panel.
+// Block IDs are uuid-ish strings; the array order in
+// dsps.metadata.attendance.policy.blocks is the source of truth for
+// rendering order.
+
+function _newBlockId() {
+  return "blk_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function _defaultBlockForType(type) {
+  switch (type) {
+    case "window":          return { id: _newBlockId(), type, days: 90 };
+    case "event":           return { id: _newBlockId(), type, kind: "callout", points: 1 };
+    case "ladder_rung":     return { id: _newBlockId(), type, severity: "verbal", threshold: 1, delivery: "ack", auto_fire: false };
+    case "auto_escalation": return { id: _newBlockId(), type, kind: "ncns_terminates" };
+    case "recovery":        return { id: _newBlockId(), type, clean_days: 60, drop_rungs: 1 };
+  }
+  return null;
+}
+
+const _BLOCK_LABELS = {
+  window:          "Decay window",
+  event:           "Event",
+  ladder_rung:     "Ladder rung",
+  auto_escalation: "Auto-escalation",
+  recovery:        "Recovery",
+};
+
+const _EVENT_KIND_LABELS    = { callout: "Callout", no_show: "No-show", late: "Late" };
+const _SEVERITY_LABELS_SHORT= { note: "Note", verbal: "Verbal", written: "Written", final: "Final", termination: "Termination" };
+const _DELIVERY_LABELS      = { none: "No action required", ack: "Acknowledge", sign: "Sign", ack_and_sign: "Acknowledge & sign" };
+const _ESCALATION_LABELS    = { ncns_terminates: "NCNS = Termination", first_30_strict: "First-30 strict" };
+
+function _builderBlockHtml(b, selected) {
+  const sel = selected ? "rr-pol-block selected" : "rr-pol-block";
+  const handle = `<span class="rr-pol-handle" title="Drag to reorder">⋮⋮</span>`;
+  const remove = `<button type="button" class="rr-pol-remove" data-rr-pol-remove="${escapeHtml(b.id)}" aria-label="Remove">×</button>`;
+  let title = _BLOCK_LABELS[b.type] || "Block";
+  let body  = "";
+  switch (b.type) {
+    case "window":
+      title = "Decay window";
+      body = `<div class="rr-pol-block-summary">Rolling <strong>${Number(b.days) || 0}</strong> days</div>`;
+      break;
+    case "event":
+      title = `Event · ${_EVENT_KIND_LABELS[b.kind] || b.kind}`;
+      body = `<div class="rr-pol-block-summary"><strong>${Number(b.points) || 0}</strong> point${Number(b.points) === 1 ? "" : "s"} per occurrence</div>`;
+      break;
+    case "ladder_rung":
+      title = `Ladder rung · ${_SEVERITY_LABELS_SHORT[b.severity] || b.severity}`;
+      body = `<div class="rr-pol-block-summary">At <strong>${Number(b.threshold) || 0}</strong> pts → <strong>${escapeHtml(_DELIVERY_LABELS[b.delivery] || b.delivery)}</strong>${b.auto_fire ? " · auto-fires" : " · manual"}</div>`;
+      break;
+    case "auto_escalation":
+      title = "Auto-escalation";
+      body = `<div class="rr-pol-block-summary">${escapeHtml(_ESCALATION_LABELS[b.kind] || b.kind)}${b.kind === "first_30_strict" ? ` · ${Number(b.days) || 30} days` : ""}</div>`;
+      break;
+    case "recovery":
+      title = "Recovery";
+      body = `<div class="rr-pol-block-summary"><strong>${Number(b.clean_days) || 0}</strong> clean days drops <strong>${Number(b.drop_rungs) || 1}</strong> rung${Number(b.drop_rungs) === 1 ? "" : "s"}</div>`;
+      break;
+  }
+  return `<div class="${sel}" draggable="true" data-rr-pol-block="${escapeHtml(b.id)}">
+    ${handle}
+    <div class="rr-pol-block-title">${escapeHtml(title)}</div>
+    ${body}
+    ${remove}
+  </div>`;
+}
+
+function _builderPropsHtml(b) {
+  if (!b) {
+    return `<div class="rr-pol-empty">Click a block to edit its settings.</div>`;
+  }
+  const head = `<div class="rr-pol-props-head">${escapeHtml(_BLOCK_LABELS[b.type] || "Block")}</div>`;
+  switch (b.type) {
+    case "window":
+      return `${head}
+        <label class="rr-pol-field"><span>Decay days</span>
+          <input type="number" min="1" max="365" step="1" data-rr-pol-prop="days" value="${Number(b.days) || 90}"/>
         </label>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.4">${blurb}</div>
-      </div>
-      <select class="form-input" data-rr-att-field="${delField}" style="height:auto;padding:8px 10px">
-        ${deliveryOpts}
-      </select>
-    </div>`;
+        <p class="rr-pol-field-help">How far back the Report and the ladder look for events. Older events drop off as time passes.</p>`;
+    case "event":
+      return `${head}
+        <label class="rr-pol-field"><span>Event type</span>
+          <select data-rr-pol-prop="kind">
+            <option value="callout"  ${b.kind === "callout"  ? "selected" : ""}>Callout</option>
+            <option value="no_show"  ${b.kind === "no_show"  ? "selected" : ""}>No-show</option>
+            <option value="late"     ${b.kind === "late"     ? "selected" : ""}>Late</option>
+          </select>
+        </label>
+        <label class="rr-pol-field"><span>Points per occurrence</span>
+          <input type="number" min="0" max="20" step="0.5" data-rr-pol-prop="points" value="${Number(b.points) || 0}"/>
+        </label>
+        <p class="rr-pol-field-help">Each event of this type adds these points to the driver's running total. Set to 0 to log the event but not advance the ladder.</p>`;
+    case "ladder_rung":
+      return `${head}
+        <label class="rr-pol-field"><span>Severity</span>
+          <select data-rr-pol-prop="severity">
+            <option value="verbal"      ${b.severity === "verbal"      ? "selected" : ""}>Verbal</option>
+            <option value="written"     ${b.severity === "written"     ? "selected" : ""}>Written</option>
+            <option value="final"       ${b.severity === "final"       ? "selected" : ""}>Final</option>
+            <option value="termination" ${b.severity === "termination" ? "selected" : ""}>Termination</option>
+          </select>
+        </label>
+        <label class="rr-pol-field"><span>Threshold (points)</span>
+          <input type="number" min="0" step="0.5" data-rr-pol-prop="threshold" value="${Number(b.threshold) || 0}"/>
+        </label>
+        <label class="rr-pol-field"><span>Driver must</span>
+          <select data-rr-pol-prop="delivery">
+            <option value="none"         ${b.delivery === "none"         ? "selected" : ""}>No action required</option>
+            <option value="ack"          ${b.delivery === "ack"          ? "selected" : ""}>Acknowledge</option>
+            <option value="sign"         ${b.delivery === "sign"         ? "selected" : ""}>Sign</option>
+            <option value="ack_and_sign" ${b.delivery === "ack_and_sign" ? "selected" : ""}>Acknowledge &amp; sign</option>
+          </select>
+        </label>
+        <label class="rr-pol-field rr-pol-toggle">
+          <span>Auto-fire on Approve</span>
+          <input type="checkbox" data-rr-pol-prop="auto_fire" ${b.auto_fire ? "checked" : ""} ${b.severity === "termination" ? "disabled" : ""}/>
+        </label>
+        <p class="rr-pol-field-help">${b.severity === "termination" ? "Termination never auto-fires — a leader always confirms." : "When ON and the driver crosses this threshold, a coaching is sent automatically. When OFF, you fire it manually from the Attendance Report."}</p>`;
+    case "auto_escalation":
+      return `${head}
+        <label class="rr-pol-field"><span>Rule</span>
+          <select data-rr-pol-prop="kind">
+            <option value="ncns_terminates"  ${b.kind === "ncns_terminates"  ? "selected" : ""}>First NCNS = Termination</option>
+            <option value="first_30_strict"  ${b.kind === "first_30_strict"  ? "selected" : ""}>First-30-days strict</option>
+          </select>
+        </label>
+        ${b.kind === "first_30_strict" ? `
+        <label class="rr-pol-field"><span>Probation window (days)</span>
+          <input type="number" min="7" max="120" step="1" data-rr-pol-prop="days" value="${Number(b.days) || 30}"/>
+        </label>` : ""}
+        <p class="rr-pol-field-help">${b.kind === "ncns_terminates" ? "Any NCNS triggers a Termination recommendation regardless of accumulated points." : "Any callout / no-show inside the probation window jumps the driver straight to the highest ladder rung."}</p>`;
+    case "recovery":
+      return `${head}
+        <label class="rr-pol-field"><span>Clean days</span>
+          <input type="number" min="1" step="1" data-rr-pol-prop="clean_days" value="${Number(b.clean_days) || 60}"/>
+        </label>
+        <label class="rr-pol-field"><span>Drop rungs</span>
+          <input type="number" min="1" max="5" step="1" data-rr-pol-prop="drop_rungs" value="${Number(b.drop_rungs) || 1}"/>
+        </label>
+        <p class="rr-pol-field-help">After this many consecutive clean days (no counted events), the driver drops back this many ladder rungs.</p>`;
+  }
+  return `${head}<div class="rr-pol-empty">No settings for this block.</div>`;
+}
+
+// Working copy of the policy while the operator is building.  Lives
+// here so the click/drag/input handlers can mutate without re-reading
+// from dsps.metadata each time.  `_polState.blocks` is the array;
+// `_polState.selectedId` is the block being edited.
+const _polState = { blocks: [], selectedId: null, master: { policy_enabled: true, auto_coaching: false }, timing: { tardy_grace_minutes: 10, ncns_after_minutes: 60 } };
+
+function _renderPolBuilder() {
+  const canvas = document.getElementById("rr-pol-canvas");
+  const props  = document.getElementById("rr-pol-props");
+  if (!canvas || !props) return;
+  if (_polState.blocks.length === 0) {
+    canvas.innerHTML = `<div class="rr-pol-canvas-empty">Drag blocks from the left to build your policy.</div>`;
+  } else {
+    canvas.innerHTML = _polState.blocks.map(b => _builderBlockHtml(b, b.id === _polState.selectedId)).join("");
+  }
+  const sel = _polState.blocks.find(b => b.id === _polState.selectedId);
+  props.innerHTML = _builderPropsHtml(sel);
 }
 
 async function loadAttendancePolicy() {
@@ -2396,11 +2628,6 @@ async function loadAttendancePolicy() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
-  // Pull both the policy (lives on dsps.metadata) and the timing
-  // settings (lives on scheduling_settings) — the timing fields drive
-  // when a driver shows as Tardy / NCNS in the daily roster, so they
-  // belong in the same builder UI even though the schema stores them
-  // separately.
   const [{ data: dspRow, error: dspErr }, { data: setRow }] = await Promise.all([
     sb.from("dsps").select("metadata").eq("id", dspId).single(),
     sb.from("scheduling_settings")
@@ -2410,153 +2637,248 @@ async function loadAttendancePolicy() {
   if (dspErr) { console.warn("policy load:", dspErr.message); return; }
   const meta = dspRow?.metadata || {};
   if (window.RR?.dsp) window.RR.dsp.metadata = meta;
-  const p = _getAttPolicy();
-  const timing = {
-    checkin_lead_minutes: setRow?.checkin_lead_minutes ?? 15,
-    tardy_grace_minutes:  setRow?.tardy_grace_minutes  ?? 10,
-    ncns_after_minutes:   setRow?.ncns_after_minutes   ?? 60,
+  const p = meta?.attendance?.policy || {};
+
+  // Seed working state.
+  _polState.blocks = Array.isArray(p.blocks) ? JSON.parse(JSON.stringify(p.blocks)) : [];
+  _polState.selectedId = null;
+  _polState.master = {
+    policy_enabled: p.policy_enabled !== false,
+    auto_coaching:  !!p.auto_coaching,
+  };
+  _polState.timing = {
+    tardy_grace_minutes: setRow?.tardy_grace_minutes ?? 10,
+    ncns_after_minutes:  setRow?.ncns_after_minutes  ?? 60,
   };
 
-  // Reusable toggle row.  All yes/no settings on this page render this
-  // way so the operator gets a consistent on-screen language.
-  const toggleRow = (field, label, blurb) => `
-    <label class="rr-pol-toggle-row" style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--border)">
-      <span style="flex:1">
-        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(label)}</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.5">${blurb}</div>
-      </span>
-      <label class="toggle" style="margin-top:2px">
-        <input type="checkbox" data-rr-att-field-bool="${field}" ${p[field] ? "checked" : ""}/>
-        <span class="toggle-slider"></span>
-      </label>
-    </label>`;
-
   pane.innerHTML = `
-    <!-- Master enabled toggle -->
     <div class="pol-section" style="display:flex;align-items:center;gap:14px">
       <span style="flex:1">
         <h3 class="pol-section-title">Attendance policy</h3>
-        <p class="pol-section-sub" style="margin:0">When ON, the dashboard scores every driver against the rules below and surfaces flags on Today's Plan. When OFF, attendance is logged but the dashboard does not flag, warn, or recommend actions.</p>
+        <p class="pol-section-sub" style="margin:0">When ON, the dashboard scores every driver against the rules you build below. When OFF, attendance is logged but the dashboard does not flag, warn, or recommend actions.</p>
       </span>
       <label class="toggle">
-        <input type="checkbox" data-rr-att-field-bool="policy_enabled" ${p.policy_enabled ? "checked" : ""}/>
+        <input type="checkbox" id="rr-pol-master-enabled" ${_polState.master.policy_enabled ? "checked" : ""}/>
         <span class="toggle-slider"></span>
       </label>
     </div>
 
-    <!-- How occurrence-based scoring works -->
-    <div class="pol-section">
-      <h3 class="pol-section-title">How it works</h3>
-      <p class="pol-section-sub">Every Amazon DSP that uses an attendance policy uses the <strong>occurrence model</strong>: each event you choose to count is worth one occurrence, and the dashboard tracks a running total over a rolling decay window.  When a driver crosses your <strong>Warn</strong> threshold the Today's Plan daily tool shows a yellow flag with a coaching prompt.  When they cross <strong>Action</strong> the row turns red and the dashboard recommends a write-up (or the next progressive step, see below).  Older events drop off as the decay window scrolls forward, so a driver who had a rough month can recover.</p>
-    </div>
-
-    <!-- Timing thresholds — when does Tardy / NCNS kick in -->
     <div class="pol-section">
       <h3 class="pol-section-title">Tardy &amp; NCNS timing</h3>
-      <p class="pol-section-sub">How many minutes after a shift's start time before the dashboard considers the driver tardy or a no-call no-show. These drive the live status on Today's Plan and the orange/red flags on the daily approvals card.</p>
+      <p class="pol-section-sub">When the daily approvals card flags a driver Tardy or No-call no-show.</p>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:14px;max-width:520px">
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Tardy after (min)</span>
-          <input type="number" min="0" max="120" step="1" class="form-input" data-rr-att-timing="tardy_grace_minutes" value="${timing.tardy_grace_minutes}"/>
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Driver still hasn't checked in this many minutes <strong>after</strong> their shift start = <strong>Tardy</strong>. Common: 5–15 minutes.</span>
+          <input type="number" min="0" max="120" step="1" class="form-input" id="rr-pol-tardy" value="${_polState.timing.tardy_grace_minutes}"/>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">NCNS after (min)</span>
-          <input type="number" min="30" max="240" step="30" class="form-input" data-rr-att-timing="ncns_after_minutes" value="${timing.ncns_after_minutes}"/>
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle)">No check-in <strong>and</strong> no callout this many minutes after start = <strong>No-call no-show</strong>. Adjusts in 30-minute steps.</span>
+          <input type="number" min="30" max="240" step="30" class="form-input" id="rr-pol-ncns" value="${_polState.timing.ncns_after_minutes}"/>
         </label>
       </div>
     </div>
 
-    </div>
-
-    <!-- Auto-escalations -->
     <div class="pol-section">
-      <h3 class="pol-section-title">Auto-escalations</h3>
-      <p class="pol-section-sub">Optional rules that bypass the normal threshold ladder for severe events.</p>
-      ${toggleRow("ncns_terminates", "No-call no-show escalates to termination",
-        "When ON, the dashboard recommends <strong>termination</strong> on the driver's first NCNS — regardless of running total.  Many DSPs run their policy this way because an NCNS is the single biggest hit to a station's reliability score.")}
-      ${toggleRow("first_30_strict", "Strict no-absence rule for first " + (p.first_30_window_days || 30) + " days",
-        "When ON, any callout or no-show inside the driver's probationary window jumps them straight to <strong>Action</strong> regardless of accrued occurrences.  Standard for new-hire periods.")}
-      <label style="display:flex;flex-direction:column;gap:4px;padding:12px 0 0;max-width:200px">
-        <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Probation window (days)</span>
-        <input type="number" min="7" max="120" step="1" class="form-input" data-rr-att-field="first_30_window_days" value="${p.first_30_window_days}"/>
-      </label>
-    </div>
-
-    <!-- Coaching ladder + auto-coaching -->
-    <div class="pol-section">
-      <h3 class="pol-section-title">Coaching ladder</h3>
-      <p class="pol-section-sub">Coaching is a <strong>progressive ladder</strong>. Every qualifying occurrence inside the rolling decay window steps the driver up one rung — there's no separate threshold for each level.</p>
-      <div style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;margin:6px 0 12px;font-size:var(--fs-sm);line-height:1.7;color:var(--text)">
-        <div style="display:grid;grid-template-columns:auto auto 1fr;gap:6px 14px;align-items:center">
-          <strong style="color:var(--text)">1st event</strong><span style="color:var(--text-muted)">→</span><span>Verbal coaching</span>
-          <strong style="color:var(--text)">2nd event</strong><span style="color:var(--text-muted)">→</span><span>Written warning</span>
-          <strong style="color:var(--text)">3rd event</strong><span style="color:var(--text-muted)">→</span><span>Final written warning</span>
-          <strong style="color:var(--red)">4th event</strong><span style="color:var(--text-muted)">→</span><span><strong style="color:var(--red)">Termination</strong> recommended (a leader still confirms)</span>
-        </div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px">Older events drop off as the rolling <strong>${p.decay_days}-day</strong> window scrolls forward, so a driver who stays clean climbs back down the ladder.</div>
+      <h3 class="pol-section-title">Build your policy</h3>
+      <p class="pol-section-sub">Drag blocks from the left palette into the canvas. Click any block to edit its settings on the right. Drag blocks within the canvas to reorder.</p>
+      <div class="rr-pol-master-row" style="display:flex;align-items:center;gap:14px;padding:10px 0;margin-bottom:6px;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:var(--fs-sm);color:var(--text)"><strong>Auto-coach when an event is approved</strong> · OFF = every coaching is manual from the Report. ON = ladder rungs you marked auto-fire deliver immediately.</span>
+        <label class="toggle">
+          <input type="checkbox" id="rr-pol-master-auto" ${_polState.master.auto_coaching ? "checked" : ""}/>
+          <span class="toggle-slider"></span>
+        </label>
       </div>
-      ${toggleRow("auto_coaching", "Auto-coach when an event is approved",
-        "When ON, approving an event on the daily attendance card automatically logs the coaching to the driver's record and posts an in-app message in the RouteReady driver app for the levels you toggle below. Anything you don't auto-fire drops into the coaching drawer for a leader to finalize manually.<br>When OFF, every approved event drops into the coaching drawer regardless of level.")}
 
-      <!-- Per-level config (only meaningful when auto_coaching is ON, but
-           the delivery dropdowns also seed defaults the manual Send-
-           coaching modal pulls from on the Attendance Report rows). -->
-      <div id="rr-att-auto-levels" style="margin-top:6px;border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Per-level behavior</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px;line-height:1.5">For each rung, choose whether the dashboard fires the coaching automatically when an event is approved, and what the driver must do in the RouteReady app to clear it. The delivery picker also seeds the default when you Send coaching manually from the Attendance Report.</div>
-        ${_attLevelRow(p, "verbal",      "Verbal",       false, "1st event in window")}
-        ${_attLevelRow(p, "written",     "Written",      false, "2nd event")}
-        ${_attLevelRow(p, "final",       "Final",        false, "3rd event")}
-        ${_attLevelRow(p, "termination", "Termination",  true,  "4th event · auto-fire disabled by design — a leader always confirms")}
+      <div class="rr-pol-builder">
+        <aside class="rr-pol-palette">
+          <div class="rr-pol-palette-section">Window</div>
+          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="window">Decay window</button>
+
+          <div class="rr-pol-palette-section">Events</div>
+          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="event">Event (with point value)</button>
+
+          <div class="rr-pol-palette-section">Coaching ladder</div>
+          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="ladder_rung">Ladder rung</button>
+
+          <div class="rr-pol-palette-section">Auto-escalations</div>
+          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="auto_escalation">Escalation rule</button>
+
+          <div class="rr-pol-palette-section">Recovery</div>
+          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="recovery">Recovery rule</button>
+
+          <div class="rr-pol-palette-section" style="margin-top:14px">Templates</div>
+          <button type="button" class="rr-pol-palette-item" data-rr-pol-template="default">Standard ladder</button>
+          <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 4px 0;line-height:1.4">Drops in a 90-day window, callout/no-show events, and a 4-rung ladder.</p>
+        </aside>
+
+        <main class="rr-pol-canvas-wrap">
+          <div id="rr-pol-canvas" class="rr-pol-canvas"></div>
+        </main>
+
+        <aside class="rr-pol-props-wrap">
+          <div id="rr-pol-props" class="rr-pol-props"></div>
+        </aside>
       </div>
     </div>
 
-    <!-- Save -->
     <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
-      <button class="btn btn-primary" type="button" id="rr-att-policy-save">Save policy</button>
-      <span id="rr-att-policy-status" style="font-size:var(--fs-sm);color:var(--text-subtle)"></span>
+      <button class="btn btn-primary" type="button" id="rr-pol-save">Save policy</button>
+      <span id="rr-pol-status" style="font-size:var(--fs-sm);color:var(--text-subtle)"></span>
     </div>`;
 
-  // Apply the cascading disable rules now that the DOM is in place.
-  _rrApplyPolicyDisabledStates();
+  _renderPolBuilder();
+  _wirePolBuilder();
 }
 
-document.addEventListener("click", async (e) => {
-  // Save policy.  Mode is fixed to occurrence now — no mode selector.
-  if (e.target.id === "rr-att-policy-save") {
+function _wirePolBuilder() {
+  const canvas = document.getElementById("rr-pol-canvas");
+  if (!canvas || canvas.dataset.rrWired === "1") return;
+  canvas.dataset.rrWired = "1";
+
+  // Drag from palette → drop into canvas.  draggable=true on palette
+  // items provides dataTransfer with the block type; the canvas
+  // dragover is listened to globally so the drop can land anywhere
+  // in the canvas (or between blocks for ordering).
+  let _dragKind  = null;     // when dragging from palette
+  let _dragBlock = null;     // when reordering existing block
+
+  document.addEventListener("dragstart", (e) => {
+    const palette = e.target.closest && e.target.closest("[data-rr-pol-add]");
+    if (palette) {
+      _dragKind  = palette.getAttribute("data-rr-pol-add");
+      _dragBlock = null;
+      e.dataTransfer.effectAllowed = "copy";
+      try { e.dataTransfer.setData("text/plain", "rr-palette:" + _dragKind); } catch {}
+      return;
+    }
+    const blk = e.target.closest && e.target.closest("[data-rr-pol-block]");
+    if (blk) {
+      _dragKind  = null;
+      _dragBlock = blk.getAttribute("data-rr-pol-block");
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", "rr-block:" + _dragBlock); } catch {}
+      blk.classList.add("rr-dragging");
+    }
+  });
+  document.addEventListener("dragend", (e) => {
+    document.querySelectorAll(".rr-pol-block.rr-dragging").forEach(el => el.classList.remove("rr-dragging"));
+    _dragKind = null; _dragBlock = null;
+  });
+
+  canvas.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = _dragKind ? "copy" : "move";
+    const target = e.target.closest && e.target.closest("[data-rr-pol-block]");
+    canvas.querySelectorAll(".rr-pol-drop-before").forEach(el => el.classList.remove("rr-pol-drop-before"));
+    if (target) target.classList.add("rr-pol-drop-before");
+  });
+  canvas.addEventListener("dragleave", (e) => {
+    if (e.target === canvas) canvas.querySelectorAll(".rr-pol-drop-before").forEach(el => el.classList.remove("rr-pol-drop-before"));
+  });
+  canvas.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const target  = e.target.closest && e.target.closest("[data-rr-pol-block]");
+    const targetId = target ? target.getAttribute("data-rr-pol-block") : null;
+    canvas.querySelectorAll(".rr-pol-drop-before").forEach(el => el.classList.remove("rr-pol-drop-before"));
+
+    if (_dragKind) {
+      // Add a new block from the palette.
+      const fresh = _defaultBlockForType(_dragKind);
+      if (!fresh) return;
+      const idx = targetId ? _polState.blocks.findIndex(b => b.id === targetId) : _polState.blocks.length;
+      _polState.blocks.splice(idx >= 0 ? idx : _polState.blocks.length, 0, fresh);
+      _polState.selectedId = fresh.id;
+      _renderPolBuilder();
+    } else if (_dragBlock && targetId && _dragBlock !== targetId) {
+      // Reorder existing block.
+      const fromIdx = _polState.blocks.findIndex(b => b.id === _dragBlock);
+      const toIdx   = _polState.blocks.findIndex(b => b.id === targetId);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = _polState.blocks.splice(fromIdx, 1);
+      _polState.blocks.splice(toIdx, 0, moved);
+      _renderPolBuilder();
+    }
+  });
+
+  // Click to select a block, click × to remove, click a palette
+  // template to drop in a stock policy.
+  document.addEventListener("click", (e) => {
+    const rm = e.target.closest && e.target.closest("[data-rr-pol-remove]");
+    if (rm) {
+      e.stopPropagation();
+      const id = rm.getAttribute("data-rr-pol-remove");
+      _polState.blocks = _polState.blocks.filter(b => b.id !== id);
+      if (_polState.selectedId === id) _polState.selectedId = null;
+      _renderPolBuilder();
+      return;
+    }
+    const pick = e.target.closest && e.target.closest("[data-rr-pol-block]");
+    if (pick) {
+      _polState.selectedId = pick.getAttribute("data-rr-pol-block");
+      _renderPolBuilder();
+      return;
+    }
+    const tpl = e.target.closest && e.target.closest("[data-rr-pol-template]");
+    if (tpl) {
+      e.preventDefault();
+      _polState.blocks = [
+        { id: _newBlockId(), type: "window", days: 90 },
+        { id: _newBlockId(), type: "event", kind: "callout", points: 1 },
+        { id: _newBlockId(), type: "event", kind: "no_show", points: 1 },
+        { id: _newBlockId(), type: "ladder_rung", severity: "verbal",      threshold: 1, delivery: "ack",          auto_fire: true  },
+        { id: _newBlockId(), type: "ladder_rung", severity: "written",     threshold: 2, delivery: "ack_and_sign", auto_fire: true  },
+        { id: _newBlockId(), type: "ladder_rung", severity: "final",       threshold: 3, delivery: "ack_and_sign", auto_fire: false },
+        { id: _newBlockId(), type: "ladder_rung", severity: "termination", threshold: 4, delivery: "ack_and_sign", auto_fire: false },
+      ];
+      _polState.selectedId = null;
+      _renderPolBuilder();
+    }
+  });
+
+  // Edit props in real time.
+  document.addEventListener("input", (e) => {
+    const propEl = e.target.closest && e.target.closest("[data-rr-pol-prop]");
+    if (!propEl) return;
+    const b = _polState.blocks.find(x => x.id === _polState.selectedId);
+    if (!b) return;
+    const key = propEl.getAttribute("data-rr-pol-prop");
+    if (propEl.type === "checkbox") {
+      b[key] = !!propEl.checked;
+    } else if (propEl.type === "number") {
+      b[key] = Number(propEl.value);
+    } else {
+      b[key] = propEl.value;
+    }
+    // Re-render the canvas (the summary lines change) but leave the
+    // props panel alone so the operator's focus / cursor stays put.
+    const canvas = document.getElementById("rr-pol-canvas");
+    if (canvas) {
+      canvas.innerHTML = _polState.blocks.map(bb => _builderBlockHtml(bb, bb.id === _polState.selectedId)).join("");
+    }
+  });
+
+  // Save.
+  document.addEventListener("click", async (e) => {
+    if (!e.target.closest("#rr-pol-save")) return;
     e.preventDefault();
     const dspId = window.RR?.dsp?.id;
     if (!dspId) return;
-    const status = document.getElementById("rr-att-policy-status");
-    const fields = {};
-    document.querySelectorAll("[data-rr-att-field]").forEach(el => {
-      const key = el.dataset.rrAttField;
-      const raw = el.value;
-      // Numeric thresholds vs string-keyed enums (delivery_*).  The
-      // delivery_* keys carry coaching_delivery enum values; keep them
-      // as strings so they survive the round-trip into dsps.metadata.
-      if (key.startsWith("delivery_")) {
-        fields[key] = raw;
-      } else {
-        fields[key] = Number(raw);
-      }
-    });
-    document.querySelectorAll("[data-rr-att-field-bool]").forEach(el => {
-      fields[el.dataset.rrAttFieldBool] = !!el.checked;
-    });
-    // Timing fields live on scheduling_settings, not in dsps.metadata.
-    const timing = {};
-    document.querySelectorAll("[data-rr-att-timing]").forEach(el => {
-      const v = Number(el.value);
-      if (Number.isFinite(v) && v >= 0) timing[el.dataset.rrAttTiming] = v;
-    });
-    const newPolicy = { ..._ATT_DEFAULT_POLICY, ...fields };
-
+    const status = document.getElementById("rr-pol-status");
     if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
 
-    // 1. Save the policy on dsps.metadata.
+    // Read master toggles + timing (timing lives on scheduling_settings,
+    // not on dsps.metadata).
+    const masterEnabled = document.getElementById("rr-pol-master-enabled")?.checked;
+    const masterAuto    = document.getElementById("rr-pol-master-auto")?.checked;
+    const tardyMin      = Number(document.getElementById("rr-pol-tardy")?.value);
+    const ncnsMin       = Number(document.getElementById("rr-pol-ncns")?.value);
+
+    const newPolicy = {
+      policy_enabled: !!masterEnabled,
+      auto_coaching:  !!masterAuto,
+      blocks:         _polState.blocks,
+    };
+
     const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
     const meta = row?.metadata || {};
     const newMeta = { ...meta, attendance: { ...(meta.attendance || {}), policy: newPolicy } };
@@ -2564,9 +2886,10 @@ document.addEventListener("click", async (e) => {
     if (upErr) { if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; } return; }
     if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
 
-    // 2. Save the tardy/NCNS timing on scheduling_settings — upsert the
-    // dsp-default row (week_start IS NULL).  Two tries because the
-    // existing row may or may not be there yet.
+    // Timing — scheduling_settings dsp-default row.
+    const timing = {};
+    if (Number.isFinite(tardyMin) && tardyMin >= 0) timing.tardy_grace_minutes = tardyMin;
+    if (Number.isFinite(ncnsMin)  && ncnsMin  >= 0) timing.ncns_after_minutes  = ncnsMin;
     if (Object.keys(timing).length > 0) {
       const { data: existing } = await sb.from("scheduling_settings")
         .select("id").eq("dsp_id", dspId).is("week_start", null).maybeSingle();
@@ -2580,55 +2903,14 @@ document.addEventListener("click", async (e) => {
         if (insErr) console.warn("timing insert:", insErr.message);
       }
     }
+
     if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
     toast("Attendance policy saved", "success");
-    // Refresh report tab to use the new thresholds, and re-apply the
-    // policy-mode visibility so the Report tab toggles in/out
-    // immediately when policy_enabled flips.
     if (typeof _rrApplyAttPolicyMode === "function") _rrApplyAttPolicyMode();
     if (typeof loadAttendanceLive === "function") loadAttendanceLive();
     if (typeof loadAttendanceEventLog === "function") loadAttendanceEventLog();
-  }
-});
-
-// Live enable/disable behavior on the policy builder.  Two cascading
-// rules:
-//   1. Master "Attendance policy" toggle off → grey out every other
-//      input on the page (operator can't tweak rules that aren't
-//      running).
-//   2. "Auto-coach when an event is approved" off → grey out the per-
-//      level toggles so it's clear they have no effect.
-function _rrApplyPolicyDisabledStates() {
-  const pane = document.getElementById("att-pane-policy");
-  if (!pane) return;
-
-  const masterEl = pane.querySelector('[data-rr-att-field-bool="policy_enabled"]');
-  const policyEnabled = masterEl ? !!masterEl.checked : true;
-
-  // Dim the whole page when the policy is off, except the master row.
-  pane.querySelectorAll(".pol-section").forEach((sec, i) => {
-    if (i === 0) return; // first section holds the master toggle
-    sec.style.opacity       = policyEnabled ? ""    : "0.45";
-    sec.style.pointerEvents = policyEnabled ? ""    : "none";
   });
-
-  // Within Coaching style, grey out the level toggles when the
-  // auto_coaching master is off (or the whole policy is off).
-  const autoEl  = pane.querySelector('[data-rr-att-field-bool="auto_coaching"]');
-  const autoOn  = autoEl ? !!autoEl.checked : false;
-  const levels  = document.getElementById("rr-att-auto-levels");
-  if (levels) {
-    const off = !policyEnabled || !autoOn;
-    levels.style.opacity       = off ? "0.45" : "";
-    levels.style.pointerEvents = off ? "none" : "";
-  }
 }
-document.addEventListener("change", (e) => {
-  const f = e.target?.dataset?.rrAttFieldBool;
-  if (f === "policy_enabled" || f === "auto_coaching") {
-    _rrApplyPolicyDisabledStates();
-  }
-});
 
 
 // Time-period the Event log shows.  Independent of the policy
@@ -2831,14 +3113,16 @@ document.addEventListener("click", (e) => {
     return;
   }
   // Attendance Report row → ladder-aware path.  Severity comes from
-  // the row's coaching label; delivery default comes from policy.
+  // the row's coaching label; delivery default comes from the matching
+  // Ladder rung block in the new policy.
   const repBtn = e.target.closest("[data-rr-coach-report]");
   if (repBtn) {
     e.preventDefault();
     e.stopImmediatePropagation();
     const sev = repBtn.getAttribute("data-rr-coach-severity") || "verbal";
-    const policy = _getAttPolicy();
-    const delDefault = policy["delivery_" + sev] || "ack";
+    const evalP = _evalPolicy();
+    const rung  = (evalP.ladder || []).find(r => r.severity === sev);
+    const delDefault = rung?.delivery || "ack";
     _coachCtx = {
       source:           "report",
       driver_id:        repBtn.getAttribute("data-rr-coach-driver"),
@@ -3526,14 +3810,31 @@ async function _renderTpDailyTool(flagged) {
   }
 
   const policy = _getAttPolicy();
+  const evalP  = _evalPolicy();
   const dspId  = window.RR?.dsp?.id;
-  const since  = new Date(Date.now() - (policy.decay_days || 90) * 86400000)
+  const since  = new Date(Date.now() - (evalP.decay_days || 90) * 86400000)
     .toISOString().slice(0, 10);
 
-  // If the policy is OFF, skip history + scoring entirely — operator
-  // wants attendance logged but not flagged.
-  let occMap = new Map();
-  if (policy.policy_enabled !== false) {
+  // Per-event point values — same as the Report.  Missing event
+  // blocks contribute zero (the operator chose not to count that
+  // event type).
+  const ptsCallout = evalP.events.callout ? Number(evalP.events.callout.points) || 0 : 0;
+  const ptsNoshow  = evalP.events.no_show ? Number(evalP.events.no_show.points) || 0 : 0;
+  const ptsLate    = evalP.events.late    ? Number(evalP.events.late.points)    || 0 : 0;
+  const pointsForEvent = (st) =>
+      st === "late"       ? ptsLate
+    : st === "called_off" ? ptsCallout
+    : st === "no_show"    ? ptsNoshow
+    : 0;
+  const pointsForOutcome = (oc) =>
+      oc === "tardy"            ? ptsLate
+    : oc === "missed_reported"  ? ptsCallout
+    : oc === "ncns"             ? ptsNoshow
+    : 0;
+
+  // Map driver_id → cumulative points already accrued in window.
+  let pointsMap = new Map();
+  if (evalP.enabled) {
     const ids = flagged.map(r => r.driver_id);
     const { data: hist } = await sb.from("shifts")
       .select("driver_id, status")
@@ -3541,48 +3842,31 @@ async function _renderTpDailyTool(flagged) {
       .in("driver_id", ids)
       .in("status", ["called_off", "no_show", "late"])
       .gte("date", since);
-    const counts = (st) =>
-         (st === "late"       && policy.count_tardy)
-      || (st === "called_off" && policy.count_callout)
-      || (st === "no_show"    && policy.count_noshow);
     for (const h of (hist || [])) {
-      if (!counts(h.status)) continue;
-      occMap.set(h.driver_id, (occMap.get(h.driver_id) || 0) + 1);
+      const p = pointsForEvent(h.status);
+      if (p > 0) pointsMap.set(h.driver_id, (pointsMap.get(h.driver_id) || 0) + p);
     }
   }
 
   // Neutral palette — labels carry the meaning; no stoplight tints.
-  const standing = (n) => {
-    if (policy.policy_enabled === false) return { label: "Policy off", tone: "var(--text-subtle)" };
-    if (n >= policy.threshold_action) return { label: "Action",        tone: "var(--text)" };
-    if (n >= policy.threshold_warn)   return { label: "Warning",       tone: "var(--text-muted)" };
-    return { label: "Good standing", tone: "var(--text-subtle)" };
+  const standing = (rung) => {
+    if (!evalP.enabled) return { label: "Policy off", tone: "var(--text-subtle)" };
+    if (!rung)          return { label: "Good standing", tone: "var(--text-subtle)" };
+    if (rung.severity === "verbal") return { label: "Warning", tone: "var(--text-muted)" };
+    return { label: "Action", tone: "var(--text)" };
   };
 
-  // Compute the coaching level (verbal / written / final / termination /
-  // none) that applies to this row.  The ladder is progressive: each
-  // qualifying occurrence inside the rolling decay window steps the
-  // driver up one rung, starting from threshold_warn:
-  //   1st event at-or-above warn → Verbal
-  //   2nd                        → Written
-  //   3rd                        → Final
-  //   4th+                       → Termination
-  // NCNS-terminates short-circuits straight to termination if enabled.
-  // threshold_action is retained for status-pill display only — the
-  // ladder itself is per-occurrence, not threshold-banded.
-  const levelFor = (outcome, nAfter) => {
-    if (policy.policy_enabled === false) return null;
-    if (outcome === "ncns" && policy.ncns_terminates) return "termination";
-    const warn = Math.max(1, policy.threshold_warn || 1);
-    if (nAfter < warn) return null;
-    const step = nAfter - warn + 1;
-    if (step <= 1) return "verbal";
-    if (step === 2) return "written";
-    if (step === 3) return "final";
-    return "termination";
+  // levelFor → severity string from the matching ladder rung; null
+  // when the driver hasn't crossed the lowest threshold.
+  // NCNS-terminates short-circuits to termination regardless of points.
+  const levelFor = (outcome, points) => {
+    if (!evalP.enabled) return null;
+    if (outcome === "ncns" && evalP.ncns_terminates) return "termination";
+    const rung = _evalLadderRung(evalP, points);
+    return rung ? rung.severity : null;
   };
   const recommend = (outcome, level) => {
-    if (policy.policy_enabled === false) return "Logged · policy is off";
+    if (!evalP.enabled) return "Logged · policy is off";
     if (level === "termination") return "Termination · review &amp; confirm";
     if (level === "final")       return "Final written warning · 1 step before termination";
     if (level === "written")     return "Written warning · log conversation";
@@ -3591,24 +3875,24 @@ async function _renderTpDailyTool(flagged) {
     if (outcome === "tardy") return "Note tardy · no formal action";
     return "Acknowledge missed day";
   };
+  // Lookup the matching ladder rung's auto_fire + delivery — the
+  // builder's source of truth.  Master auto_coaching toggle off
+  // disables every auto-fire regardless.
+  const rungFor = (level) => (evalP.ladder || []).find(r => r.severity === level) || null;
   const willAutoFire = (level) => {
+    if (!evalP.enabled || !evalP.auto_coaching) return false;
     if (!level || level === "termination") return false;
-    if (policy.policy_enabled === false) return false;
-    if (!policy.auto_coaching) return false;
-    if (level === "verbal"  && policy.auto_verbal)  return true;
-    if (level === "written" && policy.auto_written) return true;
-    if (level === "final"   && policy.auto_final)   return true;
-    return false;
+    const r = rungFor(level);
+    return !!(r && r.auto_fire);
+  };
+  const deliveryFor = (level) => {
+    const r = rungFor(level);
+    return r?.delivery || "ack";
   };
 
-  const counted = (outcome) =>
-       (outcome === "tardy"           && policy.count_tardy)
-    || (outcome === "missed_reported" && policy.count_callout)
-    || (outcome === "ncns"            && policy.count_noshow);
-
   const rows = flagged.map(r => {
-    const before = occMap.get(r.driver_id) || 0;
-    const add = (policy.policy_enabled !== false && counted(r.computed_outcome)) ? 1 : 0;
+    const before = pointsMap.get(r.driver_id) || 0;
+    const add = (evalP.enabled ? pointsForOutcome(r.computed_outcome) : 0);
     const after = before + add;
     const lvl = levelFor(r.computed_outcome, after);
     const auto = willAutoFire(lvl);
@@ -3641,6 +3925,7 @@ async function _renderTpDailyTool(flagged) {
                   data-driver-name="${escapeHtml(r.driver_name)}"
                   data-level="${escapeHtml(lvl || '')}"
                   data-auto-fire="${auto ? '1' : '0'}"
+                  data-delivery="${escapeHtml(deliveryFor(lvl))}"
                   type="button">Confirm</button>
           <button class="btn btn-sm"
                   data-rr-tp-deny="1"
@@ -3653,21 +3938,18 @@ async function _renderTpDailyTool(flagged) {
       </div>`;
   }).join("");
 
-  // Footer summary — what happens on Confirm given the operator's
-  // current Coaching ladder + auto-coaching settings.
+  // Footer summary — what happens on Confirm given the current
+  // policy + auto-coaching toggles.
   let autoCoachNote;
-  if (policy.policy_enabled === false) {
-    autoCoachNote = "Attendance policy is OFF — Confirm logs the event as a manual coaching needed.";
-  } else if (!policy.auto_coaching) {
-    autoCoachNote = "Auto-coaching is OFF — Confirm drops every event into the coaching drawer for a leader to finalize.";
+  if (!evalP.enabled) {
+    autoCoachNote = "Attendance policy is OFF — Confirm just stamps the shift; coach manually from the Event log.";
+  } else if (!evalP.auto_coaching) {
+    autoCoachNote = "Auto-coaching is OFF — Confirm just stamps the shift; fire coachings manually from the Attendance Report.";
   } else {
-    const levels = [];
-    if (policy.auto_verbal)  levels.push("verbal");
-    if (policy.auto_written) levels.push("written");
-    if (policy.auto_final)   levels.push("final");
+    const levels = (evalP.ladder || []).filter(r => r.auto_fire && r.severity !== "termination").map(r => r.severity);
     autoCoachNote = levels.length === 0
-      ? "Auto-coaching is ON but no levels are toggled — every Confirm still routes through the coaching drawer as Pending."
-      : "Auto-fires + messages the driver in the RouteReady app for: " + levels.join(", ") + ". Other levels (and termination) drop into the coaching drawer as Pending.";
+      ? "Auto-coaching is ON but no ladder rungs are set to auto-fire. Confirm just stamps the shift."
+      : "Auto-fires + messages the driver in the RouteReady app when the driver crosses: " + levels.join(", ") + ".";
   }
 
   toolEl.innerHTML = `${head(flagged.length)}${rows}
@@ -3708,6 +3990,7 @@ document.addEventListener("click", async (e) => {
 
   const level    = btn.dataset.level || null;
   const autoFire = btn.dataset.autoFire === "1";
+  const delivery = btn.dataset.delivery || null;
 
   const { data, error } = await sb.rpc("attendance_decide", {
     p_shift_id:  shiftId,
@@ -3716,6 +3999,7 @@ document.addEventListener("click", async (e) => {
     p_notes:     notes,
     p_auto_fire: ap ? autoFire : false,
     p_level:     level,
+    p_delivery:  ap ? delivery : null,
   });
 
   if (error) {
