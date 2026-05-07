@@ -3610,18 +3610,20 @@ window.drSub = function (sub) {
 // Swap the page-level CTA so it matches the active subnav. On Coaching,
 // 'Add driver' becomes 'Coach a driver' and opens a driver picker that
 // drops into the coaching log form for the chosen driver.
-function _swapDriversCta(sub) {
-  const btn = document.getElementById("rr-drivers-cta");
-  const lbl = document.getElementById("rr-drivers-cta-label");
-  if (!btn || !lbl) return;
-  if (sub === "coaching") {
-    lbl.textContent = "Coach a driver";
-    btn.onclick = (e) => { e.preventDefault(); openCoachDriverPicker(); };
-  } else {
-    lbl.textContent = "Add driver";
-    btn.onclick = () => { if (typeof window.openModal === "function") window.openModal("modal-add-driver"); };
-  }
+function _swapDriversCta(/* sub */) {
+  // The Add driver button now lives in the Roster sub-tab's toolbar
+  // (top-left of the table) and the Coach a driver button has its own
+  // dedicated home in the Coaching sub-tab toolbar — no swap needed.
+  // Function kept as a no-op so existing call sites don't throw.
 }
+
+// Wire the Coach a driver CTA in the Coaching sub-tab toolbar.
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#rr-coach-cta")) {
+    e.preventDefault();
+    openCoachDriverPicker();
+  }
+});
 
 // Driver picker → coaching log. Shown when the operator clicks 'Coach
 // a driver' on Drivers > Coaching. Pick a driver from the list, modal
