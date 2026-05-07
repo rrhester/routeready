@@ -11559,7 +11559,7 @@ async function renderScheduleWeek() {
   const [gridRes, driversRes, toRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, dot_certified, xl_certified, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .order("full_name"),
@@ -12405,6 +12405,28 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
     }
   } catch (_) {}
 
+  // Service-type cert map — same gate Smart Fill uses. A driver assigned
+  // to a shift whose service type requires DOT or XL certification but
+  // the driver doesn't hold it surfaces here so the operator sees the
+  // mistake on the weekly card.
+  const serviceCerts = new Map();
+  try {
+    const dspId = window.RR?.dsp?.id;
+    if (dspId) {
+      const { data: svcs } = await sb.from("service_types")
+        .select("id, code, label, requires_dot, requires_xl")
+        .eq("dsp_id", dspId);
+      for (const s of (svcs || [])) {
+        serviceCerts.set(s.id, {
+          requires_dot: !!s.requires_dot,
+          requires_xl:  !!s.requires_xl,
+          code:         s.code,
+          label:        s.label,
+        });
+      }
+    }
+  } catch (_) {}
+
   const drvById = new Map(drivers.map(d => [d.id, d]));
   const ptoByDriver = new Map();
   for (const t of timeOff) {
@@ -12447,6 +12469,22 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
       if (d.dl_expires_on && d.dl_expires_on < sh.date) {
         const expDate = new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString();
         violations.push({ driver: display, date: sh.date, kind: "expired_dl", note: `License expired ${expDate}` });
+      }
+
+      // Service-type cert gate: same logic Smart Fill uses to skip
+      // ineligible drivers. Surfaces when an operator manually assigned
+      // a non-DOT driver onto a Step Van shift, etc.
+      const cert = serviceCerts.get(sh.service_type_id);
+      if (cert) {
+        const stLabel = cert.label || cert.code || "this service type";
+        if (cert.requires_dot && !d.dot_certified) {
+          violations.push({ driver: display, date: sh.date, kind: "missing_dot",
+            note: `${stLabel} requires DOT certification` });
+        }
+        if (cert.requires_xl && !d.xl_certified) {
+          violations.push({ driver: display, date: sh.date, kind: "missing_xl",
+            note: `${stLabel} requires XL certification` });
+        }
       }
 
       // PTO
@@ -12540,10 +12578,10 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
   // the WOC math can run identically.
   const candidateFetch = candidateShiftOverride
     ? Promise.resolve({ data: candidateShiftOverride })
-    : sb.from("shifts").select("id, date, starts_at, ends_at, block_hours").eq("id", shiftId).single();
+    : sb.from("shifts").select("id, date, starts_at, ends_at, block_hours, service_type_id").eq("id", shiftId).single();
 
-  const [drvRes, ptoRes, shiftsRes, candidateRes] = await Promise.all([
-    sb.from("drivers").select("id, full_name, metadata, dl_expires_on").eq("id", driverId).single(),
+  const [drvRes, ptoRes, shiftsRes, candidateRes, svcRes] = await Promise.all([
+    sb.from("drivers").select("id, full_name, metadata, dl_expires_on, dot_certified, xl_certified").eq("id", driverId).single(),
     sb.from("time_off_requests").select("start_date, end_date")
       .eq("dsp_id", dspId).eq("driver_id", driverId).eq("status", "approved")
       .lte("start_date", weekEndIso).gte("end_date", _schedStart),
@@ -12551,6 +12589,7 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
       .eq("dsp_id", dspId).eq("driver_id", driverId)
       .gte("date", _schedStart).lte("date", weekEndIso),
     candidateFetch,
+    sb.from("service_types").select("id, code, label, requires_dot, requires_xl").eq("dsp_id", dspId),
   ]);
 
   const driver = drvRes.data;
@@ -12562,6 +12601,24 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
   if (driver.dl_expires_on && driver.dl_expires_on < shiftDate) {
     const expDate = new Date(driver.dl_expires_on + "T12:00:00").toLocaleDateString();
     violations.push(`Driver's license expired ${expDate}`);
+  }
+
+  // Service-type cert gate: Step Vans need DOT, XL needs XL.  candShift
+  // is fetched above; for virtual chips the override may not carry a
+  // service_type_id so the gate quietly no-ops in that case.
+  const candShiftEarly = candidateRes?.data;
+  const stId = candShiftEarly?.service_type_id;
+  if (stId) {
+    const st = (svcRes?.data || []).find(s => s.id === stId);
+    if (st) {
+      const stLabel = st.label || st.code || "this service type";
+      if (st.requires_dot && !driver.dot_certified) {
+        violations.push(`${stLabel} requires DOT certification`);
+      }
+      if (st.requires_xl && !driver.xl_certified) {
+        violations.push(`${stLabel} requires XL certification`);
+      }
+    }
   }
 
   // PTO check
