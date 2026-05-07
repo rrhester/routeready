@@ -10522,11 +10522,15 @@ document.addEventListener("click", async (e) => {
     const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || "UTC";
 
     const status = document.getElementById("rr-set-sched-status");
-    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving for week…"; }
+    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving as DSP default…"; }
 
+    // Save as the DSP-default row (week_start IS NULL) so the settings
+    // apply to every week — past and future — that doesn't have a
+    // per-week override. Operator wanted Settings to govern all weeks
+    // in the planning view, not just whichever week was active.
     const { error: upErr } = await sb.rpc("upsert_scheduling_settings", {
       p_payload: {
-        week_start: _schedStart,
+        week_start: null,
         default_block_hours: block,
         cushion_pct: cushion,
         max_days_per_week: maxDays,
@@ -10539,8 +10543,11 @@ document.addEventListener("click", async (e) => {
       if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; }
       return;
     }
-    if (status) status.textContent = "Saved · syncing this week…";
+    if (status) status.textContent = "Saved · syncing current week…";
 
+    // Regenerate the week the operator is currently viewing so the
+    // change is visible immediately.  Future weeks pull the new
+    // default automatically when the operator navigates to them.
     const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: _schedStart });
     if (regenErr) {
       if (status) { status.style.color = "var(--red)"; status.textContent = "Saved · sync failed: " + regenErr.message; }
@@ -10548,9 +10555,6 @@ document.addEventListener("click", async (e) => {
       return;
     }
 
-    // Reconcile cushion shifts to match the saved cushion %. Adds EX rows
-    // when % goes up; removes unassigned EX rows when % drops; deletes all
-    // unassigned EX rows when % is 0. RPC + behavior live in migration 0040.
     let cushionDelta = 0;
     try {
       const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: _schedStart });
@@ -10566,10 +10570,10 @@ document.addEventListener("click", async (e) => {
     if (status) {
       status.style.color = "var(--green)";
       const cushionNote = cushionDelta !== 0 ? ` · cushion ${cushionDelta > 0 ? "+" : ""}${cushionDelta}` : "";
-      status.textContent = `Saved for week of ${_schedStart} ✓${cushionNote}`;
+      status.textContent = `Saved · applies to all weeks ✓${cushionNote}`;
     }
     setTimeout(() => { if (status) status.textContent = ""; }, 3000);
-    toast("Scheduling settings saved for this week", "success");
+    toast("Scheduling settings saved · applies to all weeks", "success");
 
     // Refresh schedule view if active.
     if (typeof renderScheduleWeek === "function") {
