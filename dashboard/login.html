@@ -65,12 +65,15 @@
     e.preventDefault();
     const email = document.getElementById("email").value.trim().toLowerCase();
     const btn   = document.getElementById("submit");
-    const allowed = (cfg.ALLOWED_SIGNUP_DOMAINS || []).some(d => email.endsWith("@" + d));
-    if (!allowed) {
+    if (!email || !email.includes("@")) {
       msg.className = "msg err";
-      msg.textContent = "That email domain isn't allowed.";
+      msg.textContent = "Enter a valid email.";
       return;
     }
+    // Domain allowlisting is now enforced server-side by the
+    // on_auth_user_created trigger so dashboard-initiated invites
+    // (which carry invite_dsp_id metadata) can land any email here
+    // without tripping a page-level gate.
     btn.disabled = true;
     msg.className = "msg";
     msg.textContent = "Sending…";
