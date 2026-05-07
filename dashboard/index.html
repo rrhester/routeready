@@ -1532,9 +1532,9 @@ select.form-input{
 /* Calendar grid (week view) */
 .cal-wrap{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
-  /* Cap visible drivers at ~7 rows.  Anything past that scrolls inside
+  /* Cap visible drivers at ~20 rows.  Anything past that scrolls inside
      the grid so the KPI strip + 4-week tabs above stay on screen. */
-  max-height:calc(64px * 7 + 56px);
+  max-height:calc(64px * 20 + 56px);
   overflow-y:auto;
   scrollbar-width:thin;
   scrollbar-color:var(--border-strong) transparent;
