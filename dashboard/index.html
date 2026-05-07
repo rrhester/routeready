@@ -4629,6 +4629,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .pa-card:hover{border-color:var(--text-subtle);box-shadow:0 2px 8px rgba(0,0,0,.04)}
           .pa-card.expanded{border-color:var(--accent);box-shadow:0 0 0 1px rgba(59,130,246,.2)}
           .pa-row{display:grid;grid-template-columns:160px 1fr auto;gap:var(--s-3);align-items:center;padding:14px 16px}
+          /* Match the rest of the dashboard's name treatment so the
+             Pipeline applicant names don't read as a different weight
+             from .cell-name (Drivers roster) or .pa-card-name. */
+          .pa-name{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3}
+          .pa-sub{font-size:var(--fs-xs);font-weight:400;color:var(--text-subtle);margin-top:2px;line-height:1.4}
           .pa-card-stage{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
           .pa-stage-pill{
             display:inline-flex;align-items:center;gap:6px;
