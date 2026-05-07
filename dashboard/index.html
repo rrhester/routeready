@@ -5484,42 +5484,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
         </div><!-- /dr-sub-attendance -->
 
-        <!-- COACHING — global feed across all drivers, sortable, filterable -->
+        <!-- COACHING — global feed across all drivers. Search keeps the
+             text input; the inline severity / topic / status / sort
+             dropdowns were removed in favor of click-to-sort headers. -->
         <div class="dr-subview" id="dr-sub-coaching">
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--s-3)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3)">
             <input id="rr-coach-search" type="text" class="form-input" placeholder="Search summary, notes, driver…" style="flex:1;min-width:200px;max-width:340px"/>
-            <select id="rr-coach-filter-severity" class="form-input" style="max-width:140px">
-              <option value="">All severities</option>
-              <option value="info">Info</option>
-              <option value="concern">Concern</option>
-              <option value="warning">Warning</option>
-              <option value="final">Final</option>
-            </select>
-            <select id="rr-coach-filter-topic" class="form-input" style="max-width:140px">
-              <option value="">All topics</option>
-              <option value="safety">Safety</option>
-              <option value="performance">Performance</option>
-              <option value="scorecard">Scorecard</option>
-              <option value="attendance">Attendance</option>
-              <option value="behavior">Behavior</option>
-              <option value="conduct">Conduct</option>
-              <option value="theft">Theft</option>
-              <option value="recognition">Recognition</option>
-              <option value="other">Other</option>
-            </select>
-            <select id="rr-coach-filter-status" class="form-input" style="max-width:160px">
-              <option value="all" selected>All active</option>
-              <option value="open">Open follow-ups</option>
-              <option value="archived">Archived</option>
-            </select>
-            <select id="rr-coach-sort" class="form-input" style="max-width:170px">
-              <option value="date_desc">Date (newest)</option>
-              <option value="date_asc">Date (oldest)</option>
-              <option value="severity">Severity (high → low)</option>
-              <option value="topic">Topic</option>
-              <option value="coach">Coached by</option>
-              <option value="followup">Follow-up date</option>
-            </select>
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Click a column to sort</span>
           </div>
           <div id="rr-coach-feed" class="card card-flush">
             <div class="rr-loading">Loading</div>
@@ -6153,12 +6124,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <!-- Sub-nav -->
         <div class="subnav" data-rr-tabbar="schedule">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
-          <button class="subnav-item" data-sub="timeoff" onclick="schedSub('timeoff')">Time off <span id="rr-sched-timeoff-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')" style="display:none">Open shifts <span id="rr-sched-open-badge" style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
-          <button class="subnav-item" data-sub="insights" onclick="schedSub('insights')">Insights</button>
           <button class="subnav-item" data-sub="settings" onclick="schedSub('settings')">Settings</button>
-          <button class="subnav-item" onclick="goto('okami')" style="margin-left:auto" title="13-week OKAMI capacity plan">Plan ↗</button>
         </div>
 
         <!-- WEEK VIEW SUB-VIEW -->
@@ -6482,79 +6450,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         </div>
 
         <!-- TIME OFF APPROVAL QUEUE -->
-        <div class="sched-subview" id="sched-sub-timeoff" style="display:none">
-
-          <div class="section">
-            <div class="section-head">
-              <h2 class="section-title">Pending approval</h2>
-              <span class="section-sub">3 requests</span>
-            </div>
-
-            <div class="approval-card">
-              <div class="approval-icon timeoff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-              <div>
-                <div class="approval-title">Devon Patterson · 3 days off</div>
-                <div class="approval-msg"><strong>May 15 → May 17</strong> · Personal · "Family wedding out of state."</div>
-                <div class="cov-preview warn">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
-                  Approving drops coverage <strong>87% → 81%</strong> next week · KMO3-12B would need a backup · 1 candidate qualified
-                </div>
-                <div class="approval-meta"><span>Submitted 2h ago</span><span>·</span><span>KMO3-12B route would need coverage</span></div>
-              </div>
-              <div class="approval-actions">
-                <button class="btn btn-sm">Deny</button>
-                <button class="btn btn-primary btn-sm">Approve</button>
-              </div>
-            </div>
-
-            <div class="approval-card">
-              <div class="approval-icon timeoff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-              <div>
-                <div class="approval-title">Camille Foster · 3 days off</div>
-                <div class="approval-msg"><strong>May 22 → May 24</strong> · Vacation · "Pre-booked trip."</div>
-                <div class="cov-preview">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                  Coverage holds · <strong>2 backup drivers</strong> qualified for KMO1 · approving stays at 87%
-                </div>
-                <div class="approval-meta"><span>Submitted yesterday</span><span>·</span><span>2 backup drivers available</span></div>
-              </div>
-              <div class="approval-actions">
-                <button class="btn btn-sm">Deny</button>
-                <button class="btn btn-primary btn-sm">Approve</button>
-              </div>
-            </div>
-
-            <div class="approval-card">
-              <div class="approval-icon timeoff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-              <div>
-                <div class="approval-title">Marcus Hill · 1 day off</div>
-                <div class="approval-msg"><strong>May 9</strong> · Sick · "Doctor appointment."</div>
-                <div class="cov-preview">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                  Coverage neutral · existing open shift KMO1-19D absorbs this · no impact
-                </div>
-                <div class="approval-meta"><span>Submitted 4h ago</span><span>·</span><span>KMO1-19D — open shift can absorb</span></div>
-              </div>
-              <div class="approval-actions">
-                <button class="btn btn-sm">Deny</button>
-                <button class="btn btn-primary btn-sm">Approve</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-head">
-              <h2 class="section-title">Approved · upcoming</h2>
-              <span class="section-sub">2 drivers</span>
-            </div>
-            <div class="timeoff-card">
-              <div class="timeoff-card-driver"><div class="avatar-sm tier-d">TR</div><div><div class="timeoff-card-name">Tasha Reyes</div><div class="timeoff-card-meta">KMO2 · approved by Ryan, 5 days ago</div></div></div>
-              <div><div class="timeoff-card-dates">May 10 → May 12</div><div class="timeoff-card-dates-sub">3 scheduled days</div></div>
-              <div class="timeoff-card-reason">Vacation</div>
-              <div style="display:flex;gap:6px"><button class="btn btn-sm">Cancel</button></div>
-            </div>
-          </div>
-        </div>
 
         <!-- SHIFT SWAPS APPROVAL QUEUE -->
         <div class="sched-subview" id="sched-sub-swaps" style="display:none">
@@ -6886,155 +6781,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               </div>
             </details>
 
-            <details class="rules-section" data-rr-rules-section="availability" open style="grid-column:1/-1">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Availability options
-              </summary>
 
-              <!-- MASTER TOGGLE — Driver self-management on/off -->
-              <div style="background:var(--accent-soft);border:1px solid #146EB433;border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--s-4)">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-4)">
-                  <div>
-                    <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:3px">Allow drivers to manage their own availability</div>
-                    <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">When ON, drivers see and edit availability in their app (subject to rules below). When OFF, only you set each driver's availability — drivers see their schedule but can't change what days they work.</div>
-                  </div>
-                  <label class="toggle"><input type="checkbox" id="rule-driver-managed" checked onchange="toggleDriverManaged(this)" /><span class="toggle-slider"></span></label>
-                </div>
-              </div>
 
-              <p class="page-sub" id="rules-availability-sub" style="margin:0 0 var(--s-3) 0">Driver-managed mode is ON. Rules below apply to what drivers can declare in their app.</p>
-
-              <div id="rules-availability-body">
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Operating days</div>
-                  <div class="rule-help">Drivers can only declare availability for days you operate. Off days are hidden from the driver app.</div>
-                </div>
-                <div data-rr-day-set="operating" style="display:flex;gap:4px">
-                  <button class="day-toggle on" data-rr-day="mon" type="button">M</button>
-                  <button class="day-toggle on" data-rr-day="tue" type="button">T</button>
-                  <button class="day-toggle on" data-rr-day="wed" type="button">W</button>
-                  <button class="day-toggle on" data-rr-day="thu" type="button">T</button>
-                  <button class="day-toggle on" data-rr-day="fri" type="button">F</button>
-                  <button class="day-toggle on" data-rr-day="sat" type="button">S</button>
-                  <button class="day-toggle" data-rr-day="sun" type="button">S</button>
-                </div>
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Required days · all drivers must be available</div>
-                  <div class="rule-help">Drivers cannot mark these days unavailable. Use sparingly — typically high-volume days.</div>
-                </div>
-                <div data-rr-day-set="required" style="display:flex;gap:4px">
-                  <button class="day-toggle" data-rr-day="mon" type="button">M</button>
-                  <button class="day-toggle" data-rr-day="tue" type="button">T</button>
-                  <button class="day-toggle" data-rr-day="wed" type="button">W</button>
-                  <button class="day-toggle" data-rr-day="thu" type="button">T</button>
-                  <button class="day-toggle on" data-rr-day="fri" type="button">F</button>
-                  <button class="day-toggle" data-rr-day="sat" type="button">S</button>
-                  <button class="day-toggle" data-rr-day="sun" type="button">S</button>
-                </div>
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Minimum days available per driver</div>
-                  <div class="rule-help">Drivers must declare at least this many days as available (across operating days).</div>
-                </div>
-                <input class="rule-input" value="4" />
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Allow drivers to opt into backup pool</div>
-                  <div class="rule-help">If off, you assign backup status manually. If on, drivers self-select.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Allow drivers to opt into swap marketplace</div>
-                  <div class="rule-help">If off, drivers can't post or claim swaps — manager only.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Availability changes require owner approval</div>
-                  <div class="rule-help">Driver edits stay pending until you approve. Useful for tighter control.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-              </div>
-
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Availability change cutoff</div>
-                  <div class="rule-help">Drivers cannot change availability within this many days of an unpublished week.</div>
-                </div>
-                <input class="rule-input" value="14" />
-              </div>
-
-              </div><!-- /rules-availability-body -->
-            </details>
-
-            <details class="rules-section" data-rr-rules-section="publishing">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Publishing &amp; locks
-              </summary>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Lock period (hours before shift)</div>
-                  <div class="rule-help">Schedule changes within this window need driver acknowledgment.</div>
-                </div>
-                <input class="rule-input" value="48" />
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Auto-publish on Sundays</div>
-                  <div class="rule-help">Generate next week from templates and publish at 6 PM Sunday.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Notify drivers when published</div>
-                  <div class="rule-help">SMS each driver their week. Email summary too.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Allow driver self-claim of open shifts</div>
-                  <div class="rule-help">Backup drivers can grab open shifts without manager approval (still logged).</div>
-                </div>
-                <label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label>
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Auto-approve swaps if both drivers qualified</div>
-                  <div class="rule-help">If A wants to swap with B and both can run each other's routes, no manager step.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-              </div>
-            </details>
-
-            <details class="rules-section" data-rr-rules-section="blackout" style="grid-column:1/-1">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
-                Blackout dates · no time off allowed
-              </summary>
-              <p class="page-sub" style="margin:0 0 var(--s-3) 0">High-volume periods. Time-off requests for these dates are auto-declined unless manager overrides.</p>
-              <div class="blackout-list" id="rr-blackout-list">
-                <!-- Manual entries appear here. Empty state shown when none. -->
-              </div>
-              <button class="btn btn-sm" id="rr-blackout-add" type="button" style="margin-top:var(--s-3)">+ Add blackout</button>
-            </details>
 
             <details class="rules-section" data-rr-rules-section="autofill" style="grid-column:1/-1">
               <summary class="rules-section-title">
@@ -7185,33 +6933,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
 
         <!-- INSIGHTS — driver availability + future insights -->
-        <div class="sched-subview" id="sched-sub-insights" style="display:none">
-          <div style="margin-bottom:var(--s-4)">
-            <h2 style="font-size:var(--fs-lg);font-weight:600;margin:0">Schedule insights</h2>
-            <p class="page-sub" style="margin:4px 0 0">Where the schedule is tight before it breaks.</p>
-          </div>
-
-          <div id="rr-sched-insights-availability" class="card">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-              <div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase">Driver availability by day</div>
-                  <button type="button" id="rr-avail-info" title="Show the math behind this insight"
-                    style="border:0;background:transparent;color:var(--text-subtle);cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                  </button>
-                </div>
-                <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:4px 0 0">What share of your active roster is available each day of the week.</p>
-              </div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle);text-align:right" id="rr-avail-summary"></div>
-            </div>
-            <div id="rr-avail-bars">
-              <div class="rr-loading">Loading</div>
-            </div>
-            <div id="rr-avail-insight" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5"></div>
-          </div>
-        </div><!-- /sched-sub-insights -->
-
         <!-- TEMPLATES -->
         <div class="sched-subview" id="sched-sub-templates" style="display:none">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-4)">
@@ -16185,7 +15906,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507ah"></script>
+<script type="module" src="./live.js?v=20260507ai"></script>
 
 </body>
 </html>

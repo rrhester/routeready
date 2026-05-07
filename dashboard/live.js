@@ -9046,12 +9046,6 @@ async function loadCoachingFeed() {
   if (!wrap) return;
   wrap.innerHTML = `<div class="rr-loading">Loading</div>`;
 
-  // Always land on "All active" when (re)entering the feed, so leaving the
-  // page and coming back resets the status filter regardless of what was
-  // selected last time.
-  const statusSel = document.getElementById("rr-coach-filter-status");
-  if (statusSel) statusSel.value = "all";
-
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
@@ -9083,23 +9077,15 @@ async function loadCoachingFeed() {
   _renderCoachFeed();
 }
 
+// Click-to-sort state for the coaching table.  Default newest first.
+let _coachSort = { col: "date", dir: "desc" };
+
 function _renderCoachFeed() {
   const wrap = document.getElementById("rr-coach-feed");
   if (!wrap || !_coachFeedCache) return;
 
-  const search   = (document.getElementById("rr-coach-search")?.value || "").toLowerCase().trim();
-  const sevFilt  = document.getElementById("rr-coach-filter-severity")?.value || "";
-  const topFilt  = document.getElementById("rr-coach-filter-topic")?.value || "";
-  const statFilt = document.getElementById("rr-coach-filter-status")?.value || "all";
-  const sort     = document.getElementById("rr-coach-sort")?.value || "date_desc";
-
-  let rows = _coachFeedCache.rows.slice();
-  if (statFilt === "open")     rows = rows.filter(c => !c.archived_at && c.follow_up_at && !c.resolved_at);
-  else if (statFilt === "all") rows = rows.filter(c => !c.archived_at);
-  else if (statFilt === "archived") rows = rows.filter(c => !!c.archived_at);
-
-  if (sevFilt) rows = rows.filter(c => c.severity === sevFilt);
-  if (topFilt) rows = rows.filter(c => c.topic === topFilt);
+  const search = (document.getElementById("rr-coach-search")?.value || "").toLowerCase().trim();
+  let rows = _coachFeedCache.rows.slice().filter(c => !c.archived_at);
 
   if (search) {
     rows = rows.filter(c => {
@@ -9114,32 +9100,53 @@ function _renderCoachFeed() {
     });
   }
 
-  rows.sort((a, b) => {
-    if (sort === "date_asc")   return new Date(a.occurred_at) - new Date(b.occurred_at);
-    if (sort === "severity")   return (_COACH_SEV_RANK[a.severity] ?? 9) - (_COACH_SEV_RANK[b.severity] ?? 9) || (new Date(b.occurred_at) - new Date(a.occurred_at));
-    if (sort === "topic")      return String(a.topic).localeCompare(String(b.topic)) || (new Date(b.occurred_at) - new Date(a.occurred_at));
-    if (sort === "coach")      return String(a.coached_by_name || "").localeCompare(String(b.coached_by_name || ""));
-    if (sort === "followup") {
-      const aD = a.follow_up_at ? new Date(a.follow_up_at).getTime() : Infinity;
-      const bD = b.follow_up_at ? new Date(b.follow_up_at).getTime() : Infinity;
-      return aD - bD;
+  // Sort by clicked column.
+  const driverNameOf = (c) => {
+    const drv = _coachFeedCache.drivers.get(c.driver_id);
+    return drv ? (drv.preferred_name || drv.full_name || "") : "";
+  };
+  const cmp = (a, b) => {
+    let av, bv;
+    switch (_coachSort.col) {
+      case "date":     av = new Date(a.occurred_at).getTime(); bv = new Date(b.occurred_at).getTime(); break;
+      case "driver":   av = driverNameOf(a).toLowerCase(); bv = driverNameOf(b).toLowerCase(); break;
+      case "severity": av = _COACH_SEV_RANK[a.severity] ?? 9; bv = _COACH_SEV_RANK[b.severity] ?? 9; break;
+      case "topic":    av = (a.topic || "").toLowerCase(); bv = (b.topic || "").toLowerCase(); break;
+      case "coach":    av = (a.coached_by_name || "").toLowerCase(); bv = (b.coached_by_name || "").toLowerCase(); break;
+      case "followup": av = a.follow_up_at ? new Date(a.follow_up_at).getTime() : Infinity;
+                       bv = b.follow_up_at ? new Date(b.follow_up_at).getTime() : Infinity; break;
+      case "status":   av = a.archived_at ? 2 : (a.resolved_at ? 1 : 0); bv = b.archived_at ? 2 : (b.resolved_at ? 1 : 0); break;
+      default: return 0;
     }
-    return new Date(b.occurred_at) - new Date(a.occurred_at);
-  });
+    if (av < bv) return _coachSort.dir === "asc" ? -1 : 1;
+    if (av > bv) return _coachSort.dir === "asc" ? 1 : -1;
+    return 0;
+  };
+  rows.sort(cmp);
 
   if (rows.length === 0) {
     wrap.innerHTML = `<div class="rr-empty-inline">No coachings match the current filter.</div>`;
     return;
   }
 
+  const caret = (col) => {
+    if (_coachSort.col !== col) return "";
+    return _coachSort.dir === "asc"
+      ? ' <span style="font-size:9px">▲</span>'
+      : ' <span style="font-size:9px">▼</span>';
+  };
+  const th = (col, label) =>
+    `<th data-rr-coach-sort="${col}" style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);cursor:pointer;user-select:none">${label}${caret(col)}</th>`;
+
   const head = `<thead><tr style="background:var(--canvas);border-bottom:1px solid var(--border)">
-    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Driver</th>
-    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Severity</th>
-    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Topic</th>
+    ${th("date",     "Date")}
+    ${th("driver",   "Driver")}
+    ${th("severity", "Severity")}
+    ${th("topic",    "Topic")}
     <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Summary</th>
-    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Coached</th>
-    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Follow-up</th>
-    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Status</th>
+    ${th("coach",    "Coached by")}
+    ${th("followup", "Follow-up")}
+    ${th("status",   "Status")}
   </tr></thead>`;
 
   const body = rows.map(c => {
@@ -9162,11 +9169,12 @@ function _renderCoachFeed() {
           : ack || `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Open</span>`);
 
     return `<tr style="border-top:1px solid var(--border);cursor:pointer" data-rr-coach-feed-driver="${c.driver_id}">
+      <td style="padding:10px 14px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;color:var(--text-muted)">${escapeHtml(occurred)}</td>
       <td style="padding:10px 14px"><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
       <td style="padding:10px 14px">${sevChip}</td>
       <td style="padding:10px 14px;font-size:var(--fs-sm);text-transform:capitalize">${escapeHtml(c.topic || "")}</td>
       <td style="padding:10px 14px;font-size:var(--fs-md);max-width:320px">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
-      <td style="padding:10px 14px;font-size:var(--fs-xs);color:var(--text-muted)">${escapeHtml(occurred)}<div>${escapeHtml(c.coached_by_name || "")}</div></td>
+      <td style="padding:10px 14px;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(c.coached_by_name || "—")}</td>
       <td style="padding:10px 14px">${followCell}</td>
       <td style="padding:10px 14px">${status}</td>
     </tr>`;
@@ -9176,10 +9184,24 @@ function _renderCoachFeed() {
 }
 
 document.addEventListener("input", (e) => {
-  if (["rr-coach-search"].includes(e.target.id)) _renderCoachFeed();
+  if (e.target.id === "rr-coach-search") _renderCoachFeed();
 });
-document.addEventListener("change", (e) => {
-  if (["rr-coach-filter-severity","rr-coach-filter-topic","rr-coach-filter-status","rr-coach-sort"].includes(e.target.id)) _renderCoachFeed();
+
+// Click any sortable header to toggle direction (or set new column at
+// its default direction). Keeps the same pattern as the Drivers Roster
+// + Attendance Report tables.
+document.addEventListener("click", (e) => {
+  const th = e.target.closest("[data-rr-coach-sort]");
+  if (!th) return;
+  const col = th.dataset.rrCoachSort;
+  if (_coachSort.col === col) {
+    _coachSort.dir = _coachSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    _coachSort.col = col;
+    // Sensible defaults: dates desc (newest first), text asc.
+    _coachSort.dir = (col === "date" || col === "followup" || col === "severity" || col === "status") ? "desc" : "asc";
+  }
+  _renderCoachFeed();
 });
 
 
