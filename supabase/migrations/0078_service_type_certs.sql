@@ -32,7 +32,7 @@ update public.service_types
  where code = 'XL';
 
 
--- 4. Insert STEP service type per DSP (idempotent on (dsp_id, code))
+-- 4. Insert STEP service type per DSP
 insert into public.service_types (dsp_id, code, label, color, sort_order, active, requires_dot)
 select d.id, 'STEP', 'Step Vans', '#0EA5E9', 4, false, true
 from public.dsps d
@@ -40,9 +40,7 @@ on conflict (dsp_id, code) do update
   set requires_dot = excluded.requires_dot;
 
 
--- 5. Auto-seed for newly created DSPs — keep the existing function in
--- sync so freshly-created DSPs land with the same set of service types
--- + cert flags.
+-- 5. Auto-seed for newly created DSPs
 create or replace function private.tg_dsp_seed_service_types()
 returns trigger
 language plpgsql
@@ -67,47 +65,52 @@ create trigger trg_dsp_seed_service_types
   for each row execute function private.tg_dsp_seed_service_types();
 
 
--- 6. update_driver_record accepts xl_certified from the payload.
---    Existing fields untouched; just adds one more coalesce line.
-create or replace function public.update_driver_record(p_id uuid, p_payload jsonb)
-returns void
+-- 6. update_driver_record — accept xl_certified.  The existing function
+-- returns public.drivers; CREATE OR REPLACE can't change the return type
+-- so we drop it first.  Everything else mirrors the prior body
+-- (migration 0051) plus the xl_certified line.
+drop function if exists public.update_driver_record(uuid, jsonb);
+
+create function public.update_driver_record(p_id uuid, p_payload jsonb)
+returns public.drivers
 language plpgsql security definer set search_path = ''
 as $$
 declare
   v_dsp uuid := private.current_dsp_id();
+  v_row public.drivers;
 begin
   if not private.is_staff(v_dsp, 'dispatcher') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
   update public.drivers
-     set full_name               = coalesce(p_payload->>'full_name', full_name),
-         first_name              = coalesce(p_payload->>'first_name', first_name),
+     set first_name              = coalesce(p_payload->>'first_name', first_name),
          last_name               = coalesce(p_payload->>'last_name', last_name),
+         full_name               = coalesce(p_payload->>'full_name', full_name),
          preferred_name          = coalesce(p_payload->>'preferred_name', preferred_name),
          pronouns                = coalesce(p_payload->>'pronouns', pronouns),
-         email                   = coalesce(p_payload->>'email', email),
          phone                   = coalesce(p_payload->>'phone', phone),
-         home_address            = coalesce(p_payload->>'home_address', home_address),
-         birthday                = coalesce((p_payload->>'birthday')::date, birthday),
-         hire_date               = coalesce((p_payload->>'hire_date')::date, hire_date),
-         status                  = coalesce(p_payload->>'status', status),
-         tier                    = coalesce(p_payload->>'tier', tier),
-         station_id              = coalesce(nullif(p_payload->>'station_id','')::uuid, station_id),
-         pay_rate_hourly         = coalesce((p_payload->>'pay_rate_hourly')::numeric, pay_rate_hourly),
+         email                   = coalesce(p_payload->>'email', email),
+         address                 = coalesce(p_payload->>'address', address),
+         birthday                = coalesce(nullif(p_payload->>'birthday','')::date, birthday),
          emergency_contact_name  = coalesce(p_payload->>'emergency_contact_name', emergency_contact_name),
          emergency_contact_phone = coalesce(p_payload->>'emergency_contact_phone', emergency_contact_phone),
-         background_check_completed_at = coalesce((p_payload->>'background_check_completed_at')::timestamptz, background_check_completed_at),
-         drug_test_completed_at        = coalesce((p_payload->>'drug_test_completed_at')::timestamptz, drug_test_completed_at),
-         training_scheduled_at         = coalesce((p_payload->>'training_scheduled_at')::timestamptz, training_scheduled_at),
-         training_date                 = coalesce((p_payload->>'training_date')::date, training_date),
-         dl_number                     = coalesce(p_payload->>'dl_number', dl_number),
-         dl_state                      = coalesce(p_payload->>'dl_state', dl_state),
-         dl_expires_on                 = coalesce((p_payload->>'dl_expires_on')::date, dl_expires_on),
-         dot_certified                 = coalesce((p_payload->>'dot_certified')::boolean, dot_certified),
-         xl_certified                  = coalesce((p_payload->>'xl_certified')::boolean, xl_certified),
-         updated_at                    = now()
-   where id = p_id and dsp_id = v_dsp;
+         hire_date               = coalesce(nullif(p_payload->>'hire_date','')::date, hire_date),
+         status                  = coalesce((p_payload->>'status')::public.driver_status, status),
+         tier                    = coalesce(p_payload->>'tier', tier),
+         dl_number               = coalesce(p_payload->>'dl_number', dl_number),
+         dl_expires_on           = coalesce(nullif(p_payload->>'dl_expires_on','')::date, dl_expires_on),
+         dot_certified           = coalesce((p_payload->>'dot_certified')::boolean, dot_certified),
+         xl_certified            = coalesce((p_payload->>'xl_certified')::boolean, xl_certified),
+         background_check_completed_at = coalesce(nullif(p_payload->>'background_check_completed_at','')::timestamptz, background_check_completed_at),
+         drug_test_completed_at        = coalesce(nullif(p_payload->>'drug_test_completed_at','')::timestamptz, drug_test_completed_at),
+         training_scheduled_at         = coalesce(nullif(p_payload->>'training_scheduled_at','')::timestamptz, training_scheduled_at),
+         training_date                 = coalesce(nullif(p_payload->>'training_date','')::date, training_date)
+   where id = p_id and dsp_id = v_dsp
+   returning * into v_row;
+
+  if v_row.id is null then raise exception 'driver_not_found'; end if;
+  return v_row;
 end;
 $$;
 
