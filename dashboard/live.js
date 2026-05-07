@@ -1043,9 +1043,6 @@ function _renderAttReportTbody() {
     const summary = `${r.coachingLabel} · ${r.a.callouts} callout${r.a.callouts === 1 ? "" : "s"}, ${r.a.noshows} no-show${r.a.noshows === 1 ? "" : "s"}, ${r.a.late} late`;
 
     let lastCoachCell = `<span style="color:var(--text-subtle)">—</span>`;
-    let sendBtnLabel  = "Send coaching";
-    let sendBtnTitle  = "Send coaching · pre-filled with ladder recommendation";
-    let sendBtnExtra  = "";
     if (r.lastCoach) {
       const lc       = r.lastCoach;
       const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[lc.severity]) || lc.severity;
@@ -1060,10 +1057,33 @@ function _renderAttReportTbody() {
         ackChip = `<span class="att-coach-chip" title="No driver action required">Sent</span>`;
       }
       lastCoachCell = `<div style="display:flex;flex-direction:column;gap:2px"><div style="font-weight:600;font-size:var(--fs-sm)">${escapeHtml(sevLabel)}<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(when)}</span></div>${ackChip}</div>`;
-      sendBtnLabel = "Send another";
-      sendBtnTitle = `Already sent ${sevLabel} ${when}. Send another only if a new event has occurred.`;
-      sendBtnExtra = " btn-ghost";
     }
+
+    // Decide whether the row needs an action button.  Show ONLY when
+    // the driver has crossed a ladder rung that hasn't been coached
+    // at that severity yet.  Already-coached or Clear rows stay
+    // quiet — operators can drill into the per-driver Attendance tab
+    // to send a follow-up coaching when they want one.
+    const SEV_RANK = { note: 0, verbal: 1, concern: 1, written: 2, warning: 2, final: 3, termination: 4 };
+    const rowSevRank = SEV_RANK[sev] ?? 0;
+    const lastSevRank = r.lastCoach ? (SEV_RANK[r.lastCoach.severity] ?? 0) : -1;
+    const isClear = r.coachingLabel === "Clear" || r.coachingLabel === "Policy off";
+    const needsAction = !isClear && rowSevRank > lastSevRank;
+
+    const actionCell = needsAction
+      ? `<button class="btn btn-sm" type="button"
+          data-rr-coach-report="1"
+          data-rr-coach-driver="${escapeHtml(r.d.id)}"
+          data-rr-coach-driver-name="${escapeHtml(display)}"
+          data-rr-coach-severity="${escapeHtml(sev)}"
+          data-rr-coach-summary="${escapeHtml(summary)}"
+          data-rr-coach-points="${r.points}"
+          data-rr-coach-occ="${r.occ}"
+          data-rr-coach-callouts="${r.a.callouts}"
+          data-rr-coach-noshows="${r.a.noshows}"
+          data-rr-coach-late="${r.a.late}"
+          title="Send coaching · pre-filled with ladder recommendation">Send coaching</button>`
+      : "";
 
     // Whole row is clickable → opens drawer on Attendance tab.
     return `<tr data-rr-att-row="${escapeHtml(r.d.id)}" style="cursor:pointer">
@@ -1073,18 +1093,7 @@ function _renderAttReportTbody() {
       <td style="text-align:right;font-weight:600">${r.points}</td>
       <td>${escapeHtml(lastEv)}</td>
       <td>${lastCoachCell}</td>
-      <td style="text-align:right"><button class="btn btn-sm${sendBtnExtra}" type="button"
-        data-rr-coach-report="1"
-        data-rr-coach-driver="${escapeHtml(r.d.id)}"
-        data-rr-coach-driver-name="${escapeHtml(display)}"
-        data-rr-coach-severity="${escapeHtml(sev)}"
-        data-rr-coach-summary="${escapeHtml(summary)}"
-        data-rr-coach-points="${r.points}"
-        data-rr-coach-occ="${r.occ}"
-        data-rr-coach-callouts="${r.a.callouts}"
-        data-rr-coach-noshows="${r.a.noshows}"
-        data-rr-coach-late="${r.a.late}"
-        title="${escapeHtml(sendBtnTitle)}">${escapeHtml(sendBtnLabel)}</button></td>
+      <td style="text-align:right">${actionCell}</td>
     </tr>`;
   };
 
