@@ -5404,34 +5404,31 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .pol-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:var(--s-4);margin-bottom:var(--s-3)}
           .pol-section-title{font-size:var(--fs-md);font-weight:600;color:var(--text);margin:0 0 4px 0}
           .pol-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin:0 0 var(--s-3) 0;line-height:1.4}
-          /* Policy builder · drag-and-drop layout (palette / canvas / props) */
-          .rr-pol-builder{display:grid;grid-template-columns:200px 1fr 280px;gap:14px;align-items:flex-start;margin-top:10px}
-          .rr-pol-palette{display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;position:sticky;top:14px}
-          .rr-pol-palette-section{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;padding:6px 4px 2px}
-          .rr-pol-palette-item{font:inherit;font-size:var(--fs-sm);font-weight:600;text-align:left;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:grab;display:flex;align-items:center;gap:6px}
-          .rr-pol-palette-item:hover{border-color:var(--accent);color:var(--accent)}
-          .rr-pol-palette-item:active{cursor:grabbing}
-          .rr-pol-canvas-wrap{min-height:220px}
-          .rr-pol-canvas{display:flex;flex-direction:column;gap:8px;min-height:220px;padding:10px;background:var(--canvas);border:1px dashed var(--border-strong);border-radius:8px}
-          .rr-pol-canvas-empty{padding:48px 16px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)}
-          .rr-pol-block{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px 12px 28px;cursor:grab}
-          .rr-pol-block.selected{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-          .rr-pol-block.rr-dragging{opacity:.5}
-          .rr-pol-block.rr-pol-drop-before{border-top:2px solid var(--accent)}
-          .rr-pol-handle{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text-subtle);font-size:var(--fs-base);user-select:none}
-          .rr-pol-block-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);margin-bottom:2px}
-          .rr-pol-block-summary{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.4}
-          .rr-pol-remove{position:absolute;top:6px;right:8px;background:none;border:0;font-size:18px;line-height:1;color:var(--text-subtle);cursor:pointer;padding:0 6px;border-radius:4px}
-          .rr-pol-remove:hover{color:var(--red);background:var(--red-soft)}
-          .rr-pol-props-wrap{position:sticky;top:14px}
-          .rr-pol-props{padding:14px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;min-height:160px}
-          .rr-pol-props-head{font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
-          .rr-pol-empty{font-size:var(--fs-sm);color:var(--text-subtle);text-align:center;padding:24px 8px}
-          .rr-pol-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
-          .rr-pol-field span{font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase}
-          .rr-pol-field input[type=number],.rr-pol-field input[type=text],.rr-pol-field select{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-md);color:var(--text)}
-          .rr-pol-field.rr-pol-toggle{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
-          .rr-pol-field-help{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.45;margin:-6px 0 0}
+          /* Attendance policy editor — structured form */
+          .rr-pol-row{display:flex;align-items:center;gap:8px;font-size:var(--fs-md);color:var(--text);padding:6px 0}
+          .rr-pol-row input[type=number]{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-md);color:var(--text);width:80px}
+          .rr-pol-evrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border);font-size:var(--fs-md);color:var(--text)}
+          .rr-pol-evrow:first-of-type{border-top:0}
+          .rr-pol-evrow input[type=checkbox]{margin-right:4px}
+          .rr-pol-evlabel{font-weight:600;min-width:80px}
+          .rr-pol-evpoints{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-muted)}
+          .rr-pol-evpoints input[type=number]{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-sm);color:var(--text);width:70px}
+          .rr-pol-evpoints input[type=number]:disabled{opacity:.5}
+          .rr-pol-toggle-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text);line-height:1.4;cursor:pointer}
+          .rr-pol-toggle-row:first-of-type{border-top:0}
+          .rr-pol-toggle-row input[type=checkbox]{margin-top:3px}
+          .rr-pol-rungs{display:flex;flex-direction:column;gap:10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:14px}
+          .rr-pol-empty-rungs{font-size:var(--fs-sm);color:var(--text-subtle);text-align:center;padding:14px}
+          .rr-pol-rung{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+          .rr-pol-rung-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .rr-pol-rung-head select{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-md);color:var(--text);font-weight:600}
+          .rr-pol-rung-head input[type=number]{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-md);color:var(--text);width:80px}
+          .rr-pol-rung-sep{font-size:var(--fs-sm);color:var(--text-muted)}
+          .rr-pol-rung-remove{margin-left:auto;background:none;border:0;font-size:18px;line-height:1;color:var(--text-subtle);cursor:pointer;padding:0 6px;border-radius:4px}
+          .rr-pol-rung-remove:hover{color:var(--red);background:var(--red-soft)}
+          .rr-pol-rung-toggle{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text-muted)}
+          .rr-pol-rung-delivery{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text-muted)}
+          .rr-pol-rung-delivery select{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-sm);color:var(--text)}
 
           .pol-event-row{display:grid;grid-template-columns:24px 1fr 90px 100px;gap:var(--s-3);align-items:center;padding:8px 0;border-top:1px solid var(--border)}
           .pol-event-row:first-of-type{border-top:0}
@@ -15807,7 +15804,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507bb"></script>
+<script type="module" src="./live.js?v=20260507bc"></script>
 
 </body>
 </html>
