@@ -2456,170 +2456,117 @@ function _evalLadderRung(eval_, points) {
   return rung;
 }
 
-// Block-builder helpers — each block type knows how to render
-// itself on the canvas + edit itself in the right-hand props panel.
-// Block IDs are uuid-ish strings; the array order in
-// dsps.metadata.attendance.policy.blocks is the source of truth for
-// rendering order.
+// ─── Attendance policy editor · structured form ────────────────────
+// Same data model as the previous drag-and-drop builder (blocks
+// array on dsps.metadata.attendance.policy), different UX: a normal
+// settings page that reads top-to-bottom.  All flexibility preserved
+// — variable rung count, custom point values per event, per-rung
+// threshold/delivery/auto-fire — without the empty-canvas / drag-
+// blocks ceremony.
+const _RR_SEVERITY_OPTIONS = [
+  { value: "verbal",      label: "Verbal" },
+  { value: "written",     label: "Written" },
+  { value: "final",       label: "Final" },
+  { value: "termination", label: "Termination" },
+];
+const _RR_DELIVERY_OPTIONS = [
+  { value: "none",         label: "Read only · no action required" },
+  { value: "ack",          label: "Acknowledge" },
+  { value: "sign",         label: "Sign" },
+  { value: "ack_and_sign", label: "Acknowledge & sign" },
+];
 
-function _newBlockId() {
-  return "blk_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-function _defaultBlockForType(type) {
-  switch (type) {
-    case "window":          return { id: _newBlockId(), type, days: 90 };
-    case "event":           return { id: _newBlockId(), type, kind: "callout", points: 1 };
-    case "ladder_rung":     return { id: _newBlockId(), type, severity: "verbal", threshold: 1, delivery: "ack", auto_fire: false };
-    case "auto_escalation": return { id: _newBlockId(), type, kind: "ncns_terminates" };
-    case "recovery":        return { id: _newBlockId(), type, clean_days: 60, drop_rungs: 1 };
-  }
-  return null;
-}
-
-const _BLOCK_LABELS = {
-  window:          "Decay window",
-  event:           "Event",
-  ladder_rung:     "Ladder rung",
-  auto_escalation: "Auto-escalation",
-  recovery:        "Recovery",
+// Working state for the editor (mutated as the operator types).
+const _polState = {
+  master: { policy_enabled: true, auto_coaching: false },
+  window_days: 90,
+  events: [
+    { kind: "callout", enabled: true,  points: 1 },
+    { kind: "no_show", enabled: true,  points: 1 },
+    { kind: "late",    enabled: false, points: 0.5 },
+  ],
+  ladder: [],
+  ncns_terminates: false,
+  first_30: { active: false, days: 30 },
+  timing:   { tardy_grace_minutes: 10, ncns_after_minutes: 60 },
 };
 
-const _EVENT_KIND_LABELS    = { callout: "Callout", no_show: "No-show", late: "Late" };
-const _SEVERITY_LABELS_SHORT= { note: "Note", verbal: "Verbal", written: "Written", final: "Final", termination: "Termination" };
-const _DELIVERY_LABELS      = { none: "No action required", ack: "Acknowledge", sign: "Sign", ack_and_sign: "Acknowledge & sign" };
-const _ESCALATION_LABELS    = { ncns_terminates: "NCNS = Termination", first_30_strict: "First-30 strict" };
-
-function _builderBlockHtml(b, selected) {
-  const sel = selected ? "rr-pol-block selected" : "rr-pol-block";
-  const handle = `<span class="rr-pol-handle" title="Drag to reorder">⋮⋮</span>`;
-  const remove = `<button type="button" class="rr-pol-remove" data-rr-pol-remove="${escapeHtml(b.id)}" aria-label="Remove">×</button>`;
-  let title = _BLOCK_LABELS[b.type] || "Block";
-  let body  = "";
-  switch (b.type) {
-    case "window":
-      title = "Decay window";
-      body = `<div class="rr-pol-block-summary">Rolling <strong>${Number(b.days) || 0}</strong> days</div>`;
-      break;
-    case "event":
-      title = `Event · ${_EVENT_KIND_LABELS[b.kind] || b.kind}`;
-      body = `<div class="rr-pol-block-summary"><strong>${Number(b.points) || 0}</strong> point${Number(b.points) === 1 ? "" : "s"} per occurrence</div>`;
-      break;
-    case "ladder_rung":
-      title = `Ladder rung · ${_SEVERITY_LABELS_SHORT[b.severity] || b.severity}`;
-      body = `<div class="rr-pol-block-summary">At <strong>${Number(b.threshold) || 0}</strong> pts → <strong>${escapeHtml(_DELIVERY_LABELS[b.delivery] || b.delivery)}</strong>${b.auto_fire ? " · auto-fires" : " · manual"}</div>`;
-      break;
-    case "auto_escalation":
-      title = "Auto-escalation";
-      body = `<div class="rr-pol-block-summary">${escapeHtml(_ESCALATION_LABELS[b.kind] || b.kind)}${b.kind === "first_30_strict" ? ` · ${Number(b.days) || 30} days` : ""}</div>`;
-      break;
-    case "recovery":
-      title = "Recovery";
-      body = `<div class="rr-pol-block-summary"><strong>${Number(b.clean_days) || 0}</strong> clean days drops <strong>${Number(b.drop_rungs) || 1}</strong> rung${Number(b.drop_rungs) === 1 ? "" : "s"}</div>`;
-      break;
-  }
-  return `<div class="${sel}" draggable="true" data-rr-pol-block="${escapeHtml(b.id)}">
-    ${handle}
-    <div class="rr-pol-block-title">${escapeHtml(title)}</div>
-    ${body}
-    ${remove}
-  </div>`;
+function _newRungId() {
+  return "rung_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-function _builderPropsHtml(b) {
-  if (!b) {
-    return `<div class="rr-pol-empty">Click a block to edit its settings.</div>`;
+// Convert dsps.metadata.attendance.policy.blocks into the editor's
+// state shape.  Falls back to legacy fields when blocks aren't there.
+function _polStateFromMeta(meta) {
+  const p = meta?.attendance?.policy || {};
+  const blocks = Array.isArray(p.blocks) ? p.blocks : [];
+
+  const out = {
+    master: {
+      policy_enabled: p.policy_enabled !== false,
+      auto_coaching:  !!p.auto_coaching,
+    },
+    window_days: 90,
+    events: [
+      { kind: "callout", enabled: false, points: 1 },
+      { kind: "no_show", enabled: false, points: 1 },
+      { kind: "late",    enabled: false, points: 0.5 },
+    ],
+    ladder: [],
+    ncns_terminates: false,
+    first_30: { active: false, days: 30 },
+  };
+
+  for (const b of blocks) {
+    if (!b || !b.type) continue;
+    if (b.type === "window") out.window_days = Number(b.days) || 90;
+    else if (b.type === "event") {
+      const ev = out.events.find(e => e.kind === b.kind);
+      if (ev) { ev.enabled = true; ev.points = Number(b.points) || 0; }
+    }
+    else if (b.type === "ladder_rung") {
+      out.ladder.push({
+        id:        _newRungId(),
+        severity:  b.severity || "verbal",
+        threshold: Number(b.threshold) || 0,
+        delivery:  b.delivery  || "ack",
+        auto_fire: b.severity === "termination" ? false : !!b.auto_fire,
+      });
+    }
+    else if (b.type === "auto_escalation") {
+      if (b.kind === "ncns_terminates") out.ncns_terminates = true;
+      if (b.kind === "first_30_strict") out.first_30 = { active: true, days: Number(b.days) || 30 };
+    }
   }
-  const head = `<div class="rr-pol-props-head">${escapeHtml(_BLOCK_LABELS[b.type] || "Block")}</div>`;
-  switch (b.type) {
-    case "window":
-      return `${head}
-        <label class="rr-pol-field"><span>Decay days</span>
-          <input type="number" min="1" max="365" step="1" data-rr-pol-prop="days" value="${Number(b.days) || 90}"/>
-        </label>
-        <p class="rr-pol-field-help">How far back the Report and the ladder look for events. Older events drop off as time passes.</p>`;
-    case "event":
-      return `${head}
-        <label class="rr-pol-field"><span>Event type</span>
-          <select data-rr-pol-prop="kind">
-            <option value="callout"  ${b.kind === "callout"  ? "selected" : ""}>Callout</option>
-            <option value="no_show"  ${b.kind === "no_show"  ? "selected" : ""}>No-show</option>
-            <option value="late"     ${b.kind === "late"     ? "selected" : ""}>Late</option>
-          </select>
-        </label>
-        <label class="rr-pol-field"><span>Points per occurrence</span>
-          <input type="number" min="0" max="20" step="0.5" data-rr-pol-prop="points" value="${Number(b.points) || 0}"/>
-        </label>
-        <p class="rr-pol-field-help">Each event of this type adds these points to the driver's running total. Set to 0 to log the event but not advance the ladder.</p>`;
-    case "ladder_rung":
-      return `${head}
-        <label class="rr-pol-field"><span>Severity</span>
-          <select data-rr-pol-prop="severity">
-            <option value="verbal"      ${b.severity === "verbal"      ? "selected" : ""}>Verbal</option>
-            <option value="written"     ${b.severity === "written"     ? "selected" : ""}>Written</option>
-            <option value="final"       ${b.severity === "final"       ? "selected" : ""}>Final</option>
-            <option value="termination" ${b.severity === "termination" ? "selected" : ""}>Termination</option>
-          </select>
-        </label>
-        <label class="rr-pol-field"><span>Threshold (points)</span>
-          <input type="number" min="0" step="0.5" data-rr-pol-prop="threshold" value="${Number(b.threshold) || 0}"/>
-        </label>
-        <label class="rr-pol-field"><span>Driver must</span>
-          <select data-rr-pol-prop="delivery">
-            <option value="none"         ${b.delivery === "none"         ? "selected" : ""}>No action required</option>
-            <option value="ack"          ${b.delivery === "ack"          ? "selected" : ""}>Acknowledge</option>
-            <option value="sign"         ${b.delivery === "sign"         ? "selected" : ""}>Sign</option>
-            <option value="ack_and_sign" ${b.delivery === "ack_and_sign" ? "selected" : ""}>Acknowledge &amp; sign</option>
-          </select>
-        </label>
-        <label class="rr-pol-field rr-pol-toggle">
-          <span>Auto-fire on Approve</span>
-          <input type="checkbox" data-rr-pol-prop="auto_fire" ${b.auto_fire ? "checked" : ""} ${b.severity === "termination" ? "disabled" : ""}/>
-        </label>
-        <p class="rr-pol-field-help">${b.severity === "termination" ? "Termination never auto-fires — a leader always confirms." : "When ON and the driver crosses this threshold, a coaching is sent automatically. When OFF, you fire it manually from the Attendance Report."}</p>`;
-    case "auto_escalation":
-      return `${head}
-        <label class="rr-pol-field"><span>Rule</span>
-          <select data-rr-pol-prop="kind">
-            <option value="ncns_terminates"  ${b.kind === "ncns_terminates"  ? "selected" : ""}>First NCNS = Termination</option>
-            <option value="first_30_strict"  ${b.kind === "first_30_strict"  ? "selected" : ""}>First-30-days strict</option>
-          </select>
-        </label>
-        ${b.kind === "first_30_strict" ? `
-        <label class="rr-pol-field"><span>Probation window (days)</span>
-          <input type="number" min="7" max="120" step="1" data-rr-pol-prop="days" value="${Number(b.days) || 30}"/>
-        </label>` : ""}
-        <p class="rr-pol-field-help">${b.kind === "ncns_terminates" ? "Any NCNS triggers a Termination recommendation regardless of accumulated points." : "Any callout / no-show inside the probation window jumps the driver straight to the highest ladder rung."}</p>`;
-    case "recovery":
-      return `${head}
-        <label class="rr-pol-field"><span>Clean days</span>
-          <input type="number" min="1" step="1" data-rr-pol-prop="clean_days" value="${Number(b.clean_days) || 60}"/>
-        </label>
-        <label class="rr-pol-field"><span>Drop rungs</span>
-          <input type="number" min="1" max="5" step="1" data-rr-pol-prop="drop_rungs" value="${Number(b.drop_rungs) || 1}"/>
-        </label>
-        <p class="rr-pol-field-help">After this many consecutive clean days (no counted events), the driver drops back this many ladder rungs.</p>`;
-  }
-  return `${head}<div class="rr-pol-empty">No settings for this block.</div>`;
+  out.ladder.sort((a, b) => a.threshold - b.threshold);
+  return out;
 }
 
-// Working copy of the policy while the operator is building.  Lives
-// here so the click/drag/input handlers can mutate without re-reading
-// from dsps.metadata each time.  `_polState.blocks` is the array;
-// `_polState.selectedId` is the block being edited.
-const _polState = { blocks: [], selectedId: null, master: { policy_enabled: true, auto_coaching: false }, timing: { tardy_grace_minutes: 10, ncns_after_minutes: 60 } };
-
-function _renderPolBuilder() {
-  const canvas = document.getElementById("rr-pol-canvas");
-  const props  = document.getElementById("rr-pol-props");
-  if (!canvas || !props) return;
-  if (_polState.blocks.length === 0) {
-    canvas.innerHTML = `<div class="rr-pol-canvas-empty">Drag blocks from the left to build your policy.</div>`;
-  } else {
-    canvas.innerHTML = _polState.blocks.map(b => _builderBlockHtml(b, b.id === _polState.selectedId)).join("");
+// Convert editor state back into the blocks array.
+function _polStateToBlocks(s) {
+  const blocks = [];
+  blocks.push({ id: "blk_window_" + Date.now(), type: "window", days: Number(s.window_days) || 90 });
+  for (const ev of (s.events || [])) {
+    if (!ev.enabled) continue;
+    blocks.push({ id: "blk_evt_" + ev.kind, type: "event", kind: ev.kind, points: Number(ev.points) || 0 });
   }
-  const sel = _polState.blocks.find(b => b.id === _polState.selectedId);
-  props.innerHTML = _builderPropsHtml(sel);
+  for (const r of (s.ladder || [])) {
+    blocks.push({
+      id:        "blk_rung_" + r.id,
+      type:      "ladder_rung",
+      severity:  r.severity,
+      threshold: Number(r.threshold) || 0,
+      delivery:  r.delivery,
+      auto_fire: r.severity === "termination" ? false : !!r.auto_fire,
+    });
+  }
+  if (s.ncns_terminates) {
+    blocks.push({ id: "blk_esc_ncns", type: "auto_escalation", kind: "ncns_terminates" });
+  }
+  if (s.first_30 && s.first_30.active) {
+    blocks.push({ id: "blk_esc_first30", type: "auto_escalation", kind: "first_30_strict", days: Number(s.first_30.days) || 30 });
+  }
+  return blocks;
 }
 
 async function loadAttendancePolicy() {
@@ -2637,280 +2584,294 @@ async function loadAttendancePolicy() {
   if (dspErr) { console.warn("policy load:", dspErr.message); return; }
   const meta = dspRow?.metadata || {};
   if (window.RR?.dsp) window.RR.dsp.metadata = meta;
-  const p = meta?.attendance?.policy || {};
 
-  // Seed working state.
-  _polState.blocks = Array.isArray(p.blocks) ? JSON.parse(JSON.stringify(p.blocks)) : [];
-  _polState.selectedId = null;
-  _polState.master = {
-    policy_enabled: p.policy_enabled !== false,
-    auto_coaching:  !!p.auto_coaching,
-  };
+  const fromMeta = _polStateFromMeta(meta);
+  Object.assign(_polState, fromMeta);
   _polState.timing = {
     tardy_grace_minutes: setRow?.tardy_grace_minutes ?? 10,
     ncns_after_minutes:  setRow?.ncns_after_minutes  ?? 60,
+  };
+
+  _renderPolicyEditor();
+  _wirePolicyEditor();
+}
+
+function _renderPolicyEditor() {
+  const pane = document.getElementById("att-pane-policy");
+  if (!pane) return;
+  const s = _polState;
+
+  const evRow = (kind, label) => {
+    const ev = s.events.find(e => e.kind === kind) || { enabled: false, points: 0 };
+    return `
+      <label class="rr-pol-evrow">
+        <input type="checkbox" data-rr-pol-event="${kind}" ${ev.enabled ? "checked" : ""}/>
+        <span class="rr-pol-evlabel">${escapeHtml(label)}</span>
+        <span class="rr-pol-evpoints">worth
+          <input type="number" min="0" max="20" step="0.5" data-rr-pol-event-points="${kind}" value="${Number(ev.points) || 0}" ${ev.enabled ? "" : "disabled"}/>
+          point(s) each
+        </span>
+      </label>`;
+  };
+
+  const rungRow = (r, idx) => {
+    const sevOpts = _RR_SEVERITY_OPTIONS.map(o => `<option value="${o.value}" ${r.severity === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("");
+    const delOpts = _RR_DELIVERY_OPTIONS.map(o => `<option value="${o.value}" ${r.delivery === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("");
+    const autoLocked = r.severity === "termination";
+    return `
+      <div class="rr-pol-rung" data-rr-pol-rung="${escapeHtml(r.id)}">
+        <div class="rr-pol-rung-head">
+          <select data-rr-pol-rung-prop="severity">${sevOpts}</select>
+          <span class="rr-pol-rung-sep">at</span>
+          <input type="number" min="0" step="0.5" data-rr-pol-rung-prop="threshold" value="${Number(r.threshold) || 0}" />
+          <span class="rr-pol-rung-sep">pt</span>
+          <button type="button" class="rr-pol-rung-remove" data-rr-pol-rung-remove="${escapeHtml(r.id)}" aria-label="Remove level">×</button>
+        </div>
+        <label class="rr-pol-rung-toggle">
+          <input type="checkbox" data-rr-pol-rung-prop="auto_fire" ${r.auto_fire && !autoLocked ? "checked" : ""} ${autoLocked ? "disabled" : ""}/>
+          <span>${autoLocked ? "Auto-fire (always manual for Termination)" : "Auto-fire on Approve"}</span>
+        </label>
+        <label class="rr-pol-rung-delivery">
+          <span>Driver must:</span>
+          <select data-rr-pol-rung-prop="delivery">${delOpts}</select>
+        </label>
+      </div>`;
   };
 
   pane.innerHTML = `
     <div class="pol-section" style="display:flex;align-items:center;gap:14px">
       <span style="flex:1">
         <h3 class="pol-section-title">Attendance policy</h3>
-        <p class="pol-section-sub" style="margin:0">When ON, the dashboard scores every driver against the rules you build below. When OFF, attendance is logged but the dashboard does not flag, warn, or recommend actions.</p>
+        <p class="pol-section-sub" style="margin:0">When ON, the dashboard scores every driver against the rules below. When OFF, attendance is logged but not flagged or coached.</p>
       </span>
       <label class="toggle">
-        <input type="checkbox" id="rr-pol-master-enabled" ${_polState.master.policy_enabled ? "checked" : ""}/>
+        <input type="checkbox" id="rr-pol-master-enabled" ${s.master.policy_enabled ? "checked" : ""}/>
         <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="pol-section">
+      <h3 class="pol-section-title">Window</h3>
+      <p class="pol-section-sub">How far back the Report and the ladder look for events.</p>
+      <label class="rr-pol-row">
+        <span>Track events from the last</span>
+        <input type="number" min="1" max="365" step="1" id="rr-pol-window" value="${Number(s.window_days) || 90}"/>
+        <span>days</span>
+      </label>
+    </div>
+
+    <div class="pol-section">
+      <h3 class="pol-section-title">What I count</h3>
+      <p class="pol-section-sub">Pick which events accumulate points toward the ladder, and how much each is worth.</p>
+      ${evRow("callout", "Callout")}
+      ${evRow("no_show", "No-show")}
+      ${evRow("late",    "Late")}
+    </div>
+
+    <div class="pol-section">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+        <span style="flex:1">
+          <h3 class="pol-section-title" style="margin:0">Coaching ladder</h3>
+          <p class="pol-section-sub" style="margin:2px 0 0">Each level fires when accumulated points cross its threshold.</p>
+        </span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text-muted)">
+          Auto-coach
+          <label class="toggle">
+            <input type="checkbox" id="rr-pol-master-auto" ${s.master.auto_coaching ? "checked" : ""}/>
+            <span class="toggle-slider"></span>
+          </label>
+        </span>
+      </div>
+      <div id="rr-pol-rungs" class="rr-pol-rungs">
+        ${(s.ladder || []).map(rungRow).join("")}
+        ${(s.ladder || []).length === 0 ? `<div class="rr-pol-empty-rungs">No coaching levels yet. Click <strong>+ Add a level</strong> below to start.</div>` : ""}
+      </div>
+      <button type="button" class="btn btn-sm" id="rr-pol-add-rung" style="margin-top:10px">+ Add a level</button>
+    </div>
+
+    <div class="pol-section">
+      <h3 class="pol-section-title">Auto-escalations</h3>
+      <p class="pol-section-sub">Optional rules that bypass the normal threshold ladder for severe events.</p>
+      <label class="rr-pol-toggle-row">
+        <input type="checkbox" id="rr-pol-ncns" ${s.ncns_terminates ? "checked" : ""}/>
+        <span><strong>First NCNS = Termination</strong> · any no-call no-show triggers a Termination recommendation regardless of points.</span>
+      </label>
+      <label class="rr-pol-toggle-row">
+        <input type="checkbox" id="rr-pol-first30" ${s.first_30.active ? "checked" : ""}/>
+        <span><strong>First-30-days strict</strong> · any callout / no-show inside the probation window jumps to the highest rung.</span>
+      </label>
+      <label class="rr-pol-row" style="margin-top:6px;${s.first_30.active ? "" : "opacity:.55"}">
+        <span>Probation window</span>
+        <input type="number" min="7" max="120" step="1" id="rr-pol-first30-days" value="${Number(s.first_30.days) || 30}" ${s.first_30.active ? "" : "disabled"}/>
+        <span>days</span>
       </label>
     </div>
 
     <div class="pol-section">
       <h3 class="pol-section-title">Tardy &amp; NCNS timing</h3>
       <p class="pol-section-sub">When the daily approvals card flags a driver Tardy or No-call no-show.</p>
-      <div style="display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:14px;max-width:520px">
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Tardy after (min)</span>
-          <input type="number" min="0" max="120" step="1" class="form-input" id="rr-pol-tardy" value="${_polState.timing.tardy_grace_minutes}"/>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">NCNS after (min)</span>
-          <input type="number" min="30" max="240" step="30" class="form-input" id="rr-pol-ncns" value="${_polState.timing.ncns_after_minutes}"/>
-        </label>
-      </div>
-    </div>
-
-    <div class="pol-section">
-      <h3 class="pol-section-title">Build your policy</h3>
-      <p class="pol-section-sub">Drag blocks from the left palette into the canvas. Click any block to edit its settings on the right. Drag blocks within the canvas to reorder.</p>
-      <div class="rr-pol-master-row" style="display:flex;align-items:center;gap:14px;padding:10px 0;margin-bottom:6px;border-bottom:1px solid var(--border)">
-        <span style="flex:1;font-size:var(--fs-sm);color:var(--text)"><strong>Auto-coach when an event is approved</strong> · OFF = every coaching is manual from the Report. ON = ladder rungs you marked auto-fire deliver immediately.</span>
-        <label class="toggle">
-          <input type="checkbox" id="rr-pol-master-auto" ${_polState.master.auto_coaching ? "checked" : ""}/>
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-
-      <div class="rr-pol-builder">
-        <aside class="rr-pol-palette">
-          <div class="rr-pol-palette-section">Window</div>
-          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="window">Decay window</button>
-
-          <div class="rr-pol-palette-section">Events</div>
-          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="event">Event (with point value)</button>
-
-          <div class="rr-pol-palette-section">Coaching ladder</div>
-          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="ladder_rung">Ladder rung</button>
-
-          <div class="rr-pol-palette-section">Auto-escalations</div>
-          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="auto_escalation">Escalation rule</button>
-
-          <div class="rr-pol-palette-section">Recovery</div>
-          <button type="button" class="rr-pol-palette-item" draggable="true" data-rr-pol-add="recovery">Recovery rule</button>
-
-          <div class="rr-pol-palette-section" style="margin-top:14px">Templates</div>
-          <button type="button" class="rr-pol-palette-item" data-rr-pol-template="default">Standard ladder</button>
-          <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 4px 0;line-height:1.4">Drops in a 90-day window, callout/no-show events, and a 4-rung ladder.</p>
-        </aside>
-
-        <main class="rr-pol-canvas-wrap">
-          <div id="rr-pol-canvas" class="rr-pol-canvas"></div>
-        </main>
-
-        <aside class="rr-pol-props-wrap">
-          <div id="rr-pol-props" class="rr-pol-props"></div>
-        </aside>
-      </div>
+      <label class="rr-pol-row">
+        <span>Tardy after</span>
+        <input type="number" min="0" max="120" step="1" id="rr-pol-tardy" value="${Number(s.timing.tardy_grace_minutes) || 0}"/>
+        <span>min after shift start</span>
+      </label>
+      <label class="rr-pol-row">
+        <span>NCNS after</span>
+        <input type="number" min="30" max="240" step="30" id="rr-pol-ncns-min" value="${Number(s.timing.ncns_after_minutes) || 0}"/>
+        <span>min after shift start</span>
+      </label>
     </div>
 
     <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
       <button class="btn btn-primary" type="button" id="rr-pol-save">Save policy</button>
       <span id="rr-pol-status" style="font-size:var(--fs-sm);color:var(--text-subtle)"></span>
     </div>`;
-
-  _renderPolBuilder();
-  _wirePolBuilder();
 }
 
-function _wirePolBuilder() {
-  const canvas = document.getElementById("rr-pol-canvas");
-  if (!canvas || canvas.dataset.rrWired === "1") return;
-  canvas.dataset.rrWired = "1";
+function _wirePolicyEditor() {
+  const pane = document.getElementById("att-pane-policy");
+  if (!pane || pane.dataset.rrWired === "1") return;
+  pane.dataset.rrWired = "1";
 
-  // Drag from palette → drop into canvas.  draggable=true on palette
-  // items provides dataTransfer with the block type; the canvas
-  // dragover is listened to globally so the drop can land anywhere
-  // in the canvas (or between blocks for ordering).
-  let _dragKind  = null;     // when dragging from palette
-  let _dragBlock = null;     // when reordering existing block
+  // Two-way binding for the simple top-level fields.
+  pane.addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.id === "rr-pol-window")        _polState.window_days = Number(t.value);
+    if (t.id === "rr-pol-first30-days")  _polState.first_30.days = Number(t.value);
+    if (t.id === "rr-pol-tardy")         _polState.timing.tardy_grace_minutes = Number(t.value);
+    if (t.id === "rr-pol-ncns-min")      _polState.timing.ncns_after_minutes  = Number(t.value);
 
-  document.addEventListener("dragstart", (e) => {
-    const palette = e.target.closest && e.target.closest("[data-rr-pol-add]");
-    if (palette) {
-      _dragKind  = palette.getAttribute("data-rr-pol-add");
-      _dragBlock = null;
-      e.dataTransfer.effectAllowed = "copy";
-      try { e.dataTransfer.setData("text/plain", "rr-palette:" + _dragKind); } catch {}
-      return;
+    // Event point input.
+    const evPts = t.dataset?.rrPolEventPoints;
+    if (evPts) {
+      const ev = _polState.events.find(e => e.kind === evPts);
+      if (ev) ev.points = Number(t.value);
     }
-    const blk = e.target.closest && e.target.closest("[data-rr-pol-block]");
-    if (blk) {
-      _dragKind  = null;
-      _dragBlock = blk.getAttribute("data-rr-pol-block");
-      e.dataTransfer.effectAllowed = "move";
-      try { e.dataTransfer.setData("text/plain", "rr-block:" + _dragBlock); } catch {}
-      blk.classList.add("rr-dragging");
-    }
-  });
-  document.addEventListener("dragend", (e) => {
-    document.querySelectorAll(".rr-pol-block.rr-dragging").forEach(el => el.classList.remove("rr-dragging"));
-    _dragKind = null; _dragBlock = null;
-  });
 
-  canvas.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = _dragKind ? "copy" : "move";
-    const target = e.target.closest && e.target.closest("[data-rr-pol-block]");
-    canvas.querySelectorAll(".rr-pol-drop-before").forEach(el => el.classList.remove("rr-pol-drop-before"));
-    if (target) target.classList.add("rr-pol-drop-before");
-  });
-  canvas.addEventListener("dragleave", (e) => {
-    if (e.target === canvas) canvas.querySelectorAll(".rr-pol-drop-before").forEach(el => el.classList.remove("rr-pol-drop-before"));
-  });
-  canvas.addEventListener("drop", (e) => {
-    e.preventDefault();
-    const target  = e.target.closest && e.target.closest("[data-rr-pol-block]");
-    const targetId = target ? target.getAttribute("data-rr-pol-block") : null;
-    canvas.querySelectorAll(".rr-pol-drop-before").forEach(el => el.classList.remove("rr-pol-drop-before"));
-
-    if (_dragKind) {
-      // Add a new block from the palette.
-      const fresh = _defaultBlockForType(_dragKind);
-      if (!fresh) return;
-      const idx = targetId ? _polState.blocks.findIndex(b => b.id === targetId) : _polState.blocks.length;
-      _polState.blocks.splice(idx >= 0 ? idx : _polState.blocks.length, 0, fresh);
-      _polState.selectedId = fresh.id;
-      _renderPolBuilder();
-    } else if (_dragBlock && targetId && _dragBlock !== targetId) {
-      // Reorder existing block.
-      const fromIdx = _polState.blocks.findIndex(b => b.id === _dragBlock);
-      const toIdx   = _polState.blocks.findIndex(b => b.id === targetId);
-      if (fromIdx < 0 || toIdx < 0) return;
-      const [moved] = _polState.blocks.splice(fromIdx, 1);
-      _polState.blocks.splice(toIdx, 0, moved);
-      _renderPolBuilder();
-    }
-  });
-
-  // Click to select a block, click × to remove, click a palette
-  // template to drop in a stock policy.
-  document.addEventListener("click", (e) => {
-    const rm = e.target.closest && e.target.closest("[data-rr-pol-remove]");
-    if (rm) {
-      e.stopPropagation();
-      const id = rm.getAttribute("data-rr-pol-remove");
-      _polState.blocks = _polState.blocks.filter(b => b.id !== id);
-      if (_polState.selectedId === id) _polState.selectedId = null;
-      _renderPolBuilder();
-      return;
-    }
-    const pick = e.target.closest && e.target.closest("[data-rr-pol-block]");
-    if (pick) {
-      _polState.selectedId = pick.getAttribute("data-rr-pol-block");
-      _renderPolBuilder();
-      return;
-    }
-    const tpl = e.target.closest && e.target.closest("[data-rr-pol-template]");
-    if (tpl) {
-      e.preventDefault();
-      _polState.blocks = [
-        { id: _newBlockId(), type: "window", days: 90 },
-        { id: _newBlockId(), type: "event", kind: "callout", points: 1 },
-        { id: _newBlockId(), type: "event", kind: "no_show", points: 1 },
-        { id: _newBlockId(), type: "ladder_rung", severity: "verbal",      threshold: 1, delivery: "ack",          auto_fire: true  },
-        { id: _newBlockId(), type: "ladder_rung", severity: "written",     threshold: 2, delivery: "ack_and_sign", auto_fire: true  },
-        { id: _newBlockId(), type: "ladder_rung", severity: "final",       threshold: 3, delivery: "ack_and_sign", auto_fire: false },
-        { id: _newBlockId(), type: "ladder_rung", severity: "termination", threshold: 4, delivery: "ack_and_sign", auto_fire: false },
-      ];
-      _polState.selectedId = null;
-      _renderPolBuilder();
-    }
-  });
-
-  // Edit props in real time.
-  document.addEventListener("input", (e) => {
-    const propEl = e.target.closest && e.target.closest("[data-rr-pol-prop]");
-    if (!propEl) return;
-    const b = _polState.blocks.find(x => x.id === _polState.selectedId);
-    if (!b) return;
-    const key = propEl.getAttribute("data-rr-pol-prop");
-    if (propEl.type === "checkbox") {
-      b[key] = !!propEl.checked;
-    } else if (propEl.type === "number") {
-      b[key] = Number(propEl.value);
-    } else {
-      b[key] = propEl.value;
-    }
-    // Re-render the canvas (the summary lines change) but leave the
-    // props panel alone so the operator's focus / cursor stays put.
-    const canvas = document.getElementById("rr-pol-canvas");
-    if (canvas) {
-      canvas.innerHTML = _polState.blocks.map(bb => _builderBlockHtml(bb, bb.id === _polState.selectedId)).join("");
-    }
-  });
-
-  // Save.
-  document.addEventListener("click", async (e) => {
-    if (!e.target.closest("#rr-pol-save")) return;
-    e.preventDefault();
-    const dspId = window.RR?.dsp?.id;
-    if (!dspId) return;
-    const status = document.getElementById("rr-pol-status");
-    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
-
-    // Read master toggles + timing (timing lives on scheduling_settings,
-    // not on dsps.metadata).
-    const masterEnabled = document.getElementById("rr-pol-master-enabled")?.checked;
-    const masterAuto    = document.getElementById("rr-pol-master-auto")?.checked;
-    const tardyMin      = Number(document.getElementById("rr-pol-tardy")?.value);
-    const ncnsMin       = Number(document.getElementById("rr-pol-ncns")?.value);
-
-    const newPolicy = {
-      policy_enabled: !!masterEnabled,
-      auto_coaching:  !!masterAuto,
-      blocks:         _polState.blocks,
-    };
-
-    const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
-    const meta = row?.metadata || {};
-    const newMeta = { ...meta, attendance: { ...(meta.attendance || {}), policy: newPolicy } };
-    const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
-    if (upErr) { if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; } return; }
-    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
-
-    // Timing — scheduling_settings dsp-default row.
-    const timing = {};
-    if (Number.isFinite(tardyMin) && tardyMin >= 0) timing.tardy_grace_minutes = tardyMin;
-    if (Number.isFinite(ncnsMin)  && ncnsMin  >= 0) timing.ncns_after_minutes  = ncnsMin;
-    if (Object.keys(timing).length > 0) {
-      const { data: existing } = await sb.from("scheduling_settings")
-        .select("id").eq("dsp_id", dspId).is("week_start", null).maybeSingle();
-      if (existing?.id) {
-        const { error: setErr } = await sb.from("scheduling_settings")
-          .update(timing).eq("id", existing.id);
-        if (setErr) console.warn("timing save:", setErr.message);
-      } else {
-        const { error: insErr } = await sb.from("scheduling_settings")
-          .insert([{ dsp_id: dspId, week_start: null, ...timing }]);
-        if (insErr) console.warn("timing insert:", insErr.message);
+    // Rung props (severity / threshold / delivery / auto_fire).
+    const rungEl = t.closest && t.closest("[data-rr-pol-rung]");
+    const propKey = t.dataset?.rrPolRungProp;
+    if (rungEl && propKey) {
+      const id = rungEl.getAttribute("data-rr-pol-rung");
+      const r  = _polState.ladder.find(x => x.id === id);
+      if (r) {
+        if (propKey === "auto_fire")  r.auto_fire = !!t.checked;
+        else if (propKey === "threshold") r.threshold = Number(t.value);
+        else r[propKey] = t.value;
       }
     }
+  });
 
-    if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
-    toast("Attendance policy saved", "success");
-    if (typeof _rrApplyAttPolicyMode === "function") _rrApplyAttPolicyMode();
-    if (typeof loadAttendanceLive === "function") loadAttendanceLive();
-    if (typeof loadAttendanceEventLog === "function") loadAttendanceEventLog();
+  pane.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.id === "rr-pol-master-enabled") _polState.master.policy_enabled = !!t.checked;
+    if (t.id === "rr-pol-master-auto")    _polState.master.auto_coaching  = !!t.checked;
+    if (t.id === "rr-pol-ncns")           _polState.ncns_terminates       = !!t.checked;
+    if (t.id === "rr-pol-first30") {
+      _polState.first_30.active = !!t.checked;
+      // Toggle the days-input enabled state by re-rendering the row's
+      // enabled/disabled state.  Light re-render: just walk the input.
+      const daysEl = pane.querySelector("#rr-pol-first30-days");
+      const wrap   = daysEl ? daysEl.closest("label") : null;
+      if (daysEl) daysEl.disabled = !t.checked;
+      if (wrap)   wrap.style.opacity = t.checked ? "" : ".55";
+    }
+    // Event enabled toggle.
+    const evK = t.dataset?.rrPolEvent;
+    if (evK) {
+      const ev = _polState.events.find(e => e.kind === evK);
+      if (ev) {
+        ev.enabled = !!t.checked;
+        const ptsEl = pane.querySelector(`[data-rr-pol-event-points="${evK}"]`);
+        if (ptsEl) ptsEl.disabled = !t.checked;
+      }
+    }
+    // Rung severity changing — termination flips auto_fire off.
+    const rungEl = t.closest && t.closest("[data-rr-pol-rung]");
+    if (rungEl && t.dataset?.rrPolRungProp === "severity") {
+      const id = rungEl.getAttribute("data-rr-pol-rung");
+      const r  = _polState.ladder.find(x => x.id === id);
+      if (r && r.severity === "termination") r.auto_fire = false;
+      _renderPolicyEditor();
+    }
+  });
+
+  pane.addEventListener("click", async (e) => {
+    // Add a level.
+    if (e.target.id === "rr-pol-add-rung") {
+      e.preventDefault();
+      const next = _polState.ladder.length;
+      const nextThreshold = _polState.ladder.length > 0
+        ? Number(_polState.ladder[_polState.ladder.length - 1].threshold) + 1
+        : 1;
+      const sevSeq = ["verbal","written","final","termination"];
+      _polState.ladder.push({
+        id:        _newRungId(),
+        severity:  sevSeq[Math.min(next, 3)],
+        threshold: nextThreshold,
+        delivery:  "ack",
+        auto_fire: false,
+      });
+      _renderPolicyEditor();
+      return;
+    }
+    // Remove a level.
+    const rm = e.target.closest && e.target.closest("[data-rr-pol-rung-remove]");
+    if (rm) {
+      e.preventDefault();
+      const id = rm.getAttribute("data-rr-pol-rung-remove");
+      _polState.ladder = _polState.ladder.filter(r => r.id !== id);
+      _renderPolicyEditor();
+      return;
+    }
+    // Save.
+    if (e.target.id === "rr-pol-save") {
+      e.preventDefault();
+      const dspId = window.RR?.dsp?.id;
+      if (!dspId) return;
+      const status = document.getElementById("rr-pol-status");
+      if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving…"; }
+
+      const newPolicy = {
+        policy_enabled: _polState.master.policy_enabled,
+        auto_coaching:  _polState.master.auto_coaching,
+        blocks:         _polStateToBlocks(_polState),
+      };
+
+      const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+      const meta = row?.metadata || {};
+      const newMeta = { ...meta, attendance: { ...(meta.attendance || {}), policy: newPolicy } };
+      const { error: upErr } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dspId);
+      if (upErr) { if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + upErr.message; } return; }
+      if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
+
+      // Timing.
+      const timing = {};
+      if (Number.isFinite(_polState.timing.tardy_grace_minutes)) timing.tardy_grace_minutes = _polState.timing.tardy_grace_minutes;
+      if (Number.isFinite(_polState.timing.ncns_after_minutes))  timing.ncns_after_minutes  = _polState.timing.ncns_after_minutes;
+      if (Object.keys(timing).length > 0) {
+        const { data: existing } = await sb.from("scheduling_settings")
+          .select("id").eq("dsp_id", dspId).is("week_start", null).maybeSingle();
+        if (existing?.id) {
+          const { error: setErr } = await sb.from("scheduling_settings")
+            .update(timing).eq("id", existing.id);
+          if (setErr) console.warn("timing save:", setErr.message);
+        } else {
+          const { error: insErr } = await sb.from("scheduling_settings")
+            .insert([{ dsp_id: dspId, week_start: null, ...timing }]);
+          if (insErr) console.warn("timing insert:", insErr.message);
+        }
+      }
+
+      if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
+      toast("Attendance policy saved", "success");
+      if (typeof _rrApplyAttPolicyMode === "function") _rrApplyAttPolicyMode();
+      if (typeof loadAttendanceLive === "function") loadAttendanceLive();
+      if (typeof loadAttendanceEventLog === "function") loadAttendanceEventLog();
+    }
   });
 }
+
 
 
 // Time-period the Event log shows.  Independent of the policy
