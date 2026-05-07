@@ -5225,6 +5225,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <h1 class="page-title">Drivers</h1>
             <p class="page-sub" id="rr-drivers-page-sub">Loading…</p>
           </div>
+          <div class="page-actions">
+            <button class="btn btn-primary" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span id="rr-drivers-cta-label">Add driver</span>
+            </button>
+          </div>
         </div>
 
         <!-- Drivers sub-nav: Roster · Insights · Attendance -->
@@ -5268,12 +5274,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
              one of the clickable KPI tiles above. -->
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3)">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s-3)">
           <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Click a column to sort</span>
-          <button class="btn btn-primary btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span id="rr-drivers-cta-label">Add driver</span>
-          </button>
         </div>
 
         <div class="table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
@@ -15906,7 +15908,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507ai"></script>
+<script type="module" src="./live.js?v=20260507aj"></script>
 
 </body>
 </html>
