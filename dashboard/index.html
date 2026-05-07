@@ -1532,13 +1532,26 @@ select.form-input{
 /* Calendar grid (week view) */
 .cal-wrap{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+  /* Cap visible drivers at ~7 rows.  Anything past that scrolls inside
+     the grid so the KPI strip + 4-week tabs above stay on screen. */
+  max-height:calc(64px * 7 + 56px);
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border-strong) transparent;
 }
+.cal-wrap::-webkit-scrollbar{width:8px}
+.cal-wrap::-webkit-scrollbar-track{background:transparent}
+.cal-wrap::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+.cal-wrap::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
 .cal-grid{
   display:grid;grid-template-columns:200px repeat(7,1fr);
   border-bottom:1px solid var(--border);
 }
 .cal-grid.head{
   background:var(--canvas);border-bottom:1px solid var(--border);
+  /* Keep day-of-week labels in view as the operator scrolls past
+     the first 7 drivers. */
+  position:sticky;top:0;z-index:2;
 }
 .cal-cell-head{
   padding:10px 8px;text-align:center;font-size:var(--fs-xs);color:var(--text-muted);
