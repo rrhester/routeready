@@ -6442,7 +6442,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:8px">
                 <div class="rule-row"><div><div class="rule-label">Driver status = active or onboarding</div><div class="rule-help">Inactive / on leave / terminated drivers never auto-fill.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Driver's license valid through the shift date</div><div class="rule-help">Drivers whose DL expires before the shift are skipped — set the buffer in <a href="#" onclick="schedSub('rules');return false;">Rules → License gating</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">DOT certification matches required service types</div><div class="rule-help">If a service type requires DOT-cert, only DOT drivers are eligible. <a href="#" onclick="schedSub('rules');return false;">Edit in Rules</a>.</div></div><span class="rules-sub-badge">Preview</span></div>
+                <div class="rule-row"><div><div class="rule-label">DOT certification — required for Step Van routes</div><div class="rule-help">A driver without <code>dot_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_dot</code>. Step Vans is the seeded example. Set the flag in the driver record's DOT tab.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">XL certification — required for Extra-Large routes</div><div class="rule-help">A driver without <code>xl_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_xl</code>. XL is the seeded example. Set the flag in the driver record's DOT tab (XL toggle).</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Driver hasn't already worked the max days this week</div><div class="rule-help">Cap from <a href="#" onclick="schedSub('settings');return false;">Settings → Max days per week</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Driver's saved availability includes this day-of-week</div><div class="rule-help">Bypass via the <em>Allow availability override</em> toggle in <a href="#" onclick="schedSub('settings');return false;">Settings</a> for tight weeks.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Driver isn't on approved time-off for this date</div><div class="rule-help">Approved PTO blocks the auto-fill from picking the driver. Live data from time-off requests.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
@@ -15992,7 +15993,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507ap"></script>
+<script type="module" src="./live.js?v=20260507aq"></script>
 
 </body>
 </html>

@@ -6658,16 +6658,27 @@ async function renderLicenseTab(body, d) {
 }
 
 function renderDotTab(body, d) {
-  const checked = d.dot_certified ? "checked" : "";
+  const dotChecked = d.dot_certified ? "checked" : "";
+  const xlChecked  = d.xl_certified  ? "checked" : "";
   body.innerHTML = `
     <div class="dd-row" style="align-items:flex-start">
       <label>DOT certification</label>
       <div>
         <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
-          <input type="checkbox" data-rr-dd-field="dot_certified" ${checked} style="cursor:pointer;width:16px;height:16px"/>
+          <input type="checkbox" data-rr-dd-field="dot_certified" ${dotChecked} style="cursor:pointer;width:16px;height:16px"/>
           <span style="font-size:var(--fs-md);color:var(--text)">Driver is DOT certified</span>
         </label>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Check this if the driver currently holds a valid DOT medical certification.</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Step Van routes. Smart Fill blocks DOT-required service types unless this is checked.</div>
+      </div>
+    </div>
+    <div class="dd-row" style="align-items:flex-start">
+      <label>XL certification</label>
+      <div>
+        <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
+          <input type="checkbox" data-rr-dd-field="xl_certified" ${xlChecked} style="cursor:pointer;width:16px;height:16px"/>
+          <span style="font-size:var(--fs-md);color:var(--text)">Driver is XL certified</span>
+        </label>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Extra-Large vans. Smart Fill blocks XL routes unless this is checked.</div>
       </div>
     </div>`;
 }
@@ -11098,11 +11109,13 @@ async function autoAssignDriversForWeek() {
     }
   } catch (_) { /* fall back to defaults */ }
 
-  // Query shifts directly (instead of via schedule_grid) so we always get
-  // the is_cushion column even on DBs that haven't run migration 0027.
-  const [driversRes, ptoRes, shiftsRes] = await Promise.all([
+  // Pull drivers + their cert flags, the per-week shifts (with their
+  // service_type_id so we can check cert requirements), the active
+  // service types (which carry requires_dot / requires_xl), and any
+  // approved PTO inside the week.
+  const [driversRes, ptoRes, shiftsRes, svcRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, metadata, dl_expires_on")
+      .select("id, full_name, metadata, dl_expires_on, dot_certified, xl_certified")
       .eq("dsp_id", dspId)
       .eq("status", "active"),
     sb.from("time_off_requests")
@@ -11112,10 +11125,13 @@ async function autoAssignDriversForWeek() {
       .lte("start_date", weekEndIso)
       .gte("end_date", _schedStart),
     sb.from("shifts")
-      .select("id, date, station_id, driver_id, status, starts_at, ends_at, is_cushion")
+      .select("id, date, station_id, driver_id, status, starts_at, ends_at, is_cushion, service_type_id")
       .eq("dsp_id", dspId)
       .gte("date", _schedStart)
       .lte("date", weekEndIso),
+    sb.from("service_types")
+      .select("id, code, label, requires_dot, requires_xl")
+      .eq("dsp_id", dspId),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -11125,6 +11141,19 @@ async function autoAssignDriversForWeek() {
 
   const drivers = driversRes.data || [];
   const pto     = ptoRes.data     || [];
+  // Map service_type_id → { requires_dot, requires_xl } so we can
+  // gate driver eligibility per shift.
+  const serviceCerts = new Map();
+  for (const s of (svcRes?.data || [])) {
+    serviceCerts.set(s.id, { requires_dot: !!s.requires_dot, requires_xl: !!s.requires_xl });
+  }
+  const driverHasCertsFor = (driver, serviceTypeId) => {
+    const cert = serviceCerts.get(serviceTypeId);
+    if (!cert) return true; // unknown service type → don't gate
+    if (cert.requires_dot && !driver.dot_certified) return false;
+    if (cert.requires_xl  && !driver.xl_certified)  return false;
+    return true;
+  };
   let   shifts  = shiftsRes.data  || [];
 
   // Per-(driver, date) effective availability — picks the latest
@@ -11249,8 +11278,12 @@ async function autoAssignDriversForWeek() {
     // Try strict-availability candidates first; if override is allowed
     // and none match, fall through to "any active non-PTO driver".
     // Expired drivers_license blocks regardless of override.
+    // Service-type cert gating (e.g. Step Vans requires DOT, XL routes
+    // require XL cert) is also a hard gate — applied via
+    // driverHasCertsFor against the shift's service_type_id.
     const baseFilter = (d) => {
       if (!driverLicenseOkForDate(d, sh.date)) return false;
+      if (!driverHasCertsFor(d, sh.service_type_id)) return false;
       if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
       if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
       if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
