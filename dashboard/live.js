@@ -387,7 +387,8 @@ window.filterPipelineStage = function (btn) {
 
 const _legacyGoto = window.goto;
 window.goto = function (view) {
-  if (typeof _closeAttKpiDetail === "function") _closeAttKpiDetail();
+  if (typeof _closeAttKpiDetail === "function")    _closeAttKpiDetail();
+  if (typeof _closeAvailKpiDetail === "function")  _closeAvailKpiDetail();
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
   if (view === "drivers")   { loadDriversRoster(); loadDriverInsights(); }
@@ -3478,9 +3479,10 @@ function renderLicenseRow(d) {
 
 const _legacyDrSub = window.drSub;
 window.drSub = function (sub) {
-  // Close any open report KPI drilldown on subview navigation so it
-  // doesn't reappear when the operator comes back to Attendance.
-  if (typeof _closeAttKpiDetail === "function") _closeAttKpiDetail();
+  // Close any open KPI drilldowns on subview navigation so they
+  // don't reappear when the operator comes back to the page.
+  if (typeof _closeAttKpiDetail === "function")    _closeAttKpiDetail();
+  if (typeof _closeAvailKpiDetail === "function")  _closeAvailKpiDetail();
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
@@ -8199,10 +8201,11 @@ async function loadAvailabilityRequests() {
   _availImpactCtx = _buildAvailImpactCtx(drvRes.data || [], gridRes.data || []);
 
   // KPIs + blackouts + settings rendered into their own slots.
+  // The old "coverage by day" card moved into the Least-covered-day
+  // KPI drilldown — no longer rendered standalone.
   _renderAvailabilityKpis(kpiRes.data || {}, _availRequestsCache);
   _renderAvailabilityBlackouts(blackRes.data || []);
   _renderAvailabilitySettingsPanel(setRes.data || {});
-  _renderAvailabilityCoverageCard();
   _renderAvailabilityRows();
 }
 
@@ -8220,12 +8223,15 @@ function _buildAvailImpactCtx(drivers, okamiGrid) {
   const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
   const supplyByDow = Object.fromEntries(DOW.map(d => [d, 0]));
   const totalActive = drivers.length;
+  // Per-driver availability so the new Availability KPIs (FT/PT,
+  // average days, weekend coverage, flex capacity) can compute against
+  // the same source the bars read from.
+  const driverDays = [];
   for (const d of drivers) {
     const days = d.metadata?.availability?.days;
-    if (!Array.isArray(days)) continue;
-    for (const dow of days) {
-      if (supplyByDow[dow] !== undefined) supplyByDow[dow] += 1;
-    }
+    const arr = Array.isArray(days) ? days.filter(x => supplyByDow[x] !== undefined) : [];
+    for (const dow of arr) supplyByDow[dow] += 1;
+    driverDays.push({ id: d.id, name: d.full_name || d.preferred_name || "", days: arr });
   }
   const demandByDow = Object.fromEntries(DOW.map(d => [d, 0]));
   const JS_DOW = { 0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat" };
@@ -8235,7 +8241,7 @@ function _buildAvailImpactCtx(drivers, okamiGrid) {
     const routes = Number(cell.routes_planned ?? cell.routes ?? 0);
     if (routes > demandByDow[dow]) demandByDow[dow] = routes;
   }
-  return { supplyByDow, demandByDow, totalActive };
+  return { supplyByDow, demandByDow, totalActive, driverDays };
 }
 
 function _availImpactFor(req) {
@@ -8275,22 +8281,108 @@ function _availImpactFor(req) {
 // _buildAvailImpactCtx, which left the Availability sub-tab spinning
 // forever (loadAvailabilityRequests threw a ReferenceError after the
 // Promise.all resolved).  Restored verbatim from 053968c.
+// Day-of-week constants reused across the KPIs + drilldowns.
+const _AVAIL_DOW       = ["mon","tue","wed","thu","fri","sat","sun"];
+const _AVAIL_DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+const _AVAIL_DOW_FULL  = { mon:"Monday", tue:"Tuesday", wed:"Wednesday", thu:"Thursday", fri:"Friday", sat:"Saturday", sun:"Sunday" };
+
+let _availKpiDetailKpi = null;   // 'leastCovered' | 'ftpt' | 'avgDays' | 'weekend' | null
+
+// Hide the drilldown + clear state.  Wired into drSub() and goto()
+// below so re-entering the page always starts with the panel closed.
+function _closeAvailKpiDetail() {
+  _availKpiDetailKpi = null;
+  const panel = document.getElementById("rr-avail-kpi-detail");
+  if (panel) { panel.style.display = "none"; panel.innerHTML = ""; }
+  document.querySelectorAll("[data-rr-avail-kpi]").forEach(el => el.classList.remove("active"));
+}
+
+// Compute the four KPI values from _availImpactCtx.  Each value comes
+// back with `display`, the full label-line `sub`, and the raw numbers
+// the drilldown will need.
+function _computeAvailKpis() {
+  const ctx = _availImpactCtx;
+  const out = {
+    leastCovered: { display: "—", sub: "no drivers yet" },
+    ftpt:         { display: "—", sub: "no drivers yet", ft: 0, pt: 0 },
+    avgDays:      { display: "—", sub: "no drivers yet" },
+    weekend:      { display: "—", sub: "no drivers yet" },
+  };
+  if (!ctx || ctx.totalActive === 0) return out;
+
+  // Least covered day (lowest supply%)
+  let minDow = "mon", minPct = Infinity;
+  for (const d of _AVAIL_DOW) {
+    const pct = Math.round((ctx.supplyByDow[d] / ctx.totalActive) * 100);
+    if (pct < minPct) { minPct = pct; minDow = d; }
+  }
+  out.leastCovered = {
+    display: `${minPct}%`,
+    sub:     `${_AVAIL_DOW_FULL[minDow]} · ${ctx.supplyByDow[minDow]}/${ctx.totalActive} drivers`,
+    minDow, minPct,
+  };
+
+  // FT / PT split — assume 1 day = 10 hours; ≥4 days = FT, ≤3 = PT.
+  let ft = 0, pt = 0;
+  for (const d of ctx.driverDays) {
+    if (d.days.length >= 4) ft++;
+    else if (d.days.length > 0) pt++;
+    // Drivers with no availability data are excluded from the split.
+  }
+  const ratioPct = (ft + pt) > 0 ? Math.round((ft / (ft + pt)) * 100) : 0;
+  out.ftpt = {
+    display: `${ft} / ${pt}`,
+    sub:     `${ratioPct}% full-time · 4+ days = FT`,
+    ft, pt,
+  };
+
+  // Avg days / driver — only across drivers who set any availability.
+  const withDays = ctx.driverDays.filter(d => d.days.length > 0);
+  const totalDays = withDays.reduce((s, d) => s + d.days.length, 0);
+  const avg = withDays.length > 0 ? totalDays / withDays.length : 0;
+  out.avgDays = {
+    display: withDays.length > 0 ? avg.toFixed(1) : "—",
+    sub:     withDays.length > 0
+      ? `across ${withDays.length} of ${ctx.totalActive} active drivers`
+      : "no availability set yet",
+    avg, withDaysCount: withDays.length,
+  };
+
+  // Weekend coverage — % of active drivers available either Sat or Sun.
+  const weekendDrivers = ctx.driverDays.filter(d => d.days.includes("sat") || d.days.includes("sun"));
+  const wkPct = Math.round((weekendDrivers.length / ctx.totalActive) * 100);
+  out.weekend = {
+    display: `${wkPct}%`,
+    sub:     `${weekendDrivers.length}/${ctx.totalActive} cover Sat or Sun`,
+    weekendCount: weekendDrivers.length,
+  };
+
+  return out;
+}
+
 function _renderAvailabilityKpis(k, rows) {
   const host = document.getElementById("dr-sub-availability");
   const el = host?.querySelector("[data-rr-avail-kpis]");
   if (!el) return;
-  const card = (label, value, sub) => `
-    <div class="card card-compact">
-      <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">${escapeHtml(label)}</div>
-      <div style="font-size:var(--fs-xxl);font-weight:700;margin-top:4px">${escapeHtml(String(value))}</div>
-      ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+
+  const kpis = _computeAvailKpis();
+  const card = (key, label, value, sub) => `
+    <div class="di-card di-card-clickable" data-rr-avail-kpi="${key}" role="button" tabindex="0" aria-label="Open ${escapeHtml(label)} detail">
+      <div class="di-label">${escapeHtml(label)}</div>
+      <div class="di-val">${escapeHtml(String(value))}</div>
+      <div class="di-sub">${escapeHtml(sub)}</div>
     </div>`;
   el.innerHTML = [
-    card("Pending",       k.pending_count ?? 0,  "awaiting review"),
-    card("Approved · 30d", k.approved_30d ?? 0,  "decisions in last 30 days"),
-    card("Denied · 30d",   k.denied_30d   ?? 0,  "decisions in last 30 days"),
-    card("Avg decision time", k.avg_decision_hours_30d != null ? `${k.avg_decision_hours_30d}h` : "—", "from submit to decide"),
+    card("leastCovered", "Least covered day", kpis.leastCovered.display, kpis.leastCovered.sub),
+    card("ftpt",         "FT / PT split",     kpis.ftpt.display,         kpis.ftpt.sub),
+    card("avgDays",      "Avg days / driver", kpis.avgDays.display,      kpis.avgDays.sub),
+    card("weekend",      "Weekend coverage",  kpis.weekend.display,      kpis.weekend.sub),
   ].join("");
+
+  // Re-render the open drilldown if one was active (driver list changed
+  // or RPC roundtrip finished).  Closed-by-default behavior is preserved
+  // — _availKpiDetailKpi only gets set by an explicit click.
+  if (_availKpiDetailKpi) _renderAvailKpiDetail();
 
   const repeatEl = host.querySelector("[data-rr-avail-repeats]");
   if (!repeatEl) return;
@@ -8307,6 +8399,214 @@ function _renderAvailabilityKpis(k, rows) {
     <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px">Drivers who submitted 2+ availability changes recently. Worth a conversation if the pattern continues.</div>
     ${repeatList}`;
 }
+
+// ─── Availability KPI drilldown panel ────────────────────────────────
+//
+// Click handlers below set _availKpiDetailKpi and call this; toggle off
+// by clicking the same card again.  Mirrors the attendance-page pattern
+// (di-card-clickable + caret) so the affordance reads the same.
+
+function _availKpiPanelShell(title, sub, body) {
+  return `<div class="card" style="padding:var(--s-5)">
+    <div style="margin-bottom:var(--s-3)">
+      <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">${escapeHtml(title)}</div>
+      ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
+    </div>
+    ${body}
+  </div>`;
+}
+
+function _renderAvailKpiDetail() {
+  const panel = document.getElementById("rr-avail-kpi-detail");
+  if (!panel) return;
+  document.querySelectorAll("[data-rr-avail-kpi]").forEach(el => {
+    el.classList.toggle("active", el.dataset.rrAvailKpi === _availKpiDetailKpi);
+  });
+  if (!_availKpiDetailKpi) { panel.style.display = "none"; panel.innerHTML = ""; return; }
+  panel.style.display = "block";
+
+  const ctx  = _availImpactCtx;
+  const kpis = _computeAvailKpis();
+  if (!ctx || ctx.totalActive === 0) {
+    panel.innerHTML = _availKpiPanelShell(
+      "No data yet",
+      "Add active drivers and have them submit availability to see the breakdown.",
+      "");
+    return;
+  }
+
+  if (_availKpiDetailKpi === "leastCovered") {
+    // The same per-DOW bar chart that used to live on the page,
+    // surfaced here as the drilldown for "least covered day".
+    const total = ctx.totalActive;
+    const bars = _AVAIL_DOW.map(d => {
+      const supply = ctx.supplyByDow[d] || 0;
+      const peak   = ctx.demandByDow[d] || 0;
+      const pct    = total > 0 ? Math.round((supply / total) * 100) : 0;
+      const isMin  = d === kpis.leastCovered.minDow;
+      return `
+        <div style="display:grid;grid-template-columns:48px 1fr 90px 130px;align-items:center;gap:12px;padding:6px 0">
+          <div style="font-size:var(--fs-sm);font-weight:600;color:${isMin ? "var(--red)" : "var(--text)"}">${_AVAIL_DOW_LABEL[d]}</div>
+          <div style="background:var(--accent-soft);height:10px;border-radius:5px;overflow:hidden">
+            <div style="background:${isMin ? "var(--red)" : "var(--accent)"};height:100%;width:${pct}%;transition:width .3s"></div>
+          </div>
+          <div style="font-size:var(--fs-md);font-weight:700;color:${isMin ? "var(--red)" : "var(--text)"};text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);text-align:right;font-variant-numeric:tabular-nums">${supply}/${total}${peak > 0 ? ` · peak demand ${peak}` : ""}</div>
+        </div>`;
+    }).join("");
+    panel.innerHTML = _availKpiPanelShell(
+      "Coverage by day",
+      `% of the ${total} active driver${total === 1 ? "" : "s"} available each day. The lowest day is highlighted.`,
+      bars);
+    return;
+  }
+
+  if (_availKpiDetailKpi === "ftpt") {
+    // Flex capacity calculator.
+    // 1 day of availability = 1 shift = 10 hours.
+    const drivers = ctx.driverDays.filter(d => d.days.length > 0);
+    const ftDrivers = drivers.filter(d => d.days.length >= 4);
+    const ptDrivers = drivers.filter(d => d.days.length <= 3);
+    const currentShifts = drivers.reduce((s, d) => s + d.days.length, 0);
+    // "If PT worked 4 days" — bring every PT driver up to 4.
+    const ptTo4Add = ptDrivers.reduce((s, d) => s + Math.max(0, 4 - d.days.length), 0);
+    // "If everyone worked 5 days" — bring everyone up to 5 (capped).
+    const allTo5Add = drivers.reduce((s, d) => s + Math.max(0, 5 - d.days.length), 0);
+
+    const row = (label, shifts, hours, badge) => `
+      <div style="display:grid;grid-template-columns:1fr 110px 110px 120px;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${label}</div>
+          ${badge ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${badge}</div>` : ""}
+        </div>
+        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${shifts}</div>
+        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${hours}</div>
+        <div style="text-align:right;font-size:var(--fs-md);font-weight:600;color:${shifts > 0 ? "var(--green)" : "var(--text-subtle)"};font-variant-numeric:tabular-nums">${badge ? `+${shifts} shifts` : ""}</div>
+      </div>`;
+
+    const head = `
+      <div style="display:grid;grid-template-columns:1fr 110px 110px 120px;gap:14px;padding:0 0 8px;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
+        <div>Scenario</div>
+        <div style="text-align:right">Shifts / wk</div>
+        <div style="text-align:right">Hours / wk</div>
+        <div style="text-align:right">Δ vs current</div>
+      </div>`;
+
+    const body = `
+      ${head}
+      <div style="display:grid;grid-template-columns:1fr 110px 110px 120px;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">Current</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${ftDrivers.length} FT (4+ days) · ${ptDrivers.length} PT (≤3 days)</div>
+        </div>
+        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${currentShifts}</div>
+        <div style="text-align:right;font-size:var(--fs-md);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${currentShifts * 10}</div>
+        <div></div>
+      </div>
+      ${row(`If every PT driver worked 4 days`,    ptTo4Add,  ptTo4Add * 10,  `Move ${ptDrivers.length} PT driver${ptDrivers.length === 1 ? "" : "s"} up to FT`)}
+      ${row(`If every driver worked 5 days`,      allTo5Add, allTo5Add * 10, `Stretch goal across all ${drivers.length} drivers`)}
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px;line-height:1.5">Math assumes 1 day of availability = 1 shift = 10 hours. FT = 4+ available days, PT = 1–3.</div>`;
+
+    panel.innerHTML = _availKpiPanelShell(
+      "Flex capacity",
+      `What you'd unlock by raising part-time drivers — or pushing everyone to a 5-day week.`,
+      body);
+    return;
+  }
+
+  if (_availKpiDetailKpi === "avgDays") {
+    // Histogram: drivers per "days available" bucket (1 → 7).
+    const buckets = [0, 0, 0, 0, 0, 0, 0]; // 1d..7d
+    let zero = 0;
+    for (const d of ctx.driverDays) {
+      if (d.days.length === 0) zero++;
+      else if (d.days.length <= 7) buckets[d.days.length - 1] += 1;
+    }
+    const max = Math.max(1, ...buckets);
+    const totalSet = buckets.reduce((s, n) => s + n, 0);
+    const histRows = buckets.map((n, i) => {
+      const days = i + 1;
+      const pct  = totalSet > 0 ? Math.round((n / totalSet) * 100) : 0;
+      const w    = (n / max) * 100;
+      const tier = days >= 4 ? "FT" : "PT";
+      return `<div style="display:grid;grid-template-columns:96px 1fr 90px 90px;gap:14px;align-items:center;padding:8px 0">
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${days} day${days === 1 ? "" : "s"} <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;margin-left:4px">${tier}</span></div>
+        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:${days >= 4 ? "var(--accent)" : "var(--amber)"};height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
+        </div>
+        <div style="text-align:right;font-size:var(--fs-sm);color:var(--text-muted)"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
+      </div>`;
+    }).join("");
+    const footer = zero > 0
+      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);padding-top:8px;border-top:1px solid var(--border);margin-top:8px">${zero} driver${zero === 1 ? " hasn't" : "s haven't"} set their availability yet — excluded from the average.</div>`
+      : `<div style="font-size:var(--fs-xs);color:var(--text-subtle);padding-top:8px;border-top:1px solid var(--border);margin-top:8px">All ${ctx.totalActive} drivers have availability on file.</div>`;
+    panel.innerHTML = _availKpiPanelShell(
+      "Days-available distribution",
+      `Average is ${kpis.avgDays.display} day${kpis.avgDays.display === "1.0" ? "" : "s"} per driver. Bars amber for PT (1–3) and brand-blue for FT (4–7).`,
+      `${histRows}${footer}`);
+    return;
+  }
+
+  if (_availKpiDetailKpi === "weekend") {
+    // Sat / Sun breakdown.  Buckets: Sat-only, Sun-only, both, neither.
+    let bothCount = 0, satOnly = 0, sunOnly = 0, neither = 0;
+    for (const d of ctx.driverDays) {
+      const sat = d.days.includes("sat");
+      const sun = d.days.includes("sun");
+      if (sat && sun)      bothCount++;
+      else if (sat)        satOnly++;
+      else if (sun)        sunOnly++;
+      else                 neither++;
+    }
+    const total = ctx.totalActive;
+    const satTotal = ctx.supplyByDow.sat || 0;
+    const sunTotal = ctx.supplyByDow.sun || 0;
+    const cell = (label, n, color) => {
+      const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+      return `<div style="display:grid;grid-template-columns:160px 1fr 90px;gap:14px;align-items:center;padding:8px 0">
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${label}</div>
+        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:${color};height:100%;width:${pct}%;transition:width .3s"></div>
+        </div>
+        <div style="text-align:right;font-size:var(--fs-sm);color:var(--text-muted)"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
+      </div>`;
+    };
+    panel.innerHTML = _availKpiPanelShell(
+      "Weekend coverage",
+      `Saturday and Sunday are usually the leanest days. Track who's covering each so swaps don't gut a weekend.`,
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4);margin-bottom:var(--s-3)">
+        <div style="background:var(--canvas);border-radius:8px;padding:12px 14px">
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Saturday</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--text);margin-top:4px">${satTotal}<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;margin-left:4px">drivers</span></div>
+        </div>
+        <div style="background:var(--canvas);border-radius:8px;padding:12px 14px">
+          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Sunday</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--text);margin-top:4px">${sunTotal}<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;margin-left:4px">drivers</span></div>
+        </div>
+      </div>
+      ${cell("Cover both Sat + Sun", bothCount, "var(--green)")}
+      ${cell("Saturday only",         satOnly,   "var(--accent)")}
+      ${cell("Sunday only",           sunOnly,   "var(--accent)")}
+      ${cell("Neither weekend day",   neither,   "var(--red)")}`);
+    return;
+  }
+}
+
+// Click handler: KPI card opens / closes its own detail panel.
+document.addEventListener("click", (e) => {
+  const card = e.target.closest("[data-rr-avail-kpi]");
+  if (!card) return;
+  const kpi = card.dataset.rrAvailKpi;
+  _availKpiDetailKpi = (_availKpiDetailKpi === kpi) ? null : kpi;
+  _renderAvailKpiDetail();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const card = e.target.closest("[data-rr-avail-kpi]");
+  if (!card) return;
+  e.preventDefault();
+  card.click();
+});
 
 function _renderAvailabilityBlackouts(rows) {
   const host = document.getElementById("dr-sub-availability");
@@ -8387,43 +8687,6 @@ function _renderAvailabilitySettingsPanel(s) {
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
     toast("Settings saved", "success");
   });
-}
-
-// Coverage-by-day card · live read of active driver availability.
-function _renderAvailabilityCoverageCard() {
-  const bars = document.getElementById("rr-avail-coverage-bars");
-  const sub  = document.getElementById("rr-avail-coverage-sub");
-  if (!bars || !_availImpactCtx) return;
-
-  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
-  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-  const total = _availImpactCtx.totalActive;
-
-  if (total === 0) {
-    bars.innerHTML = `<div class="rr-empty-inline">No active drivers yet — add drivers to see coverage.</div>`;
-    if (sub) sub.textContent = "";
-    return;
-  }
-
-  if (sub) sub.textContent = `${total} active driver${total === 1 ? "" : "s"}`;
-
-  // Render seven rows: day label · brand bar · count · pct.  Brand
-  // blue is gentler than the slate text-muted that previously read as
-  // almost-black on this page.
-  bars.innerHTML = DOW.map(d => {
-    const supply = _availImpactCtx.supplyByDow[d] || 0;
-    const peak   = _availImpactCtx.demandByDow[d] || 0;
-    const pct    = total > 0 ? Math.round((supply / total) * 100) : 0;
-    return `
-      <div style="display:grid;grid-template-columns:48px 1fr 90px 110px;align-items:center;gap:12px;padding:6px 0">
-        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${DOW_LABEL[d]}</div>
-        <div style="background:var(--accent-soft);height:10px;border-radius:5px;overflow:hidden">
-          <div style="background:var(--accent);height:100%;width:${pct}%;transition:width .3s"></div>
-        </div>
-        <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);text-align:right;font-variant-numeric:tabular-nums">${supply}/${total}${peak > 0 ? ` · peak ${peak}` : ""}</div>
-      </div>`;
-  }).join("");
 }
 
 // Last of the merge-loss casualties — without this _renderAvailabilityRows

@@ -5657,19 +5657,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           <!-- KPI strip (filled by _renderAvailabilityKpis) -->
           <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)"></div>
 
-          <!-- Coverage-by-day card · % of active drivers available each DOW -->
-          <div id="rr-avail-coverage-card" class="card card-compact" style="margin-bottom:var(--s-4)">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s-3)">
-              <div>
-                <div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">Coverage by day</div>
-                <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">% of active drivers available each day. Use this to gut-check whether to approve a change.</div>
-              </div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle)" id="rr-avail-coverage-sub">—</div>
-            </div>
-            <div id="rr-avail-coverage-bars">
-              <div class="rr-loading">Loading coverage</div>
-            </div>
-          </div>
+          <!-- KPI drilldown panel — populated when an operator clicks
+               one of the four cards above; closed by default + on
+               navigation away from this subview. -->
+          <div id="rr-avail-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
           <!-- Repeat-requesters insight (filled by _renderAvailabilityKpis) -->
           <div data-rr-avail-repeats class="card card-compact" style="margin-bottom:var(--s-4)"></div>
@@ -16425,7 +16416,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507z"></script>
+<script type="module" src="./live.js?v=20260507aa"></script>
 
 </body>
 </html>
