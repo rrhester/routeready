@@ -924,6 +924,8 @@ select.field{
 .settings-callout.warn{background:var(--amber-soft,#fef3c7);color:var(--text)}
 .settings-callout svg{flex-shrink:0;margin-top:1px;color:var(--amber,#d97706)}
 
+.rr-debug-banner{background:var(--amber-soft,#fef3c7);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);line-height:1.4}
+
 /* ── Form fill-out (driver-side) ────────────────────────────── */
 .form-fill-page{display:flex;flex-direction:column;gap:14px}
 .form-fill-desc{font-size:var(--fs-md);color:var(--text-muted);line-height:1.5;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}

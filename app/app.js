@@ -577,13 +577,20 @@ function renderTasksHub() {
   }).catch(() => {});
 
   // Published forms — append one card per form when the RPC returns.
-  // Server might be missing migration 0081 in early upgrades; we
-  // swallow and skip silently rather than block the rest of Tasks.
+  // Failures surface as an inline diagnostic instead of being
+  // swallowed; "no forms yet" stays silent (no visual noise on
+  // tenants that haven't published anything).
   sb.rpc("driver_list_forms", { p_token: session.token }).then(({ data, error }) => {
-    if (error) return;
-    const forms = Array.isArray(data) ? data : [];
     const slot = document.getElementById("rr-tasks-forms-slot");
-    if (!slot || forms.length === 0) return;
+    if (!slot) return;
+    if (error) {
+      slot.innerHTML = `<div class="rr-debug-banner">Forms RPC failed: ${escapeHtml(error.message || "unknown")}</div>`;
+      console.warn("driver_list_forms error:", error);
+      return;
+    }
+    const forms = Array.isArray(data) ? data : [];
+    console.info("driver_list_forms returned", forms.length, "forms", forms);
+    if (forms.length === 0) return;
     slot.innerHTML = forms.map(f => {
       const oncePer = !!f.settings?.once_per_driver;
       const done = oncePer && f.submission_count > 0;
@@ -597,7 +604,11 @@ function renderTasksHub() {
       });
     }).join("");
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
-  }).catch(() => {});
+  }).catch((err) => {
+    const slot = document.getElementById("rr-tasks-forms-slot");
+    if (slot) slot.innerHTML = `<div class="rr-debug-banner">Forms request rejected: ${escapeHtml(String(err))}</div>`;
+    console.warn("driver_list_forms rejected:", err);
+  });
 }
 function taskCardHtml(c) {
   return `
