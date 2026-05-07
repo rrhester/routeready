@@ -634,23 +634,30 @@ a{color:inherit;text-decoration:none}
 /* ─────────────────────────────────────────────────────────────
    PIPELINE PAGE
    ───────────────────────────────────────────────────────────── */
+/* Pill segmented control — same shape as the Attendance subtab strip
+   so the Drivers stage tabs read consistently with the rest of the
+   dashboard. */
 .stage-tabs{
-  display:flex;gap:2px;margin-bottom:var(--s-4);
-  border-bottom:1px solid var(--border);
+  display:flex;gap:4px;padding:4px;margin-bottom:var(--s-4);
+  background:var(--canvas);border-radius:10px;width:fit-content;
 }
 .stage-tab{
-  padding:10px 14px;font-size:var(--fs-md);font-weight:500;color:var(--text-muted);
-  border:none;background:transparent;cursor:pointer;
-  border-bottom:2px solid transparent;margin-bottom:-1px;
-  display:flex;align-items:center;gap:6px;
+  appearance:none;background:transparent;border:0;font:inherit;
+  padding:8px 14px;border-radius:7px;
+  color:var(--text-muted);cursor:pointer;
+  font-weight:500;font-size:var(--fs-md);
+  display:inline-flex;align-items:center;gap:6px;
 }
 .stage-tab:hover{color:var(--text)}
-.stage-tab.active{color:var(--text);font-weight:600;border-bottom-color:var(--accent)}
+.stage-tab.active{
+  background:var(--surface);color:var(--text);
+  font-weight:600;box-shadow:var(--shadow-sm);
+}
 .stage-tab-count{
   font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
-  background:var(--canvas);padding:1px 7px;border-radius:10px;
+  background:transparent;padding:0 4px;border-radius:10px;
 }
-.stage-tab.active .stage-tab-count{color:var(--accent-text);background:var(--accent-soft)}
+.stage-tab.active .stage-tab-count{color:var(--text-muted)}
 
 .toolbar{
   display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);
@@ -920,7 +927,7 @@ a{color:inherit;text-decoration:none}
 /* ─────────────────────────────────────────────────────────────
    DRIVERS PAGE
    ───────────────────────────────────────────────────────────── */
-.driver-stat-row{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
+.driver-stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
 @media (max-width:1300px){.driver-stat-row{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:760px){.driver-stat-row{grid-template-columns:repeat(2,1fr)}}
 .stat-mini-clickable{
@@ -4261,7 +4268,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .pipeline-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)}
 @media (max-width:1080px){.pipeline-kpis{grid-template-columns:repeat(2,1fr)}}
 .pipeline-kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.pipeline-kpi-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.pipeline-kpi-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);margin-bottom:4px}
 .pipeline-kpi-value{font-size:var(--fs-xl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
 .pipeline-kpi-value .frac{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500}
 .pipeline-kpi-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px}
@@ -4534,7 +4541,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           @media (max-width:760px){.hp-stats-banner{grid-template-columns:repeat(2,1fr)}}
           .hp-stat{padding:0 16px;border-right:1px solid var(--border);position:relative}
           .hp-stat:last-child{border-right:none}
-          .hp-stat-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+          .hp-stat-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);margin-bottom:6px}
           .hp-stat-value{font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
           .hp-stat-value .frac{font-size:var(--fs-md);font-weight:600;color:var(--text-subtle);margin-left:4px}
           .hp-stat-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;display:flex;align-items:center;gap:5px}
@@ -5110,16 +5117,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <!-- INTERVIEW DAY SUB-VIEW -->
         <div class="pipe-subview" id="pipe-sub-interview" style="display:none">
 
-        <div class="page-header">
-          <div>
-            <h1 class="page-title" style="display:flex;align-items:center;gap:10px">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;stroke-width:2.2;color:var(--accent)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              Interview Day
-            </h1>
-            <p class="page-sub">Friday, May 4 · process today's bookings · auto-SMS fires on every action</p>
-          </div>
-        </div>
-
         <!-- Day stats banner -->
         <div class="iv-stats-banner">
           <div class="iv-stat">
@@ -5252,11 +5249,22 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <!-- ROSTER SUB-VIEW -->
         <div class="dr-subview active" id="dr-sub-roster">
 
+        <!-- Stage tabs sit above the KPI strip — same pill format as
+             the Attendance subtab strip so the Drivers page reads
+             consistently with the rest of the dashboard. -->
+        <div class="stage-tabs" data-rr-tabbar="drivers-stage">
+          <button class="stage-tab active" data-stage="active" onclick="filterDriversStage(this)">Active <span class="stage-tab-count">—</span></button>
+          <button class="stage-tab" data-stage="onboarding" onclick="filterDriversStage(this)">Onboarding <span class="stage-tab-count">—</span></button>
+          <button class="stage-tab" data-stage="atrisk" onclick="filterDriversStage(this)">At risk <span class="stage-tab-count">—</span></button>
+          <button class="stage-tab" data-stage="inactive" onclick="filterDriversStage(this)">Inactive <span class="stage-tab-count">—</span></button>
+        </div>
+
         <div class="driver-stat-row">
           <div class="stat-mini"><div class="stat-mini-label">Active</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
-          <div class="stat-mini"><div class="stat-mini-label">Avg score</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
+          <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="score" role="button" tabindex="0" aria-label="Open average score detail">
+            <div class="stat-mini-label">Avg score</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
+          </div>
           <div class="stat-mini"><div class="stat-mini-label">At risk</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
-          <div class="stat-mini"><div class="stat-mini-label">Coached this week</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
           <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="tenure" role="button" tabindex="0" aria-label="Open average tenure detail">
             <div class="stat-mini-label">Avg tenure</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
           </div>
@@ -5267,15 +5275,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         </div>
 
         <!-- Roster KPI drill-down panel · opens when an operator clicks
-             one of the six KPI tiles above. -->
+             one of the clickable KPI tiles above. -->
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
-
-        <div class="stage-tabs" data-rr-tabbar="drivers-stage">
-          <button class="stage-tab active" data-stage="active" onclick="filterDriversStage(this)">Active <span class="stage-tab-count">78</span></button>
-          <button class="stage-tab" data-stage="onboarding" onclick="filterDriversStage(this)">Onboarding <span class="stage-tab-count">2</span></button>
-          <button class="stage-tab" data-stage="atrisk" onclick="filterDriversStage(this)">At risk <span class="stage-tab-count">5</span></button>
-          <button class="stage-tab" data-stage="inactive" onclick="filterDriversStage(this)">Inactive <span class="stage-tab-count">4</span></button>
-        </div>
 
         <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s-3)">
           <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Click a column to sort</span>
@@ -5627,31 +5628,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               </div>
               <div class="form-row">
                 <div>
-                  <div class="form-label">Station location (weather forecast)</div>
-                  <div class="form-help">Latitude and longitude — paste from Google Maps. Used for the dashboard weather card and active alerts (US only via NWS).</div>
+                  <div class="form-label">Station location (weather tracking)</div>
+                  <div class="form-help">Latitude and longitude — paste from Google Maps. Stored on the DSP record so the system can log local weather every day for performance insights.</div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                   <input class="form-input" id="rr-set-weather-lat" placeholder="38.886" style="max-width:120px" inputmode="decimal"/>
                   <input class="form-input" id="rr-set-weather-lon" placeholder="-76.910" style="max-width:120px" inputmode="decimal"/>
                   <button class="btn btn-sm btn-primary" id="rr-set-weather-save" type="button">Save</button>
                   <span id="rr-set-weather-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
-                </div>
-              </div>
-              <div class="form-row">
-                <div>
-                  <div class="form-label">Dashboard weather widgets</div>
-                  <div class="form-help">Toggle the weather forecast card and the live precipitation radar on the dashboard.</div>
-                </div>
-                <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-                  <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-md);color:var(--text);cursor:pointer">
-                    <input type="checkbox" id="rr-set-weather-show-card" checked/>
-                    Forecast card
-                  </label>
-                  <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-md);color:var(--text);cursor:pointer">
-                    <input type="checkbox" id="rr-set-weather-show-radar" checked/>
-                    Live radar
-                  </label>
-                  <span id="rr-set-weather-toggle-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
                 </div>
               </div>
             </div>
@@ -16289,7 +16273,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507ae"></script>
+<script type="module" src="./live.js?v=20260507af"></script>
 
 </body>
 </html>
