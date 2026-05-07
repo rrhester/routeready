@@ -2582,8 +2582,12 @@ document.addEventListener("click", async (e) => {
     }
     if (status) { status.style.color = "var(--green)"; status.textContent = "Saved ✓"; setTimeout(() => status.textContent = "", 2500); }
     toast("Attendance policy saved", "success");
-    // Refresh report tab to use the new thresholds.
+    // Refresh report tab to use the new thresholds, and re-apply the
+    // policy-mode visibility so the Report tab toggles in/out
+    // immediately when policy_enabled flips.
+    if (typeof _rrApplyAttPolicyMode === "function") _rrApplyAttPolicyMode();
     if (typeof loadAttendanceLive === "function") loadAttendanceLive();
+    if (typeof loadAttendanceEventLog === "function") loadAttendanceEventLog();
   }
 });
 
@@ -2627,6 +2631,13 @@ document.addEventListener("change", (e) => {
 });
 
 
+// Time-period the Event log shows.  Independent of the policy
+// decay window — operators may want to inspect "all time" while
+// running a 90-day policy, or 7 days while running a 365-day
+// policy.  Stored on the function so re-render preserves the
+// selection without rewiring the dropdown.
+let _attLogWindowDays = 90;  // default
+
 async function loadAttendanceEventLog() {
   const pane = document.getElementById("att-pane-log");
   if (!pane) return;
@@ -2634,29 +2645,35 @@ async function loadAttendanceEventLog() {
   if (!dspId) return;
 
   const policy = _getAttPolicy();
-  const since = new Date(); since.setDate(since.getDate() - policy.decay_days);
-  const sinceIso = fmtIsoDate(since);
+  const policyOn = policy.policy_enabled !== false;
+
+  // "all" is sentinel for no lower bound.
+  const isAll = _attLogWindowDays === "all";
+  const since = isAll ? null : (() => { const d = new Date(); d.setDate(d.getDate() - Number(_attLogWindowDays)); return d; })();
+  const sinceIso = since ? fmtIsoDate(since) : null;
+
+  let shiftsQ = sb.from("shifts")
+    .select("id, date, status, driver_id")
+    .eq("dsp_id", dspId)
+    .in("status", ["called_off", "no_show", "late"])
+    .order("date", { ascending: false });
+  if (sinceIso) shiftsQ = shiftsQ.gte("date", sinceIso);
+
+  let coachQ = sb.from("coachings")
+    .select("id, severity, triggering_shift_id, occurred_at, acknowledged_at, signed_at, driver_visible")
+    .eq("dsp_id", dspId)
+    .eq("topic", "attendance")
+    .not("triggering_shift_id", "is", null)
+    .is("archived_at", null)
+    .order("occurred_at", { ascending: false });
+  if (since) coachQ = coachQ.gte("occurred_at", since.toISOString());
 
   const [shiftsRes, driversRes, coachRes] = await Promise.all([
-    sb.from("shifts")
-      .select("id, date, status, driver_id")
-      .eq("dsp_id", dspId)
-      .in("status", ["called_off", "no_show", "late"])
-      .gte("date", sinceIso)
-      .order("date", { ascending: false }),
+    shiftsQ,
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, station:station_id (code), tier")
       .eq("dsp_id", dspId),
-    // Coachings tied to a shift (triggering_shift_id) so we can show
-    // ✓ Coached on rows the dispatcher has already addressed.
-    sb.from("coachings")
-      .select("id, severity, triggering_shift_id, occurred_at, acknowledged_at, signed_at, driver_visible")
-      .eq("dsp_id", dspId)
-      .eq("topic", "attendance")
-      .not("triggering_shift_id", "is", null)
-      .gte("occurred_at", since.toISOString())
-      .is("archived_at", null)
-      .order("occurred_at", { ascending: false }),
+    coachQ,
   ]);
 
   if (shiftsRes.error || driversRes.error) {
@@ -2668,8 +2685,7 @@ async function loadAttendanceEventLog() {
   const events = (shiftsRes.data || []).filter(sh => sh.driver_id);
 
   // Most recent coaching per triggering shift — drives the ✓ Coached
-  // chip on the row.  Use the first match because the query is
-  // ordered desc by occurred_at.
+  // chip when the dispatcher has already addressed an event.
   const coachByShift = new Map();
   for (const c of (coachRes?.data || [])) {
     if (!coachByShift.has(c.triggering_shift_id)) coachByShift.set(c.triggering_shift_id, c);
@@ -2678,24 +2694,59 @@ async function loadAttendanceEventLog() {
   const countEl = document.getElementById("att-log-count");
   if (countEl) countEl.textContent = String(events.length);
 
+  // Per-driver totals — gives the dispatcher their own counting
+  // signal to act on when the policy is off.
+  const totalsByDriver = new Map();
+  for (const ev of events) {
+    if (!ev.driver_id) continue;
+    totalsByDriver.set(ev.driver_id, (totalsByDriver.get(ev.driver_id) || 0) + 1);
+  }
+  const repeatCount = Array.from(totalsByDriver.values()).filter(n => n >= 2).length;
+
+  const windowOpts = [
+    [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"],
+    [365, "Last 12 months"], ["all", "All time"],
+  ].map(([v, lbl]) => `<option value="${v}" ${String(_attLogWindowDays) === String(v) ? "selected" : ""}>${escapeHtml(lbl)}</option>`).join("");
+
+  // Filter bar — time-period selector + summary chip.  Always
+  // rendered even when there are 0 events so the operator can
+  // widen the window to find some.
+  const filterBar = `
+    <div class="toolbar" style="margin-bottom:var(--s-3)">
+      <div class="toolbar-left" style="display:flex;align-items:center;gap:10px">
+        <label style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Window</label>
+        <select id="rr-att-log-window" class="form-input" style="height:auto;padding:6px 10px">${windowOpts}</select>
+        <span style="font-size:var(--fs-sm);color:var(--text-subtle)">
+          <strong style="color:var(--text)">${events.length}</strong> event${events.length === 1 ? "" : "s"} ·
+          <strong style="color:var(--text)">${totalsByDriver.size}</strong> driver${totalsByDriver.size === 1 ? "" : "s"}
+          ${repeatCount > 0 ? ` · <strong style="color:var(--amber)">${repeatCount}</strong> with 2+ events` : ""}
+        </span>
+      </div>
+    </div>`;
+
   if (events.length === 0) {
-    pane.innerHTML = `<div class="rr-empty-inline">No callouts, no-shows, or late events in the last ${policy.decay_days} days.</div>`;
+    pane.innerHTML = `${filterBar}<div class="rr-empty-inline">No callouts, no-shows, or late events in this window.</div>`;
+    _wireAttLogWindow();
     return;
   }
 
   const eventLabel = { called_off: "Callout", no_show: "No-show", late: "Late" };
   const eventColor = { called_off: "var(--amber)", no_show: "var(--red)", late: "var(--text-muted)" };
 
-  // Occurrence model: each event is either +1 (counts) or 0 (doesn't),
-  // based on the per-event toggles in the policy builder.
-  const counts = (st) =>
-       (st === "late"       && policy.count_tardy)
-    || (st === "called_off" && policy.count_callout)
-    || (st === "no_show"    && policy.count_noshow);
+  // Action column: Send-coaching button when policy is OFF (the
+  // operator owns next steps from the log itself).  When policy
+  // is ON, coaching flows exclusively through the Report — the
+  // log stays neutral / passive so it doesn't compete with the
+  // Report for the same decision.
+  const actionHeader = policyOn ? "" : "<th></th>";
 
-  pane.innerHTML = `
+  pane.innerHTML = `${filterBar}
     <div class="table-wrap"><table class="table">
-      <thead><tr><th>Date</th><th>Driver</th><th>Station</th><th>Event</th><th style="text-align:right">Counts</th><th>Coaching</th><th></th></tr></thead>
+      <thead><tr>
+        <th>Date</th><th>Driver</th><th>Station</th><th>Event</th>
+        <th style="text-align:right" title="Driver's count of attendance events in this window">In window</th>
+        <th>Coaching</th>${actionHeader}
+      </tr></thead>
       <tbody>
         ${events.map(ev => {
           const d = drvById.get(ev.driver_id);
@@ -2703,14 +2754,10 @@ async function loadAttendanceEventLog() {
           const station = d?.station?.code || "—";
           const initials = d ? displayDriverInitials(d) : "?";
           const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
-          const occ = counts(ev.status) ? 1 : 0;
+          const driverTotal = totalsByDriver.get(ev.driver_id) || 1;
 
-          // ✓ Coached chip — surfaces when this event already has a
-          // coaching in the system, so the dispatcher knows not to
-          // double-fire.  Pending = driver hasn't acknowledged yet,
-          // Done = driver acknowledged or signed.
           const c = coachByShift.get(ev.id);
-          let coachCell, sendBtn;
+          let coachCell;
           if (c) {
             const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity;
             const ackState = c.driver_visible === false ? "Queued"
@@ -2719,10 +2766,16 @@ async function loadAttendanceEventLog() {
             const chipCls = (ackState === "Acknowledged" || ackState === "Signed") ? "done"
                            : ackState === "Awaiting ack" ? "pending" : "";
             coachCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start"><span style="font-size:var(--fs-sm);font-weight:600">${escapeHtml(sevLabel)} <span style="color:var(--text-subtle);font-weight:500">· ${escapeHtml(_relTimeAgo(c.occurred_at))}</span></span><span class="att-coach-chip ${chipCls}">${ackState === "Queued" ? "" : "✓ "}${escapeHtml(ackState)}</span></div>`;
-            sendBtn = `<button class="btn btn-sm btn-ghost" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}" title="Already coached. Send another only if needed.">Send another</button>`;
           } else {
             coachCell = `<span style="color:var(--text-subtle)">—</span>`;
-            sendBtn = `<button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}">Send coaching</button>`;
+          }
+
+          let actionCell = "";
+          if (!policyOn) {
+            const sendBtn = c
+              ? `<button class="btn btn-sm btn-ghost" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}" title="Already coached. Send another only if needed.">Send another</button>`
+              : `<button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}">Send coaching</button>`;
+            actionCell = `<td style="text-align:right">${sendBtn}</td>`;
           }
 
           return `<tr>
@@ -2730,13 +2783,24 @@ async function loadAttendanceEventLog() {
             <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div><div><div class="cell-name" data-rr-driver-id="${d?.id || ev.driver_id || ""}">${escapeHtml(display)}</div></div></div></td>
             <td>${escapeHtml(station)}</td>
             <td><span style="color:${eventColor[ev.status]};font-weight:600">${eventLabel[ev.status]}</span></td>
-            <td style="text-align:right;font-weight:600;color:${occ ? "var(--text)" : "var(--text-subtle)"}">${occ ? "+1 occurrence" : "—"}</td>
+            <td style="text-align:right;font-weight:600;color:${driverTotal >= 2 ? "var(--amber)" : "var(--text)"}">${driverTotal}</td>
             <td>${coachCell}</td>
-            <td style="text-align:right">${sendBtn}</td>
+            ${actionCell}
           </tr>`;
         }).join("")}
       </tbody>
     </table></div>`;
+  _wireAttLogWindow();
+}
+
+function _wireAttLogWindow() {
+  const sel = document.getElementById("rr-att-log-window");
+  if (!sel) return;
+  sel.addEventListener("change", () => {
+    const v = sel.value;
+    _attLogWindowDays = (v === "all") ? "all" : Number(v);
+    loadAttendanceEventLog();
+  });
 }
 
 // ─── Send coaching modal — Event log entry point ────────────────────
@@ -2928,6 +2992,36 @@ window.attTab = function (name) {
   if (name === "report")  loadAttendanceLive();
   if (name === "log")     loadAttendanceEventLog();
 };
+
+// Hide / show the Report tab + auto-route to the Event log when the
+// attendance policy is OFF.  The Event log is the only meaningful
+// view in that mode — the Report's points / occurrences / ladder
+// columns rely on the policy to be interpretable.
+function _rrApplyAttPolicyMode() {
+  const policy   = (typeof _getAttPolicy === "function") ? _getAttPolicy() : {};
+  const isOn     = policy.policy_enabled !== false;
+  const reportTab = document.querySelector('#rr-att-tabstrip [data-att="report"]');
+  const reportPane = document.getElementById("att-pane-report");
+  const logTab     = document.querySelector('#rr-att-tabstrip [data-att="log"]');
+  const logPane    = document.getElementById("att-pane-log");
+  if (!reportTab || !logTab) return;
+
+  if (isOn) {
+    reportTab.style.display = "";
+  } else {
+    reportTab.style.display = "none";
+    // If the Report tab was active when the policy got turned off,
+    // flip to the Event log so the operator isn't staring at a hidden
+    // pane behind a missing button.
+    if (reportTab.classList.contains("active")) {
+      reportTab.classList.remove("active");
+      logTab.classList.add("active");
+      if (reportPane) reportPane.classList.remove("active");
+      if (logPane)    logPane.classList.add("active");
+      loadAttendanceEventLog();
+    }
+  }
+}
 
 // Load the right data when the operator opens a settings section
 // that's hosted by JS rather than baked into the HTML mockup.
@@ -3964,7 +4058,7 @@ window.drSub = function (sub) {
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
-  if (sub === "attendance")   { loadAttendanceLive(); _rrInitAttTabDnD(); }
+  if (sub === "attendance")   { _rrApplyAttPolicyMode(); loadAttendanceLive(); _rrInitAttTabDnD(); }
   if (sub === "coaching")     loadCoachingFeed();
   if (sub === "availability") loadAvailabilityRequests();
   _swapDriversCta(sub);
