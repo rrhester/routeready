@@ -1,52 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   RouteReady · topbar background.
-  Premium SaaS feel: soft white canvas, ethereal flowing topographic
-  lines, three layered wave crests rising gradually from the bottom-
-  right in the brand-blue family.
+  Premium SaaS feel, balanced composition: a soft counter-wave on the
+  left mirrors the layered crests on the right so neither side
+  dominates. Ethereal flowing topographic lines tie the two shores
+  together across the middle.
   Designed at 3200×112 for the 56 px topbar at 2× retina.
-  preserveAspectRatio="xMidYMid slice" + CSS background-size: cover
-  crops gracefully on narrow viewports.
 -->
 <svg xmlns="http://www.w3.org/2000/svg"
      viewBox="0 0 3200 112" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <!-- Canvas: warm-to-cool wash. Most of the bar reads as white. -->
+    <!-- Canvas: symmetric warm wash with the deepest hint of blue at
+         both ends, lightest in the middle, so the eye lands center. -->
     <linearGradient id="rrCanvas" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0"    stop-color="#ffffff"/>
-      <stop offset="0.5"  stop-color="#fcfdff"/>
-      <stop offset="1"    stop-color="#eef3fb"/>
+      <stop offset="0"   stop-color="#f3f7fd"/>
+      <stop offset="0.5" stop-color="#fdfeff"/>
+      <stop offset="1"   stop-color="#eaf0fa"/>
     </linearGradient>
 
-    <!-- Wave fills: each crest dissolves into white, trough sits in
-         soft brand blue. Layered back → middle → front for depth. -->
-    <linearGradient id="rrWBack" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"    stop-color="#dde8f6" stop-opacity="0"/>
-      <stop offset="1"    stop-color="#a8c2eb" stop-opacity="0.55"/>
+    <!-- Right-side wave fills (back / mid / front) — same as before
+         but slightly toned down so they don't out-shout the left. -->
+    <linearGradient id="rrRBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dde8f6" stop-opacity="0"/>
+      <stop offset="1" stop-color="#a8c2eb" stop-opacity="0.50"/>
     </linearGradient>
-    <linearGradient id="rrWMid" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"    stop-color="#c1d6f0" stop-opacity="0"/>
-      <stop offset="1"    stop-color="#88aedd" stop-opacity="0.6"/>
+    <linearGradient id="rrRMid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c1d6f0" stop-opacity="0"/>
+      <stop offset="1" stop-color="#88aedd" stop-opacity="0.55"/>
     </linearGradient>
-    <linearGradient id="rrWFront" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"    stop-color="#a3bfea" stop-opacity="0"/>
-      <stop offset="1"    stop-color="#5e8fd0" stop-opacity="0.65"/>
+    <linearGradient id="rrRFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a3bfea" stop-opacity="0"/>
+      <stop offset="1" stop-color="#6694d3" stop-opacity="0.60"/>
     </linearGradient>
 
-    <!-- Top-edge softener — keeps the bar feeling "lifted". -->
+    <!-- Left-side counter-wave fills — softer, lower-amplitude
+         mirror so the bar feels weighted, not lopsided. -->
+    <linearGradient id="rrLBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e1ebf7" stop-opacity="0"/>
+      <stop offset="1" stop-color="#b6cdef" stop-opacity="0.40"/>
+    </linearGradient>
+    <linearGradient id="rrLFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8d9f2" stop-opacity="0"/>
+      <stop offset="1" stop-color="#8aaedd" stop-opacity="0.45"/>
+    </linearGradient>
+
+    <!-- Top-edge softener so the bar lifts off the page. -->
     <linearGradient id="rrTopLight" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.6"/>
       <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
 
-  <!-- 1. Canvas wash. -->
+  <!-- 1. Canvas wash — light center, soft blue rims at both ends. -->
   <rect width="3200" height="112" fill="url(#rrCanvas)"/>
 
-  <!-- 2. Topographic flow lines — full-width gentle curves so the
-       artwork reads as flowing across the whole bar, not just the
-       wave on the right. -->
-  <g stroke="#7d9fd0" stroke-width="0.6" fill="none" opacity="0.16">
+  <!-- 2. Topographic flow lines — full-width, gentle amplitude.
+       These are the connective tissue between the two shores. -->
+  <g stroke="#7d9fd0" stroke-width="0.6" fill="none" opacity="0.18">
     <path d="M -50 22 C 500 12 1100 36 1700 24 S 2700 14 3260 28"/>
     <path d="M -50 40 C 500 30 1100 56 1700 44 S 2700 32 3260 46"/>
     <path d="M -50 60 C 500 48 1100 76 1700 62 S 2700 50 3260 64"/>
@@ -54,33 +64,41 @@
     <path d="M -50 100 C 500 88 1100 116 1700 102 S 2700 90 3260 104"/>
   </g>
 
-  <!-- 3. Back wave: enters at the left bottom, rises gradually,
-       crest peaks around the right third. Broadest + softest. -->
+  <!-- 3. Left counter-wave (back) — broad, soft, peaks ~ 20% in. -->
   <path d="M -50 112
-           C  600 110  1100 80  1600 65
-           C 2050 55  2400 30  2700 18
-           C 2950 10  3150 14  3260 24
-           L 3260 112 Z"
-        fill="url(#rrWBack)"/>
+           C  100 70  350 50  600 58
+           C  900 68 1200 92 1500 102
+           L 1500 112 Z"
+        fill="url(#rrLBack)"/>
 
-  <!-- 4. Middle wave: enters lower, rises later than the back wave
-       so a slice of back wave shows through. -->
+  <!-- 4. Left counter-wave (front) — narrower, slightly deeper. -->
   <path d="M -50 112
-           C  600 112  1300 96  1800 82
-           C 2200 70  2550 48  2850 38
-           C 3050 32  3200 36  3260 44
-           L 3260 112 Z"
-        fill="url(#rrWMid)"/>
+           C  100 92  300 78  500 84
+           C  750 92  950 104 1100 108
+           L 1100 112 Z"
+        fill="url(#rrLFront)"/>
 
-  <!-- 5. Front wave: enters latest, deepest brand blue, narrowest
-       crest on the right. Anchors the bar's right side. -->
-  <path d="M -50 112
-           C  800 112  1700 108  2200 96
-           C 2500 88  2750 72  2950 60
-           C 3100 52  3220 56  3260 64
+  <!-- 5. Right wave (back) — mirror of the left back, peaks ~ 80% in. -->
+  <path d="M 1700 112
+           C 2000 102 2300 70 2600 50
+           C 2850 35 3050 30 3260 36
            L 3260 112 Z"
-        fill="url(#rrWFront)"/>
+        fill="url(#rrRBack)"/>
 
-  <!-- 6. Top-edge highlight (last so it sits over the waves). -->
+  <!-- 6. Right wave (middle). -->
+  <path d="M 2000 112
+           C 2300 108 2550 78 2800 60
+           C 3000 48 3150 50 3260 56
+           L 3260 112 Z"
+        fill="url(#rrRMid)"/>
+
+  <!-- 7. Right wave (front) — deepest, narrowest crest. -->
+  <path d="M 2300 112
+           C 2550 110 2750 86 2950 70
+           C 3100 58 3220 60 3260 68
+           L 3260 112 Z"
+        fill="url(#rrRFront)"/>
+
+  <!-- 8. Top-edge highlight (last so it sits over the waves). -->
   <rect width="3200" height="32" fill="url(#rrTopLight)"/>
 </svg>
