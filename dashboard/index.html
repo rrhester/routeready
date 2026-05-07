@@ -1507,6 +1507,20 @@ select.form-input{
 .sched-week-arrow svg{width:14px;height:14px;stroke-width:2}
 .sched-week-label{font-size:var(--fs-base);font-weight:600;color:var(--text)}
 .sched-week-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+/* 4-week tab strip · matches the .stage-tabs / .att-tabstrip pill
+   pattern used elsewhere in the dashboard. */
+.sched-week-tab{
+  appearance:none;background:transparent;border:0;font:inherit;
+  padding:8px 14px;border-radius:7px;
+  color:var(--text-muted);cursor:pointer;
+  font-weight:500;font-size:var(--fs-md);
+  display:inline-flex;align-items:center;gap:6px;line-height:1.2;
+}
+.sched-week-tab:hover{color:var(--text)}
+.sched-week-tab.active{
+  background:var(--surface);color:var(--text);
+  font-weight:600;box-shadow:var(--shadow-sm);
+}
 .sched-status-pill{
   display:inline-flex;align-items:center;gap:5px;
   padding:4px 10px;border-radius:12px;font-size:var(--fs-xs);font-weight:600;
@@ -6138,20 +6152,16 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         <!-- WEEK VIEW SUB-VIEW -->
         <div class="sched-subview active" id="sched-sub-week">
 
-          <!-- Lightweight toolbar: week nav + 1 status line + 1 primary action.
-               "Smart Fill" is the branded name for what used to be
-               "Auto-fill week" — staffs the open week from rules + OKAMI
-               demand in one click.  Promoted from btn-sm to a full
-               primary button so it reads as the main action of the page. -->
+          <!-- Toolbar: 4-week tab strip + Smart Fill primary action.
+               First tab is always the current week; the other three are
+               the next three weeks (the planning horizon Settings now
+               syncs against). Date labels populated by renderScheduleWeek. -->
           <div class="sched-toolbar" style="border:none;background:transparent;padding:0;margin-bottom:var(--s-3)">
-            <div class="sched-week-nav">
-              <button class="sched-week-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 18 9 12 15 6"/></svg></button>
-              <div>
-                <div class="sched-week-label">May 1 – May 7, 2026</div>
-                <div class="sched-week-sub" style="font-size:var(--fs-xs);color:var(--text-subtle)">Cycle 14 · 82% filled (37/45 shifts) · OKAMI Week 19</div>
-              </div>
-              <button class="sched-week-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"/></svg></button>
-              <button class="btn btn-sm" style="margin-left:8px">Today</button>
+            <div class="sched-week-tabs" id="rr-sched-week-tabs" style="display:flex;gap:4px;padding:4px;background:var(--canvas);border-radius:10px;width:fit-content">
+              <button type="button" class="sched-week-tab active" data-rr-week-offset="0">Current week</button>
+              <button type="button" class="sched-week-tab" data-rr-week-offset="1">—</button>
+              <button type="button" class="sched-week-tab" data-rr-week-offset="2">—</button>
+              <button type="button" class="sched-week-tab" data-rr-week-offset="3">—</button>
             </div>
             <button class="btn btn-primary" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -15968,7 +15978,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507ao"></script>
+<script type="module" src="./live.js?v=20260507ap"></script>
 
 </body>
 </html>
