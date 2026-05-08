@@ -68,13 +68,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Auto-reply for STOP / HELP, per CTIA / TCPA.
+    // Auto-reply for STOP / HELP, per CTIA / TCPA. Use the DSP's own name
+    // so applicants/drivers see the operator they applied with, not the
+    // platform brand.
+    let dspName = "this service";
+    if (dsp_id) {
+      const { data: dspRow } = await supa.from("dsps").select("name").eq("id", dsp_id).maybeSingle();
+      if (dspRow?.name) dspName = dspRow.name;
+    }
     const upper = body.trim().toUpperCase();
     let reply: string | null = null;
     if (upper === "STOP" || upper === "STOPALL" || upper === "UNSUBSCRIBE" || upper === "CANCEL" || upper === "QUIT" || upper === "END") {
-      reply = "You're unsubscribed and won't receive further RouteReady messages. Reply START to opt back in.";
+      reply = `You're unsubscribed and won't receive further ${dspName} messages. Reply START to opt back in.`;
     } else if (upper === "HELP" || upper === "INFO") {
-      reply = "RouteReady · Driver hiring updates. Msg & data rates may apply. Reply STOP to opt out. support@gorouteready.com";
+      reply = `${dspName} · Driver hiring updates. Msg & data rates may apply. Reply STOP to opt out.`;
     }
     if (reply) {
       // TwiML response — Twilio will dispatch this back to the sender.

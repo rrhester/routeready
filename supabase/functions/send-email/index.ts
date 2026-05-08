@@ -14,6 +14,19 @@ interface QueuedRow {
   attachments: Attachment[] | null;
 }
 
+// Rebuild the Resend "From" header so the display name comes from the
+// per-DSP name (gear icon → Workspace settings) and the email address
+// comes from RESEND_FROM_EMAIL. Recipient sees "Acme Logistics
+// <hello@gorouteready.com>" instead of the platform brand.
+function brandedFrom(envFrom: string, dspName: string | null | undefined): string {
+  if (!dspName) return envFrom;
+  const m = envFrom.match(/<([^>]+)>/);
+  const addr = m ? m[1] : envFrom;
+  // Quote the display name if it contains special chars per RFC 5322.
+  const safe = /[",<>@]/.test(dspName) ? `"${dspName.replace(/"/g, '\\"')}"` : dspName;
+  return `${safe} <${addr}>`;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
@@ -37,12 +50,24 @@ Deno.serve(async (req) => {
   if (error) return badRequest(error.message, 500);
   if (!rows || rows.length === 0) return jsonResponse({ sent: 0 });
 
+  // Look up DSP names for every dsp_id in this batch in one round-trip.
+  const dspIds = Array.from(new Set(rows.map((r) => r.dsp_id).filter(Boolean)));
+  const dspNameById = new Map<string, string>();
+  if (dspIds.length > 0) {
+    const { data: dspRows } = await supa.from("dsps").select("id, name").in("id", dspIds);
+    for (const d of dspRows ?? []) {
+      if (d?.id && d?.name) dspNameById.set(d.id as string, d.name as string);
+    }
+  }
+
   let sent = 0;
   for (const row of rows as QueuedRow[]) {
     await supa.from("email_messages").update({ status: "sending" }).eq("id", row.id);
 
+    const fromHeader = brandedFrom(from, dspNameById.get(row.dsp_id) ?? null);
+
     const body: Record<string, unknown> = {
-      from, to: [row.to_email], subject: row.subject,
+      from: fromHeader, to: [row.to_email], subject: row.subject,
     };
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
@@ -83,7 +108,7 @@ Deno.serve(async (req) => {
       status: "sent",
       provider: "resend",
       provider_message_id: data.id,
-      from_email: from,
+      from_email: fromHeader,
       reply_to: replyTo ?? null,
       sent_at: new Date().toISOString(),
     }).eq("id", row.id);
