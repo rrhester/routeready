@@ -12166,6 +12166,8 @@ async function openOkamiOverlay() {
     window._rrOkamiAnchorOverride = _schedStart;
   }
   okami.classList.add("rr-okami-overlay");
+  const backdrop = document.getElementById("rr-okami-backdrop");
+  if (backdrop) backdrop.classList.add("open");
 
   // Update the page title to reflect the single-week scope. The
   // CSS hides the "13-week plan" badge in overlay mode; we set the
@@ -12200,6 +12202,8 @@ async function openOkamiOverlay() {
 function closeOkamiOverlay() {
   const okami = document.getElementById("view-okami");
   if (okami) okami.classList.remove("rr-okami-overlay");
+  const backdrop = document.getElementById("rr-okami-backdrop");
+  if (backdrop) backdrop.classList.remove("open");
   // Restore the strategic page title for the next time someone
   // navigates to OKAMI through any non-overlay path.
   const titleEl = document.getElementById("rr-okami-page-title");
@@ -12234,7 +12238,7 @@ document.addEventListener("click", (e) => {
     openOkamiOverlay();
     return;
   }
-  if (e.target.closest("#rr-okami-close")) {
+  if (e.target.closest("#rr-okami-close") || e.target.id === "rr-okami-backdrop") {
     e.preventDefault();
     closeOkamiOverlay();
     return;
