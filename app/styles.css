@@ -449,7 +449,15 @@ select.field{
 .shift-card .date-dow{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase}
 .shift-card .date-day{font-size:var(--fs-xxl);font-weight:700;line-height:1;letter-spacing:-.02em;margin-top:2px}
 .shift-card .date-month{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+.shift-card .meta-time-row{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;
+}
 .shift-card .meta-time{font-size:var(--fs-lg);font-weight:600;font-variant-numeric:tabular-nums}
+.shift-card .meta-wave-tag{
+  font-size:12px;font-weight:600;color:var(--text-muted);
+  background:var(--canvas);padding:2px 8px;border-radius:6px;
+  white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:.01em;
+}
 .shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px}
 .shift-card .meta-tags{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
 .shift-card .tag{
