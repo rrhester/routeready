@@ -512,18 +512,22 @@ function shiftCardHtml(s, isToday) {
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
 
-  // Block range stays as the headline time so drivers see "what hours
-  // am I working" at a glance. When the DSP has set a clock-in lead,
-  // the second line spells out the wave time so drivers know the
-  // route doesn't actually depart until then.
+  // The block range using starts_at / ends_at IS the scheduled time —
+  // the time we're telling the driver to arrive at the station and the
+  // hours they're being paid for. When the DSP has set a report-lead,
+  // the route's actual departure time (wave_starts_at = starts_at +
+  // report_lead) is rendered as a small "Wave HH:MMam" tag on the
+  // right of the time row so the driver can tell the two apart at a
+  // glance. No tag when scheduled == wave (lead = 0) to avoid
+  // redundant info.
   const blockRange = (s.starts_at && s.ends_at)
     ? `${fmtTime(s.starts_at)} – ${fmtTime(s.ends_at)}`
     : "";
   const hasLead = s.reportLeadMinutes > 0
     && s.wave_starts_at
     && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
-  const waveLine = hasLead
-    ? `Clock in for <strong>${escapeHtml(fmtTime(s.wave_starts_at))}</strong> wave`
+  const waveTag = hasLead
+    ? `<span class="meta-wave-tag">Wave ${escapeHtml(fmtTime(s.wave_starts_at))}</span>`
     : "";
 
   const tags = [];
@@ -537,9 +541,11 @@ function shiftCardHtml(s, isToday) {
         <div class="date-day">${day}</div>
         <div class="date-month">${month}</div>
       </div>
-      <div>
-        <div class="meta-time">${escapeHtml(blockRange)}</div>
-        ${waveLine ? `<div class="meta-wave" style="font-size:13px;color:var(--text-subtle);margin-top:2px">${waveLine}</div>` : ""}
+      <div style="flex:1;min-width:0">
+        <div class="meta-time-row">
+          <div class="meta-time">${escapeHtml(blockRange)}</div>
+          ${waveTag}
+        </div>
         <div class="meta-station">${escapeHtml(s.station)}</div>
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
       </div>
@@ -2074,10 +2080,12 @@ async function renderCheckinCard(session) {
     ? new Date(shift.window_open_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : "—";
 
-  // When the DSP has set a clock-in lead, the shift's starts_at is
-  // the report time and the actual route departs at wave_starts_at.
-  // Build a short suffix so the check-in button reads
-  // "Station · 10:00 (wave 10:20)" instead of just "Station · 10:00".
+  // starts_at is the scheduled / report time the driver clocks in at.
+  // When the DSP has set a report-lead, the route departs at
+  // wave_starts_at = starts_at + report_lead. The check-in button
+  // shows both, labeled "Wave" so the driver knows which is which:
+  // "KMO1 · 10:00am · Wave 10:20am". When lead = 0, only the
+  // scheduled time appears.
   const hasReportLead = shift.report_lead_minutes > 0
     && shift.wave_starts_at
     && new Date(shift.wave_starts_at).getTime() !== new Date(shift.starts_at).getTime();
@@ -2085,7 +2093,7 @@ async function renderCheckinCard(session) {
     ? new Date(shift.wave_starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : "";
   const startWithWave = hasReportLead
-    ? `${startsAtTxt} (wave ${waveTxt})`
+    ? `${startsAtTxt} · Wave ${waveTxt}`
     : startsAtTxt;
 
   const chk = status?.checkin;
