@@ -38,7 +38,10 @@
   const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
   const root = document.getElementById("root");
 
-  const token = new URLSearchParams(location.search).get("r");
+  // Token comes from ?r=… on the long URL, or from /r/<token> path on
+  // the short URL (Netlify status=200 rewrite keeps the short path).
+  const pathMatch = location.pathname.match(/^\/r\/([^/?#]+)/);
+  const token = new URLSearchParams(location.search).get("r") || (pathMatch && pathMatch[1]);
   if (!token) {
     root.innerHTML = `<h1>Invalid link</h1><p class="sub">This referral link is missing the driver code. Please use the link your friend shared with you.</p>`;
     throw new Error("no token");

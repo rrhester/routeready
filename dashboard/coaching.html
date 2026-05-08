@@ -73,7 +73,10 @@ const cfg = window.RR_CONFIG;
 const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
 const params = new URLSearchParams(location.search);
-const token = params.get("t") || params.get("token");
+// Token comes from ?t=… on the long URL, or from /c/<token> path on
+// the short URL (Netlify status=200 rewrite keeps the short path).
+const pathMatch = location.pathname.match(/^\/c\/([^/?#]+)/);
+const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]);
 const root = document.getElementById("content");
 const sub  = document.getElementById("page-sub");
 
