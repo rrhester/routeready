@@ -10220,21 +10220,43 @@ function _renderAvailabilitySettingsPanel(s) {
       <label style="font-size:var(--fs-md);font-weight:600">Deny auto-response<br><span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">Sent to the driver when you deny. Placeholders: {days} {note}</span></label>
       <textarea id="rr-avail-deny-tmpl" rows="3" class="form-input form-input-block">${escapeHtml(s.deny_template || "")}</textarea>
     </div>
-    <div style="text-align:right;margin-top:14px">
-      <button class="btn btn-primary" id="rr-avail-settings-save">Save settings</button>
-    </div>`;
-  document.getElementById("rr-avail-settings-save").addEventListener("click", async () => {
-    const btn = document.getElementById("rr-avail-settings-save");
-    btn.disabled = true; btn.textContent = "Saving…";
-    const { error } = await sb.rpc("availability_settings_set", {
-      p_lead_days:        Number(document.getElementById("rr-avail-lead").value || 7),
-      p_approve_template: document.getElementById("rr-avail-approve-tmpl").value,
-      p_deny_template:    document.getElementById("rr-avail-deny-tmpl").value,
-    });
-    btn.disabled = false; btn.textContent = "Save settings";
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
-    toast("Settings saved", "success");
+    <div id="rr-avail-settings-status" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:14px;text-align:right;min-height:14px">Auto-saves when you click outside a field.</div>`;
+
+  // Auto-save on blur. One submit per field-change is fine — the RPC
+  // takes all three values, the database does an upsert, and the
+  // values we send are read live from the inputs each time.
+  const status = document.getElementById("rr-avail-settings-status");
+  const lead   = document.getElementById("rr-avail-lead");
+  const appr   = document.getElementById("rr-avail-approve-tmpl");
+  const deny   = document.getElementById("rr-avail-deny-tmpl");
+  const snapshot = () => ({
+    lead: lead.value, appr: appr.value, deny: deny.value,
   });
+  let lastSaved = snapshot();
+  const persist = async () => {
+    const cur = snapshot();
+    if (cur.lead === lastSaved.lead && cur.appr === lastSaved.appr && cur.deny === lastSaved.deny) return;
+    status.textContent = "Saving…";
+    status.style.color = "var(--text-subtle)";
+    const { error } = await sb.rpc("availability_settings_set", {
+      p_lead_days:        Number(cur.lead || 7),
+      p_approve_template: cur.appr,
+      p_deny_template:    cur.deny,
+    });
+    if (error) {
+      status.textContent = "Save failed: " + error.message;
+      status.style.color = "var(--red)";
+      return;
+    }
+    lastSaved = cur;
+    const t = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    status.textContent = `Saved at ${t}`;
+    status.style.color = "var(--text-subtle)";
+  };
+  lead.addEventListener("blur", persist);
+  lead.addEventListener("change", persist);
+  appr.addEventListener("blur", persist);
+  deny.addEventListener("blur", persist);
 }
 
 // Last of the merge-loss casualties — without this _renderAvailabilityRows
