@@ -13465,7 +13465,10 @@ async function renderScheduleWeek() {
     kpis.id = "rr-sched-kpis";
     kpis.className = "driver-stat-row";
     kpis.style.cssText = "grid-template-columns:repeat(5,minmax(0,1fr))";
-    const toolbar = sub.querySelector(".sched-toolbar");
+    // Anchor: insert directly after the toolbar rail. Selector covers
+    // both the new .sched-toolbar-rail (#524) and the legacy
+    // .sched-toolbar in case any DSP is on a stale bundle.
+    const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
     if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
   } else {
     kpis.className = "driver-stat-row";
@@ -13507,6 +13510,14 @@ async function renderScheduleWeek() {
     kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
     kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone);
   kpis.dataset.rrViolations = JSON.stringify(violations);
+  // Visual cue that the violations card opens a modal — match the
+  // .stat-mini-clickable pattern other KPI strips use.
+  const violationsCard = kpis.querySelector("div:nth-child(5)");
+  if (violationsCard) {
+    violationsCard.style.cursor = "pointer";
+    violationsCard.style.transition = "border-color .12s, box-shadow .12s";
+    violationsCard.title = violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`;
+  }
 
   // ── Day headers (skip first cell which is "Driver")
   const headRow = sub.querySelector(".cal-grid.head");
