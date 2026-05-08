@@ -6708,14 +6708,12 @@ async function loadCalBookingsList() {
 // CRUD. Inline edit toggles between a read row and a tiny form.
 
 async function loadScreeningQuestionsList() {
-  // Now lives inside the Pipeline → Screening subtab. Containers are
-  // pre-rendered in the static HTML; we just fill the row list.
-  const subview = document.getElementById("pipe-sub-screening");
-  if (!subview) return;
-  // Also rehydrate the video settings card.
-  loadVideoScreeningSettings();
-  const container = subview.querySelector("[data-rr-questions]");
+  // Lives in Settings → Screening questions. Use a global selector so we
+  // also catch the row container if the section markup ever moves again.
+  const container = document.querySelector("[data-rr-questions]");
   if (!container) return;
+  // Also rehydrate the video settings card (same Settings section).
+  loadVideoScreeningSettings();
 
   const { data: rows, error } = await sb.from("screening_questions")
     .select("id, prompt, field_type, options, required, hard_filter, scoring, display_order, active")
