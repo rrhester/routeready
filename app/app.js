@@ -455,6 +455,12 @@ async function renderSchedule() {
       iso:       s.date,
       starts_at: s.starts_at,
       ends_at:   s.ends_at,
+      // wave_starts_at = the actual route departure time. starts_at is
+      // when the driver clocks in (= wave - report_lead_minutes). When
+      // the DSP hasn't set a lead, the two are equal and the app
+      // collapses the display back to a single time.
+      wave_starts_at:     s.wave_starts_at || s.starts_at,
+      reportLeadMinutes:  s.report_lead_minutes || 0,
       station:   s.station_code || "",
       status:    s.status,
       type:      s.service_type_code || "",
@@ -505,9 +511,21 @@ function shiftCardHtml(s, isToday) {
   const dow = s.date.toLocaleDateString(undefined, { weekday: "short" });
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
-  const time = (s.starts_at && s.ends_at)
+
+  // Block range stays as the headline time so drivers see "what hours
+  // am I working" at a glance. When the DSP has set a clock-in lead,
+  // the second line spells out the wave time so drivers know the
+  // route doesn't actually depart until then.
+  const blockRange = (s.starts_at && s.ends_at)
     ? `${fmtTime(s.starts_at)} – ${fmtTime(s.ends_at)}`
     : "";
+  const hasLead = s.reportLeadMinutes > 0
+    && s.wave_starts_at
+    && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
+  const waveLine = hasLead
+    ? `Clock in for <strong>${escapeHtml(fmtTime(s.wave_starts_at))}</strong> wave`
+    : "";
+
   const tags = [];
   if (s.status === "completed") tags.push(`<span class="tag" style="background:var(--canvas)">Completed</span>`);
   if (s.type && s.type !== "SP") tags.push(`<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`);
@@ -520,7 +538,8 @@ function shiftCardHtml(s, isToday) {
         <div class="date-month">${month}</div>
       </div>
       <div>
-        <div class="meta-time">${escapeHtml(time)}</div>
+        <div class="meta-time">${escapeHtml(blockRange)}</div>
+        ${waveLine ? `<div class="meta-wave" style="font-size:13px;color:var(--text-subtle);margin-top:2px">${waveLine}</div>` : ""}
         <div class="meta-station">${escapeHtml(s.station)}</div>
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
       </div>
@@ -2055,6 +2074,20 @@ async function renderCheckinCard(session) {
     ? new Date(shift.window_open_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : "—";
 
+  // When the DSP has set a clock-in lead, the shift's starts_at is
+  // the report time and the actual route departs at wave_starts_at.
+  // Build a short suffix so the check-in button reads
+  // "Station · 10:00 (wave 10:20)" instead of just "Station · 10:00".
+  const hasReportLead = shift.report_lead_minutes > 0
+    && shift.wave_starts_at
+    && new Date(shift.wave_starts_at).getTime() !== new Date(shift.starts_at).getTime();
+  const waveTxt = hasReportLead
+    ? new Date(shift.wave_starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : "";
+  const startWithWave = hasReportLead
+    ? `${startsAtTxt} (wave ${waveTxt})`
+    : startsAtTxt;
+
   const chk = status?.checkin;
 
   // Already missed-day reported.
@@ -2117,11 +2150,11 @@ async function renderCheckinCard(session) {
   const primary    = windowOpen
     ? `<button class="checkin-btn" id="rr-checkin-btn" type="button">
          Check in
-         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startsAtTxt)}</span>
+         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startWithWave)}</span>
        </button>`
     : `<button class="checkin-btn" id="rr-checkin-btn" type="button" disabled>
          Opens at ${escapeHtml(windowOpenTxt)}
-         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startsAtTxt)}</span>
+         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startWithWave)}</span>
        </button>`;
 
   slot.innerHTML = `
