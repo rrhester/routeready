@@ -847,7 +847,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
 async function init() {
   const params = new URLSearchParams(window.location.search);
-  screeningToken = params.get("t") || params.get("token") || "";
+  // Token comes from the query string on the long URL
+  // (/dashboard/screening.html?t=…) or from the path on the short URL
+  // (/s/<token>). Netlify's status=200 rewrite preserves the short
+  // path in the browser, so location.search is empty in that case.
+  const pathMatch = window.location.pathname.match(/^\/s\/([^/?#]+)/);
+  screeningToken = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]) || "";
   uploadId = "up_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
 
   if (!screeningToken) {
