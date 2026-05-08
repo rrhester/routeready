@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>RouteReady Desktop</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">RR</div>
+      <div>
+        <div class="brand-name">RouteReady Desktop</div>
+        <div class="brand-sub">DSP portal sync</div>
+      </div>
+    </div>
+    <div class="status-pill" id="session-status">Checking session…</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1 · Sign in to your DSP portal</h2>
+      <p class="muted">
+        Open Amazon's DSP portal in a managed browser window, sign in with your
+        usual SSO + MFA, then click <em>I'm signed in</em>. Your session stays
+        on this machine — encrypted in the OS keychain.
+      </p>
+      <div class="row">
+        <button id="btn-login" class="btn btn-primary">Open portal &amp; sign in</button>
+        <button id="btn-confirm-login" class="btn" disabled>I'm signed in</button>
+        <button id="btn-logout" class="btn btn-ghost">Forget session</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2 · Verify session</h2>
+      <p class="muted">
+        Headless probe of the DSP portal home. Confirms the cached session is
+        still valid before we run a sync.
+      </p>
+      <div class="row">
+        <button id="btn-probe" class="btn">Probe portal</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3 · Pull today's routes</h2>
+      <p class="muted">
+        Coming next: read MIDWAY route plan for today, push assignments back,
+        and download pick sheets.
+      </p>
+      <div class="row">
+        <button id="btn-pull-routes" class="btn" disabled>Pull routes</button>
+      </div>
+    </section>
+
+    <section class="card log">
+      <h2>Activity</h2>
+      <pre id="log"></pre>
+    </section>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
