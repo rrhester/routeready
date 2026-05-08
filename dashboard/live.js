@@ -778,7 +778,8 @@ function visibleDriversForStage(rows, stage) {
     case "onboarding": out = rows.filter(r => r.status === "onboarding"); break;
     case "active":     out = rows.filter(r => r.status === "active"); break;
     case "atrisk":     out = rows.filter(r => r.status === "active" && (r.score ?? 999) < 70); break;
-    case "inactive":   out = rows.filter(r => ["leave","inactive","terminated"].includes(r.status)); break;
+    case "onleave":    out = rows.filter(r => r.status === "leave"); break;
+    case "inactive":   out = rows.filter(r => ["inactive","terminated"].includes(r.status)); break;
     default:           out = rows;
   }
   return _applyRosterFiltersAndSort(out);
@@ -5141,7 +5142,9 @@ async function refreshDriverStatRow(rows) {
   // Active / onboarding / inactive counts.
   const counts = { active: 0, onboarding: 0, leave: 0, inactive: 0, terminated: 0 };
   for (const r of rows) counts[r.status] = (counts[r.status] || 0) + 1;
-  const inactiveTotal = (counts.inactive || 0) + (counts.leave || 0) + (counts.terminated || 0);
+  // On-leave drivers got their own tab (PR for LOA visibility), so the
+  // legacy Inactive bucket no longer rolls them in.
+  const inactiveTotal = (counts.inactive || 0) + (counts.terminated || 0);
 
   const atRiskCount = rows.filter(r => r.status === "active" && (r.score ?? 999) < 70).length;
 
@@ -5149,6 +5152,7 @@ async function refreshDriverStatRow(rows) {
     active:     counts.active,
     onboarding: counts.onboarding,
     atrisk:     atRiskCount,
+    onleave:    counts.leave,
     inactive:   inactiveTotal,
   };
   Object.entries(tabCounts).forEach(([stage, n]) => {
