@@ -895,7 +895,106 @@ a{color:inherit;text-decoration:none}
   color:var(--text-subtle);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
 }
 .rr-drawer-close:hover{background:var(--surface-hover);color:var(--text)}
-.rr-drawer-body{flex:1;overflow-y:auto;padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4)}
+.rr-drawer-body{flex:1;overflow-y:auto;padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-5)}
+
+/* Schedule-settings drawer form: same visual language as the rest
+   of the site's Settings panels (form-row pattern), but compressed
+   for a 520px drawer. Label column 150px (vs 200 site-wide), unit
+   suffix sits inline with the input, single-column flow. */
+.rr-drawer-section{
+  display:flex;flex-direction:column;
+}
+.rr-drawer-section + .rr-drawer-section{
+  margin-top:var(--s-4);padding-top:var(--s-4);border-top:1px solid var(--border);
+}
+.rr-drawer-section-head{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+  margin-bottom:var(--s-3);
+}
+.rr-drawer-section-title{
+  font-size:var(--fs-sm);font-weight:600;color:var(--text);
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.rr-drawer-section-help{
+  font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5;
+  margin-bottom:var(--s-3);margin-top:-4px;
+}
+
+.rr-drawer-form-row{
+  display:grid;grid-template-columns:150px 1fr;gap:var(--s-4);
+  align-items:center;padding:var(--s-3) 0;
+}
+.rr-drawer-form-row + .rr-drawer-form-row{border-top:1px solid var(--border)}
+.rr-drawer-form-label{font-size:var(--fs-md);font-weight:500;color:var(--text);line-height:1.3}
+.rr-drawer-form-help{font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.4}
+.rr-drawer-form-control{
+  display:flex;align-items:center;gap:8px;justify-content:flex-end;
+}
+.rr-drawer-num-input{
+  width:80px;text-align:right;font-variant-numeric:tabular-nums;
+}
+.rr-drawer-unit{
+  font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;
+  min-width:34px;text-align:left;
+}
+
+/* Wave row */
+.rr-drawer-waves{display:flex;flex-direction:column;gap:6px}
+.rr-drawer-wave-row{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 8px 6px 10px;background:var(--canvas);border-radius:var(--r-md);
+}
+.rr-drawer-wave-row .form-input{flex:1;max-width:140px;height:30px;font-size:var(--fs-sm)}
+.rr-drawer-wave-remove{
+  width:24px;height:24px;border-radius:var(--r-md);
+  background:transparent;border:none;color:var(--text-subtle);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  margin-left:auto;
+}
+.rr-drawer-wave-remove:hover{background:var(--surface);color:var(--red)}
+
+/* Service-type row */
+.rr-drawer-service-types{display:flex;flex-direction:column;gap:6px}
+.rr-drawer-st-row{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;background:var(--canvas);border-radius:var(--r-md);
+  border:1px solid transparent;transition:border-color .12s ease;
+}
+.rr-drawer-st-row:has([data-rr-st-active]:checked){border-color:var(--border)}
+.rr-drawer-st-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+}
+.rr-drawer-st-code{
+  font-size:11px;font-weight:700;letter-spacing:.06em;
+  color:var(--text);min-width:36px;font-family:'SF Mono',Menlo,monospace;
+}
+.rr-drawer-st-label{
+  font-size:var(--fs-sm);color:var(--text);flex:1;
+}
+
+/* Inline toggle (used for "Allow availability override") */
+.rr-toggle{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer}
+.rr-toggle input{opacity:0;width:0;height:0;position:absolute}
+.rr-toggle-track{
+  position:absolute;inset:0;background:var(--border-strong);border-radius:10px;
+  transition:background .15s ease;
+}
+.rr-toggle-thumb{
+  position:absolute;top:2px;left:2px;width:16px;height:16px;
+  background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(15,23,42,.18);
+  transition:transform .15s ease;
+}
+.rr-toggle input:checked + .rr-toggle-track{background:var(--accent)}
+.rr-toggle input:checked + .rr-toggle-track .rr-toggle-thumb{transform:translateX(16px)}
+
+/* Sticky drawer footer for Save + status */
+.rr-drawer-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+  padding:var(--s-3) var(--s-5);border-top:1px solid var(--border);
+  background:var(--surface);
+  flex-shrink:0;
+}
+.rr-drawer-status{font-size:var(--fs-xs);color:var(--text-subtle)}
 
 .coach-drawer{
   position:fixed;top:0;right:0;bottom:0;width:480px;max-width:92vw;
@@ -6675,56 +6774,85 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             </button>
           </div>
           <div class="rr-drawer-body">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-              <div>
-                <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Default block length</div>
-                <input class="form-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1" style="width:120px"/>
-                <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px">hours per shift</span>
-              </div>
-              <div>
-                <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Cushion</div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <input class="form-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1" style="width:120px"/>
-                  <span style="font-size:var(--fs-xs);color:var(--text-subtle)">% extra above OKAMI</span>
-                  <button type="button" id="rr-cushion-rec" style="display:none;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;padding:4px 8px;cursor:pointer" title="Click to use this value"></button>
-                  <a href="#drivers" id="rr-cushion-att-link" onclick="goto('drivers');setTimeout(function(){drSub('attendance');},50);return false" title="Attendance report" aria-label="Attendance report" style="display:inline-flex;align-items:center;color:var(--text-subtle);text-decoration:none">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                  </a>
+            <!-- Capacity & timing -->
+            <div class="rr-drawer-section">
+              <div class="rr-drawer-form-row">
+                <div>
+                  <div class="rr-drawer-form-label">Block length</div>
+                  <div class="rr-drawer-form-help">Hours per shift.</div>
                 </div>
-                <div id="rr-cushion-rec-detail" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;display:none"></div>
+                <div class="rr-drawer-form-control">
+                  <input class="form-input rr-drawer-num-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1"/>
+                  <span class="rr-drawer-unit">hours</span>
+                </div>
               </div>
-              <div>
-                <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Max days per week</div>
-                <input class="form-input" id="rr-set-max-days" type="number" min="1" max="7" step="1" style="width:120px"/>
-                <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px">per driver · auto-assign cap</span>
+              <div class="rr-drawer-form-row">
+                <div>
+                  <div class="rr-drawer-form-label">Cushion</div>
+                  <div class="rr-drawer-form-help">Extra shifts above the route plan. <span id="rr-cushion-rec"></span></div>
+                </div>
+                <div class="rr-drawer-form-control">
+                  <input class="form-input rr-drawer-num-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1"/>
+                  <span class="rr-drawer-unit">%</span>
+                </div>
               </div>
-              <div>
-                <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Report time</div>
-                <input class="form-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5" style="width:120px"/>
-                <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px">min before wave · drivers clock in this early</span>
+              <div class="rr-drawer-form-row">
+                <div>
+                  <div class="rr-drawer-form-label">Max days per week</div>
+                  <div class="rr-drawer-form-help">Auto-assign cap per driver.</div>
+                </div>
+                <div class="rr-drawer-form-control">
+                  <input class="form-input rr-drawer-num-input" id="rr-set-max-days" type="number" min="1" max="7" step="1"/>
+                  <span class="rr-drawer-unit">days</span>
+                </div>
               </div>
-              <div style="grid-column:1 / -1;display:flex;align-items:flex-start;gap:10px;background:var(--canvas);padding:10px 12px;border-radius:8px">
-                <input type="checkbox" id="rr-set-availability-override" style="margin-top:3px;cursor:pointer"/>
-                <label for="rr-set-availability-override" style="cursor:pointer">
-                  <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">Allow availability override</div>
-                  <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:2px">Smart Fill ignores each driver's availability when no eligible driver matches a day. Use this on tight weeks when you need every shift filled.</div>
-                </label>
+              <div class="rr-drawer-form-row">
+                <div>
+                  <div class="rr-drawer-form-label">Report time</div>
+                  <div class="rr-drawer-form-help">Drivers clock in this many minutes before the wave.</div>
+                </div>
+                <div class="rr-drawer-form-control">
+                  <input class="form-input rr-drawer-num-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5"/>
+                  <span class="rr-drawer-unit">min</span>
+                </div>
               </div>
-              <div style="grid-column:1 / -1">
-                <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Wave start times</div>
-                <div id="rr-set-waves" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
-                <button class="btn btn-sm" id="rr-set-add-wave" type="button">+ Add wave</button>
-              </div>
-              <div style="grid-column:1 / -1">
-                <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Service types</div>
-                <div id="rr-set-service-types" style="display:flex;flex-direction:column;gap:6px"></div>
-                <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Activate the route categories your DSP runs. Inactive types are hidden in OKAMI; activating one shows a new demand row per wave.</div>
-              </div>
-              <div style="grid-column:1 / -1;border-top:1px solid var(--border);padding-top:10px;display:flex;gap:8px;align-items:center">
-                <button class="btn btn-primary btn-sm" id="rr-set-sched-save" type="button">Save</button>
-                <span id="rr-set-sched-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
+              <div class="rr-drawer-form-row">
+                <div>
+                  <div class="rr-drawer-form-label">Availability override</div>
+                  <div class="rr-drawer-form-help">Smart Fill ignores driver availability when no one matches a day. Use on tight weeks.</div>
+                </div>
+                <div class="rr-drawer-form-control">
+                  <label class="rr-toggle">
+                    <input type="checkbox" id="rr-set-availability-override"/>
+                    <span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span>
+                  </label>
+                </div>
               </div>
             </div>
+
+            <!-- Wave start times -->
+            <div class="rr-drawer-section">
+              <div class="rr-drawer-section-head">
+                <div class="rr-drawer-section-title">Wave start times</div>
+                <button class="btn btn-sm" id="rr-set-add-wave" type="button">+ Add wave</button>
+              </div>
+              <div id="rr-set-waves" class="rr-drawer-waves"></div>
+            </div>
+
+            <!-- Service types -->
+            <div class="rr-drawer-section">
+              <div class="rr-drawer-section-head">
+                <div class="rr-drawer-section-title">Service types</div>
+              </div>
+              <div class="rr-drawer-section-help">Activate the route categories your DSP runs. Inactive types are hidden in OKAMI; activating one adds a demand row per wave.</div>
+              <div id="rr-set-service-types" class="rr-drawer-service-types"></div>
+            </div>
+          </div>
+
+          <!-- Sticky footer · Save + status -->
+          <div class="rr-drawer-foot">
+            <span id="rr-set-sched-status" class="rr-drawer-status"></span>
+            <button class="btn btn-primary btn-sm" id="rr-set-sched-save" type="button">Save</button>
           </div>
         </aside><!-- /sched-sub-settings -->
 

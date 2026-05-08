@@ -12008,19 +12008,15 @@ async function loadSchedulingSettings() {
       const total = scheduledRes.count || 0;
       const absences = absentRes.count || 0;
       const rate = total > 0 ? (absences / total * 100) : 0;
-      labelEl.style.display = "inline-block";
-      labelEl.style.cursor = "default";
-      labelEl.style.background = "transparent";
-      labelEl.style.border = "0";
-      labelEl.style.padding = "0";
-      labelEl.style.color = "var(--text-subtle)";
-      labelEl.style.fontWeight = "500";
+      // Inline absence rate hint inside the Cushion field's help line.
+      // The span lives in the help text and just shows informational
+      // rate; no longer a button.
       labelEl.textContent = total > 0
-        ? `${rate.toFixed(1)}% absence · last 30d`
-        : "No data yet";
+        ? ` · ${rate.toFixed(1)}% absence last 30d`
+        : "";
       labelEl.title = total > 0
         ? `${absences} callouts + no-shows over ${total} scheduled shifts`
-        : "Once you have a few weeks of attendance data we'll show it here";
+        : "";
     } catch (e) {
       console.warn("attendance rate label:", e);
     }
@@ -12057,18 +12053,23 @@ async function loadServiceTypes() {
   _okamiServiceTypes = types;
   if (!wrap) return;
   wrap.innerHTML = types.map(t => `
-    <div data-rr-st="${t.id}" style="display:flex;gap:10px;align-items:center;padding:6px 8px;background:var(--canvas);border-radius:6px">
-      <input type="checkbox" data-rr-st-active ${t.active ? "checked" : ""} style="cursor:pointer" title="Active in OKAMI"/>
-      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(t.color)};flex-shrink:0"></span>
-      <strong style="font-size:var(--fs-sm);letter-spacing:.04em;width:42px">${escapeHtml(t.code)}</strong>
-      <input type="text" data-rr-st-label class="form-input" value="${escapeHtml(t.label)}" style="flex:1;font-size:var(--fs-sm);height:28px"/>
+    <div data-rr-st="${t.id}" class="rr-drawer-st-row">
+      <label class="rr-toggle" title="Active in OKAMI">
+        <input type="checkbox" data-rr-st-active ${t.active ? "checked" : ""}/>
+        <span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span>
+      </label>
+      <span class="rr-drawer-st-dot" style="background:${escapeHtml(t.color)}"></span>
+      <span class="rr-drawer-st-code">${escapeHtml(t.code)}</span>
+      <input type="text" data-rr-st-label class="rr-drawer-st-label" value="${escapeHtml(t.label)}"/>
     </div>`).join("");
 }
 
 function _renderWaveRow(start) {
-  return `<div data-rr-wave style="display:flex;gap:6px;align-items:center">
-    <input type="time" class="form-input" data-rr-wave-time value="${escapeHtml(start || "07:00")}" style="max-width:140px"/>
-    <button type="button" class="btn btn-sm" data-rr-remove-wave style="color:var(--red)">Remove</button>
+  return `<div data-rr-wave class="rr-drawer-wave-row">
+    <input type="time" class="form-input" data-rr-wave-time value="${escapeHtml(start || "07:00")}"/>
+    <button type="button" class="rr-drawer-wave-remove" data-rr-remove-wave title="Remove" aria-label="Remove wave">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
   </div>`;
 }
 
