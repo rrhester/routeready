@@ -4602,22 +4602,46 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .hp-stats-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--canvas)}
           .hp-stats-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .3s;width:62%}
 
-          /* Tiny per-week breakdown — text only, no big colored cards */
+          /* 5-week pipeline forecast — laid out as a row of subtle
+             cards so it visually rhymes with the KPI strip above
+             instead of reading as a debug toolbar. Wrapper is
+             transparent; each week is its own card. */
           .hp-weeks-strip{
-            display:flex;align-items:center;gap:0;
-            padding:10px 14px;margin-bottom:var(--s-4);
-            background:var(--canvas);border:1px solid var(--border);border-radius:10px;
-            font-size:var(--fs-sm);color:var(--text-muted);
-            overflow-x:auto;
+            display:flex;flex-direction:column;gap:8px;
+            margin-bottom:var(--s-4);
           }
-          .hp-weeks-strip-label{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-right:14px;flex-shrink:0}
-          .hp-week-cell{display:inline-flex;align-items:baseline;gap:5px;padding:0 14px;border-right:1px dashed var(--border);white-space:nowrap}
-          .hp-week-cell:last-child{border-right:0}
-          .hp-week-cell .wk{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
-          .hp-week-cell .gap{font-weight:700;font-variant-numeric:tabular-nums}
+          .hp-weeks-strip-label{
+            font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
+            letter-spacing:.06em;text-transform:uppercase;
+          }
+          .hp-weeks-row{
+            display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;
+          }
+          .hp-week-cell{
+            display:flex;flex-direction:column;gap:4px;
+            background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            padding:10px 14px;min-width:0;
+          }
+          .hp-week-cell .wk{
+            font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
+            letter-spacing:.04em;text-transform:uppercase;
+            font-variant-numeric:tabular-nums;
+          }
+          .hp-week-cell .ratio{
+            font-size:var(--fs-md);font-weight:600;color:var(--text);
+            font-variant-numeric:tabular-nums;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          .hp-week-cell .gap{
+            font-size:var(--fs-xs);font-weight:700;
+            font-variant-numeric:tabular-nums;
+          }
           .hp-week-cell .gap.short{color:var(--red)}
           .hp-week-cell .gap.tight{color:var(--amber)}
           .hp-week-cell .gap.ok{color:var(--green)}
+          @media (max-width:840px){
+            .hp-weeks-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+          }
           .hp-window-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
         </style>
 
@@ -4663,14 +4687,16 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           <div class="hp-stats-progress"><div class="hp-stats-progress-fill" id="hp-stats-fill"></div></div>
         </div>
 
-        <!-- 5-week mini strip · subtle, no big colored cards -->
+        <!-- 5-week pipeline forecast — row of subtle cards -->
         <div class="hp-weeks-strip" id="hp-weeks-strip">
-          <span class="hp-weeks-strip-label">Next 5 wk</span>
-          <span class="hp-week-cell"><span class="wk">W19</span> 78 / 80 <span class="gap tight">−2</span></span>
-          <span class="hp-week-cell"><span class="wk">W20</span> 78 / 82 <span class="gap short">−4</span></span>
-          <span class="hp-week-cell"><span class="wk">W21</span> 79 / 85 <span class="gap short">−6</span></span>
-          <span class="hp-week-cell"><span class="wk">W22</span> 80 / 87 <span class="gap short">−7</span></span>
-          <span class="hp-week-cell"><span class="wk">W23</span> 80 / 90 <span class="gap short">−10</span></span>
+          <span class="hp-weeks-strip-label">Next 5 weeks</span>
+          <div class="hp-weeks-row">
+            <div class="hp-week-cell"><span class="wk">W19</span><span class="ratio">78 / 80</span><span class="gap tight">−2</span></div>
+            <div class="hp-week-cell"><span class="wk">W20</span><span class="ratio">78 / 82</span><span class="gap short">−4</span></div>
+            <div class="hp-week-cell"><span class="wk">W21</span><span class="ratio">79 / 85</span><span class="gap short">−6</span></div>
+            <div class="hp-week-cell"><span class="wk">W22</span><span class="ratio">80 / 87</span><span class="gap short">−7</span></div>
+            <div class="hp-week-cell"><span class="wk">W23</span><span class="ratio">80 / 90</span><span class="gap short">−10</span></div>
+          </div>
         </div>
 
         <!-- Applicants list header — stage tabs only -->

@@ -5955,8 +5955,10 @@ async function renderWeeksStrip() {
   // "— / —" and back.
   if (!strip.dataset.rrLoaded) {
     const placeholderWeeks = Array.from({ length: 5 }, (_, i) => isoWeek(addDays(monday, i * 7)));
-    strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>` +
-      placeholderWeeks.map(n => `<span class="hp-week-cell"><span class="wk">W${n}</span> <span style="color:var(--text-subtle)">— / —</span></span>`).join("");
+    strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 weeks</span>
+      <div class="hp-weeks-row">${placeholderWeeks.map(n =>
+        `<div class="hp-week-cell"><span class="wk">W${n}</span><span class="ratio" style="color:var(--text-subtle)">— / —</span><span class="gap">&nbsp;</span></div>`
+      ).join("")}</div>`;
   }
 
   // Pull 5 weeks of okami_grid + active driver count.
@@ -5991,7 +5993,7 @@ async function renderWeeksStrip() {
     if (routesMax === 0) {
       // OKAMI hasn't been set for this week yet. Be explicit instead of
       // showing "5 / 0 +5" which reads like canned data.
-      out.push(`<span class="hp-week-cell"><span class="wk">${wkLabel}</span> <span style="color:var(--text-subtle)">set OKAMI</span></span>`);
+      out.push(`<div class="hp-week-cell"><span class="wk">${wkLabel}</span><span class="ratio" style="color:var(--text-subtle)">set OKAMI</span><span class="gap">&nbsp;</span></div>`);
       continue;
     }
     // OKAMI is exact demand now (post migration 0039); cushion is a
@@ -6000,10 +6002,10 @@ async function renderWeeksStrip() {
     const gap = available - needed;
     const gapClass = gap >= 0 ? "ok" : (gap >= -10 ? "tight" : "short");
     const gapText = (gap >= 0 ? "+" : "") + gap;
-    out.push(`<span class="hp-week-cell"><span class="wk">${wkLabel}</span> ${available} / ${needed} <span class="gap ${gapClass}">${gapText}</span></span>`);
+    out.push(`<div class="hp-week-cell"><span class="wk">${wkLabel}</span><span class="ratio">${available} / ${needed}</span><span class="gap ${gapClass}">${gapText}</span></div>`);
   }
 
-  strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>${out.join("")}`;
+  strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 weeks</span><div class="hp-weeks-row">${out.join("")}</div>`;
   strip.dataset.rrLoaded = "1";
 }
 
