@@ -231,6 +231,13 @@ function renderApplicantCard(a) {
     ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="email_thread">✉ Email</button>`
     : "";
 
+  // Screening answers — visible once the applicant has actually
+  // responded (i.e., moved past "applied"). Operators were missing a
+  // way to read what the driver submitted.
+  const answersBtn = stage !== "applied"
+    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="screening_answers">📋 Answers</button>`
+    : "";
+
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
       <div class="pa-row">
@@ -244,6 +251,7 @@ function renderApplicantCard(a) {
         <button class="pa-disp-btn ghost" type="button" data-rr-action="call">Call</button>
         ${emailBtn}
         ${videoBtn}
+        ${answersBtn}
         <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
         ${primaryBtn}
       </div>
@@ -272,6 +280,81 @@ function openVideoModal(url) {
 // applicant_email_thread RPC (added in migration 0095), renders inbound
 // + outbound rows, and lets the operator queue a reply that send-email
 // will dispatch on its next tick.
+
+async function openScreeningAnswersModal(applicantId, fullName, score) {
+  let m = document.getElementById("rr-screening-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-screening-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+  const scoreLine = (score === null || score === undefined)
+    ? ""
+    : `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Score: ${escapeHtml(String(score))}</div>`;
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-lg);font-weight:600">Screening answers · ${escapeHtml(rrTitleCaseName(fullName))}</div>
+          ${scoreLine}
+        </div>
+        <button class="btn btn-sm" data-rr-screening-close>Close</button>
+      </div>
+      <div id="rr-screening-body" style="flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px">
+        <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading…</div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-screening-close]")) m.remove();
+  });
+
+  // Pull every response for this applicant, joined to the question
+  // record so we can render the prompt the driver actually saw — not
+  // just the slug. RLS scopes both tables to the operator's DSP.
+  const { data: rows, error } = await sb
+    .from("screening_responses")
+    .select("answer_text, answer_json, score_awarded, hard_filter_failed, created_at, screening_questions(prompt, question_type, sort_order)")
+    .eq("applicant_id", applicantId)
+    .order("created_at", { ascending: true });
+
+  const body = document.getElementById("rr-screening-body");
+  if (!body) return;
+  if (error) {
+    body.innerHTML = `<div style="color:var(--red)">Couldn't load: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    body.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">This applicant hasn't submitted any screening answers yet.</div>`;
+    return;
+  }
+
+  const fmtAnswer = (r) => {
+    if (r.answer_text && String(r.answer_text).trim()) return escapeHtml(r.answer_text);
+    if (r.answer_json !== null && r.answer_json !== undefined) {
+      try { return `<code style="font-size:var(--fs-xs)">${escapeHtml(JSON.stringify(r.answer_json))}</code>`; } catch { /* fall-through */ }
+    }
+    return `<span style="color:var(--text-subtle)">— no answer —</span>`;
+  };
+
+  body.innerHTML = rows.map((r) => {
+    const prompt = r.screening_questions?.prompt || "(question deleted)";
+    const flag = r.hard_filter_failed
+      ? `<span style="background:var(--red-bg,#fee);color:var(--red);padding:2px 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600">Disqualifying</span>`
+      : "";
+    const score = (r.score_awarded === null || r.score_awarded === undefined)
+      ? ""
+      : `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">+${escapeHtml(String(r.score_awarded))}</span>`;
+    return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--canvas)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <div style="font-weight:600;font-size:var(--fs-sm)">${escapeHtml(prompt)}</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">${flag}${score}</div>
+        </div>
+        <div style="font-size:var(--fs-md);line-height:1.5">${fmtAnswer(r)}</div>
+      </div>`;
+  }).join("");
+}
+
 
 async function openEmailThreadModal(applicantId, fullName, toEmail) {
   let m = document.getElementById("rr-email-thread-modal");
@@ -459,6 +542,12 @@ async function handleAction(btn) {
       const { data: a } = await sb.from("applicants")
         .select("full_name, email").eq("id", id).single();
       openEmailThreadModal(id, a?.full_name || "", a?.email || "");
+      btn.disabled = false;
+      return;
+    } else if (action === "screening_answers") {
+      const { data: a } = await sb.from("applicants")
+        .select("full_name, score").eq("id", id).single();
+      openScreeningAnswersModal(id, a?.full_name || "", a?.score ?? null);
       btn.disabled = false;
       return;
     }
