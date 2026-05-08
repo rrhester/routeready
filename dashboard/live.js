@@ -13239,6 +13239,16 @@ async function renderScheduleWeek() {
   // .rr-tf-icon / .rr-tf-popover).  Bound once at document level
   // below; nothing to wire here per render.
 
+  // visibleDriverIds: only drivers with status='active' are loaded
+  // into `drivers` (line ~13217). Shifts assigned to drivers outside
+  // this set (terminated, onboarding, on extended leave) need to be
+  // treated as open — they have a driver_id, but that driver can't
+  // actually work the shift, so they need re-staffing. Without this
+  // check the math goes inconsistent: Coverage 87% with "0 open
+  // shifts" because the 7 missing shifts are pinned to inactive
+  // drivers and don't get counted as either.
+  const visibleDriverIds = new Set(drivers.map(d => d.id));
+
   // Index shifts by driver/date and collect open shifts by date.
   const shiftsByDriverDate = new Map();
   const openShiftsByDate = new Map();
@@ -13256,7 +13266,12 @@ async function renderScheduleWeek() {
   // ties broken by the lower wave_index).
   const waveCountsPerDriver = new Map(); // driver_id -> Map<wave_index, count>
   for (const sh of (grid.shifts || [])) {
-    if (sh.driver_id) {
+    // A shift counts as truly assigned only when its driver_id points
+    // to a driver in the visible (active) roster. Otherwise we treat
+    // it as open — the assignment is effectively orphaned and the
+    // operator needs to re-staff it.
+    const isAssigned = sh.driver_id && visibleDriverIds.has(sh.driver_id);
+    if (isAssigned) {
       const k = `${sh.driver_id}|${sh.date}`;
       if (!shiftsByDriverDate.has(k)) shiftsByDriverDate.set(k, []);
       shiftsByDriverDate.get(k).push(sh);
@@ -13266,7 +13281,10 @@ async function renderScheduleWeek() {
       const wm = waveCountsPerDriver.get(sh.driver_id) || new Map();
       wm.set(wIdx, (wm.get(wIdx) || 0) + 1);
       waveCountsPerDriver.set(sh.driver_id, wm);
-    } else {
+    } else if (sh.status === "scheduled") {
+      // Only surface scheduled shifts as open. completed / no_show /
+      // called_off rows are historical and shouldn't reappear in the
+      // pool even if their driver_id is now inactive.
       if (!openShiftsByDate.has(sh.date)) openShiftsByDate.set(sh.date, []);
       openShiftsByDate.get(sh.date).push(sh);
     }
@@ -13312,10 +13330,9 @@ async function renderScheduleWeek() {
   // Coverage rolled up by date.
   // needed comes from okami_grid (source of truth). filled is computed
   // CLIENT-SIDE from shifts assigned to drivers we actually render
-  // (status='active'); the server's grid.filled also counts shifts
-  // assigned to inactive / terminated drivers that don't appear in the
-  // grid, which made coverage display ghost-filled cells.
-  const visibleDriverIds = new Set(drivers.map(d => d.id));
+  // (status='active'); shifts to inactive / terminated drivers don't
+  // count as filled here (they're surfaced as open shifts above).
+  // Reuses visibleDriverIds defined earlier in this function.
   const coverageByDate = new Map();
   for (const c of (grid.coverage || [])) {
     const a = coverageByDate.get(c.date) || { needed: 0, filled: 0 };
