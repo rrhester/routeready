@@ -16,6 +16,16 @@ const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 window.RR = { sb, user: null, dsp: null };
+// Devtools convenience: surface the Supabase client + a one-liner
+// for the okami_demand diagnostic so operators can paste a single
+// command without knowing about RR.sb.
+window.sb = sb;
+window.debugDemand = async (weekStart) => {
+  const r = await sb.rpc('debug_okami_demand', { p_week_start: weekStart });
+  if (r.error) { console.error(r.error); return; }
+  console.table(r.data);
+  return r.data;
+};
 
 // ─── Auth gate ─────────────────────────────────────────────────────────────
 const { data: { session } } = await sb.auth.getSession();
