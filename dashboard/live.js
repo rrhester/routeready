@@ -13428,7 +13428,7 @@ async function renderScheduleWeek() {
       banner.innerHTML = `
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         <span>This week is <strong>LIVE</strong> — drivers can see this schedule. Edits notify the affected drivers.</span>`;
-      const toolbar = sub.querySelector(".sched-toolbar");
+      const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
       if (toolbar) toolbar.parentNode.insertBefore(banner, toolbar);
     }
   } else if (banner) {
@@ -13448,6 +13448,31 @@ async function renderScheduleWeek() {
   // chips into drivers (open count drops to 0 → Finalize lights up).
   window._rrOpenShiftsCount = totalAllOpen;
   if (typeof window._rrUpdateScheduleCta === "function") window._rrUpdateScheduleCta();
+
+  // Out-of-sync banner: route plan demands more shifts than actually
+  // exist in the table for this week. Happens when okami_demand drifts
+  // (wave_index from a now-deleted wave; legacy rows that pre-date the
+  // current settings) — the operator can't close the gap from the
+  // calendar alone, only by re-running Route planning → Save.
+  let oosBanner = sub.querySelector("#rr-sched-out-of-sync");
+  const gap = Math.max(0, totalNeeded - (totalFilled + totalAllOpen));
+  if (gap > 0 && !window._rrWeekFinalized) {
+    if (!oosBanner) {
+      oosBanner = document.createElement("div");
+      oosBanner.id = "rr-sched-out-of-sync";
+      oosBanner.style.cssText = "display:flex;align-items:center;gap:10px;background:var(--amber-soft);border:1px solid var(--amber);border-left-width:4px;color:var(--text);font-size:var(--fs-sm);padding:10px 14px;border-radius:8px;margin-bottom:var(--s-3);cursor:pointer";
+      const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
+      if (toolbar) toolbar.parentNode.insertBefore(oosBanner, toolbar);
+      oosBanner.addEventListener("click", () => {
+        if (typeof openOkamiOverlay === "function") openOkamiOverlay();
+      });
+    }
+    oosBanner.innerHTML = `
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span><strong>${gap} route${gap === 1 ? "" : "s"}</strong> in your plan ${gap === 1 ? "doesn't" : "don't"} have a shift yet. <strong style="color:var(--accent-text);text-decoration:underline">Open Route planning &amp; click Save</strong> to rebuild.</span>`;
+  } else if (oosBanner) {
+    oosBanner.remove();
+  }
   // Per-day fill: needed (from coverageByDate), filled (visible-driver shifts).
   const fillByDate = new Map();
   for (const iso of days) {
