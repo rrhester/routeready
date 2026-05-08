@@ -11325,10 +11325,20 @@ async function _renderOkamiLiveImpl() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
-  // Always anchor OKAMI to the actual current week so the 13-week planner
-  // rolls forward as the calendar advances. Operator's schedule view has
-  // prev/next navigation; OKAMI is always 'this week + 12'.
-  _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  // Anchor OKAMI to the actual current week by default so the
+  // 13-week planner rolls forward as the calendar advances. When
+  // the operator opens OKAMI from a specific Week view (Route
+  // planning button), `window._rrOkamiAnchorOverride` lets that
+  // overlay anchor on the visible week instead, so each week
+  // really gets "its own" planning horizon. Cleared after read so
+  // the next non-overlay refresh snaps back to the rolling anchor.
+  const _override = window._rrOkamiAnchorOverride;
+  if (_override) {
+    _okamiStart = _override;
+    window._rrOkamiAnchorOverride = null;
+  } else {
+    _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  }
   const start = new Date(_okamiStart + "T12:00:00");
 
   const [gridRes, drvRes] = await Promise.all([
@@ -12140,6 +12150,41 @@ function closeSchedSettingsDrawer() {
 window.openSchedSettingsDrawer  = openSchedSettingsDrawer;
 window.closeSchedSettingsDrawer = closeSchedSettingsDrawer;
 
+// ─── Schedule · OKAMI overlay ───────────────────────────────────────
+// Route planning used to be a separate Schedule sub-tab that called
+// goto('okami'). Operators wanted it to live with the week they were
+// editing, "kinda like Settings does." A new "Route planning" button
+// in the Week-view toolbar opens #view-okami as a full-screen overlay
+// anchored on the visible week (_schedStart), instead of always
+// rolling forward to "this week + 12".
+function openOkamiOverlay() {
+  const okami = document.getElementById("view-okami");
+  if (!okami) return;
+  // Anchor OKAMI on the week the operator is editing. _renderOkamiLiveImpl
+  // reads this override on its next call and clears it.
+  if (typeof _schedStart === "string" && _schedStart) {
+    window._rrOkamiAnchorOverride = _schedStart;
+  }
+  okami.classList.add("rr-okami-overlay");
+  // Trigger the OKAMI data load. _renderOkamiLiveImpl is awaited inside
+  // loadOkamiView; we don't need to wait here.
+  if (typeof loadOkamiView === "function") loadOkamiView();
+}
+function closeOkamiOverlay() {
+  const okami = document.getElementById("view-okami");
+  if (okami) okami.classList.remove("rr-okami-overlay");
+}
+window.openOkamiOverlay  = openOkamiOverlay;
+window.closeOkamiOverlay = closeOkamiOverlay;
+
+// Close the OKAMI overlay when the operator navigates to a different
+// sidebar view, so it doesn't sit on top of an unrelated screen.
+const _origGotoForOkamiOverlay = window.goto;
+window.goto = function (view) {
+  if (typeof _origGotoForOkamiOverlay === "function") _origGotoForOkamiOverlay(view);
+  if (view !== "schedule" && view !== "okami") closeOkamiOverlay();
+};
+
 document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-sched-settings-open")) {
     e.preventDefault();
@@ -12151,11 +12196,23 @@ document.addEventListener("click", (e) => {
     closeSchedSettingsDrawer();
     return;
   }
+  if (e.target.closest("#rr-sched-okami-open")) {
+    e.preventDefault();
+    openOkamiOverlay();
+    return;
+  }
+  if (e.target.closest("#rr-okami-close")) {
+    e.preventDefault();
+    closeOkamiOverlay();
+    return;
+  }
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     const drawer = document.getElementById("sched-sub-settings");
-    if (drawer && drawer.classList.contains("open")) closeSchedSettingsDrawer();
+    if (drawer && drawer.classList.contains("open")) { closeSchedSettingsDrawer(); return; }
+    const okami = document.getElementById("view-okami");
+    if (okami && okami.classList.contains("rr-okami-overlay")) closeOkamiOverlay();
   }
 });
 
