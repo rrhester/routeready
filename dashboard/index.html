@@ -29,7 +29,7 @@
   --sidebar:#1F2433;
   --sidebar-grad:linear-gradient(180deg, #232838 0%, #1B2030 100%);
   --sidebar-hover:rgba(255,255,255,.06);
-  --sidebar-active:linear-gradient(90deg, rgba(15,108,189,.24) 0%, rgba(15,108,189,.06) 100%);
+  --sidebar-active:linear-gradient(90deg, color-mix(in srgb, var(--accent) 24%, transparent) 0%, color-mix(in srgb, var(--accent) 6%, transparent) 100%);
   --glass:rgba(255,255,255,.78);
   --glass-strong:rgba(255,255,255,.88);
 
@@ -297,7 +297,7 @@ a{color:inherit;text-decoration:none}
 .brand-mark{
   width:32px;height:32px;border-radius:8px;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 12px rgba(15,108,189,.35);
+  box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
   overflow:hidden;
 }
 .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
@@ -328,7 +328,7 @@ a{color:inherit;text-decoration:none}
 }
 .nav-item.active svg{
   stroke-width:2.2;
-  filter:drop-shadow(0 1px 2px rgba(15,108,189,.40));
+  filter:drop-shadow(0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent));
 }
 /* Sidebar icons — Fluent weight: bigger, heavier stroke, soft
    drop-shadow on active state for the "filled" Microsoft feel
