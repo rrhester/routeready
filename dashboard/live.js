@@ -313,7 +313,7 @@ async function openScreeningAnswersModal(applicantId, fullName, score) {
   // just the slug. RLS scopes both tables to the operator's DSP.
   const { data: rows, error } = await sb
     .from("screening_responses")
-    .select("answer_text, answer_json, score_awarded, hard_filter_failed, created_at, screening_questions(prompt, question_type, sort_order)")
+    .select("answer_text, answer_json, score_awarded, hard_filter_failed, created_at, screening_questions(prompt, field_type, display_order)")
     .eq("applicant_id", applicantId)
     .order("created_at", { ascending: true });
 
