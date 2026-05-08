@@ -259,19 +259,23 @@ function renderApplicantCard(a) {
   // slot loads lazily on first expand (see _loadScreeningAnswersInto)
   // so we don't N+1 the DB on every list render.
   const answersBlock = stage !== "applied" ? `
-    <div class="pa-detail-section-title">Screening answers</div>
-    <div class="pa-qa" data-rr-screening-slot>
-      <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading answers…</div>
+    <div class="pa-detail-section">
+      <div class="pa-detail-section-title">Screening answers</div>
+      <div class="pa-qa" data-rr-screening-slot>
+        <div style="color:var(--text-subtle);font-size:var(--fs-sm);grid-column:1 / -1">Loading answers…</div>
+      </div>
     </div>` : "";
 
   // Operator scratchpad — private notes for the DSP (call summaries,
   // follow-ups, gut checks). Lazy-loads on expand and auto-saves on
   // blur so there's no Save button to remember.
   const notesBlock = `
-    <div class="pa-detail-section-title" style="margin-top:18px">Notes</div>
-    <div class="pa-notes" data-rr-notes-slot>
-      <textarea data-rr-notes-input placeholder="Private notes for your team — call summaries, follow-ups, gut checks…" style="width:100%;min-height:72px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);line-height:1.4;resize:vertical;box-sizing:border-box;background:var(--surface)" disabled></textarea>
-      <div data-rr-notes-status style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;min-height:14px">Loading…</div>
+    <div class="pa-detail-section">
+      <div class="pa-detail-section-title">Notes</div>
+      <div class="pa-notes" data-rr-notes-slot>
+        <textarea class="pa-notes-input" data-rr-notes-input placeholder="Private notes for your team — call summaries, follow-ups, gut checks…" disabled></textarea>
+        <div class="pa-detail-section-meta" data-rr-notes-status>Loading…</div>
+      </div>
     </div>`;
 
   return `
@@ -373,12 +377,12 @@ async function _loadScreeningAnswersInto(slot, applicantId) {
     .order("created_at", { ascending: true });
 
   if (error) {
-    slot.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">Couldn't load: ${escapeHtml(error.message)}</div>`;
+    slot.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm);grid-column:1 / -1">Couldn't load: ${escapeHtml(error.message)}</div>`;
     slot.dataset.loaded = "";
     return;
   }
   if (!rows || rows.length === 0) {
-    slot.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No answers submitted yet.</div>`;
+    slot.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm);grid-column:1 / -1">No answers submitted yet.</div>`;
     return;
   }
 

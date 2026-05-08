@@ -4780,7 +4780,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .pa-card.expanded .pa-view-btn svg{transform:rotate(180deg)}
 
           /* Expanded detail panel */
-          .pa-detail{display:none;border-top:1px solid var(--border);padding:18px 20px;background:var(--canvas)}
+          .pa-detail{display:none;border-top:1px solid var(--border);padding:22px 24px 20px;background:var(--canvas)}
+          .pa-detail-section + .pa-detail-section{margin-top:22px}
+          .pa-detail-section-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;font-variant-numeric:tabular-nums}
           .pa-card.expanded .pa-detail{display:block}
           .pa-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
           @media (max-width:840px){.pa-detail-grid{grid-template-columns:1fr}}
@@ -4819,17 +4821,48 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .pa-video-meta{position:absolute;bottom:10px;left:12px;z-index:1;font-size:var(--fs-xs);color:rgba(255,255,255,.85);font-weight:500}
           .pa-video-rating{position:absolute;top:10px;right:12px;z-index:1;font-size:var(--fs-xs);color:#FBBF24;font-weight:700;letter-spacing:1px}
 
-          /* Q&A list */
-          .pa-qa{display:flex;flex-direction:column;gap:10px;margin-top:14px}
-          .pa-qa-item{display:flex;flex-direction:column;gap:2px}
-          .pa-qa-q{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
-          .pa-qa-a{font-size:var(--fs-md);color:var(--text);line-height:1.4}
+          /* Screening Q&A — 2-column grid so short answers don't waste
+             a full row each, with one-line truncation that opens to
+             full text on row hover. */
+          .pa-qa{
+            display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:14px 32px;margin-top:6px;
+          }
+          .pa-qa-item{display:flex;flex-direction:column;gap:3px;min-width:0}
+          .pa-qa-q{
+            font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;
+            letter-spacing:.02em;text-transform:none;
+          }
+          .pa-qa-a{
+            font-size:var(--fs-md);color:var(--text);line-height:1.45;
+            font-weight:500;word-break:break-word;
+          }
           .pa-qa-a.fail{color:var(--red)}
+          @media (max-width:640px){.pa-qa{grid-template-columns:1fr}}
+
+          /* Notes textarea — match the dashboard's input chrome with a
+             subtle focus ring instead of the system default outline. */
+          .pa-notes-input{
+            width:100%;min-height:80px;
+            padding:11px 13px;
+            border:1px solid var(--border);border-radius:8px;
+            font:inherit;font-size:var(--fs-md);line-height:1.45;
+            color:var(--text);background:var(--surface);
+            resize:vertical;box-sizing:border-box;
+            transition:border-color .12s, box-shadow .12s;
+          }
+          .pa-notes-input:focus{
+            outline:none;border-color:var(--accent);
+            box-shadow:0 0 0 3px rgba(59,130,246,.12);
+          }
+          .pa-notes-input:disabled{
+            background:var(--canvas);color:var(--text-subtle);cursor:wait;
+          }
 
           /* Disposition action bar */
           .pa-actions-bar{
             display:flex;gap:8px;justify-content:flex-end;
-            margin-top:18px;padding-top:14px;border-top:1px solid var(--border);
+            margin-top:22px;padding-top:16px;border-top:1px solid var(--border);
             flex-wrap:wrap;
           }
           .pa-disp-btn{
