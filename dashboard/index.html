@@ -6426,12 +6426,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
             <h1 class="page-title">Schedule</h1>
             <p class="page-sub" id="rr-sched-page-sub"></p>
           </div>
-          <div class="page-actions">
-            <button class="btn btn-primary" id="schedule-cta">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              Finalize &amp; push to drivers
-            </button>
-          </div>
         </div>
 
         <!-- Sub-nav -->
@@ -6457,6 +6451,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <button type="button" class="sched-week-tab" data-rr-week-offset="3">In 3 weeks</button>
             </div>
             <div class="sched-toolbar-cluster">
+              <button class="sched-tool-btn" id="rr-sched-copy-week" type="button" title="Copy last week's schedule into this week">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy last week
+              </button>
               <button class="sched-tool-btn" id="rr-sched-smartfill" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Smart Fill
@@ -6468,6 +6466,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <button class="sched-tool-btn" id="rr-sched-settings-open" type="button" title="Schedule settings for this week" aria-label="Schedule settings">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 Settings
+              </button>
+              <button class="sched-tool-btn" id="schedule-cta" type="button" title="Push this week's schedule to drivers">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Finalize
               </button>
             </div>
           </div>
