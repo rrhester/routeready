@@ -65,6 +65,53 @@ npm start
 `npm install` runs `playwright install chromium` post-install to fetch
 the matching Chromium build. Adds ~150 MB.
 
+### Running on a Chromebook (Crostini)
+
+ChromeOS can't run `.exe` or `.dmg` and the bundled `.AppImage` won't
+launch from the Files app. But every modern Chromebook can enable
+**Linux development environment** (Crostini) which runs a minimal
+Debian inside ChromeOS — Electron apps run fine there.
+
+**One-time setup** (~10 min):
+
+1. Open ChromeOS **Settings → About ChromeOS → Developers → Linux development environment** → click **Set up**. Pick the default disk size (or 10 GB+) and any username.
+2. When done, the Terminal app appears in your launcher. Open it.
+3. Install Node + git:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y nodejs npm git
+   ```
+
+4. Clone the repo and run the app:
+
+   ```bash
+   git clone https://github.com/rrhester/routeready.git
+   cd routeready/desktop
+   npm install
+   npm start
+   ```
+
+The app window should pop up inside ChromeOS like any other Linux app.
+
+**Quirks to know about**:
+
+- First `npm install` takes 3-5 min while Playwright downloads
+  Chromium.
+- Electron windows render through a slower compositor on Crostini —
+  expect a tiny amount of jank. Functional, not pretty.
+- File-save dialogs sometimes default to the Linux home directory
+  (`~/`), which appears in the ChromeOS Files app under **Linux files**.
+
+**Alternative**: download the Linux `.AppImage` from the CI build
+artifacts. From a Crostini terminal:
+
+```bash
+cd ~/Downloads   # or wherever you put it
+chmod +x RouteReady\ Desktop-*.AppImage
+./RouteReady\ Desktop-*.AppImage
+```
+
 ## Files
 
 - `main.js` — Electron main process. Owns the BrowserWindow + Playwright.
