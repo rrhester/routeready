@@ -1024,6 +1024,7 @@ window.licApplyAll         = function () { /* superseded */ };
 // in-the-last-N-days slice.  Window selector dropped per direction.
 let _attReportSort = { col: "points", dir: "desc" };
 let _attReportRows = [];
+let _attDecisionNotesByShift = new Map();   // shift_id → notes (for row drilldown)
 
 // Click a sortable column header → toggle direction (or switch column).
 document.addEventListener("click", (e) => {
@@ -1055,21 +1056,16 @@ async function loadAttendanceLive() {
   const sinceIso  = fmtIsoDate(sinceDate);
   const todayIso  = fmtIsoDate(new Date());
 
-  const [driversRes, shiftsRes, coachingsRes] = await Promise.all([
+  const [driversRes, shiftsRes, coachingsRes, decisionsRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, status, hire_date, station:station_id (code)")
       .eq("dsp_id", dspId)
       .order("full_name"),
     sb.from("shifts")
-      .select("driver_id, status, date")
+      .select("id, driver_id, status, date")
       .eq("dsp_id", dspId)
       .gte("date", sinceIso)
       .lte("date", todayIso),
-    // Most recent attendance coaching per driver inside the decay
-    // window.  Drives the new Last coaching column + Send button
-    // "already sent" state.  driver_visible=true filter excludes the
-    // legacy "Queued" rows that 0085 archives but defends against
-    // anything that slipped through.
     sb.from("coachings")
       .select("id, driver_id, severity, occurred_at, acknowledged_at, signed_at, delivery_required")
       .eq("dsp_id", dspId)
@@ -1078,6 +1074,15 @@ async function loadAttendanceLive() {
       .gte("occurred_at", sinceDate.toISOString())
       .is("archived_at", null)
       .order("occurred_at", { ascending: false }),
+    // Operator-excused decisions in the same window. Counted as
+    // "Excused" on the report (separate KPI from VTO). Each shift
+    // has at most one decision, so this also doubles as the per-row
+    // notes lookup.
+    sb.from("attendance_decisions")
+      .select("shift_id, driver_id, outcome, decision, notes, created_at")
+      .eq("dsp_id", dspId)
+      .eq("decision", "deny")
+      .gte("created_at", sinceDate.toISOString()),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -1088,6 +1093,22 @@ async function loadAttendanceLive() {
   const drivers   = driversRes.data || [];
   const shifts    = shiftsRes.data  || [];
   const coachings = coachingsRes?.data || [];
+  const decisions = decisionsRes?.data || [];
+
+  // Excused-decision count per driver. A shift with decision='deny'
+  // also produced shifts.status of (no_show|late|called_off) before
+  // 0099 stamped the same row as excused on finalize — but the
+  // operator's intent in either case is "this doesn't count", so
+  // surface it as Excused regardless of how the underlying shift
+  // status reads. Strip the matching incident from the legacy
+  // counters below so we don't double-count it.
+  const excusedShiftIds = new Set(decisions.map(d => d.shift_id));
+  const excusedByDriver = new Map();
+  for (const d of decisions) {
+    excusedByDriver.set(d.driver_id, (excusedByDriver.get(d.driver_id) || 0) + 1);
+  }
+  // Cache per-shift decision notes for the row drilldown / tooltip.
+  _attDecisionNotesByShift = new Map(decisions.map(d => [d.shift_id, d.notes || ""]));
 
   // Map driver_id → most recent attendance coaching.  Also remember
   // the count so the dispatcher can tell at a glance "this driver
@@ -1099,24 +1120,29 @@ async function loadAttendanceLive() {
     coachCountByDriver.set(c.driver_id, (coachCountByDriver.get(c.driver_id) || 0) + 1);
   }
 
-  // Per-driver tally — every column accumulates from check-in clicks.
+  // Per-driver tally. A shift with an Excused decision is counted
+  // as excused only — strip it from the late/callout/noshow counters
+  // so it doesn't drag down the driver's standing AND show up as
+  // excused in the report.
   const acc = new Map();
   for (const sh of shifts) {
     if (!sh.driver_id) continue;
     let a = acc.get(sh.driver_id);
-    if (!a) { a = { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null }; acc.set(sh.driver_id, a); }
+    if (!a) { a = { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, excused: 0, last: null }; acc.set(sh.driver_id, a); }
     a.scheduled += 1;
-    if      (sh.status === "completed")  a.present  += 1;
+    if (excusedShiftIds.has(sh.id)) {
+      a.excused += 1;
+    } else if (sh.status === "completed")  a.present  += 1;
     else if (sh.status === "late")       a.late     += 1;
     else if (sh.status === "called_off") a.callouts += 1;
     else if (sh.status === "no_show")    a.noshows  += 1;
     else if (sh.status === "vto")        a.vto      += 1;
-    if (sh.status === "called_off" || sh.status === "no_show") {
+    if (!excusedShiftIds.has(sh.id) && (sh.status === "called_off" || sh.status === "no_show")) {
       if (!a.last || sh.date > a.last) a.last = sh.date;
     }
   }
 
-  let totalScheduled = 0, totalIncidents = 0, totalVto = 0, inAction = 0;
+  let totalScheduled = 0, totalIncidents = 0, totalVto = 0, totalExcused = 0, inAction = 0;
   const todayMs = Date.now();
   // Per-event point values from the block policy.  An event kind that
   // has no Event block (or 0 points) doesn't contribute to the
@@ -1127,7 +1153,7 @@ async function loadAttendanceLive() {
   const ptsLate    = EVAL.events.late    ? Number(EVAL.events.late.points)    || 0 : 0;
   const sevToLabel = { verbal: "Verbal", written: "Written", final: "Final", termination: "Termination" };
   const rows = drivers.map(d => {
-    const a = acc.get(d.id) || { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, last: null };
+    const a = acc.get(d.id) || { scheduled: 0, present: 0, late: 0, callouts: 0, noshows: 0, vto: 0, excused: 0, last: null };
     // occ is still "how many counted events" — kept for the existing
     // Occ. column.  points uses the per-event point values from
     // the block policy.
@@ -1161,6 +1187,7 @@ async function loadAttendanceLive() {
     totalScheduled += a.scheduled;
     totalIncidents += occ;
     totalVto       += a.vto;
+    totalExcused   += a.excused;
     if (statusKind !== "ok") inAction += 1;
     const lastCoach = lastCoachByDriver.get(d.id) || null;
     const coachCount = coachCountByDriver.get(d.id) || 0;
@@ -1179,12 +1206,16 @@ async function loadAttendanceLive() {
     el.textContent = text;
     if (cls) el.className = `di-val ${cls}`;
   };
+  const excusedPct = totalScheduled > 0 ? Math.round(totalExcused / totalScheduled * 100) : 0;
   setKpi("att-kpi-rate", `${presentPct}%`, presentPct >= 95 ? "ok" : presentPct >= 90 ? "warn" : "bad");
   setKpi("att-kpi-vto", `${vtoPct}%`);
+  setKpi("att-kpi-excused", `${totalExcused}`);
   const rateSubEl = document.getElementById("att-kpi-rate-sub");
   if (rateSubEl) rateSubEl.textContent = `${totalIncidents} absent / ${totalScheduled} scheduled · last ${decay}d`;
   const vtoSubEl = document.getElementById("att-kpi-vto-sub");
   if (vtoSubEl) vtoSubEl.textContent = `${totalVto} VTO / ${totalScheduled} scheduled · last ${decay}d`;
+  const excusedSubEl = document.getElementById("att-kpi-excused-sub");
+  if (excusedSubEl) excusedSubEl.textContent = `${totalExcused} excused · ${excusedPct}% · last ${decay}d`;
 
   // "In corrective action" KPI — drivers currently flagged at any
   // step of the coaching ladder.  Verbal = at the warn threshold,
@@ -1486,7 +1517,7 @@ function _relTimeAgo(iso) {
 //   action → bar breakdown: % of team at each coaching ladder rung
 //            (suppressed with a friendly note when the policy is off)
 
-let _attKpiDetailKpi   = null;        // 'rate' | 'vto' | 'action' | null
+let _attKpiDetailKpi   = null;        // 'rate' | 'vto' | 'excused' | 'action' | null
 let _attKpiDetailRange = 90;          // 30 | 90 | 365
 let _attKpiHistory     = null;        // { range:Number, byDay:Array<{date,scheduled,present,late,callouts,noshows,vto}> }
 
@@ -1703,6 +1734,59 @@ async function _renderAttKpiDetail() {
       </div>
       ${rowsHtml}
     </div>`;
+    return;
+  }
+
+  // Excused view: list of individual excused decisions with the
+  // operator's notes, sorted newest-first. The notes are the whole
+  // point of this drilldown — operators want to remember WHY they
+  // forgave each absence (approved leave, system glitch, doc'd
+  // illness, etc.).
+  if (_attKpiDetailKpi === "excused") {
+    const title = "Excused absences";
+    const sub   = "Each absence the dispatcher chose not to count, with the notes that explain why.";
+    panel.innerHTML = _attKpiPanelShell(title, sub, `<div class="rr-loading">Loading…</div>`);
+
+    const days = Number(_attKpiDetailRange) || 90;
+    const fromIso = fmtIsoDate(new Date(Date.now() - days * 86400000));
+    const toIso   = fmtIsoDate(new Date());
+    const { data: rows, error } = await sb.rpc("attendance_excused_list", {
+      p_from: fromIso, p_to: toIso,
+    });
+    if (error) {
+      panel.innerHTML = _attKpiPanelShell(title, sub,
+        `<div class="rr-empty-inline" style="padding:32px 0;color:var(--red)">Couldn't load: ${escapeHtml(error.message)}</div>`);
+      return;
+    }
+    if (!rows || rows.length === 0) {
+      panel.innerHTML = _attKpiPanelShell(title, sub,
+        `<div class="rr-empty-inline" style="padding:32px 0">No excused absences in range.</div>`);
+      return;
+    }
+    const outcomeLabel = (o) => ({
+      ncns:            "No-call no-show",
+      tardy:           "Tardy",
+      missed_reported: "Callout",
+    }[o] || o);
+    const fmtDay = (d) => {
+      const dt = new Date(d + "T12:00:00");
+      return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    };
+    const list = rows.map(r => `
+      <div style="display:grid;grid-template-columns:90px 180px 1fr;gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(fmtDay(r.date))}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(r.station_code || "—")}</div>
+        </div>
+        <div>
+          <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.driver_name || "")}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(outcomeLabel(r.outcome))}${r.decided_by ? " · by " + escapeHtml(r.decided_by) : ""}</div>
+        </div>
+        <div style="font-size:var(--fs-md);color:var(--text);line-height:1.5">${r.notes ? escapeHtml(r.notes) : `<span style="color:var(--text-subtle)">— no notes —</span>`}</div>
+      </div>`).join("");
+    panel.innerHTML = _attKpiPanelShell(title, sub, `
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">${rows.length} excused in last ${days}d</div>
+      ${list}`);
     return;
   }
 
@@ -4320,7 +4404,7 @@ async function _renderTpDailyTool(flagged) {
           <div style="font-size:var(--fs-sm);color:var(--text)"><strong>${after} occ${after === 1 ? "" : "s"}</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Next: ${rec}${auto ? " · auto-fires on Approve" : ""}</div>
         </div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
           <button class="btn btn-sm btn-primary"
                   data-rr-tp-approve="1"
                   data-shift-id="${escapeHtml(r.shift_id)}"
@@ -4331,12 +4415,18 @@ async function _renderTpDailyTool(flagged) {
                   data-delivery="${escapeHtml(deliveryFor(lvl))}"
                   type="button">Confirm</button>
           <button class="btn btn-sm"
+                  data-rr-tp-vto="1"
+                  data-shift-id="${escapeHtml(r.shift_id)}"
+                  data-outcome="${escapeHtml(r.computed_outcome)}"
+                  data-driver-name="${escapeHtml(r.driver_name)}"
+                  type="button">VTO</button>
+          <button class="btn btn-sm"
                   data-rr-tp-deny="1"
                   data-shift-id="${escapeHtml(r.shift_id)}"
                   data-outcome="${escapeHtml(r.computed_outcome)}"
                   data-driver-name="${escapeHtml(r.driver_name)}"
                   data-level="${escapeHtml(lvl || '')}"
-                  type="button">Decline</button>
+                  type="button">Excuse</button>
         </div>
       </div>`;
   }).join("");
@@ -4366,11 +4456,12 @@ async function _renderTpDailyTool(flagged) {
 // row, and DMs the driver if auto_coaching is on).  Decline opens a
 // notes prompt — server enforces notes on deny.
 document.addEventListener("click", async (e) => {
-  const ap = e.target.closest("[data-rr-tp-approve]");
-  const dn = e.target.closest("[data-rr-tp-deny]");
-  if (!ap && !dn) return;
+  const ap  = e.target.closest("[data-rr-tp-approve]");
+  const dn  = e.target.closest("[data-rr-tp-deny]");
+  const vto = e.target.closest("[data-rr-tp-vto]");
+  if (!ap && !dn && !vto) return;
   e.preventDefault();
-  const btn = ap || dn;
+  const btn = ap || dn || vto;
   const row = btn.closest(".rr-tp-tool-row");
   if (!row) return;
 
@@ -4378,14 +4469,26 @@ document.addEventListener("click", async (e) => {
   const outcome   = btn.dataset.outcome;
   const driverName = btn.dataset.driverName || "driver";
 
+  // Excuse → notes required (same prompt as before, just renamed).
+  // VTO    → notes optional ("offered VTO Wednesday — accepted" etc.).
   let notes = null;
+  let decision = "approve";
   if (dn) {
+    decision = "deny";
     const reason = window.prompt(
-      `Decline ${driverName}'s ${outcome.replace(/_/g, " ")}?\n\nNotes are required — explain why this event is excused (e.g. "approved leave", "system glitch", "documentation provided").`
+      `Excuse ${driverName}'s ${outcome.replace(/_/g, " ")}?\n\nNotes are required — explain why this event is excused (e.g. "approved leave", "system glitch", "documentation provided").`
     );
-    if (reason === null) return;                       // cancelled
-    if (!reason.trim()) { toast("Notes required to decline", "warn"); return; }
+    if (reason === null) return;
+    if (!reason.trim()) { toast("Notes required to excuse", "warn"); return; }
     notes = reason.trim();
+  } else if (vto) {
+    decision = "vto";
+    const reason = window.prompt(
+      `Mark ${driverName}'s shift as VTO?\n\nOptional notes (who offered VTO, why, etc.).`,
+      ""
+    );
+    if (reason === null) return;
+    notes = reason.trim() || null;
   }
 
   const btnCell = btn.parentElement;
@@ -4398,7 +4501,7 @@ document.addEventListener("click", async (e) => {
   const { data, error } = await sb.rpc("attendance_decide", {
     p_shift_id:  shiftId,
     p_outcome:   outcome,
-    p_decision:  ap ? "approve" : "deny",
+    p_decision:  decision,
     p_notes:     notes,
     p_auto_fire: ap ? autoFire : false,
     p_level:     level,
@@ -4411,7 +4514,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  const verb = ap ? "Approved" : "Declined";
+  const verb = ap ? "Approved" : (vto ? "Marked VTO" : "Excused");
   const tone = ap ? "var(--green)" : "var(--text-subtle)";
   btnCell.innerHTML = `<span style="font-size:var(--fs-xs);font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
   const tailParts = [];
