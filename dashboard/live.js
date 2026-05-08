@@ -13328,19 +13328,20 @@ async function renderScheduleWeek() {
   const ptoOn = (driverId, iso) => (ptoByDriver.get(driverId) || []).some(t => iso >= t.start_date && iso <= t.end_date);
 
   // Coverage rolled up by date.
-  // Per the operator's spec: shifts in the schedule = (route plan +
-  // cushion). The denominator for "0/7" should be how many shifts
-  // exist in the table for the day, not what okami_grid thinks is
-  // "needed" (which excludes cushion). filled = shifts assigned to
-  // a visible active driver. Open / cushion / inactive-driver shifts
-  // all count toward the denominator but not toward filled — making
-  // 100% the natural target the operator can actually reach.
+  // Denominator = shifts in the table for the day (scheduled +
+  // completed, base + cushion). Filled = shifts that are either
+  // already done (completed) or currently assigned to a visible
+  // active driver. Past days with completed shifts read 100% as the
+  // operator expects; future days work as before.
   const coverageByDate = new Map();
   for (const sh of (grid.shifts || [])) {
     if (!["scheduled", "completed"].includes(sh.status)) continue;
     const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0 };
     a.needed += 1;
-    if (sh.driver_id && visibleDriverIds.has(sh.driver_id)) a.filled += 1;
+    const isFilled =
+      sh.status === "completed" ||
+      (sh.driver_id && visibleDriverIds.has(sh.driver_id));
+    if (isFilled) a.filled += 1;
     coverageByDate.set(sh.date, a);
   }
   let totalNeeded = 0, totalFilled = 0;
@@ -13445,13 +13446,32 @@ async function renderScheduleWeek() {
   window._rrOpenShiftsCount = totalAllOpen;
   if (typeof window._rrUpdateScheduleCta === "function") window._rrUpdateScheduleCta();
 
-  // Out-of-sync banner: route plan demands more shifts than actually
-  // exist in the table for this week. Happens when okami_demand drifts
-  // (wave_index from a now-deleted wave; legacy rows that pre-date the
-  // current settings) — the operator can't close the gap from the
-  // calendar alone, only by re-running Route planning → Save.
+  // Out-of-sync banner: the schedule (shifts table) hasn't been
+  // rebuilt since the operator changed the route plan. Compare what
+  // SHOULD be in the table (route plan + projected cushion) against
+  // what actually is. If short, the operator needs to click Save in
+  // Route planning to rebuild.
+  //
+  //   expected = sum over (date, station) of:
+  //                base + floor(base × cushion% / 100)
+  //   actual   = count of shifts in the table (scheduled or
+  //              completed)
+  //   gap      = max(0, expected − actual)
+  //
+  // The cushion math here mirrors apply_cushion_to_week (#535) so the
+  // banner predicts the exact rebuild result.
   let oosBanner = sub.querySelector("#rr-sched-out-of-sync");
-  const gap = Math.max(0, totalNeeded - (totalFilled + totalAllOpen));
+  const _effForGap = window._rrEffectiveSettings || {};
+  const _cushionPct = Math.max(0, Number(_effForGap.cushion_pct ?? window.RR?.dsp?.metadata?.scheduling?.cushion_pct ?? 0));
+  let _expectedShifts = 0;
+  for (const c of (grid.coverage || [])) {
+    const base = Number(c.target_routes || 0);
+    _expectedShifts += base + Math.floor(base * _cushionPct / 100);
+  }
+  const _actualShifts = (grid.shifts || []).filter(
+    sh => ["scheduled", "completed"].includes(sh.status)
+  ).length;
+  const gap = Math.max(0, _expectedShifts - _actualShifts);
   if (gap > 0 && !window._rrWeekFinalized) {
     if (!oosBanner) {
       oosBanner = document.createElement("div");
