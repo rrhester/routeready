@@ -212,12 +212,12 @@ function initialsOf(name) {
 const routes = {
   "/schedule":          { render: renderSchedule,        tab: "/schedule" },
   "/tasks":             { render: renderTasksHub,        tab: "/tasks" },
-  "/tasks/availability":{ render: renderAvailability,    tab: "/tasks", back: "/tasks", title: "Availability" },
   "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
   "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
+  "/settings/availability": { render: renderAvailability, tab: "/profile", back: "/settings", title: "Availability" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
@@ -552,9 +552,9 @@ function renderTasksHub() {
   // The Onboarding card (driver_get_profile) and Forms cards
   // (driver_list_forms) are fetched in the background and spliced in
   // when their responses land.
+  // Availability moved into Settings (driver gear icon) — it's a
+  // preference the driver sets infrequently, not a daily task.
   const baseCards = [
-    { route: "/tasks/availability", title: "Availability", sub: "Days you can work",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
     { route: "/tasks/attendance",   title: "Attendance",   sub: "Today's status and policy",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
   ];
@@ -1418,6 +1418,16 @@ async function renderSettings() {
         </div>
       </section>
 
+      <section class="settings-section">
+        <button type="button" class="settings-row settings-row-link" id="rr-settings-availability">
+          <div>
+            <div class="settings-section-title">Availability</div>
+            <div class="settings-section-sub">Days you can work · changes go to your dispatcher for approval.</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle)"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </section>
+
       <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
     </div>`;
 
@@ -1499,6 +1509,8 @@ async function renderSettings() {
       renderSettings();
     });
   }
+
+  document.getElementById("rr-settings-availability")?.addEventListener("click", () => navigate("/settings/availability"));
 
   document.getElementById("rr-signout").addEventListener("click", async () => {
     if (!confirm("Sign out of RouteReady?")) return;
@@ -2349,7 +2361,7 @@ async function renderAvailability() {
 // "pending" banner without a manual reload. Registered once at module
 // load; the inner guard keeps it cheap when on other routes.
 function _refreshAvailabilityIfActive() {
-  if (currentRoute() !== "/tasks/availability") return;
+  if (currentRoute() !== "/settings/availability") return;
   if (typeof window._rrAvailInFlight === "function" && window._rrAvailInFlight()) return;
   renderAvailability();
 }
