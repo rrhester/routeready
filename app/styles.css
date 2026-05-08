@@ -907,6 +907,8 @@ select.field{
   padding:14px 16px;
 }
 .settings-row + .settings-row{border-top:1px solid var(--border)}
+.settings-row-link{width:100%;background:transparent;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.settings-row-link:active{background:var(--canvas)}
 .settings-label{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
   letter-spacing:.06em;text-transform:uppercase}
 .settings-value{font-size:var(--fs-lg);font-weight:600;color:var(--text);margin-top:3px}
