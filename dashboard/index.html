@@ -1651,11 +1651,6 @@ select.form-input{
 }
 .sched-tool-btn:hover{color:var(--text);background:var(--canvas)}
 .sched-tool-btn svg{width:15px;height:15px;flex-shrink:0}
-.sched-tool-btn.sched-tool-btn-primary{
-  color:#fff;background:var(--accent);font-weight:600;
-}
-.sched-tool-btn.sched-tool-btn-primary:hover{background:var(--accent-hover, var(--accent));filter:brightness(.95)}
-.sched-tool-btn.sched-tool-btn-primary svg{stroke-width:2}
 .sched-status-pill{
   display:inline-flex;align-items:center;gap:5px;
   padding:4px 10px;border-radius:12px;font-size:var(--fs-xs);font-weight:600;
@@ -6462,7 +6457,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <button type="button" class="sched-week-tab" data-rr-week-offset="3">In 3 weeks</button>
             </div>
             <div class="sched-toolbar-cluster">
-              <button class="sched-tool-btn sched-tool-btn-primary" id="rr-sched-smartfill" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
+              <button class="sched-tool-btn" id="rr-sched-smartfill" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Smart Fill
               </button>
