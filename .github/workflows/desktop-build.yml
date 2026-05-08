@@ -1,0 +1,117 @@
+# RouteReady Desktop · cloud build pipeline.
+#
+# Why this exists: the operator dev's on a Chromebook, so building
+# Electron installers locally isn't realistic. This workflow builds
+# Mac / Windows / Linux installers in the cloud on every push that
+# touches the desktop/ folder, and creates a GitHub Release with the
+# installers attached when a tag like `desktop-v0.1.2` is pushed.
+#
+# Cost note: Linux + Windows runners are free on private repos under
+# the GitHub Free tier's monthly minute allotment. macOS runners
+# bill 10× the rate of Linux. If you don't ship to Mac yet, drop the
+# `macos-latest` matrix entry.
+
+name: desktop-build
+
+on:
+  push:
+    branches: [main]
+    tags: ['desktop-v*']
+    paths: ['desktop/**', '.github/workflows/desktop-build.yml']
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/desktop-build.yml']
+  workflow_dispatch:  # lets you trigger a manual build from the Actions tab
+
+permissions:
+  contents: write   # needed to create releases when a tag is pushed
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each runner builds installers for its native OS. Cross-
+        # compiling Mac builds from Linux/Windows isn't reliable.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          # No npm cache configured yet — there's no package-lock.json
+          # in the repo (it'll generate on first install). Add
+          # `cache: 'npm'` once you commit a lockfile to speed builds.
+
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+
+      # electron-builder writes outputs to desktop/dist/. Mac produces
+      # .dmg, Windows produces .exe (NSIS installer), Linux produces
+      # .AppImage.
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: npx electron-builder --linux --publish never
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win --publish never
+
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
+        # macOS skips code signing here (CSC_IDENTITY_AUTO_DISCOVERY=false).
+        # When you've got an Apple Developer cert + notarisation
+        # secrets configured, drop the env block and electron-builder
+        # picks them up automatically.
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --publish never
+
+      # Push every successful build into the workflow run as an
+      # artifact so the dev can grab the installer without waiting
+      # for a release tag.
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: routeready-desktop-${{ matrix.os }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+            desktop/dist/*.zip
+            desktop/dist/*.blockmap
+            desktop/dist/*.yml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          # Glob across every platform's artifact dir.
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true

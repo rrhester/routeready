@@ -24,7 +24,37 @@ app:
 - **Supabase JS** — uploads parsed reports to RouteReady.
 - **electron-store** — local config (portal URL, scheduler, etc.).
 
-## Dev setup
+## Building
+
+You don't have to build this locally — GitHub Actions does it for you.
+
+### CI builds (every push to `main`)
+
+`.github/workflows/desktop-build.yml` runs on every push that touches
+`desktop/`. It builds for Linux + Windows + macOS in parallel and
+uploads the installers as workflow artifacts. To grab one:
+
+1. Open the [Actions tab](https://github.com/rrhester/routeready/actions/workflows/desktop-build.yml).
+2. Click the latest successful run.
+3. Scroll to **Artifacts** at the bottom — `routeready-desktop-windows-latest`,
+   `routeready-desktop-macos-latest`, `routeready-desktop-ubuntu-latest`.
+4. Download the zip, unzip → installer inside.
+
+### Release builds
+
+Push a tag matching `desktop-v*` (e.g. `desktop-v0.1.0`) and the same
+workflow creates a [GitHub Release](https://github.com/rrhester/routeready/releases)
+with all three installers attached. Send DSPs the release page URL.
+
+```bash
+git tag desktop-v0.1.0
+git push origin desktop-v0.1.0
+```
+
+### Local dev (optional)
+
+If you do want to run it locally on a Linux box (or via Crostini on a
+Chromebook):
 
 ```bash
 cd desktop
@@ -32,8 +62,8 @@ npm install
 npm start
 ```
 
-`npm install` runs `playwright install chromium` post-install to fetch the
-matching Chromium build. Adds ~150 MB.
+`npm install` runs `playwright install chromium` post-install to fetch
+the matching Chromium build. Adds ~150 MB.
 
 ## Files
 
