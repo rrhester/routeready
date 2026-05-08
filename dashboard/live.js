@@ -12255,45 +12255,29 @@ document.addEventListener("keydown", (e) => {
 
 // ─── Schedule · Finalize-and-push + live-edit guard ────────────────────
 
-// Stage-aware primary CTA. Replaces the old "always Finalize" button.
-// The Schedule view has three natural stages and the page-header
-// button reflects whichever one matters now:
-//   1. Building   → open shifts > 0, week not finalized → Smart Fill
-//   2. Filled     → 0 open shifts, not finalized       → Finalize
-//   3. Live       → finalized                          → Live · Unfinalize
-// The toolbar's separate Smart Fill button is removed in this pass
-// so the operator never has two competing primaries on screen.
+// Page-header CTA: Finalize & push to drivers, with a Live/Unfinalize
+// state once the week is finalized. Was briefly stage-aware (swapped
+// to "Smart Fill" when open shifts > 0) but operators expected to
+// see Finalize at all times — Smart Fill lives in the toolbar
+// alongside it.
 function _updateFinalizeButton() {
   const btn = document.getElementById("schedule-cta");
   if (!btn) return;
   const isFinal = !!window._rrWeekFinalized;
-  const openCount = Number(window._rrOpenShiftsCount || 0);
+  btn.dataset.rrStage = isFinal ? "live" : "finalize";
 
-  let stage;
-  if (isFinal)            stage = "live";
-  else if (openCount > 0) stage = "fill";
-  else                    stage = "finalize";
-  btn.dataset.rrStage = stage;
-
-  if (stage === "live") {
+  if (isFinal) {
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Live · Unfinalize`;
     btn.style.background = "var(--green)";
     btn.style.borderColor = "var(--green)";
     btn.title = "This week is live · drivers see it. Click to take it back to draft.";
-  } else if (stage === "fill") {
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Smart Fill (${openCount})`;
-    btn.style.background = "";
-    btn.style.borderColor = "";
-    btn.title = `Auto-staff the ${openCount} open shift${openCount === 1 ? "" : "s"} from your rules + OKAMI demand.`;
   } else {
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Finalize &amp; push to drivers`;
     btn.style.background = "";
     btn.style.borderColor = "";
-    btn.title = "All shifts staffed. Push this week to drivers.";
+    btn.title = "Push this week's schedule to drivers";
   }
 }
-// Public alias so renderScheduleWeek can call it without coupling to
-// the old finalize-only name.
 window._rrUpdateScheduleCta = _updateFinalizeButton;
 
 async function _setWeekFinalized(target) {
@@ -12316,21 +12300,11 @@ function _confirmLiveScheduleEdit() {
 document.addEventListener("click", async (e) => {
   if (e.target.closest("#schedule-cta")) {
     e.preventDefault();
-    const btn = document.getElementById("schedule-cta");
-    const stage = btn?.dataset?.rrStage || "finalize";
-    if (stage === "fill") {
-      // Building stage → run Smart Fill against the visible week.
-      if (typeof window.openAiSchedule === "function") await window.openAiSchedule();
-      return;
+    const target = !window._rrWeekFinalized;
+    if (target) {
+      if (!confirm("Finalize this week and mark it as live for drivers? Edits after this will trigger a warning prompt.")) return;
     }
-    if (stage === "live") {
-      // Already finalized → unfinalize back to draft.
-      await _setWeekFinalized(false);
-      return;
-    }
-    // Finalize stage → push to drivers.
-    if (!confirm("Finalize this week and mark it as live for drivers? Edits after this will trigger a warning prompt.")) return;
-    await _setWeekFinalized(true);
+    await _setWeekFinalized(target);
   }
 });
 
