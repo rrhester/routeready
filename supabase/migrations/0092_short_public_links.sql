@@ -107,6 +107,12 @@ $$;
 -- The only place outside driver_referral_link that builds a refer URL.
 -- Re-create with the short path so the operator's leaderboard "Copy
 -- link" buttons match what the driver actually receives.
+--
+-- Drop first because CREATE OR REPLACE FUNCTION can't change the
+-- RETURNS TABLE column names — the prior signature (0017/0037) had
+-- "link text" where this revision has "share_url text".
+
+drop function if exists public.referral_leaderboard();
 
 create or replace function public.referral_leaderboard()
 returns table (
