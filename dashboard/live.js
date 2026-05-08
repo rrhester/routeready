@@ -13328,23 +13328,19 @@ async function renderScheduleWeek() {
   const ptoOn = (driverId, iso) => (ptoByDriver.get(driverId) || []).some(t => iso >= t.start_date && iso <= t.end_date);
 
   // Coverage rolled up by date.
-  // needed comes from okami_grid (source of truth). filled is computed
-  // CLIENT-SIDE from shifts assigned to drivers we actually render
-  // (status='active'); shifts to inactive / terminated drivers don't
-  // count as filled here (they're surfaced as open shifts above).
-  // Reuses visibleDriverIds defined earlier in this function.
+  // Per the operator's spec: shifts in the schedule = (route plan +
+  // cushion). The denominator for "0/7" should be how many shifts
+  // exist in the table for the day, not what okami_grid thinks is
+  // "needed" (which excludes cushion). filled = shifts assigned to
+  // a visible active driver. Open / cushion / inactive-driver shifts
+  // all count toward the denominator but not toward filled — making
+  // 100% the natural target the operator can actually reach.
   const coverageByDate = new Map();
-  for (const c of (grid.coverage || [])) {
-    const a = coverageByDate.get(c.date) || { needed: 0, filled: 0 };
-    a.needed += (c.needed || 0);
-    coverageByDate.set(c.date, a);
-  }
   for (const sh of (grid.shifts || [])) {
-    if (!sh.driver_id) continue;
-    if (!visibleDriverIds.has(sh.driver_id)) continue;
     if (!["scheduled", "completed"].includes(sh.status)) continue;
     const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0 };
-    a.filled += 1;
+    a.needed += 1;
+    if (sh.driver_id && visibleDriverIds.has(sh.driver_id)) a.filled += 1;
     coverageByDate.set(sh.date, a);
   }
   let totalNeeded = 0, totalFilled = 0;
