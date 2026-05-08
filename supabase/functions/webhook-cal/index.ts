@@ -76,15 +76,27 @@ Deno.serve(async (req) => {
     case "BOOKING_CREATED":
     case "BOOKING_RESCHEDULED": {
       if (!applicantId) return jsonResponse({ ok: true, ignored: "no_applicant" });
+      const meetingUrl = data.payload.location?.startsWith("http") ? data.payload.location : null;
+      const location   = data.payload.location?.startsWith("http") ? null : data.payload.location;
       await supa.rpc("book_event", {
         p_applicant_id: applicantId,
         p_kind: kind,
         p_starts_at: data.payload.startTime,
         p_ends_at: data.payload.endTime,
         p_provider_event_id: providerEventId,
-        p_meeting_url: data.payload.location?.startsWith("http") ? data.payload.location : null,
-        p_location: data.payload.location?.startsWith("http") ? null : data.payload.location,
+        p_meeting_url: meetingUrl,
+        p_location: location,
         p_timezone: data.payload.organizer?.timeZone ?? data.payload.attendees?.[0]?.timeZone ?? null,
+      });
+      // Replace cal.com's "interview between RouteReady and …" email
+      // with our DSP-branded booking_confirmed template. Operator
+      // disables cal.com's outgoing confirmation in event-type
+      // settings so the applicant only receives one message per book.
+      await supa.rpc("send_booking_confirmation", {
+        p_applicant_id: applicantId,
+        p_starts_at:    data.payload.startTime,
+        p_meeting_url:  meetingUrl,
+        p_location:     location,
       });
       break;
     }
