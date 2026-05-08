@@ -1031,6 +1031,18 @@ function _renderAttReportTbody() {
     "Policy off":       "verbal",
   };
 
+  // Decide once per row whether it needs an action — used by both
+  // the row class (left accent stripe) and the group-header count.
+  // Reuses SEV_RANK declared above for the lastcoach sort.
+  const rowNeedsAction = (r) => {
+    const sev = RECOMMEND[r.coachingLabel] || "verbal";
+    const isClear = r.coachingLabel === "Clear" || r.coachingLabel === "Policy off";
+    if (isClear) return false;
+    const rowSevRank  = SEV_RANK[sev] ?? 0;
+    const lastSevRank = r.lastCoach ? (SEV_RANK[r.lastCoach.severity] ?? 0) : -1;
+    return rowSevRank > lastSevRank;
+  };
+
   const renderRow = (r) => {
     const display = displayDriverName(r.d);
     const initials = displayDriverInitials(r.d);
@@ -1064,11 +1076,7 @@ function _renderAttReportTbody() {
     // at that severity yet.  Already-coached or Clear rows stay
     // quiet — operators can drill into the per-driver Attendance tab
     // to send a follow-up coaching when they want one.
-    const SEV_RANK = { note: 0, verbal: 1, concern: 1, written: 2, warning: 2, final: 3, termination: 4 };
-    const rowSevRank = SEV_RANK[sev] ?? 0;
-    const lastSevRank = r.lastCoach ? (SEV_RANK[r.lastCoach.severity] ?? 0) : -1;
-    const isClear = r.coachingLabel === "Clear" || r.coachingLabel === "Policy off";
-    const needsAction = !isClear && rowSevRank > lastSevRank;
+    const needsAction = rowNeedsAction(r);
 
     const actionCell = needsAction
       ? `<button class="btn btn-sm" type="button"
@@ -1086,7 +1094,10 @@ function _renderAttReportTbody() {
       : "";
 
     // Whole row is clickable → opens drawer on Attendance tab.
-    return `<tr data-rr-att-row="${escapeHtml(r.d.id)}" style="cursor:pointer">
+    // Action-needed rows carry a left accent stripe via .att-row-action
+    // so the eye finds them before reading any individual cell.
+    const rowCls = needsAction ? "att-row-action" : "";
+    return `<tr data-rr-att-row="${escapeHtml(r.d.id)}" class="${rowCls}" style="cursor:pointer">
       <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
       <td><span class="status-pill status-pill-${statusVariant}" title="${escapeHtml(r.statusLabel)}">${escapeHtml(r.coachingLabel)}</span></td>
@@ -1101,7 +1112,11 @@ function _renderAttReportTbody() {
   for (const lbl of groupOrder) {
     const list = buckets.get(lbl) || [];
     if (list.length === 0) continue;
-    html += `<tr><td colspan="7" class="att-group-head">${escapeHtml(groupLabels[lbl] || lbl)} <span class="count">· ${list.length}</span></td></tr>`;
+    const needCount = list.filter(rowNeedsAction).length;
+    const headerSuffix = needCount > 0
+      ? `<span class="count">· ${needCount} need coaching</span>`
+      : `<span class="count">· ${list.length}</span>`;
+    html += `<tr><td colspan="7" class="att-group-head">${escapeHtml(groupLabels[lbl] || lbl)} ${headerSuffix}</td></tr>`;
     html += list.map(renderRow).join("");
   }
   tbody.innerHTML = html;

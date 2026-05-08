@@ -5423,6 +5423,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .att-filter-chip.active{background:var(--accent-soft);color:var(--accent);border-color:transparent}
           .att-group-head{display:flex;align-items:center;gap:8px;padding:10px 0 6px;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase}
           .att-group-head .count{color:var(--text-subtle);font-weight:500}
+          /* Action-needed row — left accent stripe + soft warm tint
+             so the dispatcher's eye lands on the rows that actually
+             need a coaching, before reading any individual cell.
+             First-cell box-shadow paints the left edge inside the
+             cell border so it doesn't fight the table's own borders. */
+          tr.att-row-action td:first-child{box-shadow:inset 4px 0 0 var(--amber)}
+          tr.att-row-action td{background:rgba(245,158,11,.04)}
+          tr.att-row-action:hover td{background:rgba(245,158,11,.08)}
 
           /* Attendance policy editor — structured form */
           .rr-pol-row{display:flex;align-items:center;gap:8px;font-size:var(--fs-md);color:var(--text);padding:6px 0}
@@ -15821,7 +15829,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260507be"></script>
+<script type="module" src="./live.js?v=20260508a"></script>
 
 </body>
 </html>
