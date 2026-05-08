@@ -13205,7 +13205,13 @@ async function renderScheduleWeek() {
   }
   // Virtual chips get the wave time at their position in the day's lineup.
   // Single-wave config → every virtual chip shows the same wave time.
-  const wavesArr = (window.RR?.dsp?.metadata?.scheduling?.waves) || [{ start: "07:00" }];
+  // Read from the per-week effective settings cache (populated by
+  // loadSchedulingSettings) so the visible week's waves drive the
+  // chip layout, not the stale DSP-default metadata.
+  const _eff = window._rrEffectiveSettings || {};
+  const wavesArr = (Array.isArray(_eff.waves) && _eff.waves.length ? _eff.waves : null)
+    || (window.RR?.dsp?.metadata?.scheduling?.waves)
+    || [{ start: "07:00" }];
   const waveCount = Math.max(1, wavesArr.length);
   const virtualByDate = new Map();
   for (const c of (grid.coverage || [])) {
@@ -13499,9 +13505,14 @@ async function renderScheduleWeek() {
         const style = slot.is_cushion ? ' style="border-color:#FCD34D"' : "";
         return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
       }
-      const blockH = window.RR?.dsp?.metadata?.scheduling?.default_block_hours || 10;
-      const vStart = fmtWaveTime(slot.wave_start);
-      const vEnd   = fmtWaveTime(addHoursToWaveTime(slot.wave_start, blockH));
+      const eff = window._rrEffectiveSettings || {};
+      const blockH = eff.default_block_hours
+        || window.RR?.dsp?.metadata?.scheduling?.default_block_hours
+        || 10;
+      const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
+      const reportStart = addHoursToWaveTime(slot.wave_start, -lead / 60);
+      const vStart = fmtWaveTime(reportStart);
+      const vEnd   = fmtWaveTime(addHoursToWaveTime(reportStart, blockH));
       const virtLabel = vStart && vEnd ? `${vStart} – ${vEnd}` : (vStart || "open");
       return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(virtLabel)}</div></div>`;
     }).join("");
@@ -13591,14 +13602,23 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   const fmtVirtualTime = (sh) => {
     // virtual chips don't have a real ends_at — derive a label from the
     // wave start + the configured block hours so the chip reads naturally.
+    // Subtract report_lead_minutes so the chip shows the time we're
+    // actually telling the driver to arrive at the station, matching
+    // the real-shift chips after the DB-side fix.
     if (!sh.virtual) return (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
-    const block = (window.RR?.dsp?.metadata?.scheduling?.default_block_hours) || 10;
+    const eff = window._rrEffectiveSettings || {};
+    const block = eff.default_block_hours
+      || (window.RR?.dsp?.metadata?.scheduling?.default_block_hours)
+      || 10;
+    const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
     const [h, m] = (sh.wave_start || "07:00").split(":").map(Number);
-    const startMins = (h || 0) * 60 + (m || 0);
+    const startMins = ((h || 0) * 60 + (m || 0)) - lead;
     const endMins = startMins + block * 60;
     const fmt = (mins) => {
-      let hh = Math.floor(mins / 60) % 24;
-      const mm = mins % 60;
+      // Wrap negatives (e.g. wave 00:10 minus 20min lead) cleanly.
+      const total = ((mins % 1440) + 1440) % 1440;
+      let hh = Math.floor(total / 60);
+      const mm = total % 60;
       const ampm = hh >= 12 ? "pm" : "am";
       hh = hh % 12 || 12;
       return `${hh}:${String(mm).padStart(2,"0")}${ampm}`;
@@ -13723,8 +13743,12 @@ function bindSchedWeekNav() {
     const tab = e.target.closest(".sched-week-tab");
     if (tab && tab.dataset.rrWeekStart) {
       _schedStart = tab.dataset.rrWeekStart;
-      renderScheduleWeek();
-      loadSchedulingSettings();
+      // Settings must populate _rrEffectiveSettings before render so
+      // the open-shifts pool reads this week's lead/waves.
+      (async () => {
+        try { await loadSchedulingSettings(); } catch (e) { console.warn("settings reload:", e); }
+        try { await renderScheduleWeek();    } catch (e) { console.warn("render reload:", e); }
+      })();
       return;
     }
     if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
