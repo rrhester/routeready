@@ -834,6 +834,28 @@ a{color:inherit;text-decoration:none}
 #view-okami.rr-okami-overlay .rr-okami-close{display:flex}
 #view-okami .rr-okami-close:hover{background:var(--surface-hover);color:var(--text)}
 
+/* Single-week mode (overlay): hide everything that's only useful on
+   the 13-week strategic page so the operator only sees the daily
+   route-planning editor for the week they came from.
+   - Plan Pad slider: cross-week buffer, irrelevant to one week.
+   - 13-week table thead + every row except week-0's detail.
+   - "13-week plan" badge + the strategic page sub-headline.
+   - "Back to Schedule" button: the close X already handles it. */
+#view-okami.rr-okami-overlay #rr-okami-pad-row,
+#view-okami.rr-okami-overlay .rr-okami-13week-badge,
+#view-okami.rr-okami-overlay #rr-okami-page-sub,
+#view-okami.rr-okami-overlay .rr-okami-back-btn,
+#view-okami.rr-okami-overlay .okami-table thead,
+#view-okami.rr-okami-overlay .okami-table tbody > tr:not(#okami-detail-0){
+  display:none !important;
+}
+/* Surface week-0's detail panel as the page body. Drop the table
+   chrome around it so it doesn't read as a single-cell table. */
+#view-okami.rr-okami-overlay #okami-detail-0{display:table-row !important}
+#view-okami.rr-okami-overlay #okami-detail-0 > td{padding:0;border:none;background:transparent}
+#view-okami.rr-okami-overlay .plan-table-wrap{border:none;background:transparent;padding:0}
+#view-okami.rr-okami-overlay .okami-table{border:none}
+
 /* Generic right-side drawer (used by Schedule → Settings). Mirrors
    .coach-drawer's behavior so the schedule settings can slide in
    alongside the calendar instead of taking a whole sub-tab. */
@@ -7277,12 +7299,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
       <div class="page">
         <div class="page-header">
           <div>
-            <h1 class="page-title">OKAMI <span style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);padding:3px 8px;border-radius:6px;margin-left:8px;letter-spacing:0;text-transform:none;vertical-align:middle" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span></h1>
-            <p class="page-sub">Routes vs. staffing vs. risk · drawn from your real history</p>
+            <h1 class="page-title" id="rr-okami-page-title">OKAMI <span class="rr-okami-13week-badge" style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);padding:3px 8px;border-radius:6px;margin-left:8px;letter-spacing:0;text-transform:none;vertical-align:middle" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span></h1>
+            <p class="page-sub" id="rr-okami-page-sub">Routes vs. staffing vs. risk · drawn from your real history</p>
           </div>
           <div class="page-actions">
             <span id="rr-okami-save-status" style="font-size:var(--fs-sm);color:var(--text-subtle);margin-right:6px"></span>
-            <button class="btn" onclick="goto('schedule')">
+            <button class="btn rr-okami-back-btn" onclick="goto('schedule')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="15 18 9 12 15 6"/></svg>
               Back to Schedule
             </button>
@@ -7294,7 +7316,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
         </div>
 
         <!-- Single staffing-plan input — Plan Pad % above the 2× baseline. -->
-        <div style="margin-bottom:var(--s-4);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div id="rr-okami-pad-row" style="margin-bottom:var(--s-4);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="flex:0 0 auto">
             <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Staffing Plan Pad</div>
             <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Buffer above the 2× per-route baseline. Separate from the schedule cushion.</div>

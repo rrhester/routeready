@@ -12157,7 +12157,7 @@ window.closeSchedSettingsDrawer = closeSchedSettingsDrawer;
 // in the Week-view toolbar opens #view-okami as a full-screen overlay
 // anchored on the visible week (_schedStart), instead of always
 // rolling forward to "this week + 12".
-function openOkamiOverlay() {
+async function openOkamiOverlay() {
   const okami = document.getElementById("view-okami");
   if (!okami) return;
   // Anchor OKAMI on the week the operator is editing. _renderOkamiLiveImpl
@@ -12166,13 +12166,46 @@ function openOkamiOverlay() {
     window._rrOkamiAnchorOverride = _schedStart;
   }
   okami.classList.add("rr-okami-overlay");
-  // Trigger the OKAMI data load. _renderOkamiLiveImpl is awaited inside
-  // loadOkamiView; we don't need to wait here.
-  if (typeof loadOkamiView === "function") loadOkamiView();
+
+  // Update the page title to reflect the single-week scope. The
+  // CSS hides the "13-week plan" badge in overlay mode; we set the
+  // title text to "Route planning · week of <Mon, May 11>" so the
+  // operator knows exactly which week they're editing.
+  const titleEl = document.getElementById("rr-okami-page-title");
+  if (titleEl && typeof _schedStart === "string" && _schedStart) {
+    const d = new Date(_schedStart + "T12:00:00");
+    const lbl = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    titleEl.textContent = `Route planning · week of ${lbl}`;
+  }
+
+  // Wait for OKAMI to render the 13-week table, then auto-expand
+  // week-0's detail panel — that's the daily route-planning editor
+  // and the only thing the overlay shows (CSS hides every other
+  // row). Without this, the operator opens the overlay and sees an
+  // empty white page.
+  if (typeof loadOkamiView === "function") {
+    try { await loadOkamiView(); } catch (e) { console.warn("OKAMI overlay load:", e); }
+  }
+  if (typeof window.okamiToggleDaily === "function") {
+    const detail = document.getElementById("okami-detail-0");
+    if (detail && !detail.classList.contains("open")) {
+      window.okamiToggleDaily(0);
+    } else if (typeof window.renderOkamiDailyPanel === "function") {
+      // Already open from a prior session — just refresh content
+      // against the new anchor week.
+      window.renderOkamiDailyPanel(0);
+    }
+  }
 }
 function closeOkamiOverlay() {
   const okami = document.getElementById("view-okami");
   if (okami) okami.classList.remove("rr-okami-overlay");
+  // Restore the strategic page title for the next time someone
+  // navigates to OKAMI through any non-overlay path.
+  const titleEl = document.getElementById("rr-okami-page-title");
+  if (titleEl) {
+    titleEl.innerHTML = `OKAMI <span class="rr-okami-13week-badge" style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);padding:3px 8px;border-radius:6px;margin-left:8px;letter-spacing:0;text-transform:none;vertical-align:middle" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>`;
+  }
 }
 window.openOkamiOverlay  = openOkamiOverlay;
 window.closeOkamiOverlay = closeOkamiOverlay;
