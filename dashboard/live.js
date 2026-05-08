@@ -5732,6 +5732,16 @@ function renderInterviewDay(day, rows) {
         <strong style="color:var(--text-muted);display:block;margin-bottom:4px">No interviews booked for ${day.date}</strong>
         When applicants book via Cal.com, they'll show up here.
       </div>`;
+  } else if (day.closed_at) {
+    // Closed days are archived — render a summary instead of the
+    // actionable applicant cards. Operators can still see the per-row
+    // outcomes by reopening (DB-side) or in the funnel below.
+    list.innerHTML = `
+      <div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);background:var(--surface);border:1px solid var(--border);border-radius:12px">
+        <strong style="color:var(--text);display:block;margin-bottom:6px;font-size:var(--fs-lg)">Interview day closed</strong>
+        <div style="margin-bottom:4px">${booked} interview${booked === 1 ? "" : "s"} on ${day.date}</div>
+        <div style="font-size:var(--fs-sm)">${hired} hired · ${noHire} no-hire · ${noShow} no-show</div>
+      </div>`;
   } else {
     list.innerHTML = rows.map(renderInterviewCard).join("");
   }
