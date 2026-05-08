@@ -2374,11 +2374,10 @@ async function renderAttendance() {
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
-  // Pull the driver's current standing + their DSP's policy.  This
-  // replaces the old "on the clock / off the clock" card — that lives
-  // on the home Profile screen now.  The Attendance screen exists to
-  // tell the driver where they stand against the rules and what those
-  // rules actually are.
+  // Pull the driver's current standing + their DSP's policy (now
+  // block-shaped: variable rung count, custom point values per
+  // event).  Driver-side scoring is computed server-side so it
+  // can never disagree with what the dispatcher sees.
   const { data, error } = await sb.rpc("driver_attendance_overview",
     { p_token: session.token });
 
@@ -2391,58 +2390,71 @@ async function renderAttendance() {
   const policy   = data?.policy   || {};
   const enabled  = policy.enabled !== false;
 
-  // Status banner
+  const SEV_LABEL = { verbal: "Verbal", written: "Written", final: "Final", termination: "Termination" };
+  const EVENT_LABEL = { callout: "Callout", no_show: "No-show", late: "Late arrival" };
+  const ladder = Array.isArray(policy.ladder) ? policy.ladder : [];
+  const events = Array.isArray(policy.events) ? policy.events : [];
+
+  // Status banner.
   let statusTitle, statusSub, statusClass;
   if (!enabled) {
     statusTitle = "No attendance policy";
     statusSub   = "Your DSP doesn't track attendance points right now.";
     statusClass = "neutral";
   } else if (standing.status === "action") {
-    statusTitle = "Action — review with your leader";
+    const sev = SEV_LABEL[standing.severity] || "Action";
+    statusTitle = `${sev} — review with your leader`;
     statusSub   = standing.in_first_30_days
       ? "First-30-days probation rule applied."
-      : `${standing.occurrences} occurrence${standing.occurrences === 1 ? "" : "s"} in the last ${policy.decay_days} days.`;
+      : `${standing.points} point${standing.points === 1 ? "" : "s"} in the last ${policy.decay_days} days.`;
     statusClass = "denied";
   } else if (standing.status === "warning") {
-    statusTitle = "Warning";
-    statusSub   = `${standing.occurrences} of ${policy.threshold_action} occurrences before formal action.`;
+    const sev = SEV_LABEL[standing.severity] || "Warning";
+    statusTitle = sev;
+    statusSub   = standing.next_severity
+      ? `${standing.points} point${standing.points === 1 ? "" : "s"} · ${standing.points_to_next} more = ${SEV_LABEL[standing.next_severity] || standing.next_severity}.`
+      : `${standing.points} point${standing.points === 1 ? "" : "s"} accrued.`;
     statusClass = "pending";
   } else {
     statusTitle = "Good standing";
-    statusSub   = standing.occurrences > 0
-      ? `${standing.occurrences} occurrence${standing.occurrences === 1 ? "" : "s"} on file in the last ${policy.decay_days} days.`
-      : "Clean record over the last " + policy.decay_days + " days.";
+    if (standing.next_severity && standing.points_to_next > 0) {
+      statusSub = `${standing.points} point${standing.points === 1 ? "" : "s"} · ${standing.points_to_next} more = ${SEV_LABEL[standing.next_severity] || standing.next_severity}.`;
+    } else {
+      statusSub = "Clean record over the last " + policy.decay_days + " days.";
+    }
     statusClass = "approved";
   }
 
-  // Build the policy explanation in plain terms — no toggle words, no
-  // jargon.  Bullets mirror the dispatcher's policy builder so the
-  // driver and the leader see the same rules.
-  const counts = [];
-  if (policy.count_tardy)   counts.push("late check-ins (tardies)");
-  if (policy.count_callout) counts.push("callouts (you let dispatch know in advance)");
-  if (policy.count_noshow)  counts.push("no-call no-shows");
-  const countsText = counts.length === 0
-    ? "Nothing currently counts as an occurrence — your DSP is logging events but not scoring them."
-    : "An occurrence is recorded for: " + counts.join(", ") + ".";
+  // Per-event point values — the new policy lets the DSP set
+  // different point weights per event type, so we tell the driver.
+  const pointsExplained = events.length === 0
+    ? "Nothing currently counts toward points — your DSP is logging events but not scoring them."
+    : events.map(e => {
+        const pts = Number(e.points) || 0;
+        const label = (EVENT_LABEL[e.kind] || e.kind);
+        return `${escapeHtml(label)} = <strong>${pts} point${pts === 1 ? "" : "s"}</strong>`;
+      }).join(" · ");
 
-  const ladderText = "Coaching is progressive: each occurrence in the rolling window steps you up one rung — <b>1st</b> = verbal conversation, <b>2nd</b> = written warning, <b>3rd</b> = final written warning, <b>4th</b> = termination. Older events drop off as the window scrolls forward.";
+  // Render the actual ladder the DSP built — variable count, real
+  // thresholds.  Highlight the rung the driver currently sits on.
+  const ladderHtml = ladder.length === 0
+    ? "<li>Your DSP hasn't set up coaching levels yet.</li>"
+    : ladder.map(r => {
+        const sev = SEV_LABEL[r.severity] || r.severity;
+        const thr = Number(r.threshold) || 0;
+        const here = standing.severity === r.severity;
+        return `<li${here ? ' style="color:var(--text);font-weight:700"' : ""}>
+          ${thr} pt → ${escapeHtml(sev)}${here ? " ← you are here" : ""}
+        </li>`;
+      }).join("");
 
   const ncnsText = policy.ncns_terminates
-    ? "<b>One no-call no-show is grounds for termination</b> — your DSP escalates NCNS instantly, even on a clean record."
+    ? `<li><strong>One no-call no-show is grounds for termination</strong> — your DSP escalates NCNS instantly, even on a clean record.</li>`
     : "";
 
   const first30Text = policy.first_30_strict
-    ? `New drivers are held to <b>zero absences</b> for their first ${policy.first_30_window_days} days.  Any callout or no-show in that window jumps straight to Action.`
+    ? `<li>New drivers are held to <strong>zero absences</strong> for their first ${policy.first_30_window_days} days. Any callout or no-show in that window jumps straight to Action.</li>`
     : "";
-
-  const policyBullets = !enabled ? [] : [
-    countsText,
-    `Events accrue in a rolling <b>${policy.decay_days}-day</b> window. Coaching starts at occurrence <b>#${policy.threshold_warn}</b>.`,
-    ladderText,
-    ncnsText,
-    first30Text,
-  ].filter(Boolean);
 
   main.innerHTML = `
     <div class="avail-page">
@@ -2453,31 +2465,46 @@ async function renderAttendance() {
 
       ${enabled ? `
       <div class="card">
-        <div class="checkin-title" style="margin-bottom:8px">Your record</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-          <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.tardies ?? 0}</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Tardies</div>
+        <div class="checkin-title" style="margin-bottom:8px">Your record · last ${policy.decay_days} days</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
+          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.points ?? 0}</div>
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Points</div>
           </div>
-          <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
+          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
             <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.callouts ?? 0}</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Callouts</div>
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Callouts</div>
           </div>
-          <div style="background:var(--canvas);border-radius:10px;padding:10px 12px;text-align:center">
+          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
             <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.noshows ?? 0}</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">No-shows</div>
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">No-shows</div>
+          </div>
+          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.tardies ?? 0}</div>
+            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Tardies</div>
           </div>
         </div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">${pointsExplained}</div>
       </div>` : ""}
 
       <section class="card">
-        <div class="checkin-title" style="margin-bottom:8px">${enabled ? "How your DSP's attendance policy works" : "Attendance"}</div>
+        <div class="checkin-title" style="margin-bottom:8px">${enabled ? "Your DSP's coaching ladder" : "Attendance"}</div>
         ${enabled
-          ? `<ul style="margin:0;padding-left:18px;font-size:var(--fs-md);color:var(--text-muted);line-height:1.6">
-               ${policyBullets.map(b => `<li>${b}</li>`).join("")}
-             </ul>`
-          : `<p style="margin:0;font-size:var(--fs-md);color:var(--text-muted);line-height:1.6">Your DSP isn't running an attendance scoring policy right now.  Tardies, callouts, and no-shows are still logged on your record, but no warnings or actions are auto-generated.</p>`}
+          ? `<ul style="margin:0;padding-left:18px;font-size:var(--fs-md);color:var(--text-muted);line-height:1.7">
+               ${ladderHtml}
+             </ul>
+             <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px;line-height:1.4">Older events drop off after ${policy.decay_days} days.</div>`
+          : `<p style="margin:0;font-size:var(--fs-md);color:var(--text-muted);line-height:1.6">Your DSP isn't running an attendance scoring policy right now. Tardies, callouts, and no-shows are still logged on your record, but no warnings or actions are auto-generated.</p>`}
       </section>
+
+      ${enabled && (ncnsText || first30Text) ? `
+      <section class="card">
+        <div class="checkin-title" style="margin-bottom:8px">Special rules</div>
+        <ul style="margin:0;padding-left:18px;font-size:var(--fs-md);color:var(--text-muted);line-height:1.6">
+          ${ncnsText}
+          ${first30Text}
+        </ul>
+      </section>` : ""}
     </div>`;
 }
 
