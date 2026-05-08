@@ -14,17 +14,41 @@ interface QueuedRow {
   attachments: Attachment[] | null;
 }
 
-// Rebuild the Resend "From" header so the display name comes from the
-// per-DSP name (gear icon → Workspace settings) and the email address
-// comes from RESEND_FROM_EMAIL. Recipient sees "Acme Logistics
-// <hello@gorouteready.com>" instead of the platform brand.
-function brandedFrom(envFrom: string, dspName: string | null | undefined): string {
+// Rebuild the Resend "From" header so:
+//   • The display name = the per-DSP name from gear icon → Workspace
+//     settings (e.g. "Acme Logistics").
+//   • The local-part of the address = a slug derived from the DSP name
+//     (or the short_code if the name slugifies to nothing). The domain
+//     comes from RESEND_FROM_EMAIL.
+// Recipient sees:  "Acme Logistics <acme-logistics@gorouteready.com>"
+// instead of the platform brand. Resend authenticates DKIM/SPF at the
+// domain level so any local-part on a verified domain ships fine.
+function slugifyLocalPart(s: string): string {
+  return s.toLowerCase()
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "") // strip combining accents
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
+function brandedFrom(
+  envFrom: string,
+  dspName: string | null | undefined,
+  dspShortCode: string | null | undefined,
+): string {
   if (!dspName) return envFrom;
   const m = envFrom.match(/<([^>]+)>/);
   const addr = m ? m[1] : envFrom;
+  const atIdx = addr.indexOf("@");
+  if (atIdx <= 0) return envFrom; // malformed env var — bail to default
+
+  const slug = slugifyLocalPart(dspName)
+    || (dspShortCode ? dspShortCode.toLowerCase() : "");
+  const localPart = slug || addr.slice(0, atIdx);
+  const domain = addr.slice(atIdx + 1);
+
   // Quote the display name if it contains special chars per RFC 5322.
   const safe = /[",<>@]/.test(dspName) ? `"${dspName.replace(/"/g, '\\"')}"` : dspName;
-  return `${safe} <${addr}>`;
+  return `${safe} <${localPart}@${domain}>`;
 }
 
 Deno.serve(async (req) => {
@@ -50,13 +74,18 @@ Deno.serve(async (req) => {
   if (error) return badRequest(error.message, 500);
   if (!rows || rows.length === 0) return jsonResponse({ sent: 0 });
 
-  // Look up DSP names for every dsp_id in this batch in one round-trip.
+  // Look up DSP names + short codes for every dsp_id in this batch in
+  // one round-trip.
   const dspIds = Array.from(new Set(rows.map((r) => r.dsp_id).filter(Boolean)));
-  const dspNameById = new Map<string, string>();
+  const dspById = new Map<string, { name: string | null; short_code: string | null }>();
   if (dspIds.length > 0) {
-    const { data: dspRows } = await supa.from("dsps").select("id, name").in("id", dspIds);
+    const { data: dspRows } = await supa.from("dsps")
+      .select("id, name, short_code").in("id", dspIds);
     for (const d of dspRows ?? []) {
-      if (d?.id && d?.name) dspNameById.set(d.id as string, d.name as string);
+      if (d?.id) dspById.set(d.id as string, {
+        name: (d.name as string) ?? null,
+        short_code: (d.short_code as string) ?? null,
+      });
     }
   }
 
@@ -64,7 +93,8 @@ Deno.serve(async (req) => {
   for (const row of rows as QueuedRow[]) {
     await supa.from("email_messages").update({ status: "sending" }).eq("id", row.id);
 
-    const fromHeader = brandedFrom(from, dspNameById.get(row.dsp_id) ?? null);
+    const dsp = dspById.get(row.dsp_id);
+    const fromHeader = brandedFrom(from, dsp?.name ?? null, dsp?.short_code ?? null);
 
     const body: Record<string, unknown> = {
       from: fromHeader, to: [row.to_email], subject: row.subject,

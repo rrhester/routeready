@@ -5977,7 +5977,7 @@ async function loadReferralsTab() {
   const masterEl = document.getElementById("ref-master-link");
   if (masterEl) {
     const baseUrl = window.RR.dsp?.metadata?.public_base_url || "https://gorouteready.com";
-    masterEl.textContent = `${baseUrl}/dashboard/refer.html?r=<driver-token>`;
+    masterEl.textContent = `${baseUrl}/r/<driver-token>`;
   }
 }
 
@@ -8507,7 +8507,7 @@ function renderCoachingTab(coachings, driver) {
   const token = driver?.coaching_view_token;
   const base = window.RR?.dsp?.metadata?.public_base_url || window.RR_CONFIG?.PUBLIC_BASE_URL || location.origin;
   const linkBtn = token
-    ? `<button class="btn btn-sm" data-rr-coach-copy-link="${escapeHtml(base.replace(/\/$/, ""))}/dashboard/coaching.html?t=${encodeURIComponent(token)}" style="margin-left:8px">Copy driver link</button>`
+    ? `<button class="btn btn-sm" data-rr-coach-copy-link="${escapeHtml(base.replace(/\/$/, ""))}/c/${encodeURIComponent(token)}" style="margin-left:8px">Copy driver link</button>`
     : "";
   // Drop the "+ Log coaching" button on a driver's coaching record —
   // operators log new coachings from the global Coaching feed and
@@ -9107,7 +9107,7 @@ async function openCoachingForm(driverId) {
         || window.RR_CONFIG?.PUBLIC_BASE_URL
         || location.origin;
       const link = tokRow?.coaching_view_token
-        ? `${base.replace(/\/$/, "")}/dashboard/coaching.html?t=${encodeURIComponent(tokRow.coaching_view_token)}`
+        ? `${base.replace(/\/$/, "")}/c/${encodeURIComponent(tokRow.coaching_view_token)}`
         : null;
 
       const body = link

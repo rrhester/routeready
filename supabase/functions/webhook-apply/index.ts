@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     await supa.from("applicants").update({ metadata: md, status: "contacted" }).eq("id", applicant.id);
 
     const baseUrl = (dsp?.metadata?.public_base_url) ?? "https://gorouteready.com";
-    const link = `${baseUrl}/dashboard/screening.html?t=${token}`;
+    const link = `${baseUrl}/s/${token}`;
 
     const { data: tpl } = await supa.from("message_templates")
       .select("body").eq("dsp_id", applicant.dsp_id)

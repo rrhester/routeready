@@ -1,0 +1,21 @@
+# Short-path rewrites for applicant/driver-facing links. The original
+# paths (/dashboard/screening.html?t=…) still resolve so previously-
+# emailed/SMS'd links keep working; new sends from the DB use the
+# shorter forms below.
+#
+# 200 = internal rewrite (URL bar stays on the short path).
+
+[[redirects]]
+  from = "/s/:token"
+  to   = "/dashboard/screening.html?t=:token"
+  status = 200
+
+[[redirects]]
+  from = "/c/:token"
+  to   = "/dashboard/coaching.html?t=:token"
+  status = 200
+
+[[redirects]]
+  from = "/r/:token"
+  to   = "/dashboard/refer.html?r=:token"
+  status = 200
