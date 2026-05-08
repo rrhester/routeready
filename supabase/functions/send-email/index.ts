@@ -74,18 +74,23 @@ Deno.serve(async (req) => {
   if (error) return badRequest(error.message, 500);
   if (!rows || rows.length === 0) return jsonResponse({ sent: 0 });
 
-  // Look up DSP names + short codes for every dsp_id in this batch in
-  // one round-trip.
+  // Look up DSP names + short codes + reply-to email for every dsp_id
+  // in this batch in one round-trip.
   const dspIds = Array.from(new Set(rows.map((r) => r.dsp_id).filter(Boolean)));
-  const dspById = new Map<string, { name: string | null; short_code: string | null }>();
+  const dspById = new Map<string, { name: string | null; short_code: string | null; replyTo: string | null }>();
   if (dspIds.length > 0) {
     const { data: dspRows } = await supa.from("dsps")
-      .select("id, name, short_code").in("id", dspIds);
+      .select("id, name, short_code, metadata").in("id", dspIds);
     for (const d of dspRows ?? []) {
-      if (d?.id) dspById.set(d.id as string, {
-        name: (d.name as string) ?? null,
-        short_code: (d.short_code as string) ?? null,
-      });
+      if (d?.id) {
+        const meta = (d.metadata as Record<string, unknown> | null) ?? {};
+        const rt = typeof meta.reply_to_email === "string" ? meta.reply_to_email.trim() : "";
+        dspById.set(d.id as string, {
+          name: (d.name as string) ?? null,
+          short_code: (d.short_code as string) ?? null,
+          replyTo: rt || null,
+        });
+      }
     }
   }
 
@@ -95,13 +100,17 @@ Deno.serve(async (req) => {
 
     const dsp = dspById.get(row.dsp_id);
     const fromHeader = brandedFrom(from, dsp?.name ?? null, dsp?.short_code ?? null);
+    // Per-DSP Reply-To wins over the server-wide RESEND_REPLY_TO env
+    // var so applicant replies land in the operator's inbox instead of
+    // the platform support address.
+    const effectiveReplyTo = dsp?.replyTo || replyTo || null;
 
     const body: Record<string, unknown> = {
       from: fromHeader, to: [row.to_email], subject: row.subject,
     };
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
-    if (replyTo) body.reply_to = replyTo;
+    if (effectiveReplyTo) body.reply_to = effectiveReplyTo;
     // Resend supports `attachments: [{filename, path}]` where `path` is a
     // public URL it fetches at send time.
     const att = Array.isArray(row.attachments) ? row.attachments : [];
@@ -139,7 +148,7 @@ Deno.serve(async (req) => {
       provider: "resend",
       provider_message_id: data.id,
       from_email: fromHeader,
-      reply_to: replyTo ?? null,
+      reply_to: effectiveReplyTo,
       sent_at: new Date().toISOString(),
     }).eq("id", row.id);
     sent++;
