@@ -11877,12 +11877,14 @@ async function loadSchedulingSettings() {
   const blockEl  = document.getElementById("rr-set-block-hours");
   const cushEl   = document.getElementById("rr-set-cushion-pct");
   const maxDaysEl = document.getElementById("rr-set-max-days");
+  const leadEl    = document.getElementById("rr-set-report-lead");
   const wavesEl  = document.getElementById("rr-set-waves");
   const statusEl = document.getElementById("rr-set-sched-status");
 
   if (blockEl)   blockEl.value   = s.default_block_hours ?? 10;
   if (cushEl)    cushEl.value    = s.cushion_pct ?? 10;
   if (maxDaysEl) maxDaysEl.value = s.max_days_per_week ?? 5;
+  if (leadEl)    leadEl.value    = s.report_lead_minutes ?? 0;
 
   // Read-only attendance rate label next to the cushion field. Operator
   // looks at it and decides their own cushion %. No click handler, no
@@ -12038,6 +12040,7 @@ document.addEventListener("click", async (e) => {
     const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
     const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
     const maxDays = Math.max(1, Math.min(7, parseInt(document.getElementById("rr-set-max-days")?.value, 10) || 5));
+    const reportLead = Math.max(0, Math.min(120, parseInt(document.getElementById("rr-set-report-lead")?.value, 10) || 0));
     const allowOverride = !!document.getElementById("rr-set-availability-override")?.checked;
     const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
       .map(inp => ({ start: inp.value || "07:00" }))
@@ -12063,6 +12066,7 @@ document.addEventListener("click", async (e) => {
       cushion_pct: cushion,
       max_days_per_week: maxDays,
       allow_availability_override: allowOverride,
+      report_lead_minutes: reportLead,
       waves,
       timezone: tz,
     };
