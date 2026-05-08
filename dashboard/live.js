@@ -13387,7 +13387,7 @@ async function renderScheduleWeek() {
       const monday = addDays(baseMonday, offset * 7);
       const iso = fmtIsoDate(monday);
       btn.dataset.rrWeekStart = iso;
-      btn.textContent = offset === 0 ? "Current week" : fmtRange(monday);
+      btn.textContent = offset === 0 ? "This week" : fmtRange(monday);
       btn.classList.toggle("active", iso === activeIso);
     });
   }
