@@ -11497,29 +11497,62 @@ function bindOkamiHandlers() {
   // Slider is wired via the document-level delegate at module top level
   // so it survives any DOM re-render or re-bind timing.
 
-  // Save plan button now triggers a full regenerate of schedule shifts
-  // from the current OKAMI demand. Daily values auto-save in the
-  // drilldown panel; this button is the explicit "sync schedule with
-  // plan" action that also trims any drift.
+  // Sync schedule: take the visible week's OKAMI route targets and
+  // push them into the shifts table so the operator sees the open-
+  // shift count = (route plan + cushion) match what they planned.
+  //
+  // Daily route values auto-save on every keystroke via saveOkamiDaily;
+  // this button is the explicit "now build the shifts from those
+  // targets" action. It runs the same per-week pipeline that Settings
+  // → Save uses:
+  //   1. regenerate_week_shifts(_schedStart) — wipes unassigned
+  //      scheduled rows in the week, regenerates from okami_demand,
+  //      re-stamps starts_at to wave_time − report_lead.
+  //   2. apply_cushion_to_week(_schedStart) — adds cushion shifts
+  //      on top so the visible total = target × (1 + cushion%).
+  //
+  // Previously this loop iterated every okami_demand row DSP-wide
+  // and only called generate_shifts_for_date — so reducing a target
+  // didn't trim excess open shifts, and cushion was never applied.
   const saveBtn = document.getElementById("rr-okami-save-plan");
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
       const dspId = window.RR?.dsp?.id;
       if (!dspId) { _setOkamiSaveStatus("DSP not loaded", "warn"); return; }
+      const ws = _schedStart;
+      if (!ws) { _setOkamiSaveStatus("Pick a week first", "warn"); return; }
       saveBtn.disabled = true;
-      _setOkamiSaveStatus("Regenerating shifts…");
+      _setOkamiSaveStatus("Syncing schedule…");
       try {
-        const { data: rows, error } = await sb.from("okami_demand")
-          .select("date, station_id")
-          .eq("dsp_id", dspId);
-        if (error) throw error;
-        for (const r of (rows || [])) {
-          const { error: gErr } = await sb.rpc("generate_shifts_for_date", { p_date: r.date, p_station_id: r.station_id });
-          if (gErr) throw gErr;
+        const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
+        if (regenErr) throw regenErr;
+
+        let cushionAdded = 0;
+        try {
+          const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: ws });
+          if (cushionErr) console.warn(`apply_cushion_to_week (${ws}):`, cushionErr.message);
+          else cushionAdded = data || 0;
+        } catch (e) {
+          console.warn(`apply_cushion_to_week (${ws}) threw:`, e);
         }
-        _setOkamiSaveStatus(`Synced ${rows?.length || 0} day${rows?.length === 1 ? "" : "s"} ✓`, "ok");
-        setTimeout(() => _setOkamiSaveStatus(""), 2500);
-        await renderOkamiLive();
+
+        _setOkamiSaveStatus(`Schedule synced ✓${cushionAdded ? ` · +${cushionAdded} cushion` : ""}`, "ok");
+        toast(`Schedule synced for week of ${ws}${cushionAdded ? ` · +${cushionAdded} cushion` : ""}`, "success");
+
+        // Re-render the calendar behind the overlay so the open-shifts
+        // pool reflects the new totals as soon as the operator closes.
+        if (typeof renderScheduleWeek === "function") {
+          try { await renderScheduleWeek(); } catch (e) { console.warn("re-render after OKAMI sync:", e); }
+        }
+
+        // Auto-close after a beat so the operator lands back on the
+        // calendar showing the new shift count, matching the
+        // "auto-populate into the open shift box after I hit save"
+        // expectation. They can re-open if they want more edits.
+        setTimeout(() => {
+          if (typeof closeOkamiOverlay === "function") closeOkamiOverlay();
+          _setOkamiSaveStatus("");
+        }, 900);
       } catch (err) {
         _setOkamiSaveStatus("Failed: " + (err.message || err), "warn");
       } finally {
