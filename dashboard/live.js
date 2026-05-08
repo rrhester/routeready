@@ -12107,9 +12107,55 @@ document.addEventListener("click", async (e) => {
       const sub = document.getElementById("sched-sub-week");
       if (sub) renderScheduleWeek();
     }
-    // Reload settings panel so the inheritance hint updates.
+    // Reload settings panel so the inheritance hint updates, then
+    // close the drawer so the operator sees the calendar reflecting
+    // the new rule.
     loadSchedulingSettings();
+    closeSchedSettingsDrawer();
     return;
+  }
+});
+
+// ─── Schedule · Settings drawer ────────────────────────────────────────
+// Settings used to be a full sub-tab under Schedule. It lives next to
+// the calendar now: a gear button in the Week-view toolbar opens this
+// drawer, and the existing inline "go to settings" links route here
+// too.
+function openSchedSettingsDrawer() {
+  const drawer = document.getElementById("sched-sub-settings");
+  const back   = document.getElementById("rr-sched-settings-backdrop");
+  if (!drawer || !back) return;
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  back.classList.add("open");
+  // Refresh form values against the visible week.
+  if (typeof loadSchedulingSettings === "function") loadSchedulingSettings();
+}
+function closeSchedSettingsDrawer() {
+  const drawer = document.getElementById("sched-sub-settings");
+  const back   = document.getElementById("rr-sched-settings-backdrop");
+  if (drawer) { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (back)   back.classList.remove("open");
+}
+window.openSchedSettingsDrawer  = openSchedSettingsDrawer;
+window.closeSchedSettingsDrawer = closeSchedSettingsDrawer;
+
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#rr-sched-settings-open")) {
+    e.preventDefault();
+    openSchedSettingsDrawer();
+    return;
+  }
+  if (e.target.closest("#rr-sched-settings-close") || e.target.id === "rr-sched-settings-backdrop") {
+    e.preventDefault();
+    closeSchedSettingsDrawer();
+    return;
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const drawer = document.getElementById("sched-sub-settings");
+    if (drawer && drawer.classList.contains("open")) closeSchedSettingsDrawer();
   }
 });
 
