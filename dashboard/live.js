@@ -6561,12 +6561,26 @@ async function saveCalAvailability() {
   status.className = "cal-edit-status ok";
   status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
   toast("Availability saved", "success");
-  // Update only the "Current availability" banner from the just-saved
-  // state. Re-rendering the entire editor after every save was wiping
-  // the user's in-flight edits — operators reported it as the editor
-  // "blinking and resetting the page" when they tried to save a date.
-  // The bookings list still reloads since a tz change can shift times.
-  _refreshCalAvailabilityBanner(tz, availability);
+  // Refetch from cal.com so the "Current availability" banner shows
+  // what cal.com actually has, not what the operator just typed. If
+  // anything got dropped or transformed (timezone shift, day mapping,
+  // event-type buffer), the banner makes that visible immediately
+  // instead of pretending the save worked. The form fields are NOT
+  // re-rendered, so in-flight edits aren't wiped.
+  try {
+    const fresh = await sb.functions.invoke("cal-availability", { method: "GET" });
+    const data = fresh?.data;
+    if (data?.schedule) {
+      _refreshCalAvailabilityBanner(
+        data.schedule.timeZone || tz,
+        data.schedule.availability || [],
+      );
+    } else {
+      _refreshCalAvailabilityBanner(tz, availability);
+    }
+  } catch {
+    _refreshCalAvailabilityBanner(tz, availability);
+  }
   loadCalBookingsList();
 }
 
