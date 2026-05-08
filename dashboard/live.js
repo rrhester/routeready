@@ -12268,14 +12268,6 @@ async function openOkamiOverlay() {
     titleEl.textContent = `Route planning · week of ${lbl}`;
   }
 
-  // Stash the current area so closeOkamiOverlay can restore it.
-  // OKAMI overlay opens on top of Schedule, but the per-area accent
-  // palette tracks via body[data-rr-area]. Setting it to "okami"
-  // here keeps the emerald accent active for any chrome that's
-  // visually part of the overlay.
-  okami.dataset.rrPriorArea = document.body.dataset.rrArea || "schedule";
-  document.body.setAttribute("data-rr-area", "okami");
-
   okami.classList.add("rr-okami-overlay");
   const backdrop = document.getElementById("rr-okami-backdrop");
   if (backdrop) backdrop.classList.add("open");
@@ -12301,14 +12293,7 @@ async function openOkamiOverlay() {
 }
 function closeOkamiOverlay() {
   const okami = document.getElementById("view-okami");
-  if (okami) {
-    okami.classList.remove("rr-okami-overlay");
-    // Restore the area accent that was active before the overlay
-    // opened. Defaults to "schedule" since OKAMI launches from there.
-    const prior = okami.dataset.rrPriorArea || "schedule";
-    document.body.setAttribute("data-rr-area", prior);
-    delete okami.dataset.rrPriorArea;
-  }
+  if (okami) okami.classList.remove("rr-okami-overlay");
   const backdrop = document.getElementById("rr-okami-backdrop");
   if (backdrop) backdrop.classList.remove("open");
   // Restore the strategic page title for the next time someone

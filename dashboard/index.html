@@ -29,7 +29,7 @@
   --sidebar:#1F2433;
   --sidebar-grad:linear-gradient(180deg, #232838 0%, #1B2030 100%);
   --sidebar-hover:rgba(255,255,255,.06);
-  --sidebar-active:linear-gradient(90deg, color-mix(in srgb, var(--accent) 24%, transparent) 0%, color-mix(in srgb, var(--accent) 6%, transparent) 100%);
+  --sidebar-active:linear-gradient(90deg, rgba(15,108,189,.24) 0%, rgba(15,108,189,.06) 100%);
   --glass:rgba(255,255,255,.78);
   --glass-strong:rgba(255,255,255,.88);
 
@@ -110,115 +110,6 @@
   --t-spring: 200ms cubic-bezier(.34,1.4,.64,1);
 }
 
-/* ── Per-area accent palette ──────────────────────────────────────
-   Each top-level view gets its own accent color. JS sets
-   <body data-rr-area="schedule"> on navigation; these overrides
-   redefine the same token group so every component using
-   var(--accent…) picks up the area color automatically.
-   No per-component changes needed. */
-
-/* Hiring Pipeline · violet — funnel / journey */
-body[data-rr-area="pipeline"]{
-  --accent:#7C3AED; --accent-hover:#6D28D9;
-  --accent-soft:rgba(124,58,237,.10); --accent-soft-strong:rgba(124,58,237,.16);
-  --accent-text:#6D28D9;
-  --accent-grad:linear-gradient(180deg,#8B5CF6 0%,#7C3AED 100%);
-  --accent-grad-hover:linear-gradient(180deg,#A78BFA 0%,#8B5CF6 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#6D28D9 0%,#5B21B6 100%);
-  --accent-glow:0 0 0 3px rgba(124,58,237,.20);
-}
-
-/* Drivers · amber — people / warmth */
-body[data-rr-area="drivers"]{
-  --accent:#D97706; --accent-hover:#B45309;
-  --accent-soft:rgba(217,119,6,.10); --accent-soft-strong:rgba(217,119,6,.16);
-  --accent-text:#B45309;
-  --accent-grad:linear-gradient(180deg,#F59E0B 0%,#D97706 100%);
-  --accent-grad-hover:linear-gradient(180deg,#FBBF24 0%,#F59E0B 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#B45309 0%,#92400E 100%);
-  --accent-glow:0 0 0 3px rgba(217,119,6,.20);
-}
-
-/* Performance Management · pink — coaching, attention */
-body[data-rr-area="staffing"]{
-  --accent:#DB2777; --accent-hover:#BE185D;
-  --accent-soft:rgba(219,39,119,.10); --accent-soft-strong:rgba(219,39,119,.16);
-  --accent-text:#BE185D;
-  --accent-grad:linear-gradient(180deg,#EC4899 0%,#DB2777 100%);
-  --accent-grad-hover:linear-gradient(180deg,#F472B6 0%,#EC4899 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#BE185D 0%,#9D174D 100%);
-  --accent-glow:0 0 0 3px rgba(219,39,119,.20);
-}
-
-/* Fleet · teal — vehicles / transit */
-body[data-rr-area="fleet"]{
-  --accent:#0D9488; --accent-hover:#0F766E;
-  --accent-soft:rgba(13,148,136,.10); --accent-soft-strong:rgba(13,148,136,.16);
-  --accent-text:#0F766E;
-  --accent-grad:linear-gradient(180deg,#14B8A6 0%,#0D9488 100%);
-  --accent-grad-hover:linear-gradient(180deg,#2DD4BF 0%,#14B8A6 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#0F766E 0%,#115E59 100%);
-  --accent-glow:0 0 0 3px rgba(13,148,136,.20);
-}
-
-/* Schedule + OKAMI · emerald — calendar / time. OKAMI inherits
-   because it lives inside Schedule contextually. */
-body[data-rr-area="schedule"],
-body[data-rr-area="okami"]{
-  --accent:#059669; --accent-hover:#047857;
-  --accent-soft:rgba(5,150,105,.10); --accent-soft-strong:rgba(5,150,105,.16);
-  --accent-text:#047857;
-  --accent-grad:linear-gradient(180deg,#10B981 0%,#059669 100%);
-  --accent-grad-hover:linear-gradient(180deg,#34D399 0%,#10B981 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#047857 0%,#065F46 100%);
-  --accent-glow:0 0 0 3px rgba(5,150,105,.20);
-}
-
-/* Messages · sky — chat / comms */
-body[data-rr-area="messages"]{
-  --accent:#0284C7; --accent-hover:#0369A1;
-  --accent-soft:rgba(2,132,199,.10); --accent-soft-strong:rgba(2,132,199,.16);
-  --accent-text:#0369A1;
-  --accent-grad:linear-gradient(180deg,#0EA5E9 0%,#0284C7 100%);
-  --accent-grad-hover:linear-gradient(180deg,#38BDF8 0%,#0EA5E9 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#0369A1 0%,#075985 100%);
-  --accent-glow:0 0 0 3px rgba(2,132,199,.20);
-}
-
-/* Workflows (forms + checklists) · indigo — process / system */
-body[data-rr-area="forms"],
-body[data-rr-area="checklists"]{
-  --accent:#4F46E5; --accent-hover:#4338CA;
-  --accent-soft:rgba(79,70,229,.10); --accent-soft-strong:rgba(79,70,229,.16);
-  --accent-text:#4338CA;
-  --accent-grad:linear-gradient(180deg,#6366F1 0%,#4F46E5 100%);
-  --accent-grad-hover:linear-gradient(180deg,#818CF8 0%,#6366F1 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#4338CA 0%,#3730A3 100%);
-  --accent-glow:0 0 0 3px rgba(79,70,229,.20);
-}
-
-/* Finances · forest green — money */
-body[data-rr-area="finances"]{
-  --accent:#15803D; --accent-hover:#166534;
-  --accent-soft:rgba(21,128,61,.10); --accent-soft-strong:rgba(21,128,61,.16);
-  --accent-text:#166534;
-  --accent-grad:linear-gradient(180deg,#22C55E 0%,#15803D 100%);
-  --accent-grad-hover:linear-gradient(180deg,#4ADE80 0%,#22C55E 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#166534 0%,#14532D 100%);
-  --accent-glow:0 0 0 3px rgba(21,128,61,.20);
-}
-
-/* Settings · slate (neutral) — chrome surface, doesn't compete */
-body[data-rr-area="settings"]{
-  --accent:#475569; --accent-hover:#334155;
-  --accent-soft:rgba(71,85,105,.10); --accent-soft-strong:rgba(71,85,105,.16);
-  --accent-text:#334155;
-  --accent-grad:linear-gradient(180deg,#64748B 0%,#475569 100%);
-  --accent-grad-hover:linear-gradient(180deg,#94A3B8 0%,#64748B 100%);
-  --accent-grad-pressed:linear-gradient(180deg,#334155 0%,#1E293B 100%);
-  --accent-glow:0 0 0 3px rgba(71,85,105,.20);
-}
-
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
@@ -297,7 +188,7 @@ a{color:inherit;text-decoration:none}
 .brand-mark{
   width:32px;height:32px;border-radius:8px;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow:0 4px 12px rgba(15,108,189,.35);
   overflow:hidden;
 }
 .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
@@ -328,7 +219,7 @@ a{color:inherit;text-decoration:none}
 }
 .nav-item.active svg{
   stroke-width:2.2;
-  filter:drop-shadow(0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent));
+  filter:drop-shadow(0 1px 2px rgba(15,108,189,.40));
 }
 /* Sidebar icons — Fluent weight: bigger, heavier stroke, soft
    drop-shadow on active state for the "filled" Microsoft feel
@@ -4789,7 +4680,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .all-clear-sub{font-size:var(--fs-md);color:#15803D;margin:0}
 </style>
 </head>
-<body data-rr-area="dashboard">
+<body>
 
 
 <div class="app">
@@ -12096,9 +11987,6 @@ Evidence attached:
     document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
     var navBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
     if (navBtn) navBtn.classList.add('active');
-    // Per-area accent palette: each top-level view drives a different
-    // var(--accent…) via body[data-rr-area=...] CSS overrides.
-    document.body.setAttribute('data-rr-area', view);
     var titles = {
       dashboard: 'Dashboard',
       pipeline: 'Hiring Pipeline',
