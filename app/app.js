@@ -583,18 +583,16 @@ function renderTasksHub() {
   // Coaching feed — single card that opens the unified /tasks/coaching
   // list.  Any coaching with delivery_required = ack/sign that's
   // unacknowledged counts toward the "X to acknowledge" badge.
+  // Coaching card — driver_list_coachings now returns only pending
+  // (acknowledged_at IS NULL) rows server-side.  If the response is
+  // empty, the driver has nothing to address — hide the card.
   sb.rpc("driver_list_coachings", { p_token: session.token }).then(({ data, error }) => {
     if (error) return;
     const list = Array.isArray(data) ? data : [];
     if (list.length === 0) return;
-    const pending = list.filter(c =>
-      c.delivery_required && c.delivery_required !== "none" && !c.acknowledged_at
-    ).length;
     const slot = document.getElementById("rr-tasks-onboarding-slot");
     if (!slot) return;
-    const sub = pending > 0
-      ? `${pending} to acknowledge`
-      : `${list.length} note${list.length === 1 ? "" : "s"} from your dispatcher`;
+    const sub = `${list.length} to review`;
     slot.insertAdjacentHTML("beforeend", taskCardHtml({
       route: "/tasks/coaching",
       title: "Coaching",
@@ -602,8 +600,6 @@ function renderTasksHub() {
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     }));
     slot.querySelectorAll("[data-task-route]").forEach(el => {
-      // Only attach to ones that don't already have a handler — re-runs
-      // would otherwise stack listeners.
       if (el.dataset.rrBound) return;
       el.dataset.rrBound = "1";
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
@@ -1904,12 +1900,18 @@ async function renderCoachingDetail() {
   const needsSign = coaching.delivery_required === "sign" || coaching.delivery_required === "ack_and_sign";
   const cleared   = !!coaching.acknowledged_at;
 
+  // Cleared rows don't normally reach this view because the server
+  // filters them out of driver_list_coachings.  Defensive fallback
+  // only — instantly bounce back if we somehow have one cached.
   let footHtml = "";
   if (cleared) {
-    const when = new Date(coaching.acknowledged_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    footHtml = `<div class="coaching-cleared">Acknowledged ${escapeHtml(when)}</div>`;
+    setTimeout(() => navigate("/tasks/coaching"), 0);
+    footHtml = "";
   } else if (coaching.delivery_required === "none") {
-    footHtml = `<div class="coaching-cleared">No action required.</div>`;
+    // Read-only coachings still need an active dismiss tap so the
+    // driver clears them and they disappear permanently.
+    footHtml = `
+      <button type="button" class="btn btn-primary btn-block" id="rr-coach-ack" style="margin-top:14px">Got it</button>`;
   } else {
     footHtml = `
       ${needsSign ? `
