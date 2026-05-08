@@ -5160,6 +5160,7 @@ async function doAddApplicant() {
     phone:      phone ? toE164(phone) : null,
     email:      email || null,
     source,
+    force_new:  true,
   };
 
   const { data: applicant, error } = await sb.rpc("intake_applicant", { p_payload: payload });
