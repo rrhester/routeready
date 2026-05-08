@@ -12150,57 +12150,6 @@ function closeSchedSettingsDrawer() {
 window.openSchedSettingsDrawer  = openSchedSettingsDrawer;
 window.closeSchedSettingsDrawer = closeSchedSettingsDrawer;
 
-// ─── Schedule · Copy last week ────────────────────────────────────
-// Operator workflow: every Monday a lot of weeks look like the
-// previous one. Clone last week's shifts (drivers, route codes,
-// service type, wave index, cushion flag) into the visible week,
-// shifted forward by 7 days. If the visible week already has shifts,
-// we ask before replacing — accidental overwrite would torch
-// operator-edited assignments.
-async function copyLastWeekIntoVisibleWeek() {
-  if (!_schedStart) { toast("Pick a week first", "warn"); return; }
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-
-  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
-  const { count: existing, error: cntErr } = await sb.from("shifts")
-    .select("id", { count: "exact", head: true })
-    .eq("dsp_id", dspId)
-    .gte("date", _schedStart)
-    .lte("date", weekEndIso);
-  if (cntErr) { toast("Couldn't check this week: " + cntErr.message, "warn"); return; }
-
-  let replace = false;
-  if ((existing || 0) > 0) {
-    if (!confirm(`This week already has ${existing} shift${existing === 1 ? "" : "s"}. Replace with a copy of last week?`)) return;
-    replace = true;
-  }
-
-  const btn = document.getElementById("rr-sched-copy-week");
-  if (btn) { btn.disabled = true; btn.style.opacity = ".6"; }
-  const { data, error } = await sb.rpc("copy_week_shifts", {
-    p_target_week_start: _schedStart,
-    p_replace: replace,
-  });
-  if (btn) { btn.disabled = false; btn.style.opacity = ""; }
-
-  if (error) { toast("Copy failed: " + error.message, "warn"); return; }
-  if (!data || data === 0) {
-    toast("Last week had no shifts to copy", "warn");
-    return;
-  }
-  toast(`Copied ${data} shift${data === 1 ? "" : "s"} from last week`, "success");
-  try { await renderScheduleWeek(); } catch (e) { console.warn("re-render after copy:", e); }
-}
-window.copyLastWeekIntoVisibleWeek = copyLastWeekIntoVisibleWeek;
-
-document.addEventListener("click", (e) => {
-  if (e.target.closest("#rr-sched-copy-week")) {
-    e.preventDefault();
-    copyLastWeekIntoVisibleWeek();
-  }
-});
-
 // ─── Schedule · OKAMI overlay ───────────────────────────────────────
 // Route planning used to be a separate Schedule sub-tab that called
 // goto('okami'). Operators wanted it to live with the week they were
