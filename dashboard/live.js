@@ -5679,13 +5679,13 @@ async function loadInterviewDay() {
   const list = document.getElementById("iv-candidates");
   if (!list) return;
 
-  // Pull all interview cal_events from yesterday onward to map out the
-  // dates that have bookings. Used both for choosing the default date
-  // and for prev/next navigation.
+  // Pull all booking cal_events from yesterday onward to map out the
+  // dates that have applicants coming in. No kind filter — operators
+  // think "who's booked May 22?", not "interview vs orientation".
+  // This matches interview_day_roster (migration 0094).
   const { data: events } = await sb.from("cal_events")
     .select("starts_at")
     .eq("dsp_id", window.RR.dsp.id)
-    .eq("kind", "interview")
     .gte("starts_at", new Date(Date.now() - 86400000).toISOString())
     .in("status", ["scheduled","rescheduled","completed","no_show"])
     .order("starts_at", { ascending: true });
