@@ -12049,19 +12049,15 @@ document.addEventListener("click", async (e) => {
     const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || "UTC";
 
     const status = document.getElementById("rr-set-sched-status");
-    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = "Saving for first 4 weeks…"; }
+    const ws = _schedStart;
+    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = `Saving settings for week of ${ws}…`; }
 
-    // Build the planning horizon: current week + next 3.  We save a
-    // per-week row for each (the scheduling_settings.week_start
-    // column is NOT NULL, so we can't write a single dsp-default
-    // row — multiple per-week rows is the supported pattern).
-    const baseMonday = startOfWeekMonday(new Date());
-    const weekStarts = [];
-    for (let i = 0; i < 4; i++) {
-      weekStarts.push(fmtIsoDate(addDays(baseMonday, i * 7)));
-    }
-
-    const payloadCommon = {
+    // Per-week save: write a single scheduling_settings row for the
+    // visible week. Future weeks without their own row inherit from
+    // this one via private.get_week_settings (which falls back to the
+    // most-recent prior saved week).
+    const payload = {
+      week_start: ws,
       default_block_hours: block,
       cushion_pct: cushion,
       max_days_per_week: maxDays,
@@ -12073,19 +12069,20 @@ document.addEventListener("click", async (e) => {
 
     let cushionDelta = 0;
     let failed = null;
-    for (const ws of weekStarts) {
-      const { error: upErr } = await sb.rpc("upsert_scheduling_settings", {
-        p_payload: { week_start: ws, ...payloadCommon },
-      });
-      if (upErr) { failed = `${ws}: ${upErr.message}`; break; }
 
+    const { error: upErr } = await sb.rpc("upsert_scheduling_settings", { p_payload: payload });
+    if (upErr) { failed = upErr.message; }
+
+    if (!failed) {
       const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
-      if (regenErr) { failed = `${ws}: ${regenErr.message}`; break; }
+      if (regenErr) { failed = regenErr.message; }
+    }
 
+    if (!failed) {
       try {
         const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: ws });
         if (cushionErr) console.warn(`apply_cushion_to_week (${ws}):`, cushionErr.message);
-        else cushionDelta += (data || 0);
+        else cushionDelta = data || 0;
       } catch (e) {
         console.warn(`apply_cushion_to_week (${ws}) threw:`, e);
       }
@@ -12100,10 +12097,10 @@ document.addEventListener("click", async (e) => {
     if (status) {
       status.style.color = "var(--green)";
       const cushionNote = cushionDelta !== 0 ? ` · cushion ${cushionDelta > 0 ? "+" : ""}${cushionDelta}` : "";
-      status.textContent = `Saved · applied to first 4 weeks ✓${cushionNote}`;
+      status.textContent = `Saved for week of ${ws} ✓${cushionNote}`;
     }
     setTimeout(() => { if (status) status.textContent = ""; }, 3000);
-    toast("Scheduling settings saved · applied to first 4 weeks", "success");
+    toast(`Scheduling settings saved for week of ${ws}`, "success");
 
     // Refresh schedule view if active.
     if (typeof renderScheduleWeek === "function") {
