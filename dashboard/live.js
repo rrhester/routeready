@@ -11522,8 +11522,14 @@ function bindOkamiHandlers() {
       const ws = _schedStart;
       if (!ws) { _setOkamiSaveStatus("Pick a week first", "warn"); return; }
       saveBtn.disabled = true;
-      _setOkamiSaveStatus("Syncing schedule…");
+      _setOkamiSaveStatus("Saving inputs…");
       try {
+        // Flush any pending debounced okami_set_target writes so the
+        // rebuild reads the latest typed values. Without this, a
+        // quick "type 5 → click Save" sequence (within the 400ms
+        // debounce window) regenerates from stale demand.
+        await flushOkamiDailyPending();
+        _setOkamiSaveStatus("Building shifts…");
         const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
         if (regenErr) throw regenErr;
 
@@ -11821,8 +11827,16 @@ function bindOkamiDailyDelegation() {
     if (!iso || !Number.isFinite(weekIdx)) return;
     const key = `${weekIdx}|${iso}|${waveIdx}|${stId || "default"}`;
     const prev = _okamiDailySaveTimers.get(key);
-    if (prev) clearTimeout(prev);
-    _okamiDailySaveTimers.set(key, setTimeout(() => saveOkamiDaily(weekIdx, iso, parseInt(inp.value, 10) || 0, waveIdx, stId), 400));
+    if (prev) clearTimeout(prev.timeoutId);
+    // Track timer + the args so flushOkamiDailyPending() can fire it
+    // immediately (e.g. when the operator clicks Save before the
+    // 400ms debounce elapses).
+    const args = { weekIdx, iso, waveIdx, stId, getValue: () => parseInt(inp.value, 10) || 0 };
+    const timeoutId = setTimeout(() => {
+      _okamiDailySaveTimers.delete(key);
+      saveOkamiDaily(args.weekIdx, args.iso, args.getValue(), args.waveIdx, args.stId);
+    }, 400);
+    _okamiDailySaveTimers.set(key, { timeoutId, args });
   });
 
   tbody.addEventListener("change", async (e) => {
@@ -11868,6 +11882,18 @@ function openOkamiDetailIndex() {
     if (d && d.classList.contains("open")) return i;
   }
   return null;
+}
+
+// Force every pending debounced okami_set_target save to fire NOW
+// and await them all. Used before regenerate_week_shifts so the
+// rebuild reads the latest typed values, not 400ms-old stale demand.
+async function flushOkamiDailyPending() {
+  const pending = Array.from(_okamiDailySaveTimers.values());
+  _okamiDailySaveTimers.clear();
+  for (const { timeoutId } of pending) clearTimeout(timeoutId);
+  await Promise.all(pending.map(({ args }) =>
+    saveOkamiDaily(args.weekIdx, args.iso, args.getValue(), args.waveIdx, args.stId)
+  ));
 }
 
 async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0, stId = null) {
