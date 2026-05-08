@@ -2135,8 +2135,10 @@ function _prefillWeatherInputs() {
   // DSP brand · prefill from the live record so the operator can edit it.
   const nameEl = document.getElementById("rr-set-dsp-name");
   const codeEl = document.getElementById("rr-set-dsp-code");
+  const replyEl = document.getElementById("rr-set-dsp-reply-email");
   if (nameEl) nameEl.value = window.RR?.dsp?.name        || "";
   if (codeEl) codeEl.value = window.RR?.dsp?.short_code  || "";
+  if (replyEl) replyEl.value = window.RR?.dsp?.metadata?.reply_to_email || "";
 }
 
 // Save DSP name → dsps.name, then refresh sidebar chip + page title.
@@ -2177,6 +2179,34 @@ document.addEventListener("click", async (e) => {
     toast("Station code saved", "success");
   } catch (err) {
     console.error("station code save:", err);
+    toast("Save failed: " + (err.message || String(err)), "warn");
+  }
+});
+
+// Save reply email → dsps.metadata.reply_to_email. Used by send-email
+// as the Reply-To header so applicant replies land in the operator's
+// inbox instead of the platform support address.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-set-dsp-reply-email-save")) return;
+  e.preventDefault();
+  const dspId = window.RR?.dsp?.id;
+  const input = document.getElementById("rr-set-dsp-reply-email");
+  if (!dspId || !input) return;
+  const next = (input.value || "").trim();
+  if (next && !next.includes("@")) { toast("Enter a valid email or leave blank", "warn"); return; }
+  try {
+    // Read-modify-write so we don't trample sibling metadata keys.
+    const { data: row, error: rErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (rErr) throw rErr;
+    const md = row?.metadata || {};
+    if (next) md.reply_to_email = next;
+    else delete md.reply_to_email;
+    const { error } = await sb.from("dsps").update({ metadata: md }).eq("id", dspId);
+    if (error) throw error;
+    if (window.RR?.dsp) window.RR.dsp.metadata = md;
+    toast(next ? "Reply email saved" : "Reply email cleared", "success");
+  } catch (err) {
+    console.error("reply email save:", err);
     toast("Save failed: " + (err.message || String(err)), "warn");
   }
 });
