@@ -12256,20 +12256,21 @@ async function openOkamiOverlay() {
   if (typeof _schedStart === "string" && _schedStart) {
     window._rrOkamiAnchorOverride = _schedStart;
   }
-  okami.classList.add("rr-okami-overlay");
-  const backdrop = document.getElementById("rr-okami-backdrop");
-  if (backdrop) backdrop.classList.add("open");
 
-  // Update the page title to reflect the single-week scope. The
-  // CSS hides the "13-week plan" badge in overlay mode; we set the
-  // title text to "Route planning · week of <Mon, May 11>" so the
-  // operator knows exactly which week they're editing.
+  // Update the page title BEFORE making the overlay visible. If we
+  // add the overlay class first, the operator sees a brief flash of
+  // the default "OKAMI" title before our setter swaps it to
+  // "Route planning · week of Mon, May 4". Order matters.
   const titleEl = document.getElementById("rr-okami-page-title");
   if (titleEl && typeof _schedStart === "string" && _schedStart) {
     const d = new Date(_schedStart + "T12:00:00");
     const lbl = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
     titleEl.textContent = `Route planning · week of ${lbl}`;
   }
+
+  okami.classList.add("rr-okami-overlay");
+  const backdrop = document.getElementById("rr-okami-backdrop");
+  if (backdrop) backdrop.classList.add("open");
 
   // Wait for OKAMI to render the 13-week table, then auto-expand
   // week-0's detail panel — that's the daily route-planning editor
@@ -12329,7 +12330,7 @@ document.addEventListener("click", (e) => {
     openOkamiOverlay();
     return;
   }
-  if (e.target.closest("#rr-okami-close") || e.target.id === "rr-okami-backdrop") {
+  if (e.target.id === "rr-okami-backdrop") {
     e.preventDefault();
     closeOkamiOverlay();
     return;
