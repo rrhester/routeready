@@ -227,6 +227,10 @@ function renderApplicantCard(a) {
     ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}">▶ Intro video</button>`
     : "";
 
+  const emailBtn = a.email
+    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="email_thread">✉ Email</button>`
+    : "";
+
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
       <div class="pa-row">
@@ -238,6 +242,7 @@ function renderApplicantCard(a) {
       </div>
       <div class="pa-disp">
         <button class="pa-disp-btn ghost" type="button" data-rr-action="call">Call</button>
+        ${emailBtn}
         ${videoBtn}
         <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
         ${primaryBtn}
@@ -259,6 +264,103 @@ function openVideoModal(url) {
     <video controls autoplay playsinline
            style="max-width:100%;max-height:90vh;border-radius:12px;background:#000"
            src="${url}"></video>`;
+}
+
+// ─── Applicant email thread modal ─────────────────────────────────────
+//
+// Two-way email on the applicant card. Reads the thread via
+// applicant_email_thread RPC (added in migration 0095), renders inbound
+// + outbound rows, and lets the operator queue a reply that send-email
+// will dispatch on its next tick.
+
+async function openEmailThreadModal(applicantId, fullName, toEmail) {
+  let m = document.getElementById("rr-email-thread-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-email-thread-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-lg);font-weight:600">Email · ${escapeHtml(rrTitleCaseName(fullName))}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(toEmail || "—")}</div>
+        </div>
+        <button class="btn btn-sm" data-rr-email-close>Close</button>
+      </div>
+      <div id="rr-email-thread-body" style="flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px">
+        <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading thread…</div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding:14px 22px;background:var(--surface)">
+        <textarea id="rr-email-reply-body" placeholder="Type your reply…" style="width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+          <button class="btn btn-primary" id="rr-email-reply-send">Send reply</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  m.addEventListener("click", async (e) => {
+    if (e.target === m || e.target.closest("[data-rr-email-close]")) {
+      m.remove(); return;
+    }
+    if (e.target.closest("#rr-email-reply-send")) {
+      const body = document.getElementById("rr-email-reply-body").value.trim();
+      if (!body) { toast("Type a reply first", "warn"); return; }
+      const sendBtn = e.target.closest("button");
+      sendBtn.disabled = true; sendBtn.textContent = "Sending…";
+      const { error } = await sb.rpc("send_applicant_email", {
+        p_applicant_id: applicantId, p_body: body, p_subject: null,
+      });
+      if (error) {
+        toast("Send failed: " + error.message, "warn");
+        sendBtn.disabled = false; sendBtn.textContent = "Send reply";
+        return;
+      }
+      document.getElementById("rr-email-reply-body").value = "";
+      toast("Reply queued", "success");
+      sendBtn.disabled = false; sendBtn.textContent = "Send reply";
+      await _renderEmailThread(applicantId);
+    }
+  });
+
+  await _renderEmailThread(applicantId);
+}
+
+async function _renderEmailThread(applicantId) {
+  const body = document.getElementById("rr-email-thread-body");
+  if (!body) return;
+  const { data: rows, error } = await sb.rpc("applicant_email_thread", { p_applicant_id: applicantId });
+  if (error) {
+    body.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    body.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No emails yet. Send the first one below.</div>`;
+    return;
+  }
+  body.innerHTML = rows.map(_renderEmailRow).join("");
+  body.scrollTop = body.scrollHeight;
+}
+
+function _renderEmailRow(r) {
+  const inbound = r.direction === "inbound";
+  const align = inbound ? "flex-start" : "flex-end";
+  const bg    = inbound ? "var(--surface-pressed)" : "rgba(15,108,189,.10)";
+  const sender = inbound ? "Applicant" : "You";
+  const when   = r.created_at ? new Date(r.created_at).toLocaleString() : "";
+  const status = inbound ? "" : ` · ${r.status}`;
+  // Plaintext only — body_html is intentionally not injected to avoid
+  // remote-content shenanigans inside the operator dashboard.
+  const text = (r.body_text || "").replace(/\s+$/g, "");
+  return `
+    <div style="display:flex;flex-direction:column;align-items:${align};gap:4px">
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(sender)} · ${escapeHtml(when)}${status}</div>
+      <div style="max-width:88%;background:${bg};border:1px solid var(--border);border-radius:12px;padding:10px 14px">
+        <div style="font-size:var(--fs-sm);font-weight:600;margin-bottom:4px">${escapeHtml(r.subject || "(no subject)")}</div>
+        <div style="font-size:var(--fs-sm);white-space:pre-wrap;line-height:1.5">${escapeHtml(text)}</div>
+      </div>
+    </div>`;
 }
 
 async function loadPipeline(stage = "all") {
@@ -350,6 +452,13 @@ async function handleAction(btn) {
     } else if (action === "play_video") {
       const url = btn.getAttribute("data-video-url");
       if (url) openVideoModal(url);
+      btn.disabled = false;
+      return;
+    } else if (action === "email_thread") {
+      // Look up the applicant's display name for the modal header.
+      const { data: a } = await sb.from("applicants")
+        .select("full_name, email").eq("id", id).single();
+      openEmailThreadModal(id, a?.full_name || "", a?.email || "");
       btn.disabled = false;
       return;
     }
