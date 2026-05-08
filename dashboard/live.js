@@ -13446,49 +13446,12 @@ async function renderScheduleWeek() {
   window._rrOpenShiftsCount = totalAllOpen;
   if (typeof window._rrUpdateScheduleCta === "function") window._rrUpdateScheduleCta();
 
-  // Out-of-sync banner: the schedule (shifts table) hasn't been
-  // rebuilt since the operator changed the route plan. Compare what
-  // SHOULD be in the table (route plan + projected cushion) against
-  // what actually is. If short, the operator needs to click Save in
-  // Route planning to rebuild.
-  //
-  //   expected = sum over (date, station) of:
-  //                base + floor(base × cushion% / 100)
-  //   actual   = count of shifts in the table (scheduled or
-  //              completed)
-  //   gap      = max(0, expected − actual)
-  //
-  // The cushion math here mirrors apply_cushion_to_week (#535) so the
-  // banner predicts the exact rebuild result.
-  let oosBanner = sub.querySelector("#rr-sched-out-of-sync");
-  const _effForGap = window._rrEffectiveSettings || {};
-  const _cushionPct = Math.max(0, Number(_effForGap.cushion_pct ?? window.RR?.dsp?.metadata?.scheduling?.cushion_pct ?? 0));
-  let _expectedShifts = 0;
-  for (const c of (grid.coverage || [])) {
-    const base = Number(c.target_routes || 0);
-    _expectedShifts += base + Math.floor(base * _cushionPct / 100);
-  }
-  const _actualShifts = (grid.shifts || []).filter(
-    sh => ["scheduled", "completed"].includes(sh.status)
-  ).length;
-  const gap = Math.max(0, _expectedShifts - _actualShifts);
-  if (gap > 0 && !window._rrWeekFinalized) {
-    if (!oosBanner) {
-      oosBanner = document.createElement("div");
-      oosBanner.id = "rr-sched-out-of-sync";
-      oosBanner.style.cssText = "display:flex;align-items:center;gap:10px;background:var(--amber-soft);border:1px solid var(--amber);border-left-width:4px;color:var(--text);font-size:var(--fs-sm);padding:10px 14px;border-radius:8px;margin-bottom:var(--s-3);cursor:pointer";
-      const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
-      if (toolbar) toolbar.parentNode.insertBefore(oosBanner, toolbar);
-      oosBanner.addEventListener("click", () => {
-        if (typeof openOkamiOverlay === "function") openOkamiOverlay();
-      });
-    }
-    oosBanner.innerHTML = `
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <span><strong>${gap} route${gap === 1 ? "" : "s"}</strong> in your plan ${gap === 1 ? "doesn't" : "don't"} have a shift yet. <strong style="color:var(--accent-text);text-decoration:underline">Open Route planning &amp; click Save</strong> to rebuild.</span>`;
-  } else if (oosBanner) {
-    oosBanner.remove();
-  }
+  // Out-of-sync banner deleted per operator. Belt-and-braces: also
+  // remove any stale node from a previous render so it can't linger
+  // visually when the new code path doesn't recreate it.
+  const _staleOos = sub.querySelector("#rr-sched-out-of-sync");
+  if (_staleOos) _staleOos.remove();
+
   // Per-day fill: needed (from coverageByDate), filled (visible-driver shifts).
   const fillByDate = new Map();
   for (const iso of days) {
