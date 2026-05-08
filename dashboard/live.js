@@ -12867,6 +12867,121 @@ function addHoursToWaveTime(hhmm, hours) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
+// Edit modal for an assigned shift. Loads the row, lets the operator
+// nudge start_time / end_time (free-text HH:MM) and Save or Remove.
+// Save preserves the shift's date timezone — we only swap the time
+// portion of starts_at / ends_at, not the date.
+async function openShiftEditModal(shiftId) {
+  let m = document.getElementById("rr-shift-edit-modal");
+  if (m) m.remove();
+
+  const { data: sh, error } = await sb
+    .from("shifts")
+    .select("id, date, starts_at, ends_at, driver_id, route_code, drivers(full_name, preferred_name)")
+    .eq("id", shiftId)
+    .single();
+  if (error || !sh) {
+    toast("Couldn't load shift: " + (error?.message || "not found"), "warn");
+    return;
+  }
+
+  const driver = sh.drivers?.preferred_name?.trim() || sh.drivers?.full_name || "Driver";
+  const route  = sh.route_code || "shift";
+  const fmtHM  = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+  const startHM = fmtHM(sh.starts_at);
+  const endHM   = fmtHM(sh.ends_at);
+
+  m = document.createElement("div");
+  m.id = "rr-shift-edit-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:440px;overflow:hidden">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border)">
+        <div style="font-size:var(--fs-lg);font-weight:600">Edit shift</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}</div>
+      </div>
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:14px">
+        <label style="display:flex;align-items:center;gap:14px">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Start time</span>
+          <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input" style="max-width:160px" />
+        </label>
+        <label style="display:flex;align-items:center;gap:14px">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">End time</span>
+          <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
+        </label>
+        <div id="rr-shift-edit-status" style="font-size:var(--fs-xs);color:var(--text-subtle);min-height:14px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:8px;padding:14px 22px;border-top:1px solid var(--border);background:var(--canvas)">
+        <button class="btn btn-sm" data-rr-shift-edit-remove style="color:var(--red);border-color:rgba(220,38,38,.3)">Remove shift</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" data-rr-shift-edit-cancel>Cancel</button>
+          <button class="btn btn-sm btn-primary" data-rr-shift-edit-save>Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  const close = () => m.remove();
+  m.addEventListener("click", async (e) => {
+    if (e.target === m || e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
+
+    if (e.target.closest("[data-rr-shift-edit-remove]")) {
+      if (!confirm("Remove this shift?")) return;
+      const { error: delErr } = await sb.from("shifts").delete().eq("id", shiftId);
+      if (delErr) { toast("Delete failed: " + delErr.message, "warn"); return; }
+      toast("Shift removed", "success");
+      close();
+      renderScheduleWeek();
+      return;
+    }
+
+    if (e.target.closest("[data-rr-shift-edit-save]")) {
+      const status = document.getElementById("rr-shift-edit-status");
+      const newStart = document.getElementById("rr-shift-edit-start").value;
+      const newEnd   = document.getElementById("rr-shift-edit-end").value;
+      if (!newStart || !newEnd) { status.textContent = "Both times are required."; status.style.color = "var(--red)"; return; }
+      // Swap only the time-of-day on the existing timestamps so the
+      // shift's date + tz are preserved. Browser's <input type="time">
+      // gives us local HH:MM, which is what the operator sees on the
+      // chip.
+      const swapTime = (iso, hhmm) => {
+        const d = new Date(iso);
+        const [h, mi] = hhmm.split(":").map(Number);
+        d.setHours(h, mi, 0, 0);
+        return d.toISOString();
+      };
+      const newStartIso = swapTime(sh.starts_at, newStart);
+      const newEndIso   = swapTime(sh.ends_at,   newEnd);
+      // End must be after start within the same shift; if the operator
+      // entered an end <= start, assume they want next-day end (rare
+      // but possible for overnight shifts) and roll it 24h.
+      let endIso = newEndIso;
+      if (new Date(endIso) <= new Date(newStartIso)) {
+        endIso = new Date(new Date(endIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      status.textContent = "Saving…";
+      status.style.color = "var(--text-subtle)";
+      const { error: upErr } = await sb
+        .from("shifts")
+        .update({ starts_at: newStartIso, ends_at: endIso })
+        .eq("id", shiftId);
+      if (upErr) {
+        status.textContent = "Save failed: " + upErr.message;
+        status.style.color = "var(--red)";
+        return;
+      }
+      toast("Shift updated", "success");
+      close();
+      renderScheduleWeek();
+    }
+  });
+}
+
 function _schedShiftChip(sh) {
   const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
@@ -12882,7 +12997,7 @@ function _schedShiftChip(sh) {
     ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : '';
-  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to remove shift"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to edit start / end time or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -13567,7 +13682,10 @@ function bindSchedWeekNav() {
     }
     if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
 
-    // Click an ASSIGNED shift chip (not open, off, or timeoff) → confirm + delete.
+    // Click an ASSIGNED shift chip (not open, off, or timeoff) → open
+    // edit modal with start/end inputs + a Remove option, instead of
+    // the old confirm-and-delete flow. Operators wanted to nudge a
+    // single driver's report time without removing-and-re-adding.
     const assignedChip = e.target.closest(".shift-chip[data-rr-shift-id]");
     if (assignedChip
         && !assignedChip.classList.contains("open")
@@ -13577,12 +13695,7 @@ function bindSchedWeekNav() {
       const id = assignedChip.dataset.rrShiftId;
       if (!id) return;
       if (!_confirmLiveScheduleEdit()) return;
-      if (!confirm("Remove this shift?")) return;
-      sb.from("shifts").delete().eq("id", id).then(({ error }) => {
-        if (error) { toast("Delete failed: " + error.message, "warn"); return; }
-        toast("Shift removed", "success");
-        renderScheduleWeek();
-      });
+      openShiftEditModal(id);
       return;
     }
 
