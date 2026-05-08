@@ -12122,8 +12122,9 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Remove a wave row.
-  if (e.target.matches?.("[data-rr-remove-wave]")) {
+  // Remove a wave row. closest() instead of matches() so clicks on
+  // the inner SVG icon bubble up to the button correctly.
+  if (e.target.closest?.("[data-rr-remove-wave]")) {
     e.preventDefault();
     const row = e.target.closest("[data-rr-wave]");
     if (row) row.remove();
