@@ -217,7 +217,9 @@ const routes = {
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
   "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
-  "/settings/availability": { render: renderAvailability, tab: "/profile", back: "/settings", title: "Availability" },
+  "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
+  "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
+  "/settings/availability": { render: renderAvailability,    tab: "/profile", back: "/settings", title: "Availability" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
@@ -1315,7 +1317,54 @@ function renderProfileHub() {
 // driver_set_dl_image, and the existing Sign out button.  Anything the
 // DSP must verify (DL expiration, certs, employment data) is read-only
 // down on the Onboarding task — see renderOnboarding.
-async function renderSettings() {
+// ── Settings landing · just a list of clickable rows ────────────────
+//
+// iOS-style: each row opens its own editor screen.  Saving lives on
+// the editor screen, not here, so the landing page stays clean.
+function renderSettings() {
+  const main = document.getElementById("main");
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const chev = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle)"><polyline points="9 18 15 12 9 6"/></svg>';
+
+  const row = (id, route, title, sub) => `
+    <button type="button" class="settings-row settings-row-link" data-rr-settings-go="${route}">
+      <div>
+        <div class="settings-section-title">${escapeHtml(title)}</div>
+        <div class="settings-section-sub">${escapeHtml(sub)}</div>
+      </div>
+      ${chev}
+    </button>`;
+
+  main.innerHTML = `
+    <div class="settings-page">
+      <section class="settings-section">
+        ${row("profile",      "/settings/profile",      "Profile",      "Name, pronouns, contact, emergency contact")}
+        ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
+        ${row("availability", "/settings/availability", "Availability", "Days you can work")}
+      </section>
+
+      <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
+    </div>`;
+
+  main.querySelectorAll("[data-rr-settings-go]").forEach(el =>
+    el.addEventListener("click", () => navigate(el.getAttribute("data-rr-settings-go"))));
+
+  document.getElementById("rr-signout").addEventListener("click", async () => {
+    if (!confirm("Sign out of RouteReady?")) return;
+    const s = readSession();
+    await teardownPushSubscription(s);
+    if (s?.token) { try { await sb.rpc("driver_signout", { p_token: s.token }); } catch {} }
+    writeSession(null);
+    syncSwSession(null);
+    location.hash = "";
+    render();
+  });
+}
+
+// ── Settings → Profile (identity + contact + emergency) ────────────
+async function renderSettingsProfile() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
   const session = readSession();
@@ -1329,26 +1378,11 @@ async function renderSettings() {
     main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load profile.<br><small>${escapeHtml(error.message)}</small></div>`;
     return;
   }
-
   const v = (s) => escapeHtml(s ?? "");
-  const dlImgUrl = prof?.dl_image_path
-    ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-documents/${prof.dl_image_path}`
-    : null;
-  // Public bucket-style URL works when storage RLS allows anon select
-  // (migration 0079).  Falling back to a signed URL would also work but
-  // adds a round-trip; this is fine for a private-ish image whose path
-  // is a UUID-keyed string.
-
-  const dlNeedsVerify = !!prof?.dl_image_path && !prof?.dl_expires_on;
 
   main.innerHTML = `
     <div class="settings-page">
-
       <section class="settings-section">
-        <div class="settings-section-head">
-          <div class="settings-section-title">Profile</div>
-          <div class="settings-section-sub">Update your contact info anytime.</div>
-        </div>
         <div class="settings-form">
           <label class="field-label" for="rr-prof-name">Full name</label>
           <input class="field" id="rr-prof-name" type="text" value="${v(prof.full_name)}" autocomplete="name" />
@@ -1384,11 +1418,56 @@ async function renderSettings() {
         </div>
       </section>
 
-      <button class="btn btn-primary btn-block" id="rr-prof-save" type="button">Save profile</button>
+      <button class="btn btn-primary btn-block" id="rr-prof-save" type="button">Save</button>
+    </div>`;
 
+  document.getElementById("rr-prof-save").addEventListener("click", async () => {
+    const btn = document.getElementById("rr-prof-save");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const payload = {
+      full_name:               document.getElementById("rr-prof-name").value.trim(),
+      preferred_name:          document.getElementById("rr-prof-pref").value.trim(),
+      pronouns:                document.getElementById("rr-prof-pron").value.trim(),
+      phone:                   document.getElementById("rr-prof-phone").value.trim(),
+      email:                   document.getElementById("rr-prof-email").value.trim(),
+      address:                 document.getElementById("rr-prof-addr").value.trim(),
+      emergency_contact_name:  document.getElementById("rr-prof-ec-name").value.trim(),
+      emergency_contact_phone: document.getElementById("rr-prof-ec-phone").value.trim(),
+    };
+    if (!payload.full_name) { btn.disabled = false; btn.textContent = "Save"; toast("Full name can't be empty", "warn"); return; }
+    const { error: upErr } = await sb.rpc("driver_update_profile", {
+      p_token: session.token, p_payload: payload,
+    });
+    btn.disabled = false; btn.textContent = "Save";
+    if (upErr) { toast("Save failed: " + upErr.message, "warn"); return; }
+    toast("Saved", "ok");
+    refreshDriverProfile(session, { force: true });
+    navigate("/settings");
+  });
+}
+
+// ── Settings → Driver's license ─────────────────────────────────────
+async function renderSettingsLicense() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data: prof, error } = await sb.rpc("driver_get_profile", { p_token: session.token });
+  if (error) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load.<br><small>${escapeHtml(error.message)}</small></div>`;
+    return;
+  }
+  const v = (s) => escapeHtml(s ?? "");
+  const dlImgUrl = prof?.dl_image_path
+    ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-documents/${prof.dl_image_path}`
+    : null;
+  const dlNeedsVerify = !!prof?.dl_image_path && !prof?.dl_expires_on;
+
+  main.innerHTML = `
+    <div class="settings-page">
       <section class="settings-section">
         <div class="settings-section-head">
-          <div class="settings-section-title">Driver's license</div>
           <div class="settings-section-sub">Your dispatcher confirms the expiration date.</div>
         </div>
         <div class="settings-form">
@@ -1418,50 +1497,23 @@ async function renderSettings() {
         </div>
       </section>
 
-      <section class="settings-section">
-        <button type="button" class="settings-row settings-row-link" id="rr-settings-availability">
-          <div>
-            <div class="settings-section-title">Availability</div>
-            <div class="settings-section-sub">Days you can work · changes go to your dispatcher for approval.</div>
-          </div>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle)"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </section>
-
-      <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
+      <button class="btn btn-primary btn-block" id="rr-dl-save" type="button">Save</button>
     </div>`;
 
-  // Save profile + license number in a single update_profile call.
-  document.getElementById("rr-prof-save").addEventListener("click", async () => {
-    const btn = document.getElementById("rr-prof-save");
+  document.getElementById("rr-dl-save").addEventListener("click", async () => {
+    const btn = document.getElementById("rr-dl-save");
     btn.disabled = true; btn.textContent = "Saving…";
-    const payload = {
-      full_name:               document.getElementById("rr-prof-name").value.trim(),
-      preferred_name:          document.getElementById("rr-prof-pref").value.trim(),
-      pronouns:                document.getElementById("rr-prof-pron").value.trim(),
-      phone:                   document.getElementById("rr-prof-phone").value.trim(),
-      email:                   document.getElementById("rr-prof-email").value.trim(),
-      address:                 document.getElementById("rr-prof-addr").value.trim(),
-      emergency_contact_name:  document.getElementById("rr-prof-ec-name").value.trim(),
-      emergency_contact_phone: document.getElementById("rr-prof-ec-phone").value.trim(),
-      dl_number:               document.getElementById("rr-prof-dl").value.trim(),
-    };
-    if (!payload.full_name) { btn.disabled = false; btn.textContent = "Save profile"; toast("Full name can't be empty", "warn"); return; }
     const { error: upErr } = await sb.rpc("driver_update_profile", {
-      p_token: session.token, p_payload: payload,
+      p_token: session.token,
+      p_payload: { dl_number: document.getElementById("rr-prof-dl").value.trim() },
     });
-    btn.disabled = false; btn.textContent = "Save profile";
+    btn.disabled = false; btn.textContent = "Save";
     if (upErr) { toast("Save failed: " + upErr.message, "warn"); return; }
     toast("Saved", "ok");
-    // Refresh header (display name may have changed) and re-render so
-    // the form reflects the canonical values from the server.
-    refreshDriverProfile(session, { force: true });
-    renderSettings();
+    navigate("/settings");
   });
 
-  // Image upload — open file picker, upload to driver-documents, then
-  // call driver_set_dl_image to point drivers.dl_image_path at the
-  // freshly uploaded path.  Old path is GC'd server-side.
+  // Image picker / upload — same flow as before, just on its own page.
   document.getElementById("rr-prof-dl-pick").addEventListener("click", () => {
     document.getElementById("rr-prof-dl-file").click();
   });
@@ -1494,7 +1546,7 @@ async function renderSettings() {
       return;
     }
     toast("License image saved", "ok");
-    renderSettings();
+    renderSettingsLicense();
   });
 
   const rmBtn = document.getElementById("rr-prof-dl-remove");
@@ -1506,22 +1558,9 @@ async function renderSettings() {
       rmBtn.disabled = false;
       if (rmErr) { toast("Remove failed: " + rmErr.message, "warn"); return; }
       toast("Image removed", "ok");
-      renderSettings();
+      renderSettingsLicense();
     });
   }
-
-  document.getElementById("rr-settings-availability")?.addEventListener("click", () => navigate("/settings/availability"));
-
-  document.getElementById("rr-signout").addEventListener("click", async () => {
-    if (!confirm("Sign out of RouteReady?")) return;
-    const s = readSession();
-    await teardownPushSubscription(s);
-    if (s?.token) { try { await sb.rpc("driver_signout", { p_token: s.token }); } catch {} }
-    writeSession(null);
-    syncSwSession(null);
-    location.hash = "";
-    render();
-  });
 }
 
 // ── Onboarding task ─────────────────────────────────────────────────
