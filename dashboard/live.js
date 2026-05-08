@@ -13354,30 +13354,14 @@ async function renderScheduleWeek() {
   // Read from the per-week effective settings cache (populated by
   // loadSchedulingSettings) so the visible week's waves drive the
   // chip layout, not the stale DSP-default metadata.
-  const _eff = window._rrEffectiveSettings || {};
-  const wavesArr = (Array.isArray(_eff.waves) && _eff.waves.length ? _eff.waves : null)
-    || (window.RR?.dsp?.metadata?.scheduling?.waves)
-    || [{ start: "07:00" }];
-  const waveCount = Math.max(1, wavesArr.length);
+  // Virtual chips ("from plan" placeholders for okami_demand rows
+  // without corresponding shifts) used to be synthesized here. After
+  // Route planning → Save became canonical (#530), the shifts table
+  // IS the route plan + cushion — there's no legitimate gap to
+  // surface, only stale state. Removed entirely; only real open
+  // shifts populate the pool now.
   const virtualByDate = new Map();
-  for (const c of (grid.coverage || [])) {
-    const k = `${c.date}|${c.station_id}`;
-    const real = realOpenByDateStation.get(k) || 0;
-    const filled = visibleFilledByDateStation.get(k) || 0;
-    const v = Math.max(0, (c.needed || 0) - filled - real);
-    if (v > 0) {
-      const list = virtualByDate.get(c.date) || [];
-      const startPos = (filled + real);
-      for (let i = 0; i < v; i++) {
-        const pos = startPos + i;
-        const waveStart = wavesArr[pos % waveCount]?.start || "07:00";
-        list.push({ station_id: c.station_id, station_code: c.station_code, wave_start: waveStart });
-      }
-      virtualByDate.set(c.date, list);
-    }
-  }
-  let totalVirtual = 0;
-  for (const list of virtualByDate.values()) totalVirtual += list.length;
+  const totalVirtual = 0;
 
   // ── Toolbar
   // Populate the 4-week tab strip. The first tab is always the actual
@@ -13844,17 +13828,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   }
 
   const totalCount = sorted.length;
-  const virtualCount = virtualChips.length;
-  const countLabel = virtualCount > 0
-    ? `${totalCount} open · ${virtualCount} from route plan`
-    : `${totalCount} open`;
-
-  // Banner + "Sync to OKAMI" button used to live here. Route planning →
-  // Save (regenerate_week_shifts + apply_cushion_to_week) is the
-  // single canonical way to build shifts from demand now, so the
-  // explainer + materialize button were redundant — and confusing per
-  // operator feedback. Virtual chips still get the small "from route
-  // plan" tag so the operator can spot unbuilt demand at a glance.
+  const countLabel = `${totalCount} open`;
 
   aside.innerHTML = `
     <div class="pool-head">
