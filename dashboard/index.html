@@ -6537,6 +6537,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
                 <input class="form-input" id="rr-set-max-days" type="number" min="1" max="7" step="1" style="width:120px"/>
                 <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px">per driver · auto-assign cap</span>
               </div>
+              <div>
+                <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Report time</div>
+                <input class="form-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5" style="width:120px"/>
+                <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px">min before wave · drivers clock in this early</span>
+              </div>
               <div style="grid-column:1 / -1;display:flex;align-items:flex-start;gap:10px;background:var(--canvas);padding:10px 12px;border-radius:8px">
                 <input type="checkbox" id="rr-set-availability-override" style="margin-top:3px;cursor:pointer"/>
                 <label for="rr-set-availability-override" style="cursor:pointer">
