@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Refer a driver · RouteReady</title>
+<title>Refer a driver</title>
 <link rel="icon" href="data:," />
 <style>
   :root { --accent:#2563eb; --bg:#0b0e14; --card:#11151d; --text:#e6e9ef; --muted:#8b94a7; --border:#1f2531; --ok:#3ddc97; --err:#ff6b6b; }
@@ -51,10 +51,12 @@
   }
 
   const referrer = ref.first_name || ref.full_name || "your friend";
+  const dspName  = ref.dsp_name || "us";
+  const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
   root.innerHTML = `
-    <div class="ribbon"><strong>Referred by ${referrer}</strong> — finish this 60-second form and we'll text you next steps.</div>
-    <h1>Drive with RouteReady</h1>
+    <div class="ribbon"><strong>Referred by ${escapeHtml(referrer)}</strong> — finish this 60-second form and we'll text you next steps.</div>
+    <h1>Drive with ${escapeHtml(dspName)}</h1>
     <p class="sub">Apply now. We'll text you a 2-minute screening — if you're a fit you'll be on the road within the week.</p>
     <form id="f">
       <div class="row">

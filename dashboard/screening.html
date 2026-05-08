@@ -741,8 +741,6 @@ body {
 
 </div>
 
-<div class="powered-by">Powered by RouteReady</div>
-
 <script src="./config.js"></script>
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
@@ -767,7 +765,7 @@ window.loadScreeningConfig = async function (token) {
   const fieldTypeMap = { yes_no: "yesno", single: "single", multi: "checkbox", text: "text", number: "text", date: "text" };
   return {
     status: "ok",
-    dspName: "RouteReady",
+    dspName: data.dsp?.name || "Driver Application",
     firstName: data.applicant.first_name || "",
     lastName: data.applicant.last_name || "",
     fullName: data.applicant.full_name || "",

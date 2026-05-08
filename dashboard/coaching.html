@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Your coaching record · RouteReady</title>
+<title>Your coaching record</title>
 <link rel="icon" href="data:,"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -57,7 +57,7 @@
 <body>
 <div class="page" id="root">
   <header>
-    <div class="brand">RouteReady</div>
+    <div class="brand" id="dsp-brand"></div>
     <div style="font-size:12px;color:var(--text-subtle)" id="dsp-tag"></div>
   </header>
   <h1 id="page-title">Your coaching record</h1>
@@ -99,6 +99,9 @@ async function load() {
     return;
   }
   const records = data || [];
+  if (records[0]?.dsp_name) {
+    document.getElementById("dsp-brand").textContent = records[0].dsp_name;
+  }
   if (records.length === 0) {
     document.getElementById("page-title").textContent = "All clear";
     sub.textContent = "You don't have any coaching records on file.";
