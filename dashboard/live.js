@@ -264,6 +264,16 @@ function renderApplicantCard(a) {
       <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading answers…</div>
     </div>` : "";
 
+  // Operator scratchpad — private notes for the DSP (call summaries,
+  // follow-ups, gut checks). Lazy-loads on expand and auto-saves on
+  // blur so there's no Save button to remember.
+  const notesBlock = `
+    <div class="pa-detail-section-title" style="margin-top:18px">Notes</div>
+    <div class="pa-notes" data-rr-notes-slot>
+      <textarea data-rr-notes-input placeholder="Private notes for your team — call summaries, follow-ups, gut checks…" style="width:100%;min-height:72px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-md);line-height:1.4;resize:vertical;box-sizing:border-box;background:var(--surface)" disabled></textarea>
+      <div data-rr-notes-status style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;min-height:14px">Loading…</div>
+    </div>`;
+
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
       <div class="pa-row">
@@ -287,6 +297,7 @@ function renderApplicantCard(a) {
       </div>
       <div class="pa-detail">
         ${answersBlock}
+        ${notesBlock}
         <div class="pa-actions-bar">
           <button class="pa-disp-btn ghost" type="button" data-rr-action="call">Call</button>
           ${emailBtn}
@@ -398,10 +409,60 @@ window.paToggle = function (btn) {
   if (typeof _origPaToggle === "function") _origPaToggle(btn);
   const card = btn?.closest?.(".pa-card");
   if (!card || !card.classList.contains("expanded")) return;
-  const slot = card.querySelector("[data-rr-screening-slot]");
-  const id   = card.getAttribute("data-applicant");
-  if (slot && id) _loadScreeningAnswersInto(slot, id);
+  const id = card.getAttribute("data-applicant");
+  if (!id) return;
+  const screeningSlot = card.querySelector("[data-rr-screening-slot]");
+  if (screeningSlot) _loadScreeningAnswersInto(screeningSlot, id);
+  const notesSlot = card.querySelector("[data-rr-notes-slot]");
+  if (notesSlot) _initApplicantNotes(notesSlot, id);
 };
+
+// Lazy-load notes textarea contents and wire blur-based auto-save.
+// Idempotent — re-expanding the same card is a no-op.
+async function _initApplicantNotes(slot, applicantId) {
+  if (!slot || slot.dataset.loaded === "1") return;
+  slot.dataset.loaded = "1";
+
+  const ta     = slot.querySelector("[data-rr-notes-input]");
+  const status = slot.querySelector("[data-rr-notes-status]");
+  if (!ta || !status) return;
+
+  const { data, error } = await sb
+    .from("applicants")
+    .select("operator_notes")
+    .eq("id", applicantId)
+    .single();
+  if (error) {
+    status.textContent = "Couldn't load notes: " + error.message;
+    status.style.color = "var(--red)";
+    slot.dataset.loaded = "";
+    return;
+  }
+  ta.value = data?.operator_notes ?? "";
+  ta.disabled = false;
+  status.textContent = "";
+
+  let lastSaved = ta.value;
+  ta.addEventListener("blur", async () => {
+    const next = ta.value;
+    if (next === lastSaved) return;
+    status.textContent = "Saving…";
+    status.style.color = "var(--text-subtle)";
+    const { error: upErr } = await sb
+      .from("applicants")
+      .update({ operator_notes: next || null })
+      .eq("id", applicantId);
+    if (upErr) {
+      status.textContent = "Save failed: " + upErr.message;
+      status.style.color = "var(--red)";
+      return;
+    }
+    lastSaved = next;
+    const t = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    status.textContent = `Saved at ${t}`;
+    status.style.color = "var(--text-subtle)";
+  });
+}
 
 
 async function openEmailThreadModal(applicantId, fullName, toEmail) {
