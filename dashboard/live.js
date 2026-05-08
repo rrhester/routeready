@@ -296,9 +296,12 @@ async function loadPipeline(stage = "all") {
 // the same way using the card's data-applicant.
 
 async function handleAction(btn) {
-  const card = btn.closest(".pa-card");
+  // Funnel cards use .pa-card[data-applicant]; Interview Day cards use
+  // .iv-card[data-applicant-id]. Reschedule / Cancel interview surface
+  // on both, so the handler accepts either.
+  const card = btn.closest(".pa-card, .iv-card");
   if (!card) return;
-  const id     = card.getAttribute("data-applicant");
+  const id     = card.getAttribute("data-applicant") || card.getAttribute("data-applicant-id");
   const action = btn.getAttribute("data-rr-action");
   if (!id || !action) return;
 
@@ -351,6 +354,12 @@ async function handleAction(btn) {
       return;
     }
     await loadPipeline(getActiveStage());
+    // If the action originated from the Interview Day card, also refresh
+    // that view so the rescheduled / cancelled applicant disappears
+    // immediately. Funnel-only actions still refresh just the funnel.
+    if (card.classList.contains("iv-card") && typeof loadInterviewDay === "function") {
+      await loadInterviewDay();
+    }
   } catch (e) {
     toast("Action failed: " + (e.message ?? e), "warn");
     btn.disabled = false;
@@ -5861,6 +5870,13 @@ function renderInterviewCard(r) {
   if (r.video_url) tags.push(
     `<span class="iv-card-tag" data-rr-play-video data-video-url="${encodeURI(r.video_url)}" style="cursor:pointer">▶ Watch intro</span>`
   );
+  // Reschedule / Cancel surfaced on the day-of card too — operators
+  // sometimes need to bump or kill a slot from this view, not just the
+  // funnel. Hidden when the day already has an outcome on this row.
+  if (!outcome) {
+    tags.push(`<span class="iv-card-tag" data-rr-action="reschedule" style="cursor:pointer">↻ Reschedule</span>`);
+    tags.push(`<span class="iv-card-tag" data-rr-action="cancel_interview" style="cursor:pointer;color:var(--red)">× Cancel interview</span>`);
+  }
 
   return `
     <div class="iv-card" data-applicant-id="${r.applicant_id}" ${outcome ? `data-outcome="${outcome}"` : ""}>
