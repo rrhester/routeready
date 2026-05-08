@@ -114,17 +114,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (req.method === "GET") {
-      let schedule = null as any;
+    // Resolve which schedule backs this event-type. Used by both GET
+    // and POST so save targets the same schedule the dashboard reads
+    // from. Earlier, GET fell back to schedules[0] when evt.scheduleId
+    // was null but POST silently skipped — saves looked successful in
+    // the UI but never propagated to cal.com itself.
+    async function resolveSchedule(): Promise<{ id: number | string | null; row: any }> {
       if (evt.scheduleId) {
         const s = await callCal(`/schedules/${evt.scheduleId}`);
-        schedule = s?.data ?? s ?? null;
-      } else {
-        // Some accounts default to the first schedule when scheduleId is null.
-        const s = await callCal(`/schedules`);
-        const list = s?.data ?? [];
-        schedule = list[0] ?? null;
+        const row = s?.data ?? s ?? null;
+        return { id: evt.scheduleId, row };
       }
+      const s = await callCal(`/schedules`);
+      const list = s?.data ?? [];
+      // Prefer the schedule cal.com flagged as default, then fall back
+      // to the first one. Either way, both GET and POST point at the
+      // same row.
+      const row = list.find((r: any) => r?.isDefault) ?? list[0] ?? null;
+      return { id: row?.id ?? null, row };
+    }
+
+    if (req.method === "GET") {
+      const { row: schedule } = await resolveSchedule();
 
       return cors({
         username,
@@ -156,8 +167,13 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       const { timeZone, availability, locations } = body;
 
-      // Update the schedule (availability + tz) when supplied.
-      if (evt.scheduleId && (timeZone || availability)) {
+      // Update the schedule (availability + tz) when supplied. Falls
+      // back to the user's default schedule when evt.scheduleId is null
+      // — Cal accepts an event-type with no explicit scheduleId and
+      // resolves bookings against the default schedule, so we have to
+      // match that or operator changes never reach the cal.com page.
+      const { id: targetScheduleId } = await resolveSchedule();
+      if (targetScheduleId && (timeZone || availability)) {
         const patch: Record<string, unknown> = {};
         if (timeZone) patch.timeZone = timeZone;
         if (Array.isArray(availability)) {
@@ -170,7 +186,7 @@ Deno.serve(async (req) => {
           })).filter((b: any) => b.days.length > 0 && b.startTime && b.endTime);
         }
         if (Object.keys(patch).length > 0) {
-          await callCal(`/schedules/${evt.scheduleId}`, {
+          await callCal(`/schedules/${targetScheduleId}`, {
             method: "PATCH",
             body:   JSON.stringify(patch),
           });
