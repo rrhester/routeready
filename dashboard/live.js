@@ -13800,7 +13800,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
       : "";
     const newTag = sh.virtual
-      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em">OKAMI</span>`
+      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em" title="From route plan · open Route planning → Save to build">From plan</span>`
       : "";
     const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
@@ -13846,26 +13846,21 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   const totalCount = sorted.length;
   const virtualCount = virtualChips.length;
   const countLabel = virtualCount > 0
-    ? `${totalCount} open · ${virtualCount} from OKAMI`
+    ? `${totalCount} open · ${virtualCount} from route plan`
     : `${totalCount} open`;
 
-  const explainer = virtualCount > 0
-    ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;background:var(--canvas);border-left:2px solid var(--accent);padding:6px 8px;margin-bottom:8px;border-radius:3px">
-        Striped <strong style="color:var(--accent-text)">OKAMI</strong> chips are slots your demand plan needs but no shift row exists yet. Drag onto a driver's day cell to create + assign the shift on <em>that</em> day.
-       </div>`
-    : "";
+  // Banner + "Sync to OKAMI" button used to live here. Route planning →
+  // Save (regenerate_week_shifts + apply_cushion_to_week) is the
+  // single canonical way to build shifts from demand now, so the
+  // explainer + materialize button were redundant — and confusing per
+  // operator feedback. Virtual chips still get the small "from route
+  // plan" tag so the operator can spot unbuilt demand at a glance.
 
   aside.innerHTML = `
     <div class="pool-head">
       <span>Open shifts</span>
       <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:var(--fs-xs)">${countLabel}</span>
     </div>
-    ${explainer}
-    ${virtualCount > 0 ? `<button type="button" id="rr-sync-to-okami"
-      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-soft);border-radius:6px;cursor:pointer"
-      title="Create the ${virtualCount} OKAMI gap shifts as real (unassigned) rows so you can drag drivers onto them.">
-      Sync to OKAMI · create ${virtualCount} missing shift${virtualCount === 1 ? "" : "s"}
-    </button>` : ""}
     <button type="button" id="rr-unassign-week"
       style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:var(--fs-xs);font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
       Unassign all shifts this week
@@ -13982,23 +13977,6 @@ function bindSchedWeekNav() {
     const mode = sortBtn.dataset.rrPoolSort;
     if (!mode || mode === _poolSortMode) return;
     _poolSortMode = mode;
-    renderScheduleWeek();
-  });
-
-  // ── Sync to OKAMI: materialize all virtual gaps in one shot.
-  sub.addEventListener("click", async (e) => {
-    if (e.target.id !== "rr-sync-to-okami") return;
-    e.preventDefault();
-    if (!_confirmLiveScheduleEdit()) return;
-    e.target.disabled = true;
-    e.target.textContent = "Syncing…";
-    const { error } = await sb.rpc("regenerate_week_shifts", { p_week_start: _schedStart });
-    if (error) {
-      e.target.disabled = false;
-      toast("Sync failed: " + error.message, "warn");
-      return;
-    }
-    toast("Schedule synced to OKAMI demand", "success");
     renderScheduleWeek();
   });
 
