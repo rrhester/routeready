@@ -201,14 +201,41 @@ function rrTitleCaseName(s) {
   return (s || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Match the prototype's compact-list pattern: the collapsed card
+// shows stage pill + identity + score, with one View toggle on the
+// right. Action buttons + screening answers live in the expanded
+// detail panel below, so the row above stays scannable.
 function renderApplicantCard(a) {
   const stage = a.pipeline_stage;
   const slug  = (a.full_name || "").toLowerCase().replace(/\s+/g, "-");
-  const subtitle = [
+  const name  = rrTitleCaseName(a.full_name);
+
+  // Identity meta line — render whatever's available, dot-separated.
+  const meta = [
     a.station_code ? `Station ${a.station_code}` : null,
     a.source ? `via ${a.source}` : null,
+    a.email,
+    a.phone,
   ].filter(Boolean).join(" · ");
 
+  // Stage pill copy. For booking_scheduled, append the booked time so
+  // the operator can see when it is without expanding.
+  let stageLabel = STAGE_LABELS[stage] ?? stage;
+  if (stage === "booking_scheduled" && a.next_event_starts_at) {
+    stageLabel = `${STAGE_LABELS[stage]} · ${fmtDate(a.next_event_starts_at)}`;
+  }
+
+  const relTime = a.created_at ? _relTimeShort(a.created_at) : "";
+
+  // Score chip — colour by tier so high-fits stand out at a glance.
+  let scoreChip = "";
+  if (a.score !== null && a.score !== undefined) {
+    const cls = a.score >= 7 ? "score" : a.score >= 4 ? "score score-mid" : "score score-low";
+    scoreChip = `<span class="pa-card-tag ${cls}">Score ${a.score}</span>`;
+  }
+
+  // Disposition buttons — placed inside the expanded action bar so the
+  // collapsed view stays calm.
   let primaryBtn = "";
   if (stage === "applied") {
     primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="resend_screening">Resend screening</button>`;
@@ -217,45 +244,85 @@ function renderApplicantCard(a) {
   } else if (stage === "booking_pending") {
     primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="resend_link">Resend booking link</button>`;
   } else if (stage === "booking_scheduled") {
-    const when = a.next_event_starts_at ? `Booked ${fmtDate(a.next_event_starts_at)}` : "Booked";
-    primaryBtn = `<button class="pa-disp-btn ghost" type="button" disabled>${when}</button>
-                  <button class="pa-disp-btn primary" type="button" data-rr-action="reschedule">Reschedule</button>
+    primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="reschedule">Reschedule</button>
                   <button class="pa-disp-btn danger" type="button" data-rr-action="cancel_interview">Cancel interview</button>`;
   }
 
   const videoBtn = a.video_url
-    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}">▶ Intro video</button>`
+    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}">Intro video</button>`
     : "";
-
   const emailBtn = a.email
-    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="email_thread">✉ Email</button>`
+    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="email_thread">Email</button>`
     : "";
 
-  // Screening answers — visible once the applicant has actually
-  // responded (i.e., moved past "applied"). Operators were missing a
-  // way to read what the driver submitted.
-  const answersBtn = stage !== "applied"
-    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="screening_answers">📋 Answers</button>`
-    : "";
+  // Screening Q&A is rendered inline inside the expanded detail. The
+  // slot loads lazily on first expand (see _loadScreeningAnswersInto)
+  // so we don't N+1 the DB on every list render.
+  const answersBlock = stage !== "applied" ? `
+    <div class="pa-detail-section-title">Screening answers</div>
+    <div class="pa-qa" data-rr-screening-slot>
+      <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading answers…</div>
+    </div>` : "";
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
       <div class="pa-row">
-        <div class="pa-id">
-          <div class="pa-name">${escapeHtml(rrTitleCaseName(a.full_name))}</div>
-          <div class="pa-sub">${subtitle}</div>
+        <div class="pa-card-stage">
+          <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
+          ${relTime ? `<span class="pa-card-time">${escapeHtml(relTime)}</span>` : ""}
         </div>
-        <span class="pa-stage-pill ${stage}">${STAGE_LABELS[stage] ?? stage}</span>
+        <div class="pa-card-body">
+          <div class="pa-card-header">
+            <div class="pa-card-avatar ${_tierClassFromScore(a.score)}">${escapeHtml(_initialsOf(name))}</div>
+            <div>
+              <div class="pa-card-name">${escapeHtml(name)}</div>
+              <div class="pa-card-meta">${escapeHtml(meta)}</div>
+            </div>
+          </div>
+          ${scoreChip ? `<div class="pa-card-tags">${scoreChip}</div>` : ""}
+        </div>
+        <div class="pa-card-actions">
+          <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+        </div>
       </div>
-      <div class="pa-disp">
-        <button class="pa-disp-btn ghost" type="button" data-rr-action="call">Call</button>
-        ${emailBtn}
-        ${videoBtn}
-        ${answersBtn}
-        <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
-        ${primaryBtn}
+      <div class="pa-detail">
+        ${answersBlock}
+        <div class="pa-actions-bar">
+          <button class="pa-disp-btn ghost" type="button" data-rr-action="call">Call</button>
+          ${emailBtn}
+          ${videoBtn}
+          <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
+          ${primaryBtn}
+        </div>
       </div>
     </div>`;
+}
+
+function _initialsOf(name) {
+  if (!name) return "?";
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function _tierClassFromScore(score) {
+  if (score === null || score === undefined) return "tier-d";
+  if (score >= 7) return "tier-a";
+  if (score >= 4) return "tier-b";
+  if (score >= 1) return "tier-c";
+  return "tier-d";
+}
+
+function _relTimeShort(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 // Open the applicant's video intro in a simple modal overlay.
@@ -281,79 +348,60 @@ function openVideoModal(url) {
 // + outbound rows, and lets the operator queue a reply that send-email
 // will dispatch on its next tick.
 
-async function openScreeningAnswersModal(applicantId, fullName, score) {
-  let m = document.getElementById("rr-screening-modal");
-  if (m) m.remove();
-  m = document.createElement("div");
-  m.id = "rr-screening-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
-  const scoreLine = (score === null || score === undefined)
-    ? ""
-    : `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Score: ${escapeHtml(String(score))}</div>`;
-  m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)">
-        <div>
-          <div style="font-size:var(--fs-lg);font-weight:600">Screening answers · ${escapeHtml(rrTitleCaseName(fullName))}</div>
-          ${scoreLine}
-        </div>
-        <button class="btn btn-sm" data-rr-screening-close>Close</button>
-      </div>
-      <div id="rr-screening-body" style="flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px">
-        <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading…</div>
-      </div>
-    </div>`;
-  document.body.appendChild(m);
-  m.addEventListener("click", (e) => {
-    if (e.target === m || e.target.closest("[data-rr-screening-close]")) m.remove();
-  });
+// Lazily fetch and render an applicant's screening answers into the
+// expanded detail panel's [data-rr-screening-slot] container. Cached
+// per-card via the loaded flag so re-expanding doesn't re-fetch.
+async function _loadScreeningAnswersInto(slot, applicantId) {
+  if (!slot || slot.dataset.loaded === "1") return;
+  slot.dataset.loaded = "1";
 
-  // Pull every response for this applicant, joined to the question
-  // record so we can render the prompt the driver actually saw — not
-  // just the slug. RLS scopes both tables to the operator's DSP.
   const { data: rows, error } = await sb
     .from("screening_responses")
     .select("answer_text, answer_json, score_awarded, hard_filter_failed, created_at, screening_questions(prompt, field_type, display_order)")
     .eq("applicant_id", applicantId)
     .order("created_at", { ascending: true });
 
-  const body = document.getElementById("rr-screening-body");
-  if (!body) return;
   if (error) {
-    body.innerHTML = `<div style="color:var(--red)">Couldn't load: ${escapeHtml(error.message)}</div>`;
+    slot.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">Couldn't load: ${escapeHtml(error.message)}</div>`;
+    slot.dataset.loaded = "";
     return;
   }
   if (!rows || rows.length === 0) {
-    body.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">This applicant hasn't submitted any screening answers yet.</div>`;
+    slot.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No answers submitted yet.</div>`;
     return;
   }
 
   const fmtAnswer = (r) => {
     if (r.answer_text && String(r.answer_text).trim()) return escapeHtml(r.answer_text);
     if (r.answer_json !== null && r.answer_json !== undefined) {
-      try { return `<code style="font-size:var(--fs-xs)">${escapeHtml(JSON.stringify(r.answer_json))}</code>`; } catch { /* fall-through */ }
+      try { return escapeHtml(JSON.stringify(r.answer_json)); } catch { /* fall through */ }
     }
-    return `<span style="color:var(--text-subtle)">— no answer —</span>`;
+    return "—";
   };
 
-  body.innerHTML = rows.map((r) => {
+  slot.innerHTML = rows.map((r) => {
     const prompt = r.screening_questions?.prompt || "(question deleted)";
-    const flag = r.hard_filter_failed
-      ? `<span style="background:var(--red-bg,#fee);color:var(--red);padding:2px 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600">Disqualifying</span>`
-      : "";
-    const score = (r.score_awarded === null || r.score_awarded === undefined)
-      ? ""
-      : `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">+${escapeHtml(String(r.score_awarded))}</span>`;
+    const failClass = r.hard_filter_failed ? " fail" : "";
     return `
-      <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--canvas)">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
-          <div style="font-weight:600;font-size:var(--fs-sm)">${escapeHtml(prompt)}</div>
-          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">${flag}${score}</div>
-        </div>
-        <div style="font-size:var(--fs-md);line-height:1.5">${fmtAnswer(r)}</div>
+      <div class="pa-qa-item">
+        <div class="pa-qa-q">${escapeHtml(prompt)}</div>
+        <div class="pa-qa-a${failClass}">${fmtAnswer(r)}</div>
       </div>`;
   }).join("");
 }
+
+// Wrap the prototype's paToggle so that expanding a card also kicks off
+// the screening-answer fetch for the slot inside .pa-detail. The
+// original toggle logic still runs first (handles class flips + scroll).
+const _origPaToggle = window.paToggle;
+window.paToggle = function (btn) {
+  if (typeof _origPaToggle === "function") _origPaToggle(btn);
+  const card = btn?.closest?.(".pa-card");
+  if (!card || !card.classList.contains("expanded")) return;
+  const slot = card.querySelector("[data-rr-screening-slot]");
+  const id   = card.getAttribute("data-applicant");
+  if (slot && id) _loadScreeningAnswersInto(slot, id);
+};
 
 
 async function openEmailThreadModal(applicantId, fullName, toEmail) {
@@ -542,12 +590,6 @@ async function handleAction(btn) {
       const { data: a } = await sb.from("applicants")
         .select("full_name, email").eq("id", id).single();
       openEmailThreadModal(id, a?.full_name || "", a?.email || "");
-      btn.disabled = false;
-      return;
-    } else if (action === "screening_answers") {
-      const { data: a } = await sb.from("applicants")
-        .select("full_name, score").eq("id", id).single();
-      openScreeningAnswersModal(id, a?.full_name || "", a?.score ?? null);
       btn.disabled = false;
       return;
     }
