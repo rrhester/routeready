@@ -5929,11 +5929,20 @@ document.addEventListener("click", async (e) => {
       return;
     }
     toast("Interview day closed · KPIs updated", "success");
-    // After close, jump forward to the next future day with bookings (or
-    // today if there isn't one) so the closed day stops monopolizing the view.
-    const today = localDate(new Date());
-    const futureBookings = _ivDatesWithBookings.filter(d => d > _ivDate);
-    _ivDate = futureBookings[0] || today;
+    // After close, jump to the next future date with bookings. If there
+    // isn't one, advance to the calendar day after the one we just
+    // closed so the operator lands on an empty "no interviews booked"
+    // state rather than seeing the just-closed roster reload (which
+    // happens if we fall back to today and today is the closed date).
+    const closedDate = _ivDate;
+    const futureBookings = _ivDatesWithBookings.filter(d => d > closedDate);
+    if (futureBookings.length > 0) {
+      _ivDate = futureBookings[0];
+    } else {
+      const next = new Date(closedDate + "T12:00:00");
+      next.setDate(next.getDate() + 1);
+      _ivDate = localDate(next);
+    }
     _ivDayId = null;
     await loadInterviewDay();
     await loadPipelineKpis();
