@@ -69,6 +69,12 @@ grant execute on function public.screening_load(text) to anon, authenticated;
 -- ─── coaching_for_driver_token ──────────────────────────────────────────
 -- Add dsp_name to every returned row so the driver-facing coaching page
 -- can render the DSP name without a second round-trip.
+--
+-- Drop first because CREATE OR REPLACE FUNCTION can't change the
+-- RETURNS TABLE shape — the function already exists from migration
+-- 0038 with one fewer column.
+
+drop function if exists public.coaching_for_driver_token(text);
 
 create or replace function public.coaching_for_driver_token(p_token text)
 returns table (
