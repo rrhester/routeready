@@ -19,6 +19,35 @@ const CORS = {
   "access-control-allow-methods": "GET, POST, OPTIONS",
 };
 
+// Cal v2 represents schedule days as English weekday names ("Monday",
+// "Tuesday", …). The dashboard's editor uses 0–6 (Sun–Sat). Translate
+// in both directions so neither side has to know about the other.
+const DAY_NUM_TO_NAME = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+const DAY_NAME_TO_NUM: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
+function dayToCal(d: unknown): string | null {
+  if (typeof d === "string") {
+    return DAY_NUM_TO_NAME[DAY_NAME_TO_NUM[d.toLowerCase()] ?? -1] ?? null;
+  }
+  if (typeof d === "number" && d >= 0 && d <= 6) return DAY_NUM_TO_NAME[d];
+  return null;
+}
+function dayFromCal(d: unknown): number | null {
+  if (typeof d === "number" && d >= 0 && d <= 6) return d;
+  if (typeof d === "string") {
+    const n = DAY_NAME_TO_NUM[d.toLowerCase()];
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+// Cal v2 wants HH:MM, the dashboard form may send HH:MM:SS. Normalize.
+function timeToCal(t: unknown): string | null {
+  if (typeof t !== "string" || !t) return null;
+  const m = t.match(/^(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : t;
+}
+
 async function callCal(path: string, init: RequestInit = {}) {
   const apiKey = Deno.env.get("CAL_API_KEY");
   if (!apiKey) throw new Error("CAL_API_KEY not configured on the project");
@@ -111,7 +140,14 @@ Deno.serve(async (req) => {
           id:           schedule.id,
           name:         schedule.name,
           timeZone:     schedule.timeZone,
-          availability: schedule.availability ?? [],
+          // Translate day names → numbers so the dashboard editor can
+          // bucket each block by 0–6 indexed day rows.
+          availability: (schedule.availability ?? []).map((b: any) => ({
+            ...b,
+            days: Array.isArray(b?.days)
+              ? b.days.map((d: unknown) => dayFromCal(d)).filter((v: unknown) => v !== null)
+              : [],
+          })),
         } : null,
       });
     }
@@ -123,8 +159,16 @@ Deno.serve(async (req) => {
       // Update the schedule (availability + tz) when supplied.
       if (evt.scheduleId && (timeZone || availability)) {
         const patch: Record<string, unknown> = {};
-        if (timeZone)            patch.timeZone     = timeZone;
-        if (Array.isArray(availability)) patch.availability = availability;
+        if (timeZone) patch.timeZone = timeZone;
+        if (Array.isArray(availability)) {
+          patch.availability = availability.map((b: any) => ({
+            days: Array.isArray(b?.days)
+              ? b.days.map(dayToCal).filter((v: unknown) => v !== null)
+              : [],
+            startTime: timeToCal(b?.startTime),
+            endTime:   timeToCal(b?.endTime),
+          })).filter((b: any) => b.days.length > 0 && b.startTime && b.endTime);
+        }
         if (Object.keys(patch).length > 0) {
           await callCal(`/schedules/${evt.scheduleId}`, {
             method: "PATCH",
