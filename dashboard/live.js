@@ -5593,11 +5593,17 @@ async function renderWeeksStrip() {
   const startIso = fmtIsoDate(monday);
   _scheduleWeeksStripRollover();
 
-  // Build placeholders first so the strip never shows mockup data while
-  // the live query is in flight.
-  const placeholderWeeks = Array.from({ length: 5 }, (_, i) => isoWeek(addDays(monday, i * 7)));
-  strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>` +
-    placeholderWeeks.map(n => `<span class="hp-week-cell"><span class="wk">W${n}</span> <span style="color:var(--text-subtle)">— / —</span></span>`).join("");
+  // Build placeholders only on the very first paint so the strip never
+  // shows mockup data while the live query is in flight. On re-renders
+  // (30s refresh tick, Realtime change) we leave the existing real
+  // values in place and overwrite once the new data arrives — without
+  // this, every refresh produced a visible flicker as the cells went
+  // "— / —" and back.
+  if (!strip.dataset.rrLoaded) {
+    const placeholderWeeks = Array.from({ length: 5 }, (_, i) => isoWeek(addDays(monday, i * 7)));
+    strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>` +
+      placeholderWeeks.map(n => `<span class="hp-week-cell"><span class="wk">W${n}</span> <span style="color:var(--text-subtle)">— / —</span></span>`).join("");
+  }
 
   // Pull 5 weeks of okami_grid + active driver count.
   const [gridRes, drvRes] = await Promise.all([
@@ -5644,6 +5650,7 @@ async function renderWeeksStrip() {
   }
 
   strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 wk</span>${out.join("")}`;
+  strip.dataset.rrLoaded = "1";
 }
 
 
