@@ -219,7 +219,7 @@ function renderApplicantCard(a) {
   } else if (stage === "booking_scheduled") {
     const when = a.next_event_starts_at ? `Booked ${fmtDate(a.next_event_starts_at)}` : "Booked";
     primaryBtn = `<button class="pa-disp-btn ghost" type="button" disabled>${when}</button>
-                  <button class="pa-disp-btn danger" type="button" data-rr-action="cancel_interview">Cancel interview</button>`;
+                  <button class="pa-disp-btn primary" type="button" data-rr-action="reschedule">Reschedule</button>`;
   }
 
   const videoBtn = a.video_url
@@ -317,12 +317,16 @@ async function handleAction(btn) {
       const { error } = await sb.rpc("decline_applicant", { p_id: id, p_reason: "Manual decline" });
       if (error) throw error;
       toast("Applicant declined", "warn");
-    } else if (action === "cancel_interview") {
-      const reason = prompt("Cancellation reason? (optional · stays internal)");
+    } else if (action === "reschedule" || action === "cancel_interview") {
+      const reason = prompt("Reason for asking them to reschedule? (optional · stays internal)");
       if (reason === null) { btn.disabled = false; return; }
+      // Reuses the existing cancel_interview RPC: it voids the current
+      // booking and queues a fresh booking link to the applicant in one
+      // shot. The legacy "cancel_interview" action label is still
+      // accepted for any seeded HTML buttons that haven't re-rendered.
       const { error } = await sb.rpc("cancel_interview", { p_applicant_id: id, p_reason: reason || null });
       if (error) throw error;
-      toast("Interview cancelled · applicant texted a new booking link", "success");
+      toast("Reschedule requested · applicant sent a new booking link", "success");
     } else if (action === "call") {
       // Dial via tel: link; no backend call.
       const { data } = await sb.from("applicants").select("phone").eq("id", id).single();
