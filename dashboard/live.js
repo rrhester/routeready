@@ -11828,10 +11828,27 @@ function bindOkamiDailyDelegation() {
     const key = `${weekIdx}|${iso}|${waveIdx}|${stId || "default"}`;
     const prev = _okamiDailySaveTimers.get(key);
     if (prev) clearTimeout(prev.timeoutId);
-    // Track timer + the args so flushOkamiDailyPending() can fire it
-    // immediately (e.g. when the operator clicks Save before the
-    // 400ms debounce elapses).
-    const args = { weekIdx, iso, waveIdx, stId, getValue: () => parseInt(inp.value, 10) || 0 };
+    // CRITICAL: don't close over the input DOM node. If the panel
+    // re-renders between input event and the 400ms timer fire (a
+    // cushion change, tab refresh tick, etc. all replace
+    // container.innerHTML), the captured `inp` becomes detached and
+    // its .value freezes at detach time. Some keystrokes commit,
+    // others don't — produces the operator's "I typed 5 but got
+    // 2,2,5,5,2,2,5" symptom.
+    //
+    // Instead: resolve the input by its own data attributes at fire
+    // time so we always read the live DOM node's current value.
+    const stSelector = stId
+      ? `[data-service-type-id="${stId}"]`
+      : ":not([data-service-type-id])";
+    const liveSelector = `input[data-rr-okami-daily="${weekIdx}"][data-iso="${iso}"][data-wave="${waveIdx}"]${stSelector}`;
+    const args = {
+      weekIdx, iso, waveIdx, stId,
+      getValue: () => {
+        const live = document.querySelector(liveSelector);
+        return live ? (parseInt(live.value, 10) || 0) : (parseInt(inp.value, 10) || 0);
+      },
+    };
     const timeoutId = setTimeout(() => {
       _okamiDailySaveTimers.delete(key);
       saveOkamiDaily(args.weekIdx, args.iso, args.getValue(), args.waveIdx, args.stId);
@@ -11900,10 +11917,13 @@ async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0, stId = null) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
   if (!_okamiStations || _okamiStations.length === 0) {
+    // Order by code so saveOkamiDaily's "first station gets the
+    // value, others zero" semantics is deterministic across sessions.
     const { data, error } = await sb.from("stations")
       .select("id, code, active")
       .eq("dsp_id", dspId)
-      .eq("active", true);
+      .eq("active", true)
+      .order("code");
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
     _okamiStations = data || [];
   }
