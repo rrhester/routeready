@@ -8404,11 +8404,14 @@ async function refreshDriverChatList(autoSelect) {
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     const isActive = _msgInboxSelectedId === t.driver_id;
     return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
-      <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div></div>
+      <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
       <div><div class="msg-item-name">${escapeHtml(t.name)}${t.station_code ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
     </div>`;
   }).join("");
+  // Paint the green dot after the rows mount.  Presence state may have
+  // already populated by the time the list first renders.
+  _presencePaintList();
   list.querySelectorAll("[data-rr-thread]").forEach((el) => {
     el.addEventListener("click", () => openDriverChatThread(el.dataset.rrThread));
   });
@@ -8467,7 +8470,10 @@ async function refreshDriverChatThread(scrollToBottom) {
     conv.innerHTML = `
       <div class="rr-mc-shell">
         <div class="rr-mc-head" data-rr-driver-id="${escapeHtml(driverId)}">
-          <div class="avatar-sm">${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
+          <div class="avatar-sm" style="position:relative">
+            ${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}
+            <span class="rr-mc-head-presence"></span>
+          </div>
           <div>
             <div class="rr-mc-name">${escapeHtml(drv.name || "")}</div>
             <div class="rr-mc-sub">Driver chat</div>
@@ -8499,7 +8505,12 @@ async function refreshDriverChatThread(scrollToBottom) {
         </form>
       </div>`;
     const ta = document.getElementById("rr-mc-input");
-    ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px"; });
+    ta.addEventListener("input", () => {
+      ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+      // Throttled typing broadcast — keeps the driver's "typing…"
+      // indicator alive while the operator is composing.
+      if (_msgInboxSelectedId) _presenceBroadcastTyping(_msgInboxSelectedId);
+    });
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -8763,6 +8774,9 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (msgs.some((m) => m.sender_kind === "driver")) {
     sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).then(undefined, () => {});
   }
+  // Refresh head presence dot/sub-line in case the driver came online
+  // between the open and the data resolve.
+  _presencePaintThreadHead(driverId);
 }
 
 async function _rrMcSignAttachments() {
@@ -11333,6 +11347,143 @@ function scheduleRefresh() {
   clearTimeout(_refreshDebounce);
   _refreshDebounce = setTimeout(refreshActiveView, 600);
 }
+
+// ─── Presence + typing indicators ────────────────────────────────────────
+//
+// One Supabase Realtime channel per DSP carries two things:
+//   1. Presence — drivers / dispatchers track themselves on join, untrack
+//      on close.  The dispatcher uses the merged presence map to paint
+//      the online dot on the Messages list and beside the open thread's
+//      avatar.
+//   2. Broadcast typing pings — when a driver types in their dispatch
+//      chat, they send a tiny { type: "typing", from: driverId } event;
+//      the dispatcher renders "X is typing…" above the composer for the
+//      open thread (cleared after 4s of silence).  Dispatcher sends
+//      mirror events so the driver app can show the same.
+//
+// Broadcast keeps these signals OFF the database — they're ephemeral
+// and don't deserve a write per keystroke.
+
+const _presence = {
+  channel: null,
+  online: new Set(),  // driver IDs currently online in this DSP
+  typingByDriver: new Map(),  // driverId -> timeoutId
+  lastBroadcast: 0,
+};
+
+function _presencePaintList() {
+  // Update the .online class on each conversation row.  The presence
+  // dot element is already in the DOM (built by refreshDriverChatList);
+  // here we just toggle the modifier class.
+  document.querySelectorAll("#rr-msg-driver-list .msg-item").forEach((row) => {
+    const id = row.getAttribute("data-rr-driver-id");
+    const dot = row.querySelector(".msg-item-presence");
+    if (!dot) return;
+    dot.classList.toggle("online", _presence.online.has(id));
+  });
+}
+
+function _presencePaintThreadHead(driverId) {
+  // Decorate the open thread's header avatar with an online ring + a
+  // subtle "online" sub-line.  Uses the same .online class as the list.
+  const head = document.querySelector(".rr-mc-head[data-rr-driver-id]");
+  if (!head) return;
+  const isOpen = head.getAttribute("data-rr-driver-id") === driverId;
+  if (!isOpen) return;
+  const sub = head.querySelector(".rr-mc-sub");
+  if (sub) {
+    if (_presence.online.has(driverId)) {
+      sub.innerHTML = `<span class="rr-mc-online-pip"></span> Online`;
+    } else {
+      sub.textContent = "Driver chat";
+    }
+  }
+}
+
+function _presenceShowTyping(driverId) {
+  // Show "X is typing…" inside the open thread's composer area.  Pulled
+  // out as a function so the same indicator works whether the typing
+  // event arrived before or after the thread opened.
+  const head = document.querySelector(".rr-mc-head[data-rr-driver-id]");
+  if (!head || head.getAttribute("data-rr-driver-id") !== driverId) return;
+  let pill = document.getElementById("rr-mc-typing");
+  if (!pill) {
+    const composer = document.getElementById("rr-mc-form");
+    if (!composer) return;
+    pill = document.createElement("div");
+    pill.id = "rr-mc-typing";
+    pill.className = "rr-mc-typing";
+    pill.innerHTML = `
+      <span class="rr-mc-typing-dots"><span></span><span></span><span></span></span>
+      <span class="rr-mc-typing-label">typing…</span>`;
+    composer.parentNode.insertBefore(pill, composer);
+  }
+  pill.classList.add("show");
+  // Clear 4s after the last typing event.
+  clearTimeout(_presence.typingByDriver.get(driverId));
+  _presence.typingByDriver.set(driverId, setTimeout(() => {
+    const el = document.getElementById("rr-mc-typing");
+    if (el) el.classList.remove("show");
+  }, 4000));
+}
+
+function _presenceWire() {
+  const dspId  = window.RR?.dsp?.id;
+  const userId = window.RR?.user?.id;
+  if (!dspId || !userId) return;
+  if (_presence.channel) return; // already wired
+  const channel = sb.channel("rr-presence-dsp-" + dspId, {
+    config: { presence: { key: "dispatch:" + userId } },
+  });
+
+  channel
+    .on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState();
+      _presence.online = new Set();
+      Object.values(state).flat().forEach((entry) => {
+        if (entry?.kind === "driver" && entry?.id) _presence.online.add(entry.id);
+      });
+      _presencePaintList();
+      if (_msgInboxSelectedId) _presencePaintThreadHead(_msgInboxSelectedId);
+    })
+    .on("broadcast", { event: "typing" }, ({ payload }) => {
+      if (!payload || payload.from_kind !== "driver") return;
+      // Only act on typing events from a driver in our DSP.
+      _presenceShowTyping(payload.from);
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({ kind: "dispatch", id: userId, online_at: new Date().toISOString() });
+      }
+    });
+
+  _presence.channel = channel;
+
+  // Untrack when leaving the page so the green dot disappears for
+  // drivers within ~1s of dispatcher closing the tab.
+  window.addEventListener("beforeunload", () => {
+    try { channel.untrack(); sb.removeChannel(channel); } catch {}
+  });
+}
+
+// Broadcast a typing event from the dispatcher.  Throttled so we send
+// at most one event every 1500ms during a typing burst.
+function _presenceBroadcastTyping(toDriverId) {
+  if (!_presence.channel) return;
+  const now = Date.now();
+  if (now - _presence.lastBroadcast < 1500) return;
+  _presence.lastBroadcast = now;
+  try {
+    _presence.channel.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { from: window.RR?.user?.id, from_kind: "dispatch", to: toDriverId, ts: now },
+    });
+  } catch {}
+}
+
+// Wire on first appearance — RR is ready by the time live.js runs.
+setTimeout(_presenceWire, 0);
 
 // Targeted handler for inbound chat events.  We don't want to bounce
 // the entire view on every keystroke from a driver, so this debounces

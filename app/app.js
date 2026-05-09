@@ -782,6 +782,8 @@ async function renderChat() {
   ta.addEventListener("input", () => {
     ta.style.height = "auto";
     ta.style.height = Math.min(120, ta.scrollHeight) + "px";
+    // Throttled typing broadcast so dispatch sees the live indicator.
+    _drvBroadcastTyping();
   });
   ta.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer:fine)").matches) {
@@ -962,13 +964,11 @@ async function renderChat() {
   // notification permission — they've clearly engaged with messaging.
   ensurePushSubscription(session);
 
-  // First fetch + realtime subscription + safety-net poller.
-  // Realtime is the primary path (sub-second insert delivery on
-  // driver_messages where driver_id = self).  The poller drops to
-  // 30s and only fires as a fallback for missed socket events.
+  // First fetch + realtime subscription + presence + safety-net poller.
   _chatLastIds = new Set();
   await refreshChat(true);
   _chatRealtimeWire(session);
+  _drvPresenceWire(session);
   if (_chatPollTimer) clearInterval(_chatPollTimer);
   _chatPollTimer = setInterval(() => {
     if (document.hidden) return;
@@ -976,6 +976,96 @@ async function renderChat() {
     if (_chatTab !== "dispatch") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
     refreshChat(false);
   }, 30000);
+}
+
+// ─── Presence + typing (driver side) ─────────────────────────────────
+//
+// Drivers join a per-DSP presence channel so dispatchers see them as
+// online; in return, drivers see a "Dispatch is typing…" indicator
+// when an operator is composing in their thread.  Same channel name
+// as the dispatcher (rr-presence-dsp-<dspId>), so both sides land in
+// the same room.
+
+const _drvPresence = {
+  channel: null,
+  lastBroadcast: 0,
+  typingTimer: null,
+};
+
+function _drvPresenceWire(session) {
+  const dspId    = session?.dsp_id;
+  const driverId = session?.driver_id;
+  if (!dspId || !driverId) return;
+  if (_drvPresence.channel) return;
+  const channel = sb.channel("rr-presence-dsp-" + dspId, {
+    config: { presence: { key: "driver:" + driverId } },
+  });
+  channel
+    .on("broadcast", { event: "typing" }, ({ payload }) => {
+      if (!payload || payload.from_kind !== "dispatch") return;
+      // Only show when the driver is actually viewing the dispatch chat.
+      if (currentRoute() !== "/chat" || _chatTab !== "dispatch") return;
+      _drvShowDispatchTyping();
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({ kind: "driver", id: driverId, online_at: new Date().toISOString() });
+      }
+    });
+  _drvPresence.channel = channel;
+
+  // Untrack on visibility loss so dispatchers stop seeing them as
+  // online when the app is backgrounded for more than ~2s.  Re-track
+  // when they come back.
+  document.addEventListener("visibilitychange", () => {
+    if (!_drvPresence.channel) return;
+    if (document.hidden) {
+      try { _drvPresence.channel.untrack(); } catch {}
+    } else {
+      try {
+        _drvPresence.channel.track({ kind: "driver", id: driverId, online_at: new Date().toISOString() });
+      } catch {}
+    }
+  });
+}
+
+function _drvBroadcastTyping() {
+  if (!_drvPresence.channel) return;
+  const now = Date.now();
+  if (now - _drvPresence.lastBroadcast < 1500) return;
+  _drvPresence.lastBroadcast = now;
+  const session = readSession();
+  if (!session?.driver_id) return;
+  try {
+    _drvPresence.channel.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { from: session.driver_id, from_kind: "driver", ts: now },
+    });
+  } catch {}
+}
+
+function _drvShowDispatchTyping() {
+  // Insert / refresh a small typing pill just above the composer.
+  const wrap = document.getElementById("chat-msgs");
+  const composer = document.getElementById("chat-form");
+  if (!wrap || !composer) return;
+  let pill = document.getElementById("chat-typing");
+  if (!pill) {
+    pill = document.createElement("div");
+    pill.id = "chat-typing";
+    pill.className = "chat-typing";
+    pill.innerHTML = `
+      <span class="chat-typing-dots"><span></span><span></span><span></span></span>
+      <span>Dispatch is typing…</span>`;
+    composer.parentNode.insertBefore(pill, composer);
+  }
+  pill.classList.add("show");
+  clearTimeout(_drvPresence.typingTimer);
+  _drvPresence.typingTimer = setTimeout(() => {
+    const el = document.getElementById("chat-typing");
+    if (el) el.classList.remove("show");
+  }, 4000);
 }
 
 // Realtime channel for the driver's own dispatch chat. Tears the
