@@ -8378,78 +8378,44 @@ function _fitMsgShell() {
   // The 520px min-height was forcing a too-tall shell on small
   // viewports.  Drop it once we're driving height ourselves.
   el.style.minHeight = "0";
-  // Also sync the position:fixed composer's coords to the conv pane.
-  _syncComposerPos();
 }
-// Position:fixed composer needs its left/width synced to the
-// conversation pane (which is the second grid column inside
-// .msg-shell), and its bottom anchored to the bottom of the visible
-// shell area.  This guarantees the composer is always on-screen
-// regardless of viewport / content height / browser chrome.
+// `_syncComposerPos` was the JS-driven coordinator for the previous
+// `position:fixed` composer (PRs #582, #587, #598): it wrote
+// `--rr-mc-left/width/bottom` to keep the floating composer aligned
+// with the conv pane, and `--rr-mc-thread-pad` to reserve a gap at
+// the bottom of the thread so bubbles wouldn't land behind the
+// overlay.  That math was a moving target — typing-pill flickers,
+// ResizeObserver lag, textarea overflow-y gutter, image-load
+// reflow — and the bottom bubble kept clipping behind the composer.
 //
-// Pure write-side function: no scroll-pin logic.  The thread keeps
-// its position at the bottom via CSS scroll-anchoring on the
-// `.rr-mc-bottom-sentinel` child (see index.html).  When this
-// function shrinks/grows `--rr-mc-thread-pad`, the browser's anchor
-// algorithm adjusts scrollTop transparently so the sentinel stays
-// in view.  Previously this function manually set
-// `scrollTop = scrollHeight` whenever an anchor flag was on, which
-// fought with the same algorithm and produced the "scroll back up
-// briefly" glitch the operator complained about.
+// The composer is now a real grid child of `.rr-mc-shell` (see
+// `.rr-mc-composer` CSS in index.html).  Layout is mechanical: the
+// thread and composer occupy adjacent grid rows, so they cannot
+// overlap and no bottom padding is required on the thread.
+//
+// We keep this function as a no-op stub so the dozens of callers
+// scattered through this file (form input, view-switch, etc.) keep
+// working without a coordinated edit.  It also clears any stale
+// CSS variables left over from before the refactor in case the page
+// was loaded with an older cached HTML/CSS.
 function _syncComposerPos() {
-  const conv = document.getElementById("rr-msg-conv");
-  if (!conv) return;
-  const shell = document.querySelector(".msg-shell");
-  if (!shell) return;
-  const cr = conv.getBoundingClientRect();
-  const sr = shell.getBoundingClientRect();
   const root = document.documentElement;
-  // Composer width = conv width so it sits perfectly inside the
-  // rounded shell.
-  root.style.setProperty("--rr-mc-left",  cr.left + "px");
-  root.style.setProperty("--rr-mc-width", cr.width + "px");
-  // Anchor the composer to the bottom of the SHELL or the viewport,
-  // whichever is higher up the page.
-  const shellBottomFromTop = sr.top + sr.height;
-  const visibleBottom = Math.min(shellBottomFromTop, window.innerHeight);
-  const bottomOffset = Math.max(0, window.innerHeight - visibleBottom);
-  root.style.setProperty("--rr-mc-bottom", bottomOffset + "px");
-  // Measure the composer's actual height so the thread can pad its
-  // bottom by exactly that much + a 16px buffer.  Without this,
-  // sent messages land BEHIND the composer (it's position:fixed and
-  // overlays the thread).  Multi-line composer + typing pill make
-  // the height variable, so static padding doesn't cut it.
-  const form = document.getElementById("rr-mc-form") || document.getElementById("rr-cc-form");
-  if (form) {
-    const fh = Math.ceil(form.getBoundingClientRect().height);
-    root.style.setProperty("--rr-mc-thread-pad", (fh + 16) + "px");
-  }
+  // Belt-and-suspenders: if a stale CSS rule somewhere still reads
+  // these vars, force them to neutral values that won't move the
+  // composer or pad the thread.
+  root.style.setProperty("--rr-mc-thread-pad", "0px");
+  root.style.setProperty("--rr-mc-bottom", "0px");
+  root.style.setProperty("--rr-mc-left", "0px");
+  root.style.setProperty("--rr-mc-width", "auto");
 }
-// Watch the composer for resize (textarea grows, attachment preview
-// appears, typing pill shows/hides).  Each resize re-syncs the
-// thread's bottom padding.  The browser handles keeping the latest
-// message in view via overflow-anchor on the bottom sentinel — we no
-// longer touch scrollTop here.
-let _composerResizeObserver = null;
-function _ensureComposerResizeWatch() {
-  const form = document.getElementById("rr-mc-form") || document.getElementById("rr-cc-form");
-  if (!form) return;
-  if (form._rrResizeBound) return;
-  form._rrResizeBound = true;
-  if (!_composerResizeObserver) {
-    _composerResizeObserver = new ResizeObserver(() => _syncComposerPos());
-  }
-  _composerResizeObserver.observe(form);
-}
-window.addEventListener("resize", () => { _fitMsgShell(); _syncComposerPos(); });
-// Window-level scroll only (NOT capture-phase into nested scroll
-// containers).  Previously this listener fired for every scroll
-// inside `.rr-mc-thread`, which combined with the in-function re-pin
-// produced a feedback loop on each wheel tick.  Removing the
-// capture-phase listen is safe because the composer's coords only
-// change when the WINDOW scrolls (msg-shell is laid out in normal
-// flow), not when the operator scrolls within the thread.
-window.addEventListener("scroll", _syncComposerPos);
+// `_ensureComposerResizeWatch` was binding a ResizeObserver to the
+// composer that re-fired `_syncComposerPos` on every height change
+// (textarea grow, typing pill toggle).  With the composer now a
+// regular grid child, height changes shrink the thread row via the
+// grid track sizing algorithm — no JS coordination needed.  Kept as
+// a no-op so existing call sites compile.
+function _ensureComposerResizeWatch() { /* deprecated — see _syncComposerPos */ }
+window.addEventListener("resize", () => { _fitMsgShell(); });
 // Run whenever the Messages view becomes active (the goto wrapper
 // adds 'active' to the corresponding .view).  MutationObserver
 // avoids touching every goto site.
@@ -8628,10 +8594,10 @@ async function refreshDriverChatThread(scrollToBottom) {
       // off-screen because some browsers don't auto-scroll a textarea
       // to caret when the height is JS-driven.
       ta.scrollTop = ta.scrollHeight;
-      // Re-sync the position:fixed composer's coords + the thread's
-      // bottom padding so the just-grown composer doesn't clip the
-      // newest bubble.  ResizeObserver eventually catches this too,
-      // but firing it here removes the one-frame lag.
+      // Composer growth is now handled by the grid track sizing —
+      // taller composer shrinks the thread row, no JS coordination
+      // required.  `_syncComposerPos` is a no-op stub kept for
+      // call-site compatibility (see its definition).
       if (typeof _syncComposerPos === "function") _syncComposerPos();
       // Throttled typing broadcast — keeps the driver's "typing…"
       // indicator alive while the operator is composing.
@@ -8704,50 +8670,30 @@ async function refreshDriverChatThread(scrollToBottom) {
       const jumpPill = document.getElementById("rr-mc-jump");
       if (jumpPill) jumpPill.insertAdjacentHTML("beforebegin", stubHtml);
       else threadEl.insertAdjacentHTML("beforeend", stubHtml);
-      // Re-arm the bottom-anchor and clear the composer.  Order matters:
-      //   1. Flip anchor flag back on (operator just sent — they want to
-      //      track new content from here on out).
+      // Re-arm the bottom-anchor and clear the composer.  Order:
+      //   1. Flip anchor flag back on (operator just sent — they want
+      //      to track new content from here on out).
       //   2. Reset textarea to single row.  The composer shrinks; the
-      //      ResizeObserver fires _syncComposerPos which decreases
-      //      `--rr-mc-thread-pad`.  Browser scroll-anchoring on the
-      //      bottom sentinel keeps the latest content pinned across
-      //      that reflow without a JS re-pin.
+      //      grid's middle track grows to fill, and CSS scroll-anchoring
+      //      on the bottom sentinel keeps the latest content pinned
+      //      across that reflow without a JS re-pin.
       //   3. scrollTop = scrollHeight + rAF re-pin as belt-and-suspenders
       //      for the cold path where scroll-anchoring hasn't engaged
       //      yet (fresh open, thread height < viewport).
       threadEl.dataset.rrAnchor = "1";
       const savedBody = body;
       ta.value = ""; ta.style.height = "auto";
-      // SYNCHRONOUSLY re-measure the composer + reset --rr-mc-thread-pad
-      // so the just-shrunk composer's padding-bottom is in place BEFORE
-      // we compute scrollHeight.  ResizeObserver would catch this in a
-      // later tick, but that lag was the root cause of the operator's
-      // "I can't see the message I just sent" report: the optimistic
-      // stub landed at scrollHeight - clientHeight - oldPad (with the
-      // composer still tall in JS state), and after the observer
-      // shrunk the pad the new bubble was suddenly inside the bottom-
-      // padding zone — visually clipped by the composer overlay.
-      // Calling _syncComposerPos right here reads the composer's NEW
-      // height (44px-ish single-line) and writes the smaller pad value
-      // before the scrollTop assignment below.
-      if (typeof _syncComposerPos === "function") _syncComposerPos();
       // Direct scrollTop write (not scrollIntoView, which would walk
       // up ancestor scroll containers and possibly scroll the page).
-      // With _syncComposerPos already called above, --rr-mc-thread-pad
-      // matches the (now-shrunk) composer's actual height, so the
-      // bottom padding-zone of the thread is exactly the composer
-      // overlay region; the stub bubble lands JUST ABOVE that zone,
-      // which is exactly above the composer — visible.
+      // The thread's bottom edge now coincides with the composer's
+      // top edge (grid layout, no padding-bottom), so scrollHeight
+      // lands the just-inserted stub flush above the composer.
       threadEl.scrollTop = threadEl.scrollHeight;
       // rAF re-pin: catches late layout (bubble fade-in transform,
-      // attachment thumbnail painting, padding shifts from a still-
-      // settling ResizeObserver tick) and re-asserts bottom-pin while
+      // attachment thumbnail painting) and re-asserts bottom-pin while
       // the anchor flag is on.
       requestAnimationFrame(() => {
         if (threadEl.dataset.rrAnchor === "1") {
-          // Re-measure padding once more in case the composer's
-          // ResizeObserver fired between the sync call above and now.
-          if (typeof _syncComposerPos === "function") _syncComposerPos();
           threadEl.scrollTop = threadEl.scrollHeight;
         }
       });
@@ -9000,12 +8946,10 @@ async function refreshDriverChatThread(scrollToBottom) {
     });
   }
 
-  // Sync the position:fixed composer's coords to whatever the conv
-  // pane is currently doing (covers viewport/zoom/devtools changes
-  // since open).  Also wire the composer resize observer so the
-  // thread's bottom padding follows when the textarea grows.  The
-  // browser's scroll-anchor on the sentinel handles re-pinning when
-  // padding shifts — _syncComposerPos no longer touches scrollTop.
+  // Composer is a normal grid child (see `.rr-mc-shell` rule).  The
+  // calls below are no-op stubs kept for compatibility with the
+  // pre-grid `position:fixed` composer; they currently just clear
+  // any stale CSS variables set by an older cached HTML.
   if (typeof _syncComposerPos === "function") _syncComposerPos();
   if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
 
@@ -9488,10 +9432,9 @@ async function refreshChannelThread(scrollToBottom) {
       send.disabled = false;
       if (error) { toast("Couldn't post: " + error.message, "warn"); return; }
       ta.value = ""; ta.style.height = "auto";
-      // Re-sync composer position so the just-shrunk textarea's smaller
-      // padding-bottom is in place before refreshChannelThread renders
-      // the new message — otherwise the bubble can land in the bottom
-      // padding zone behind the position:fixed composer.
+      // Composer is a regular grid child now — track sizing handles
+      // the height shrink mechanically.  The call below is a no-op
+      // stub kept for compatibility (see _syncComposerPos definition).
       if (typeof _syncComposerPos === "function") _syncComposerPos();
       if (file) {
         window._rrCcPending = null;
@@ -9507,9 +9450,10 @@ async function refreshChannelThread(scrollToBottom) {
   const thread = document.getElementById("rr-cc-thread");
   if (!thread) return;
   // Channel thread uses the same overflow-anchor sentinel pattern as
-  // direct chat (see .rr-cc-bottom-sentinel CSS) so the position:fixed
-  // composer's padding shifts and image-load reflows don't visibly
-  // jump the scroll position.
+  // direct chat (see .rr-cc-bottom-sentinel CSS) so reflows above the
+  // sentinel (bubble inserts, composer height changes via the grid's
+  // track sizing, image decodes) don't visibly jump the scroll
+  // position.
   if (!thread.hasAttribute("data-rr-anchor")) thread.setAttribute("data-rr-anchor", "1");
   const ccSentinelHtml = `<div class="rr-cc-bottom-sentinel" id="rr-cc-bottom-sentinel" aria-hidden="true"></div>`;
   if (msgs.length === 0) {
