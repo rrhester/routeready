@@ -2800,7 +2800,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   padding:var(--s-4) var(--s-5);
   display:flex;flex-direction:column;gap:2px;
   background:var(--canvas);
-  scroll-behavior:smooth;
+  /* No scroll-behavior:smooth here — every scrollTop change would
+     animate, including the polling re-pin during initial paint, so
+     the operator would SEE the thread scroll down instead of just
+     opening at the newest message.  Smooth is opt-in via
+     thread.scrollTo({ behavior:"smooth" }) for jump-pill taps. */
 }
 .rr-mc-bubble, .rr-cc-bubble{
   max-width:78%;
