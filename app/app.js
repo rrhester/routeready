@@ -1397,17 +1397,17 @@ async function refreshChannelList() {
       ? `<span style="background:var(--accent);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center">${c.unread}</span>`
       : "";
     return `
-      <div class="chat-channel-row" data-rr-open-channel="${escapeHtml(c.id)}" style="display:flex;gap:12px;align-items:center;padding:14px 18px;background:var(--surface);margin:0 8px 8px;border:1px solid var(--border);border-radius:12px;cursor:pointer">
-        <div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">#</div>
+      <div class="chat-channel-row" data-rr-open-channel="${escapeHtml(c.id)}" style="display:flex;gap:12px;align-items:center;padding:14px 16px;background:var(--surface);margin:0 12px 8px;border:1px solid var(--border);border-radius:14px;cursor:pointer;min-height:64px;box-shadow:var(--shadow-xs)">
+        <div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0">#</div>
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:var(--fs-lg);font-weight:600;color:var(--text)">${escapeHtml(c.name)}</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.25">
+            <span style="font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.005em">${escapeHtml(c.name)}</span>
             ${stationChip}
           </div>
-          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(lastBodyTrunc)}</div>
+          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.35">${escapeHtml(lastBodyTrunc)}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtRel(c.last_message_at))}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">${escapeHtml(fmtRel(c.last_message_at))}</div>
           ${unread}
         </div>
       </div>`;
