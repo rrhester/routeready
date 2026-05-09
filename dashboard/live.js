@@ -2341,8 +2341,8 @@ async function loadWeatherRadar() {
 
     // 2hr drive ring (~120 mi at typical highway speeds)
     const ring = L.circle([lat, lon], {
-      radius: 193121, color: '#3b82f6', weight: 1.5, dashArray: '6 4',
-      fillColor: '#3b82f6', fillOpacity: 0.04,
+      radius: 193121, color: '#0F6CBD', weight: 1.5, dashArray: '6 4',
+      fillColor: '#0F6CBD', fillOpacity: 0.04,
     }).addTo(map).bindTooltip('2hr drive zone (~120 mi)', { permanent: false });
 
     _weatherRadarState = {
@@ -11744,7 +11744,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
   }
   const activeTypes = _okamiServiceTypes.filter(t => t.active);
   if (activeTypes.length === 0) {
-    activeTypes.push({ id: null, code: "SP", label: "Standard Parcel", color: "#3b82f6" });
+    activeTypes.push({ id: null, code: "SP", label: "Standard Parcel", color: "#0F6CBD" });
   }
   const showTypeLabel = activeTypes.length > 1;
 
@@ -13244,7 +13244,7 @@ function _schedShiftChip(sh) {
   // shift is visually distinguishable. SP shifts (the default) get no
   // badge to keep the chip clean for single-type DSPs.
   const stCode = sh.service_type_code;
-  const stColor = sh.service_type_color || "#3b82f6";
+  const stColor = sh.service_type_color || "#0F6CBD";
   const stBadge = (stCode && stCode !== "SP")
     ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
@@ -13859,7 +13859,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
     const stCode = sh.service_type_code;
-    const stColor = sh.service_type_color || "#3b82f6";
+    const stColor = sh.service_type_color || "#0F6CBD";
     const stBadge = (!sh.virtual && stCode && stCode !== "SP")
       ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
       : "";
@@ -15321,7 +15321,7 @@ function _builderFieldHtml(f, idx, selected) {
       return `<div class="${cls}" data-rr-field-pick="${id}"><hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/></div>`;
     case "instructions": {
       const text = (f.help || "").trim();
-      return `<div class="${cls}" data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:#146EB433">
+      return `<div class="${cls}" data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:var(--accent-border)">
         <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove block">×</button>
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text);margin-bottom:6px">${escapeHtml(f.label || "Instructions")}</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;white-space:pre-wrap">${escapeHtml(text || "Click here, then type instructions in the Help text field on the right.")}</div>
