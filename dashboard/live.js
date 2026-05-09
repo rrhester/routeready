@@ -828,20 +828,31 @@ window.goto = function (view) {
 // Cross-tenant DSP management.  Backed by the SECURITY DEFINER admin_*
 // RPCs from migration 0124; each RPC re-checks is_platform_admin() in
 // its body so calling it as a non-admin returns 'forbidden'.
-//
-// This loader is invoked by the goto() wrapper above when the operator
-// switches to the admin view.  It's a no-op for non-admins (they can't
-// even see the nav-item, but if a stale URL puts them on view-admin
-// the RPC will reject them and we surface a friendly message).
+
+// Module-level state for the admin table.  Loaded once per view-enter
+// from admin_list_dsps(); search / filter / sort / page operate on the
+// in-memory copy (it tops out at a few hundred rows even at 100×
+// growth, so client-side is fine and feels instant).
+const _admin = {
+  dsps: [],
+  search: "",
+  filterStatus: "",
+  filterPlan: "",
+  sort: "created_at:desc",
+  page: 1,
+  pageSize: 25,
+  loaded: false,
+};
+
 async function loadPlatformAdmin() {
   if (profile.role !== "platform_admin") {
     // Defensive: a non-admin somehow landed on the view (deep link,
-    // back button after role change, etc.).  Bounce them to dashboard
-    // rather than letting them sit on a permission-denied page.
+    // back button after role change, etc.).  Bounce them rather than
+    // letting them sit on a permission-denied page.
     window.goto("dashboard");
     return;
   }
-  await _loadPlatformAdminStats();
+  await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
 }
 
 async function _loadPlatformAdminStats() {
@@ -870,9 +881,322 @@ async function _loadPlatformAdminStats() {
   }
 }
 
-// Placeholder CTA handlers — real Add-DSP modal + Invite-user flow
-// land in Phase 4.  Wired here so the buttons don't sit dead.
+async function _loadPlatformAdminDsps() {
+  const tbody = document.getElementById("rr-admin-tbody");
+  if (!tbody) return;
+  // Skeleton rows are already in the markup; only show them on the
+  // FIRST load to avoid a flash on subsequent re-paints.
+  if (!_admin.loaded) {
+    tbody.innerHTML = `
+      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
+      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
+      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>`;
+  }
+  const { data, error } = await sb.rpc("admin_list_dsps");
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    console.error("admin_list_dsps failed:", error);
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:24px;color:var(--red);text-align:center">${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
+  _admin.dsps = data || [];
+  _admin.loaded = true;
+  _renderPlatformAdminTable();
+}
+
+function _adminFilteredDsps() {
+  const q = _admin.search.trim().toLowerCase();
+  let rows = _admin.dsps.slice();
+  if (q) {
+    rows = rows.filter((d) => {
+      const haystack = [
+        d.name, d.short_code, d.owner_email, d.owner_name, d.phone, d.address, d.notes,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }
+  if (_admin.filterStatus) rows = rows.filter((d) => d.status === _admin.filterStatus);
+  if (_admin.filterPlan)   rows = rows.filter((d) => d.subscription_plan === _admin.filterPlan);
+
+  const [field, dir] = _admin.sort.split(":");
+  const mul = dir === "asc" ? 1 : -1;
+  rows.sort((a, b) => {
+    const av = a[field], bv = b[field];
+    // null-last sort: missing values always sink regardless of direction
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * mul;
+    if (field === "created_at" || field === "last_active_at") {
+      return (new Date(av).getTime() - new Date(bv).getTime()) * mul;
+    }
+    return String(av).localeCompare(String(bv)) * mul;
+  });
+  return rows;
+}
+
+function _adminFmtRelative(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const ms = Date.now() - d.getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1)   return "just now";
+  if (m < 60)  return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24)  return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
+
+function _renderPlatformAdminTable() {
+  const tbody    = document.getElementById("rr-admin-tbody");
+  const empty    = document.getElementById("rr-admin-empty");
+  const emptySub = document.getElementById("rr-admin-empty-sub");
+  const count    = document.getElementById("rr-admin-row-count");
+  const pagWrap  = document.getElementById("rr-admin-pagination");
+  if (!tbody) return;
+
+  const filtered = _adminFilteredDsps();
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / _admin.pageSize));
+  if (_admin.page > totalPages) _admin.page = totalPages;
+  const start = (_admin.page - 1) * _admin.pageSize;
+  const pageRows = filtered.slice(start, start + _admin.pageSize);
+
+  if (count) {
+    const all = _admin.dsps.length;
+    count.textContent = total === all
+      ? `${all} DSP${all === 1 ? "" : "s"}`
+      : `${total} of ${all} DSPs`;
+  }
+
+  if (total === 0) {
+    tbody.innerHTML = "";
+    if (empty) empty.hidden = false;
+    if (emptySub) {
+      emptySub.textContent = (_admin.dsps.length === 0)
+        ? "Add your first DSP client to get started."
+        : "Try clearing filters or search.";
+    }
+    if (pagWrap) pagWrap.hidden = true;
+    return;
+  }
+  if (empty) empty.hidden = true;
+
+  tbody.innerHTML = pageRows.map((d) => _renderAdminRow(d)).join("");
+  _bindAdminRowActions();
+
+  // Pagination
+  if (pagWrap) {
+    pagWrap.hidden = total <= _admin.pageSize;
+    const sumEl  = document.getElementById("rr-admin-pagination-summary");
+    const lblEl  = document.getElementById("rr-admin-page-label");
+    const prevEl = document.getElementById("rr-admin-page-prev");
+    const nextEl = document.getElementById("rr-admin-page-next");
+    if (sumEl)  sumEl.textContent  = `Showing ${start + 1}–${Math.min(start + _admin.pageSize, total)} of ${total}`;
+    if (lblEl)  lblEl.textContent  = `Page ${_admin.page} of ${totalPages}`;
+    if (prevEl) prevEl.disabled    = _admin.page <= 1;
+    if (nextEl) nextEl.disabled    = _admin.page >= totalPages;
+  }
+}
+
+function _renderAdminRow(d) {
+  const statusClass =
+    d.status === "active"    ? "status-pill-success" :
+    d.status === "pending"   ? "status-pill-pending" :
+    d.status === "suspended" ? "status-pill-danger"  : "status-pill-neutral";
+  const statusLabel =
+    d.status === "active"    ? "Active" :
+    d.status === "pending"   ? "Pending" :
+    d.status === "suspended" ? "Suspended" : (d.status || "—");
+  const planClass = d.subscription_plan === "enterprise"
+    ? "rr-admin-cell-plan rr-admin-cell-plan--enterprise"
+    : d.subscription_plan === "growth"
+      ? "rr-admin-cell-plan rr-admin-cell-plan--growth"
+      : "rr-admin-cell-plan";
+  const ownerLine = d.owner_name
+    ? escapeHtml(d.owner_name)
+    : `<span class="rr-admin-cell-muted">No owner yet</span>`;
+  const emailLine = d.owner_email
+    ? `<a href="mailto:${escapeHtml(d.owner_email)}" style="color:inherit;text-decoration:none">${escapeHtml(d.owner_email)}</a>`
+    : `<span class="rr-admin-cell-muted">—</span>`;
+  const phoneLine = d.phone
+    ? escapeHtml(d.phone)
+    : `<span class="rr-admin-cell-muted">—</span>`;
+
+  // Suspend vs Reactivate based on current status.
+  const suspendItem = d.status === "suspended"
+    ? `<button class="rr-admin-row-actions__item" data-rr-admin-action="reactivate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Reactivate account</button>`
+    : `<button class="rr-admin-row-actions__item rr-admin-row-actions__item--danger" data-rr-admin-action="suspend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Suspend account</button>`;
+
+  return `
+    <tr data-rr-admin-row="${escapeHtml(d.id)}">
+      <td>
+        <div class="rr-admin-cell-dsp">
+          <div class="rr-admin-cell-dsp__name">${escapeHtml(d.name || "—")}</div>
+          ${d.short_code ? `<div class="rr-admin-cell-dsp__sub">${escapeHtml(d.short_code)}</div>` : ""}
+        </div>
+      </td>
+      <td>${ownerLine}</td>
+      <td>${emailLine}</td>
+      <td>${phoneLine}</td>
+      <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></td>
+      <td class="rr-admin-cell-num">${d.driver_count ?? 0}</td>
+      <td class="rr-admin-cell-num"><span class="rr-admin-cell-muted">${d.route_count ?? 0}</span></td>
+      <td><span class="${planClass}">${escapeHtml(d.subscription_plan || "starter")}</span></td>
+      <td class="rr-admin-cell-muted">${_adminFmtRelative(d.last_active_at)}</td>
+      <td class="rr-admin-row-actions">
+        <button class="rr-admin-row-actions__btn" data-rr-admin-toggle="${escapeHtml(d.id)}" aria-label="Open actions">
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+        </button>
+        <div class="rr-admin-row-actions__menu" data-rr-admin-menu="${escapeHtml(d.id)}" hidden>
+          <button class="rr-admin-row-actions__item" data-rr-admin-action="view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View details</button>
+          <button class="rr-admin-row-actions__item" data-rr-admin-action="edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit account</button>
+          <button class="rr-admin-row-actions__item" data-rr-admin-action="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Manage users</button>
+          <div class="rr-admin-row-actions__sep"></div>
+          ${suspendItem}
+        </div>
+      </td>
+    </tr>`;
+}
+
+function _bindAdminRowActions() {
+  // Action buttons on rows.  Delegated to the document so the bind
+  // happens once and survives every re-render.
+  if (_bindAdminRowActions._bound) return;
+  _bindAdminRowActions._bound = true;
+
+  document.addEventListener("click", (e) => {
+    // Toggle the per-row "..." menu.
+    const tgl = e.target.closest("[data-rr-admin-toggle]");
+    if (tgl) {
+      e.stopPropagation();
+      const id = tgl.getAttribute("data-rr-admin-toggle");
+      const menu = document.querySelector(`[data-rr-admin-menu="${id}"]`);
+      const wasOpen = menu && !menu.hidden;
+      // Close every other menu first.
+      document.querySelectorAll('[data-rr-admin-menu]').forEach((m) => { m.hidden = true; });
+      if (menu && !wasOpen) menu.hidden = false;
+      return;
+    }
+    // Run an action.
+    const item = e.target.closest("[data-rr-admin-action]");
+    if (item) {
+      const row = item.closest("[data-rr-admin-row]");
+      const dspId = row?.getAttribute("data-rr-admin-row");
+      const action = item.getAttribute("data-rr-admin-action");
+      if (!dspId) return;
+      _runAdminAction(action, dspId);
+      // Close the menu.
+      document.querySelectorAll('[data-rr-admin-menu]').forEach((m) => { m.hidden = true; });
+      return;
+    }
+    // Click anywhere else closes any open menu.
+    if (!e.target.closest('[data-rr-admin-menu]')) {
+      document.querySelectorAll('[data-rr-admin-menu]').forEach((m) => { m.hidden = true; });
+    }
+  });
+}
+
+async function _runAdminAction(action, dspId) {
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  if (!dsp) return;
+  switch (action) {
+    case "view":
+    case "edit":
+    case "users":
+      // Detail / edit / manage-users land in Phase 4.
+      if (typeof toast === "function") toast(`${action === "view" ? "Detail panel" : action === "edit" ? "Edit modal" : "Manage-Users panel"} lands in Phase 4.`, "info");
+      return;
+    case "suspend": {
+      if (!confirm(`Suspend "${dsp.name}"?\n\nAll users at this DSP will lose access until you reactivate.`)) return;
+      const { error } = await sb.rpc("admin_suspend_dsp", { p_dsp_id: dspId });
+      if (error) {
+        if (_isAuthError(error)) _forceRelogin("session_expired");
+        toast(`Couldn't suspend: ${error.message}`, "warn");
+        return;
+      }
+      toast(`${dsp.name} suspended.`, "ok");
+      await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
+      return;
+    }
+    case "reactivate": {
+      if (!confirm(`Reactivate "${dsp.name}"?`)) return;
+      const { error } = await sb.rpc("admin_reactivate_dsp", { p_dsp_id: dspId });
+      if (error) {
+        if (_isAuthError(error)) _forceRelogin("session_expired");
+        toast(`Couldn't reactivate: ${error.message}`, "warn");
+        return;
+      }
+      toast(`${dsp.name} reactivated.`, "ok");
+      await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
+      return;
+    }
+  }
+}
+
+function _adminCsvExport() {
+  const rows = _adminFilteredDsps();
+  const cols = [
+    ["DSP",          (d) => d.name || ""],
+    ["Short code",   (d) => d.short_code || ""],
+    ["Owner",        (d) => d.owner_name || ""],
+    ["Email",        (d) => d.owner_email || ""],
+    ["Phone",        (d) => d.phone || ""],
+    ["Address",      (d) => d.address || ""],
+    ["Status",       (d) => d.status || ""],
+    ["Plan",         (d) => d.subscription_plan || ""],
+    ["Drivers",      (d) => d.driver_count ?? 0],
+    ["Routes",       (d) => d.route_count ?? 0],
+    ["Last active",  (d) => d.last_active_at || ""],
+    ["Created",      (d) => d.created_at || ""],
+    ["Notes",        (d) => d.notes || ""],
+  ];
+  const esc = (v) => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [cols.map(([h]) => esc(h)).join(",")];
+  for (const r of rows) lines.push(cols.map(([, fn]) => esc(fn(r))).join(","));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `routeready-dsps-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Wire the toolbar + CTA buttons once the DOM is ready.  The handlers
+// are bound up-front (not on view-enter) so the user doesn't need a
+// click delay between switching to the admin view and being able to
+// type/filter/sort.
 document.addEventListener("DOMContentLoaded", () => {
+  const search   = document.getElementById("rr-admin-search");
+  const fStatus  = document.getElementById("rr-admin-filter-status");
+  const fPlan    = document.getElementById("rr-admin-filter-plan");
+  const sortSel  = document.getElementById("rr-admin-sort");
+  const exportEl = document.getElementById("rr-admin-export");
+  const prevEl   = document.getElementById("rr-admin-page-prev");
+  const nextEl   = document.getElementById("rr-admin-page-next");
+  const emptyCta = document.getElementById("rr-admin-empty-cta");
+
+  search?.addEventListener("input", () => {
+    _admin.search = search.value;
+    _admin.page = 1;
+    _renderPlatformAdminTable();
+  });
+  fStatus?.addEventListener("change", () => { _admin.filterStatus = fStatus.value; _admin.page = 1; _renderPlatformAdminTable(); });
+  fPlan?.addEventListener("change",   () => { _admin.filterPlan   = fPlan.value;   _admin.page = 1; _renderPlatformAdminTable(); });
+  sortSel?.addEventListener("change", () => { _admin.sort         = sortSel.value;  _renderPlatformAdminTable(); });
+  exportEl?.addEventListener("click", () => _adminCsvExport());
+  prevEl?.addEventListener("click", () => { if (_admin.page > 1) { _admin.page -= 1; _renderPlatformAdminTable(); }});
+  nextEl?.addEventListener("click", () => { _admin.page += 1; _renderPlatformAdminTable(); });
+  emptyCta?.addEventListener("click", () => document.getElementById("rr-admin-add-dsp")?.click());
+
+  // Placeholder CTA handlers — real Add-DSP modal + Invite-user flow
+  // land in Phase 4.
   document.getElementById("rr-admin-add-dsp")?.addEventListener("click", () => {
     if (typeof toast === "function") toast("Add-DSP modal lands in Phase 4.", "info");
   });
