@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="../app/Icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ─────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -332,12 +332,24 @@ a{color:inherit;text-decoration:none}
 
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
-  height:56px;
-  background:var(--surface);
-  border-bottom:1px solid var(--border);
-  display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
   position:sticky;top:0;z-index:10;
+  height:56px;
+  display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
+  /* Subtle brand wash — pulls the marketing landing's hero glow into
+     the dashboard chrome without competing with content. */
+  background:
+    radial-gradient(ellipse 600px 200px at 12% -50%, rgba(15,108,189,.10) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 180px at 92% -30%, rgba(124,58,237,.07) 0%, transparent 70%),
+    var(--surface);
+  border-bottom:1px solid var(--border);
   box-shadow:0 1px 0 rgba(15,23,42,.02), 0 4px 12px -6px rgba(15,23,42,.06);
+}
+/* 2px gradient accent stripe at the bottom edge — same blue→indigo
+   ramp the landing uses on .grad text and hero CTAs. */
+.topbar::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:var(--brand-grad);
+  opacity:.85;pointer-events:none;
 }
 .topbar-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
 .topbar-context{font-size:var(--fs-sm);color:var(--text-subtle);margin-left:var(--s-3)}
@@ -398,7 +410,14 @@ a{color:inherit;text-decoration:none}
 /* Page */
 .page{padding:var(--s-8) var(--s-8)}
 .page-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-6);gap:var(--s-4)}
-.page-title{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:0 0 4px 0}
+.page-title{font-family:'Inter Tight','Inter',system-ui,-apple-system,sans-serif;font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:0 0 4px 0}
+/* Optional: gradient-accent wordmark for hero phrases. Apply with a
+   <span class="grad"> inside .page-title to match the landing. */
+.page-title .grad{
+  background:var(--brand-grad);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+}
 .page-sub{font-size:var(--fs-md);color:var(--text-muted);margin:0}
 .page-actions{display:flex;gap:var(--s-2);align-items:center}
 
