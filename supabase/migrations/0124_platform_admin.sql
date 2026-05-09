@@ -12,19 +12,26 @@
 --        admin_set_user_permissions
 --
 -- ─── Bootstrap ───────────────────────────────────────────────────────────
--- Run once in the Supabase SQL editor AFTER this migration applies, to
--- grant yourself the new role:
+-- The platform_admin role represents RouteReady-the-SaaS authority over
+-- every DSP customer.  We attach it to the brand-named account so that
+-- "I am acting as RouteReady" and "I am acting as Air Capital Logistics
+-- (or any other DSP)" are two different logins — clearer audit, less
+-- mis-click risk than running both personas off one personal email.
+--
+-- Run once in the Supabase SQL editor AFTER this migration applies:
 --
 --    update public.app_users
 --       set role = 'platform_admin'
---     where email = 'rangerryan1972@gmail.com';
+--     where email = 'support@gorouteready.com';
 --
--- Then sign out + back in on the dashboard so the JWT picks up the new
--- role.  After that, you can promote others through the admin UI's
+-- Then sign in to the dashboard as support@gorouteready.com (sign out
+-- first if you're currently logged in as someone else) so the JWT picks
+-- up the new role.  Day-to-day dispatch work for your own DSP keeps
+-- using rangerryan1972@gmail.com — that account stays a regular owner
+-- and never sees the admin page.
+--
+-- After bootstrap you can promote others through the admin UI's
 -- Manage-Users panel — no more SQL required.
---
--- Other existing owners (support@gorouteready.com, etc.) remain regular
--- DSP owners; they will NOT see the admin page or the admin_* RPCs.
 
 -- ─── 1. Add the enum value ───────────────────────────────────────────────
 -- Postgres 12+ permits ADD VALUE inside a transaction, but the new
