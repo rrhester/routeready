@@ -3,730 +3,393 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>RouteReady — The complete operations platform for Amazon DSPs</title>
-<meta name="description" content="RouteReady is the all-in-one operations platform for Amazon Delivery Service Partners — hiring, performance, scheduling, compliance, and fleet, in one place.">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%23C85A1E'/%3E%3Cpolygon points='58,8 24,54 46,54 38,88 72,42 50,42' fill='%230A0E14'/%3E%3C/svg%3E">
+<title>RouteReady — The operating system for Amazon DSPs</title>
+<meta name="description" content="RouteReady runs your DSP — hiring, scheduling, performance, fleet, and compliance — in one place. Built by people who've run the DSP.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%230F6CBD'/%3E%3Cpolygon points='58,8 24,54 46,54 38,88 72,42 50,42' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;scroll-padding-top:80px}
-body{font-family:'DM Sans',sans-serif;background:#F7F6F3;color:#1A1A1A;overflow-x:hidden;line-height:1.6}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0B1220;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 a{text-decoration:none;color:inherit}
 svg{display:block}
+img{max-width:100%;display:block}
 
 :root{
-  --bg:#FAFAF9; --bg2:#F3F2EF; --bg3:#ECEAE6; --surface:#FFFFFF;
-  --border:#E8E6E1; --border-dark:#C2BFB8;
-  --ink:#1B2235; --ink2:#222C42; --ink3:#2A3550;
-  --bolt:#C85A1E; --bolt-dim:rgba(200,90,30,.1); --bolt-glow:rgba(200,90,30,.2);
-  --green:#1A7A4A; --green-light:#ECFDF5; --red:#B33300;
-  --text:#1A1A1A; --text2:#4A4A4A; --text3:#6B6B6B; --text4:#9A9A9A;
-  --white:#FFFFFF;
-  --w90:rgba(255,255,255,.9); --w70:rgba(255,255,255,.7); --w50:rgba(255,255,255,.5);
-  --w30:rgba(255,255,255,.3); --w15:rgba(255,255,255,.15); --w08:rgba(255,255,255,.08);
-  --r:12px; --r-sm:8px; --r-lg:18px; --max:1200px;
+  --canvas:#F8FAFC;
+  --surface:#FFFFFF;
+  --surface-soft:#F1F5F9;
+  --border:#E2E8F0;
+  --border-strong:#CBD5E1;
+  --text:#0B1220;
+  --text-muted:#475569;
+  --text-subtle:#64748B;
+
+  --blue:#0F6CBD;
+  --blue-bright:#1E88E5;
+  --blue-dark:#094F8C;
+  --indigo:#4F46E5;
+  --violet:#7C3AED;
+  --teal:#0D9488;
+  --pink:#DB2777;
+  --amber:#F59E0B;
+  --emerald:#059669;
+
+  --r-md:8px;
+  --r-lg:14px;
+  --r-xl:20px;
+  --max:1180px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+  --shadow-md:0 2px 4px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
+  --shadow-lg:0 8px 16px rgba(15,108,189,.08),0 24px 64px rgba(15,108,189,.12);
 }
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-@keyframes breathe{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
-@keyframes pulse{0%,100%{box-shadow:0 0 32px rgba(200,90,30,.15)}50%{box-shadow:0 0 64px rgba(200,90,30,.3)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+.fu{animation:fadeUp .8s cubic-bezier(.16,1,.3,1) both}
+.d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.28s}
+.d4{animation-delay:.42s}.d5{animation-delay:.56s}
 
-.fu{animation:fadeUp .9s cubic-bezier(.16,1,.3,1) both}
-.d1{animation-delay:.1s}.d2{animation-delay:.22s}.d3{animation-delay:.36s}.d4{animation-delay:.52s}.d5{animation-delay:.68s}
-.sr{opacity:0;transform:translateY(24px);transition:opacity .85s cubic-bezier(.16,1,.3,1),transform .85s cubic-bezier(.16,1,.3,1)}
-.sr.on{opacity:1;transform:none}
-.sr.r2{transition-delay:.12s}.sr.r3{transition-delay:.24s}.sr.r4{transition-delay:.36s}
+.wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 1.5rem}
+@media(min-width:768px){.wrap{padding:0 2.5rem}}
 
-.wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 2rem}
+/* NAV */
+nav{position:sticky;top:0;z-index:300;background:rgba(248,250,252,.85);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid rgba(226,232,240,.6)}
+.nav-in{height:64px;max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between}
+@media(min-width:768px){.nav-in{padding:0 2.5rem}}
+.nav-logo{display:flex;align-items:center;gap:10px}
+.bolt{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(15,108,189,.25)}
+.bolt svg{width:16px;height:16px}
+.nav-name{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.4px;color:var(--text)}
+.nav-r{display:flex;align-items:center;gap:8px}
+.nav-link{display:none;font-size:14px;color:var(--text-muted);font-weight:500;padding:8px 14px;border-radius:7px;transition:color .15s,background .15s}
+@media(min-width:768px){.nav-link{display:inline-flex}}
+.nav-link:hover{color:var(--text);background:var(--surface-soft)}
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s ease;text-decoration:none;white-space:nowrap}
+.btn-primary{background:linear-gradient(180deg,var(--blue-bright) 0%,var(--blue) 100%);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(15,108,189,.35)}
+.btn-primary:hover{background:linear-gradient(180deg,var(--blue) 0%,var(--blue-dark) 100%);box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 6px 20px rgba(15,108,189,.45);transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--text);border-color:var(--border)}
+.btn-ghost:hover{background:var(--surface);border-color:var(--border-strong)}
+.btn-lg{font-size:15px;padding:12px 22px;border-radius:10px}
 
-/* ─── NAV ─────────────────────────────────────────────────── */
-nav{position:fixed;top:0;left:0;right:0;z-index:300;height:64px;background:rgba(27,34,53,.88);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid rgba(255,255,255,.08);transition:background .4s,border-color .4s}
-.nav-in{height:100%;max-width:var(--max);margin:0 auto;padding:0 2rem;display:flex;align-items:center;justify-content:space-between;gap:2rem}
-.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
-.bolt-icon{width:32px;height:32px;border-radius:8px;background:var(--bolt);display:inline-flex;align-items:center;justify-content:center;animation:breathe 3.5s ease-in-out infinite;flex-shrink:0}
-.nav-name{font-family:'DM Serif Display',serif;font-size:19px;letter-spacing:-.2px;color:var(--white)}
-.nav-name em{color:rgba(200,90,30,.9);font-style:normal}
-.nav-r{display:flex;align-items:center;gap:1.75rem}
-.nav-link{font-size:13px;color:rgba(255,255,255,.65);transition:color .2s;font-weight:500;cursor:pointer}
-.nav-link:hover{color:var(--white)}
-.nav-login{font-size:13px;color:rgba(255,255,255,.65);font-weight:500;padding:7px 14px;border:1px solid rgba(255,255,255,.18);border-radius:var(--r-sm);transition:all .2s}
-.nav-login:hover{color:#fff;border-color:rgba(255,255,255,.4)}
-.nav-cta{font-size:13px;font-weight:600;color:var(--white);background:var(--bolt);padding:9px 18px;border-radius:var(--r-sm);transition:background .2s,box-shadow .2s;white-space:nowrap;box-shadow:0 2px 12px var(--bolt-glow)}
-.nav-cta:hover{background:var(--red);box-shadow:0 4px 20px rgba(200,90,30,.35)}
-.hamburger{display:none;background:none;border:0;width:32px;height:32px;flex-direction:column;justify-content:center;gap:5px;cursor:pointer;padding:0}
-.hamburger span{display:block;width:20px;height:2px;background:#fff;margin:0 auto;border-radius:2px;transition:transform .25s,opacity .25s}
-.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
-.hamburger.open span:nth-child(2){opacity:0}
-.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
-.mobile-menu{display:none;position:fixed;inset:64px 0 0 0;background:var(--ink);z-index:299;flex-direction:column;padding:2rem;gap:1.25rem;font-size:18px;font-family:'DM Sans',sans-serif}
-.mobile-menu.open{display:flex}
-.mobile-link{color:var(--w70);font-weight:500}
-.mobile-cta{color:#fff;background:var(--bolt);padding:14px 20px;border-radius:var(--r-sm);font-weight:600;text-align:center;margin-top:.5rem}
+/* HERO */
+.hero{position:relative;padding:80px 1.5rem 100px;text-align:center;overflow:hidden}
+@media(min-width:768px){.hero{padding:120px 2.5rem 140px}}
+.hero-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(15,108,189,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(15,108,189,.05) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 30%,transparent 80%);-webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 30%,transparent 80%)}
+.hero-glow-1{position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1200px;height:700px;background:radial-gradient(ellipse at 50% 30%,rgba(15,108,189,.18) 0%,transparent 60%);pointer-events:none}
+.hero-glow-2{position:absolute;top:80px;left:25%;width:400px;height:400px;background:radial-gradient(circle,rgba(124,58,237,.15) 0%,transparent 65%);pointer-events:none}
+.hero-glow-3{position:absolute;top:80px;right:18%;width:380px;height:380px;background:radial-gradient(circle,rgba(13,148,136,.12) 0%,transparent 65%);pointer-events:none}
 
-/* ─── HERO ─────────────────────────────────────────────────── */
-.hero{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 2rem 80px;position:relative;overflow:hidden;background:var(--ink)}
-.hero-bg{position:absolute;inset:0;pointer-events:none}
-.hero-glow-outer{position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1100px;height:700px;background:radial-gradient(ellipse at 50% 35%,rgba(200,90,30,.12) 0%,transparent 65%)}
-.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse at center,#000 30%,transparent 75%)}
-.hero-eyebrow{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:600;margin-bottom:1.5rem;position:relative;z-index:2;display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:999px}
-.hero-eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--bolt);box-shadow:0 0 10px var(--bolt-glow)}
-.hero-h{font-family:'DM Serif Display',serif;font-size:clamp(38px,6.5vw,76px);line-height:1.05;letter-spacing:-2px;color:var(--white);margin-bottom:1.5rem;max-width:880px;position:relative;z-index:2}
-.hero-h em{color:rgba(200,90,30,.92);font-style:normal}
-.hero-sub{font-size:clamp(16px,2.4vw,20px);color:rgba(255,255,255,.7);max-width:620px;line-height:1.6;font-weight:300;margin-bottom:2.25rem;position:relative;z-index:2}
-.hero-sub strong{color:rgba(255,255,255,.92);font-weight:500}
-.hero-ctas{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;position:relative;z-index:2;margin-bottom:3rem}
-.btn-hero{display:inline-flex;align-items:center;gap:8px;padding:16px 28px;background:var(--bolt);color:#fff;border-radius:10px;font-size:15px;font-weight:600;box-shadow:0 4px 20px rgba(200,90,30,.35);transition:all .25s;animation:pulse 3s ease-in-out infinite}
-.btn-hero:hover{background:var(--red);transform:translateY(-1px);box-shadow:0 6px 28px rgba(200,90,30,.5)}
-.btn-hero-ghost{display:inline-flex;align-items:center;gap:8px;padding:16px 28px;background:rgba(255,255,255,.04);color:#fff;border-radius:10px;font-size:15px;font-weight:500;border:1px solid rgba(255,255,255,.18);transition:all .25s}
-.btn-hero-ghost:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3)}
+.eyebrow{position:relative;display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(255,255,255,.7);border:1px solid rgba(15,108,189,.15);border-radius:999px;font-size:12px;font-weight:600;color:var(--blue-dark);letter-spacing:.04em;margin-bottom:1.75rem;backdrop-filter:blur(8px);box-shadow:var(--shadow-sm)}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px rgba(15,108,189,.6);animation:pulse 2.4s ease-in-out infinite}
+.hero-h{position:relative;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:clamp(36px,7vw,76px);line-height:1.02;letter-spacing:-2.4px;color:var(--text);max-width:920px;margin:0 auto 1.5rem}
+.hero-h .grad{background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 60%,var(--violet) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.hero-sub{position:relative;font-size:clamp(16px,2vw,20px);color:var(--text-muted);max-width:640px;margin:0 auto 2.5rem;font-weight:400;line-height:1.6}
+.hero-cta{position:relative;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:3rem}
+.hero-trust{position:relative;display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--text-subtle);font-weight:500}
+.hero-trust-item{display:inline-flex;align-items:center;gap:6px}
+.hero-trust-item svg{width:14px;height:14px;color:var(--emerald)}
 
-.hero-pillars{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;width:100%;max-width:920px;position:relative;z-index:2}
-.hero-pillar{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px 14px;text-align:left;transition:all .25s;cursor:default}
-.hero-pillar:hover{background:rgba(255,255,255,.06);border-color:rgba(200,90,30,.3)}
-.hero-pillar-name{font-size:12px;font-weight:600;color:#fff;margin-bottom:3px;letter-spacing:-.1px}
-.hero-pillar-sub{font-size:10px;color:rgba(255,255,255,.5);line-height:1.4}
+.hero-preview{position:relative;max-width:980px;margin:80px auto 0;padding:0 1rem}
+.hero-preview-frame{background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%);padding:8px;border-radius:18px;box-shadow:var(--shadow-lg)}
+.hero-preview-inner{background:#fff;border-radius:12px;overflow:hidden;display:grid;grid-template-columns:200px 1fr;min-height:300px}
+.hp-side{background:#0B1220;color:#fff;padding:18px 14px;display:flex;flex-direction:column;gap:14px}
+.hp-logo{display:flex;align-items:center;gap:8px;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:14px;color:#fff;letter-spacing:-.3px}
+.hp-logo .b{width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--blue-bright) 0%,var(--indigo) 100%);display:inline-flex;align-items:center;justify-content:center}
+.hp-logo .b svg{width:11px;height:11px}
+.hp-nav{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.hp-nav-item{padding:7px 10px;font-size:11px;color:rgba(255,255,255,.55);border-radius:6px;font-weight:500;display:flex;align-items:center;gap:8px}
+.hp-nav-item.active{background:rgba(15,108,189,.28);color:#fff;font-weight:600;box-shadow:inset 2px 0 0 var(--blue-bright)}
+.hp-nav-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);flex-shrink:0}
+.hp-nav-item.active .hp-nav-dot{background:var(--blue-bright)}
+.hp-body{padding:18px 22px;display:flex;flex-direction:column;gap:14px;background:#FAFBFC}
+.hp-body-h{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:15px;color:var(--text);letter-spacing:-.3px}
+.hp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.hp-kpi{background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.hp-kpi-label{font-size:9px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+.hp-kpi-val{font-family:'Inter Tight',sans-serif;font-size:16px;font-weight:700;letter-spacing:-.3px;color:var(--text)}
+.hp-kpi-val.ok{color:var(--emerald)}
+.hp-kpi-val.warn{color:var(--amber)}
+.hp-grid{flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px;display:grid;grid-template-rows:auto repeat(3,1fr);gap:5px;font-size:9px}
+.hp-row{display:grid;grid-template-columns:90px repeat(7,1fr);gap:4px;align-items:center}
+.hp-row-h{color:var(--text-subtle);font-size:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.hp-cell{height:18px;background:var(--surface-soft);border-radius:3px}
+.hp-cell.fill-1{background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%)}
+.hp-cell.fill-2{background:linear-gradient(135deg,var(--emerald) 0%,var(--teal) 100%)}
+.hp-cell.fill-3{background:linear-gradient(135deg,var(--violet) 0%,var(--pink) 100%)}
+.hp-cell.off{background:transparent;border:1px dashed var(--border)}
+.hp-driver{font-size:9px;color:var(--text-muted);font-weight:500;display:flex;align-items:center;gap:6px}
+.hp-avatar{width:14px;height:14px;border-radius:50%;flex-shrink:0;color:#fff;font-size:7px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
 
-/* ─── SECTION COMMON ───────────────────────────────────────── */
-.section{padding:96px 0;background:var(--bg)}
-.section.alt{background:var(--bg2)}
-.section.dark{background:var(--ink);color:#fff}
-.section-head{text-align:center;max-width:680px;margin:0 auto 3.5rem}
-.section-eyebrow{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text4);font-weight:600;display:block;margin-bottom:1rem}
-.section-eyebrow.light{color:rgba(255,255,255,.5)}
-.section-h2{font-family:'DM Serif Display',serif;font-size:clamp(30px,4.5vw,52px);line-height:1.1;letter-spacing:-1px;color:var(--text);margin-bottom:1.25rem}
-.section-h2.light{color:#fff}
-.section-h2 em{color:var(--bolt);font-style:normal}
-.section-h2.light em{color:rgba(200,90,30,.92);font-style:normal}
-.section-lead{font-size:17px;color:var(--text3);max-width:560px;margin:0 auto;line-height:1.7;font-weight:300}
-.section-lead.light{color:rgba(255,255,255,.7)}
+/* SECTION CHROME */
+section{padding:80px 0}
+@media(min-width:768px){section{padding:100px 0}}
+.section-eyebrow{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);margin-bottom:1rem}
+.section-h{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:clamp(28px,4.5vw,48px);line-height:1.08;letter-spacing:-1.6px;color:var(--text);max-width:760px;margin-bottom:1rem}
+.section-sub{font-size:17px;color:var(--text-muted);max-width:580px;line-height:1.65;margin-bottom:3rem}
+.section-head{margin-bottom:3rem}
 
-/* ─── FEATURES ─────────────────────────────────────────────── */
-#features{scroll-margin-top:80px}
-.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem}
-.feature-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.75rem;transition:all .25s;position:relative}
-.feature-card:hover{border-color:var(--border-dark);transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.04)}
-.feature-card .feature-icon{width:42px;height:42px;border-radius:10px;background:var(--bolt-dim);color:var(--bolt);display:inline-flex;align-items:center;justify-content:center;margin-bottom:1rem}
-.feature-card .feature-icon svg{width:22px;height:22px;stroke-width:2}
-.feature-card h3{font-family:'DM Serif Display',serif;font-size:20px;line-height:1.25;color:var(--text);margin-bottom:.5rem;letter-spacing:-.3px}
-.feature-card p{font-size:13.5px;color:var(--text3);line-height:1.65;font-weight:400}
-.feature-card .feature-tag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:4px;margin-top:14px;background:var(--bg2);color:var(--text3)}
+/* FEATURES */
+.features{background:linear-gradient(180deg,var(--canvas) 0%,#fff 100%)}
+.features-grid{display:grid;grid-template-columns:1fr;gap:1rem}
+@media(min-width:640px){.features-grid{grid-template-columns:1fr 1fr;gap:1.25rem}}
+@media(min-width:1024px){.features-grid{grid-template-columns:repeat(3,1fr)}}
+.feat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 26px;transition:all .25s cubic-bezier(.16,1,.3,1);position:relative;overflow:hidden}
+.feat:hover{border-color:transparent;box-shadow:var(--shadow-md);transform:translateY(-3px)}
+.feat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--blue));opacity:0;transition:opacity .25s}
+.feat:hover::before{opacity:1}
+.feat-icon{width:44px;height:44px;border-radius:11px;background:var(--accent-soft,rgba(15,108,189,.1));color:var(--accent,var(--blue));display:inline-flex;align-items:center;justify-content:center;margin-bottom:1.25rem}
+.feat-icon svg{width:22px;height:22px}
+.feat-h{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:.5rem}
+.feat-p{font-size:14px;color:var(--text-muted);line-height:1.65}
+.feat[data-c="blue"]{--accent:var(--blue);--accent-soft:rgba(15,108,189,.1)}
+.feat[data-c="indigo"]{--accent:var(--indigo);--accent-soft:rgba(79,70,229,.1)}
+.feat[data-c="violet"]{--accent:var(--violet);--accent-soft:rgba(124,58,237,.1)}
+.feat[data-c="teal"]{--accent:var(--teal);--accent-soft:rgba(13,148,136,.1)}
+.feat[data-c="pink"]{--accent:var(--pink);--accent-soft:rgba(219,39,119,.1)}
+.feat[data-c="amber"]{--accent:#D97706;--accent-soft:rgba(217,119,6,.1)}
 
-/* ─── SOLUTIONS BY ROLE ────────────────────────────────────── */
-#solution{scroll-margin-top:80px}
-.role-tabs{display:flex;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;width:fit-content;margin:0 auto 2.5rem;flex-wrap:wrap;justify-content:center}
-.role-tab{appearance:none;background:transparent;border:0;font:inherit;font-size:13.5px;font-weight:600;color:var(--text3);padding:10px 18px;border-radius:7px;cursor:pointer;transition:all .2s}
-.role-tab.active{background:var(--ink);color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-.role-tab:hover:not(.active){background:var(--bg2);color:var(--text)}
-.role-pane{display:none;animation:fadeUp .5s ease both}
-.role-pane.active{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:3rem;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:3rem;box-shadow:0 4px 20px rgba(0,0,0,.03)}
-.role-content h3{font-family:'DM Serif Display',serif;font-size:30px;line-height:1.15;color:var(--text);margin-bottom:.75rem;letter-spacing:-.5px}
-.role-content > p{font-size:15.5px;color:var(--text3);line-height:1.7;margin-bottom:1.5rem;font-weight:400}
-.role-caps{display:flex;flex-direction:column;gap:.625rem}
-.role-cap{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--text2);line-height:1.5}
-.role-cap-ck{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--bolt-dim);color:var(--bolt);display:inline-flex;align-items:center;justify-content:center;margin-top:1px;font-weight:700;font-size:11px}
-.role-mock{background:linear-gradient(135deg,#1B2235,#2A3550);border-radius:14px;padding:1.5rem;color:#fff;font-family:'DM Sans',sans-serif;min-height:380px;display:flex;flex-direction:column;justify-content:center;border:1px solid rgba(255,255,255,.08)}
-.mock-window{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:1rem 1.25rem;margin-bottom:.75rem}
-.mock-window:last-child{margin-bottom:0}
-.mock-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px;color:rgba(255,255,255,.85)}
-.mock-row + .mock-row{border-top:1px solid rgba(255,255,255,.06)}
-.mock-pill{display:inline-block;padding:2px 8px;font-size:10px;font-weight:600;border-radius:4px;background:rgba(200,90,30,.18);color:rgba(255,180,140,1)}
-.mock-pill.green{background:rgba(26,122,74,.18);color:rgba(140,235,180,1)}
-.mock-pill.red{background:rgba(179,51,0,.22);color:rgba(255,160,140,1)}
-.mock-h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.625rem}
+/* HOW IT WORKS */
+.how{background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.how-grid{display:grid;grid-template-columns:1fr;gap:1.5rem}
+@media(min-width:768px){.how-grid{grid-template-columns:repeat(2,1fr);gap:2rem}}
+@media(min-width:1024px){.how-grid{grid-template-columns:repeat(4,1fr);gap:1.5rem}}
+.step{position:relative;padding:24px 0}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%);color:#fff;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:15px;letter-spacing:-.3px;margin-bottom:1.25rem;box-shadow:0 4px 14px rgba(15,108,189,.25)}
+.step-h{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.4px;color:var(--text);margin-bottom:.5rem}
+.step-p{font-size:14px;color:var(--text-muted);line-height:1.65}
 
-.role-stats{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:2.5rem}
-.role-stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;text-align:center}
-.role-stat-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--bolt);line-height:1;letter-spacing:-1px}
-.role-stat-label{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text3);margin-top:.5rem}
+/* BOTTOM CTA STRIP */
+.cta-strip{padding:0;background:linear-gradient(135deg,#0B1220 0%,#1B2543 50%,#1E3A8A 100%);position:relative;overflow:hidden}
+.cta-strip::before{content:"";position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1200px;height:600px;background:radial-gradient(ellipse,rgba(79,70,229,.32) 0%,transparent 60%);pointer-events:none}
+.cta-strip::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,#000,transparent 80%);-webkit-mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,#000,transparent 80%);pointer-events:none}
+.cta-inner{position:relative;text-align:center;padding:90px 1.5rem;max-width:760px;margin:0 auto;z-index:1}
+.cta-h{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:clamp(28px,4vw,44px);line-height:1.1;letter-spacing:-1.4px;color:#fff;margin-bottom:1rem}
+.cta-h .grad{background:linear-gradient(135deg,#60A5FA 0%,#A78BFA 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.cta-sub{font-size:17px;color:rgba(255,255,255,.7);margin-bottom:2rem;line-height:1.6}
+.btn-on-dark{background:#fff;color:var(--text)}
+.btn-on-dark:hover{background:#F1F5F9;transform:translateY(-1px)}
+.btn-on-dark-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.25)}
+.btn-on-dark-ghost:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.4)}
 
-/* ─── PRICING ───────────────────────────────────────────────── */
-#pricing{scroll-margin-top:80px}
-.pricing-card{background:linear-gradient(180deg,var(--ink) 0%,var(--ink2) 100%);color:#fff;border-radius:24px;padding:3rem 2.5rem;max-width:540px;margin:0 auto;text-align:center;position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(27,34,53,.12)}
-.pricing-card::before{content:"";position:absolute;top:-100px;left:50%;transform:translateX(-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(200,90,30,.15) 0%,transparent 70%);pointer-events:none}
-.pricing-eyebrow{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.5);font-weight:600;margin-bottom:1.25rem;position:relative;z-index:1}
-.pricing-amt{font-family:'DM Serif Display',serif;font-size:72px;line-height:1;letter-spacing:-2px;color:#fff;position:relative;z-index:1;margin-bottom:.5rem}
-.pricing-amt .currency{font-size:28px;color:rgba(255,255,255,.7);vertical-align:top;margin-right:6px;line-height:1.4;display:inline-block}
-.pricing-amt .per{font-size:16px;color:rgba(255,255,255,.5);margin-left:8px;font-family:'DM Sans',sans-serif;letter-spacing:0}
-.pricing-cycle{font-size:13px;color:rgba(255,255,255,.55);margin-bottom:2rem;position:relative;z-index:1}
-.pricing-divider{height:1px;background:rgba(255,255,255,.1);margin:0 -1rem 1.75rem}
-.pricing-features{display:flex;flex-direction:column;gap:.625rem;margin-bottom:2rem;text-align:left;position:relative;z-index:1}
-.pf{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:rgba(255,255,255,.85);line-height:1.5}
-.pf-ck{flex-shrink:0;color:var(--bolt);font-weight:700;font-size:14px}
-.pricing-addons{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.75rem;text-align:left;position:relative;z-index:1}
-.pricing-addons-title{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:.5rem}
-.pricing-addons p{font-size:12.5px;color:rgba(255,255,255,.7);line-height:1.6}
-.btn-pricing{display:block;width:100%;padding:14px 20px;background:var(--bolt);color:#fff;border-radius:10px;font-size:15px;font-weight:600;text-align:center;transition:all .2s;margin-bottom:.625rem;position:relative;z-index:1}
-.btn-pricing:hover{background:var(--red);box-shadow:0 4px 20px rgba(200,90,30,.4)}
-.btn-pricing-ghost{display:block;width:100%;padding:13px 20px;background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);border-radius:10px;font-size:14px;font-weight:500;text-align:center;transition:all .2s;position:relative;z-index:1}
-.btn-pricing-ghost:hover{color:#fff;border-color:rgba(255,255,255,.3)}
-.pricing-note{font-size:11px;color:rgba(255,255,255,.45);margin-top:1.25rem;line-height:1.6;position:relative;z-index:1}
-
-/* ─── REVIEWS ───────────────────────────────────────────────── */
-#reviews{scroll-margin-top:80px}
-.reviews-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:980px;margin:0 auto}
-.review-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;transition:all .25s}
-.review-card:hover{border-color:var(--border-dark);transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.04)}
-.review-quote{font-size:16.5px;color:var(--text);line-height:1.65;font-weight:400;margin-bottom:1.5rem;font-style:italic}
-.review-quote::before{content:"";display:block;width:32px;height:3px;background:var(--bolt);margin-bottom:1.25rem;border-radius:2px}
-.review-attribution{display:flex;align-items:center;gap:.875rem}
-.review-avatar{width:42px;height:42px;border-radius:50%;background:var(--bolt-dim);color:var(--bolt);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;font-family:'DM Sans',sans-serif;flex-shrink:0}
-.review-name{font-size:14px;font-weight:600;color:var(--text)}
-.review-role{font-size:12px;color:var(--text3);margin-top:1px}
-
-.reviews-trust{display:flex;align-items:center;justify-content:center;gap:2.5rem;margin-top:3rem;flex-wrap:wrap;text-align:center}
-.trust-item{display:flex;flex-direction:column;align-items:center;gap:4px}
-.trust-num{font-family:'DM Serif Display',serif;font-size:30px;color:var(--bolt);line-height:1;letter-spacing:-.5px}
-.trust-label{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text3)}
-
-/* ─── FAQS ──────────────────────────────────────────────────── */
-#faqs{scroll-margin-top:80px}
-.faq-list{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:.75rem}
-.faq-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s}
-.faq-item.open{border-color:var(--border-dark)}
-.faq-q{padding:1.25rem 1.5rem;font-size:15.5px;font-weight:500;color:var(--text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;transition:background .15s;line-height:1.4}
-.faq-q:hover{background:var(--bg)}
-.faq-arrow{flex-shrink:0;width:18px;height:18px;color:var(--text3);transition:transform .25s}
-.faq-item.open .faq-arrow{transform:rotate(180deg)}
-.faq-a{padding:0 1.5rem;max-height:0;overflow:hidden;transition:max-height .35s ease,padding .25s ease;font-size:14px;color:var(--text3);line-height:1.7}
-.faq-item.open .faq-a{max-height:600px;padding:0 1.5rem 1.5rem 1.5rem}
-.faq-a strong{color:var(--text);font-weight:600}
-.faq-a a{color:var(--bolt);font-weight:500}
-.faq-a a:hover{text-decoration:underline}
-
-.faq-bottom{text-align:center;margin-top:3rem}
-.faq-bottom-h{font-size:18px;font-weight:600;color:var(--text);margin-bottom:.5rem}
-.faq-bottom-p{font-size:14px;color:var(--text3);margin-bottom:1.5rem}
-.faq-bottom-ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.btn-faq-primary{display:inline-flex;align-items:center;gap:8px;padding:13px 24px;background:var(--bolt);color:#fff;border-radius:10px;font-size:14px;font-weight:600;transition:all .2s}
-.btn-faq-primary:hover{background:var(--red);box-shadow:0 4px 16px rgba(200,90,30,.3)}
-.btn-faq-ghost{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:transparent;color:var(--text2);border:1px solid var(--border-dark);border-radius:10px;font-size:14px;font-weight:500;transition:all .2s}
-.btn-faq-ghost:hover{background:var(--surface);color:var(--text);border-color:var(--text3)}
-
-/* ─── FOOTER ────────────────────────────────────────────────── */
-footer{background:var(--ink);color:rgba(255,255,255,.6);padding:3rem 0 2rem;font-size:14px}
-.ft-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:2.5rem;max-width:var(--max);margin:0 auto;padding:0 2rem 2.5rem;border-bottom:1px solid rgba(255,255,255,.08)}
-.ft-brand-block{display:flex;flex-direction:column;gap:.875rem}
-.ft-brand{display:flex;align-items:center;gap:10px}
-.ft-brand-name{font-family:'DM Serif Display',serif;font-size:19px;color:#fff}
-.ft-brand-name em{color:rgba(200,90,30,.9);font-style:normal}
-.ft-tag{font-size:13px;color:rgba(255,255,255,.55);line-height:1.6;max-width:280px}
-.ft-h{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:1rem}
-.ft-list{display:flex;flex-direction:column;gap:.625rem}
-.ft-link{color:rgba(255,255,255,.55);font-size:13px;transition:color .2s;display:inline-block}
-.ft-link:hover{color:#fff}
-.ft-bottom{max-width:var(--max);margin:0 auto;padding:1.75rem 2rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;font-size:12px;color:rgba(255,255,255,.4)}
-.ft-bottom-links{display:flex;gap:1.25rem;flex-wrap:wrap}
-
-/* ─── RESPONSIVE ────────────────────────────────────────────── */
-@media (max-width: 880px){
-  .nav-r{display:none}
-  .hamburger{display:flex}
-  .features-grid{grid-template-columns:1fr 1fr}
-  .role-pane.active{grid-template-columns:1fr;padding:2rem}
-  .reviews-grid{grid-template-columns:1fr}
-  .ft-grid{grid-template-columns:1fr 1fr;gap:2rem}
-  .hero-pillars{grid-template-columns:repeat(2,1fr)}
-}
-@media (max-width: 560px){
-  .features-grid{grid-template-columns:1fr}
-  .ft-grid{grid-template-columns:1fr;gap:2rem}
-  .hero-ctas{flex-direction:column;width:100%}
-  .btn-hero,.btn-hero-ghost{width:100%;justify-content:center}
-  .role-tabs{width:100%;flex-direction:column}
-  .role-tab{width:100%}
-  .section{padding:64px 0}
-  .pricing-card{padding:2rem 1.5rem}
-  .pricing-amt{font-size:56px}
-}
+/* FOOTER */
+footer{background:#0B1220;color:rgba(255,255,255,.6);padding:60px 0 40px;font-size:14px}
+.footer-in{max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:grid;grid-template-columns:1fr;gap:2rem}
+@media(min-width:768px){.footer-in{padding:0 2.5rem;grid-template-columns:1.4fr 1fr 1fr 1fr}}
+.footer-brand{display:flex;flex-direction:column;gap:14px;max-width:280px}
+.footer-logo{display:flex;align-items:center;gap:10px}
+.footer-logo .nav-name{color:#fff}
+.footer-tag{font-size:13px;color:rgba(255,255,255,.55);line-height:1.6}
+.footer-col h4{font-family:'Inter Tight',sans-serif;font-size:13px;font-weight:600;color:#fff;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
+.footer-col a{display:block;font-size:14px;color:rgba(255,255,255,.55);margin-bottom:10px;transition:color .15s}
+.footer-col a:hover{color:#fff}
+.footer-bottom{max-width:var(--max);margin:40px auto 0;padding:24px 1.5rem 0;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem;font-size:12px;color:rgba(255,255,255,.4)}
+@media(min-width:768px){.footer-bottom{padding:24px 2.5rem 0}}
 </style>
 </head>
 <body>
 
-<nav id="nav">
+<nav>
   <div class="nav-in">
-    <a href="#top" class="nav-logo">
-      <div class="bolt-icon"><svg viewBox="0 0 96 96" width="18" height="18" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#0A0E14"/></svg></div>
-      <span class="nav-name">Route<em>Ready</em></span>
+    <a href="/" class="nav-logo" aria-label="RouteReady home">
+      <span class="bolt"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
+      <span class="nav-name">RouteReady</span>
     </a>
     <div class="nav-r">
-      <a href="#features" class="nav-link">Features</a>
-      <a href="#solution" class="nav-link">Solution</a>
-      <a href="#pricing" class="nav-link">Pricing</a>
-      <a href="#reviews" class="nav-link">Reviews</a>
-      <a href="#faqs" class="nav-link">FAQs</a>
-      <a href="/dashboard/login.html" class="nav-login">Login</a>
-      <a href="https://cal.com/routeready/routeready-consultation" class="nav-cta" target="_blank" rel="noopener">Schedule Demo →</a>
+      <a class="nav-link" href="#features">Product</a>
+      <a class="nav-link" href="#how">How it works</a>
+      <a class="nav-link" href="/dashboard/login.html">Sign in</a>
+      <a class="btn btn-primary" href="#cta">Book a demo</a>
     </div>
-    <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
   </div>
 </nav>
 
-<div class="mobile-menu" id="mobile-menu">
-  <a href="#features" class="mobile-link">Features</a>
-  <a href="#solution" class="mobile-link">Solution</a>
-  <a href="#pricing" class="mobile-link">Pricing</a>
-  <a href="#reviews" class="mobile-link">Reviews</a>
-  <a href="#faqs" class="mobile-link">FAQs</a>
-  <a href="/dashboard/login.html" class="mobile-link">DSP Login</a>
-  <a href="https://cal.com/routeready/routeready-consultation" class="mobile-cta" target="_blank" rel="noopener">Schedule Demo →</a>
-</div>
-
-<!-- ─── HERO ─────────────────────────────────────────────── -->
-<section class="hero" id="top">
-  <div class="hero-bg"><div class="hero-glow-outer"></div><div class="hero-grid"></div></div>
-  <span class="hero-eyebrow fu d1"><span class="dot"></span>Built by people who've run a DSP</span>
-  <h1 class="hero-h fu d2">Run your DSP. <em>RouteReady handles the rest.</em></h1>
-  <p class="hero-sub fu d3">The complete operations platform for Amazon Delivery Service Partners. <strong>Hire, schedule, manage performance, and stay compliant</strong> — without juggling six tools or building your own spreadsheets.</p>
-  <div class="hero-ctas fu d4">
-    <a href="https://cal.com/routeready/routeready-consultation" class="btn-hero" target="_blank" rel="noopener">Schedule Demo →</a>
-    <a href="#features" class="btn-hero-ghost">See what's inside</a>
+<header class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-grid"></div>
+    <div class="hero-glow-1"></div>
+    <div class="hero-glow-2"></div>
+    <div class="hero-glow-3"></div>
   </div>
-  <div class="hero-pillars fu d5">
-    <a href="#features" class="hero-pillar"><div class="hero-pillar-name">Hiring</div><div class="hero-pillar-sub">Pipeline, screening, interview day</div></a>
-    <a href="#features" class="hero-pillar"><div class="hero-pillar-name">Performance</div><div class="hero-pillar-sub">Scoring, coaching, HR file</div></a>
-    <a href="#features" class="hero-pillar"><div class="hero-pillar-name">Scheduling</div><div class="hero-pillar-sub">OKAMI, daily targets, cushion</div></a>
-    <a href="#features" class="hero-pillar"><div class="hero-pillar-name">Compliance</div><div class="hero-pillar-sub">Licenses, attendance, inspections</div></a>
-    <a href="#features" class="hero-pillar"><div class="hero-pillar-name">Fleet</div><div class="hero-pillar-sub">Vehicles, assets, documents</div></a>
-  </div>
-</section>
 
-<!-- ─── FEATURES ─────────────────────────────────────────── -->
-<section class="section" id="features">
+  <span class="eyebrow fu d1"><span class="dot"></span>The operating system for Amazon DSPs</span>
+  <h1 class="hero-h fu d2">Run your DSP. <span class="grad">RouteReady runs the rest.</span></h1>
+  <p class="hero-sub fu d3">Hiring, scheduling, performance, fleet, compliance — the entire operation in one place. Built by people who've actually run a DSP.</p>
+  <div class="hero-cta fu d4">
+    <a class="btn btn-primary btn-lg" href="#cta">Book a demo
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </a>
+    <a class="btn btn-ghost btn-lg" href="#features">See what it does</a>
+  </div>
+  <div class="hero-trust fu d5">
+    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 14-day free trial</span>
+    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No credit card</span>
+    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Onboard in a week</span>
+  </div>
+
+  <div class="hero-preview fu d5" aria-hidden="true">
+    <div class="hero-preview-frame">
+      <div class="hero-preview-inner">
+        <aside class="hp-side">
+          <div class="hp-logo"><span class="b"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span> RouteReady</div>
+          <div class="hp-nav">
+            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Today</div>
+            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Hiring</div>
+            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Drivers</div>
+            <div class="hp-nav-item active"><span class="hp-nav-dot"></span>Schedule</div>
+            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Fleet</div>
+            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Workflows</div>
+          </div>
+        </aside>
+        <main class="hp-body">
+          <div class="hp-body-h">Schedule · Week of May 11</div>
+          <div class="hp-kpis">
+            <div class="hp-kpi"><div class="hp-kpi-label">Hours</div><div class="hp-kpi-val">412h</div></div>
+            <div class="hp-kpi"><div class="hp-kpi-label">Coverage</div><div class="hp-kpi-val ok">100%</div></div>
+            <div class="hp-kpi"><div class="hp-kpi-label">Open</div><div class="hp-kpi-val">0</div></div>
+            <div class="hp-kpi"><div class="hp-kpi-label">Violations</div><div class="hp-kpi-val warn">2</div></div>
+          </div>
+          <div class="hp-grid">
+            <div class="hp-row hp-row-h"><span></span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+            <div class="hp-row"><span class="hp-driver"><span class="hp-avatar" style="background:var(--blue)">CH</span>C. Hester</span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell off"></span><span class="hp-cell off"></span></div>
+            <div class="hp-row"><span class="hp-driver"><span class="hp-avatar" style="background:var(--violet)">JB</span>J. Beckett</span><span class="hp-cell off"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell off"></span></div>
+            <div class="hp-row"><span class="hp-driver"><span class="hp-avatar" style="background:var(--teal)">DP</span>D. Patterson</span><span class="hp-cell fill-2"></span><span class="hp-cell fill-2"></span><span class="hp-cell fill-2"></span><span class="hp-cell off"></span><span class="hp-cell fill-2"></span><span class="hp-cell fill-2"></span><span class="hp-cell off"></span></div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="features" class="features">
   <div class="wrap">
-    <div class="section-head sr">
-      <span class="section-eyebrow">Features</span>
-      <h2 class="section-h2">Everything an Amazon DSP needs — <em>in one place.</em></h2>
-      <p class="section-lead">Twelve capabilities that replace six tools and a stack of spreadsheets. Designed around the actual workflow of operating a DSP, not generic HR software bolted onto delivery.</p>
+    <div class="section-head">
+      <span class="section-eyebrow">What's inside</span>
+      <h2 class="section-h">Every part of the operation, in one place.</h2>
+      <p class="section-sub">Stop stitching together six tools. RouteReady covers the full lifecycle — recruit, schedule, manage, retain.</p>
     </div>
 
     <div class="features-grid">
+      <article class="feat" data-c="blue">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div>
+        <h3 class="feat-h">Hiring pipeline</h3>
+        <p class="feat-p">Source, screen, schedule interviews, run background checks. Applicants flow through automated stages — you only show up for the parts that matter.</p>
+      </article>
 
-      <div class="feature-card sr">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div>
-        <h3>Hiring Pipeline</h3>
-        <p>Applicants apply on Indeed. RouteReady screens via SMS, scores them automatically, and books interviews on Cal.com. Interview Day mode gives dispatchers one focused screen.</p>
-        <span class="feature-tag">Indeed · SMS · Cal.com</span>
-      </div>
+      <article class="feat" data-c="indigo">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <h3 class="feat-h">Schedule</h3>
+        <p class="feat-p">Drag-and-drop weekly calendar. Smart Fill auto-staffs from your route plan. Drivers see their week the moment it goes live.</p>
+      </article>
 
-      <div class="feature-card sr r2">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-        <h3>Performance Management</h3>
-        <p>Score-based accountability with staffing-risk-aware termination ceilings. Bottom-N selector. Suggested action per driver — coach, warn, suspend, or term — capped by your current bench position.</p>
-        <span class="feature-tag">Bottom-N · Risk-aware</span>
-      </div>
+      <article class="feat" data-c="teal">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg></div>
+        <h3 class="feat-h">Driver performance</h3>
+        <p class="feat-p">Coaching workflows, attendance tracking, tier scores. Spot the at-risk drivers before they become a callout you didn't see coming.</p>
+      </article>
 
-      <div class="feature-card sr r3">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-        <h3>Attendance Tracking</h3>
-        <p>Mark drivers Present, Late, Callout, No-show, or VTO from one screen. Configurable points-or-occurrence policy. VTO never counts against the driver. Exempt categories for PTO, jury duty, FMLA.</p>
-        <span class="feature-tag">Points · Occurrence · Hybrid</span>
-      </div>
+      <article class="feat" data-c="violet">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <h3 class="feat-h">Workflows &amp; checklists</h3>
+        <p class="feat-p">Daily start-of-shift, vehicle inspection, accident reporting — every form your DSP needs, signed in the field on the driver's phone.</p>
+      </article>
 
-      <div class="feature-card sr">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-        <h3>OKAMI Daily Planning</h3>
-        <p>13-week strategic capacity plan plus daily route targets for the next 3 weeks. Set cushion as % or headcount. System recommends a cushion based on your callout and VTO rates — and drives every shift count downstream.</p>
-        <span class="feature-tag">13-week · Daily · Cushion</span>
-      </div>
+      <article class="feat" data-c="amber">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V15c0 .55.45 1 1 1h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg></div>
+        <h3 class="feat-h">Fleet</h3>
+        <p class="feat-p">Vehicles, registrations, inspections, maintenance. Know which van is parked, which is in shop, and which needs DOT renewal next week.</p>
+      </article>
 
-      <div class="feature-card sr r2">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-        <h3>Smart Scheduling</h3>
-        <p>Score-aware driver pool, lineup-quality KPI per day, conflict markers, swap requests. Top performers surface first; bottom performers get VTO offered first. Score never blocks scheduling — only orders positive choices.</p>
-        <span class="feature-tag">Score-aware · Lineup KPI</span>
-      </div>
-
-      <div class="feature-card sr r3">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-        <h3>License &amp; DOT Compliance</h3>
-        <p>Auto-text drivers 30 and 14 days before license expires. Schedule view flags drivers expiring this week. Auto-block past-expiry scheduling. Each reminder lands in the driver's HR file as a permanent record.</p>
-        <span class="feature-tag">Auto-SMS · Schedule flag</span>
-      </div>
-
-      <div class="feature-card sr">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
-        <h3>Driver HR File</h3>
-        <p>Every suspension, written warning, and reinstatement becomes a timestamped, immutable record. Defensible documentation when termination is challenged or unemployment is contested. Export as a single PDF on demand.</p>
-        <span class="feature-tag">Immutable · Exportable</span>
-      </div>
-
-      <div class="feature-card sr r2">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-        <h3>Coaching Drawer</h3>
-        <p>One drawer to coach by SMS, log a 1:1, pull a driver from a route, or initiate a structured suspension with reason category and evidence. Every action lands in the driver's record automatically.</p>
-        <span class="feature-tag">SMS · Suspend · 1:1</span>
-      </div>
-
-      <div class="feature-card sr r3">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-        <h3>Daily Inspections</h3>
-        <p>Pre-trip and post-trip checklists with photo and video upload. Compliance evidence stored alongside each shift. GPS-triggered prompts on return so EOD steps don't get skipped.</p>
-        <span class="feature-tag">Photo · Video · GPS</span>
-      </div>
-
-      <div class="feature-card sr">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
-        <h3>Fleet &amp; Assets</h3>
-        <p>Vehicles, phones, fuel cards, toll tags, key fobs. Assignment history per asset, document storage with expiry reminders, maintenance tracking. Every issued asset traceable back to the driver who has it.</p>
-        <span class="feature-tag">Vehicles · Documents</span>
-      </div>
-
-      <div class="feature-card sr r2">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <h3>Invoice Reconciliation</h3>
-        <p>Reconcile your Variable invoice line-by-line against your own delivery records. Auto-draft dispute letters with evidence attached. Track recovery in one place. The math runs nightly so disputes are ready when you are.</p>
-        <span class="feature-tag">Auto-dispute · Recovery</span>
-      </div>
-
-      <div class="feature-card sr r3">
-        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-        <h3>Smart Drop Ingestion</h3>
-        <p>Drop any messy export — payroll CSV, Mentor scorecard, dispatch sheet, 47-column ADP file. RouteReady extracts, maps to schema, and routes the data into the right tool. No more manual cleanup.</p>
-        <span class="feature-tag">CSV · PDF · Excel</span>
-      </div>
-
+      <article class="feat" data-c="pink">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+        <h3 class="feat-h">Performance insights</h3>
+        <p class="feat-p">Real numbers from your real data. Attrition, attendance, OT cost, scorecard trend — the dashboard your AM never sends you.</p>
+      </article>
     </div>
   </div>
 </section>
 
-<!-- ─── SOLUTIONS BY ROLE ────────────────────────────────── -->
-<section class="section alt" id="solution">
+<section id="how" class="how">
   <div class="wrap">
-    <div class="section-head sr">
-      <span class="section-eyebrow">Built for the way you work</span>
-      <h2 class="section-h2">A different view <em>for every role.</em></h2>
-      <p class="section-lead">Owners get the strategic picture. Ops managers run the day. Dispatchers handle real-time decisions. Drivers carry the tools they need in their pocket.</p>
+    <div class="section-head">
+      <span class="section-eyebrow">How it works</span>
+      <h2 class="section-h">From sign-up to running your week — in days, not months.</h2>
     </div>
 
-    <div class="role-tabs">
-      <button class="role-tab active" data-role="owner" onclick="setRole('owner')">DSP Owner</button>
-      <button class="role-tab" data-role="ops" onclick="setRole('ops')">Operations Manager</button>
-      <button class="role-tab" data-role="dispatcher" onclick="setRole('dispatcher')">Dispatcher</button>
-      <button class="role-tab" data-role="driver" onclick="setRole('driver')">Driver</button>
-    </div>
-
-    <div class="role-pane active" id="role-owner">
-      <div class="role-content sr">
-        <h3>For DSP Owners</h3>
-        <p>The strategic view: 13-week capacity, performance distribution, P&amp;L, and what you can do about it. See whether you can release a driver or have to coach. See where your invoice money is leaking. See your hiring pipeline ahead of next month, not after.</p>
-        <div class="role-caps">
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>13-week OKAMI plan with daily route targets for next 3 weeks</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Performance distribution + risk-aware termination guidance</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Variable invoice reconciliation — see leaks line by line</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Hiring pipeline forecast feeding staffing decisions</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Scale to multiple stations from one workspace</span></div>
-        </div>
+    <div class="how-grid">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3 class="step-h">Book a demo</h3>
+        <p class="step-p">30-min walkthrough so we both confirm RouteReady actually fits your operation.</p>
       </div>
-      <div class="role-mock">
-        <div class="mock-window">
-          <div class="mock-h">OKAMI · Week 19</div>
-          <div class="mock-row"><span>Routes (max)</span><strong>38</strong></div>
-          <div class="mock-row"><span>Drivers needed</span><strong>85</strong></div>
-          <div class="mock-row"><span>Available</span><strong>78</strong></div>
-          <div class="mock-row"><span>Gap</span><span class="mock-pill red">−7 At risk</span></div>
-        </div>
-        <div class="mock-window">
-          <div class="mock-h">Termination guidance</div>
-          <div class="mock-row"><span>Staffing risk</span><span class="mock-pill">Cautious</span></div>
-          <div class="mock-row"><span>Action ceiling</span><span class="mock-pill">Final warning</span></div>
-        </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3 class="step-h">Connect your DSP portal</h3>
+        <p class="step-p">Install the desktop sync app. Sign in once with your normal SSO. Routes, scorecards, roster — auto-pulled.</p>
       </div>
-    </div>
-
-    <div class="role-pane" id="role-ops">
-      <div class="role-content sr">
-        <h3>For Operations Managers</h3>
-        <p>Run the day, coach the drivers, file the records. Today's check-in front and center. One drawer to coach, suspend, reinstate, or pull. Every conversation lands in the driver's HR file automatically — defensible documentation without the manual paperwork.</p>
-        <div class="role-caps">
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Today's check-in with VTO suggestions when over-scheduled</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Coaching drawer: SMS, 1:1, pull, suspend — all logged</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Suspension flow with structured reason + evidence picker</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Driver HR file — immutable, exportable as PDF</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Auto-fired license renewal reminders + warnings</span></div>
-        </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3 class="step-h">We onboard your team</h3>
+        <p class="step-p">Drivers get the app on their phone. Dispatchers get a 60-min training. You're staffing inside a week.</p>
       </div>
-      <div class="role-mock">
-        <div class="mock-window">
-          <div class="mock-h">Today's check-in</div>
-          <div class="mock-row"><span>74 / 78 marked</span><span class="mock-pill green">Live</span></div>
-          <div class="mock-row"><span>Callouts</span><strong>3</strong></div>
-          <div class="mock-row"><span>VTO offered</span><strong>2</strong></div>
-        </div>
-        <div class="mock-window">
-          <div class="mock-h">Coach drawer · Marcus Davidson</div>
-          <div class="mock-row"><span>Score</span><strong>62</strong></div>
-          <div class="mock-row"><span>Suggested</span><span class="mock-pill red">Final warning</span></div>
-          <div class="mock-row"><span>Evidence</span><strong>4 events attached</strong></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="role-pane" id="role-dispatcher">
-      <div class="role-content sr">
-        <h3>For Dispatchers</h3>
-        <p>Real-time decisions, faster. Schedule with score-aware ordering — top performers surface first, suspended drivers hide automatically. License-expiry flags appear right on the day grid. Open shifts auto-populate from callouts. Swap requests come with conflict markers built in.</p>
-        <div class="role-caps">
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Score-colored driver rows with hover-to-see flags</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Lineup quality KPI per day — see weak Friday before it happens</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Sortable driver pool — score-first or alphabetical</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>License-expires-this-week banner on the schedule</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Swap requests with conflict detection</span></div>
-        </div>
-      </div>
-      <div class="role-mock">
-        <div class="mock-window">
-          <div class="mock-h">Friday · May 4 · ⌀ 71</div>
-          <div class="mock-row"><span>Scheduled</span><strong>42 / 38 routes</strong></div>
-          <div class="mock-row"><span>Lineup quality</span><span class="mock-pill red">Low</span></div>
-          <div class="mock-row"><span>Open shifts</span><strong>3</strong></div>
-        </div>
-        <div class="mock-window">
-          <div class="mock-h">License flags</div>
-          <div class="mock-row"><span>Davidson</span><span class="mock-pill red">Expires May 5</span></div>
-          <div class="mock-row"><span>Whitfield</span><span class="mock-pill red">Expires May 7</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="role-pane" id="role-driver">
-      <div class="role-content sr">
-        <h3>For Drivers</h3>
-        <p>One app for everything: today's route, staging info, EOD checklist, performance, swap requests, write-ups, and pay. Real-time notifications for schedule changes, route progress, and policy alerts. Drivers see their score, their attendance points, and their HR record — transparency reduces disputes.</p>
-        <div class="role-caps">
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Today's route, staging area, wave, route sheet</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Pre-trip and post-trip inspections with photo upload</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Personal performance dashboard — score, attendance, trends</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Swap requests, time-off requests, schedule visibility</span></div>
-          <div class="role-cap"><span class="role-cap-ck">✓</span><span>Push notifications for schedule changes and alerts</span></div>
-        </div>
-      </div>
-      <div class="role-mock">
-        <div class="mock-window">
-          <div class="mock-h">Today · May 1</div>
-          <div class="mock-row"><span>Route</span><strong>KMO1-14B</strong></div>
-          <div class="mock-row"><span>Staging</span><strong>Bay 12 · Wave 2</strong></div>
-          <div class="mock-row"><span>Stops</span><strong>32 of 47</strong></div>
-        </div>
-        <div class="mock-window">
-          <div class="mock-h">My performance</div>
-          <div class="mock-row"><span>Score</span><strong>79</strong></div>
-          <div class="mock-row"><span>Attendance · 30d</span><span class="mock-pill green">96%</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="role-stats">
-      <div class="role-stat sr"><div class="role-stat-num">99.9%</div><div class="role-stat-label">Platform uptime</div></div>
-      <div class="role-stat sr r2"><div class="role-stat-num">7&nbsp;days</div><div class="role-stat-label">Avg. time to launch</div></div>
-    </div>
-  </div>
-</section>
-
-<!-- ─── PRICING ──────────────────────────────────────────── -->
-<section class="section" id="pricing">
-  <div class="wrap">
-    <div class="section-head sr">
-      <span class="section-eyebrow">Pricing</span>
-      <h2 class="section-h2">Simple pricing <em>built to scale.</em></h2>
-      <p class="section-lead">All plans include the full operations platform, real-time data sync, and enterprise-grade security. Add hiring support, payroll management, or invoice audits when you need them.</p>
-    </div>
-
-    <div class="pricing-card sr">
-      <div class="pricing-eyebrow">RouteReady Platform</div>
-      <div class="pricing-amt"><span class="currency">$</span>350<span class="per">/mo, starting</span></div>
-      <div class="pricing-cycle">All-in-one platform · month-to-month · cancel anytime</div>
-      <div class="pricing-divider"></div>
-
-      <div class="pricing-features">
-        <div class="pf"><span class="pf-ck">✓</span>Full hiring pipeline — Indeed, screening, Interview Day</div>
-        <div class="pf"><span class="pf-ck">✓</span>Performance Management with risk-aware termination ceilings</div>
-        <div class="pf"><span class="pf-ck">✓</span>Attendance tracking, configurable policy, VTO, exempt categories</div>
-        <div class="pf"><span class="pf-ck">✓</span>OKAMI 13-week + daily targets + cushion recommendation</div>
-        <div class="pf"><span class="pf-ck">✓</span>Score-aware scheduling and lineup quality</div>
-        <div class="pf"><span class="pf-ck">✓</span>License renewal reminders + DOT compliance flags</div>
-        <div class="pf"><span class="pf-ck">✓</span>Driver HR file — immutable, exportable as PDF</div>
-        <div class="pf"><span class="pf-ck">✓</span>Fleet, assets, daily inspections, messaging</div>
-      </div>
-
-      <div class="pricing-addons">
-        <div class="pricing-addons-title">Optional add-on services</div>
-        <p>Hiring Support · Payroll Management · Invoice Dispute Audits. We run them for you — schedule a demo for pricing.</p>
-      </div>
-
-      <a href="https://cal.com/routeready/routeready-consultation" class="btn-pricing" target="_blank" rel="noopener">Schedule Demo →</a>
-      <a href="mailto:support@gorouteready.com" class="btn-pricing-ghost">support@gorouteready.com</a>
-      <p class="pricing-note">Final price tailored to operation size and add-on services. Most DSPs are running by their second cycle.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─── REVIEWS ──────────────────────────────────────────── -->
-<section class="section alt" id="reviews">
-  <div class="wrap">
-    <div class="section-head sr">
-      <span class="section-eyebrow">Why DSPs choose RouteReady</span>
-      <h2 class="section-h2">Built by people <em>who've run a DSP.</em></h2>
-      <p class="section-lead">RouteReady wasn't designed by software people who watched a DSP from the outside. It was built around the actual workflow — the 4am loadout, the Friday no-show, the Monday coaching session, the week you're 8 short.</p>
-    </div>
-
-    <div class="reviews-grid">
-      <div class="review-card sr">
-        <div class="review-quote">A DSP runs on early mornings, judgment calls, and paper trails. RouteReady is the only platform that takes all three seriously — and gives you back a few hours a day.</div>
-        <div class="review-attribution">
-          <div class="review-avatar">RR</div>
-          <div>
-            <div class="review-name">RouteReady team</div>
-            <div class="review-role">Built for the DSP, by people who know it</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="review-card sr r2">
-        <div class="review-quote">The HR file alone is worth it. When you have to terminate someone — and you will — having a timestamped, immutable record of every coaching, warning, and incident is the difference between a clean exit and an unemployment fight.</div>
-        <div class="review-attribution">
-          <div class="review-avatar">DSP</div>
-          <div>
-            <div class="review-name">Pilot DSP</div>
-            <div class="review-role">Defensible documentation, not just dashboards</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="reviews-trust">
-      <div class="trust-item"><div class="trust-num">99.9%</div><div class="trust-label">Uptime</div></div>
-      <div class="trust-item"><div class="trust-num">24/7</div><div class="trust-label">Support</div></div>
-      <div class="trust-item"><div class="trust-num">7&nbsp;days</div><div class="trust-label">To launch</div></div>
-      <div class="trust-item"><div class="trust-num">$0</div><div class="trust-label">Setup fee</div></div>
-    </div>
-  </div>
-</section>
-
-<!-- ─── FAQS ─────────────────────────────────────────────── -->
-<section class="section" id="faqs">
-  <div class="wrap">
-    <div class="section-head sr">
-      <span class="section-eyebrow">FAQs</span>
-      <h2 class="section-h2">Common questions <em>about RouteReady.</em></h2>
-      <p class="section-lead">Find answers to the most common questions about how the platform works and how DSPs get started.</p>
-    </div>
-
-    <div class="faq-list">
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">What is RouteReady, and how does it work?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><strong>RouteReady is the operations platform for Amazon DSPs.</strong> It replaces the spreadsheets, group chats, and standalone tools most DSPs cobble together for hiring, scheduling, performance management, and compliance. Everything lives in one workspace — connected by shared driver records and HR files.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">Do I have to give you access to my Amazon Logistics Portal?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a">No. RouteReady runs on data you already control — your driver list, your scorecards, your invoices. You upload or sync those into RouteReady. We don't need (and don't ask for) Amazon Logistics Portal credentials. Some integrations are coming as Amazon expands its partner program.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">Do I have to do extra manual data entry?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a">No. <strong>Smart Drop ingestion</strong> takes the messy exports you already have — payroll CSVs, Mentor scorecards, dispatch sheets, even 47-column ADP files — and maps them into the right tools automatically. The morning check-in is the only daily action, and it's one tap per driver.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">How quickly can I get started?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><strong>Most DSPs are operating in RouteReady by their second cycle.</strong> Launch involves importing your driver list, setting your attendance policy, and connecting Indeed for hiring. Our team walks you through every step — most operations are live in under a week.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">Is my data secure?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a">Yes. RouteReady runs on enterprise infrastructure with encryption at rest and in transit. HR files are immutable — once a record is created, it can be voided with a reason but never silently deleted. Each DSP's data is logically isolated. Full audit trail on every change.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">What kind of support do you provide?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><strong>Real humans, fast response.</strong> Email <a href="mailto:support@gorouteready.com">support@gorouteready.com</a> or use the in-app chat. We watch every account during the first month — you won't be left to figure things out alone. Optional add-on services (hiring support, payroll, invoice audits) come with dedicated specialists.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">Can I try RouteReady before committing?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a">Yes. <strong>Schedule a demo</strong> and we'll walk you through the platform with sample data tailored to a DSP your size. No pressure, no contract — and the platform is month-to-month, so if it doesn't fit you can cancel after one cycle.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">Can I cancel my service?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><strong>Anytime, no penalty.</strong> RouteReady is month-to-month. Email <a href="mailto:support@gorouteready.com">support@gorouteready.com</a> and we'll close your account at the end of the current billing cycle. You can export all your data — driver records, HR files, attendance logs — before account closure.</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">How do I request deletion of my data?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a">Email <a href="mailto:support@gorouteready.com">support@gorouteready.com</a> with the request. We'll confirm the request, export any data you want to retain, and permanently delete your records within 30 days. Some records may be retained longer if required by law (e.g., HR files subject to wage-hour regulations).</div></div>
-
-      <div class="faq-item sr"><div class="faq-q" onclick="toggleFaq(this)">Do you support multiple stations?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a">Yes. RouteReady supports multi-station DSPs out of the box. Each station has its own roster, schedule, and attendance settings, but rolls up to one workspace for owner-level views. Add a station from settings — no extra license needed.</div></div>
-    </div>
-
-    <div class="faq-bottom sr">
-      <div class="faq-bottom-h">Still have questions? We're here to help.</div>
-      <div class="faq-bottom-p">Reach out by email or schedule a demo. Real humans answer.</div>
-      <div class="faq-bottom-ctas">
-        <a href="mailto:support@gorouteready.com" class="btn-faq-ghost">Contact Support</a>
-        <a href="https://cal.com/routeready/routeready-consultation" class="btn-faq-primary" target="_blank" rel="noopener">Schedule Demo →</a>
+      <div class="step">
+        <div class="step-num">4</div>
+        <h3 class="step-h">Run smarter, hire smarter</h3>
+        <p class="step-p">One source of truth for your DSP. Less time in spreadsheets, more time in the building.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ─── FOOTER ───────────────────────────────────────────── -->
+<section id="cta" class="cta-strip">
+  <div class="cta-inner">
+    <h2 class="cta-h">Ready to <span class="grad">stop wrestling spreadsheets</span>?</h2>
+    <p class="cta-sub">A 30-minute demo and a 14-day trial. If RouteReady doesn't earn its place inside the first week, you walk away with no awkward sales call to dodge.</p>
+    <div class="hero-cta">
+      <a class="btn btn-on-dark btn-lg" href="mailto:hello@gorouteready.com?subject=RouteReady demo">Book a demo
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a class="btn btn-on-dark-ghost btn-lg" href="/dashboard/login.html">Already a user? Sign in</a>
+    </div>
+  </div>
+</section>
+
 <footer>
-  <div class="ft-grid">
-    <div class="ft-brand-block">
-      <div class="ft-brand">
-        <div class="bolt-icon" style="width:28px;height:28px;border-radius:7px;animation:none"><svg viewBox="0 0 96 96" width="14" height="14" fill="none"><polygon points="58,8 24,54 46,54 38,88 72,42 50,42" fill="#0A0E14"/></svg></div>
-        <span class="ft-brand-name">Route<em>Ready</em></span>
-      </div>
-      <p class="ft-tag">The complete operations platform for Amazon DSPs — hiring, performance, scheduling, compliance, and fleet, in one place.</p>
+  <div class="footer-in">
+    <div class="footer-brand">
+      <a href="/" class="footer-logo">
+        <span class="bolt"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
+        <span class="nav-name">RouteReady</span>
+      </a>
+      <p class="footer-tag">The operating system for Amazon Delivery Service Partners.</p>
     </div>
-    <div>
-      <div class="ft-h">Quick links</div>
-      <div class="ft-list">
-        <a href="#features" class="ft-link">Features</a>
-        <a href="#solution" class="ft-link">Solution</a>
-        <a href="#pricing" class="ft-link">Pricing</a>
-        <a href="#reviews" class="ft-link">Reviews</a>
-        <a href="#faqs" class="ft-link">FAQs</a>
-      </div>
+    <div class="footer-col">
+      <h4>Product</h4>
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="/dashboard/login.html">Sign in</a>
     </div>
-    <div>
-      <div class="ft-h">Product</div>
-      <div class="ft-list">
-        <a href="/dashboard/login.html" class="ft-link">Login</a>
-        <a href="https://cal.com/routeready/routeready-consultation" class="ft-link" target="_blank" rel="noopener">Schedule Demo</a>
-        <a href="mailto:support@gorouteready.com" class="ft-link">Contact</a>
-        <a href="/about.html" class="ft-link">About</a>
-      </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <a href="mailto:hello@gorouteready.com">Contact</a>
+      <a href="mailto:support@gorouteready.com">Support</a>
     </div>
-    <div>
-      <div class="ft-h">Legal</div>
-      <div class="ft-list">
-        <a href="privacy.html" class="ft-link">Privacy Policy</a>
-        <a href="privacy-policy.html" class="ft-link">SMS Privacy Policy</a>
-        <a href="terms.html" class="ft-link">Terms of Service</a>
-      </div>
+    <div class="footer-col">
+      <h4>Legal</h4>
+      <a href="/terms.html">Terms of service</a>
+      <a href="/privacy.html">Privacy policy</a>
     </div>
   </div>
-  <div class="ft-bottom">
-    <div>© 2026 RouteReady. All rights reserved.</div>
-    <div class="ft-bottom-links">
-      <a href="mailto:support@gorouteready.com" class="ft-link">support@gorouteready.com</a>
-    </div>
+  <div class="footer-bottom">
+    <span>© <span id="yr"></span> RouteReady. Not affiliated with Amazon.com, Inc.</span>
+    <span>Made for DSPs.</span>
   </div>
 </footer>
 
 <script>
-/* ───────── Scroll reveal ───────── */
-var io = new IntersectionObserver(function(entries){
-  entries.forEach(function(e){ if (e.isIntersecting) e.target.classList.add('on'); });
-}, { rootMargin: '-50px 0px', threshold: 0.05 });
-document.querySelectorAll('.sr').forEach(function(el){ io.observe(el); });
-
-/* ───────── Mobile menu ───────── */
-var hamburger = document.getElementById('hamburger');
-var mobileMenu = document.getElementById('mobile-menu');
-hamburger.addEventListener('click', function(){
-  hamburger.classList.toggle('open');
-  mobileMenu.classList.toggle('open');
-});
-document.querySelectorAll('.mobile-link, .mobile-cta').forEach(function(a){
-  a.addEventListener('click', function(){ hamburger.classList.remove('open'); mobileMenu.classList.remove('open'); });
-});
-
-/* ───────── Solutions tabs ───────── */
-function setRole(role){
-  document.querySelectorAll('.role-tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-role') === role); });
-  document.querySelectorAll('.role-pane').forEach(function(p){ p.classList.toggle('active', p.id === 'role-' + role); });
-  // Re-trigger scroll reveals inside the newly active pane
-  document.querySelectorAll('#role-' + role + ' .sr').forEach(function(el){ el.classList.add('on'); });
-}
-
-/* ───────── FAQ accordion ───────── */
-function toggleFaq(headerEl){
-  var item = headerEl.closest('.faq-item');
-  if (!item) return;
-  // Close siblings (single-open accordion); comment out to allow multiple open
-  document.querySelectorAll('.faq-item.open').forEach(function(other){
-    if (other !== item) other.classList.remove('open');
-  });
-  item.classList.toggle('open');
-}
+document.getElementById('yr').textContent = new Date().getFullYear();
 </script>
 
 </body>
