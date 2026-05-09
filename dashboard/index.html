@@ -2755,14 +2755,23 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    ~5 minutes share rounded chrome — first/last of group get the full
    tail radius, middle bubbles get the tighter same-side radius so a
    run reads as one block instead of three balloons. */
-.rr-mc-shell, .rr-cc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
-.rr-mc-head,  .rr-cc-head{padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:var(--s-3);flex-shrink:0;background:var(--surface)}
+/* Bulletproof absolute layout — head pinned top, composer pinned
+   bottom, thread fills the gap.  Avoids any flex-shrink edge case
+   that could push the composer below the visible area when the
+   conversation pane is shorter than its contents. */
+.rr-mc-shell, .rr-cc-shell{position:absolute;inset:0;overflow:hidden}
+.rr-mc-head,  .rr-cc-head{
+  position:absolute;top:0;left:0;right:0;z-index:2;
+  padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:var(--s-3);background:var(--surface);
+}
 .rr-mc-name,  .rr-cc-name{font-size:var(--fs-base);font-weight:600;display:flex;align-items:center;gap:6px}
 .rr-mc-sub,   .rr-cc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
 .rr-cc-head-actions{margin-left:auto;display:flex;gap:6px}
 .rr-mc-thread, .rr-cc-thread{
-  position:relative;
-  flex:1 1 0;min-height:0;overflow-y:auto;
+  position:absolute;
+  top:60px;left:0;right:0;bottom:64px;
+  overflow-y:auto;
   padding:var(--s-4) var(--s-5);
   display:flex;flex-direction:column;gap:2px;
   background:var(--canvas);
@@ -2900,12 +2909,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    it pops as the active surface.  Mirrors how Slack / iMessage stage
    the input — the tray is chrome, the field is the writing surface. */
 .rr-mc-composer, .rr-cc-composer{
+  position:absolute;left:0;right:0;bottom:0;z-index:2;
   display:flex;gap:8px;align-items:flex-end;
   padding:var(--s-3) var(--s-5);
+  min-height:60px;
   background:var(--canvas);
   background-image:linear-gradient(180deg, var(--canvas) 0%, var(--surface-pressed) 100%);
   border-top:1px solid var(--border);
-  flex-shrink:0;
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:40px;max-height:140px;
@@ -2973,14 +2983,18 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--green);
   box-shadow:0 0 0 2px rgba(5,150,105,.16);
 }
-/* Typing indicator — pill that sits just above the composer when the
-   driver is composing on their end. */
+/* Typing indicator — floats just above the composer when the driver
+   is composing on their end.  Absolute-positioned so it doesn't
+   compete with the new abs-pinned composer for layout. */
 .rr-mc-typing{
+  position:absolute;left:var(--s-5);bottom:64px;z-index:3;
   display:flex;align-items:center;gap:8px;
-  padding:6px 14px;
-  margin:0 var(--s-5) -4px;
+  padding:4px 12px;
   font-size:11px;color:var(--text-subtle);
   font-weight:600;letter-spacing:.02em;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--shadow-xs);
   opacity:0;transform:translateY(4px);
   transition:opacity 180ms ease, transform 200ms ease;
   pointer-events:none;
