@@ -19,3 +19,25 @@
   from = "/r/:token"
   to   = "/dashboard/refer.html?r=:token"
   status = 200
+
+# Old marketing pages consolidated into the landing. 301 so any
+# externally-linked URLs (or Google's index) update over time.
+[[redirects]]
+  from = "/about.html"
+  to   = "/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/how-it-works.html"
+  to   = "/#how"
+  status = 301
+  force = true
+
+# We had both privacy.html and privacy-policy.html. Keep privacy.html
+# as canonical; redirect the long form to it.
+[[redirects]]
+  from = "/privacy-policy.html"
+  to   = "/privacy.html"
+  status = 301
+  force = true
