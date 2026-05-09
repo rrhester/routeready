@@ -1205,10 +1205,12 @@ function _bindAdminPageHandlers() {
   document.getElementById("rr-admin-add-dsp")?.addEventListener("click", () => {
     _openAdminAddDspModal();
   });
-  // Invite-user is still pending edge-function wiring.
+  // "Invite user" → open the invite modal.
   document.getElementById("rr-admin-invite-user")?.addEventListener("click", () => {
-    if (typeof toast === "function") toast("Invite-user flow needs an edge-function deploy — see Phase 4 deferred items.", "info");
+    _openAdminInviteUser();
   });
+  // Invite form submit.
+  document.getElementById("rr-admin-invite-form")?.addEventListener("submit", _submitAdminInviteUser);
 
   // Auto-suggest short code from DSP name as the operator types.
   // Strips non-alphanumerics and uppercases.  Stops auto-suggesting
@@ -1253,6 +1255,125 @@ function _adminAddDspError(message, kind) {
   el.textContent = message;
   el.classList.toggle("rr-admin-add-dsp-error--ok", kind === "ok");
   el.hidden = false;
+}
+
+// ── Invite User modal ──────────────────────────────────────────────────────
+// Calls the invite-team-member edge function with `target_dsp_id` so a
+// platform admin can drop a new staff member into ANY DSP at any role
+// (the function's own gate enforces that target_dsp_id is honored only
+// for platform_admin callers; tenant owners stay scoped to their DSP).
+//
+// Why an edge function instead of an RPC: sending the magic-link
+// invite requires `auth.admin.inviteUserByEmail`, which only works
+// with the service-role key — we cannot ship that to the browser.
+// The RPC layer can't bridge it either; auth.admin is intentionally
+// not exposed via PostgREST.
+
+function _openAdminInviteUser() {
+  const form = document.getElementById("rr-admin-invite-form");
+  if (form) form.reset();
+  const err = document.getElementById("rr-admin-invite-error");
+  if (err) { err.hidden = true; err.textContent = ""; err.classList.remove("rr-admin-add-dsp-error--ok"); }
+
+  // Populate the target DSP dropdown from the in-memory list.  If
+  // the admin clicked Invite-User before ever opening the table,
+  // _admin.dsps may be empty; fetch lazily then continue.
+  const select = document.getElementById("rr-invite-target-dsp");
+  const fillOptions = (dsps) => {
+    if (!select) return;
+    const sorted = (dsps || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    select.innerHTML = `<option value="">Select a DSP…</option>` + sorted.map((d) =>
+      `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}${d.short_code ? ` · ${escapeHtml(d.short_code)}` : ""}</option>`
+    ).join("");
+  };
+  if (_admin.loaded && _admin.dsps.length) {
+    fillOptions(_admin.dsps);
+  } else {
+    fillOptions([]);
+    // Kick off a load and refresh the dropdown when it lands.
+    _loadPlatformAdminDsps().then(() => fillOptions(_admin.dsps));
+  }
+
+  if (typeof window.openModal === "function") window.openModal("modal-admin-invite-user");
+  setTimeout(() => document.getElementById("rr-invite-target-dsp")?.focus(), 60);
+}
+
+function _adminInviteError(message) {
+  const el = document.getElementById("rr-admin-invite-error");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove("rr-admin-add-dsp-error--ok");
+  el.hidden = false;
+}
+
+async function _submitAdminInviteUser(e) {
+  e.preventDefault();
+  const form    = e.currentTarget;
+  const submit  = document.getElementById("rr-admin-invite-submit");
+  const lbl     = submit?.querySelector("[data-rr-invite-label]");
+  const errEl   = document.getElementById("rr-admin-invite-error");
+  if (errEl) errEl.hidden = true;
+
+  const get = (n) => (form.elements.namedItem(n)?.value || "").trim();
+  const target_dsp_id = get("target_dsp_id");
+  const email         = get("email").toLowerCase();
+  const full_name     = get("full_name");
+  const role          = get("role") || "dispatcher";
+
+  if (!target_dsp_id)                                       return _adminInviteError("Pick a target DSP.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))            return _adminInviteError("Enter a valid email.");
+  if (!["dispatcher", "ops", "owner", "platform_admin"].includes(role)) {
+    return _adminInviteError("Pick a valid role.");
+  }
+
+  if (submit) submit.disabled = true;
+  if (lbl)    lbl.textContent = "Sending…";
+
+  // sb.functions.invoke automatically forwards the user's JWT in the
+  // Authorization header, which is what the edge function uses to
+  // resolve the caller's app_users row + role.
+  const { data, error } = await sb.functions.invoke("invite-team-member", {
+    body: { email, full_name, role, target_dsp_id },
+  });
+
+  if (submit) submit.disabled = false;
+  if (lbl)    lbl.textContent = "Send invite";
+
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    // The edge function returns body.error on validation failure;
+    // sb.functions.invoke surfaces that in error.context.
+    let raw = error.message || "";
+    try {
+      const ctxBody = await error.context?.json?.();
+      if (ctxBody?.error) raw = ctxBody.error;
+    } catch { /* fall through with raw */ }
+    let friendly = raw;
+    if (/already_on_team/.test(raw))            friendly = "That email is already on this DSP's team.";
+    else if (/target_dsp_id_required/.test(raw))friendly = "Pick a target DSP.";
+    else if (/target_dsp_not_found/.test(raw))  friendly = "That DSP doesn't exist anymore.";
+    else if (/cross_dsp_invite_forbidden/.test(raw)) friendly = "You can only invite into your own DSP.";
+    else if (/insufficient_role/.test(raw))     friendly = "You don't have permission to invite users.";
+    else if (/inactive_caller/.test(raw))       friendly = "Your account is inactive.  Contact an admin.";
+    else if (/invalid_email/.test(raw))         friendly = "Email looks invalid.";
+    else if (/invalid_role/.test(raw))          friendly = "That role isn't allowed.";
+    else if (/invite_failed/.test(raw))         friendly = raw.replace(/^invite_failed:\s*/, "Invite failed: ");
+    return _adminInviteError(friendly);
+  }
+
+  // Success copy depends on whether the edge function sent a fresh
+  // invite or re-issued a magic link to a returning user.
+  const kind = data?.kind || "invited";
+  const msg = kind === "resent_magic_link"
+    ? `${email} already had an account; sent a fresh sign-in link.`
+    : `Invite sent to ${email}.`;
+  if (typeof toast === "function") toast(msg, "ok");
+  if (typeof window.closeModal === "function") window.closeModal("modal-admin-invite-user");
+
+  // Refresh the table — if the invitee already had an auth account,
+  // the upsert path inside the edge function may have placed them
+  // in the target DSP's app_users immediately.
+  await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
 }
 
 // ── DSP detail / edit modal ────────────────────────────────────────────────
