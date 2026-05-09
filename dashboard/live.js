@@ -8888,29 +8888,36 @@ async function refreshDriverChatThread(scrollToBottom) {
     // Anchor-to-bottom flag — flipped on whenever we want to keep
     // landing at the newest message even as content reflows after
     // initial paint (image loads, attachment thumbnails, embed
-    // hydration).  Cleared when the operator manually scrolls up
-    // by more than 80px so we never yank them away from a
-    // deliberate scroll-up.
+    // hydration).  Cleared when the operator manually scrolls up.
     thread.dataset.rrAnchor = "1";
-    // ResizeObserver fires every time the thread's scrollHeight
-    // changes — covers all reflow causes (images, lazy-loaded
-    // content, font swap, etc.).  Re-pin to bottom while anchored.
-    if (!thread._rrAnchorObserver) {
-      thread._rrAnchorObserver = new ResizeObserver(() => {
-        if (thread.dataset.rrAnchor === "1") {
-          thread.scrollTop = thread.scrollHeight;
-        }
-      });
-      thread._rrAnchorObserver.observe(thread);
-    }
-    // Re-observe direct children on each render so newly-added
-    // bubbles get watched too.
-    Array.from(thread.children).forEach((c) => {
-      try { thread._rrAnchorObserver.observe(c); } catch {}
-    });
-    // Belt-and-suspenders: also pin on each <img> load (covers
-    // browsers/situations where ResizeObserver doesn't fire for
-    // intrinsic-size changes from content-loading).
+
+    // Brute-force pin loop.  ResizeObserver and image 'load' events
+    // both have edge cases (fixed-size grid track, nested image
+    // intrinsic-size changes, async src assignment in
+    // _rrMcSignAttachments).  Instead of trying to catch every
+    // possible reflow cause, we just poll for ~3 seconds after open:
+    // every 80ms, if anchor is still set and scrollHeight grew,
+    // re-pin to the new bottom.
+    if (thread._rrAnchorTimer) clearInterval(thread._rrAnchorTimer);
+    let lastHeight = thread.scrollHeight;
+    let elapsed = 0;
+    thread._rrAnchorTimer = setInterval(() => {
+      elapsed += 80;
+      if (thread.dataset.rrAnchor !== "1" || elapsed > 3000) {
+        clearInterval(thread._rrAnchorTimer);
+        thread._rrAnchorTimer = null;
+        return;
+      }
+      const h = thread.scrollHeight;
+      if (h !== lastHeight) {
+        lastHeight = h;
+        thread.scrollTop = h;
+      }
+    }, 80);
+
+    // Image load listener still fires per-image as a faster path
+    // when the browser hands us a 'load' event before the next poll
+    // tick.  Belt-and-suspenders.
     thread.querySelectorAll("img").forEach((img) => {
       if (img.complete) return;
       img.addEventListener("load", () => {
@@ -8918,9 +8925,9 @@ async function refreshDriverChatThread(scrollToBottom) {
       }, { once: true });
       img.addEventListener("error", () => {/* ignore */}, { once: true });
     });
-    // Release anchor only on a meaningful scroll-up (more than 80px
-    // away from the bottom).  Sub-pixel jitter from re-pinning won't
-    // trip it.  Bound once on first paint of this thread.
+
+    // Release anchor only on a meaningful scroll-up (>80px from
+    // bottom).  Bound once per thread element.
     if (!thread._rrAnchorReleaseBound) {
       thread._rrAnchorReleaseBound = true;
       const release = () => {
