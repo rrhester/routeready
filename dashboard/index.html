@@ -2690,7 +2690,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--surface);
   background-image:var(--surface-grad);
   border:1px solid var(--border);border-radius:var(--r-lg);
-  overflow:hidden;height:calc(100vh - 240px);min-height:520px;
+  overflow:hidden;
+  /* Height is JS-driven (see _fitMsgShell) so it always fits the
+     visible viewport regardless of browser chrome / devtools / OS
+     dock.  The static fallback covers the brief window between
+     paint and the resize observer firing. */
+  height:calc(100vh - 200px);
+  min-height:380px;
   box-shadow:var(--shadow-sm), var(--highlight-top);
 }
 .msg-list{
