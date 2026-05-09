@@ -284,6 +284,33 @@ function renderInviteHtml(ctx: InviteCtx): string {
     </p>
   ` : "";
 
+  // Desktop / "Owner App" callout · the same dashboard, packaged as
+  // a native Electron app for Mac / Windows / Linux.  Optional but
+  // many DSP owners prefer it for daily ops.  Hidden for non-owner
+  // invites (a dispatcher doesn't need to be marketed to about the
+  // installer; they can find it from inside the dashboard).
+  const desktopAppBlock = ctx.isOwnerOnboarding ? `
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:28px 0 0 0;background:#F8FAFC;border:1px solid rgba(15,23,42,.06);border-radius:10px">
+      <tr><td style="padding:18px 20px">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td style="vertical-align:top;padding-right:14px">
+              <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:13px;font-weight:700;color:#0B1220;letter-spacing:-.005em">Prefer a desktop app?</div>
+              <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;color:#475569;line-height:1.5;margin-top:4px">
+                RouteReady Desktop is the same workspace, packaged as a native app for Mac, Windows, and Linux.&nbsp;Always-on background sync with your Amazon DSP portal.
+              </div>
+            </td>
+            <td style="vertical-align:top;text-align:right;white-space:nowrap">
+              <a href="https://gorouteready.com/download" target="_blank" rel="noopener" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;border:1px solid rgba(15,23,42,.16);letter-spacing:.005em">
+                Get the app →
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+  ` : "";
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -336,6 +363,7 @@ function renderInviteHtml(ctx: InviteCtx): string {
           </p>
 
           ${stepsBlock}
+          ${desktopAppBlock}
         </td></tr>
 
         <!-- Footer -->
@@ -377,6 +405,9 @@ function renderInviteText(ctx: InviteCtx): string {
     lines.push(`  3. Land in your live dashboard with your routes, drivers, and dispatch tools ready to use`);
     lines.push("");
     lines.push(`The onboarding takes about five minutes.  Your link is valid for 7 days.`);
+    lines.push("");
+    lines.push(`Prefer a desktop app?  RouteReady Desktop is the same workspace, packaged as a native app for Mac, Windows, and Linux:`);
+    lines.push(`  https://gorouteready.com/download`);
   } else {
     lines.push(`You've been invited to join ${ctx.dspName} on RouteReady as ${ROLE_LABEL[ctx.role] || ctx.role}.  Open the link below to set up your account and sign in.`);
     lines.push("");
