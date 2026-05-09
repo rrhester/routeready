@@ -2862,7 +2862,16 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-shell, .rr-cc-shell{
   position:absolute;inset:0;
   display:grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Four explicit rows: head, thread, typing-pill (rr-mc-typing /
+     rr-cc-typing — collapsed to height:0 when not active), composer.
+     The typing pill is inserted between thread and composer at runtime
+     by `_presenceShowTyping`; if the grid only declared three rows, the
+     pill would auto-flow into an implicit FOURTH row that pushed the
+     composer past `overflow:hidden` and re-introduced the bottom-clip
+     bug under a different mechanism.  Declaring all four rows up front
+     pins the layout regardless of whether the pill is in the DOM.  The
+     pill row collapses to 0px when the pill is absent or hidden. */
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow:hidden;
 }
 .rr-mc-head,  .rr-cc-head{
