@@ -1195,15 +1195,122 @@ document.addEventListener("DOMContentLoaded", () => {
   nextEl?.addEventListener("click", () => { _admin.page += 1; _renderPlatformAdminTable(); });
   emptyCta?.addEventListener("click", () => document.getElementById("rr-admin-add-dsp")?.click());
 
-  // Placeholder CTA handlers — real Add-DSP modal + Invite-user flow
-  // land in Phase 4.
+  // "Add DSP client" → open the Phase-4a modal.
   document.getElementById("rr-admin-add-dsp")?.addEventListener("click", () => {
-    if (typeof toast === "function") toast("Add-DSP modal lands in Phase 4.", "info");
+    _openAdminAddDspModal();
   });
+  // Invite-user is still Phase 4b territory.
   document.getElementById("rr-admin-invite-user")?.addEventListener("click", () => {
-    if (typeof toast === "function") toast("Invite-user flow lands in Phase 4.", "info");
+    if (typeof toast === "function") toast("Invite-user flow lands in Phase 4b.", "info");
   });
+
+  // Auto-suggest short code from DSP name as the operator types.
+  // Strips non-alphanumerics and uppercases.  Stops auto-suggesting
+  // the moment the operator types a short_code themselves so we
+  // don't fight their edits.
+  const nameInput = document.getElementById("rr-add-dsp-name");
+  const codeInput = document.getElementById("rr-add-dsp-short-code");
+  if (nameInput && codeInput) {
+    let codeAuto = true;
+    codeInput.addEventListener("input", () => { codeAuto = false; });
+    nameInput.addEventListener("input", () => {
+      if (!codeAuto) return;
+      const auto = (nameInput.value || "")
+        .replace(/[^A-Za-z0-9]/g, "")
+        .toUpperCase()
+        .slice(0, 8);
+      codeInput.value = auto;
+    });
+  }
+
+  // Submit handler.
+  document.getElementById("rr-admin-add-dsp-form")?.addEventListener("submit", _submitAdminAddDsp);
 });
+
+// ── Add-DSP modal · open / submit ──────────────────────────────────────────
+function _openAdminAddDspModal() {
+  const form = document.getElementById("rr-admin-add-dsp-form");
+  if (form) form.reset();
+  const err = document.getElementById("rr-admin-add-dsp-error");
+  if (err) { err.hidden = true; err.textContent = ""; err.classList.remove("rr-admin-add-dsp-error--ok"); }
+  if (typeof window.openModal === "function") window.openModal("modal-admin-add-dsp");
+  setTimeout(() => document.getElementById("rr-add-dsp-name")?.focus(), 60);
+}
+
+function _adminAddDspError(message, kind) {
+  const el = document.getElementById("rr-admin-add-dsp-error");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.toggle("rr-admin-add-dsp-error--ok", kind === "ok");
+  el.hidden = false;
+}
+
+async function _submitAdminAddDsp(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const submit = document.getElementById("rr-admin-add-dsp-submit");
+  const lbl = submit?.querySelector("[data-rr-add-dsp-label]");
+  const errEl = document.getElementById("rr-admin-add-dsp-error");
+  if (errEl) errEl.hidden = true;
+
+  // Collect + trim form values.
+  const get = (n) => (form.elements.namedItem(n)?.value || "").trim();
+  const name        = get("name");
+  const short_code  = get("short_code").toUpperCase();
+  const owner_email = get("owner_email").toLowerCase();
+  const owner_name  = get("owner_name");
+  const phone       = get("phone");
+  const address     = get("address");
+  const subscription_plan = get("subscription_plan") || "starter";
+  const notes       = get("notes");
+
+  // Client-side validation matches the migration's CHECK constraints
+  // and the email-format expectation. Surfaces friendly inline errors
+  // before we burn an RPC round-trip on a known-bad payload.
+  if (name.length < 2)                               return _adminAddDspError("DSP company name is required.");
+  if (!/^[A-Z0-9_-]{2,12}$/.test(short_code))        return _adminAddDspError("Station code must be 2–12 chars (A–Z, 0–9, - or _).");
+  if (owner_name.length < 2)                         return _adminAddDspError("Owner name is required.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(owner_email)) return _adminAddDspError("Owner email looks invalid.");
+  if (!["starter", "growth", "enterprise"].includes(subscription_plan)) {
+    return _adminAddDspError("Pick a subscription plan.");
+  }
+
+  // Lock the form while the RPC runs so a double-click can't
+  // accidentally provision two DSPs with the same intent.
+  if (submit) submit.disabled = true;
+  if (lbl)    lbl.textContent = "Creating…";
+
+  const { data, error } = await sb.rpc("admin_create_dsp", {
+    p_name:               name,
+    p_short_code:         short_code,
+    p_owner_email:        owner_email,
+    p_owner_name:         owner_name,
+    p_phone:              phone || null,
+    p_address:            address || null,
+    p_subscription_plan:  subscription_plan,
+    p_notes:              notes || null,
+  });
+
+  if (submit) submit.disabled = false;
+  if (lbl)    lbl.textContent = "Create account";
+
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    // Friendlier wording for the predictable failure modes.
+    let msg = error.message || "Couldn't create the DSP.";
+    if (/duplicate key|unique/i.test(msg) && /short_code/i.test(msg))      msg = `Station code "${short_code}" is already in use. Try a different one.`;
+    else if (/duplicate key|unique/i.test(msg))                              msg = `That account already exists.`;
+    else if (/forbidden/i.test(msg))                                         msg = "You don't have admin access. Sign in as the platform admin.";
+    return _adminAddDspError(msg);
+  }
+
+  if (typeof toast === "function") toast(`${name} provisioned. Owner invite is pending.`, "ok");
+  if (typeof window.closeModal === "function") window.closeModal("modal-admin-add-dsp");
+
+  // Refresh both the stat cards (Total / Pending move) and the table
+  // so the new DSP shows up immediately.
+  await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
+}
 
 
 // ─── Drivers roster ────────────────────────────────────────────────────────
