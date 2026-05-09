@@ -373,6 +373,34 @@ a{color:inherit;text-decoration:none}
 .page-sub{font-size:var(--fs-md);color:var(--text-muted);margin:0}
 .page-actions{display:flex;gap:var(--s-2);align-items:center}
 
+/* Colored page-icon chip — sits to the left of the page title to
+   echo the sidebar's per-item color palette + the marketing site's
+   feature-card aesthetic. Each top-level view declares its color
+   via data-c on the chip. Light-background tuning: soft tinted bg
+   (~10% alpha) + saturated brand-color icon. */
+.page-header-l{display:flex;align-items:center;gap:14px;min-width:0}
+.page-icon{
+  width:48px;height:48px;border-radius:12px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--pi-bg, rgba(15,108,189,.10));
+  color:var(--pi-fg, var(--accent));
+  box-shadow:0 1px 2px rgba(15,23,42,.05),
+             inset 0 0 0 1px var(--pi-ring, rgba(15,108,189,.18));
+  transition:transform .15s ease;
+}
+.page-icon svg{width:24px;height:24px;stroke-width:2}
+.page-header:hover .page-icon{transform:translateY(-1px)}
+
+.page-icon[data-c="dashboard"]{--pi-fg:#0891B2;--pi-bg:rgba(8,145,178,.10);--pi-ring:rgba(8,145,178,.20)}
+.page-icon[data-c="pipeline"] {--pi-fg:#7C3AED;--pi-bg:rgba(124,58,237,.10);--pi-ring:rgba(124,58,237,.20)}
+.page-icon[data-c="drivers"]  {--pi-fg:#0D9488;--pi-bg:rgba(13,148,136,.10);--pi-ring:rgba(13,148,136,.20)}
+.page-icon[data-c="staffing"] {--pi-fg:#DB2777;--pi-bg:rgba(219,39,119,.10);--pi-ring:rgba(219,39,119,.20)}
+.page-icon[data-c="fleet"]    {--pi-fg:#D97706;--pi-bg:rgba(217,119,6,.10);--pi-ring:rgba(217,119,6,.20)}
+.page-icon[data-c="schedule"] {--pi-fg:#4F46E5;--pi-bg:rgba(79,70,229,.10);--pi-ring:rgba(79,70,229,.20)}
+.page-icon[data-c="messages"] {--pi-fg:#0284C7;--pi-bg:rgba(2,132,199,.10);--pi-ring:rgba(2,132,199,.20)}
+.page-icon[data-c="forms"]    {--pi-fg:#7C3AED;--pi-bg:rgba(124,58,237,.10);--pi-ring:rgba(124,58,237,.20)}
+.page-icon[data-c="finances"] {--pi-fg:#059669;--pi-bg:rgba(5,150,105,.10);--pi-ring:rgba(5,150,105,.20)}
+
 /* ─────────────────────────────────────────────────────────────
    STATUS COLOR DISCIPLINE
    Canonical pill + dot for operational states.  Variants map to
@@ -4818,9 +4846,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     <div class="view active" id="view-dashboard">
       <div class="page">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Today's Plan</h1>
-            <p class="page-sub" id="rr-today-date">—</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <div>
+              <h1 class="page-title">Today's Plan</h1>
+              <p class="page-sub" id="rr-today-date">—</p>
+            </div>
           </div>
           <div class="page-actions"></div>
         </div>
@@ -4837,9 +4868,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
       <div class="page">
 
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Hiring pipeline</h1>
-            <p class="page-sub" id="rr-pipeline-page-sub">Loading…</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg></div>
+            <div>
+              <h1 class="page-title">Hiring pipeline</h1>
+              <p class="page-sub" id="rr-pipeline-page-sub">Loading…</p>
+            </div>
           </div>
           <div class="page-actions">
             <button class="btn" onclick="openBulkIngest()">
@@ -5603,9 +5637,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     <div class="view" id="view-drivers">
       <div class="page">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Drivers</h1>
-            <p class="page-sub" id="rr-drivers-page-sub">Loading…</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="drivers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <div>
+              <h1 class="page-title">Drivers</h1>
+              <p class="page-sub" id="rr-drivers-page-sub">Loading…</p>
+            </div>
           </div>
         </div>
 
@@ -6562,9 +6599,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     <div class="view" id="view-schedule">
       <div class="page">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Schedule</h1>
-            <p class="page-sub" id="rr-sched-page-sub"></p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <div>
+              <h1 class="page-title">Schedule</h1>
+              <p class="page-sub" id="rr-sched-page-sub"></p>
+            </div>
           </div>
         </div>
 
@@ -7731,9 +7771,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     <div class="view" id="view-messages">
       <div class="page" style="padding-bottom:0">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Messages</h1>
-            <p class="page-sub">Real-time comms with drivers · 7 unread · 12 active right now</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <div>
+              <h1 class="page-title">Messages</h1>
+              <p class="page-sub">Real-time comms with drivers · 7 unread · 12 active right now</p>
+            </div>
           </div>
           <div class="page-actions">
             <button class="btn">
@@ -7784,12 +7827,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
       <div class="page">
 
         <div class="page-header">
-          <div>
-            <h1 class="page-title" style="display:flex;align-items:center;gap:10px">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;stroke-width:2.2;color:var(--accent)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-.32 0-.63.05-.91.14"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/></svg>
-              Performance Management
-            </h1>
-            <p class="page-sub">Coach, warn, and terminate underperformers. Staffing risk sets the ceiling on how aggressive you can be.</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="staffing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-.32 0-.63.05-.91.14"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/></svg></div>
+            <div>
+              <h1 class="page-title">Performance Management</h1>
+              <p class="page-sub">Coach, warn, and terminate underperformers. Staffing risk sets the ceiling on how aggressive you can be.</p>
+            </div>
           </div>
           <div class="page-actions">
             <button class="btn btn-sm" onclick="recomputeStaffingRisk();toast('Recomputed from current state')">
@@ -7939,9 +7982,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     <div class="view" id="view-fleet">
       <div class="page">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Fleet</h1>
-            <p class="page-sub">24 vehicles · 312 issued assets · 2 maintenance items need attention</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="fleet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
+            <div>
+              <h1 class="page-title">Fleet</h1>
+              <p class="page-sub">24 vehicles · 312 issued assets · 2 maintenance items need attention</p>
+            </div>
           </div>
           <div class="page-actions">
             <button class="btn btn-ghost btn-icon" title="Export" aria-label="Export">
@@ -8257,9 +8303,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     <div class="view" id="view-forms">
       <div class="page">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Workflows</h1>
-            <p class="page-sub" id="rr-forms-page-sub">Forms and checklists your drivers fill out</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <div>
+              <h1 class="page-title">Workflows</h1>
+              <p class="page-sub" id="rr-forms-page-sub">Forms and checklists your drivers fill out</p>
+            </div>
           </div>
           <div class="page-actions">
             <button class="btn btn-primary" data-rr-form-new>
@@ -8603,9 +8652,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     <div class="view" id="view-finances">
       <div class="page">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Finances</h1>
-            <p class="page-sub">Amazon invoice forensics · auto-disputes · billing recovery · $14,420 recovered YTD</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="finances"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <div>
+              <h1 class="page-title">Finances</h1>
+              <p class="page-sub">Amazon invoice forensics · auto-disputes · billing recovery · $14,420 recovered YTD</p>
+            </div>
           </div>
           <div class="page-actions">
             <button class="btn btn-ghost btn-icon" title="Export" aria-label="Export">
