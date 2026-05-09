@@ -3001,6 +3001,126 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 /* Read receipt — slim "Read" pill aligned right under the last
    dispatcher-sent message that the driver has acknowledged.  Sits on
    its own line, never inside a bubble. */
+/* ─── Cmd+K command palette ─────────────────────────────────────────
+   Glass overlay + centered panel.  Opens on Cmd+K (or Ctrl+K) and
+   floats over whatever view the operator is in.  Designed to feel
+   weightless: backdrop fades, panel slides up 6px on enter. */
+.rr-cmdk{
+  position:fixed;inset:0;z-index:9999;
+  display:none;align-items:flex-start;justify-content:center;
+  padding-top:12vh;
+  font-family:'Inter',system-ui,sans-serif;
+}
+.rr-cmdk.open{ display:flex }
+.rr-cmdk-backdrop{
+  position:absolute;inset:0;
+  background:rgba(15,23,42,.45);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  animation:rr-cmdk-fade 140ms ease-out both;
+}
+.rr-cmdk-panel{
+  position:relative;
+  width:min(560px, calc(100vw - 32px));
+  max-height:60vh;
+  background:var(--surface);
+  background-image:linear-gradient(180deg, var(--surface) 0%, #FBFCFE 100%);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 20px 60px -12px rgba(15,23,42,.30),
+             0 8px 24px -8px rgba(15,23,42,.18),
+             inset 0 1px 0 rgba(255,255,255,.6);
+  display:flex;flex-direction:column;overflow:hidden;
+  animation:rr-cmdk-rise 200ms cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes rr-cmdk-fade{ from{opacity:0} to{opacity:1} }
+@keyframes rr-cmdk-rise{
+  from{ opacity:0; transform:translateY(8px) scale(.985); }
+  to  { opacity:1; transform:translateY(0)   scale(1); }
+}
+.rr-cmdk-search{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+}
+.rr-cmdk-search svg{
+  width:16px;height:16px;flex-shrink:0;color:var(--text-subtle);
+}
+.rr-cmdk-search input{
+  flex:1;border:0;outline:0;background:transparent;
+  font-size:15px;font-weight:500;color:var(--text);
+  letter-spacing:-.005em;
+}
+.rr-cmdk-search input::placeholder{ color:var(--text-subtle);font-weight:400 }
+.rr-cmdk-hint{
+  font-size:10px;font-weight:600;color:var(--text-subtle);
+  background:var(--surface-hover);border:1px solid var(--border);
+  padding:1px 6px;border-radius:4px;
+  font-family:'Inter',system-ui,sans-serif;
+}
+.rr-cmdk-list{
+  flex:1;min-height:0;overflow-y:auto;
+  padding:6px;
+  scrollbar-width:thin;
+}
+.rr-cmdk-row{
+  display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;
+  padding:8px 10px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:background 80ms ease;
+}
+.rr-cmdk-row.active{
+  background:linear-gradient(180deg, var(--accent-soft) 0%, var(--accent-soft) 100%);
+  box-shadow:inset 0 0 0 1px var(--accent-border);
+}
+.rr-cmdk-avatar{
+  width:32px;height:32px;border-radius:50%;
+  background:var(--brand-grad);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;letter-spacing:.02em;
+}
+.rr-cmdk-meta{ min-width:0 }
+.rr-cmdk-name{
+  font-size:13px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;gap:8px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.rr-cmdk-code{
+  font-size:10px;font-weight:600;color:var(--text-subtle);
+  background:var(--surface-hover);border-radius:3px;
+  padding:1px 5px;letter-spacing:.02em;
+}
+.rr-cmdk-preview{
+  font-size:11px;color:var(--text-subtle);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.rr-cmdk-unread{
+  background:var(--brand-grad);color:#fff;
+  border-radius:10px;font-size:10px;font-weight:700;
+  padding:1px 7px;min-width:18px;text-align:center;
+}
+.rr-cmdk-empty{
+  padding:32px;text-align:center;
+  font-size:13px;color:var(--text-subtle);
+}
+.rr-cmdk-foot{
+  display:flex;align-items:center;justify-content:flex-end;gap:14px;
+  padding:8px 16px;
+  border-top:1px solid var(--border);
+  font-size:10px;color:var(--text-subtle);
+  font-weight:500;letter-spacing:.02em;
+}
+.rr-cmdk-foot kbd{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;padding:0 4px;margin:0 2px;
+  background:var(--surface-hover);border:1px solid var(--border);
+  border-radius:3px;
+  font-size:10px;font-family:inherit;font-weight:600;color:var(--text-muted);
+  vertical-align:middle;
+}
+/* Body scroll-lock when the palette is open. */
+body.rr-cmdk-open{ overflow:hidden }
 .rr-mc-read-receipt{
   align-self:flex-end;
   margin:-2px 4px 4px 0;
