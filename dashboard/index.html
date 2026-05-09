@@ -11246,6 +11246,71 @@ Evidence attached:
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     PLATFORM ADMIN · INVITE USER MODAL
+     Lets a platform_admin invite a new staff member into ANY DSP
+     at any role (incl. another platform_admin).  Calls the
+     invite-team-member edge function with target_dsp_id; the
+     function handles the auth.admin.inviteUserByEmail call +
+     the app_users row creation via the existing 0076 trigger.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-admin-invite-user" onclick="if(event.target===this)closeModal('modal-admin-invite-user')">
+  <div class="modal-card" style="max-width:520px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Invite user</p>
+        <p class="modal-sub">Send a magic-link invite to any staff role at any DSP.</p>
+      </div>
+      <button class="modal-close" type="button" onclick="closeModal('modal-admin-invite-user')" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="rr-admin-invite-form" autocomplete="off" novalidate>
+      <div class="modal-body">
+
+        <div>
+          <label class="modal-field-label" for="rr-invite-target-dsp">Target DSP</label>
+          <select class="form-input" id="rr-invite-target-dsp" name="target_dsp_id" required>
+            <option value="">Select a DSP…</option>
+            <!-- Populated by _openAdminInviteUser() from _admin.dsps -->
+          </select>
+        </div>
+
+        <div class="modal-row-2">
+          <div>
+            <label class="modal-field-label" for="rr-invite-email">Email</label>
+            <input class="form-input" id="rr-invite-email" name="email" type="email" required maxlength="120" placeholder="newhire@example.com" />
+          </div>
+          <div>
+            <label class="modal-field-label" for="rr-invite-full-name">Full name</label>
+            <input class="form-input" id="rr-invite-full-name" name="full_name" type="text" maxlength="80" placeholder="Jane Doe" />
+          </div>
+        </div>
+
+        <div>
+          <label class="modal-field-label" for="rr-invite-role">Role</label>
+          <select class="form-input" id="rr-invite-role" name="role">
+            <option value="dispatcher">Dispatcher</option>
+            <option value="ops">Ops</option>
+            <option value="owner">Owner</option>
+            <option value="platform_admin">Platform admin (RouteReady)</option>
+          </select>
+          <p class="form-help" style="margin-top:4px">A magic-link invite will be emailed.  The invitee picks their own password on first sign-in.</p>
+        </div>
+
+        <div class="rr-admin-add-dsp-error" id="rr-admin-invite-error" hidden></div>
+
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-admin-invite-user')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="rr-admin-invite-submit">
+          <span data-rr-invite-label>Send invite</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      PLATFORM ADMIN · DSP DETAIL / EDIT MODAL
      Single modal for both "View details" and "Edit account" row
      actions — admins can always edit, so a separate read-only
@@ -17720,7 +17785,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509h-admin-cta-fix"></script>
+<script type="module" src="./live.js?v=20260509i-admin-invite-user"></script>
 
 </body>
 </html>
