@@ -409,8 +409,14 @@ a{color:inherit;text-decoration:none}
 
 /* Page */
 .page{padding:var(--s-8) var(--s-8)}
-.page-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-6);gap:var(--s-4)}
-.page-title{font-family:'Inter Tight','Inter',system-ui,-apple-system,sans-serif;font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:0 0 4px 0}
+/* Page header — align icon + text block on a shared center axis
+   instead of bottom edge.  Bottom-edge alignment was making the
+   icon's baseline drift visibly relative to the title.  --s-8 gap
+   below header gives major content zones the breathing room
+   enterprise dashboards (Stripe, Linear) use between top hero
+   and primary content. */
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-8);gap:var(--s-4)}
+.page-title{font-family:'Inter Tight','Inter',system-ui,-apple-system,sans-serif;font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0 0 var(--s-1) 0}
 /* Optional: gradient-accent wordmark for hero phrases. Apply with a
    <span class="grad"> inside .page-title to match the landing. */
 .page-title .grad{
@@ -418,15 +424,18 @@ a{color:inherit;text-decoration:none}
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:transparent;
 }
-.page-sub{font-size:var(--fs-md);color:var(--text-muted);margin:0}
-.page-actions{display:flex;gap:var(--s-2);align-items:center}
+/* Page subtitle — stepped down from md to sm so the title→sub
+   visual ladder reads at a glance.  Same trick Linear / Notion use
+   to keep page-headers calm. */
+.page-sub{font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);line-height:1.4;margin:0;letter-spacing:.005em}
+.page-actions{display:flex;gap:var(--s-3);align-items:center}
 
 /* Colored page-icon chip — sits to the left of the page title to
    echo the sidebar's per-item color palette + the marketing site's
    feature-card aesthetic. Each top-level view declares its color
    via data-c on the chip. Light-background tuning: soft tinted bg
    (~10% alpha) + saturated brand-color icon. */
-.page-header-l{display:flex;align-items:center;gap:14px;min-width:0}
+.page-header-l{display:flex;align-items:center;gap:var(--s-4);min-width:0}
 .page-icon{
   width:48px;height:48px;border-radius:12px;flex-shrink:0;
   display:inline-flex;align-items:center;justify-content:center;
@@ -635,7 +644,7 @@ a{color:inherit;text-decoration:none}
 /* ─────────────────────────────────────────────────────────────
    KPI STRIP
    ───────────────────────────────────────────────────────────── */
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4);margin-bottom:var(--s-6)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4);margin-bottom:var(--s-8)}
 .kpi-card{
   position:relative;overflow:hidden;
   background:var(--surface);
@@ -645,14 +654,16 @@ a{color:inherit;text-decoration:none}
   box-shadow:var(--shadow-sm), var(--highlight-top);
   transition:box-shadow var(--t-smooth), transform var(--t-smooth), border-color var(--t-smooth);
 }
-/* 3px brand-grad accent ribbon along the top — picks up the landing's
-   gradient identity inside the working surface without competing with
-   numbers below. */
+/* 4px brand-grad accent ribbon — slightly thicker so it reads at
+   a glance, with its own soft drop shadow so it lifts off the card
+   chrome.  Notion / Stripe pattern: brand-stripe is a deliberate
+   UI element, not a hairline. */
 .kpi-card::before{
-  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  content:"";position:absolute;top:0;left:0;right:0;height:4px;
   background:var(--brand-grad);
   border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg);
-  opacity:.85;pointer-events:none;
+  pointer-events:none;
+  box-shadow:0 1px 4px -1px rgba(79,70,229,.30);
 }
 .kpi-card:hover{
   border-color:rgba(15,108,189,.20);
@@ -661,14 +672,17 @@ a{color:inherit;text-decoration:none}
              var(--highlight-top);
   transform:translateY(-1px);
 }
+/* Label-to-value rhythm — token-aligned (--s-3 = 12px) replaces the
+   hardcoded 8px that read as cramped against the 32px--s-8 card
+   padding.  Same logic on the value-to-sub gap. */
 .kpi-label{
   font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
-  letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px;
-  display:flex;align-items:center;gap:6px;
+  letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-3);
+  display:flex;align-items:center;gap:var(--s-2);line-height:1.2;
 }
-.kpi-value{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--text)}
-.kpi-value-fraction{font-size:var(--fs-base);color:var(--text-subtle);font-weight:500;margin-left:2px}
-.kpi-sub{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:var(--fs-sm);color:var(--text-muted)}
+.kpi-value{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--text);font-variant-numeric:tabular-nums}
+.kpi-value-fraction{font-size:var(--fs-base);color:var(--text-subtle);font-weight:500;margin-left:3px;letter-spacing:0}
+.kpi-sub{display:flex;align-items:center;gap:var(--s-2);margin-top:var(--s-3);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.4}
 .kpi-pip{width:8px;height:8px;border-radius:50%;display:inline-block}
 .kpi-pip.green{background:var(--green)}
 .kpi-pip.amber{background:var(--amber)}
@@ -680,10 +694,14 @@ a{color:inherit;text-decoration:none}
 /* ─────────────────────────────────────────────────────────────
    ATTENTION ZONE
    ───────────────────────────────────────────────────────────── */
-.section{margin-bottom:var(--s-6)}
-.section-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s-3)}
-.section-title{font-size:var(--fs-md);font-weight:600;color:var(--text);margin:0}
-.section-sub{font-size:var(--fs-sm);color:var(--text-subtle)}
+/* Section rhythm — major content zones get --s-8 separation,
+   matching the page-header→content gap above.  Within a section,
+   --s-4 between head and body.  This creates a consistent vertical
+   rhythm at every zoom level. */
+.section{margin-bottom:var(--s-8)}
+.section-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s-4);gap:var(--s-3)}
+.section-title{font-size:var(--fs-md);font-weight:700;color:var(--text);margin:0;line-height:1.2;letter-spacing:-.005em}
+.section-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);line-height:1.4;letter-spacing:.005em}
 
 .attn-list{display:flex;flex-direction:column;gap:var(--s-2)}
 .attn-card{
@@ -2704,35 +2722,41 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   display:flex;flex-direction:column;
   background:var(--canvas);
 }
+/* Messaging list head — token-aligned padding + tightened typography
+   so the title reads as a section header (700 weight, sm size) above
+   sub-controls (search, tabs).  Slack/Linear: list head sits on a
+   defined row, search/tabs share a sub-row with consistent gutters. */
 .msg-list-head{
-  padding:14px 16px;border-bottom:1px solid var(--border);
+  padding:var(--s-4) var(--s-4);border-bottom:1px solid var(--border);
   display:flex;justify-content:space-between;align-items:center;
+  min-height:48px;
 }
-.msg-list-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
+.msg-list-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.2}
 .msg-list-search{
-  margin:var(--s-2) var(--s-4) 6px;padding:7px 10px;
+  margin:var(--s-3) var(--s-4) var(--s-2);padding:var(--s-2) var(--s-3);
   border:1px solid var(--border-strong);border-radius:var(--r-md);
   font-size:var(--fs-sm);color:var(--text-muted);background:var(--surface);
-  display:flex;align-items:center;gap:6px;
+  display:flex;align-items:center;gap:var(--s-2);
   transition:border-color .12s, box-shadow .12s;
 }
 .msg-list-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.msg-list-search svg{width:12px;height:12px;color:var(--text-subtle)}
+.msg-list-search svg{width:12px;height:12px;color:var(--text-subtle);flex-shrink:0}
 .msg-list-search input{border:none;background:transparent;outline:none;font:inherit;color:var(--text);width:100%}
 .msg-list-search input::placeholder{color:var(--text-subtle)}
-.msg-list-tabs{display:flex;padding:0 var(--s-3);gap:2px;margin-bottom:6px}
+.msg-list-tabs{display:flex;padding:0 var(--s-4);gap:var(--s-1);margin-bottom:var(--s-3)}
 .msg-list-tab{
-  padding:5px 10px;font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);
+  padding:var(--s-1) var(--s-3);font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);
   background:transparent;border:none;border-radius:5px;cursor:pointer;font-family:inherit;
   transition:background .12s, color .12s;
+  letter-spacing:.005em;
 }
 .msg-list-tab:hover{color:var(--text)}
 .msg-list-tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
 .msg-list-items{flex:1;overflow-y:auto}
 .msg-item{
-  display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;padding:10px var(--s-4);
-  border-bottom:1px solid var(--border);cursor:pointer;align-items:center;
-  background:var(--canvas);
+  display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:var(--s-3);padding:var(--s-3) var(--s-4);
+  border-bottom:1px solid var(--border-subtle);cursor:pointer;align-items:center;
+  background:transparent;
   transition:background .08s;
 }
 .msg-item:hover{background:var(--surface-hover)}
@@ -2785,14 +2809,18 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   overflow:hidden;
 }
 .rr-mc-head,  .rr-cc-head{
-  padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);
+  padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:var(--s-3);
   background:var(--surface);
   min-width:0;
+  min-height:60px;
 }
-.rr-mc-name,  .rr-cc-name{font-size:var(--fs-base);font-weight:600;display:flex;align-items:center;gap:6px}
-.rr-mc-sub,   .rr-cc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-.rr-cc-head-actions{margin-left:auto;display:flex;gap:6px}
+/* Conversation head name + sub — locked line-height + tighter
+   tracking so name and sub-line read as a stable two-line stack
+   instead of drifting.  Slack/Linear pattern. */
+.rr-mc-name,  .rr-cc-name{font-size:var(--fs-base);font-weight:600;display:flex;align-items:center;gap:var(--s-2);line-height:1.25;letter-spacing:-.005em}
+.rr-mc-sub,   .rr-cc-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-top:2px;line-height:1.3;letter-spacing:.005em}
+.rr-cc-head-actions{margin-left:auto;display:flex;gap:var(--s-2)}
 .rr-mc-thread, .rr-cc-thread{
   position:relative;
   min-height:0;
@@ -3008,8 +3036,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    hairline rule on either side for context.  Same pattern in both
    surfaces. */
 .rr-msg-day{
-  display:flex;align-items:center;gap:10px;
-  margin:14px 0 8px;
+  display:flex;align-items:center;gap:var(--s-3);
+  margin:var(--s-4) 0 var(--s-3);
   font-size:11px;font-weight:600;color:var(--text-subtle);
   text-transform:uppercase;letter-spacing:.06em;
 }
@@ -3082,8 +3110,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   padding-bottom:var(--rr-mc-thread-pad, 96px) !important;
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
-  flex:1;min-height:40px;max-height:140px;
-  padding:10px 14px;font-size:var(--fs-base);line-height:1.42;
+  flex:1;min-height:44px;max-height:140px;
+  padding:11px 14px;font-size:var(--fs-base);line-height:1.42;
   /* White field on a soft tray — high contrast, depth cue from the
      inset shadow so the input reads as something to type into. */
   background:var(--surface);
@@ -3108,8 +3136,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-mc-send, .rr-cc-send{
   background:var(--brand-grad);color:#fff;border:0;border-radius:var(--r-md);
-  padding:0 16px;font-weight:600;font-size:var(--fs-md);cursor:pointer;
-  min-height:40px;
+  padding:0 var(--s-4);font-weight:600;font-size:var(--fs-md);cursor:pointer;
+  min-height:44px;letter-spacing:.005em;
   box-shadow:0 1px 2px rgba(15,108,189,.20), 0 4px 10px -4px rgba(79,70,229,.30);
   transition:transform 100ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
