@@ -1603,7 +1603,29 @@ async function refreshChannelThread(scrollToBottom) {
   if (messages.length === 0) {
     wrap.innerHTML = `<div class="empty-state">No messages yet. Be the first to post.</div>`;
   } else {
-    wrap.innerHTML = messages.map(channelBubbleHtml).join("");
+    // Sender grouping — consecutive messages from the same author
+    // within 5 minutes collapse into a block.  Sender label only on
+    // first/single bubbles, timestamp on last/single.  Same model
+    // as the dispatcher rr-cc render.
+    let lastSenderKey = null;
+    let lastTimeMs = 0;
+    wrap.innerHTML = messages.map((m, i) => {
+      const t = new Date(m.created_at);
+      const senderKey = m.sender_kind + "|" + (m.sender_id || m.sender_user_id || m.sender_name || "");
+      const sameAsPrev = senderKey === lastSenderKey && (t.getTime() - lastTimeMs) < 5 * 60 * 1000;
+      const next = messages[i + 1];
+      const nextKey = next ? next.sender_kind + "|" + (next.sender_id || next.sender_user_id || next.sender_name || "") : null;
+      const sameAsNext = next
+        && nextKey === senderKey
+        && (new Date(next.created_at).getTime() - t.getTime()) < 5 * 60 * 1000;
+      let pos = "single";
+      if      (sameAsPrev && sameAsNext) pos = "middle";
+      else if (sameAsPrev)               pos = "last";
+      else if (sameAsNext)               pos = "first";
+      lastSenderKey = senderKey;
+      lastTimeMs = t.getTime();
+      return channelBubbleHtml(m, pos);
+    }).join("");
     _rrSignChatAttachments();
   }
   if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
@@ -1612,11 +1634,13 @@ async function refreshChannelThread(scrollToBottom) {
 
 // Same shape as chatBubbleHtml but routes mine/theirs off the
 // is_self flag (driver could be either side of a channel post).
-function channelBubbleHtml(m) {
+function channelBubbleHtml(m, pos) {
   const mine = !!m.is_self;
   const t = new Date(m.created_at);
   const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const sender = m.sender_kind === "dispatch" ? "Dispatch" : (m.sender_name || "Driver");
+  const groupAttr = pos ? ` data-group-pos="${pos}"` : "";
+  const showSender = !mine && (pos === "first" || pos === "single" || !pos);
   const body = m.body
     ? escapeHtml(m.body).replace(/\n/g, "<br>")
         .replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
@@ -1646,8 +1670,8 @@ function channelBubbleHtml(m) {
   }
 
   return `
-    <div class="chat-bubble ${mine ? "mine" : "theirs"}">
-      ${!mine ? `<div class="chat-sender">${escapeHtml(sender)}</div>` : ""}
+    <div class="chat-bubble ${mine ? "mine" : "theirs"}"${groupAttr}>
+      ${showSender ? `<div class="chat-sender">${escapeHtml(sender)}</div>` : ""}
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
       <div class="chat-time">${escapeHtml(time)}</div>

@@ -9382,9 +9382,31 @@ async function refreshChannelThread(scrollToBottom) {
   if (msgs.length === 0) {
     thread.innerHTML = `<div class="rr-cc-empty">No messages yet. Start the channel below.</div>` + ccSentinelHtml;
   } else {
-    thread.innerHTML = msgs.map((m) => {
+    // Sender + time grouping for channels: same author within 5
+    // minutes collapses into one block — sender label only on the
+    // first bubble of the group, single timestamp on the last.
+    // Same vocabulary as the direct-chat (rr-mc) renderer.
+    let lastSender = null;
+    let lastTimeMs = 0;
+    let lastSenderId = null;
+    thread.innerHTML = msgs.map((m, i) => {
       const t = new Date(m.created_at);
       const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      const senderKey = m.sender_kind + "|" + (m.sender_id || m.sender_user_id || m.sender_name || "");
+      const sameAsPrev = senderKey === lastSenderId && (t.getTime() - lastTimeMs) < 5 * 60 * 1000;
+      const next = msgs[i + 1];
+      const nextKey = next ? next.sender_kind + "|" + (next.sender_id || next.sender_user_id || next.sender_name || "") : null;
+      const sameAsNext = next
+        && nextKey === senderKey
+        && (new Date(next.created_at).getTime() - t.getTime()) < 5 * 60 * 1000;
+      let pos = "single";
+      if      (sameAsPrev && sameAsNext) pos = "middle";
+      else if (sameAsPrev)               pos = "last";
+      else if (sameAsNext)               pos = "first";
+      lastSender = m.sender_kind;
+      lastSenderId = senderKey;
+      lastTimeMs = t.getTime();
+
       let attach = "";
       if (m.attachment_path) {
         const isImg = (m.attachment_mime || "").startsWith("image/");
@@ -9398,8 +9420,9 @@ async function refreshChannelThread(scrollToBottom) {
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
         : (m.sender_name || "Driver");
       const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
-      return `<div class="rr-cc-bubble ${m.sender_kind}">
-        <div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>
+      const showSender = (pos === "first" || pos === "single");
+      return `<div class="rr-cc-bubble ${m.sender_kind}" data-group-pos="${pos}">
+        ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
         ${attach}
         ${bodyHtml}
         <div class="rr-cc-time">${escapeHtml(time)}</div>
