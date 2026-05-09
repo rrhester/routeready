@@ -2885,40 +2885,98 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   padding:var(--s-4) var(--s-5);
   display:flex;flex-direction:column;gap:2px;
   background:var(--canvas);
-  /* Disable browser scroll-anchoring on the thread itself.  We opt in
-     selectively on the bottom-sentinel below — that lets the browser
-     natively keep the latest message pinned across reflows (image
-     loads, composer-driven padding changes, attachment thumbnails)
-     WITHOUT firing a JS re-pin that the user can see as a glitch.
-     Without this property, the browser would pick an arbitrary bubble
-     mid-thread as the anchor and yank the operator UP whenever a
-     message above the viewport changed height. */
-  overflow-anchor:none;
+  /* The thread itself is left at default `overflow-anchor:auto` — the
+     CSS spec says scroll-anchoring is enabled on a scroll container by
+     default and `overflow-anchor:none` on the SCROLL CONTAINER fully
+     disables it for that container's scrollTop.  We want anchoring ON
+     for the thread; what we want is to FORCE the algorithm to pick
+     the bottom sentinel (and only the bottom sentinel) as the anchor.
+     That's done by setting `overflow-anchor:none` on every bubble and
+     bubble descendant below — the algorithm walks the DOM and skips
+     any element with `overflow-anchor:none`, then picks the next
+     eligible descendant.  With every bubble excluded, the only
+     eligible element is the sentinel at the bottom, which is what we
+     want. */
   /* No scroll-behavior:smooth here — every scrollTop change would
      animate, so the operator would SEE the thread scroll down instead
      of just opening at the newest message.  Smooth is opt-in via
      thread.scrollTo({ behavior:"smooth" }) for jump-pill taps. */
 }
+/* Exclude every bubble (and every descendant of every bubble — esp.
+   <img> attachments) from the anchor algorithm.  Without this rule
+   the browser frequently picked one of the image attachments as the
+   anchor: that image enters the viewport at scrollTop=scrollHeight,
+   has no intrinsic size yet because its src is signed-URL'd async,
+   and when it finally loads + grows from 0 → ~600px tall, the
+   anchoring algorithm "preserves" the image's visible position by
+   subtracting that growth from scrollTop — i.e. SCROLLS THE OPERATOR
+   UP to keep that image fixed on screen.  That is the exact
+   "rolls back up to the same spot next to a picture" bug the user
+   has been hitting since PR #588.  Excluding bubbles + their
+   descendants from the anchor pool fixes this categorically: the
+   only remaining eligible anchor is the bottom sentinel, so any
+   above-sentinel reflow keeps the SENTINEL in place — i.e. keeps
+   the bottom of the thread in place.  Day dividers + read receipts
+   are excluded for the same reason (they could be picked too). */
+.rr-mc-bubble, .rr-mc-bubble *,
+.rr-cc-bubble, .rr-cc-bubble *,
+.rr-msg-day, .rr-mc-read-receipt, .rr-msg-skeleton, .rr-msg-skeleton *,
+.rr-mc-empty, .rr-cc-empty, .rr-msg-jump{
+  overflow-anchor:none;
+}
 /* Bottom sentinel — last child of the thread. Browser scroll-anchoring
    tracks this 1px element when it's near the bottom of the viewport,
    so reflows above (image loads, padding changes from composer
    resize, new bubble inserts) do NOT visibly nudge the scroll
-   position.  This replaces the prior polling/observer/img-load re-pin
-   stack that was racy and produced the "scroll back up briefly"
-   glitch.  When the operator manually scrolls up, JS toggles
+   position.  When the operator manually scrolls up, JS toggles
    `data-rr-anchor="0"` on the thread which flips this back to
    `none` so the browser doesn't fight them when content lands above
    their reading position. */
 .rr-mc-bottom-sentinel, .rr-cc-bottom-sentinel{
   height:1px;flex:0 0 auto;
-  /* Default: opt-in to the anchoring algorithm.  CSS overrides via
-     [data-rr-anchor="0"] on the parent disable it when the operator
-     has scrolled up. */
+  /* Explicit `auto` is redundant (it's the default) but documents
+     intent: this is the ONE element we want the anchor algorithm to
+     latch onto. */
   overflow-anchor:auto;
 }
 .rr-mc-thread[data-rr-anchor="0"] .rr-mc-bottom-sentinel,
 .rr-cc-thread[data-rr-anchor="0"] .rr-cc-bottom-sentinel{
   overflow-anchor:none;
+}
+/* Image attachments inside bubbles — reserve vertical space BEFORE
+   the signed URL lands so the bubble has its final height as soon as
+   it paints.  Without these properties an empty <img> is 0px tall;
+   when its src is set asynchronously by _rrMcSignAttachments and the
+   browser computes its intrinsic size, the bubble grows by hundreds
+   of pixels in a single paint.  That growth is what was forcing
+   the scroll-anchor walk-up before we excluded bubbles from the pool.
+   Excluding bubbles is the primary fix; reserving space here is
+   defence-in-depth so the very first paint already reads at the
+   correct height. */
+.rr-mc-bubble img[data-rr-mc-attach],
+.rr-cc-bubble img[data-rr-mc-attach]{
+  /* Square 240×240 placeholder until the image loads — most chat
+     photos are roughly square or portrait, so this lands close to
+     the eventual height for the common case.  Once `src` is assigned
+     and the image actually loads, JS sets the inline aspect-ratio
+     from the natural dimensions (see _rrMcSignAttachments) so the
+     final paint matches the photo. */
+  aspect-ratio: 1 / 1;
+  background:var(--surface-hover);
+  /* Tiny inline shimmer so a "still loading" image doesn't read as
+     a broken-image placeholder. */
+  background-image:linear-gradient(110deg, var(--surface-hover) 30%, var(--surface) 50%, var(--surface-hover) 70%);
+  background-size:200% 100%;
+  animation:rr-mc-img-shimmer 1.4s ease-in-out infinite;
+}
+.rr-mc-bubble img[data-rr-mc-attach][data-rr-loaded="1"],
+.rr-cc-bubble img[data-rr-mc-attach][data-rr-loaded="1"]{
+  animation:none;
+  background-image:none;
+}
+@keyframes rr-mc-img-shimmer{
+  0%   { background-position: 200% 0; }
+  100% { background-position: -100% 0; }
 }
 .rr-mc-bubble, .rr-cc-bubble{
   max-width:78%;
