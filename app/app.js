@@ -1128,6 +1128,7 @@ async function refreshChat(scrollToBottom) {
     return;
   }
   const messages = data?.messages || [];
+  const peerReadAt = data?.peer_last_read_at ? new Date(data.peer_last_read_at).getTime() : 0;
   wrap.dataset.rrMsgCount = String(messages.length);
 
   // Strip optimistic stubs whose body now appears in the canonical set.
@@ -1150,6 +1151,15 @@ async function refreshChat(scrollToBottom) {
       </div>
       <button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest"></button>`;
   } else {
+    // Index of the last driver-sent message read by dispatch.
+    let lastReadMineIdx = -1;
+    if (peerReadAt > 0) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.sender_kind !== "driver") continue;
+        if (new Date(m.created_at).getTime() <= peerReadAt) { lastReadMineIdx = i; break; }
+      }
+    }
     let html = "";
     let lastSender = null;
     let lastTimeMs = 0;
@@ -1186,6 +1196,9 @@ async function refreshChat(scrollToBottom) {
       lastSender = m.sender_kind;
       lastTimeMs = t.getTime();
       html += chatBubbleHtml(m, pos);
+      if (i === lastReadMineIdx) {
+        html += `<div class="chat-read-receipt">Read</div>`;
+      }
     });
     // Carry forward in-flight / failed optimistic bubbles.
     const liveStubs = Array.from(wrap.querySelectorAll(".chat-bubble.pending, .chat-bubble.failed"))

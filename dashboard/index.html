@@ -2981,6 +2981,17 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   40%        { transform:translateY(-3px); opacity:1 }
 }
 .rr-mc-typing-label{ font-variant:small-caps;letter-spacing:.04em }
+/* Read receipt — slim "Read" pill aligned right under the last
+   dispatcher-sent message that the driver has acknowledged.  Sits on
+   its own line, never inside a bubble. */
+.rr-mc-read-receipt{
+  align-self:flex-end;
+  margin:-2px 4px 4px 0;
+  font-size:10px;font-weight:600;letter-spacing:.05em;
+  color:var(--text-subtle);
+  font-variant:small-caps;
+  opacity:.85;
+}
 
 .msg-item-unread{
   background:var(--accent);color:#fff;border-radius:10px;font-size:9px;font-weight:700;
