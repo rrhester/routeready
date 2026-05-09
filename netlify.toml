@@ -47,3 +47,33 @@
   from = "/download"
   to   = "/download.html"
   status = 200
+
+# ─────────────────────────────────────────────────────────────────────
+# Cache headers
+# ─────────────────────────────────────────────────────────────────────
+# dashboard/index.html (and its sibling pages) inline every stylesheet
+# block in the dispatch dashboard — ~17k lines of CSS live inside the
+# HTML itself.  Without explicit cache-control, Netlify's default
+# behavior caches the HTML at the edge AND in the operator's browser,
+# so a CSS-only fix can fail to reach operators for hours/days while
+# they continue to load a stale HTML.  That is the root cause of the
+# "composer still overlaps the thread even though main was fixed"
+# report on 2026-05-09 (PRs #599 / #600 had shipped the CSS fix; the
+# operator was still loading pre-#599 HTML+CSS).
+#
+# We treat HTML as never-cache and rely on URL-versioned JS (?v=…)
+# for cache-busting on the heavy assets.
+
+[[headers]]
+  for = "/dashboard/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma        = "no-cache"
+    Expires       = "0"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma        = "no-cache"
+    Expires       = "0"

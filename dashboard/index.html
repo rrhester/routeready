@@ -3,6 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<!-- Disable HTML caching at the browser level.  This file inlines all
+     dashboard CSS, so a stale HTML cache means stale CSS — which is
+     exactly how the PR #599 / #600 composer fix never reached some
+     operators.  We pair this with edge cache headers in netlify.toml
+     ([[headers]] for /dashboard/*.html) so the CDN also serves
+     no-cache for the HTML.  Static JS still gets versioned via ?v=…
+     so its caching is opt-in, not opt-out. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>RouteReady — Dispatcher Dashboard</title>
 <link rel="icon" type="image/png" href="../app/Icon.png">
 <link rel="apple-touch-icon" href="../app/Icon.png">
@@ -2891,7 +2901,15 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   position:relative;
   min-height:0;
   overflow-y:auto;
-  padding:var(--s-4) var(--s-5);
+  /* Vertical padding is `var(--s-4)` top, `var(--s-6)` bottom — the
+     extra bottom space (~24px) is belt-and-suspenders so even if the
+     composer's grid row were to render somehow taller than expected
+     (browser quirk, extension-injected style), the last bubble has
+     visible breathing room above it.  In the happy path the grid
+     keeps thread and composer in adjacent rows so they cannot
+     overlap; this padding just keeps the operator's most-recent
+     bubble from kissing the composer's top border on render. */
+  padding:var(--s-4) var(--s-5) var(--s-6);
   display:flex;flex-direction:column;gap:2px;
   background:var(--canvas);
   /* The thread itself is left at default `overflow-anchor:auto` — the
@@ -3266,6 +3284,28 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background-image:linear-gradient(180deg, var(--canvas) 0%, var(--surface-pressed) 100%);
   border-top:1px solid var(--border);
   min-width:0;
+  /* ── DEFENSIVE OVERRIDES (PR #601) ──────────────────────────────
+     The composer has been refactored from `position:fixed` (PRs
+     #582–#598, with JS-driven --rr-mc-left/--rr-mc-width/
+     --rr-mc-bottom variables) to a real grid child of `.rr-mc-shell`
+     (PRs #599 / #600).  Some operators were still seeing the
+     composer floating ON TOP of the thread, clipping the most-recent
+     bubble — almost certainly because their browser/Netlify edge
+     was serving a cached copy of the old HTML (`index.html` had no
+     versioned URL until PR #601, only `live.js` did) so the CSS
+     they were running still set `position:fixed`.  These !important
+     declarations make the live CSS authoritative regardless of
+     whatever stale rule a cached stylesheet may also be applying.
+     They are no-ops when the live CSS is the only thing in play. */
+  position:relative !important;
+  inset:auto !important;
+  top:auto !important;
+  right:auto !important;
+  bottom:auto !important;
+  left:auto !important;
+  width:auto !important;
+  height:auto !important;
+  z-index:auto !important;
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:44px;max-height:160px;
@@ -17078,7 +17118,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260508b"></script>
+<script type="module" src="./live.js?v=20260509a-composer-fix"></script>
 
 </body>
 </html>

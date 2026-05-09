@@ -8677,24 +8677,44 @@ async function refreshDriverChatThread(scrollToBottom) {
       //      grid's middle track grows to fill, and CSS scroll-anchoring
       //      on the bottom sentinel keeps the latest content pinned
       //      across that reflow without a JS re-pin.
-      //   3. scrollTop = scrollHeight + rAF re-pin as belt-and-suspenders
-      //      for the cold path where scroll-anchoring hasn't engaged
-      //      yet (fresh open, thread height < viewport).
+      //   3. Bring the just-inserted stub into view via the bottom
+      //      sentinel.  We use scrollTop + scrollIntoView together so
+      //      ANY one mechanism succeeding is sufficient.
       threadEl.dataset.rrAnchor = "1";
       const savedBody = body;
       ta.value = ""; ta.style.height = "auto";
-      // Direct scrollTop write (not scrollIntoView, which would walk
-      // up ancestor scroll containers and possibly scroll the page).
-      // The thread's bottom edge now coincides with the composer's
-      // top edge (grid layout, no padding-bottom), so scrollHeight
+      // Direct scrollTop write — the cheap path.  The thread's bottom
+      // edge sits just above the composer (grid layout), so scrollHeight
       // lands the just-inserted stub flush above the composer.
       threadEl.scrollTop = threadEl.scrollHeight;
+      // PR #601 belt-and-suspenders: also call scrollIntoView on the
+      // bottom sentinel.  scrollTop = scrollHeight CAN miss in the
+      // narrow window where the stub is in DOM but layout hasn't yet
+      // measured its height (browser pipelines insertAdjacentHTML +
+      // layout in different ticks under certain extension scenarios).
+      // scrollIntoView reads layout for us and is guaranteed to land
+      // the sentinel inside the scroll container.  We pass `block:"end"`
+      // so the sentinel snaps to the bottom edge of the viewport, and
+      // `behavior:"instant"` so the operator never sees animation.
+      // Using the sentinel (not the stub) avoids a transient overshoot
+      // when the stub's bubble-in transform is still active (translateY
+      // would temporarily put part of the bubble below its final spot).
+      const sentinel = document.getElementById("rr-mc-bottom-sentinel");
+      if (sentinel && typeof sentinel.scrollIntoView === "function") {
+        try { sentinel.scrollIntoView({ block: "end", behavior: "instant" }); }
+        catch { sentinel.scrollIntoView(false); }
+      }
       // rAF re-pin: catches late layout (bubble fade-in transform,
       // attachment thumbnail painting) and re-asserts bottom-pin while
       // the anchor flag is on.
       requestAnimationFrame(() => {
         if (threadEl.dataset.rrAnchor === "1") {
           threadEl.scrollTop = threadEl.scrollHeight;
+          const s = document.getElementById("rr-mc-bottom-sentinel");
+          if (s && typeof s.scrollIntoView === "function") {
+            try { s.scrollIntoView({ block: "end", behavior: "instant" }); }
+            catch { s.scrollIntoView(false); }
+          }
         }
       });
       if (file) {
