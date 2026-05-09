@@ -8739,10 +8739,32 @@ async function refreshDriverChatThread(scrollToBottom) {
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
-      const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
-      html += `<div class="rr-mc-bubble ${m.sender_kind}" data-group-pos="${pos}">
+      const isDeleted = !!m.deleted_at;
+      const isMine    = m.sender_kind === "dispatch";
+      const editedTag = m.edited_at && !isDeleted
+        ? `<span class="rr-mc-edited" title="Edited ${new Date(m.edited_at).toLocaleString()}">edited</span>`
+        : "";
+      let bodyHtml = "";
+      if (isDeleted) {
+        bodyHtml = `<div class="rr-mc-deleted-body">Message deleted</div>`;
+      } else if (m.body) {
+        bodyHtml = `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>`;
+      }
+      // Hover actions — only on the dispatcher's own non-deleted
+      // bubbles within the 15-minute edit window.  Visual affordance
+      // only; the RPCs re-check the window server-side.
+      const within = (Date.now() - t.getTime()) < 15 * 60 * 1000;
+      const actions = (isMine && !isDeleted && within)
+        ? `<div class="rr-mc-bubble-actions">
+            <button type="button" data-rr-mc-edit="${escapeHtml(m.id)}" aria-label="Edit message" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button type="button" data-rr-mc-delete="${escapeHtml(m.id)}" aria-label="Delete message" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+          </div>`
+        : "";
+      const deletedClass = isDeleted ? " is-deleted" : "";
+      html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
+        ${actions}
         ${attach}${bodyHtml}
-        <div class="rr-mc-time">${escapeHtml(time)}</div>
+        <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
       </div>`;
       // Drop the read-receipt pill immediately after the last
       // dispatcher-sent message that's been read.  Single placement
@@ -8798,6 +8820,69 @@ async function refreshDriverChatThread(scrollToBottom) {
   // between the open and the data resolve.
   _presencePaintThreadHead(driverId);
 }
+
+// ─── Edit / delete on dispatcher's own bubbles ───────────────────────────
+//
+// Hover actions on .rr-mc-bubble.dispatch trigger inline edit (a
+// floating textarea atop the bubble) or soft-delete (with confirm).
+// Both call the 15-minute-windowed RPCs from migration 0123.
+
+document.addEventListener("click", async (e) => {
+  const editBtn = e.target.closest("[data-rr-mc-edit]");
+  if (editBtn) {
+    e.preventDefault(); e.stopPropagation();
+    const id = editBtn.getAttribute("data-rr-mc-edit");
+    const bubble = editBtn.closest(".rr-mc-bubble");
+    if (!bubble) return;
+    // Pull current body text (excluding time + actions).
+    const bodyEl = Array.from(bubble.children).find(
+      (c) => c.tagName === "DIV" && !c.classList.contains("rr-mc-time") && !c.classList.contains("rr-mc-bubble-actions")
+    );
+    const current = bodyEl ? bodyEl.textContent.trim() : "";
+    // Open a tiny inline editor — positioned over the bubble itself.
+    const root = document.createElement("div");
+    root.className = "rr-mc-edit-overlay";
+    root.innerHTML = `
+      <div class="rr-mc-edit-card">
+        <div class="rr-mc-edit-title">Edit message</div>
+        <textarea class="rr-mc-edit-ta" maxlength="2000">${escapeHtml(current)}</textarea>
+        <div class="rr-mc-edit-actions">
+          <button type="button" class="btn btn-sm" data-rr-mc-edit-cancel>Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" data-rr-mc-edit-save>Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+    const ta = root.querySelector(".rr-mc-edit-ta");
+    ta.focus(); ta.select();
+    const close = () => root.remove();
+    root.addEventListener("click", (ev) => {
+      if (ev.target === root || ev.target.closest("[data-rr-mc-edit-cancel]")) close();
+    });
+    root.querySelector("[data-rr-mc-edit-save]").addEventListener("click", async () => {
+      const next = ta.value.trim();
+      if (!next || next === current) { close(); return; }
+      const { error } = await sb.rpc("dispatch_chat_edit", { p_message_id: id, p_body: next });
+      if (error) { toast("Edit failed: " + error.message, "warn"); return; }
+      close();
+      refreshDriverChatThread(false);
+    });
+    ta.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") close();
+      if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); root.querySelector("[data-rr-mc-edit-save]").click(); }
+    });
+    return;
+  }
+
+  const delBtn = e.target.closest("[data-rr-mc-delete]");
+  if (delBtn) {
+    e.preventDefault(); e.stopPropagation();
+    const id = delBtn.getAttribute("data-rr-mc-delete");
+    if (!confirm("Delete this message? The driver's copy will show 'Message deleted'.")) return;
+    const { error } = await sb.rpc("dispatch_chat_delete", { p_message_id: id });
+    if (error) { toast("Delete failed: " + error.message, "warn"); return; }
+    refreshDriverChatThread(false);
+  }
+});
 
 async function _rrMcSignAttachments() {
   const els = document.querySelectorAll("[data-rr-mc-attach]:not([data-rr-mc-resolved])");
