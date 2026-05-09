@@ -8378,8 +8378,37 @@ function _fitMsgShell() {
   // The 520px min-height was forcing a too-tall shell on small
   // viewports.  Drop it once we're driving height ourselves.
   el.style.minHeight = "0";
+  // Also sync the position:fixed composer's coords to the conv pane.
+  _syncComposerPos();
 }
-window.addEventListener("resize", _fitMsgShell);
+// Position:fixed composer needs its left/width synced to the
+// conversation pane (which is the second grid column inside
+// .msg-shell), and its bottom anchored to the bottom of the visible
+// shell area.  This guarantees the composer is always on-screen
+// regardless of viewport / content height / browser chrome.
+function _syncComposerPos() {
+  const conv = document.getElementById("rr-msg-conv");
+  if (!conv) return;
+  const shell = document.querySelector(".msg-shell");
+  if (!shell) return;
+  const cr = conv.getBoundingClientRect();
+  const sr = shell.getBoundingClientRect();
+  const root = document.documentElement;
+  // Composer width = conv width minus the conv's left border (1px) so
+  // it sits perfectly inside the rounded shell.
+  root.style.setProperty("--rr-mc-left",  cr.left + "px");
+  root.style.setProperty("--rr-mc-width", cr.width + "px");
+  // Anchor the composer to the bottom of the SHELL or the viewport,
+  // whichever is higher up the page.  If the shell extends below
+  // the viewport (off-screen), we pin the composer to the viewport's
+  // bottom instead so it's always reachable.
+  const shellBottomFromTop = sr.top + sr.height;
+  const visibleBottom = Math.min(shellBottomFromTop, window.innerHeight);
+  const bottomOffset = Math.max(0, window.innerHeight - visibleBottom);
+  root.style.setProperty("--rr-mc-bottom", bottomOffset + "px");
+}
+window.addEventListener("resize", () => { _fitMsgShell(); _syncComposerPos(); });
+window.addEventListener("scroll", _syncComposerPos, true);
 // Run whenever the Messages view becomes active (the goto wrapper
 // adds 'active' to the corresponding .view).  MutationObserver
 // avoids touching every goto site.
@@ -8846,6 +8875,11 @@ async function refreshDriverChatThread(scrollToBottom) {
   // Smart-scroll: pin to bottom if the operator was already near it,
   // or if the caller forced it (e.g. opening a new thread).  Otherwise
   // surface the jump pill if the message count grew under their feet.
+  // Sync the position:fixed composer's coords to whatever the conv
+  // pane is currently doing (covers viewport/zoom/devtools changes
+  // since open + image-load reflow).
+  if (typeof _syncComposerPos === "function") _syncComposerPos();
+
   if (scrollToBottom || wasNearBottom) {
     thread.scrollTop = thread.scrollHeight;
     if (jump) jump.classList.remove("show");
