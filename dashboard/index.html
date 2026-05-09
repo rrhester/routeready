@@ -3046,10 +3046,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   border-top:1px solid var(--border);
   min-width:0;
 }
-/* Thread needs padding-bottom that matches composer height so the
-   last messages don't hide underneath it. */
+/* Thread's bottom padding is set dynamically by JS (_syncComposerPos)
+   to match the composer's actual height + a 16px buffer.  Static
+   value here is just a safe initial fallback before JS runs. */
 .rr-mc-thread, .rr-cc-thread{
-  padding-bottom:80px !important;
+  padding-bottom:var(--rr-mc-thread-pad, 96px) !important;
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:40px;max-height:140px;
