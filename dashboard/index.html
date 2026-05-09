@@ -432,9 +432,12 @@ a{color:inherit;text-decoration:none}
   display:inline-flex;align-items:center;justify-content:center;
   background:var(--pi-bg, rgba(15,108,189,.10));
   color:var(--pi-fg, var(--accent));
+  /* Outer color glow + crisp inset ring — chip lifts off the surface
+     and reads as the dominant brand element on the page. */
   box-shadow:0 1px 2px rgba(15,23,42,.05),
+             0 8px 24px -8px var(--pi-fg, rgba(15,108,189,.5)),
              inset 0 0 0 1px var(--pi-ring, rgba(15,108,189,.18));
-  transition:transform .15s ease;
+  transition:transform .15s ease, box-shadow .15s ease;
 }
 .page-icon svg{width:24px;height:24px;stroke-width:2}
 .page-header:hover .page-icon{transform:translateY(-1px)}
@@ -565,23 +568,25 @@ a{color:inherit;text-decoration:none}
 .btn svg{width:14px;height:14px;stroke-width:2}
 
 .btn-primary{
-  background:var(--accent-grad);
-  color:#fff;border-color:var(--accent-hover);
-  box-shadow:0 1px 2px rgba(20,110,180,.20),
-             0 4px 12px -4px rgba(20,110,180,.30),
-             inset 0 1px 0 rgba(255,255,255,.18);
-  text-shadow:0 1px 0 rgba(0,0,0,.06);
+  /* Brand gradient + indigo-tinted glow — matches the landing's hero CTA. */
+  background:var(--brand-grad);
+  color:#fff;border-color:transparent;
+  box-shadow:0 1px 2px rgba(15,108,189,.25),
+             0 6px 16px -4px rgba(79,70,229,.35),
+             inset 0 1px 0 rgba(255,255,255,.22);
+  text-shadow:0 1px 0 rgba(0,0,0,.08);
 }
 .btn-primary:hover{
-  background:var(--accent-grad-hover);border-color:var(--accent-hover);
-  box-shadow:0 1px 2px rgba(20,110,180,.22),
-             0 6px 16px -4px rgba(20,110,180,.36),
-             inset 0 1px 0 rgba(255,255,255,.22);
+  background:var(--brand-grad);
+  box-shadow:0 1px 2px rgba(15,108,189,.30),
+             0 10px 24px -4px rgba(79,70,229,.45),
+             inset 0 1px 0 rgba(255,255,255,.28);
+  transform:translateY(-1px);
 }
 .btn-primary:active{
-  background:var(--accent-grad-pressed);
+  background:var(--brand-grad);
   box-shadow:inset 0 1px 2px rgba(0,0,0,.18);
-  transform:translateY(.5px);
+  transform:translateY(0);
 }
 
 .btn-danger{
@@ -632,12 +637,29 @@ a{color:inherit;text-decoration:none}
    ───────────────────────────────────────────────────────────── */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4);margin-bottom:var(--s-6)}
 .kpi-card{
+  position:relative;overflow:hidden;
   background:var(--surface);
   background-image:var(--surface-grad);
   border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-5);
   box-shadow:var(--shadow-sm), var(--highlight-top);
-  transition:box-shadow var(--t-smooth), transform var(--t-smooth);
+  transition:box-shadow var(--t-smooth), transform var(--t-smooth), border-color var(--t-smooth);
+}
+/* 3px brand-grad accent ribbon along the top — picks up the landing's
+   gradient identity inside the working surface without competing with
+   numbers below. */
+.kpi-card::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--brand-grad);
+  border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg);
+  opacity:.85;pointer-events:none;
+}
+.kpi-card:hover{
+  border-color:rgba(15,108,189,.20);
+  box-shadow:0 4px 12px -2px rgba(15,108,189,.10),
+             0 8px 24px -4px rgba(79,70,229,.10),
+             var(--highlight-top);
+  transform:translateY(-1px);
 }
 .kpi-label{
   font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
@@ -1718,10 +1740,18 @@ select.form-input{
 }
 .subnav-item:hover{color:var(--text);background:rgba(255,255,255,.5)}
 .subnav-item.active{
+  position:relative;
   background:var(--surface);
   background-image:var(--surface-grad);
   color:var(--text);font-weight:600;
   box-shadow:var(--shadow-sm), var(--highlight-top-strong);
+}
+/* Gradient underline on the active sub-nav pill — small, vibrant,
+   echoes the landing's brand-grad accent. */
+.subnav-item.active::after{
+  content:"";position:absolute;left:14px;right:14px;bottom:3px;height:2px;
+  background:var(--brand-grad);border-radius:2px;
+  box-shadow:0 1px 6px rgba(79,70,229,.35);
 }
 
 .dr-subview{display:none}
