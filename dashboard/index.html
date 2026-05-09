@@ -2750,48 +2750,186 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 /* Chat thread system shared by Direct (rr-mc) + Channel (rr-cc) panes.
    Lifted out of two duplicate inline <style> blocks in live.js so both
    surfaces speak the same bubble grammar.  Bubble shape (18px main /
-   5px tail radius) matches the driver app for cross-surface cohesion. */
+   5px tail radius) matches the driver app for cross-surface cohesion.
+   Bubble grouping: consecutive messages from the same sender within
+   ~5 minutes share rounded chrome — first/last of group get the full
+   tail radius, middle bubbles get the tighter same-side radius so a
+   run reads as one block instead of three balloons. */
 .rr-mc-shell, .rr-cc-shell{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
 .rr-mc-head,  .rr-cc-head{padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:var(--s-3);flex-shrink:0;background:var(--surface)}
 .rr-mc-name,  .rr-cc-name{font-size:var(--fs-base);font-weight:600;display:flex;align-items:center;gap:6px}
 .rr-mc-sub,   .rr-cc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
 .rr-cc-head-actions{margin-left:auto;display:flex;gap:6px}
-.rr-mc-thread, .rr-cc-thread{flex:1 1 0;min-height:0;overflow-y:auto;padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:6px;background:var(--canvas)}
+.rr-mc-thread, .rr-cc-thread{
+  position:relative;
+  flex:1 1 0;min-height:0;overflow-y:auto;
+  padding:var(--s-4) var(--s-5);
+  display:flex;flex-direction:column;gap:2px;
+  background:var(--canvas);
+  scroll-behavior:smooth;
+}
 .rr-mc-bubble, .rr-cc-bubble{
-  max-width:78%;padding:9px 13px;border-radius:18px;
-  font-size:var(--fs-base);line-height:1.4;word-wrap:break-word;
+  max-width:78%;
+  padding:8px 13px;
+  border-radius:18px;
+  font-size:var(--fs-base);line-height:1.42;
+  word-wrap:break-word;
+  position:relative;
+  /* Prevents grouped bubble runs from getting a spacing pop on the
+     entry animation when the thread first paints. */
+  animation:rr-bubble-in 220ms cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes rr-bubble-in{
+  0%   { opacity:0; transform:translateY(4px); }
+  100% { opacity:1; transform:translateY(0); }
 }
 .rr-mc-bubble.driver, .rr-cc-bubble.driver{
-  align-self:flex-start;background:var(--surface);color:var(--text);
-  border:1px solid var(--border);border-bottom-left-radius:5px;
+  align-self:flex-start;
+  background:var(--surface);color:var(--text);
+  border:1px solid var(--border);
+  border-bottom-left-radius:5px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
 }
 .rr-mc-bubble.dispatch, .rr-cc-bubble.dispatch{
-  align-self:flex-end;background:var(--accent);color:#fff;
+  align-self:flex-end;
+  /* Subtle gradient + indigo glow lifts the operator's voice off the
+     thread without going neon. Keeps the brand language consistent
+     with the rest of the dashboard primary actions. */
+  background:var(--brand-grad);
+  color:#fff;
   border-bottom-right-radius:5px;
+  box-shadow:0 1px 2px rgba(15,108,189,.18),
+             0 4px 10px -4px rgba(79,70,229,.20);
 }
+/* Group spacing — 6px between sender groups, 2px between bubbles in
+   the same group. Driven by data-group-pos which the renderer sets. */
+.rr-mc-bubble[data-group-pos="single"], .rr-cc-bubble[data-group-pos="single"]   { margin-top:6px }
+.rr-mc-bubble[data-group-pos="first"],  .rr-cc-bubble[data-group-pos="first"]    { margin-top:6px }
+.rr-mc-bubble[data-group-pos="middle"], .rr-cc-bubble[data-group-pos="middle"]   { margin-top:0 }
+.rr-mc-bubble[data-group-pos="last"],   .rr-cc-bubble[data-group-pos="last"]     { margin-top:0; margin-bottom:2px }
+/* Driver-side (left) — tail only on the bottom-left corner of the
+   last bubble of a group. Middle / first share the upper-left tighter
+   corner so the chain reads as one column. */
+.rr-mc-bubble.driver[data-group-pos="first"],
+.rr-cc-bubble.driver[data-group-pos="first"]{ border-bottom-left-radius:18px }
+.rr-mc-bubble.driver[data-group-pos="middle"],
+.rr-cc-bubble.driver[data-group-pos="middle"]{
+  border-top-left-radius:5px; border-bottom-left-radius:18px;
+}
+.rr-mc-bubble.driver[data-group-pos="last"],
+.rr-cc-bubble.driver[data-group-pos="last"]{ border-top-left-radius:5px }
+/* Dispatch-side (right) — same logic mirrored. */
+.rr-mc-bubble.dispatch[data-group-pos="first"],
+.rr-cc-bubble.dispatch[data-group-pos="first"]{ border-bottom-right-radius:18px }
+.rr-mc-bubble.dispatch[data-group-pos="middle"],
+.rr-cc-bubble.dispatch[data-group-pos="middle"]{
+  border-top-right-radius:5px; border-bottom-right-radius:18px;
+}
+.rr-mc-bubble.dispatch[data-group-pos="last"],
+.rr-cc-bubble.dispatch[data-group-pos="last"]{ border-top-right-radius:5px }
 .rr-cc-sender{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);margin-bottom:3px}
 .rr-cc-bubble.dispatch .rr-cc-sender{color:rgba(255,255,255,.85)}
-.rr-mc-time, .rr-cc-time{font-size:var(--fs-xs);margin-top:3px;opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
+/* Inline timestamp — only shown on last-of-group bubbles so a run of
+   three quick messages shows one time, not three. */
+.rr-mc-time, .rr-cc-time{
+  font-size:10px;letter-spacing:.01em;
+  margin-top:3px;opacity:.65;text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.rr-mc-bubble[data-group-pos="first"] .rr-mc-time,
+.rr-mc-bubble[data-group-pos="middle"] .rr-mc-time,
+.rr-cc-bubble[data-group-pos="first"] .rr-cc-time,
+.rr-cc-bubble[data-group-pos="middle"] .rr-cc-time{ display:none }
+/* Pending / failed states for optimistic sends — caller adds these
+   classes on a stub bubble before the RPC resolves. */
+.rr-mc-bubble.pending, .rr-cc-bubble.pending{ opacity:.65 }
+.rr-mc-bubble.failed, .rr-cc-bubble.failed{
+  background:linear-gradient(180deg, rgba(225,29,72,.08) 0%, rgba(225,29,72,.14) 100%);
+  border:1px solid rgba(225,29,72,.30);color:var(--red);
+}
+/* Date divider — slim chip centered between message blocks, with a
+   hairline rule on either side for context.  Same pattern in both
+   surfaces. */
+.rr-msg-day{
+  display:flex;align-items:center;gap:10px;
+  margin:14px 0 8px;
+  font-size:11px;font-weight:600;color:var(--text-subtle);
+  text-transform:uppercase;letter-spacing:.06em;
+}
+.rr-msg-day::before, .rr-msg-day::after{
+  content:"";flex:1;height:1px;background:var(--border);
+}
+/* Empty / loading / error block. */
 .rr-mc-empty, .rr-cc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px}
+/* Skeleton bubbles — shown on first paint while the RPC is in flight.
+   Three rows alternating sides give a sense of conversation density
+   without the spinner-of-doom feel. */
+.rr-msg-skeleton{display:flex;flex-direction:column;gap:6px;padding:var(--s-4) 0}
+.rr-msg-skeleton-row{display:flex}
+.rr-msg-skeleton-row.right{justify-content:flex-end}
+.rr-msg-skeleton-bubble{
+  height:34px;border-radius:18px;
+  background:linear-gradient(90deg, var(--surface-hover) 0%, var(--surface-pressed) 50%, var(--surface-hover) 100%);
+  background-size:200% 100%;
+  animation:rr-shimmer 1.2s ease-in-out infinite;
+}
+.rr-msg-skeleton-row.right .rr-msg-skeleton-bubble{
+  border-bottom-right-radius:5px;
+  background:linear-gradient(90deg, rgba(15,108,189,.10), rgba(79,70,229,.14), rgba(15,108,189,.10));
+  background-size:200% 100%;
+}
+.rr-msg-skeleton-row:not(.right) .rr-msg-skeleton-bubble{ border-bottom-left-radius:5px }
+@keyframes rr-shimmer{ 0%{background-position:0% 50%} 100%{background-position:-200% 50%} }
+/* Jump-to-latest pill — surfaces when a poll lands new messages but
+   the operator is scrolled up. Tapping it scrolls smoothly to the
+   bottom and clears itself. */
+.rr-msg-jump{
+  position:absolute;left:50%;bottom:14px;transform:translateX(-50%) translateY(8px);
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 12px;font-size:var(--fs-sm);font-weight:600;color:#fff;
+  background:var(--brand-grad);
+  border:0;border-radius:999px;cursor:pointer;
+  box-shadow:0 8px 20px -6px rgba(79,70,229,.40), 0 2px 6px rgba(15,23,42,.10);
+  opacity:0;pointer-events:none;
+  transition:opacity 160ms cubic-bezier(.2,.7,.2,1), transform 200ms cubic-bezier(.2,.7,.2,1);
+  z-index:5;
+}
+.rr-msg-jump.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.rr-msg-jump svg{width:12px;height:12px}
 .rr-mc-composer, .rr-cc-composer{display:flex;gap:8px;align-items:flex-end;padding:var(--s-3) var(--s-5);background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:40px;max-height:140px;
-  padding:9px 12px;font-size:var(--fs-base);line-height:1.4;
+  padding:10px 14px;font-size:var(--fs-base);line-height:1.42;
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
   resize:none;font-family:inherit;color:var(--text);
-  transition:border-color .12s, box-shadow .12s;
+  transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+.rr-mc-composer textarea::placeholder, .rr-cc-composer textarea::placeholder{
+  color:var(--text-subtle);
+}
+.rr-mc-composer textarea:hover, .rr-cc-composer textarea:hover{
+  background:var(--surface);
 }
 .rr-mc-composer textarea:focus, .rr-cc-composer textarea:focus,
 .rr-mc-composer textarea:focus-visible, .rr-cc-composer textarea:focus-visible{
-  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+  outline:none;background:var(--surface);
+  border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
 }
 .rr-mc-send, .rr-cc-send{
-  background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);
+  background:var(--brand-grad);color:#fff;border:0;border-radius:var(--r-md);
   padding:0 16px;font-weight:600;font-size:var(--fs-md);cursor:pointer;
-  min-height:40px;transition:background .12s;
+  min-height:40px;
+  box-shadow:0 1px 2px rgba(15,108,189,.20), 0 4px 10px -4px rgba(79,70,229,.30);
+  transition:transform 100ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
-.rr-mc-send:hover:not(:disabled), .rr-cc-send:hover:not(:disabled){background:var(--accent-hover)}
-.rr-mc-send:disabled, .rr-cc-send:disabled{opacity:.5;cursor:not-allowed}
+.rr-mc-send:hover:not(:disabled), .rr-cc-send:hover:not(:disabled){
+  transform:translateY(-1px);
+  box-shadow:0 1px 2px rgba(15,108,189,.24), 0 8px 16px -4px rgba(79,70,229,.40);
+}
+.rr-mc-send:active:not(:disabled), .rr-cc-send:active:not(:disabled){
+  transform:translateY(0);
+}
+.rr-mc-send:disabled, .rr-cc-send:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 
 .msg-item-unread{
   background:var(--accent);color:#fff;border-radius:10px;font-size:9px;font-weight:700;

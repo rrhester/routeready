@@ -686,11 +686,38 @@ select.field{
   top:0;left:0;right:0;bottom:60px;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:16px;
-  display:flex;flex-direction:column;gap:6px;
+  display:flex;flex-direction:column;gap:2px;
   /* Hide the desktop-style scrollbar — only the list scrolls and even
      that is invisible. */
   scrollbar-width:none;
 }
+/* Date divider chip — slim hairline-flanked label between message
+   blocks when the calendar day changes. Mirrors the dispatcher
+   surface so cross-channel visual language is identical. */
+.chat-day{
+  display:flex;align-items:center;gap:10px;
+  margin:14px 0 8px;
+  font-size:11px;font-weight:600;color:var(--text-subtle);
+  text-transform:uppercase;letter-spacing:.06em;
+}
+.chat-day::before, .chat-day::after{
+  content:"";flex:1;height:1px;background:var(--border);
+}
+/* Jump-to-latest pill — surfaces when a poll lands new messages but
+   the driver is scrolled up. Same animation as the dispatcher pill. */
+.chat-jump{
+  position:absolute;left:50%;bottom:74px;transform:translateX(-50%) translateY(8px);
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 14px;font-size:var(--fs-sm);font-weight:600;color:#fff;
+  background:var(--brand-grad, var(--accent-grad));
+  border:0;border-radius:999px;cursor:pointer;
+  box-shadow:0 8px 20px -6px rgba(79,70,229,.40), 0 2px 6px rgba(15,23,42,.10);
+  opacity:0;pointer-events:none;
+  transition:opacity 160ms cubic-bezier(.2,.7,.2,1), transform 200ms cubic-bezier(.2,.7,.2,1);
+  z-index:5;
+}
+.chat-jump.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.chat-jump svg{width:12px;height:12px}
 .chat-channel-list{
   position:absolute;
   top:0;left:0;right:0;bottom:0;
@@ -717,33 +744,75 @@ select.field{
 .chat-attach:active{transform:scale(.95);background:var(--canvas)}
 .chat-bubble{
   max-width:78%;
-  padding:9px 13px;border-radius:18px;
-  font-size:var(--fs-lg);line-height:1.4;
+  padding:8px 13px;border-radius:18px;
+  font-size:var(--fs-lg);line-height:1.42;
   word-wrap:break-word;
+  animation:chat-bubble-in 220ms cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes chat-bubble-in{
+  0%   { opacity:0; transform:translateY(4px); }
+  100% { opacity:1; transform:translateY(0); }
 }
 .chat-bubble .chat-time{
-  font-size:var(--fs-xs);color:var(--text-subtle);
-  margin-top:3px;text-align:right;font-variant-numeric:tabular-nums;
+  font-size:10px;letter-spacing:.01em;
+  color:var(--text-subtle);
+  margin-top:3px;text-align:right;font-variant-numeric:tabular-nums;opacity:.65;
 }
 .chat-bubble.mine{
   align-self:flex-end;
-  background:var(--accent-grad);color:#fff;
+  background:var(--brand-grad, var(--accent-grad));color:#fff;
   border-bottom-right-radius:5px;
-  box-shadow:0 1px 2px rgba(20,110,180,.18),
-             0 4px 12px -4px rgba(20,110,180,.30),
-             inset 0 1px 0 rgba(255,255,255,.16);
+  box-shadow:0 1px 2px rgba(15,108,189,.20),
+             0 4px 12px -4px rgba(79,70,229,.26),
+             inset 0 1px 0 rgba(255,255,255,.14);
 }
-.chat-bubble.mine .chat-time{color:rgba(255,255,255,.7)}
+.chat-bubble.mine .chat-time{color:rgba(255,255,255,.78)}
 .chat-bubble.theirs{
   align-self:flex-start;
   background:var(--surface);color:var(--text);
   border:1px solid var(--border);border-bottom-left-radius:5px;
   box-shadow:var(--shadow-xs), var(--highlight-top);
 }
-.chat-bubble + .chat-bubble.mine,
-.chat-bubble + .chat-bubble.theirs{margin-top:0}
-.chat-bubble.mine + .chat-bubble.theirs,
-.chat-bubble.theirs + .chat-bubble.mine{margin-top:6px}
+/* Group spacing + corner adjustments — driven by data-group-pos.  A
+   run of three quick messages from the same sender now reads as one
+   visual block instead of three balloons. */
+.chat-bubble[data-group-pos="single"]{ margin-top:6px }
+.chat-bubble[data-group-pos="first"] { margin-top:6px }
+.chat-bubble[data-group-pos="middle"]{ margin-top:0 }
+.chat-bubble[data-group-pos="last"]  { margin-top:0 }
+.chat-bubble.mine[data-group-pos="first"]    { border-bottom-right-radius:18px }
+.chat-bubble.mine[data-group-pos="middle"]   { border-top-right-radius:5px;border-bottom-right-radius:18px }
+.chat-bubble.mine[data-group-pos="last"]     { border-top-right-radius:5px }
+.chat-bubble.theirs[data-group-pos="first"]  { border-bottom-left-radius:18px }
+.chat-bubble.theirs[data-group-pos="middle"] { border-top-left-radius:5px;border-bottom-left-radius:18px }
+.chat-bubble.theirs[data-group-pos="last"]   { border-top-left-radius:5px }
+/* Hide inline timestamp on first/middle of a group — only the last
+   bubble shows time so a run of three reads as one stamp. */
+.chat-bubble[data-group-pos="first"] .chat-time,
+.chat-bubble[data-group-pos="middle"] .chat-time{ display:none }
+/* Pending / failed states for optimistic sends. */
+.chat-bubble.pending{ opacity:.65 }
+.chat-bubble.failed{
+  background:linear-gradient(180deg, rgba(225,29,72,.08) 0%, rgba(225,29,72,.14) 100%);
+  border:1px solid rgba(225,29,72,.30);color:var(--red);
+  box-shadow:none;
+}
+.chat-bubble.failed .chat-time{ color:var(--red); opacity:1 }
+/* Skeleton placeholder rows — shown while the first poll is in flight. */
+.chat-skeleton{display:flex;flex-direction:column;gap:6px}
+.chat-skeleton-row{display:flex}
+.chat-skeleton-row.right{justify-content:flex-end}
+.chat-skeleton-bubble{
+  height:36px;border-radius:18px;
+  background:linear-gradient(90deg, var(--surface-hover, #F4F6FA) 0%, var(--surface-pressed, #ECF0F5) 50%, var(--surface-hover, #F4F6FA) 100%);
+  background-size:200% 100%;
+  animation:chat-shimmer 1.2s ease-in-out infinite;
+}
+.chat-skeleton-row.right .chat-skeleton-bubble{
+  background:linear-gradient(90deg, rgba(15,108,189,.12), rgba(79,70,229,.16), rgba(15,108,189,.12));
+  background-size:200% 100%;
+}
+@keyframes chat-shimmer{ 0%{background-position:0% 50%} 100%{background-position:-200% 50%} }
 .chat-composer{
   display:flex;gap:8px;align-items:flex-end;
   padding:10px 12px;

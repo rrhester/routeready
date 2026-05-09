@@ -827,36 +827,40 @@ async function renderChat() {
     const body = (ta.value || "").trim();
     const file = window._rrChatPending;
     if (!body && !file) return;
+    const sendBtn = e.target.querySelector(".chat-send");
+    if (sendBtn) sendBtn.disabled = true;
 
-    let attachment = null;
-    if (file) {
-      // dsp_id and driver_id need to land on the session for the
-      // server-side path validation to accept the upload.  Existing
-      // logins from before that change don't carry them yet — fetch
-      // driver_me on the fly to backfill, then save the session so
-      // future sends are quick.
-      let dspId    = session.dsp_id;
-      let driverId = session.driver_id;
-      if (!dspId || !driverId) {
-        const { data: me, error: meErr } = await sb.rpc("driver_me", { p_token: session.token });
-        if (meErr || !me) { toast("Couldn't load profile", "warn"); return; }
-        dspId    = me.dsp_id    || dspId;
-        driverId = me.id        || driverId;
-        const cur = readSession();
-        if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
-      }
-      if (!dspId || !driverId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
-
-      const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || `file.${ext}`;
-      // Path layout: <dsp_id>/<driver_id>/<ts>-<safe-filename>
-      const path = `${dspId}/${driverId}/${Date.now()}-${safe}`;
-      const { error: upErr } = await sb.storage
-        .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
-      if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
-      attachment = { path, mime: file.type, name: file.name, size: file.size };
+    // ─── Optimistic stub ────────────────────────────────────────────
+    // Show the message immediately as a pending bubble so the driver
+    // sees it land before the upload + RPC round trip.  If the send
+    // fails we keep the bubble marked .failed so they can retry
+    // without losing the text.
+    const wrap = document.getElementById("chat-msgs");
+    const stubId = "stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
+    const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const stubBody = body
+      ? `<div class="chat-body">${escapeHtml(body).replace(/\n/g, "<br>")}</div>`
+      : "";
+    const stubAttach = file
+      ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>`
+      : "";
+    const stubHtml = `<div class="chat-bubble mine pending" data-rr-stub="${stubId}" data-group-pos="single">
+      ${stubAttach}${stubBody}
+      <div class="chat-time">${escapeHtml(nowTime)} · sending</div>
+    </div>`;
+    if (wrap) {
+      // Drop in just before the jump pill (which is the last child).
+      const jump = wrap.querySelector(".chat-jump");
+      if (jump) jump.insertAdjacentHTML("beforebegin", stubHtml);
+      else wrap.insertAdjacentHTML("beforeend", stubHtml);
+      // Remove the empty-state placeholder if present.
+      const empty = wrap.querySelector(".rr-empty");
+      if (empty) empty.remove();
+      const skel = wrap.querySelector(".chat-skeleton");
+      if (skel) skel.remove();
+      wrap.scrollTop = wrap.scrollHeight;
     }
-
+    const savedBody = body;
     ta.value = "";
     ta.style.height = "auto";
     if (file) {
@@ -865,17 +869,80 @@ async function renderChat() {
       previewEl.style.display = "none";
       previewEl.innerHTML = "";
     }
+    const markStubFailed = (reason) => {
+      const stub = wrap?.querySelector(`[data-rr-stub="${stubId}"]`);
+      if (!stub) return;
+      stub.classList.remove("pending");
+      stub.classList.add("failed");
+      const timeEl = stub.querySelector(".chat-time");
+      if (timeEl) timeEl.textContent = reason || "send failed · tap to retry";
+      stub.style.cursor = "pointer";
+      stub.addEventListener("click", () => {
+        ta.value = savedBody;
+        ta.dispatchEvent(new Event("input"));
+        ta.focus();
+        stub.remove();
+      }, { once: true });
+    };
+
+    let attachment = null;
+    if (file) {
+      let dspId    = session.dsp_id;
+      let driverId = session.driver_id;
+      if (!dspId || !driverId) {
+        const { data: me, error: meErr } = await sb.rpc("driver_me", { p_token: session.token });
+        if (meErr || !me) {
+          if (sendBtn) sendBtn.disabled = false;
+          markStubFailed("profile load failed · tap to retry");
+          ta.value = savedBody;
+          toast("Couldn't load profile", "warn");
+          return;
+        }
+        dspId    = me.dsp_id    || dspId;
+        driverId = me.id        || driverId;
+        const cur = readSession();
+        if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+      }
+      if (!dspId || !driverId) {
+        if (sendBtn) sendBtn.disabled = false;
+        markStubFailed("profile incomplete · sign out and back in");
+        ta.value = savedBody;
+        return;
+      }
+
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || `file.${ext}`;
+      const path = `${dspId}/${driverId}/${Date.now()}-${safe}`;
+      const { error: upErr } = await sb.storage
+        .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) {
+        if (sendBtn) sendBtn.disabled = false;
+        markStubFailed("upload failed · tap to retry");
+        ta.value = savedBody;
+        toast("Upload failed: " + upErr.message, "warn");
+        return;
+      }
+      attachment = { path, mime: file.type, name: file.name, size: file.size };
+    }
 
     const { error } = await sb.rpc("driver_chat_send", {
       p_token:                 session.token,
-      p_body:                  body || null,
+      p_body:                  savedBody || null,
       p_attachment_path:       attachment?.path || null,
       p_attachment_mime:       attachment?.mime || null,
       p_attachment_name:       attachment?.name || null,
       p_attachment_size_bytes: attachment?.size || null,
     });
-    if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
-    await refreshChat(true);
+    if (sendBtn) sendBtn.disabled = false;
+    if (error) {
+      markStubFailed("send failed · tap to retry");
+      ta.value = savedBody;
+      toast("Couldn't send: " + error.message, "warn");
+      return;
+    }
+    // The smart-scroll logic in refreshChat will keep us pinned at
+    // bottom (the optimistic stub already scrolled us there).
+    await refreshChat(false);
   });
 
   // Tab toggle — Dispatch / Channels.
@@ -911,35 +978,122 @@ async function refreshChat(scrollToBottom) {
   const session = readSession();
   if (!session?.token) return;
   const wrap = document.getElementById("chat-msgs");
+  if (!wrap) return;
+
+  // ─── Smart scroll anchor + skeleton ────────────────────────────────
+  // Capture position before re-render so we can re-pin to bottom only
+  // if the driver was already there.  First render shows a skeleton
+  // instead of a bare spinner.
+  const prevScrollTop    = wrap.scrollTop;
+  const prevScrollHeight = wrap.scrollHeight;
+  const prevClientHeight = wrap.clientHeight;
+  const wasNearBottom    = (prevScrollHeight - prevScrollTop - prevClientHeight) < 120;
+  const prevMsgCount     = parseInt(wrap.dataset.rrMsgCount || "-1", 10);
+  const isFirstPaint     = !wrap.querySelector(".chat-bubble") && !wrap.querySelector(".rr-empty");
+  if (isFirstPaint && !wrap.querySelector(".chat-skeleton")) {
+    wrap.innerHTML = `<div class="chat-skeleton">
+      <div class="chat-skeleton-row"><div class="chat-skeleton-bubble" style="width:62%"></div></div>
+      <div class="chat-skeleton-row right"><div class="chat-skeleton-bubble" style="width:48%"></div></div>
+      <div class="chat-skeleton-row"><div class="chat-skeleton-bubble" style="width:38%"></div></div>
+      <div class="chat-skeleton-row right"><div class="chat-skeleton-bubble" style="width:55%"></div></div>
+    </div>`;
+  }
+
   const { data, error } = await sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 200 });
   if (error) {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
     }
-    // Surface the error inline instead of leaving the loader spinning
-    // forever.  This caught the post-migration "function …driver_chat_list…
-    // does not exist" once the schema cache hadn't reloaded yet.
-    if (wrap) {
-      wrap.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load messages.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
-    }
+    wrap.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load messages.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
     return;
   }
-  if (!wrap) return;
   const messages = data?.messages || [];
+  wrap.dataset.rrMsgCount = String(messages.length);
+
+  // Strip optimistic stubs whose body now appears in the canonical set.
+  const stubBodies = new Set(
+    Array.from(wrap.querySelectorAll(".chat-bubble.pending"))
+      .map((el) => (el.textContent || "").trim().slice(0, 200))
+  );
+
   if (messages.length === 0) {
-    wrap.innerHTML = `
+    // Carry forward live stubs so a failed first send isn't wiped.
+    const liveStubs = Array.from(wrap.querySelectorAll(".chat-bubble.pending, .chat-bubble.failed"))
+      .map((el) => el.outerHTML).join("");
+    wrap.innerHTML = `${liveStubs}
       <div class="rr-empty">
         <div class="rr-empty-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </div>
         <div class="rr-empty-title">No messages yet</div>
         <div class="rr-empty-sub">Type below to start a conversation with dispatch.</div>
-      </div>`;
+      </div>
+      <button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest"></button>`;
   } else {
-    wrap.innerHTML = messages.map(chatBubbleHtml).join("");
+    let html = "";
+    let lastSender = null;
+    let lastTimeMs = 0;
+    let lastDateKey = "";
+    const today = new Date(); today.setHours(0,0,0,0);
+    const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+    const dayLabel = (d) => {
+      const cur = new Date(d); cur.setHours(0,0,0,0);
+      if (cur.getTime() === today.getTime()) return "Today";
+      if (cur.getTime() === yest.getTime()) return "Yesterday";
+      const sameYear = cur.getFullYear() === today.getFullYear();
+      return cur.toLocaleDateString(undefined, sameYear
+        ? { weekday: "long", month: "long", day: "numeric" }
+        : { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    };
+    messages.forEach((m, i) => {
+      const t = new Date(m.created_at);
+      const dateKey = t.toDateString();
+      if (dateKey !== lastDateKey) {
+        html += `<div class="chat-day">${escapeHtml(dayLabel(t))}</div>`;
+        lastDateKey = dateKey;
+        lastSender = null;
+      }
+      const sameAsPrev = m.sender_kind === lastSender && (t.getTime() - lastTimeMs) < 5 * 60 * 1000;
+      const next = messages[i + 1];
+      const sameAsNext = next
+        && next.sender_kind === m.sender_kind
+        && new Date(next.created_at).toDateString() === dateKey
+        && (new Date(next.created_at).getTime() - t.getTime()) < 5 * 60 * 1000;
+      let pos = "single";
+      if      (sameAsPrev && sameAsNext) pos = "middle";
+      else if (sameAsPrev)               pos = "last";
+      else if (sameAsNext)               pos = "first";
+      lastSender = m.sender_kind;
+      lastTimeMs = t.getTime();
+      html += chatBubbleHtml(m, pos);
+    });
+    // Carry forward in-flight / failed optimistic bubbles.
+    const liveStubs = Array.from(wrap.querySelectorAll(".chat-bubble.pending, .chat-bubble.failed"))
+      .filter((el) => !stubBodies.has((el.textContent || "").trim().slice(0, 200)))
+      .map((el) => el.outerHTML).join("");
+    wrap.innerHTML = html + liveStubs +
+      `<button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        New messages
+      </button>`;
     _rrSignChatAttachments();
   }
-  if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
+
+  // Wire jump pill (rebound on every render).
+  const jump = document.getElementById("chat-jump");
+  if (jump) {
+    jump.addEventListener("click", () => {
+      wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
+      jump.classList.remove("show");
+    });
+  }
+
+  if (scrollToBottom || wasNearBottom) {
+    wrap.scrollTop = wrap.scrollHeight;
+    if (jump) jump.classList.remove("show");
+  } else if (prevMsgCount >= 0 && messages.length > prevMsgCount) {
+    if (jump) jump.classList.add("show");
+  }
 
   // Drop the badge to 0 — they're looking at the chat.
   setAppBadge(0);
@@ -950,10 +1104,11 @@ async function refreshChat(scrollToBottom) {
   }
 }
 
-function chatBubbleHtml(m) {
+function chatBubbleHtml(m, pos) {
   const mine = m.sender_kind === "driver";
   const t = new Date(m.created_at);
   const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const groupAttr = pos ? ` data-group-pos="${pos}"` : "";
   // Body — escape first, then swap http(s) URLs into <a> tags.  /i
   // catches uppercased schemes; trailing punctuation stripped so a
   // sentence-ending period isn't part of the href.
@@ -989,7 +1144,7 @@ function chatBubbleHtml(m) {
   }
 
   return `
-    <div class="chat-bubble ${mine ? "mine" : "theirs"}">
+    <div class="chat-bubble ${mine ? "mine" : "theirs"}"${groupAttr}>
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
       <div class="chat-time">${escapeHtml(time)}</div>
