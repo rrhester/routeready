@@ -8442,6 +8442,13 @@ async function refreshDriverChatThread(scrollToBottom) {
     return;
   }
   const driverId = _msgInboxSelectedId;
+
+  // First render against an unknown driver — paint the shell + skeleton
+  // bubbles synchronously so the conversation pane never shows a blank
+  // canvas while the RPC is in flight.  Subsequent polls keep the same
+  // shell, so the skeleton only fires on initial open.
+  const isFirstPaint = conv.dataset.rrDriverId !== driverId;
+
   const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
   if (error) {
     conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message)}</div>`;
@@ -8452,7 +8459,7 @@ async function refreshDriverChatThread(scrollToBottom) {
 
   // First render: build the shell. After that, only re-render the thread
   // body and leave the composer / textarea state alone.
-  if (conv.dataset.rrDriverId !== driverId) {
+  if (isFirstPaint) {
     conv.dataset.rrDriverId = driverId;
     conv.innerHTML = `
       <div class="rr-mc-shell">
@@ -8463,7 +8470,18 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">Driver chat</div>
           </div>
         </div>
-        <div class="rr-mc-thread" id="rr-mc-thread"></div>
+        <div class="rr-mc-thread" id="rr-mc-thread">
+          <div class="rr-msg-skeleton">
+            <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:62%"></div></div>
+            <div class="rr-msg-skeleton-row right"><div class="rr-msg-skeleton-bubble" style="width:48%"></div></div>
+            <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:38%"></div></div>
+            <div class="rr-msg-skeleton-row right"><div class="rr-msg-skeleton-bubble" style="width:55%"></div></div>
+          </div>
+          <button type="button" class="rr-msg-jump" id="rr-mc-jump" aria-label="Jump to latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            New messages
+          </button>
+        </div>
         <form class="rr-mc-composer" id="rr-mc-form">
           <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
           <button type="button" id="rr-mc-attach" title="Attach photo or document"
@@ -8525,6 +8543,39 @@ async function refreshDriverChatThread(scrollToBottom) {
       const send = e.target.querySelector(".rr-mc-send");
       send.disabled = true;
 
+      // ─── Optimistic stub ────────────────────────────────────────────
+      // Drop a pending bubble in the thread immediately so the operator
+      // sees their message land before the round trip.  We use a temp
+      // id so the next refresh (post-RPC) can wipe the stub when the
+      // canonical row arrives.  If the send fails, we keep the stub
+      // marked .failed so they can copy the text and retry instead of
+      // losing it.
+      const stubId = "rrmc-stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+      const threadEl = document.getElementById("rr-mc-thread");
+      const stubBody = body ? `<div>${escapeHtml(body).replace(/\n/g, "<br>")}</div>` : "";
+      const stubAttach = file ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>` : "";
+      const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      const stubHtml = `<div class="rr-mc-bubble dispatch pending" data-rr-stub="${stubId}" data-group-pos="single">
+        ${stubAttach}${stubBody}
+        <div class="rr-mc-time">${escapeHtml(nowTime)} · sending</div>
+      </div>`;
+      // Drop the optimistic bubble just before the jump-pill.
+      const jumpPill = document.getElementById("rr-mc-jump");
+      if (jumpPill) jumpPill.insertAdjacentHTML("beforebegin", stubHtml);
+      else threadEl.insertAdjacentHTML("beforeend", stubHtml);
+      // Always scroll for the operator's own send — they want to see it.
+      threadEl.scrollTop = threadEl.scrollHeight;
+      // Clear the composer immediately. A failed send leaves the stub
+      // bubble in place with the .failed class so nothing is lost.
+      const savedBody = body;
+      ta.value = ""; ta.style.height = "auto";
+      if (file) {
+        window._rrMcPending = null;
+        fileInput.value = "";
+        previewEl.style.display = "none";
+        previewEl.innerHTML = "";
+      }
+
       let attachment = null;
       if (file) {
         const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
@@ -8534,6 +8585,13 @@ async function refreshDriverChatThread(scrollToBottom) {
           .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
         if (upErr) {
           send.disabled = false;
+          const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
+          if (stub) {
+            stub.classList.remove("pending");
+            stub.classList.add("failed");
+            stub.querySelector(".rr-mc-time").textContent = "upload failed";
+          }
+          ta.value = savedBody; // restore so they can retry
           toast("Upload failed: " + upErr.message, "warn");
           return;
         }
@@ -8542,54 +8600,163 @@ async function refreshDriverChatThread(scrollToBottom) {
 
       const { error } = await sb.rpc("dispatch_chat_send", {
         p_driver_id:             _msgInboxSelectedId,
-        p_body:                  body || null,
+        p_body:                  savedBody || null,
         p_attachment_path:       attachment?.path || null,
         p_attachment_mime:       attachment?.mime || null,
         p_attachment_name:       attachment?.name || null,
         p_attachment_size_bytes: attachment?.size || null,
       });
       send.disabled = false;
-      if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
-      ta.value = ""; ta.style.height = "auto";
-      if (file) {
-        window._rrMcPending = null;
-        fileInput.value = "";
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
+      if (error) {
+        const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
+        if (stub) {
+          stub.classList.remove("pending");
+          stub.classList.add("failed");
+          stub.querySelector(".rr-mc-time").textContent = "send failed · click to retry";
+          stub.style.cursor = "pointer";
+          stub.addEventListener("click", () => { ta.value = savedBody; ta.focus(); stub.remove(); }, { once:true });
+        }
+        ta.value = savedBody;
+        toast("Couldn't send: " + error.message, "warn");
+        return;
       }
-      await refreshDriverChatThread(true);
+      // Don't force a scroll on the refresh — the operator was already
+      // pinned at bottom (we scrolled them when the stub appeared).
+      // The smart-scroll logic in the renderer will keep them there.
+      await refreshDriverChatThread(false);
       refreshDriverChatList(false);
     });
   }
 
   const thread = document.getElementById("rr-mc-thread");
   if (!thread) return;
+
+  // ─── Smart scroll anchor ────────────────────────────────────────────
+  // Capture whether the operator was pinned within ~120px of the bottom
+  // BEFORE we re-render. If they were, we re-pin after the swap so new
+  // messages don't push them away.  If they weren't (they scrolled up
+  // to read history), we leave their position untouched and surface the
+  // jump-to-latest pill if the message count just grew.
+  const prevScrollTop    = thread.scrollTop;
+  const prevScrollHeight = thread.scrollHeight;
+  const prevClientHeight = thread.clientHeight;
+  const wasNearBottom    = (prevScrollHeight - prevScrollTop - prevClientHeight) < 120;
+  const prevMsgCount     = parseInt(thread.dataset.rrMsgCount || "-1", 10);
+  thread.dataset.rrMsgCount = String(msgs.length);
+
+  // Build the bubble list with sender-grouping + date dividers.
+  // Group rules: same sender_kind + within 5 minutes of the prior msg
+  //              => continuation of the same group.
+  // Date rules : show a divider whenever the calendar day changes from
+  //              the previous bubble (or on the first bubble of the
+  //              thread, but only if that bubble isn't from today —
+  //              "Today" without context above feels odd).
+  const renderEmpty = () => `<div class="rr-mc-empty">No messages yet. Start the thread below.</div>`;
+  const dayLabel = (d) => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+    const cur = new Date(d); cur.setHours(0,0,0,0);
+    if (cur.getTime() === today.getTime()) return "Today";
+    if (cur.getTime() === yest.getTime()) return "Yesterday";
+    const sameYear = cur.getFullYear() === today.getFullYear();
+    return cur.toLocaleDateString(undefined, sameYear
+      ? { weekday: "long", month: "long", day: "numeric" }
+      : { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  };
+
+  // Strip optimistic stubs whose body now appears in the canonical
+  // server-rendered set.  Anything left over is still in flight or
+  // failed; we leave those in place.
+  const stubBodies = new Set(
+    Array.from(thread.querySelectorAll(".rr-mc-bubble.pending"))
+      .map((el) => (el.textContent || "").trim().slice(0, 200))
+  );
+
+  let html = "";
   if (msgs.length === 0) {
-    thread.innerHTML = `<div class="rr-mc-empty">No messages yet. Start the thread below.</div>`;
+    html = renderEmpty();
   } else {
-    thread.innerHTML = msgs.map((m) => {
+    let lastSender = null;
+    let lastTimeMs = 0;
+    let lastDateKey = "";
+    msgs.forEach((m, i) => {
       const t = new Date(m.created_at);
       const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      const dateKey = t.toDateString();
+      if (dateKey !== lastDateKey) {
+        html += `<div class="rr-msg-day">${escapeHtml(dayLabel(t))}</div>`;
+        lastDateKey = dateKey;
+        lastSender = null;
+      }
+
+      const sameAsPrev = m.sender_kind === lastSender && (t.getTime() - lastTimeMs) < 5 * 60 * 1000;
+      const next = msgs[i + 1];
+      const sameAsNext = next
+        && next.sender_kind === m.sender_kind
+        && new Date(next.created_at).toDateString() === dateKey
+        && (new Date(next.created_at).getTime() - t.getTime()) < 5 * 60 * 1000;
+      let pos = "single";
+      if      (sameAsPrev && sameAsNext) pos = "middle";
+      else if (sameAsPrev)               pos = "last";
+      else if (sameAsNext)               pos = "first";
+      lastSender = m.sender_kind;
+      lastTimeMs = t.getTime();
+
       let attach = "";
       if (m.attachment_path) {
         const isImg = (m.attachment_mime || "").startsWith("image/");
         const name  = m.attachment_name || "Attachment";
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
         attach = isImg
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
-      return `<div class="rr-mc-bubble ${m.sender_kind}">
-        ${attach}
-        ${bodyHtml}
+      html += `<div class="rr-mc-bubble ${m.sender_kind}" data-group-pos="${pos}">
+        ${attach}${bodyHtml}
         <div class="rr-mc-time">${escapeHtml(time)}</div>
       </div>`;
-    }).join("");
-    // Sign attachment paths so they render — bucket is private.
-    setTimeout(() => _rrMcSignAttachments(), 0);
+    });
   }
-  if (scrollToBottom) thread.scrollTop = thread.scrollHeight;
+
+  // Preserve the jump pill across the re-render (it lives on the
+  // thread element as a sibling of the bubbles).
+  const jumpPillHtml = `<button type="button" class="rr-msg-jump" id="rr-mc-jump" aria-label="Jump to latest">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      New messages
+    </button>`;
+
+  // Carry forward any still-pending or failed optimistic stubs that
+  // the server hasn't yet echoed back.
+  const liveStubs = Array.from(thread.querySelectorAll(".rr-mc-bubble.pending, .rr-mc-bubble.failed"))
+    .filter((el) => !stubBodies.has((el.textContent || "").trim().slice(0, 200)))
+    .map((el) => el.outerHTML)
+    .join("");
+
+  thread.innerHTML = html + liveStubs + jumpPillHtml;
+  // Sign attachment paths so they render — bucket is private.
+  setTimeout(() => _rrMcSignAttachments(), 0);
+
+  // Wire the jump pill (re-rendered each time, so we re-bind every poll).
+  const jump = document.getElementById("rr-mc-jump");
+  if (jump) {
+    jump.addEventListener("click", () => {
+      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+      jump.classList.remove("show");
+    });
+  }
+
+  // Smart-scroll: pin to bottom if the operator was already near it,
+  // or if the caller forced it (e.g. opening a new thread).  Otherwise
+  // surface the jump pill if the message count grew under their feet.
+  if (scrollToBottom || wasNearBottom) {
+    thread.scrollTop = thread.scrollHeight;
+    if (jump) jump.classList.remove("show");
+  } else if (prevMsgCount >= 0 && msgs.length > prevMsgCount) {
+    if (jump) jump.classList.add("show");
+  }
+
   if (msgs.some((m) => m.sender_kind === "driver")) {
     sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).then(undefined, () => {});
   }
