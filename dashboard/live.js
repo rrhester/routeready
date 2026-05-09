@@ -952,7 +952,7 @@ function pillCheck(when) {
 function renderOnboardingRow(d) {
   const initials = displayDriverInitials(d);
   const display = displayDriverName(d);
-  const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+  const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
   const contact = d.phone || d.email || "";
   const days = d.hire_date
     ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000))
@@ -978,7 +978,7 @@ function renderOnboardingRow(d) {
 function renderDriverRow(d) {
   const initials = displayDriverInitials(d);
   const display = displayDriverName(d);
-  const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+  const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
   const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
   const station = d.station?.code || "—";
   const contact = d.phone || d.email || "";
@@ -1467,7 +1467,7 @@ function _renderAttReportTbody() {
     // so the eye finds them before reading any individual cell.
     const rowCls = needsAction ? "att-row-action" : "";
     return `<tr data-rr-att-row="${escapeHtml(r.d.id)}" class="${rowCls}" style="cursor:pointer">
-      <td><div class="cell-driver"><div class="avatar-sm tier-c">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
+      <td><div class="cell-driver"><div class="avatar-sm">${initials}</div><div><div class="cell-name">${escapeHtml(display)}</div></div></div></td>
       <td>${escapeHtml(station)}</td>
       <td><span class="status-pill status-pill-${statusVariant}" title="${escapeHtml(r.statusLabel)}">${escapeHtml(r.coachingLabel)}</span></td>
       <td style="text-align:right;font-weight:600">${r.points}</td>
@@ -2770,7 +2770,7 @@ async function loadCheckinView() {
       const display = displayDriverName(d);
       const initials = displayDriverInitials(d);
       const station = d.station?.code || "—";
-      const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+      const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
       const sh = driverShift.get(d.id);
       const ciKey = _STATUS_TO_CI[sh.status]; // present / late / callout / noshow / undefined
       const markedClass = ciKey ? ` marked marked-${ciKey === "callout" ? "callout" : ciKey === "noshow" ? "noshow" : ciKey}` : "";
@@ -3534,7 +3534,7 @@ async function loadAttendanceEventLog() {
           const display = d ? displayDriverName(d) : "—";
           const station = d?.station?.code || "—";
           const initials = d ? displayDriverInitials(d) : "?";
-          const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+          const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
           const driverTotal = totalsByDriver.get(ev.driver_id) || 1;
 
           const c = coachByShift.get(ev.id);
@@ -4271,7 +4271,7 @@ function _renderTpAttendance(data, error) {
         const initials = (r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
         return `
           <div style="display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--border)">
-            <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:var(--fs-xs)">${escapeHtml(initials)}</div>
+            <div class="avatar-sm" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:var(--fs-xs)">${escapeHtml(initials)}</div>
             <div style="min-width:0">
               <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
               <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0} · ${escapeHtml(t)}</div>
@@ -4403,7 +4403,7 @@ async function _renderTpDailyTool(flagged) {
     return `
       <div class="rr-tp-tool-row" data-driver-id="${escapeHtml(r.driver_id)}"
            style="display:grid;grid-template-columns:36px minmax(160px,1fr) 130px 1fr auto;gap:14px;align-items:center;padding:12px 14px;border-top:1px solid var(--border)">
-        <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(initials)}</div>
+        <div class="avatar-sm" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(initials)}</div>
         <div style="min-width:0">
           <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
@@ -4710,7 +4710,7 @@ async function loadTodayAttendance() {
     if (r.missed_reason) noteBits.push(`"${r.missed_reason}"`);
     return `
       <div style="display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
-        <div class="avatar-sm tier-c" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml((r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
+        <div class="avatar-sm" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml((r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
         <div style="min-width:0">
           <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(r.driver_name)}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}${noteBits.length ? " · " + escapeHtml(noteBits.join(" · ")) : ""}</div>
@@ -4852,7 +4852,7 @@ function renderLicenseRow(d) {
   return `
     <div data-driver-id="${d.id}" data-rr-open-driver style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;cursor:pointer">
       <div style="display:flex;align-items:center;gap:10px">
-        <div class="avatar-sm tier-c">${initials}</div>
+        <div class="avatar-sm">${initials}</div>
         <div><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(displayDriverName(d))}</div></div>
       </div>
       <div style="font-size:var(--fs-md)">${escapeHtml(d.station?.code || "—")}</div>
@@ -13650,7 +13650,7 @@ async function renderScheduleWeek() {
   const driverRowsHtml = drivers.map(d => {
     const initials = displayDriverInitials(d);
     const display = displayDriverName(d);
-    const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "tier-c";
+    const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
     const station = d.station?.code || "—";
     const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
     const totalHours = hoursPerDriver.get(d.id) || 0;
