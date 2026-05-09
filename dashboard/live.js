@@ -105,6 +105,30 @@ window.RR.user = profile;
   }
 })();
 
+// ── Onboarding wizard gate ─────────────────────────────────────────────
+// Newly-provisioned DSP owners land in the dashboard with their workspace
+// in status='pending' or 'onboarding'.  Until they finish the wizard,
+// the regular dashboard chrome is hidden and #view-onboarding takes
+// over the screen.  Migration 0126 backfilled status='active' DSPs to
+// onboarding_step='complete', so existing workspaces (Air Capital
+// Logistics, etc.) bypass the wizard cleanly.
+//
+// Platform admins skip the wizard for their own DSP — admin tooling is
+// the right surface for them, not the customer-flavored onboarding.
+if (window.RR.dsp
+    && (window.RR.dsp.status === "pending" || window.RR.dsp.status === "onboarding")
+    && profile.role !== "platform_admin") {
+  document.body.dataset.rrOnboarding = "1";
+  // Defer the actual wizard mount until DOM is fully present (post-await
+  // module timing means the body exists but mutation observers might
+  // not be ready).
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => _mountOnboarding(), { once: true });
+  } else {
+    _mountOnboarding();
+  }
+}
+
 // Reveal the platform-admin nav-item only for users who actually have
 // that role.  The button is `display:none` by default in the HTML, so
 // regular owners / dispatchers / drivers never see it.  See the
@@ -1227,6 +1251,280 @@ function _bindAdminPageHandlers() {
 // Run immediately (post-await means the DOM is already parsed) — no
 // need to wait for DCL, and waiting would silently break us.
 _bindAdminPageHandlers();
+
+// ── Onboarding wizard ──────────────────────────────────────────────────────
+// Backed by the migration 0126 RPCs:
+//   onboarding_get_state()  — read + auto-flip pending → onboarding
+//   onboarding_save_step()  — autosave per step (debounced 500ms on field blur)
+//   onboarding_complete()   — finalize, flip status → active
+//
+// State machine in JS mirrors the schema:
+//   not_started / company → contact → billing → complete
+// Each card stays in the DOM at all times (display:none for inactive
+// steps) so autosaved values from prior steps stay rehydrated without
+// a re-render.
+
+const _onb = {
+  state:    null,            // last-known onboarding_get_state payload
+  current:  "company",       // visible step
+  saveTimer: null,           // debounce handle
+  pendingStep: null,         // step whose payload is queued for autosave
+};
+
+async function _mountOnboarding() {
+  // Kick off the state fetch + paint the form values when it lands.
+  // Every other handler in this section is bound here too.
+  await _onbLoadState();
+  _onbBindHandlers();
+  _onbGoToStep(_onbResumeStep());
+}
+
+async function _onbLoadState() {
+  const { data, error } = await sb.rpc("onboarding_get_state");
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    console.error("onboarding_get_state failed:", error);
+    // Hard-fail: if the wizard can't even read its state, the user
+    // can't make progress.  Surface the error in the company step's
+    // error banner so they can at least see what's wrong.
+    _onbError("company", `Couldn't load onboarding: ${error.message}`);
+    return;
+  }
+  _onb.state = data || {};
+  _onbPaintFromState();
+  // Capacity for plan readonly + the activation copy.
+  const plan = _onb.state.subscription_plan || "starter";
+  const planEl = document.getElementById("rr-onb-plan-readonly");
+  if (planEl) planEl.textContent = plan.charAt(0).toUpperCase() + plan.slice(1);
+}
+
+function _onbResumeStep() {
+  // Resume at the FIRST incomplete step.  onboarding_step on the
+  // schema means "the step the user has reached"; we want them on
+  // that step, not past it.
+  const s = _onb.state?.onboarding_step;
+  if (s === "contact")  return "contact";
+  if (s === "billing")  return "billing";
+  return "company";
+}
+
+function _onbPaintFromState() {
+  const s = _onb.state || {};
+  const v = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+  v("rr-onb-name",                s.name);
+  v("rr-onb-dba",                 s.dba);
+  v("rr-onb-business-address",    s.business_address);
+  v("rr-onb-business-phone",      s.business_phone);
+  v("rr-onb-support-email",       s.support_email);
+  v("rr-onb-timezone",            s.timezone || "America/New_York");
+  v("rr-onb-owner-name",          s.owner_name);
+  v("rr-onb-owner-phone",         s.owner_phone);
+  v("rr-onb-emerg-name",          s.emergency_contact_name);
+  v("rr-onb-emerg-phone",         s.emergency_contact_phone);
+  const billing = s.billing || {};
+  v("rr-onb-cardholder",          billing.cardholder);
+  v("rr-onb-billing-email",       billing.billing_email || s.support_email || profile?.email);
+  // We never restore the card number — only the last 4 are persisted,
+  // and the form should look empty so the user knows the field is
+  // editable / placeholder.
+}
+
+function _onbGoToStep(step) {
+  _onb.current = step;
+  // Toggle card visibility.
+  ["company","contact","billing"].forEach((s) => {
+    const card = document.querySelector(`[data-rr-onb-card="${s}"]`);
+    if (card) card.style.display = (s === step) ? "" : "none";
+  });
+  // Update progress dots.
+  const order = ["company","contact","billing"];
+  const currentIdx = order.indexOf(step);
+  order.forEach((s, i) => {
+    const dot = document.querySelector(`[data-rr-onb-step="${s}"]`);
+    if (!dot) return;
+    dot.classList.remove("done","current");
+    if (i < currentIdx) dot.classList.add("done");
+    else if (i === currentIdx) dot.classList.add("current");
+  });
+  // Focus the first input of the visible step.
+  setTimeout(() => {
+    const el = document.querySelector(`[data-rr-onb-card="${step}"] input, [data-rr-onb-card="${step}"] select`);
+    el?.focus();
+  }, 60);
+}
+
+function _onbBindHandlers() {
+  // Autosave on blur for every field within the wizard cards.  Blur
+  // (not input) avoids hammering the RPC on every keystroke; the user
+  // gets confirmation when they tab away.
+  document.querySelectorAll('[data-rr-onb-card] input, [data-rr-onb-card] select').forEach((el) => {
+    el.addEventListener("blur", () => _onbAutosave(_onb.current));
+    // Also save on change for selects (they don't fire blur reliably
+    // on touch devices).
+    if (el.tagName === "SELECT") el.addEventListener("change", () => _onbAutosave(_onb.current));
+  });
+
+  // Step submit (Continue button).
+  document.getElementById("rr-onb-form-company")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    _onbSubmitStep("company", "contact");
+  });
+  document.getElementById("rr-onb-form-contact")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    _onbSubmitStep("contact", "billing");
+  });
+  document.getElementById("rr-onb-form-billing")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    _onbActivate();
+  });
+
+  // Back buttons.
+  document.querySelectorAll("[data-rr-onb-back]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.getAttribute("data-rr-onb-back");
+      _onbGoToStep(target);
+    });
+  });
+
+  // Save & sign out · autosave the current step then sign out.
+  document.getElementById("rr-onb-signout")?.addEventListener("click", async () => {
+    await _onbAutosave(_onb.current);
+    try { await sb.auth.signOut(); } catch {}
+    location.replace("./login.html?msg=onboarding_paused");
+  });
+
+  // Card-number formatter (placeholder UX): collapse to last 4 stored.
+  const cardNum = document.getElementById("rr-onb-card-number");
+  if (cardNum) {
+    cardNum.addEventListener("input", () => {
+      // Strip non-digits, group every 4 chars for readability.
+      const digits = cardNum.value.replace(/\D/g, "").slice(0, 19);
+      cardNum.value = digits.replace(/(.{4})/g, "$1 ").trim();
+    });
+  }
+}
+
+function _onbCollectStepPayload(step) {
+  if (step === "company") {
+    return {
+      name:             _onbVal("rr-onb-name"),
+      dba:              _onbVal("rr-onb-dba"),
+      business_address: _onbVal("rr-onb-business-address"),
+      business_phone:   _onbVal("rr-onb-business-phone"),
+      support_email:    _onbVal("rr-onb-support-email"),
+      timezone:         _onbVal("rr-onb-timezone"),
+    };
+  }
+  if (step === "contact") {
+    return {
+      owner_name:              _onbVal("rr-onb-owner-name"),
+      owner_phone:             _onbVal("rr-onb-owner-phone"),
+      emergency_contact_name:  _onbVal("rr-onb-emerg-name"),
+      emergency_contact_phone: _onbVal("rr-onb-emerg-phone"),
+    };
+  }
+  if (step === "billing") {
+    const card = (_onbVal("rr-onb-card-number") || "").replace(/\D/g, "");
+    return {
+      cardholder:    _onbVal("rr-onb-cardholder"),
+      card_last4:    card.length >= 4 ? card.slice(-4) : null,
+      billing_email: _onbVal("rr-onb-billing-email"),
+    };
+  }
+  return {};
+}
+function _onbVal(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const v = (el.value || "").trim();
+  return v || null;
+}
+
+function _onbSetSaving(step, isSaving) {
+  const el = document.querySelector(`[data-rr-onb-card="${step}"] .rr-onb-save-status`);
+  if (!el) return;
+  el.dataset.rrSaving = isSaving ? "1" : "0";
+  el.textContent = isSaving ? "Saving…" : "Saved";
+}
+
+function _onbError(step, message) {
+  const el = document.getElementById(`rr-onb-error-${step}`);
+  if (!el) return;
+  if (!message) { el.hidden = true; el.textContent = ""; return; }
+  el.textContent = message;
+  el.hidden = false;
+}
+
+async function _onbAutosave(step) {
+  if (!step) return;
+  const payload = _onbCollectStepPayload(step);
+  _onbSetSaving(step, true);
+  const { error } = await sb.rpc("onboarding_save_step", {
+    p_step: step,
+    p_payload: payload,
+  });
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    console.error("onboarding_save_step failed:", error);
+    _onbSetSaving(step, false);
+    _onbError(step, `Couldn't save: ${error.message}`);
+    return;
+  }
+  _onbSetSaving(step, false);
+  _onbError(step, null);
+}
+
+async function _onbSubmitStep(step, nextStep) {
+  // Light client-side validation so the user gets the same friendly
+  // wording the rest of the dashboard uses.
+  if (step === "company") {
+    if (!_onbVal("rr-onb-name"))                     return _onbError(step, "DSP name is required.");
+    if (!_onbVal("rr-onb-business-address"))         return _onbError(step, "Business address is required.");
+    const supEmail = _onbVal("rr-onb-support-email");
+    if (supEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supEmail)) {
+      return _onbError(step, "Support email looks invalid.");
+    }
+  } else if (step === "contact") {
+    if (!_onbVal("rr-onb-owner-name"))               return _onbError(step, "Owner full name is required.");
+    if (!_onbVal("rr-onb-owner-phone"))              return _onbError(step, "Preferred contact number is required.");
+  }
+
+  await _onbAutosave(step);
+  _onbGoToStep(nextStep);
+}
+
+async function _onbActivate() {
+  const submit = document.getElementById("rr-onb-activate");
+  const lbl    = submit?.querySelector("[data-rr-onb-activate-label]");
+  if (submit) submit.disabled = true;
+  if (lbl)    lbl.textContent = "Activating…";
+
+  const billingPayload = _onbCollectStepPayload("billing");
+  const billingEmail = billingPayload.billing_email;
+  if (billingEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail)) {
+    if (submit) submit.disabled = false;
+    if (lbl)    lbl.textContent = "Activate workspace";
+    return _onbError("billing", "Billing email looks invalid.");
+  }
+
+  const { error } = await sb.rpc("onboarding_complete", { p_payload: billingPayload });
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    if (submit) submit.disabled = false;
+    if (lbl)    lbl.textContent = "Activate workspace";
+    return _onbError("billing", `Activation failed: ${error.message}`);
+  }
+
+  // Show the success state briefly, then reload the dashboard so the
+  // boot logic can re-evaluate window.RR.dsp.status (now 'active')
+  // and render the regular operator UX.
+  ["company","contact","billing"].forEach((s) => {
+    const c = document.querySelector(`[data-rr-onb-card="${s}"]`); if (c) c.style.display = "none";
+  });
+  const success = document.getElementById("rr-onb-success");
+  if (success) success.style.display = "";
+  setTimeout(() => { location.replace("./index.html?welcome=1"); }, 1400);
+}
 
 // ── Add-DSP modal · open / submit ──────────────────────────────────────────
 function _openAdminAddDspModal() {
