@@ -1105,9 +1105,11 @@ async function _runAdminAction(action, dspId) {
   switch (action) {
     case "view":
     case "edit":
+      // Detail / edit modals land in a follow-up phase.
+      if (typeof toast === "function") toast(`${action === "view" ? "Detail panel" : "Edit modal"} lands in a follow-up phase.`, "info");
+      return;
     case "users":
-      // Detail / edit / manage-users land in Phase 4.
-      if (typeof toast === "function") toast(`${action === "view" ? "Detail panel" : action === "edit" ? "Edit modal" : "Manage-Users panel"} lands in Phase 4.`, "info");
+      _openAdminManageUsers(dspId);
       return;
     case "suspend": {
       if (!confirm(`Suspend "${dsp.name}"?\n\nAll users at this DSP will lose access until you reactivate.`)) return;
@@ -1244,6 +1246,193 @@ function _adminAddDspError(message, kind) {
   el.classList.toggle("rr-admin-add-dsp-error--ok", kind === "ok");
   el.hidden = false;
 }
+
+// ── Manage-Users slide-over ────────────────────────────────────────────────
+// Right-side drawer that lists every app_users row attached to a DSP
+// and lets a platform admin change their role / active flag.  Backed
+// by admin_dsp_detail() (read) + admin_set_user_permissions() (write).
+//
+// Re-renders the entire user list after each successful write so the
+// UI never drifts from the DB state — easier to reason about than
+// patching individual rows in place.
+
+let _adminUsersCurrentDspId = null;
+
+function _openAdminManageUsers(dspId) {
+  _adminUsersCurrentDspId = dspId;
+  const drawer  = document.getElementById("rr-admin-users-drawer");
+  const backdrop = document.getElementById("rr-admin-users-backdrop");
+  const titleEl = document.getElementById("rr-admin-users-title");
+  const subEl   = document.getElementById("rr-admin-users-sub");
+  const bodyEl  = document.getElementById("rr-admin-users-body");
+  if (!drawer || !backdrop || !bodyEl) return;
+
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  if (titleEl) titleEl.textContent = `Manage users · ${dsp?.name || "DSP"}`;
+  if (subEl)   subEl.textContent   = dsp?.short_code
+    ? `${dsp.short_code} · ${dsp?.driver_count ?? 0} driver${dsp?.driver_count === 1 ? "" : "s"}`
+    : "—";
+
+  // Skeleton rows while admin_dsp_detail is in flight.
+  bodyEl.innerHTML = `
+    <div class="rr-admin-users-skel" aria-hidden="true">
+      <div></div><div></div><div></div>
+    </div>`;
+
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  backdrop.classList.add("open");
+
+  _loadAdminManageUsers(dspId);
+}
+
+function _closeAdminManageUsers() {
+  const drawer   = document.getElementById("rr-admin-users-drawer");
+  const backdrop = document.getElementById("rr-admin-users-backdrop");
+  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (backdrop) backdrop.classList.remove("open");
+  _adminUsersCurrentDspId = null;
+}
+
+async function _loadAdminManageUsers(dspId) {
+  const bodyEl = document.getElementById("rr-admin-users-body");
+  if (!bodyEl) return;
+
+  const { data, error } = await sb.rpc("admin_dsp_detail", { p_dsp_id: dspId });
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    bodyEl.innerHTML = `<div class="rr-admin-users-empty" style="color:var(--red);border-color:var(--red-soft)">Couldn't load users: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const users = (data && data.users) || [];
+
+  if (users.length === 0) {
+    bodyEl.innerHTML = `<div class="rr-admin-users-empty">No users in this DSP yet.</div>`;
+    return;
+  }
+
+  // Group: active first (sorted by role rank desc, then name), then
+  // inactive at the bottom so the admin can see everyone in one
+  // glance without losing the "who's currently in the DSP" signal.
+  const ROLE_RANK = { platform_admin: 4, owner: 3, ops: 2, dispatcher: 1, driver: 0 };
+  const sortByRoleThenName = (a, b) => {
+    const r = (ROLE_RANK[b.role] ?? -1) - (ROLE_RANK[a.role] ?? -1);
+    return r !== 0 ? r : (a.full_name || a.email || "").localeCompare(b.full_name || b.email || "");
+  };
+  const active   = users.filter((u) => u.active).sort(sortByRoleThenName);
+  const inactive = users.filter((u) => !u.active).sort(sortByRoleThenName);
+
+  let html = "";
+  if (active.length) {
+    html += `<div class="rr-admin-users-section-head">Active · ${active.length}</div>`;
+    html += `<div class="rr-admin-users-list">${active.map(_renderAdminUserRow).join("")}</div>`;
+  }
+  if (inactive.length) {
+    html += `<div class="rr-admin-users-section-head">Inactive · ${inactive.length}</div>`;
+    html += `<div class="rr-admin-users-list">${inactive.map(_renderAdminUserRow).join("")}</div>`;
+  }
+  bodyEl.innerHTML = html;
+}
+
+function _renderAdminUserRow(u) {
+  const initials = (u.full_name || u.email || "?")
+    .split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((w) => (w[0] || "").toUpperCase()).join("") || "?";
+  const roleOptions = [
+    ["driver",         "Driver"],
+    ["dispatcher",     "Dispatcher"],
+    ["ops",            "Ops"],
+    ["owner",          "Owner"],
+    ["platform_admin", "Platform admin"],
+  ].map(([v, label]) => `<option value="${v}"${v === u.role ? " selected" : ""}>${label}</option>`).join("");
+  return `
+    <div class="rr-admin-user-row" data-rr-admin-user-id="${escapeHtml(u.id)}" data-rr-inactive="${u.active ? "0" : "1"}">
+      <div class="rr-admin-user-row__avatar">${escapeHtml(initials)}</div>
+      <div style="min-width:0">
+        <div class="rr-admin-user-row__name">${escapeHtml(u.full_name || "—")}</div>
+        <div class="rr-admin-user-row__email">${escapeHtml(u.email || "—")}</div>
+      </div>
+      <div class="rr-admin-user-row__actions">
+        <select class="rr-admin-user-row__role" data-rr-admin-user-role="${escapeHtml(u.id)}" data-rr-role="${escapeHtml(u.role)}" aria-label="Role">
+          ${roleOptions}
+        </select>
+        <label class="rr-admin-toggle" title="${u.active ? "Active" : "Inactive"}">
+          <input type="checkbox" data-rr-admin-user-active="${escapeHtml(u.id)}" ${u.active ? "checked" : ""} aria-label="Active" />
+          <span class="rr-admin-toggle__slider"></span>
+        </label>
+      </div>
+    </div>`;
+}
+
+// Bind role-change + active-toggle handlers via delegation so they
+// survive every re-render of the user list.
+(function bindAdminManageUsersHandlers() {
+  document.addEventListener("change", async (e) => {
+    const t = e.target;
+    if (!t) return;
+
+    // Role change.
+    const roleId = t.getAttribute && t.getAttribute("data-rr-admin-user-role");
+    if (roleId) {
+      const newRole = t.value;
+      t.disabled = true;
+      const { error } = await sb.rpc("admin_set_user_permissions", {
+        p_user_id: roleId,
+        p_role:    newRole,
+        p_allowed_pages: null,
+        p_active:        null,
+      });
+      t.disabled = false;
+      if (error) {
+        if (_isAuthError(error)) _forceRelogin("session_expired");
+        toast(`Role change failed: ${error.message}`, "warn");
+        return;
+      }
+      toast(`Role updated.`, "ok");
+      // Re-load both the panel (to reflect grouping/sort changes) and
+      // the table (in case role flipped someone in/out of the owner
+      // column).
+      if (_adminUsersCurrentDspId) await _loadAdminManageUsers(_adminUsersCurrentDspId);
+      await _loadPlatformAdminDsps();
+      return;
+    }
+
+    // Active toggle.
+    const activeId = t.getAttribute && t.getAttribute("data-rr-admin-user-active");
+    if (activeId) {
+      const newActive = !!t.checked;
+      t.disabled = true;
+      const { error } = await sb.rpc("admin_set_user_permissions", {
+        p_user_id: activeId,
+        p_role:           null,
+        p_allowed_pages:  null,
+        p_active:         newActive,
+      });
+      t.disabled = false;
+      if (error) {
+        if (_isAuthError(error)) _forceRelogin("session_expired");
+        // Roll the toggle back on failure so the UI doesn't lie.
+        t.checked = !newActive;
+        toast(`Couldn't update: ${error.message}`, "warn");
+        return;
+      }
+      toast(newActive ? "User reactivated." : "User deactivated.", "ok");
+      if (_adminUsersCurrentDspId) await _loadAdminManageUsers(_adminUsersCurrentDspId);
+      return;
+    }
+  });
+
+  // Close the slide-over via backdrop / X button / Escape.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-rr-admin-users-close]")) _closeAdminManageUsers();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const drawer = document.getElementById("rr-admin-users-drawer");
+      if (drawer && drawer.classList.contains("open")) _closeAdminManageUsers();
+    }
+  });
+})();
 
 async function _submitAdminAddDsp(e) {
   e.preventDefault();
