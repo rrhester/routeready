@@ -767,11 +767,18 @@ select.field{
 .chat-attach:hover{ color:var(--text);background:var(--canvas) }
 .chat-attach:active{transform:scale(.95);background:var(--canvas)}
 .chat-bubble{
+  /* Tight max on phones (78%), generous on tablets/landscape so a
+     short message doesn't wrap unnecessarily.  Mobile chat apps
+     uniformly cap below the available width — keeps a comfortable
+     reading measure even on wide screens. */
   max-width:78%;
   padding:var(--s-2) var(--s-4);border-radius:18px;
   font-size:var(--fs-lg);line-height:1.42;
   word-wrap:break-word;
   animation:chat-bubble-in 220ms cubic-bezier(.2,.7,.2,1) both;
+}
+@media (min-width: 600px){
+  .chat-bubble{ max-width:560px }
 }
 @keyframes chat-bubble-in{
   0%   { opacity:0; transform:translateY(4px); }
@@ -796,6 +803,19 @@ select.field{
   background:var(--surface);color:var(--text);
   border:1px solid var(--border);border-bottom-left-radius:5px;
   box-shadow:var(--shadow-xs), var(--highlight-top);
+}
+/* Channel sender label — sits above the body inside theirs-bubbles
+   in the channels view.  Tight, all-caps tracking gives it the
+   "speaker name" voice without screaming.  Only renders when
+   sender is not the current driver. */
+.chat-sender{
+  font-size:11px;font-weight:700;
+  color:var(--accent-text, var(--text-muted));
+  margin-bottom:var(--s-1);
+  letter-spacing:.01em;
+  line-height:1.2;
+  text-overflow:ellipsis;overflow:hidden;white-space:nowrap;
+  max-width:100%;
 }
 /* Group spacing + corner adjustments — driven by data-group-pos.  A
    run of three quick messages from the same sender now reads as one
