@@ -8426,12 +8426,15 @@ async function openDriverChatThread(driverId) {
   });
   await refreshDriverChatThread(true);
   if (_msgInboxThreadTimer) clearInterval(_msgInboxThreadTimer);
+  // Realtime (postgres_changes on driver_messages) is the primary
+  // delivery path now; this interval is just a safety net for missed
+  // events or transient socket disconnects.  30s is plenty.
   _msgInboxThreadTimer = setInterval(() => {
     if (!document.getElementById("view-messages")?.classList.contains("active") || _msgInboxSelectedId !== driverId) {
       clearInterval(_msgInboxThreadTimer); _msgInboxThreadTimer = null; return;
     }
     refreshDriverChatThread(false);
-  }, 8000);
+  }, 30000);
 }
 
 async function refreshDriverChatThread(scrollToBottom) {
@@ -11331,17 +11334,45 @@ function scheduleRefresh() {
   _refreshDebounce = setTimeout(refreshActiveView, 600);
 }
 
+// Targeted handler for inbound chat events.  We don't want to bounce
+// the entire view on every keystroke from a driver, so this debounces
+// to ~250ms and only fires the chat-specific refreshers when the
+// Messages view is the active one.  When the thread for the new
+// message is currently open, refreshDriverChatThread re-renders with
+// smart-scroll so the operator stays anchored if they're reading
+// history.
+let _chatRealtimeDebounce = null;
+function scheduleChatRealtime(payload) {
+  clearTimeout(_chatRealtimeDebounce);
+  _chatRealtimeDebounce = setTimeout(() => {
+    if (!document.getElementById("view-messages")?.classList.contains("active")) return;
+    // List always refreshes (it shows last-message + unread counts).
+    if (typeof refreshDriverChatList === "function") refreshDriverChatList(false);
+    // Thread only refreshes if the event matches the open thread.
+    const newRow = payload?.new || payload?.record || {};
+    const driverId = newRow.driver_id;
+    if (driverId && _msgInboxSelectedId === driverId) {
+      refreshDriverChatThread(false);
+    }
+  }, 250);
+}
+
 // Realtime subscriptions — one channel covers all the tables we care about.
 sb.channel("rr-dashboard")
-  .on("postgres_changes", { event: "*", schema: "public", table: "applicants" },          scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "cal_events" },          scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "sms_messages" },        scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "email_messages" },      scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "interview_outcomes" }, scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "interview_days" },     scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "drivers" },             scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "coachings" },           scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "driver_documents" },    scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "applicants" },              scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "cal_events" },              scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "sms_messages" },            scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "email_messages" },          scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "interview_outcomes" },      scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "interview_days" },          scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "drivers" },                 scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "coachings" },               scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "driver_documents" },        scheduleRefresh)
+  // Chat tables get the targeted handler — sub-second delivery for
+  // the active thread without re-rendering unrelated views.
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
+  .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages" }, scheduleChatRealtime)
   .subscribe();
 
 window.addEventListener("focus", refreshActiveView);
