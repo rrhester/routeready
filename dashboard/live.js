@@ -105,6 +105,61 @@ window.RR.user = profile;
   }
 })();
 
+// ── First-run welcome zone ─────────────────────────────────────────────
+// Shown on the dashboard view for newly-activated DSPs (within 14 days
+// of dsps.activated_at) until the owner dismisses.  Dismissal writes
+// metadata.first_run_dismissed_at so it survives across devices /
+// browsers (vs. localStorage).
+//
+// Existing DSPs have activated_at backfilled by migration 0126 to
+// their created_at, so any DSP older than 14 days at migration time
+// never sees the banner — important for not surprising long-time
+// operators with a "Welcome!" message.
+function _initFirstRunZone() {
+  const zone = document.getElementById("rr-firstrun");
+  if (!zone) return;
+  const dsp = window.RR?.dsp;
+  if (!dsp) return;
+  const activated = dsp.activated_at ? new Date(dsp.activated_at).getTime() : null;
+  const dismissed = dsp.metadata?.first_run_dismissed_at
+    ? new Date(dsp.metadata.first_run_dismissed_at).getTime()
+    : null;
+  const ageMs = activated ? (Date.now() - activated) : Infinity;
+  const isFresh = activated != null && ageMs < (14 * 24 * 60 * 60 * 1000);
+  // Platform admins skip the welcome — admin tooling is their
+  // surface, and a "Welcome to RouteReady" banner reads weird when
+  // they're managing customers.
+  if (profile.role === "platform_admin") return;
+  if (!isFresh || dismissed) return;
+
+  // Suffix with the owner's first name (from app_users.full_name).
+  const firstName = (profile.full_name || "").split(/\s+/)[0];
+  const suffix = document.getElementById("rr-firstrun-name-suffix");
+  if (suffix && firstName) suffix.textContent = `, ${firstName}`;
+  zone.hidden = false;
+
+  document.getElementById("rr-firstrun-dismiss")?.addEventListener("click", async () => {
+    zone.hidden = true;
+    const nowIso = new Date().toISOString();
+    const newMeta = Object.assign({}, dsp.metadata || {}, { first_run_dismissed_at: nowIso });
+    // Optimistic local update so a re-paint doesn't flash the banner.
+    if (window.RR?.dsp) window.RR.dsp.metadata = newMeta;
+    const { error } = await sb.from("dsps").update({ metadata: newMeta }).eq("id", dsp.id);
+    if (error) {
+      // Non-fatal: banner is hidden in-session even if persistence
+      // failed.  Log so we know about it.
+      console.warn("first_run_dismissed_at persist failed:", error);
+    }
+  });
+}
+// Defer the call until DOM is settled (the welcome zone lives inside
+// the dashboard view, mounted after live.js's top-level await).
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", _initFirstRunZone, { once: true });
+} else {
+  _initFirstRunZone();
+}
+
 // ── Onboarding wizard gate ─────────────────────────────────────────────
 // Newly-provisioned DSP owners land in the dashboard with their workspace
 // in status='pending' or 'onboarding'.  Until they finish the wizard,
