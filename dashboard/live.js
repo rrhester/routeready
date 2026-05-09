@@ -1213,23 +1213,12 @@ function _bindAdminPageHandlers() {
   document.getElementById("rr-admin-invite-form")?.addEventListener("submit", _submitAdminInviteUser);
 
   // Auto-suggest short code from DSP name as the operator types.
-  // Strips non-alphanumerics and uppercases.  Stops auto-suggesting
-  // the moment the operator types a short_code themselves so we
-  // don't fight their edits.
-  const nameInput = document.getElementById("rr-add-dsp-name");
-  const codeInput = document.getElementById("rr-add-dsp-short-code");
-  if (nameInput && codeInput) {
-    let codeAuto = true;
-    codeInput.addEventListener("input", () => { codeAuto = false; });
-    nameInput.addEventListener("input", () => {
-      if (!codeAuto) return;
-      const auto = (nameInput.value || "")
-        .replace(/[^A-Za-z0-9]/g, "")
-        .toUpperCase()
-        .slice(0, 8);
-      codeInput.value = auto;
-    });
-  }
+  // (The Add-DSP modal used to expose a "Station code" field that
+  // collided whenever multiple DSPs operated out of the same Amazon
+  // station.  Migration 0125 makes the server auto-generate a unique
+  // workspace identifier from the DSP name, so the field is gone
+  // from the UI and the auto-suggest logic that fed it is no longer
+  // needed.)
 
   // Form submit handlers.
   document.getElementById("rr-admin-add-dsp-form")?.addEventListener("submit", _submitAdminAddDsp);
@@ -1701,10 +1690,12 @@ async function _submitAdminAddDsp(e) {
   const errEl = document.getElementById("rr-admin-add-dsp-error");
   if (errEl) errEl.hidden = true;
 
-  // Collect + trim form values.
+  // Collect + trim form values.  short_code is no longer collected
+  // from the form — the server (admin_create_dsp / dsp_unique_short_
+  // code) generates a unique workspace identifier from the name so
+  // the operator never has to think about collisions.
   const get = (n) => (form.elements.namedItem(n)?.value || "").trim();
   const name        = get("name");
-  const short_code  = get("short_code").toUpperCase();
   const owner_email = get("owner_email").toLowerCase();
   const owner_name  = get("owner_name");
   const phone       = get("phone");
@@ -1716,7 +1707,6 @@ async function _submitAdminAddDsp(e) {
   // and the email-format expectation. Surfaces friendly inline errors
   // before we burn an RPC round-trip on a known-bad payload.
   if (name.length < 2)                               return _adminAddDspError("DSP company name is required.");
-  if (!/^[A-Z0-9_-]{2,12}$/.test(short_code))        return _adminAddDspError("Station code must be 2–12 chars (A–Z, 0–9, - or _).");
   if (owner_name.length < 2)                         return _adminAddDspError("Owner name is required.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(owner_email)) return _adminAddDspError("Owner email looks invalid.");
   if (!["starter", "growth", "enterprise"].includes(subscription_plan)) {
@@ -1730,7 +1720,6 @@ async function _submitAdminAddDsp(e) {
 
   const { data, error } = await sb.rpc("admin_create_dsp", {
     p_name:               name,
-    p_short_code:         short_code,
     p_owner_email:        owner_email,
     p_owner_name:         owner_name,
     p_phone:              phone || null,
@@ -1744,11 +1733,13 @@ async function _submitAdminAddDsp(e) {
 
   if (error) {
     if (_isAuthError(error)) _forceRelogin("session_expired");
-    // Friendlier wording for the predictable failure modes.
+    // Friendlier wording for the predictable failure modes.  The
+    // server now auto-generates a unique short_code, so a UNIQUE
+    // collision would only come from a duplicate name + race; treat
+    // it as a generic conflict.
     let msg = error.message || "Couldn't create the DSP.";
-    if (/duplicate key|unique/i.test(msg) && /short_code/i.test(msg))      msg = `Station code "${short_code}" is already in use. Try a different one.`;
-    else if (/duplicate key|unique/i.test(msg))                              msg = `That account already exists.`;
-    else if (/forbidden/i.test(msg))                                         msg = "You don't have admin access. Sign in as the platform admin.";
+    if (/duplicate key|unique/i.test(msg))      msg = `That DSP already exists.`;
+    else if (/forbidden/i.test(msg))            msg = "You don't have admin access. Sign in as the platform admin.";
     return _adminAddDspError(msg);
   }
 
