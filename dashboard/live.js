@@ -36,7 +36,7 @@ if (!session) {
 }
 
 const { data: profile, error: profileErr } = await sb.from("app_users")
-  .select("id, dsp_id, email, full_name, role").eq("id", session.user.id).maybeSingle();
+  .select("id, dsp_id, email, full_name, role, allowed_pages").eq("id", session.user.id).maybeSingle();
 
 if (profileErr || !profile) {
   // Auth user exists but app_users row doesn't — auth hook failed (most
@@ -47,6 +47,31 @@ if (profileErr || !profile) {
   throw new Error("no app_users row");
 }
 window.RR.user = profile;
+
+// Apply per-user sidebar hiding. Owners always see everything (so
+// they can manage the team and won't accidentally lock themselves
+// out). For other roles, hide top-level nav items not in their
+// allowed_pages list. NULL allowed_pages = no restriction. Settings
+// is always visible because that's how a restricted user appeals.
+(function applyAllowedPages() {
+  const allowed = profile.allowed_pages;
+  if (profile.role === "owner") return;
+  if (!Array.isArray(allowed) || allowed.length === 0) return;
+  const apply = () => {
+    document.querySelectorAll(".nav-item[data-view]").forEach(btn => {
+      const view = btn.getAttribute("data-view");
+      if (view === "settings") return;
+      if (!allowed.includes(view)) {
+        btn.style.display = "none";
+      }
+    });
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", apply, { once: true });
+  } else {
+    apply();
+  }
+})();
 
 const { data: dspRow } = await sb.from("dsps")
   .select("id, name, short_code, timezone, metadata").eq("id", profile.dsp_id).single();
@@ -3855,12 +3880,14 @@ async function loadTeamMembers() {
   if (!list) return;
   const dspId  = window.RR?.dsp?.id;
   const meId   = window.RR?.user?.id;
+  const meRole = window.RR?.user?.role;
+  const isOwner = meRole === "owner";
   if (!dspId) { list.innerHTML = `<div class="rr-empty-inline">No DSP context</div>`; return; }
 
   list.innerHTML = `<div class="rr-loading">Loading team</div>`;
   const { data, error } = await sb
     .from("app_users")
-    .select("id, email, full_name, role, active, created_at")
+    .select("id, email, full_name, role, active, allowed_pages, created_at")
     .eq("dsp_id", dspId)
     .eq("active", true)
     .order("role", { ascending: true })
@@ -3884,25 +3911,158 @@ async function loadTeamMembers() {
     if (d < 365)  return `added ${Math.floor(d / 30)} mo ago`;
     return `added ${Math.floor(d / 365)} y ago`;
   };
+  // Top-level pages — keys must match data-view on .nav-item buttons
+  // and the keys passed to goto(). Settings is always visible to
+  // everyone (otherwise a restricted user has no way back to here),
+  // so it isn't togglable.
+  const PAGES = [
+    { key: "dashboard", label: "Today" },
+    { key: "pipeline",  label: "Hiring Pipeline" },
+    { key: "drivers",   label: "Drivers" },
+    { key: "staffing",  label: "Performance" },
+    { key: "fleet",     label: "Fleet" },
+    { key: "schedule",  label: "Schedule" },
+    { key: "messages",  label: "Messages" },
+    { key: "forms",     label: "Workflows" },
+    { key: "finances",  label: "Finances" },
+  ];
   list.innerHTML = rows.map(r => {
     const isMe   = r.id === meId;
     const initials = initialsOf(r.full_name || r.email);
     const sub = isMe ? `${r.email} · you` : `${r.email} · ${ageLabel(r.created_at)}`;
-    const pillClass = r.role === "owner" ? "owner" : (r.role === "ops" ? "coach" : "");
     const roleOpts = ["owner","ops","dispatcher"].map(opt =>
       `<option value="${opt}" ${opt === r.role ? "selected" : ""}>${opt.charAt(0).toUpperCase() + opt.slice(1)}</option>`
     ).join("");
-    return `<div class="member-row">
+    // Editable name input — anyone can edit their own; owners can
+    // edit anyone's. The DB has matching policies (self-name update +
+    // owner-write).
+    const canEditName = isMe || isOwner;
+    // Page permissions only togglable by owner, only on non-owner rows
+    // (owners always see everything), and only on non-self rows.
+    const canTogglePages = isOwner && !isMe && r.role !== "owner";
+    const allowed = Array.isArray(r.allowed_pages) ? r.allowed_pages : null;
+    const restrictedCount = allowed ? PAGES.filter(p => !allowed.includes(p.key)).length : 0;
+    const pageBtn = canTogglePages
+      ? `<button class="btn btn-sm" data-rr-team-pages="${r.id}" style="white-space:nowrap">
+           ${restrictedCount > 0 ? `Pages · ${PAGES.length - restrictedCount}/${PAGES.length}` : "Pages · all"}
+         </button>`
+      : "";
+    return `<div class="member-row" data-rr-team-row="${r.id}">
       <div class="dsp-avatar" style="width:32px;height:32px;font-size:var(--fs-xs)">${escapeHtml(initials)}</div>
-      <div>
-        <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.full_name || r.email)}</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(sub)}</div>
+      <div style="min-width:0">
+        ${canEditName
+          ? `<input type="text" value="${escapeHtml(r.full_name || "")}" placeholder="${escapeHtml(r.email)}"
+              data-rr-team-name="${r.id}"
+              style="font-size:var(--fs-md);font-weight:600;background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 6px;width:100%;color:var(--text)"
+              onfocus="this.style.borderColor='var(--border-strong)';this.style.background='var(--surface)'"
+              onblur="this.style.borderColor='transparent';this.style.background='transparent'">`
+          : `<div style="font-size:var(--fs-md);font-weight:600;padding:2px 6px">${escapeHtml(r.full_name || r.email)}</div>`}
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);padding-left:6px">${escapeHtml(sub)}</div>
       </div>
+      ${pageBtn}
       <select class="form-input" style="width:140px;padding:4px 8px;font-size:var(--fs-sm)" data-rr-team-role="${r.id}" ${isMe ? "disabled title='Cannot change your own role'" : ""}>${roleOpts}</select>
-      <button class="btn btn-sm btn-danger" data-rr-team-remove="${r.id}" data-rr-team-name="${escapeHtml(r.full_name || r.email)}" ${isMe ? "disabled title='Cannot remove yourself'" : ""}>Remove</button>
+      <button class="btn btn-sm btn-danger" data-rr-team-remove="${r.id}" data-rr-team-name-display="${escapeHtml(r.full_name || r.email)}" ${isMe ? "disabled title='Cannot remove yourself'" : ""}>Remove</button>
     </div>`;
   }).join("");
 }
+
+// Inline name save on blur — debounced via the blur event itself.
+document.addEventListener("blur", async (e) => {
+  const inp = e.target.closest("[data-rr-team-name]");
+  if (!inp) return;
+  const id = inp.getAttribute("data-rr-team-name");
+  const newName = inp.value.trim();
+  // Skip if unchanged (the row's previous value lives in the DOM
+  // before edit; we just send what's there now).
+  const { error } = await sb.from("app_users").update({ full_name: newName || null }).eq("id", id);
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  toast("Name updated", "success");
+  // If the user updated their own name, reflect it in window.RR.user
+  // so other dashboard surfaces (workspace chip, account menu) catch up.
+  if (id === window.RR?.user?.id) {
+    window.RR.user.full_name = newName || null;
+  }
+}, true);
+
+// Page-permissions popover. Click the "Pages" button to toggle which
+// top-level views show in the teammate's sidebar.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-team-pages]");
+  if (!btn) return;
+  e.preventDefault();
+  const id = btn.getAttribute("data-rr-team-pages");
+  // Fetch fresh allowed_pages so we don't overwrite a parallel edit.
+  const { data, error } = await sb.from("app_users")
+    .select("allowed_pages, full_name, email")
+    .eq("id", id).maybeSingle();
+  if (error) { toast("Load failed: " + error.message, "warn"); return; }
+  const PAGES = [
+    { key: "dashboard", label: "Today" },
+    { key: "pipeline",  label: "Hiring Pipeline" },
+    { key: "drivers",   label: "Drivers" },
+    { key: "staffing",  label: "Performance" },
+    { key: "fleet",     label: "Fleet" },
+    { key: "schedule",  label: "Schedule" },
+    { key: "messages",  label: "Messages" },
+    { key: "forms",     label: "Workflows" },
+    { key: "finances",  label: "Finances" },
+  ];
+  // null/undefined allowed_pages = full access (all pages allowed).
+  const current = Array.isArray(data?.allowed_pages) ? data.allowed_pages : PAGES.map(p => p.key);
+  // Build modal contents.
+  const teammate = data?.full_name || data?.email || "this teammate";
+  const checks = PAGES.map(p =>
+    `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
+       <input type="checkbox" data-rr-page-toggle="${p.key}" ${current.includes(p.key) ? "checked" : ""}>
+       <span style="font-size:var(--fs-md)">${escapeHtml(p.label)}</span>
+     </label>`
+  ).join("");
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.style.display = "flex";
+  modal.style.zIndex = "9999";
+  modal.innerHTML = `
+    <div class="modal" style="max-width:380px">
+      <div class="modal-header">
+        <div>
+          <p class="modal-title">Sidebar pages</p>
+          <p class="modal-sub" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(teammate)} will only see checked pages</p>
+        </div>
+        <button class="modal-close" data-rr-page-modal-close><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">${checks}</div>
+      <div class="modal-actions" style="display:flex;justify-content:space-between;gap:var(--s-2);padding:var(--s-3) var(--s-5);border-top:1px solid var(--border)">
+        <button class="btn btn-sm btn-ghost" data-rr-page-modal-all>Allow all</button>
+        <div style="display:flex;gap:var(--s-2)">
+          <button class="btn btn-sm" data-rr-page-modal-close>Cancel</button>
+          <button class="btn btn-sm btn-primary" data-rr-page-modal-save>Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", async (ev) => {
+    if (ev.target === modal || ev.target.closest("[data-rr-page-modal-close]")) {
+      modal.remove(); return;
+    }
+    if (ev.target.closest("[data-rr-page-modal-all]")) {
+      modal.querySelectorAll("[data-rr-page-toggle]").forEach(c => c.checked = true);
+      return;
+    }
+    if (ev.target.closest("[data-rr-page-modal-save]")) {
+      const checked = Array.from(modal.querySelectorAll("[data-rr-page-toggle]:checked"))
+        .map(c => c.getAttribute("data-rr-page-toggle"));
+      // If everything's checked, store NULL (= no restriction). Cleaner
+      // than carrying a redundant array around.
+      const value = checked.length === PAGES.length ? null : checked;
+      const { error } = await sb.from("app_users").update({ allowed_pages: value }).eq("id", id);
+      if (error) { toast("Save failed: " + error.message, "warn"); return; }
+      toast("Page access updated", "success");
+      modal.remove();
+      loadTeamMembers();
+    }
+  });
+});
 
 // Inline role-change save (no modal — change the select, hits the
 // app_users row immediately).
@@ -3924,7 +4084,7 @@ document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-rr-team-remove]");
   if (!btn) return;
   const id   = btn.getAttribute("data-rr-team-remove");
-  const name = btn.getAttribute("data-rr-team-name") || "this teammate";
+  const name = btn.getAttribute("data-rr-team-name-display") || "this teammate";
   if (!confirm(`Remove ${name} from the team? They'll lose dashboard access immediately. Re-invite them later if needed.`)) return;
   btn.disabled = true;
   const { error } = await sb.from("app_users").update({ active: false }).eq("id", id);
