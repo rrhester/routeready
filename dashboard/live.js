@@ -8867,7 +8867,14 @@ async function refreshDriverChatThread(scrollToBottom) {
         const name  = m.attachment_name || "Attachment";
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
         attach = isImg
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          // width/height HTML attributes (NOT just CSS) give the browser
+          // the intrinsic size BEFORE any stylesheet parses — the box
+          // is 240×240 from the first style-resolution tick.  Combined
+          // with object-fit:cover from CSS, the image NEVER changes its
+          // own height once src lands, so there's nothing for the
+          // browser's scroll-anchor algorithm to "preserve" (which is
+          // what was yanking the operator UP to a fixed image position).
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const isDeleted = !!m.deleted_at;
@@ -8934,6 +8941,11 @@ async function refreshDriverChatThread(scrollToBottom) {
   // (image loads, padding changes, content additions) WITHOUT a
   // JS-driven re-pin — that is what eliminates the visible glitch.
   thread.innerHTML = html + liveStubs + jumpPillHtml + sentinelHtml;
+  // Install the MutationObserver-based anchor enforcer.  Idempotent —
+  // bound once per thread element.  This is the safety net that
+  // re-pins to bottom whenever ANY descendant mutates while the
+  // anchor flag is on (image-load, attribute changes, child inserts).
+  _rrMcInstallAnchorEnforcer(thread);
   // Sign attachment paths so they render — bucket is private.
   setTimeout(() => _rrMcSignAttachments(), 0);
 
@@ -8967,28 +8979,45 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (scrollToBottom || wasNearBottom) {
     thread.dataset.rrAnchor = "1";
     if (jump) jump.classList.remove("show");
-    // Two-pass pin to bottom:
-    //   1. Synchronous: scrollTop = scrollHeight lands the viewport
-    //      at the bottom NOW so the operator never sees an
-    //      intermediate scrollTop=0 frame after innerHTML rewrite.
-    //   2. rAF: re-pin after the next layout tick, in case the bubble
-    //      fade-in transform / composer resize-observer wiring grew
-    //      the content height between innerHTML and first paint.
-    // After this, browser scroll-anchoring on the sentinel takes over
-    // for image-load and padding-change reflows — no polling, no
-    // per-image listeners, no race.
+    // Multi-pass pin to bottom.  Each pass uses scrollTop assignment
+    // (NOT scrollIntoView, which walks ancestors and can jolt the
+    // page-level scroll).  The MutationObserver-based enforcer
+    // installed above will also re-pin on every subsequent DOM
+    // mutation while the anchor flag is on, so this is just the
+    // synchronous bring-up.
     //
-    // Direct scrollTop assignment (rather than sentinel.scrollIntoView)
-    // is intentional: scrollIntoView walks up ALL ancestor scroll
-    // containers, which can scroll the page itself and produce a
-    // visible jolt outside the thread.  scrollTop only moves THIS
-    // container.
+    //   Pass 1 (sync):  immediately after innerHTML lands, so the
+    //                   operator never sees a flash at scrollTop=0.
+    //   Pass 2 (rAF):   after layout settles for the new bubbles —
+    //                   fade-in transform + composer ResizeObserver
+    //                   may have grown the content between the swap
+    //                   and the first frame.
+    //   Pass 3 (180ms): catches the image-decode reflow.  Even though
+    //                   our images are HEIGHT-LOCKED (CSS height:240px
+    //                   + HTML height="240"), some browsers/extensions
+    //                   inject styles that can momentarily reflow the
+    //                   <img> until decoding completes.  This pass
+    //                   catches that case.  At 180ms it's well past
+    //                   first paint but quick enough that the operator
+    //                   never sees movement — the prior pass already
+    //                   placed them at bottom; this one just reaffirms.
     thread.scrollTop = thread.scrollHeight;
     requestAnimationFrame(() => {
       if (thread.dataset.rrAnchor === "1") {
         thread.scrollTop = thread.scrollHeight;
       }
     });
+    // Cancel any prior in-flight guard re-pin from a previous refresh
+    // before scheduling a new one — avoids stacked timers if
+    // refreshDriverChatThread fires twice quickly (e.g. open + first
+    // realtime echo on a brand-new thread).
+    if (thread._rrGuardPin) clearTimeout(thread._rrGuardPin);
+    thread._rrGuardPin = setTimeout(() => {
+      thread._rrGuardPin = null;
+      if (thread.dataset.rrAnchor === "1") {
+        thread.scrollTop = thread.scrollHeight;
+      }
+    }, 180);
 
     // Release anchor only on a meaningful scroll-up (>80px from
     // bottom).  Bound once per thread element.  Wheel/touchmove/keydown
@@ -9094,10 +9123,65 @@ async function _rrMcSignAttachments() {
         .from("driver-chat-attachments")
         .createSignedUrl(path, 60 * 60 * 8);
       if (error || !data?.signedUrl) continue;
-      if (el.tagName === "IMG") el.src = data.signedUrl;
-      else                       el.href = data.signedUrl;
+      if (el.tagName === "IMG") {
+        // Bind load/error BEFORE setting src so we never miss the
+        // event (cached images can fire load synchronously inside
+        // the assignment).  When the image finishes decoding the box
+        // dimensions are unchanged (240×240, locked via CSS height +
+        // HTML attributes) — we just stop the shimmer overlay.
+        const onSettled = () => {
+          el.setAttribute("data-rr-loaded", "1");
+        };
+        el.addEventListener("load",  onSettled, { once: true });
+        el.addEventListener("error", onSettled, { once: true });
+        el.src = data.signedUrl;
+        // If the browser already has it cached, .complete is true on
+        // the next tick — synthesize the loaded mark immediately.
+        if (el.complete && el.naturalWidth > 0) onSettled();
+      } else {
+        el.href = data.signedUrl;
+      }
     } catch {}
   }
+}
+
+// ─── Anchor enforcer ─────────────────────────────────────────────────────
+//
+// Belt-and-suspenders re-pin for the messaging thread.  CSS
+// scroll-anchoring (overflow-anchor on the bottom sentinel) is the
+// PRIMARY mechanism that keeps the operator at the bottom across
+// image-load reflows / composer-padding shifts.  This MutationObserver
+// is the SECONDARY mechanism that catches anything CSS anchoring
+// missed — e.g. when the operator opens a thread and the first paint
+// happens before all images have finished decoding.
+//
+// Rules:
+//   • Only re-pins when `data-rr-anchor="1"` on the thread.  When the
+//     operator scrolls up to read history, the anchor flag is cleared
+//     and this function becomes a no-op — so we never fight the
+//     operator's scroll gesture.
+//   • Uses scrollTop = scrollHeight (NOT smooth, NOT scrollIntoView)
+//     so the re-pin is invisible.
+//   • No polling / interval / timer.  Fires only on DOM mutations
+//     under the thread.
+function _rrMcInstallAnchorEnforcer(thread) {
+  if (!thread || thread._rrAnchorEnforcerBound) return;
+  thread._rrAnchorEnforcerBound = true;
+  const pinIfAnchored = () => {
+    if (thread.dataset.rrAnchor !== "1") return;
+    // Only pin if we're actually drifted away from the bottom.  If
+    // we're already at the bottom (or sentinel is in view), skip — no
+    // need to re-write scrollTop and risk a flicker.
+    const drift = thread.scrollHeight - thread.scrollTop - thread.clientHeight;
+    if (drift > 1) thread.scrollTop = thread.scrollHeight;
+  };
+  const mo = new MutationObserver(() => {
+    // rAF defers the re-pin to AFTER layout has settled for this
+    // mutation batch, so scrollHeight reflects the new content.
+    requestAnimationFrame(pinIfAnchored);
+  });
+  mo.observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["src", "data-rr-loaded"] });
+  thread._rrAnchorEnforcerMo = mo;
 }
 
 
@@ -9413,7 +9497,12 @@ async function refreshChannelThread(scrollToBottom) {
         const name  = m.attachment_name || "Attachment";
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
         attach = isImg
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          // Same fixed-box treatment as the direct-chat renderer above
+          // — width/height attributes lock the layout box at 240×240
+          // BEFORE any image data lands, so the bubble cannot grow on
+          // image load and the scroll-anchor algorithm has nothing to
+          // walk up to preserve.
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const senderLabel = m.sender_kind === "dispatch"
@@ -9432,6 +9521,10 @@ async function refreshChannelThread(scrollToBottom) {
   }
   if (typeof _syncComposerPos === "function") _syncComposerPos();
   if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
+  // Same MutationObserver-based anchor enforcer as direct chat —
+  // re-pins to bottom on any descendant mutation while the anchor
+  // flag is on.  Idempotent.
+  if (typeof _rrMcInstallAnchorEnforcer === "function") _rrMcInstallAnchorEnforcer(thread);
   if (scrollToBottom) {
     thread.dataset.rrAnchor = "1";
     thread.scrollTop = thread.scrollHeight;
@@ -9440,6 +9533,31 @@ async function refreshChannelThread(scrollToBottom) {
         thread.scrollTop = thread.scrollHeight;
       }
     });
+    if (thread._rrGuardPin) clearTimeout(thread._rrGuardPin);
+    thread._rrGuardPin = setTimeout(() => {
+      thread._rrGuardPin = null;
+      if (thread.dataset.rrAnchor === "1") {
+        thread.scrollTop = thread.scrollHeight;
+      }
+    }, 180);
+  }
+  // Release the anchor flag when the operator actually scrolls UP
+  // to read history — same logic as direct chat.  Bound once per
+  // thread element so identical poll cycles don't stack listeners.
+  if (!thread._rrAnchorReleaseBound) {
+    thread._rrAnchorReleaseBound = true;
+    const release = () => {
+      requestAnimationFrame(() => {
+        const cur = thread.scrollTop;
+        const max = thread.scrollHeight;
+        const view = thread.clientHeight;
+        if ((max - cur - view) > 80) thread.dataset.rrAnchor = "0";
+        else thread.dataset.rrAnchor = "1";
+      });
+    };
+    thread.addEventListener("wheel",     release, { passive: true });
+    thread.addEventListener("touchmove", release, { passive: true });
+    thread.addEventListener("keydown",   release);
   }
   sb.rpc("dispatch_channel_mark_read", { p_channel_id: channelId }).then(undefined, () => {});
 }

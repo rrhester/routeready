@@ -2943,31 +2943,44 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-cc-thread[data-rr-anchor="0"] .rr-cc-bottom-sentinel{
   overflow-anchor:none;
 }
-/* Image attachments inside bubbles — reserve vertical space BEFORE
-   the signed URL lands so the bubble has its final height as soon as
-   it paints.  Without these properties an empty <img> is 0px tall;
-   when its src is set asynchronously by _rrMcSignAttachments and the
-   browser computes its intrinsic size, the bubble grows by hundreds
-   of pixels in a single paint.  That growth is what was forcing
-   the scroll-anchor walk-up before we excluded bubbles from the pool.
-   Excluding bubbles is the primary fix; reserving space here is
-   defence-in-depth so the very first paint already reads at the
-   correct height. */
+/* Image attachments inside bubbles — the box height is FIXED at 240px
+   from first paint forever.  The image content fits via object-fit:cover
+   inside that fixed-size box, so the image's NATURAL dimensions never
+   feed back into layout.  No reflow.  No height-growth.  No anchor
+   walk-up.
+   This is the categorical fix for the "rolls back up to the same spot
+   next to a picture" bug:
+     • Old approach (PR #588 → today's branch): rely on overflow-anchor
+       to keep the bottom in view DESPITE images growing on load.  The
+       browser's anchor algorithm picked images as anchors because they
+       were the only sized element near the viewport bottom; when those
+       images grew on load, the anchor algorithm dutifully scrolled the
+       operator UP to keep the image at the same VISIBLE position — i.e.
+       exactly the symptom the operator describes.  Excluding images
+       via `overflow-anchor:none` cascades helps but isn't airtight
+       across browsers / pseudo-elements / shadow DOM.
+     • New approach: images can't grow.  The <img> box is locked at
+       240×240px (or width:auto if narrower than 240).  The signed-URL
+       resolution merely populates a fixed-size frame.  No growth,
+       nothing for any anchor algorithm to "preserve."
+   Tap-to-expand still works (onclick → window.open).  */
 .rr-mc-bubble img[data-rr-mc-attach],
 .rr-cc-bubble img[data-rr-mc-attach]{
-  /* Square 240×240 placeholder until the image loads — most chat
-     photos are roughly square or portrait, so this lands close to
-     the eventual height for the common case.  Once `src` is assigned
-     and the image actually loads, JS sets the inline aspect-ratio
-     from the natural dimensions (see _rrMcSignAttachments) so the
-     final paint matches the photo. */
-  aspect-ratio: 1 / 1;
+  /* Width is up to 240px and shrinks gracefully on narrow viewports
+     (max-width is set via inline style to 240px).  Height is LOCKED
+     at 240px.  object-fit:cover makes the image fill the box without
+     distortion, cropping if needed — same UX as Slack/Discord/iMessage
+     attachment thumbnails. */
+  width:100%;
+  height:240px;
+  object-fit:cover;
   background:var(--surface-hover);
-  /* Tiny inline shimmer so a "still loading" image doesn't read as
-     a broken-image placeholder. */
+  /* Loading shimmer — visible until the image's `load` event fires
+     and JS sets data-rr-loaded="1". */
   background-image:linear-gradient(110deg, var(--surface-hover) 30%, var(--surface) 50%, var(--surface-hover) 70%);
   background-size:200% 100%;
   animation:rr-mc-img-shimmer 1.4s ease-in-out infinite;
+  display:block;
 }
 .rr-mc-bubble img[data-rr-mc-attach][data-rr-loaded="1"],
 .rr-cc-bubble img[data-rr-mc-attach][data-rr-loaded="1"]{
