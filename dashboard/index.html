@@ -3220,17 +3220,36 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 /* Composer tray sits on the canvas tone so the white textarea inside
    it pops as the active surface.  Mirrors how Slack / iMessage stage
    the input — the tray is chrome, the field is the writing surface. */
-/* Position:fixed so the composer is GUARANTEED visible regardless of
-   parent layout math.  JS (_syncComposerPos in live.js) keeps the
-   horizontal coords aligned with the conversation pane.  If images
-   or content push the shell past the viewport, the composer still
-   sits at the bottom of the visible area. */
+/* Composer is a regular grid child of `.rr-mc-shell`'s
+   `auto / minmax(0,1fr) / auto` track structure: it occupies the
+   bottom `auto` row, the thread occupies the middle `minmax(0,1fr)`
+   row, and the two never overlap because they're laid out side-by-side
+   in flow rather than one floating on top of the other.
+   Previous iterations used `position:fixed` with JS-coordinated
+   left/width/bottom + a JS-coordinated padding-bottom on the thread
+   so bubbles wouldn't land BEHIND the floating composer.  That math
+   was a moving target (typing pill flickers, ResizeObserver lag,
+   textarea overflow-y gutter, image-load reflow…) and the operator
+   kept seeing the bottom bubble clipped behind the composer.
+   With the composer back in flow as a real grid row:
+     • No padding-bottom gymnastics on the thread — the grid keeps
+       the thread above the composer mechanically, so scrollHeight
+       lands the last bubble exactly at the thread's bottom edge,
+       which is the composer's top edge.  No overlap is possible.
+     • No --rr-mc-left / --rr-mc-width / --rr-mc-bottom — the
+       composer inherits the grid cell's geometry.
+     • No ResizeObserver coordination — the composer growing
+       (multi-line textarea, attachment preview row) shrinks the
+       thread row via the grid's `1fr` track sizing; scroll-anchoring
+       on the bottom sentinel keeps the latest content in view across
+       that reflow.
+   The original reason for going `position:fixed` (PR #582) was that
+   the grid layout was bugged and the composer was rendering below
+   the visible shell area.  Those bugs were fixed by `minmax(0, 1fr)`
+   on the middle track (PR #580) and the JS `_fitMsgShell` sizer
+   (PR #581) — both still in place — so the composer can safely be
+   a normal grid child again. */
 .rr-mc-composer, .rr-cc-composer{
-  position:fixed;
-  left:var(--rr-mc-left, 0);
-  width:var(--rr-mc-width, auto);
-  bottom:var(--rr-mc-bottom, 0);
-  z-index:50;
   display:flex;gap:8px;align-items:flex-end;
   padding:var(--s-3) var(--s-5);
   min-height:60px;
@@ -3238,12 +3257,6 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background-image:linear-gradient(180deg, var(--canvas) 0%, var(--surface-pressed) 100%);
   border-top:1px solid var(--border);
   min-width:0;
-}
-/* Thread's bottom padding is set dynamically by JS (_syncComposerPos)
-   to match the composer's actual height + a 16px buffer.  Static
-   value here is just a safe initial fallback before JS runs. */
-.rr-mc-thread, .rr-cc-thread{
-  padding-bottom:var(--rr-mc-thread-pad, 96px) !important;
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:44px;max-height:160px;
