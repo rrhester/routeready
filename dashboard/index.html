@@ -2755,15 +2755,27 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    ~5 minutes share rounded chrome — first/last of group get the full
    tail radius, middle bubbles get the tighter same-side radius so a
    run reads as one block instead of three balloons. */
-/* CSS Grid layout for the conversation pane — auto / 1fr / auto rows
-   guarantees the head and composer always render at their natural
-   height with the thread filling the gap, no matter how short or
-   tall the parent pane is.  No flex-shrink edge cases, no absolute
-   positioning math that can drift off-screen. */
+/* CSS Grid layout for the conversation pane — auto / minmax(0,1fr) / auto
+   rows.  The middle track MUST be minmax(0, 1fr), not bare 1fr.  A bare
+   1fr is shorthand for minmax(auto, 1fr), and `auto` floors the track at
+   its min-content size — i.e. the tallest unbreakable child of the
+   thread (a long bubble run, a tall image attachment, etc).  When the
+   thread's min-content exceeds the space the parent has to give, the
+   middle track expands past its share, pushing the composer's `auto`
+   row below `.rr-mc-shell`'s `overflow:hidden` boundary so the
+   composer renders OUT OF VIEW.  This is the same gotcha as `min-height:0`
+   in flex, but at the grid-track level — `min-height:0` on the
+   `.rr-mc-thread` item itself does NOT propagate to the track sizing
+   algorithm.  minmax(0, 1fr) sets the track's floor to 0 so the track
+   always shrinks to fit, the thread's overflow-y:auto handles the
+   scrolling, and the composer stays anchored at the bottom of the
+   visible pane.  Three previous fix attempts (flex w/ flex-shrink:0,
+   absolute pinned to bottom, plain `1fr` grid) all failed for this
+   exact reason on threads dense enough to exceed the pane height. */
 .rr-mc-shell, .rr-cc-shell{
   position:absolute;inset:0;
   display:grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow:hidden;
 }
 .rr-mc-head,  .rr-cc-head{
