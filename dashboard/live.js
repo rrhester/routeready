@@ -8462,6 +8462,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   }
   const drv = data?.driver || {};
   const msgs = data?.messages || [];
+  const peerReadAt = data?.peer_last_read_at ? new Date(data.peer_last_read_at).getTime() : 0;
 
   // First render: build the shell. After that, only re-render the thread
   // body and leave the composer / textarea state alone.
@@ -8687,6 +8688,18 @@ async function refreshDriverChatThread(scrollToBottom) {
       .map((el) => (el.textContent || "").trim().slice(0, 200))
   );
 
+  // Index of the LAST dispatcher-sent message whose created_at is at
+  // or before the driver's read marker — that's where we hang the
+  // single "Read" pill.  -1 if nothing's been read yet.
+  let lastReadDispatchIdx = -1;
+  if (peerReadAt > 0) {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (m.sender_kind !== "dispatch") continue;
+      if (new Date(m.created_at).getTime() <= peerReadAt) { lastReadDispatchIdx = i; break; }
+    }
+  }
+
   let html = "";
   if (msgs.length === 0) {
     html = renderEmpty();
@@ -8731,6 +8744,13 @@ async function refreshDriverChatThread(scrollToBottom) {
         ${attach}${bodyHtml}
         <div class="rr-mc-time">${escapeHtml(time)}</div>
       </div>`;
+      // Drop the read-receipt pill immediately after the last
+      // dispatcher-sent message that's been read.  Single placement
+      // is intentional — Slack/iMessage style, not "Read" on every
+      // bubble.
+      if (i === lastReadDispatchIdx) {
+        html += `<div class="rr-mc-read-receipt">Read</div>`;
+      }
     });
   }
 
