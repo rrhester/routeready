@@ -703,26 +703,40 @@ a{color:inherit;text-decoration:none}
 .section-title{font-size:var(--fs-md);font-weight:700;color:var(--text);margin:0;line-height:1.2;letter-spacing:-.005em}
 .section-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);line-height:1.4;letter-spacing:.005em}
 
+/* Attention-zone cards on Today's Plan — severity stripe on the
+   left edge, icon medallion in the matching tint, title + message
+   stack on the right.  Token-aligned everywhere.  Hover lifts
+   subtly so the row reads as actionable. */
 .attn-list{display:flex;flex-direction:column;gap:var(--s-2)}
 .attn-card{
-  background:var(--surface);border:1px solid var(--border);border-left-width:3px;border-radius:var(--r-md);
-  padding:var(--s-4) var(--s-5);
-  display:flex;align-items:center;gap:var(--s-4);
+  background:var(--surface);border:1px solid var(--border);
+  border-left-width:3px;border-radius:var(--r-md);
+  padding:var(--s-3) var(--s-4);
+  display:flex;align-items:center;gap:var(--s-3);
+  transition:border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.attn-card:hover{
+  background:var(--surface);
+  border-color:var(--border-strong);
+  box-shadow:var(--shadow-sm);
 }
 .attn-card.sev-amber{border-left-color:var(--amber)}
 .attn-card.sev-red{border-left-color:var(--red)}
 .attn-card.sev-blue{border-left-color:var(--accent)}
 .attn-icon{
-  width:32px;height:32px;border-radius:var(--r-md);
+  width:36px;height:36px;border-radius:var(--r-md);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .attn-icon.sev-amber{background:var(--amber-soft);color:var(--amber)}
 .attn-icon.sev-red{background:var(--red-soft);color:var(--red)}
 .attn-icon.sev-blue{background:var(--accent-soft);color:var(--accent-text)}
-.attn-icon svg{width:16px;height:16px;stroke-width:2}
+.attn-icon svg{width:18px;height:18px;stroke-width:2}
 .attn-body{flex:1;min-width:0}
-.attn-title{font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:2px}
-.attn-msg{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.45}
+.attn-title{
+  font-size:var(--fs-md);font-weight:600;color:var(--text);
+  margin-bottom:var(--s-1);line-height:1.3;letter-spacing:-.005em;
+}
+.attn-msg{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.45;letter-spacing:.005em}
 
 .attn-empty{
   background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-md);
@@ -733,7 +747,11 @@ a{color:inherit;text-decoration:none}
 /* ─────────────────────────────────────────────────────────────
    PIPELINE HEALTH + PERFORMANCE RISK (split row)
    ───────────────────────────────────────────────────────────── */
-.split{display:grid;grid-template-columns:1.15fr 1fr;gap:var(--s-3);margin-bottom:var(--s-6)}
+/* Two-column "split" used on Today's Plan + page bodies.  Gap
+   bumped --s-3 → --s-4 so cards don't touch their neighbors at
+   typical viewport widths.  Section rhythm matches the major-zone
+   --s-8 elsewhere. */
+.split{display:grid;grid-template-columns:1.15fr 1fr;gap:var(--s-4);margin-bottom:var(--s-8)}
 .card{
   background:var(--surface);
   background-image:var(--surface-grad);
@@ -745,17 +763,35 @@ a{color:inherit;text-decoration:none}
 }
 .card-compact{padding:var(--s-4) var(--s-5)}
 .card-flush{padding:0;overflow:hidden}
-/* Tinted section header for inside .card-flush. */
+/* Card section header (used inside .card-flush) — locked typography
+   stops the text drifting against the tinted background.  Subtle
+   left padding bump to align inner content with body text below. */
 .rr-tp-section-head,
 .card-section-head{
-  padding:var(--s-3) var(--s-4);
+  padding:var(--s-3) var(--s-5);
   background:linear-gradient(180deg, var(--canvas) 0%, rgba(244,246,251,.6) 100%);
   border-bottom:1px solid var(--border-subtle);
   font-size:var(--fs-md);font-weight:700;color:var(--text);
+  line-height:1.25;letter-spacing:-.005em;
 }
-.card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s-4)}
-.card-title{font-size:var(--fs-md);font-weight:600;color:var(--text);margin:0}
-.card-link{font-size:var(--fs-sm);color:var(--accent-text);font-weight:500}
+/* Card head — title + optional right-aligned action.  --s-4 bottom
+   gap matches the section header rhythm so card-internal vertical
+   beats are consistent across surfaces. */
+.card-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-bottom:var(--s-4);gap:var(--s-3);
+}
+.card-title{
+  font-size:var(--fs-md);font-weight:700;color:var(--text);
+  margin:0;line-height:1.25;letter-spacing:-.005em;
+}
+.card-link{
+  font-size:var(--fs-sm);font-weight:500;
+  color:var(--accent-text);
+  letter-spacing:.005em;
+  transition:color .12s ease;
+}
+.card-link:hover{ color:var(--accent) }
 
 /* Funnel */
 .funnel{display:flex;flex-direction:column;gap:10px}
