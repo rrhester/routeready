@@ -1752,12 +1752,55 @@ async function _submitAdminAddDsp(e) {
     return _adminAddDspError(msg);
   }
 
-  if (typeof toast === "function") toast(`${name} provisioned. Owner invite is pending.`, "ok");
-  if (typeof window.closeModal === "function") window.closeModal("modal-admin-add-dsp");
+  // The RPC returns the new DSP's id; without it we can't fire the
+  // owner invite.  This SHOULD never happen given the RPC's contract,
+  // but guard against a NULL return rather than crashing the next call.
+  const newDspId = data;
+  if (!newDspId) {
+    if (typeof toast === "function") toast(`${name} created, but couldn't read its id back. Invite the owner manually from "Invite user".`, "warn");
+    if (typeof window.closeModal === "function") window.closeModal("modal-admin-add-dsp");
+    await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
+    return;
+  }
 
-  // Refresh both the stat cards (Total / Pending move) and the table
-  // so the new DSP shows up immediately.
+  // Fire the owner invite via the same edge function the standalone
+  // Invite-user modal uses.  We treat invite failure as non-fatal —
+  // the DSP is created and the platform admin can re-invite from
+  // the row actions menu / Invite-user modal.  Surface it clearly so
+  // the operator knows to follow up.
+  if (lbl) lbl.textContent = "Sending invite…";
+  const { data: invData, error: invError } = await sb.functions.invoke("invite-team-member", {
+    body: {
+      email:         owner_email,
+      full_name:     owner_name,
+      role:          "owner",
+      target_dsp_id: newDspId,
+    },
+  });
+
+  if (typeof window.closeModal === "function") window.closeModal("modal-admin-add-dsp");
   await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
+
+  if (invError) {
+    let raw = invError.message || "";
+    try {
+      const ctxBody = await invError.context?.json?.();
+      if (ctxBody?.error) raw = ctxBody.error;
+    } catch { /* fall through */ }
+    if (typeof toast === "function") {
+      toast(`${name} created — but the owner invite failed (${raw}). Use "Invite user" to resend.`, "warn", 9000);
+    }
+    return;
+  }
+
+  // Edge function distinguishes a fresh invite from a re-issued
+  // magic link (returning user).  Both are success paths from the
+  // operator's perspective, but the wording matters.
+  const kind = invData?.kind || "invited";
+  const successMsg = kind === "resent_magic_link"
+    ? `${name} created. ${owner_email} already had an account — sent a fresh sign-in link.`
+    : `${name} created. Invite sent to ${owner_email}.`;
+  if (typeof toast === "function") toast(successMsg, "ok", 6000);
 }
 
 
