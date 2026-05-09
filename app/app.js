@@ -245,13 +245,37 @@ window.addEventListener("hashchange", render);
 function render() {
   const session = readSession();
   if (!session) { renderLogin(); return; }
+  // Onboarding lock — until dispatch flips status to 'active', the
+  // driver should only see the Onboarding tasks + Settings. Any other
+  // route (Schedule, Chat, Tasks hub, Profile hub, etc.) redirects to
+  // /tasks/onboarding so we don't accidentally surface schedule data
+  // before the operator's marked them active.
+  if (session.status === "onboarding") {
+    const allowed = (path) => path === "/tasks/onboarding"
+      || path === "/settings"
+      || path.startsWith("/settings/");
+    const path = currentRoute();
+    if (!allowed(path)) {
+      navigate("/tasks/onboarding");
+      return;
+    }
+  }
   renderShell(session);
   const path = currentRoute();
   const r = routes[path];
   // Header back button on sub-routes; clear it on top-level tabs.
+  // During onboarding the normal back targets (/tasks, /profile) are
+  // blocked routes, so override: hide back on the onboarding home and
+  // route /settings back to the onboarding home instead of /profile.
   const back = document.getElementById("head-back");
-  if (back) back.style.display = r.back ? "inline-flex" : "none";
-  if (back && r.back) back.onclick = () => navigate(r.back);
+  const isOnboarding = session.status === "onboarding";
+  let backTarget = r.back;
+  if (isOnboarding) {
+    if (path === "/tasks/onboarding") backTarget = null;
+    else if (path === "/settings")   backTarget = "/tasks/onboarding";
+  }
+  if (back) back.style.display = backTarget ? "inline-flex" : "none";
+  if (back && backTarget) back.onclick = () => navigate(backTarget);
   if (r.title) setHeader(r.title, "");
   r.render();
   document.querySelectorAll(".tab").forEach((t) => {
@@ -276,8 +300,19 @@ async function refreshDriverProfile(session, { force } = {}) {
   if (!force && now - _profileRefreshedAt < 60_000) return;
   _profileRefreshedAt = now;
   try {
-    const { data, error } = await sb.rpc("driver_me", { p_token: session.token });
-    if (error || !data) return;
+    // Fire driver_me + driver_get_profile in parallel. The first gets
+    // us the public-facing brand bits (display name, photo URL, dsp);
+    // the second carries the lifecycle status that gates the whole UI
+    // when a driver is still in 'onboarding'. Treat status as authoritative
+    // so dispatch flipping someone to 'active' lands within a minute.
+    const [meRes, profRes] = await Promise.all([
+      sb.rpc("driver_me", { p_token: session.token }),
+      sb.rpc("driver_get_profile", { p_token: session.token }),
+    ]);
+    const data = meRes?.data;
+    const profile = profRes?.data;
+    if (meRes?.error || !data) return;
+    const status = profile?.status ?? null;
     const photoUrl = data.photo_path
       ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${data.photo_path}`
       : null;
@@ -290,7 +325,8 @@ async function refreshDriverProfile(session, { force } = {}) {
         (cur.name || "")        === (data.name || "") &&
         (cur.dsp_name || "")    === dspName &&
         (cur.dsp_id || null)    === dspId &&
-        (cur.driver_id || null) === drvId) return;
+        (cur.driver_id || null) === drvId &&
+        (cur.status || null)    === (status || null)) return;
     writeSession({ ...cur,
       name:       data.name || cur.name,
       photo_url:  photoUrl,
@@ -298,9 +334,11 @@ async function refreshDriverProfile(session, { force } = {}) {
       dsp_name:   dspName,
       dsp_id:     dspId,
       driver_id:  drvId,
+      status,
     });
     // Re-render so the header brand picks up the new dsp_name and the
-    // Profile screen shows a freshly-uploaded photo.
+    // Profile screen shows a freshly-uploaded photo. Also catches an
+    // onboarding → active flip and unlocks the rest of the app.
     render();
   } catch {}
 }
@@ -397,6 +435,11 @@ function avatarHtml(session, sizeClass) {
 
 function renderShell(session) {
   const name = session?.name || "Driver";
+  // While the driver is in 'onboarding', hide the bottom tabbar so the
+  // only nav surface is the gear icon (Settings). This pairs with the
+  // route-redirect in render() and gives the operator a focused
+  // welcome experience until they're activated.
+  const isOnboarding = session?.status === "onboarding";
   document.getElementById("app").innerHTML = `
     <header class="app-head">
       <button class="head-back" id="head-back" type="button" aria-label="Back" style="display:none">
@@ -411,7 +454,7 @@ function renderShell(session) {
       </button>
     </header>
     <main id="main"><div class="loader"></div></main>
-    <nav class="tabbar" role="tablist">
+    ${isOnboarding ? "" : `<nav class="tabbar" role="tablist">
       <button class="tab" data-route="/profile" role="tab" aria-label="Profile">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Profile
@@ -428,7 +471,7 @@ function renderShell(session) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Chat
       </button>
-    </nav>`;
+    </nav>`}`;
 
   document.querySelectorAll(".tab").forEach((t) => {
     t.addEventListener("click", () => navigate(t.dataset.route));
