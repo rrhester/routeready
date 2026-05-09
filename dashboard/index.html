@@ -3246,7 +3246,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   padding-bottom:var(--rr-mc-thread-pad, 96px) !important;
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
-  flex:1;min-height:44px;max-height:140px;
+  flex:1;min-height:44px;max-height:160px;
   padding:11px 14px;font-size:var(--fs-base);line-height:1.42;
   /* White field on a soft tray — high contrast, depth cue from the
      inset shadow so the input reads as something to type into. */
@@ -3256,6 +3256,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   border-radius:var(--r-md);
   box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
   resize:none;font-family:inherit;
+  /* Explicit overflow-y so the textarea natively scrolls its own
+     content when the operator's draft exceeds max-height.  Without
+     this rule some browsers default to overflow:hidden on textareas
+     inside flex containers, which would clip the caret out of view
+     once the draft passes ~7 lines (the "I can't see the message I'm
+     preparing to send" complaint).  Pair with caret-follow logic in
+     the input handler so scrollTop tracks the caret. */
+  overflow-y:auto;
   transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 .rr-mc-composer textarea::placeholder, .rr-cc-composer textarea::placeholder{

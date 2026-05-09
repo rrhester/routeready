@@ -851,15 +851,22 @@ async function renderChat() {
       <div class="chat-time">${escapeHtml(nowTime)} · sending</div>
     </div>`;
     if (wrap) {
-      // Drop in just before the jump pill (which is the last child).
+      // Drop in just before the jump pill (which sits just before the
+      // bottom sentinel — sentinel must remain the LAST child so
+      // browser scroll-anchoring keeps tracking it).
       const jump = wrap.querySelector(".chat-jump");
+      const sentinel = wrap.querySelector(".chat-bottom-sentinel");
       if (jump) jump.insertAdjacentHTML("beforebegin", stubHtml);
+      else if (sentinel) sentinel.insertAdjacentHTML("beforebegin", stubHtml);
       else wrap.insertAdjacentHTML("beforeend", stubHtml);
       // Remove the empty-state placeholder if present.
       const empty = wrap.querySelector(".rr-empty");
       if (empty) empty.remove();
       const skel = wrap.querySelector(".chat-skeleton");
       if (skel) skel.remove();
+      // Re-arm the anchor — the driver just sent, they want to track
+      // new content from here on out.
+      wrap.dataset.rrAnchor = "1";
       wrap.scrollTop = wrap.scrollHeight;
     }
     const savedBody = body;
@@ -1111,12 +1118,17 @@ async function refreshChat(scrollToBottom) {
   const prevMsgCount     = parseInt(wrap.dataset.rrMsgCount || "-1", 10);
   const isFirstPaint     = !wrap.querySelector(".chat-bubble") && !wrap.querySelector(".rr-empty");
   if (isFirstPaint && !wrap.querySelector(".chat-skeleton")) {
+    // Sentinel comes along on the first paint too — the bubble list
+    // re-render replaces this within a tick, but keeping the sentinel
+    // present from the very first paint avoids any frame where there
+    // is no anchor target at all.
     wrap.innerHTML = `<div class="chat-skeleton">
       <div class="chat-skeleton-row"><div class="chat-skeleton-bubble" style="width:62%"></div></div>
       <div class="chat-skeleton-row right"><div class="chat-skeleton-bubble" style="width:48%"></div></div>
       <div class="chat-skeleton-row"><div class="chat-skeleton-bubble" style="width:38%"></div></div>
       <div class="chat-skeleton-row right"><div class="chat-skeleton-bubble" style="width:55%"></div></div>
-    </div>`;
+    </div>
+    <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
   }
 
   const { data, error } = await sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 200 });
@@ -1141,6 +1153,8 @@ async function refreshChat(scrollToBottom) {
     // Carry forward live stubs so a failed first send isn't wiped.
     const liveStubs = Array.from(wrap.querySelectorAll(".chat-bubble.pending, .chat-bubble.failed"))
       .map((el) => el.outerHTML).join("");
+    // Sentinel must be the LAST child of .chat-msgs for browser scroll-
+    // anchoring to land on it (see .chat-bottom-sentinel CSS).
     wrap.innerHTML = `${liveStubs}
       <div class="rr-empty">
         <div class="rr-empty-icon">
@@ -1149,7 +1163,8 @@ async function refreshChat(scrollToBottom) {
         <div class="rr-empty-title">No messages yet</div>
         <div class="rr-empty-sub">Type below to start a conversation with dispatch.</div>
       </div>
-      <button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest"></button>`;
+      <button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest"></button>
+      <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
   } else {
     // Index of the last driver-sent message read by dispatch.
     let lastReadMineIdx = -1;
@@ -1204,27 +1219,44 @@ async function refreshChat(scrollToBottom) {
     const liveStubs = Array.from(wrap.querySelectorAll(".chat-bubble.pending, .chat-bubble.failed"))
       .filter((el) => !stubBodies.has((el.textContent || "").trim().slice(0, 200)))
       .map((el) => el.outerHTML).join("");
+    // Sentinel must be the LAST child for browser scroll-anchoring to
+    // pick it as the anchor when the driver is at the bottom.  See the
+    // .chat-bottom-sentinel rule in styles.css.
     wrap.innerHTML = html + liveStubs +
       `<button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         New messages
-      </button>`;
+      </button>
+      <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
     _rrSignChatAttachments();
   }
+  // Wire the smart anchor-release: on scroll-up, flip data-rr-anchor="0"
+  // on .chat-msgs which switches the sentinel's overflow-anchor to none
+  // (so the browser doesn't fight the driver scrolling up to read).
+  // Idempotent — bound once per .chat-msgs element.
+  _rrChatBindAnchorRelease(wrap);
 
   // Wire jump pill (rebound on every render).
   const jump = document.getElementById("chat-jump");
   if (jump) {
     jump.addEventListener("click", () => {
+      // Re-arm anchor BEFORE scrolling so the post-scroll reflow
+      // (read-receipt land, image hydration) keeps the driver pinned.
+      wrap.dataset.rrAnchor = "1";
       wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
       jump.classList.remove("show");
     });
   }
 
   if (scrollToBottom || wasNearBottom) {
+    wrap.dataset.rrAnchor = "1";
     wrap.scrollTop = wrap.scrollHeight;
     if (jump) jump.classList.remove("show");
   } else if (prevMsgCount >= 0 && messages.length > prevMsgCount) {
+    // Driver was scrolled up; new content arrived — keep them put and
+    // surface the jump-pill.  Anchor stays at "0" so the sentinel's
+    // overflow-anchor is `none` and the browser won't yank them down.
+    wrap.dataset.rrAnchor = "0";
     if (jump) jump.classList.add("show");
   }
 
@@ -1263,7 +1295,15 @@ function chatBubbleHtml(m, pos) {
     const name  = m.attachment_name || "Attachment";
     const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
     if (isImg) {
-      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
+      // width/height HTML attributes (NOT just CSS) give the browser
+      // the intrinsic size BEFORE any stylesheet parses — the box is
+      // 240×240 from the first style-resolution tick.  Combined with
+      // object-fit:cover from CSS, the image NEVER changes its own
+      // height once src lands, so there's nothing for the browser's
+      // scroll-anchor algorithm to "preserve" (which is what was
+      // yanking the driver UP to a fixed image position).  Same fix
+      // as dashboard PR #597.
+      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
@@ -1298,10 +1338,52 @@ async function _rrSignChatAttachments() {
         .from("driver-chat-attachments")
         .createSignedUrl(path, 60 * 60 * 8); // 8h
       if (error || !data?.signedUrl) continue;
-      if (el.tagName === "IMG") el.src = data.signedUrl;
-      else                       el.href = data.signedUrl;
+      if (el.tagName === "IMG") {
+        // Bind load BEFORE assigning src so the loaded flag flips even
+        // for cached images (cached <img>s can fire load synchronously
+        // on src assignment, before any externally-attached listener).
+        // Once loaded, we drop the shimmer / placeholder background.
+        el.addEventListener("load", () => {
+          el.setAttribute("data-rr-loaded", "1");
+        }, { once: true });
+        el.addEventListener("error", () => {
+          el.setAttribute("data-rr-loaded", "1");
+        }, { once: true });
+        el.src = data.signedUrl;
+      } else {
+        el.href = data.signedUrl;
+      }
     } catch {}
   }
+}
+
+// Smart anchor-release for .chat-msgs.  When the driver scrolls up
+// to read history, flip data-rr-anchor="0" so the bottom-sentinel's
+// overflow-anchor goes to `none` — that way the browser stops trying
+// to keep them at the bottom while content lands above.  When they
+// come back to within 80px of the bottom, re-arm to "1".  Bound once
+// per .chat-msgs element via a private flag.
+function _rrChatBindAnchorRelease(wrap) {
+  if (!wrap || wrap._rrChatAnchorBound) return;
+  wrap._rrChatAnchorBound = true;
+  // Default state: pinned to bottom.  Refresh callers that detected
+  // wasNearBottom set this explicitly; this is just the initial value.
+  if (!wrap.dataset.rrAnchor) wrap.dataset.rrAnchor = "1";
+  const release = () => {
+    requestAnimationFrame(() => {
+      const cur = wrap.scrollTop;
+      const max = wrap.scrollHeight;
+      const view = wrap.clientHeight;
+      if ((max - cur - view) > 80) wrap.dataset.rrAnchor = "0";
+      else wrap.dataset.rrAnchor = "1";
+      // Also fold the jump-pill in once they're back near bottom.
+      const jump = wrap.querySelector(".chat-jump");
+      if (jump && (max - cur - view) <= 80) jump.classList.remove("show");
+    });
+  };
+  wrap.addEventListener("scroll",    release, { passive: true });
+  wrap.addEventListener("wheel",     release, { passive: true });
+  wrap.addEventListener("touchmove", release, { passive: true });
 }
 
 
@@ -1599,9 +1681,17 @@ async function refreshChannelThread(scrollToBottom) {
     return;
   }
   if (!wrap) return;
+  // Capture position BEFORE re-render so we can decide whether to
+  // re-pin to bottom (driver was already there) or leave their
+  // scroll position untouched (they scrolled up to read history).
+  const prevScrollTop    = wrap.scrollTop;
+  const prevScrollHeight = wrap.scrollHeight;
+  const prevClientHeight = wrap.clientHeight;
+  const wasNearBottom    = (prevScrollHeight - prevScrollTop - prevClientHeight) < 120;
   const messages = data?.messages || [];
   if (messages.length === 0) {
-    wrap.innerHTML = `<div class="empty-state">No messages yet. Be the first to post.</div>`;
+    wrap.innerHTML = `<div class="empty-state">No messages yet. Be the first to post.</div>
+      <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
   } else {
     // Sender grouping — consecutive messages from the same author
     // within 5 minutes collapse into a block.  Sender label only on
@@ -1625,10 +1715,16 @@ async function refreshChannelThread(scrollToBottom) {
       lastSenderKey = senderKey;
       lastTimeMs = t.getTime();
       return channelBubbleHtml(m, pos);
-    }).join("");
+    }).join("") + `<div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
     _rrSignChatAttachments();
   }
-  if (scrollToBottom) wrap.scrollTop = wrap.scrollHeight;
+  // Bind the smart-anchor-release listener (scroll-up flips
+  // data-rr-anchor="0" so the browser doesn't fight the driver).
+  _rrChatBindAnchorRelease(wrap);
+  if (scrollToBottom || wasNearBottom) {
+    wrap.dataset.rrAnchor = "1";
+    wrap.scrollTop = wrap.scrollHeight;
+  }
   setAppBadge(0);
 }
 
@@ -1656,7 +1752,8 @@ function channelBubbleHtml(m, pos) {
     const name  = m.attachment_name || "Attachment";
     const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
     if (isImg) {
-      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" style="display:block;max-width:240px;width:100%;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
+      // Fixed 240x240 box (see chatBubbleHtml comment + styles.css).
+      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">

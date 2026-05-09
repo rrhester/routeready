@@ -8618,7 +8618,21 @@ async function refreshDriverChatThread(scrollToBottom) {
       </div>`;
     const ta = document.getElementById("rr-mc-input");
     ta.addEventListener("input", () => {
-      ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+      ta.style.height = "auto"; ta.style.height = Math.min(160, ta.scrollHeight) + "px";
+      // Keep the caret visible inside the textarea — once the draft
+      // exceeds max-height, the textarea internally scrolls.  We pin
+      // its scrollTop to the bottom on every keystroke so the line
+      // currently being typed is always visible.  This is the fix for
+      // the "I can not see the message I am preparing to send" report:
+      // long drafts were being clipped by max-height with the caret
+      // off-screen because some browsers don't auto-scroll a textarea
+      // to caret when the height is JS-driven.
+      ta.scrollTop = ta.scrollHeight;
+      // Re-sync the position:fixed composer's coords + the thread's
+      // bottom padding so the just-grown composer doesn't clip the
+      // newest bubble.  ResizeObserver eventually catches this too,
+      // but firing it here removes the one-frame lag.
+      if (typeof _syncComposerPos === "function") _syncComposerPos();
       // Throttled typing broadcast — keeps the driver's "typing…"
       // indicator alive while the operator is composing.
       if (_msgInboxSelectedId) _presenceBroadcastTyping(_msgInboxSelectedId);
@@ -8704,14 +8718,36 @@ async function refreshDriverChatThread(scrollToBottom) {
       threadEl.dataset.rrAnchor = "1";
       const savedBody = body;
       ta.value = ""; ta.style.height = "auto";
+      // SYNCHRONOUSLY re-measure the composer + reset --rr-mc-thread-pad
+      // so the just-shrunk composer's padding-bottom is in place BEFORE
+      // we compute scrollHeight.  ResizeObserver would catch this in a
+      // later tick, but that lag was the root cause of the operator's
+      // "I can't see the message I just sent" report: the optimistic
+      // stub landed at scrollHeight - clientHeight - oldPad (with the
+      // composer still tall in JS state), and after the observer
+      // shrunk the pad the new bubble was suddenly inside the bottom-
+      // padding zone — visually clipped by the composer overlay.
+      // Calling _syncComposerPos right here reads the composer's NEW
+      // height (44px-ish single-line) and writes the smaller pad value
+      // before the scrollTop assignment below.
+      if (typeof _syncComposerPos === "function") _syncComposerPos();
       // Direct scrollTop write (not scrollIntoView, which would walk
       // up ancestor scroll containers and possibly scroll the page).
-      // The textarea reset above triggers _syncComposerPos via the
-      // ResizeObserver, which shrinks --rr-mc-thread-pad; the rAF
-      // re-pin below covers the height change.
+      // With _syncComposerPos already called above, --rr-mc-thread-pad
+      // matches the (now-shrunk) composer's actual height, so the
+      // bottom padding-zone of the thread is exactly the composer
+      // overlay region; the stub bubble lands JUST ABOVE that zone,
+      // which is exactly above the composer — visible.
       threadEl.scrollTop = threadEl.scrollHeight;
+      // rAF re-pin: catches late layout (bubble fade-in transform,
+      // attachment thumbnail painting, padding shifts from a still-
+      // settling ResizeObserver tick) and re-asserts bottom-pin while
+      // the anchor flag is on.
       requestAnimationFrame(() => {
         if (threadEl.dataset.rrAnchor === "1") {
+          // Re-measure padding once more in case the composer's
+          // ResizeObserver fired between the sync call above and now.
+          if (typeof _syncComposerPos === "function") _syncComposerPos();
           threadEl.scrollTop = threadEl.scrollHeight;
         }
       });
@@ -9373,7 +9409,15 @@ async function refreshChannelThread(scrollToBottom) {
       </div>`;
 
     const ta = document.getElementById("rr-cc-input");
-    ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px"; });
+    ta.addEventListener("input", () => {
+      ta.style.height = "auto"; ta.style.height = Math.min(160, ta.scrollHeight) + "px";
+      // Caret-follow + composer-position resync — same pattern as
+      // rr-mc-input above.  Keeps the typed line visible when the
+      // draft overflows max-height, and keeps the thread's bottom
+      // padding matched to the composer's actual height.
+      ta.scrollTop = ta.scrollHeight;
+      if (typeof _syncComposerPos === "function") _syncComposerPos();
+    });
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -9444,6 +9488,11 @@ async function refreshChannelThread(scrollToBottom) {
       send.disabled = false;
       if (error) { toast("Couldn't post: " + error.message, "warn"); return; }
       ta.value = ""; ta.style.height = "auto";
+      // Re-sync composer position so the just-shrunk textarea's smaller
+      // padding-bottom is in place before refreshChannelThread renders
+      // the new message — otherwise the bubble can land in the bottom
+      // padding zone behind the position:fixed composer.
+      if (typeof _syncComposerPos === "function") _syncComposerPos();
       if (file) {
         window._rrCcPending = null;
         fileInput.value = "";

@@ -708,6 +708,97 @@ select.field{
   /* Hide the desktop-style scrollbar — only the list scrolls and even
      that is invisible. */
   scrollbar-width:none;
+  /* Browser scroll-anchoring is left at default (`overflow-anchor:auto`
+     on the scroll container).  Setting `none` here would fully disable
+     anchoring for this container's scrollTop — exactly the opposite of
+     what we want.  Instead, we exclude every BUBBLE / IMAGE / DAY
+     DIVIDER / RECEIPT / SKELETON / EMPTY / JUMP-PILL from the anchor
+     pool below — that forces the algorithm to pick the bottom sentinel
+     as the only eligible anchor.  Mirrors the dispatcher fix in
+     PR #596: the previous "rolls back up to the same picture" bug
+     was caused by the algorithm latching onto an <img> with an
+     async-resolved signed-URL src.  When the image painted at its
+     real intrinsic size, anchoring "preserved" that image's visible
+     position by yanking scrollTop UP by the image's height.  The
+     fix is to make the sentinel the only eligible anchor. */
+}
+/* Exclude every bubble (and every descendant of every bubble — esp.
+   <img data-rr-attach>) from the anchor algorithm.  Without this rule
+   the browser frequently picked an image attachment as the anchor:
+   the image enters the viewport at scrollTop=scrollHeight, has no
+   intrinsic size yet because its src is signed-URL'd async by
+   _rrSignChatAttachments, and when it finally loads + grows from
+   0 → ~600px tall, the anchoring algorithm "preserves" the image's
+   visible position by subtracting that growth from scrollTop —
+   i.e. SCROLLS THE DRIVER UP to keep that image fixed on screen.
+   Excluding bubbles + descendants from the anchor pool fixes this
+   categorically: the only remaining eligible anchor is the bottom
+   sentinel, so any above-sentinel reflow keeps the SENTINEL in place
+   (i.e. keeps the bottom of the thread in place).  Day dividers,
+   read receipts, skeletons, the empty state, and the jump pill are
+   excluded for the same reason — any of them could otherwise be
+   picked. */
+.chat-bubble, .chat-bubble *,
+.chat-day, .chat-read-receipt,
+.chat-skeleton, .chat-skeleton *,
+.chat-jump,
+.chat-msgs > .rr-empty, .chat-msgs > .rr-empty *,
+.chat-msgs > .empty-state{
+  overflow-anchor:none;
+}
+/* Bottom sentinel — last child of .chat-msgs.  Browser scroll-
+   anchoring tracks this 1px element when it's near the bottom of the
+   viewport, so reflows above (image loads, attachment hydration, new
+   bubble inserts) do NOT visibly nudge the scroll position.  When
+   the driver manually scrolls up to read history, JS toggles
+   `data-rr-anchor="0"` on .chat-msgs which flips this back to `none`
+   so the browser doesn't fight them. */
+.chat-bottom-sentinel{
+  height:1px;flex:0 0 auto;
+  /* Explicit `auto` is redundant (it's the default) but documents
+     intent: this is the ONE element we want the anchor algorithm to
+     latch onto when the driver is at the bottom. */
+  overflow-anchor:auto;
+}
+.chat-msgs[data-rr-anchor="0"] .chat-bottom-sentinel{
+  overflow-anchor:none;
+}
+/* Image attachments inside bubbles — the box height is FIXED at 240px
+   from first paint forever.  The image content fits via object-fit:cover
+   inside that fixed-size box, so the image's NATURAL dimensions never
+   feed back into layout.  No reflow.  No height-growth.  No anchor
+   walk-up.
+   Mirrors the dashboard fix in PR #597: aspect-ratio:1/1 alone wasn't
+   airtight (a portrait photo's natural ratio still let the box grow
+   on src land for some browsers / pseudo-element edge cases).
+   Locking height absolutely is geometrically impossible to grow.
+   Note: driver app uses `data-rr-attach` (NOT `data-rr-mc-attach`
+   like the dashboard).  Tap-to-expand still works via onclick on the
+   inline <img>. */
+.chat-bubble img[data-rr-attach]{
+  /* Width is up to 240px (capped by the inline max-width:240px on
+     the <img>); shrinks on narrow viewports.  Height is LOCKED at
+     240px regardless of the photo's natural aspect ratio.  object-
+     fit:cover makes the image fill the box without distortion,
+     cropping if needed — same UX as Slack/Discord/iMessage thumbs. */
+  width:100%;
+  height:240px;
+  object-fit:cover;
+  display:block;
+  background:var(--surface-hover, #F4F6FA);
+  /* Loading shimmer — visible until the image's `load` event fires
+     and JS (_rrSignChatAttachments) sets data-rr-loaded="1". */
+  background-image:linear-gradient(110deg, var(--surface-hover, #F4F6FA) 30%, var(--surface, #FFF) 50%, var(--surface-hover, #F4F6FA) 70%);
+  background-size:200% 100%;
+  animation:chat-img-shimmer 1.4s ease-in-out infinite;
+}
+.chat-bubble img[data-rr-attach][data-rr-loaded="1"]{
+  animation:none;
+  background-image:none;
+}
+@keyframes chat-img-shimmer{
+  0%   { background-position: 200% 0; }
+  100% { background-position: -100% 0; }
 }
 /* Date divider chip — slim hairline-flanked label between message
    blocks when the calendar day changes. Mirrors the dispatcher
