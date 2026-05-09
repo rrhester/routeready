@@ -1125,6 +1125,23 @@ a{color:inherit;text-decoration:none}
   background-size:200% 100%;animation:rr-admin-shimmer 1.4s ease-in-out infinite;
 }
 
+/* Read-only meta strip at the top of the DSP-edit modal · created /
+   status / driver count.  Light chrome so it doesn't compete with
+   the editable fields below. */
+.rr-edit-dsp-meta{
+  display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:var(--s-3);
+  padding:var(--s-3) var(--s-4);
+  background:var(--canvas);
+  border:1px solid var(--border);border-radius:var(--r-md);
+}
+.rr-edit-dsp-meta__cell{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rr-edit-dsp-meta__label{
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.rr-edit-dsp-meta__value{font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* Inline error / status banner inside the Add-DSP modal */
 .rr-admin-add-dsp-error{
   background:var(--red-soft);
@@ -11229,6 +11246,89 @@ Evidence attached:
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     PLATFORM ADMIN · DSP DETAIL / EDIT MODAL
+     Single modal for both "View details" and "Edit account" row
+     actions — admins can always edit, so a separate read-only
+     mode would just be friction.  Writes go directly to the dsps
+     table; the dsps_admin_all RLS policy from migration 0124
+     authorizes the update server-side.  Suspend / reactivate /
+     delete remain in the row-actions menu so destructive flows
+     stay separate from this "fix a typo" surface.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-admin-edit-dsp" onclick="if(event.target===this)closeModal('modal-admin-edit-dsp')">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-head">
+      <div style="min-width:0">
+        <p class="modal-title" id="rr-edit-dsp-title">DSP details</p>
+        <p class="modal-sub" id="rr-edit-dsp-sub">—</p>
+      </div>
+      <button class="modal-close" type="button" onclick="closeModal('modal-admin-edit-dsp')" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="rr-admin-edit-dsp-form" autocomplete="off" novalidate>
+      <input type="hidden" id="rr-edit-dsp-id" />
+
+      <div class="modal-body">
+
+        <!-- Read-only stat row · created / status / driver count.
+             Helps the admin orient before they edit anything. -->
+        <div class="rr-edit-dsp-meta" id="rr-edit-dsp-meta"></div>
+
+        <div class="modal-row-2">
+          <div>
+            <label class="modal-field-label" for="rr-edit-dsp-name">DSP company name</label>
+            <input class="form-input" id="rr-edit-dsp-name" name="name" type="text" required minlength="2" maxlength="80" />
+          </div>
+          <div>
+            <label class="modal-field-label" for="rr-edit-dsp-short-code">Station code</label>
+            <input class="form-input" id="rr-edit-dsp-short-code" name="short_code" type="text" disabled
+                   style="text-transform:uppercase;font-variant-numeric:tabular-nums;letter-spacing:.04em" />
+            <p class="form-help" style="margin-top:4px">Locked once provisioned.</p>
+          </div>
+        </div>
+
+        <div class="modal-row-2">
+          <div>
+            <label class="modal-field-label" for="rr-edit-dsp-phone">Phone</label>
+            <input class="form-input" id="rr-edit-dsp-phone" name="phone" type="tel" maxlength="40" />
+          </div>
+          <div>
+            <label class="modal-field-label" for="rr-edit-dsp-plan">Subscription plan</label>
+            <select class="form-input" id="rr-edit-dsp-plan" name="subscription_plan">
+              <option value="starter">Starter</option>
+              <option value="growth">Growth</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="modal-field-label" for="rr-edit-dsp-address">Address</label>
+          <input class="form-input" id="rr-edit-dsp-address" name="address" type="text" maxlength="200" />
+        </div>
+
+        <div>
+          <label class="modal-field-label" for="rr-edit-dsp-notes">Internal notes</label>
+          <textarea class="form-input" id="rr-edit-dsp-notes" name="notes" rows="3" maxlength="2000"
+                    style="resize:vertical;font-family:inherit"
+                    placeholder="Anything the RouteReady team should know about this account…"></textarea>
+        </div>
+
+        <div class="rr-admin-add-dsp-error" id="rr-admin-edit-dsp-error" hidden></div>
+
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-admin-edit-dsp')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="rr-admin-edit-dsp-submit">
+          <span data-rr-edit-dsp-label>Save changes</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      PLATFORM ADMIN · MANAGE USERS SLIDE-OVER
      Right-side drawer that lists every user attached to a DSP and
      lets a platform admin change their role, allowed pages, or
@@ -17620,7 +17720,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509f-admin-manage-users"></script>
+<script type="module" src="./live.js?v=20260509g-admin-edit-dsp"></script>
 
 </body>
 </html>

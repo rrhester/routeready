@@ -1105,8 +1105,7 @@ async function _runAdminAction(action, dspId) {
   switch (action) {
     case "view":
     case "edit":
-      // Detail / edit modals land in a follow-up phase.
-      if (typeof toast === "function") toast(`${action === "view" ? "Detail panel" : "Edit modal"} lands in a follow-up phase.`, "info");
+      _openAdminEditDspModal(dspId);
       return;
     case "users":
       _openAdminManageUsers(dspId);
@@ -1246,6 +1245,137 @@ function _adminAddDspError(message, kind) {
   el.classList.toggle("rr-admin-add-dsp-error--ok", kind === "ok");
   el.hidden = false;
 }
+
+// ── DSP detail / edit modal ────────────────────────────────────────────────
+// Single modal for both "View details" and "Edit account" row actions.
+// Reads from the in-memory _admin.dsps list (already populated by
+// admin_list_dsps), then writes via direct UPDATE on the dsps table —
+// the dsps_admin_all RLS policy from migration 0124 authorizes the
+// update.  Status / suspend / reactivate stay in the row-actions
+// menu so destructive flows are clearly separate from this surface.
+
+function _openAdminEditDspModal(dspId) {
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  if (!dsp) {
+    if (typeof toast === "function") toast("Couldn't find that DSP — try refreshing.", "warn");
+    return;
+  }
+
+  const get = (id) => document.getElementById(id);
+
+  if (get("rr-edit-dsp-title")) get("rr-edit-dsp-title").textContent = `Edit · ${dsp.name || "DSP"}`;
+  if (get("rr-edit-dsp-sub"))   get("rr-edit-dsp-sub").textContent   = dsp.short_code || "—";
+
+  // Read-only meta strip · created date / status pill / driver count.
+  const meta = get("rr-edit-dsp-meta");
+  if (meta) {
+    const created = dsp.created_at ? new Date(dsp.created_at).toLocaleDateString() : "—";
+    const statusClass =
+      dsp.status === "active"    ? "status-pill-success" :
+      dsp.status === "pending"   ? "status-pill-pending" :
+      dsp.status === "suspended" ? "status-pill-danger"  : "status-pill-neutral";
+    const statusLabel =
+      dsp.status === "active"    ? "Active" :
+      dsp.status === "pending"   ? "Pending" :
+      dsp.status === "suspended" ? "Suspended" : (dsp.status || "—");
+    meta.innerHTML = `
+      <div class="rr-edit-dsp-meta__cell">
+        <span class="rr-edit-dsp-meta__label">Created</span>
+        <span class="rr-edit-dsp-meta__value">${escapeHtml(created)}</span>
+      </div>
+      <div class="rr-edit-dsp-meta__cell">
+        <span class="rr-edit-dsp-meta__label">Status</span>
+        <span class="rr-edit-dsp-meta__value"><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></span>
+      </div>
+      <div class="rr-edit-dsp-meta__cell">
+        <span class="rr-edit-dsp-meta__label">Drivers</span>
+        <span class="rr-edit-dsp-meta__value">${dsp.driver_count ?? 0}</span>
+      </div>`;
+  }
+
+  // Prefill form fields.
+  if (get("rr-edit-dsp-id"))         get("rr-edit-dsp-id").value         = dsp.id;
+  if (get("rr-edit-dsp-name"))       get("rr-edit-dsp-name").value       = dsp.name        || "";
+  if (get("rr-edit-dsp-short-code")) get("rr-edit-dsp-short-code").value = dsp.short_code  || "";
+  if (get("rr-edit-dsp-phone"))      get("rr-edit-dsp-phone").value      = dsp.phone       || "";
+  if (get("rr-edit-dsp-address"))    get("rr-edit-dsp-address").value    = dsp.address     || "";
+  if (get("rr-edit-dsp-plan"))       get("rr-edit-dsp-plan").value       = dsp.subscription_plan || "starter";
+  if (get("rr-edit-dsp-notes"))      get("rr-edit-dsp-notes").value      = dsp.notes       || "";
+
+  const errEl = get("rr-admin-edit-dsp-error");
+  if (errEl) { errEl.hidden = true; errEl.textContent = ""; errEl.classList.remove("rr-admin-add-dsp-error--ok"); }
+
+  if (typeof window.openModal === "function") window.openModal("modal-admin-edit-dsp");
+  setTimeout(() => get("rr-edit-dsp-name")?.focus(), 60);
+}
+
+function _adminEditDspError(message) {
+  const el = document.getElementById("rr-admin-edit-dsp-error");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove("rr-admin-add-dsp-error--ok");
+  el.hidden = false;
+}
+
+async function _submitAdminEditDsp(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const submit = document.getElementById("rr-admin-edit-dsp-submit");
+  const lbl    = submit?.querySelector("[data-rr-edit-dsp-label]");
+  const errEl  = document.getElementById("rr-admin-edit-dsp-error");
+  if (errEl) errEl.hidden = true;
+
+  const dspId = document.getElementById("rr-edit-dsp-id")?.value;
+  if (!dspId) return _adminEditDspError("Lost track of which DSP to update — close and reopen.");
+
+  const get = (n) => (form.elements.namedItem(n)?.value || "").trim();
+  const name              = get("name");
+  const phone             = get("phone");
+  const address           = get("address");
+  const subscription_plan = get("subscription_plan") || "starter";
+  const notes             = get("notes");
+
+  if (name.length < 2) return _adminEditDspError("DSP company name is required.");
+  if (!["starter", "growth", "enterprise"].includes(subscription_plan)) {
+    return _adminEditDspError("Pick a subscription plan.");
+  }
+
+  if (submit) submit.disabled = true;
+  if (lbl)    lbl.textContent = "Saving…";
+
+  // Direct UPDATE — gated by the dsps_admin_all RLS policy from
+  // migration 0124.  A non-platform-admin caller would get 0 rows
+  // affected (silent no-op), which is fine because non-admins can't
+  // see the modal in the first place.
+  const { error } = await sb.from("dsps")
+    .update({
+      name,
+      phone:             phone   || null,
+      address:           address || null,
+      subscription_plan,
+      notes:             notes   || null,
+    })
+    .eq("id", dspId);
+
+  if (submit) submit.disabled = false;
+  if (lbl)    lbl.textContent = "Save changes";
+
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    return _adminEditDspError(error.message || "Couldn't save the changes.");
+  }
+
+  if (typeof toast === "function") toast(`${name} updated.`, "ok");
+  if (typeof window.closeModal === "function") window.closeModal("modal-admin-edit-dsp");
+  await _loadPlatformAdminDsps();
+}
+
+// Bind the form submit once.  Bind on DOMContentLoaded if the form
+// is already in the DOM, else wait for it.  (The form is in the
+// static HTML, so it's reliably present by the time live.js runs.)
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("rr-admin-edit-dsp-form")?.addEventListener("submit", _submitAdminEditDsp);
+});
 
 // ── Manage-Users slide-over ────────────────────────────────────────────────
 // Right-side drawer that lists every app_users row attached to a DSP
