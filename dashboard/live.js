@@ -1289,11 +1289,11 @@ function _renderAttSnapshot() {
   el.innerHTML = `
     <div class="att-snapshot-row">
       <span class="att-snapshot-title">${rows.length} drivers ·</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#7f1d1d"></span>${counts.Termination} Termination</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#dc2626"></span>${counts.Final} Final</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#c2410c"></span>${counts.Written} Written</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#d97706"></span>${counts.Verbal} Verbal</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:#15803d"></span>${counts.Clear} Clear</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--red-dark)"></span>${counts.Termination} Termination</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--red)"></span>${counts.Final} Final</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--amber-dark)"></span>${counts.Written} Written</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--amber)"></span>${counts.Verbal} Verbal</span>
+      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--green-dark)"></span>${counts.Clear} Clear</span>
     </div>`;
 }
 
@@ -4845,7 +4845,7 @@ function renderLicenseRow(d) {
     pillStyle = "color:var(--red);font-weight:700";
     label = `Expired ${-days}d ago`;
   } else if (days <= 30) {
-    pillStyle = "color:#B45309;font-weight:700";
+    pillStyle = "color:var(--amber-dark);font-weight:700";
     label = `Expires in ${days}d`;
   }
   const initials = displayDriverInitials(d);
@@ -5017,7 +5017,7 @@ document.addEventListener("click", (e) => {
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
       <div>· <strong style="color:var(--red)">Red</strong> = ≥1.5× the overall rate (and >5%)</div>
       <div>· <strong style="color:var(--amber)">Amber</strong> = ≥1.2× the overall rate</div>
-      <div>· <strong style="color:#22c55e">Green</strong> = at or below the overall rate</div>
+      <div>· <strong style="color:var(--green-bright)">Green</strong> = at or below the overall rate</div>
       <div>· <span style="color:var(--text-muted)">Grey</span> = no shifts on that day in the window</div>
       <div style="margin-top:18px;display:flex;justify-content:flex-end">
         <button class="btn btn-sm" type="button" id="rr-di-dow-popover-close">Close</button>
@@ -6312,9 +6312,9 @@ function renderInterviewCard(r) {
     : "—";
   const outcome = r.outcome;
   const sourceColors = {
-    hired:   "background:rgba(22,163,74,.12);color:#16A34A",
-    no_hire: "background:rgba(220,38,38,.12);color:#DC2626",
-    no_show: "background:rgba(245,158,11,.18);color:#B45309",
+    hired:   "background:rgba(22,163,74,.12);color:var(--green)",
+    no_hire: "background:rgba(220,38,38,.12);color:var(--red)",
+    no_show: "background:rgba(245,158,11,.18);color:var(--amber-dark)",
   };
   const badge = outcome
     ? `<span class="iv-card-source" style="${sourceColors[outcome]}">${outcome.replace("_"," ")}</span>`
@@ -7029,7 +7029,7 @@ async function loadCalBookingsList() {
         ? `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(124,58,237,.12);color:#7C3AED;letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
         : `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent-text);letter-spacing:.04em;text-transform:uppercase">Interview</span>`;
       const statusBadge = r.status === "rescheduled"
-        ? `<span style="font-size:var(--fs-xs);font-weight:600;color:#B45309;margin-left:6px">rescheduled</span>`
+        ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--amber-dark);margin-left:6px">rescheduled</span>`
         : "";
 
       html.push(`
@@ -7389,7 +7389,7 @@ async function openCoachingPrintView(driverId) {
 
   const generated = new Date().toLocaleString();
   const escape = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const sevColor = (s) => ({info:"#475569", concern:"#1d4ed8", warning:"#b45309", final:"#dc2626"}[s] || "#475569");
+  const sevColor = (s) => ({info:"#475569", concern:"var(--blue-dark)", warning:"var(--amber-dark)", final:"var(--red)"}[s] || "#475569");
   const sevLabel = (s) => ({info:"Info", concern:"Concern", warning:"Warning", final:"Final"}[s] || s);
 
   const totalsBySeverity = list.reduce((acc, c) => {
@@ -7494,7 +7494,7 @@ async function openCoachingPrintView(driverId) {
   .rec-summary{font-size:var(--fs-lg);font-weight:600;line-height:1.4;margin:6px 0}
   .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:10px 12px;border-left:3px solid #cbd5e1;border-radius:3px;margin:8px 0}
   .rec-fields>div{display:flex;gap:8px;font-size:var(--fs-sm);margin-bottom:4px}
-  .hr-only{color:#dc2626;font-weight:700}
+  .hr-only{color:var(--red);font-weight:700}
   .sig{margin-top:12px;border:1px solid #e2e8f0;padding:10px 12px;border-radius:4px;background:#fafafa}
   .sig-label{font-size:var(--fs-xs);font-weight:600;color:#94a3b8;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
   .sig img{max-width:300px;max-height:120px;display:block}
@@ -12613,13 +12613,13 @@ async function loadScheduleInsights(scope) {
     const needed = neededByDow[day];
     const pct = totalDrivers > 0 ? (avail / totalDrivers) * 100 : 0;
     const widthPct = Math.round(pct);
-    let color = "#22c55e", note = "";
+    let color = "var(--green-bright)", note = "";
     if (totalDrivers === 0) {
       color = "var(--text-muted)";
       note = "no roster";
       okDays.push(day);
     } else if (pct >= 75) {
-      color = "#22c55e";
+      color = "var(--green-bright)";
       note = needed > 0 && avail < needed ? `short by ${needed - avail}` : "healthy";
       okDays.push(day);
     } else if (pct >= 50) {
@@ -12727,7 +12727,7 @@ document.addEventListener("click", (e) => {
       </table>
 
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Color thresholds</div>
-      <div>· <strong style="color:#22c55e">Green</strong> = 75%+ of roster available</div>
+      <div>· <strong style="color:var(--green-bright)">Green</strong> = 75%+ of roster available</div>
       <div>· <strong style="color:var(--amber)">Amber</strong> = 50–75% available (tight)</div>
       <div>· <strong style="color:var(--red)">Red</strong> = under 50% available (low coverage)</div>
 
@@ -13238,7 +13238,7 @@ function _schedShiftChip(sh) {
   const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
   const ex = sh.is_cushion
-    ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+    ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
   // Service-type badge — shown for any non-SP shift so an XL/HUB/ASU
   // shift is visually distinguishable. SP shifts (the default) get no
@@ -13663,7 +13663,7 @@ async function renderScheduleWeek() {
     const todayIsoForDL = fmtIsoDate(new Date());
     const dlExpired = d.dl_expires_on && d.dl_expires_on < todayIsoForDL;
     const dlFlag = dlExpired
-      ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:#dc2626;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
+      ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:var(--red);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
       : "";
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
@@ -13726,7 +13726,7 @@ async function renderScheduleWeek() {
         const endLbl   = slot.ends_at   ? fmtTimeShort(slot.ends_at)   : "";
         const label = startLbl && endLbl ? `${startLbl} – ${endLbl}` : (startLbl || slot.route_code || "open");
         const ex = slot.is_cushion
-          ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+          ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
           : "";
         const style = slot.is_cushion ? ' style="border-color:#FCD34D"' : "";
         return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
@@ -13856,7 +13856,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     const showDayLabel = !opts || opts.includeDay !== false;
     const time = fmtVirtualTime(sh);
     const ex = !sh.virtual && sh.is_cushion
-      ? `<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
+      ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
     const stCode = sh.service_type_code;
     const stColor = sh.service_type_color || "#0F6CBD";
