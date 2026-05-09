@@ -8869,6 +8869,8 @@ async function refreshDriverChatThread(scrollToBottom) {
     jump.addEventListener("click", () => {
       thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
       jump.classList.remove("show");
+      // Re-arm the anchor — they explicitly asked to follow the bottom.
+      thread.dataset.rrAnchor = "1";
     });
   }
 
@@ -8883,22 +8885,56 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (scrollToBottom || wasNearBottom) {
     thread.scrollTop = thread.scrollHeight;
     if (jump) jump.classList.remove("show");
-    // Images load async — they each push content down after our
-    // initial scroll, so the operator lands mid-thread.  Re-pin to
-    // bottom on every image load (only as long as they haven't
-    // scrolled away in the meantime).
+    // Anchor-to-bottom flag — flipped on whenever we want to keep
+    // landing at the newest message even as content reflows after
+    // initial paint (image loads, attachment thumbnails, embed
+    // hydration).  Cleared when the operator manually scrolls up
+    // by more than 80px so we never yank them away from a
+    // deliberate scroll-up.
+    thread.dataset.rrAnchor = "1";
+    // ResizeObserver fires every time the thread's scrollHeight
+    // changes — covers all reflow causes (images, lazy-loaded
+    // content, font swap, etc.).  Re-pin to bottom while anchored.
+    if (!thread._rrAnchorObserver) {
+      thread._rrAnchorObserver = new ResizeObserver(() => {
+        if (thread.dataset.rrAnchor === "1") {
+          thread.scrollTop = thread.scrollHeight;
+        }
+      });
+      thread._rrAnchorObserver.observe(thread);
+    }
+    // Re-observe direct children on each render so newly-added
+    // bubbles get watched too.
+    Array.from(thread.children).forEach((c) => {
+      try { thread._rrAnchorObserver.observe(c); } catch {}
+    });
+    // Belt-and-suspenders: also pin on each <img> load (covers
+    // browsers/situations where ResizeObserver doesn't fire for
+    // intrinsic-size changes from content-loading).
     thread.querySelectorAll("img").forEach((img) => {
       if (img.complete) return;
       img.addEventListener("load", () => {
-        // Only re-pin if still near the bottom (don't yank away
-        // from a manual scroll-up the operator might have done).
-        const cur = thread.scrollTop;
-        const max = thread.scrollHeight;
-        const view = thread.clientHeight;
-        if ((max - cur - view) < 200) thread.scrollTop = max;
+        if (thread.dataset.rrAnchor === "1") thread.scrollTop = thread.scrollHeight;
       }, { once: true });
       img.addEventListener("error", () => {/* ignore */}, { once: true });
     });
+    // Release anchor only on a meaningful scroll-up (more than 80px
+    // away from the bottom).  Sub-pixel jitter from re-pinning won't
+    // trip it.  Bound once on first paint of this thread.
+    if (!thread._rrAnchorReleaseBound) {
+      thread._rrAnchorReleaseBound = true;
+      const release = () => {
+        requestAnimationFrame(() => {
+          const cur = thread.scrollTop;
+          const max = thread.scrollHeight;
+          const view = thread.clientHeight;
+          if ((max - cur - view) > 80) thread.dataset.rrAnchor = "0";
+        });
+      };
+      thread.addEventListener("wheel",     release, { passive: true });
+      thread.addEventListener("touchmove", release, { passive: true });
+      thread.addEventListener("keydown",   release);
+    }
   } else if (prevMsgCount >= 0 && msgs.length > prevMsgCount) {
     if (jump) jump.classList.add("show");
   }
