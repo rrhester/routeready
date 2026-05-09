@@ -11184,16 +11184,10 @@ Evidence attached:
     <form id="rr-admin-add-dsp-form" autocomplete="off" novalidate>
       <div class="modal-body">
 
-        <div class="modal-row-2">
-          <div>
-            <label class="modal-field-label" for="rr-add-dsp-name">DSP company name</label>
-            <input class="form-input" id="rr-add-dsp-name" name="name" type="text" required minlength="2" maxlength="80" placeholder="Acme Logistics" />
-          </div>
-          <div>
-            <label class="modal-field-label" for="rr-add-dsp-short-code">Station code</label>
-            <input class="form-input" id="rr-add-dsp-short-code" name="short_code" type="text" required pattern="^[A-Za-z0-9_-]{2,12}$" maxlength="12" placeholder="ACL1" style="text-transform:uppercase;font-variant-numeric:tabular-nums;letter-spacing:.04em" />
-            <p class="form-help" style="margin-top:4px">2–12 chars, A–Z / 0–9 / - / _</p>
-          </div>
+        <div>
+          <label class="modal-field-label" for="rr-add-dsp-name">DSP company name</label>
+          <input class="form-input" id="rr-add-dsp-name" name="name" type="text" required minlength="2" maxlength="80" placeholder="Acme Logistics" />
+          <p class="form-help" style="margin-top:4px">A unique workspace identifier is generated automatically.  You can rename later if needed.</p>
         </div>
 
         <div class="modal-row-2">
@@ -17785,7 +17779,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509i-admin-invite-user"></script>
+<script type="module" src="./live.js?v=20260509k-auto-short-code"></script>
 
 </body>
 </html>
