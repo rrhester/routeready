@@ -935,6 +935,159 @@ a{color:inherit;text-decoration:none}
 .table tbody tr:hover{background:rgba(244,246,251,.6)}
 
 /* ─────────────────────────────────────────────────────────────
+   ONBOARDING WIZARD
+   Full-screen takeover for newly-provisioned DSP owners.  Shown
+   when dsps.status is 'pending' or 'onboarding'; live.js boot
+   sets body[data-rr-onboarding="1"] which hides the sidebar +
+   topbar and reveals #view-onboarding.
+   ───────────────────────────────────────────────────────────── */
+body[data-rr-onboarding="1"] .sidebar,
+body[data-rr-onboarding="1"] .topbar,
+body[data-rr-onboarding="1"] .view{display:none !important}
+body[data-rr-onboarding="1"] .main{margin-left:0 !important;background:var(--canvas);background-image:var(--canvas-grad)}
+body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
+
+#view-onboarding{display:none;min-height:100vh}
+.rr-onb-shell{
+  max-width:680px;margin:0 auto;padding:var(--s-8) var(--s-5);
+  display:flex;flex-direction:column;gap:var(--s-6);
+  min-height:100vh;
+}
+.rr-onb-head{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-4);
+  padding-bottom:var(--s-5);border-bottom:1px solid var(--border-subtle);
+}
+.rr-onb-brand{display:flex;align-items:center;gap:var(--s-3);min-width:0}
+.rr-onb-brand-mark{
+  width:36px;height:36px;border-radius:var(--r-md);
+  background:var(--brand-grad);color:#fff;
+  display:grid;place-items:center;font-weight:700;font-size:var(--fs-md);letter-spacing:.02em;
+  box-shadow:var(--shadow-sm), var(--highlight-top);
+  flex-shrink:0;
+}
+.rr-onb-brand-name{font-weight:700;font-size:var(--fs-lg);letter-spacing:-.005em}
+.rr-onb-head-actions{display:flex;align-items:center;gap:var(--s-3)}
+.rr-onb-signout{
+  background:transparent;border:1px solid transparent;color:var(--text-muted);
+  font:inherit;font-size:var(--fs-sm);padding:6px 10px;border-radius:var(--r-md);cursor:pointer;
+  transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.rr-onb-signout:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
+
+/* Progress indicator · 3-dot rail */
+.rr-onb-progress{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) 0}
+.rr-onb-progress-dot{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--border-strong);
+  color:var(--text-subtle);font-size:var(--fs-xs);font-weight:700;
+  display:grid;place-items:center;
+  flex-shrink:0;
+  transition:background var(--t-smooth), border-color var(--t-smooth), color var(--t-smooth);
+}
+.rr-onb-progress-rail{flex:1;height:2px;background:var(--border-strong);border-radius:1px;
+  transition:background var(--t-smooth)}
+.rr-onb-progress-step.done .rr-onb-progress-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.rr-onb-progress-step.done + .rr-onb-progress-rail{background:var(--accent)}
+.rr-onb-progress-step.current .rr-onb-progress-dot{border-color:var(--accent);color:var(--accent);background:var(--surface);box-shadow:0 0 0 4px var(--accent-soft)}
+.rr-onb-progress-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
+.rr-onb-progress-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.rr-onb-progress-step.current .rr-onb-progress-label{color:var(--text)}
+.rr-onb-progress-step.done .rr-onb-progress-label{color:var(--text-muted)}
+
+.rr-onb-card{
+  background:var(--surface);
+  background-image:var(--surface-grad);
+  border:1px solid var(--border);
+  border-radius:var(--r-xl);
+  box-shadow:var(--shadow-sm), var(--highlight-top);
+  padding:var(--s-8);
+  display:flex;flex-direction:column;gap:var(--s-5);
+}
+.rr-onb-step-eyebrow{font-size:var(--fs-xs);font-weight:600;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+.rr-onb-step-title{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.015em;line-height:1.15;margin:0}
+.rr-onb-step-sub{font-size:var(--fs-base);color:var(--text-muted);margin:0;max-width:56ch;line-height:1.5}
+
+.rr-onb-fields{display:flex;flex-direction:column;gap:var(--s-4)}
+.rr-onb-field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+@media (max-width:600px){.rr-onb-field-row{grid-template-columns:1fr}}
+.rr-onb-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px}
+.rr-onb-field-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.4}
+
+.rr-onb-card-foot{
+  display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);
+  padding-top:var(--s-4);
+  border-top:1px solid var(--border-subtle);
+}
+.rr-onb-save-status{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;gap:6px}
+.rr-onb-save-status[data-rr-saving="1"]::before{
+  content:"";width:8px;height:8px;border-radius:50%;background:var(--amber);
+  animation:rr-onb-pulse 1.2s ease-in-out infinite;
+}
+.rr-onb-save-status[data-rr-saving="0"]::before{
+  content:"";width:8px;height:8px;border-radius:50%;background:var(--green);
+}
+@keyframes rr-onb-pulse{
+  0%,100%{opacity:.5}
+  50%{opacity:1}
+}
+.rr-onb-actions{display:flex;gap:var(--s-2)}
+
+.rr-onb-billing-disclaimer{
+  background:var(--accent-soft);
+  border:1px solid var(--accent-border);
+  border-radius:var(--r-md);
+  padding:var(--s-3) var(--s-4);
+  font-size:var(--fs-sm);
+  color:var(--accent-text);
+  line-height:1.5;
+  display:flex;align-items:flex-start;gap:var(--s-3);
+}
+.rr-onb-billing-disclaimer svg{width:16px;height:16px;flex-shrink:0;margin-top:1px}
+
+.rr-onb-plan-readonly{
+  display:inline-flex;align-items:center;gap:var(--s-2);
+  background:var(--canvas);
+  border:1px solid var(--border);border-radius:var(--r-md);
+  padding:8px 14px;
+  font-size:var(--fs-sm);font-weight:600;color:var(--text);
+  text-transform:capitalize;
+}
+.rr-onb-plan-readonly::before{
+  content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);
+}
+
+.rr-onb-error{
+  background:var(--red-soft);color:var(--red);
+  border:1px solid rgba(225,29,72,.20);
+  border-radius:var(--r-md);
+  padding:8px 12px;font-size:var(--fs-sm);line-height:1.4;
+}
+.rr-onb-error[hidden]{display:none}
+
+/* Footer trust signals · subtle, professional */
+.rr-onb-footer{
+  text-align:center;font-size:var(--fs-xs);color:var(--text-subtle);
+  padding:var(--s-4) 0;letter-spacing:.02em;
+}
+.rr-onb-footer span + span::before{content:" · ";margin:0 4px;color:var(--border-strong)}
+
+/* Activation success state · brief celebration before redirect */
+.rr-onb-success{
+  text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:var(--s-4);
+  padding:var(--s-8) var(--s-5);
+}
+.rr-onb-success-icon{
+  width:64px;height:64px;border-radius:50%;
+  background:var(--green-soft);color:var(--green);
+  display:grid;place-items:center;
+}
+.rr-onb-success-icon svg{width:30px;height:30px;stroke-width:2.4}
+.rr-onb-success-title{font-size:var(--fs-xl);font-weight:700;letter-spacing:-.01em;margin:0}
+.rr-onb-success-sub{font-size:var(--fs-base);color:var(--text-muted);margin:0;max-width:48ch;line-height:1.5}
+
+/* ─────────────────────────────────────────────────────────────
    PLATFORM-ADMIN TABLE · DSP account management
    Reuses .table / .status-pill chrome above.  Adds toolbar,
    pagination, action menu, skeleton + empty states.
@@ -5939,6 +6092,214 @@ body.rr-cmdk-open{ overflow:hidden }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </header>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         ONBOARDING WIZARD
+         Full-screen takeover for newly-provisioned DSP owners.
+         Hidden by default; live.js boot reveals it (and hides the
+         dashboard chrome) when dsps.status is 'pending' or
+         'onboarding'.  Body[data-rr-onboarding="1"] does the
+         hiding via the CSS at the top of this file.
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="view-onboarding">
+      <div class="rr-onb-shell">
+        <div class="rr-onb-head">
+          <div class="rr-onb-brand">
+            <div class="rr-onb-brand-mark">RR</div>
+            <span class="rr-onb-brand-name">RouteReady</span>
+          </div>
+          <div class="rr-onb-head-actions">
+            <button class="rr-onb-signout" id="rr-onb-signout" type="button">Save &amp; sign out</button>
+          </div>
+        </div>
+
+        <!-- Progress indicator · 3 dots + 2 rails -->
+        <div class="rr-onb-progress" aria-label="Onboarding progress">
+          <div class="rr-onb-progress-step current" data-rr-onb-step="company">
+            <div class="rr-onb-progress-dot">1</div>
+            <span class="rr-onb-progress-label">Company</span>
+          </div>
+          <div class="rr-onb-progress-rail" data-rr-onb-rail="company-contact"></div>
+          <div class="rr-onb-progress-step" data-rr-onb-step="contact">
+            <div class="rr-onb-progress-dot">2</div>
+            <span class="rr-onb-progress-label">Contact</span>
+          </div>
+          <div class="rr-onb-progress-rail" data-rr-onb-rail="contact-billing"></div>
+          <div class="rr-onb-progress-step" data-rr-onb-step="billing">
+            <div class="rr-onb-progress-dot">3</div>
+            <span class="rr-onb-progress-label">Billing</span>
+          </div>
+        </div>
+
+        <!-- Step bodies · only the active one is rendered visible.
+             All three live in the DOM so autosaved values from
+             prior steps remain in their inputs without a re-render. -->
+
+        <!-- STEP 1 · COMPANY -->
+        <form class="rr-onb-card" id="rr-onb-form-company" data-rr-onb-card="company" autocomplete="off" novalidate>
+          <p class="rr-onb-step-eyebrow">Step 1 of 3</p>
+          <h1 class="rr-onb-step-title">Tell us about your company</h1>
+          <p class="rr-onb-step-sub">Confirm your DSP details so we can set up the right defaults — billing emails, time zone for schedules, and the contact info that appears on driver-facing communications.</p>
+
+          <div class="rr-onb-fields">
+            <div class="rr-onb-field-row">
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-name">DSP name</label>
+                <input class="form-input" id="rr-onb-name" name="name" type="text" required maxlength="80" />
+              </div>
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-dba">Doing business as <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                <input class="form-input" id="rr-onb-dba" name="dba" type="text" maxlength="80" />
+              </div>
+            </div>
+
+            <div>
+              <label class="rr-onb-field-label" for="rr-onb-business-address">Business address</label>
+              <input class="form-input" id="rr-onb-business-address" name="business_address" type="text" maxlength="240" placeholder="123 Logistics Way, Wichita, KS 67201" />
+            </div>
+
+            <div class="rr-onb-field-row">
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-business-phone">Business phone</label>
+                <input class="form-input" id="rr-onb-business-phone" name="business_phone" type="tel" maxlength="40" />
+              </div>
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-support-email">Support email</label>
+                <input class="form-input" id="rr-onb-support-email" name="support_email" type="email" maxlength="120" placeholder="support@yourcompany.com" />
+                <p class="rr-onb-field-help">Where driver and dispatcher questions land.</p>
+              </div>
+            </div>
+
+            <div>
+              <label class="rr-onb-field-label" for="rr-onb-timezone">Time zone</label>
+              <select class="form-input" id="rr-onb-timezone" name="timezone">
+                <option value="America/New_York">Eastern (America/New_York)</option>
+                <option value="America/Chicago">Central (America/Chicago)</option>
+                <option value="America/Denver">Mountain (America/Denver)</option>
+                <option value="America/Phoenix">Arizona (America/Phoenix)</option>
+                <option value="America/Los_Angeles">Pacific (America/Los_Angeles)</option>
+                <option value="America/Anchorage">Alaska (America/Anchorage)</option>
+                <option value="Pacific/Honolulu">Hawaii (Pacific/Honolulu)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="rr-onb-error" id="rr-onb-error-company" hidden></div>
+
+          <div class="rr-onb-card-foot">
+            <span class="rr-onb-save-status" data-rr-saving="0">Saved</span>
+            <div class="rr-onb-actions">
+              <button class="btn btn-primary" type="submit">Continue</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- STEP 2 · CONTACT -->
+        <form class="rr-onb-card" id="rr-onb-form-contact" data-rr-onb-card="contact" autocomplete="off" novalidate style="display:none">
+          <p class="rr-onb-step-eyebrow">Step 2 of 3</p>
+          <h1 class="rr-onb-step-title">Primary contact</h1>
+          <p class="rr-onb-step-sub">Who should the RouteReady team reach for account questions, billing follow-ups, and service-impacting incidents?</p>
+
+          <div class="rr-onb-fields">
+            <div class="rr-onb-field-row">
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-owner-name">Owner full name</label>
+                <input class="form-input" id="rr-onb-owner-name" name="owner_name" type="text" required maxlength="80" />
+              </div>
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-owner-phone">Preferred contact number</label>
+                <input class="form-input" id="rr-onb-owner-phone" name="owner_phone" type="tel" maxlength="40" />
+              </div>
+            </div>
+
+            <div class="rr-onb-field-row">
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-emerg-name">Emergency contact name <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                <input class="form-input" id="rr-onb-emerg-name" name="emergency_contact_name" type="text" maxlength="80" />
+              </div>
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-emerg-phone">Emergency contact phone</label>
+                <input class="form-input" id="rr-onb-emerg-phone" name="emergency_contact_phone" type="tel" maxlength="40" />
+                <p class="rr-onb-field-help">Used only for service-impacting incidents outside business hours.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rr-onb-error" id="rr-onb-error-contact" hidden></div>
+
+          <div class="rr-onb-card-foot">
+            <span class="rr-onb-save-status" data-rr-saving="0">Saved</span>
+            <div class="rr-onb-actions">
+              <button class="btn btn-ghost" type="button" data-rr-onb-back="company">Back</button>
+              <button class="btn btn-primary" type="submit">Continue</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- STEP 3 · BILLING -->
+        <form class="rr-onb-card" id="rr-onb-form-billing" data-rr-onb-card="billing" autocomplete="off" novalidate style="display:none">
+          <p class="rr-onb-step-eyebrow">Step 3 of 3</p>
+          <h1 class="rr-onb-step-title">Activate your workspace</h1>
+          <p class="rr-onb-step-sub">Confirm your subscription plan and billing contact.  You can pause anytime during your trial.</p>
+
+          <div class="rr-onb-billing-disclaimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Placeholder billing details for your trial.  We'll connect real billing before your first charge.</span>
+          </div>
+
+          <div class="rr-onb-fields">
+            <div>
+              <label class="rr-onb-field-label">Subscription plan</label>
+              <span class="rr-onb-plan-readonly" id="rr-onb-plan-readonly">Starter</span>
+              <p class="rr-onb-field-help">Set by your RouteReady account manager. <a href="mailto:support@gorouteready.com" style="color:var(--accent-text);text-decoration:none">Contact us</a> to upgrade.</p>
+            </div>
+
+            <div class="rr-onb-field-row">
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-cardholder">Cardholder name</label>
+                <input class="form-input" id="rr-onb-cardholder" name="cardholder" type="text" maxlength="80" />
+              </div>
+              <div>
+                <label class="rr-onb-field-label" for="rr-onb-card-number">Card number</label>
+                <input class="form-input" id="rr-onb-card-number" name="card_number" type="text" inputmode="numeric" maxlength="19" placeholder="•••• •••• •••• ••••" autocomplete="off" />
+                <p class="rr-onb-field-help">Stored as last 4 digits only for now.</p>
+              </div>
+            </div>
+
+            <div>
+              <label class="rr-onb-field-label" for="rr-onb-billing-email">Billing email</label>
+              <input class="form-input" id="rr-onb-billing-email" name="billing_email" type="email" maxlength="120" />
+            </div>
+          </div>
+
+          <div class="rr-onb-error" id="rr-onb-error-billing" hidden></div>
+
+          <div class="rr-onb-card-foot">
+            <span class="rr-onb-save-status" data-rr-saving="0">Saved</span>
+            <div class="rr-onb-actions">
+              <button class="btn btn-ghost" type="button" data-rr-onb-back="contact">Back</button>
+              <button class="btn btn-primary" type="submit" id="rr-onb-activate">
+                <span data-rr-onb-activate-label>Activate workspace</span>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- ACTIVATION SUCCESS · briefly shown before redirect -->
+        <div class="rr-onb-card rr-onb-success" id="rr-onb-success" style="display:none">
+          <div class="rr-onb-success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h1 class="rr-onb-success-title">Workspace activated</h1>
+          <p class="rr-onb-success-sub">Loading your dashboard…</p>
+        </div>
+
+        <div class="rr-onb-footer">
+          <span>Encrypted in transit</span>
+          <span><a href="https://gorouteready.com" style="color:inherit;text-decoration:none">gorouteready.com</a></span>
+        </div>
+      </div>
+    </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
     <div class="view active" id="view-dashboard">
@@ -17779,7 +18140,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509k-auto-short-code"></script>
+<script type="module" src="./live.js?v=20260509l-onboarding-wizard"></script>
 
 </body>
 </html>
