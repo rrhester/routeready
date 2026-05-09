@@ -8915,15 +8915,27 @@ async function refreshDriverChatThread(scrollToBottom) {
       }
     }, 80);
 
-    // Image load listener still fires per-image as a faster path
-    // when the browser hands us a 'load' event before the next poll
-    // tick.  Belt-and-suspenders.
-    thread.querySelectorAll("img").forEach((img) => {
-      if (img.complete) return;
+    // Image load listener — fires per-image so we re-pin on the
+    // SAME frame each image lands, eliminating the up-to-80ms gap
+    // that polling would otherwise leave (which is what the user
+    // sees as a "glitching scroll-up").
+    //
+    // Crucial: don't skip on img.complete — when these <img> tags
+    // first render they have NO src (it's set later by the async
+    // _rrMcSignAttachments signed-URL resolver), and an src-less
+    // <img> reports complete:true vacuously.  We need the listener
+    // attached BEFORE src lands so 'load' fires when the image
+    // actually finishes downloading.
+    //
+    // [data-rr-anchor-bound] marker prevents stacking listeners
+    // across re-renders (new <img> elements get the listener; old
+    // ones already had it from the previous pass).
+    thread.querySelectorAll("img:not([data-rr-anchor-bound])").forEach((img) => {
+      img.setAttribute("data-rr-anchor-bound", "1");
       img.addEventListener("load", () => {
         if (thread.dataset.rrAnchor === "1") thread.scrollTop = thread.scrollHeight;
-      }, { once: true });
-      img.addEventListener("error", () => {/* ignore */}, { once: true });
+      });
+      img.addEventListener("error", () => {/* ignore */});
     });
 
     // Release anchor only on a meaningful scroll-up (>80px from
