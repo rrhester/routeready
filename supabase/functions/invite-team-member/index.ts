@@ -13,12 +13,16 @@
 //       another platform admin can be promoted) plus all the regular
 //       roles.
 //
-// Response: { ok: true, kind: "invited" | "resent_magic_link", … }
+// Email delivery: we DO NOT use auth.admin.inviteUserByEmail (which
+// auto-sends Supabase's default magic-link template via whatever
+// SMTP Auth has configured — historically the rate-limited default).
+// Instead we generate the action_link via auth.admin.generateLink
+// (which returns the URL without auto-sending) and queue our own
+// branded HTML into public.email_messages.  The existing 0007
+// trigger fires send-email on insert; send-email delivers via Resend
+// using the project's RESEND_API_KEY + per-DSP "From" branding.
 //
-// Required Supabase secrets (already set for the project):
-//   SUPABASE_URL
-//   SUPABASE_ANON_KEY
-//   SUPABASE_SERVICE_ROLE_KEY
+// Response: { ok: true, kind: "invited" | "resent_magic_link", … }
 
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -29,15 +33,15 @@ const CORS = {
   "access-control-allow-methods": "POST, OPTIONS",
 };
 
-// Roles a regular owner/ops inviter is allowed to assign.  Drivers
-// don't need dashboard access — they sign in via the driver PWA with
-// a code, not a magic-link, so omit "driver" from this picker.
 const TENANT_ALLOWED_ROLES = new Set(["dispatcher", "ops", "owner"]);
+const ADMIN_ALLOWED_ROLES  = new Set(["dispatcher", "ops", "owner", "platform_admin"]);
 
-// Roles a platform_admin inviter can assign.  Adds platform_admin so
-// the existing platform admin can promote a peer; everything else
-// remains available too.
-const ADMIN_ALLOWED_ROLES = new Set(["dispatcher", "ops", "owner", "platform_admin"]);
+const ROLE_LABEL: Record<string, string> = {
+  dispatcher: "Dispatcher",
+  ops:        "Ops",
+  owner:      "Owner",
+  platform_admin: "Platform admin",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -54,12 +58,11 @@ Deno.serve(async (req) => {
 
   if (!email || !email.includes("@")) return badRequest("invalid_email");
 
-  // 1. Resolve the caller — we need a user-context client to read
-  // their JWT, then a service-role client for the privileged work.
   const url  = Deno.env.get("SUPABASE_URL");
   const anon = Deno.env.get("SUPABASE_ANON_KEY");
   if (!url || !anon) return badRequest("server_misconfigured", 500);
 
+  // 1. Resolve the caller via their JWT.
   const userClient = createClient(url, anon, {
     global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
     auth: { persistSession: false, autoRefreshToken: false },
@@ -76,28 +79,17 @@ Deno.serve(async (req) => {
   if (callerErr || !callerProfile) return badRequest("no_profile", 403);
   if (!callerProfile.active)       return badRequest("inactive_caller", 403);
 
-  // Branch on caller role.  Platform admins can invite anyone into
-  // any DSP at any of the staff roles (incl. platform_admin).  Owner
-  // / ops can only invite into their own DSP, at the regular roles.
+  // 2. Branch on caller role.
   let effectiveDspId: string;
   if (callerProfile.role === "platform_admin") {
     if (!targetDspId) return badRequest("target_dsp_id_required");
     if (!ADMIN_ALLOWED_ROLES.has(role)) return badRequest("invalid_role");
-    // Confirm the target DSP exists.  RLS won't apply here (we're
-    // using the service-role client) so this is a real existence
-    // check, not an RLS bypass.
-    const { data: targetDsp } = await admin
-      .from("dsps")
-      .select("id")
-      .eq("id", targetDspId)
-      .maybeSingle();
+    const { data: targetDsp } = await admin.from("dsps").select("id").eq("id", targetDspId).maybeSingle();
     if (!targetDsp) return badRequest("target_dsp_not_found", 404);
     effectiveDspId = targetDsp.id;
   } else if (callerProfile.role === "owner" || callerProfile.role === "ops") {
     if (!TENANT_ALLOWED_ROLES.has(role)) return badRequest("invalid_role");
     if (targetDspId && targetDspId !== callerProfile.dsp_id) {
-      // Don't let a tenant owner accidentally (or intentionally) try
-      // to invite someone into a different DSP via a forged request.
       return badRequest("cross_dsp_invite_forbidden", 403);
     }
     effectiveDspId = callerProfile.dsp_id;
@@ -105,43 +97,71 @@ Deno.serve(async (req) => {
     return badRequest("insufficient_role", 403);
   }
 
-  // 2. Block duplicates inside the EFFECTIVE DSP up-front so we can
-  // return a clear error instead of a generic auth-side failure.
-  const { data: existing } = await admin
+  // 3. Block duplicates inside the EFFECTIVE DSP up-front.
+  const { data: existingInDsp } = await admin
     .from("app_users")
     .select("id, email, active")
     .eq("dsp_id", effectiveDspId)
     .eq("email", email)
     .maybeSingle();
-  if (existing) return badRequest("already_on_team", 409);
+  if (existingInDsp) return badRequest("already_on_team", 409);
 
-  // 3. Send the invite.  The 0076 trigger reads invite_dsp_id +
-  // invite_role from raw_user_meta_data and creates the app_users
-  // row with those values, bypassing the gorouteready.com-only gate.
+  // 4. Look up the target DSP for email branding + welcome copy.
+  const { data: targetDspMeta } = await admin
+    .from("dsps")
+    .select("id, name, short_code, status")
+    .eq("id", effectiveDspId)
+    .maybeSingle();
+  const dspName      = (targetDspMeta?.name      as string) || "your RouteReady workspace";
+  const dspShortCode = (targetDspMeta?.short_code as string) || "";
+  const dspIsPending = (targetDspMeta?.status as string) === "pending";
+
+  // 5. Generate the magic-link URL WITHOUT auto-sending an email.
+  // For new users we use type='invite' which creates the auth.users
+  // row + returns the action_link.  For returning users (already
+  // have an auth account from a prior signin) we fall back to
+  // type='magiclink'.  Neither sends an email — Supabase only
+  // auto-sends from inviteUserByEmail / signUp / etc.
   const redirectTo = new URL("/dashboard/login.html", req.headers.get("origin") || url).toString();
-  const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      invite_dsp_id: effectiveDspId,
-      invite_role:   role,
-      full_name:     fullName || null,
+  let actionLink: string | null = null;
+  let kind: "invited" | "resent_magic_link" = "invited";
+  let inviteeUserId: string | null = null;
+
+  const inviteResp = await admin.auth.admin.generateLink({
+    type:  "invite",
+    email,
+    options: {
+      data: {
+        invite_dsp_id: effectiveDspId,
+        invite_role:   role,
+        full_name:     fullName || null,
+      },
+      redirectTo,
     },
-    redirectTo,
   });
 
-  if (inviteErr) {
-    // Common case: user already exists in auth.users from a previous
-    // sign-in.  Re-issue a magic link so they can re-enter — and
-    // best-effort patch their app_users row to the chosen DSP/role.
-    if (inviteErr.message?.toLowerCase().includes("already registered")) {
-      const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-        type: "magiclink",
+  if (inviteResp.error) {
+    const msg = (inviteResp.error.message || "").toLowerCase();
+    if (msg.includes("already") && (msg.includes("registered") || msg.includes("exist"))) {
+      // Returning auth user — issue a magic link instead.
+      const linkResp = await admin.auth.admin.generateLink({
+        type:  "magiclink",
         email,
         options: { redirectTo },
       });
-      if (linkErr) return badRequest("invite_failed: " + linkErr.message);
-      if (linkData?.user?.id) {
+      if (linkResp.error) return badRequest("invite_failed: " + linkResp.error.message);
+      actionLink   = linkResp.data?.properties?.action_link ?? null;
+      inviteeUserId = linkResp.data?.user?.id ?? null;
+      kind = "resent_magic_link";
+
+      // Patch the app_users row so the trigger that normally fires
+      // on auth.users insert can't be relied on (the auth user
+      // already existed).  Upsert into the target DSP at the chosen
+      // role.  Their PRIOR app_users row (if any in another DSP)
+      // is left alone — we only insert/update the (id, dsp_id) pair.
+      if (inviteeUserId) {
         await admin.from("app_users").upsert({
-          id:        linkData.user.id,
+          id:        inviteeUserId,
           dsp_id:    effectiveDspId,
           email,
           full_name: fullName || email,
@@ -149,10 +169,206 @@ Deno.serve(async (req) => {
           active:    true,
         }, { onConflict: "id" });
       }
-      return jsonResponse({ ok: true, kind: "resent_magic_link", action_link: linkData?.properties?.action_link ?? null }, { headers: CORS });
+    } else {
+      return badRequest("invite_failed: " + inviteResp.error.message);
     }
-    return badRequest("invite_failed: " + inviteErr.message);
+  } else {
+    actionLink   = inviteResp.data?.properties?.action_link ?? null;
+    inviteeUserId = inviteResp.data?.user?.id ?? null;
   }
 
-  return jsonResponse({ ok: true, kind: "invited", user_id: invited?.user?.id ?? null }, { headers: CORS });
+  if (!actionLink) return badRequest("link_generation_failed", 500);
+
+  // 6. Queue our custom welcome email via the existing pipeline.
+  // The 0007 fire_message_send trigger fires send-email on insert;
+  // send-email delivers via Resend with per-DSP "From" branding.
+  const isOwnerOnboarding = role === "owner" && dspIsPending;
+  const subject = isOwnerOnboarding
+    ? `Welcome to RouteReady — finish setup in 5 minutes`
+    : `You're invited to ${dspName} on RouteReady`;
+  const html = renderInviteHtml({
+    role,
+    dspName,
+    dspShortCode,
+    fullName: fullName || null,
+    actionLink,
+    isOwnerOnboarding,
+  });
+  const text = renderInviteText({
+    role,
+    dspName,
+    fullName: fullName || null,
+    actionLink,
+    isOwnerOnboarding,
+  });
+
+  const { error: queueErr } = await admin.from("email_messages").insert({
+    dsp_id:    effectiveDspId,
+    direction: "outbound",
+    status:    "queued",
+    to_email:  email,
+    subject,
+    body_html: html,
+    body_text: text,
+  });
+  if (queueErr) {
+    // The auth user is already created at this point; surface the
+    // queue failure so the operator can manually trigger a resend.
+    return badRequest("queue_failed: " + queueErr.message);
+  }
+
+  return jsonResponse({ ok: true, kind, user_id: inviteeUserId, queued: true }, { headers: CORS });
 });
+
+// ── Email templates ───────────────────────────────────────────────────────
+// Inline-style HTML that survives Outlook + Gmail.  Plain-text version
+// is the same content rendered for clients that don't render HTML
+// (or that hide remote content by default).
+
+interface InviteCtx {
+  role:               string;
+  dspName:            string;
+  dspShortCode?:      string;
+  fullName:           string | null;
+  actionLink:         string;
+  isOwnerOnboarding:  boolean;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    c === "&" ? "&amp;" :
+    c === "<" ? "&lt;"  :
+    c === ">" ? "&gt;"  :
+    c === '"' ? "&quot;" : "&#39;"
+  );
+}
+
+function renderInviteHtml(ctx: InviteCtx): string {
+  const greeting = ctx.fullName
+    ? `Hi ${escapeHtml(ctx.fullName.split(/\s+/)[0])},`
+    : `Welcome aboard.`;
+
+  const intro = ctx.isOwnerOnboarding
+    ? `Your RouteReady workspace for <strong>${escapeHtml(ctx.dspName)}</strong> is provisioned and waiting for you. To finish activation, sign in below and complete a short onboarding.`
+    : `You've been invited to join <strong>${escapeHtml(ctx.dspName)}</strong> on RouteReady as ${escapeHtml(ROLE_LABEL[ctx.role] || ctx.role)}.  Click the button below to set up your account and sign in.`;
+
+  const buttonLabel = ctx.isOwnerOnboarding ? "Activate workspace" : "Set up your account";
+
+  const stepsBlock = ctx.isOwnerOnboarding ? `
+    <table cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 8px 0;width:100%">
+      <tr><td style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:13px;color:#475569;line-height:1.6">
+        <strong style="color:#0B1220">What happens next:</strong><br>
+        1. Confirm your company details and primary contact<br>
+        2. Set up billing (you can pause anytime during the trial period)<br>
+        3. Land in your live dashboard with your routes, drivers, and dispatch tools ready to use
+      </td></tr>
+    </table>
+    <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:13px;color:#475569;line-height:1.6;margin:16px 0 0 0">
+      The onboarding takes about five minutes. Your link is valid for 7 days.
+    </p>
+  ` : "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(ctx.isOwnerOnboarding ? "Welcome to RouteReady" : "You're invited to RouteReady")}</title>
+</head>
+<body style="margin:0;padding:0;background:#F5F7FA;font-family:-apple-system,'Segoe UI',Inter,sans-serif;color:#0B1220">
+  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F5F7FA;padding:32px 16px">
+    <tr><td align="center">
+
+      <table cellpadding="0" cellspacing="0" border="0" width="560" style="max-width:560px;background:#ffffff;border:1px solid rgba(15,23,42,.10);border-radius:14px;overflow:hidden">
+
+        <!-- Header -->
+        <tr><td style="padding:28px 32px 16px 32px;border-bottom:1px solid rgba(15,23,42,.05)">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="padding-right:12px;vertical-align:middle">
+                <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#0F6CBD 0%,#4F46E5 100%);color:#fff;text-align:center;line-height:40px;font-weight:700;font-size:14px;letter-spacing:.04em">RR</div>
+              </td>
+              <td style="vertical-align:middle">
+                <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:15px;font-weight:700;letter-spacing:-.005em;color:#0B1220">RouteReady</div>
+                <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:11px;font-weight:500;color:#94A3B8;letter-spacing:.04em;text-transform:uppercase;margin-top:1px">Operations platform for Amazon DSPs</div>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="padding:28px 32px">
+          <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:18px;font-weight:700;color:#0B1220;margin:0 0 8px 0;letter-spacing:-.005em">
+            ${greeting}
+          </p>
+          <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:14px;color:#475569;line-height:1.6;margin:0">
+            ${intro}
+          </p>
+
+          <!-- CTA button -->
+          <table cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px 0">
+            <tr><td>
+              <a href="${escapeHtml(ctx.actionLink)}" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#0F6CBD 0%,#4F46E5 100%);color:#ffffff;text-decoration:none;font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:14px;font-weight:600;padding:11px 22px;border-radius:8px;letter-spacing:.005em">
+                ${buttonLabel} →
+              </a>
+            </td></tr>
+          </table>
+
+          <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;color:#94A3B8;line-height:1.5;margin:0">
+            Or copy + paste this URL into your browser:<br>
+            <span style="color:#475569;word-break:break-all">${escapeHtml(ctx.actionLink)}</span>
+          </p>
+
+          ${stepsBlock}
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding:18px 32px 24px 32px;border-top:1px solid rgba(15,23,42,.05)">
+          <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;color:#94A3B8;line-height:1.6;margin:0">
+            If you have questions before you sign in, reply to this email or reach us at
+            <a href="mailto:support@gorouteready.com" style="color:#0B5BA1;text-decoration:none">support@gorouteready.com</a>.
+          </p>
+          <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;color:#94A3B8;line-height:1.6;margin:8px 0 0 0">
+            — The RouteReady team
+          </p>
+        </td></tr>
+
+      </table>
+
+      <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:11px;color:#94A3B8;text-align:center;margin:18px 0 0 0;letter-spacing:.02em">
+        Encrypted in transit · gorouteready.com
+      </p>
+
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function renderInviteText(ctx: InviteCtx): string {
+  const greeting = ctx.fullName
+    ? `Hi ${ctx.fullName.split(/\s+/)[0]},`
+    : `Welcome aboard.`;
+  const lines: string[] = [greeting, ""];
+  if (ctx.isOwnerOnboarding) {
+    lines.push(`Your RouteReady workspace for ${ctx.dspName} is provisioned and waiting for you.  To finish activation, sign in below and complete a short onboarding.`);
+    lines.push("");
+    lines.push(ctx.actionLink);
+    lines.push("");
+    lines.push(`What happens next:`);
+    lines.push(`  1. Confirm your company details and primary contact`);
+    lines.push(`  2. Set up billing (you can pause anytime during the trial period)`);
+    lines.push(`  3. Land in your live dashboard with your routes, drivers, and dispatch tools ready to use`);
+    lines.push("");
+    lines.push(`The onboarding takes about five minutes.  Your link is valid for 7 days.`);
+  } else {
+    lines.push(`You've been invited to join ${ctx.dspName} on RouteReady as ${ROLE_LABEL[ctx.role] || ctx.role}.  Open the link below to set up your account and sign in.`);
+    lines.push("");
+    lines.push(ctx.actionLink);
+  }
+  lines.push("");
+  lines.push(`Questions?  Reply to this email or reach us at support@gorouteready.com.`);
+  lines.push("");
+  lines.push(`— The RouteReady team`);
+  return lines.join("\n");
+}
