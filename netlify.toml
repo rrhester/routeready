@@ -41,3 +41,9 @@
   to   = "/privacy.html"
   status = 301
   force = true
+
+# Pretty URL for the desktop download landing page.
+[[redirects]]
+  from = "/download"
+  to   = "/download.html"
+  status = 200
