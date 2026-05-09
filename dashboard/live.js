@@ -8809,6 +8809,22 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (scrollToBottom || wasNearBottom) {
     thread.scrollTop = thread.scrollHeight;
     if (jump) jump.classList.remove("show");
+    // Images load async — they each push content down after our
+    // initial scroll, so the operator lands mid-thread.  Re-pin to
+    // bottom on every image load (only as long as they haven't
+    // scrolled away in the meantime).
+    thread.querySelectorAll("img").forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener("load", () => {
+        // Only re-pin if still near the bottom (don't yank away
+        // from a manual scroll-up the operator might have done).
+        const cur = thread.scrollTop;
+        const max = thread.scrollHeight;
+        const view = thread.clientHeight;
+        if ((max - cur - view) < 200) thread.scrollTop = max;
+      }, { once: true });
+      img.addEventListener("error", () => {/* ignore */}, { once: true });
+    });
   } else if (prevMsgCount >= 0 && msgs.length > prevMsgCount) {
     if (jump) jump.classList.add("show");
   }
