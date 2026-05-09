@@ -11368,6 +11368,183 @@ function scheduleRefresh() {
   _refreshDebounce = setTimeout(refreshActiveView, 600);
 }
 
+// ─── Cmd+K thread quick-switcher ─────────────────────────────────────────
+//
+// Linear / Slack-style command palette scoped to the Messages view.
+// Cmd+K (Ctrl+K on Linux/Windows) opens an overlay with the
+// conversation list pre-loaded; typing filters it; ↑/↓ navigate;
+// Enter opens the highlighted thread; Esc closes.
+//
+// Pulls from the in-memory _msgInboxList that the existing
+// refreshDriverChatList already keeps fresh, so the palette is
+// instant — no extra RPC, no skeleton flash.
+
+let _cmdkSelectedIdx = 0;
+let _cmdkLastQuery = "";
+
+function _cmdkFiltered(q) {
+  const list = Array.isArray(_msgInboxList) ? _msgInboxList : [];
+  if (!q) return list.slice(0, 50);
+  const needle = q.toLowerCase();
+  return list.filter((t) => {
+    const name = (t.name || "").toLowerCase();
+    const code = (t.station_code || "").toLowerCase();
+    const body = (t.last_message?.body || "").toLowerCase();
+    return name.includes(needle) || code.includes(needle) || body.includes(needle);
+  }).slice(0, 50);
+}
+
+function _cmdkRender() {
+  const root = document.getElementById("rr-cmdk-root");
+  if (!root) return;
+  const input = document.getElementById("rr-cmdk-input");
+  const q = (input?.value || "").trim();
+  const rows = _cmdkFiltered(q);
+  if (_cmdkSelectedIdx >= rows.length) _cmdkSelectedIdx = Math.max(0, rows.length - 1);
+  const list = document.getElementById("rr-cmdk-list");
+  if (!list) return;
+  if (rows.length === 0) {
+    list.innerHTML = `<div class="rr-cmdk-empty">No threads match "${escapeHtml(q)}"</div>`;
+    return;
+  }
+  list.innerHTML = rows.map((t, i) => {
+    const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
+    const lastBody = t.last_message?.body
+      ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
+      : "No messages yet";
+    const trunc = lastBody.length > 70 ? lastBody.slice(0, 67) + "…" : lastBody;
+    return `<div class="rr-cmdk-row ${i === _cmdkSelectedIdx ? "active" : ""}" data-rr-cmdk-row="${i}" data-rr-driver-id="${escapeHtml(t.driver_id)}">
+      <div class="rr-cmdk-avatar">${escapeHtml(initials)}</div>
+      <div class="rr-cmdk-meta">
+        <div class="rr-cmdk-name">${escapeHtml(t.name)}${t.station_code ? `<span class="rr-cmdk-code">${escapeHtml(t.station_code)}</span>` : ""}</div>
+        <div class="rr-cmdk-preview">${escapeHtml(trunc)}</div>
+      </div>
+      ${t.unread > 0 ? `<div class="rr-cmdk-unread">${t.unread}</div>` : ""}
+    </div>`;
+  }).join("");
+  // Wire row clicks (full row, not just inner text — palette feels
+  // crisper with hit-area covering whole row).
+  list.querySelectorAll("[data-rr-cmdk-row]").forEach((el) => {
+    el.addEventListener("mouseenter", () => {
+      _cmdkSelectedIdx = parseInt(el.getAttribute("data-rr-cmdk-row"), 10);
+      _cmdkUpdateActive();
+    });
+    el.addEventListener("click", () => _cmdkPick(el.getAttribute("data-rr-driver-id")));
+  });
+  // Scroll the active row into view.
+  const active = list.querySelector(".rr-cmdk-row.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
+}
+
+function _cmdkUpdateActive() {
+  const list = document.getElementById("rr-cmdk-list");
+  if (!list) return;
+  list.querySelectorAll(".rr-cmdk-row").forEach((el, i) => {
+    el.classList.toggle("active", i === _cmdkSelectedIdx);
+  });
+  const active = list.querySelector(".rr-cmdk-row.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
+}
+
+function _cmdkPick(driverId) {
+  if (!driverId) return;
+  _cmdkClose();
+  // Make sure we're on Messages — Cmd+K is bound globally so the
+  // shortcut might be hit from any view.
+  if (typeof goto === "function") goto("messages");
+  setTimeout(() => openDriverChatThread(driverId), 0);
+}
+
+function _cmdkOpen() {
+  // Build the root if it isn't there yet.
+  let root = document.getElementById("rr-cmdk-root");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "rr-cmdk-root";
+    root.className = "rr-cmdk";
+    root.innerHTML = `
+      <div class="rr-cmdk-backdrop"></div>
+      <div class="rr-cmdk-panel" role="dialog" aria-label="Quick switcher">
+        <div class="rr-cmdk-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="rr-cmdk-input" type="text" placeholder="Jump to a driver thread…" autocomplete="off" spellcheck="false">
+          <kbd class="rr-cmdk-hint">Esc</kbd>
+        </div>
+        <div id="rr-cmdk-list" class="rr-cmdk-list"></div>
+        <div class="rr-cmdk-foot">
+          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span><kbd>↵</kbd> open</span>
+          <span><kbd>Esc</kbd> close</span>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+    root.querySelector(".rr-cmdk-backdrop").addEventListener("click", _cmdkClose);
+    const input = root.querySelector("#rr-cmdk-input");
+    input.addEventListener("input", () => { _cmdkSelectedIdx = 0; _cmdkRender(); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        _cmdkSelectedIdx = Math.min(_cmdkSelectedIdx + 1, _cmdkFiltered(input.value).length - 1);
+        _cmdkUpdateActive();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        _cmdkSelectedIdx = Math.max(0, _cmdkSelectedIdx - 1);
+        _cmdkUpdateActive();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const rows = _cmdkFiltered(input.value);
+        const pick = rows[_cmdkSelectedIdx];
+        if (pick?.driver_id) _cmdkPick(pick.driver_id);
+      } else if (e.key === "Escape") {
+        _cmdkClose();
+      }
+    });
+  }
+  // Reset state, populate, focus.
+  const input = document.getElementById("rr-cmdk-input");
+  input.value = _cmdkLastQuery;
+  _cmdkSelectedIdx = 0;
+  root.classList.add("open");
+  document.body.classList.add("rr-cmdk-open");
+  // Defer the render until after open class triggers transition so
+  // the list appears with the panel rather than after.
+  requestAnimationFrame(() => {
+    _cmdkRender();
+    input.focus();
+    input.select();
+  });
+  // Pre-warm the list if it's empty (operator hit Cmd+K before
+  // visiting Messages this session).
+  if (!Array.isArray(_msgInboxList) || _msgInboxList.length === 0) {
+    if (typeof refreshDriverChatList === "function") {
+      refreshDriverChatList(false).then(() => _cmdkRender());
+    }
+  }
+}
+
+function _cmdkClose() {
+  const root = document.getElementById("rr-cmdk-root");
+  if (!root) return;
+  const input = document.getElementById("rr-cmdk-input");
+  if (input) _cmdkLastQuery = input.value;
+  root.classList.remove("open");
+  document.body.classList.remove("rr-cmdk-open");
+}
+
+// Global keyboard binding — Cmd+K on Mac, Ctrl+K on Windows/Linux.
+// Captured on the window so it works regardless of focus.
+window.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+    e.preventDefault();
+    if (document.getElementById("rr-cmdk-root")?.classList.contains("open")) {
+      _cmdkClose();
+    } else {
+      _cmdkOpen();
+    }
+  }
+});
+
+
 // ─── Presence + typing indicators ────────────────────────────────────────
 //
 // One Supabase Realtime channel per DSP carries two things:
