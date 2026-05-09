@@ -2800,11 +2800,40 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   padding:var(--s-4) var(--s-5);
   display:flex;flex-direction:column;gap:2px;
   background:var(--canvas);
+  /* Disable browser scroll-anchoring on the thread itself.  We opt in
+     selectively on the bottom-sentinel below — that lets the browser
+     natively keep the latest message pinned across reflows (image
+     loads, composer-driven padding changes, attachment thumbnails)
+     WITHOUT firing a JS re-pin that the user can see as a glitch.
+     Without this property, the browser would pick an arbitrary bubble
+     mid-thread as the anchor and yank the operator UP whenever a
+     message above the viewport changed height. */
+  overflow-anchor:none;
   /* No scroll-behavior:smooth here — every scrollTop change would
-     animate, including the polling re-pin during initial paint, so
-     the operator would SEE the thread scroll down instead of just
-     opening at the newest message.  Smooth is opt-in via
+     animate, so the operator would SEE the thread scroll down instead
+     of just opening at the newest message.  Smooth is opt-in via
      thread.scrollTo({ behavior:"smooth" }) for jump-pill taps. */
+}
+/* Bottom sentinel — last child of the thread. Browser scroll-anchoring
+   tracks this 1px element when it's near the bottom of the viewport,
+   so reflows above (image loads, padding changes from composer
+   resize, new bubble inserts) do NOT visibly nudge the scroll
+   position.  This replaces the prior polling/observer/img-load re-pin
+   stack that was racy and produced the "scroll back up briefly"
+   glitch.  When the operator manually scrolls up, JS toggles
+   `data-rr-anchor="0"` on the thread which flips this back to
+   `none` so the browser doesn't fight them when content lands above
+   their reading position. */
+.rr-mc-bottom-sentinel, .rr-cc-bottom-sentinel{
+  height:1px;flex:0 0 auto;
+  /* Default: opt-in to the anchoring algorithm.  CSS overrides via
+     [data-rr-anchor="0"] on the parent disable it when the operator
+     has scrolled up. */
+  overflow-anchor:auto;
+}
+.rr-mc-thread[data-rr-anchor="0"] .rr-mc-bottom-sentinel,
+.rr-cc-thread[data-rr-anchor="0"] .rr-cc-bottom-sentinel{
+  overflow-anchor:none;
 }
 .rr-mc-bubble, .rr-cc-bubble{
   max-width:78%;

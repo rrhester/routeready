@@ -8386,6 +8386,16 @@ function _fitMsgShell() {
 // .msg-shell), and its bottom anchored to the bottom of the visible
 // shell area.  This guarantees the composer is always on-screen
 // regardless of viewport / content height / browser chrome.
+//
+// Pure write-side function: no scroll-pin logic.  The thread keeps
+// its position at the bottom via CSS scroll-anchoring on the
+// `.rr-mc-bottom-sentinel` child (see index.html).  When this
+// function shrinks/grows `--rr-mc-thread-pad`, the browser's anchor
+// algorithm adjusts scrollTop transparently so the sentinel stays
+// in view.  Previously this function manually set
+// `scrollTop = scrollHeight` whenever an anchor flag was on, which
+// fought with the same algorithm and produced the "scroll back up
+// briefly" glitch the operator complained about.
 function _syncComposerPos() {
   const conv = document.getElementById("rr-msg-conv");
   if (!conv) return;
@@ -8409,24 +8419,20 @@ function _syncComposerPos() {
   // sent messages land BEHIND the composer (it's position:fixed and
   // overlays the thread).  Multi-line composer + typing pill make
   // the height variable, so static padding doesn't cut it.
-  const form = document.getElementById("rr-mc-form");
+  const form = document.getElementById("rr-mc-form") || document.getElementById("rr-cc-form");
   if (form) {
     const fh = Math.ceil(form.getBoundingClientRect().height);
     root.style.setProperty("--rr-mc-thread-pad", (fh + 16) + "px");
-    // Re-pin if anchored — padding change shrinks scrollHeight, so
-    // scrollTop relative to the new bottom needs to follow.
-    const thread = document.getElementById("rr-mc-thread");
-    if (thread && thread.dataset.rrAnchor === "1") {
-      thread.scrollTop = thread.scrollHeight;
-    }
   }
 }
 // Watch the composer for resize (textarea grows, attachment preview
-// appears, typing pill shows/hides).  Each resize re-syncs padding
-// + scroll position so the latest message stays in view.
+// appears, typing pill shows/hides).  Each resize re-syncs the
+// thread's bottom padding.  The browser handles keeping the latest
+// message in view via overflow-anchor on the bottom sentinel — we no
+// longer touch scrollTop here.
 let _composerResizeObserver = null;
 function _ensureComposerResizeWatch() {
-  const form = document.getElementById("rr-mc-form");
+  const form = document.getElementById("rr-mc-form") || document.getElementById("rr-cc-form");
   if (!form) return;
   if (form._rrResizeBound) return;
   form._rrResizeBound = true;
@@ -8436,7 +8442,14 @@ function _ensureComposerResizeWatch() {
   _composerResizeObserver.observe(form);
 }
 window.addEventListener("resize", () => { _fitMsgShell(); _syncComposerPos(); });
-window.addEventListener("scroll", _syncComposerPos, true);
+// Window-level scroll only (NOT capture-phase into nested scroll
+// containers).  Previously this listener fired for every scroll
+// inside `.rr-mc-thread`, which combined with the in-function re-pin
+// produced a feedback loop on each wheel tick.  Removing the
+// capture-phase listen is safe because the composer's coords only
+// change when the WINDOW scrolls (msg-shell is laid out in normal
+// flow), not when the operator scrolls within the thread.
+window.addEventListener("scroll", _syncComposerPos);
 // Run whenever the Messages view becomes active (the goto wrapper
 // adds 'active' to the corresponding .view).  MutationObserver
 // avoids touching every goto site.
@@ -8577,7 +8590,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">Driver chat</div>
           </div>
         </div>
-        <div class="rr-mc-thread" id="rr-mc-thread">
+        <div class="rr-mc-thread" id="rr-mc-thread" data-rr-anchor="1">
           <div class="rr-msg-skeleton">
             <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:62%"></div></div>
             <div class="rr-msg-skeleton-row right"><div class="rr-msg-skeleton-bubble" style="width:48%"></div></div>
@@ -8588,6 +8601,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             New messages
           </button>
+          <div class="rr-mc-bottom-sentinel" id="rr-mc-bottom-sentinel" aria-hidden="true"></div>
         </div>
         <form class="rr-mc-composer" id="rr-mc-form">
           <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
@@ -8671,16 +8685,36 @@ async function refreshDriverChatThread(scrollToBottom) {
         ${stubAttach}${stubBody}
         <div class="rr-mc-time">${escapeHtml(nowTime)} · sending</div>
       </div>`;
-      // Drop the optimistic bubble just before the jump-pill.
+      // Drop the optimistic bubble just before the jump-pill (which sits
+      // just before the bottom sentinel).
       const jumpPill = document.getElementById("rr-mc-jump");
       if (jumpPill) jumpPill.insertAdjacentHTML("beforebegin", stubHtml);
       else threadEl.insertAdjacentHTML("beforeend", stubHtml);
-      // Always scroll for the operator's own send — they want to see it.
-      threadEl.scrollTop = threadEl.scrollHeight;
-      // Clear the composer immediately. A failed send leaves the stub
-      // bubble in place with the .failed class so nothing is lost.
+      // Re-arm the bottom-anchor and clear the composer.  Order matters:
+      //   1. Flip anchor flag back on (operator just sent — they want to
+      //      track new content from here on out).
+      //   2. Reset textarea to single row.  The composer shrinks; the
+      //      ResizeObserver fires _syncComposerPos which decreases
+      //      `--rr-mc-thread-pad`.  Browser scroll-anchoring on the
+      //      bottom sentinel keeps the latest content pinned across
+      //      that reflow without a JS re-pin.
+      //   3. scrollTop = scrollHeight + rAF re-pin as belt-and-suspenders
+      //      for the cold path where scroll-anchoring hasn't engaged
+      //      yet (fresh open, thread height < viewport).
+      threadEl.dataset.rrAnchor = "1";
       const savedBody = body;
       ta.value = ""; ta.style.height = "auto";
+      // Direct scrollTop write (not scrollIntoView, which would walk
+      // up ancestor scroll containers and possibly scroll the page).
+      // The textarea reset above triggers _syncComposerPos via the
+      // ResizeObserver, which shrinks --rr-mc-thread-pad; the rAF
+      // re-pin below covers the height change.
+      threadEl.scrollTop = threadEl.scrollHeight;
+      requestAnimationFrame(() => {
+        if (threadEl.dataset.rrAnchor === "1") {
+          threadEl.scrollTop = threadEl.scrollHeight;
+        }
+      });
       if (file) {
         window._rrMcPending = null;
         fileInput.value = "";
@@ -8873,12 +8907,15 @@ async function refreshDriverChatThread(scrollToBottom) {
     });
   }
 
-  // Preserve the jump pill across the re-render (it lives on the
-  // thread element as a sibling of the bubbles).
+  // Preserve the jump pill + bottom sentinel across the re-render (both
+  // live as sibling children of the thread, AFTER the bubble list).
+  // Sentinel must be the LAST child for browser scroll-anchoring to
+  // pick it as the anchor when the operator is at the bottom.
   const jumpPillHtml = `<button type="button" class="rr-msg-jump" id="rr-mc-jump" aria-label="Jump to latest">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       New messages
     </button>`;
+  const sentinelHtml = `<div class="rr-mc-bottom-sentinel" id="rr-mc-bottom-sentinel" aria-hidden="true"></div>`;
 
   // Carry forward any still-pending or failed optimistic stubs that
   // the server hasn't yet echoed back.
@@ -8887,7 +8924,16 @@ async function refreshDriverChatThread(scrollToBottom) {
     .map((el) => el.outerHTML)
     .join("");
 
-  thread.innerHTML = html + liveStubs + jumpPillHtml;
+  // ─── DOM swap ──────────────────────────────────────────────────────
+  // innerHTML rewrite is synchronous, so the browser does not paint
+  // any intermediate state.  scrollTop is preserved across innerHTML
+  // assignment when the new content is taller than the viewport, so
+  // the position the operator was at stays valid.  Browser scroll-
+  // anchoring (overflow-anchor:auto on the sentinel; none on
+  // everything else) handles re-pinning across subsequent reflows
+  // (image loads, padding changes, content additions) WITHOUT a
+  // JS-driven re-pin — that is what eliminates the visible glitch.
+  thread.innerHTML = html + liveStubs + jumpPillHtml + sentinelHtml;
   // Sign attachment paths so they render — bucket is private.
   setTimeout(() => _rrMcSignAttachments(), 0);
 
@@ -8895,82 +8941,59 @@ async function refreshDriverChatThread(scrollToBottom) {
   const jump = document.getElementById("rr-mc-jump");
   if (jump) {
     jump.addEventListener("click", () => {
-      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
-      jump.classList.remove("show");
-      // Re-arm the anchor — they explicitly asked to follow the bottom.
+      // Re-arm the anchor BEFORE scrolling so the post-scroll reflow
+      // (read-receipt land, image hydration) keeps the operator pinned.
       thread.dataset.rrAnchor = "1";
+      jump.classList.remove("show");
+      // Smooth scroll on the THREAD only — never via scrollIntoView,
+      // which animates ancestor scroll containers too and would jolt
+      // the surrounding page chrome.
+      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
     });
   }
+
+  // Sync the position:fixed composer's coords to whatever the conv
+  // pane is currently doing (covers viewport/zoom/devtools changes
+  // since open).  Also wire the composer resize observer so the
+  // thread's bottom padding follows when the textarea grows.  The
+  // browser's scroll-anchor on the sentinel handles re-pinning when
+  // padding shifts — _syncComposerPos no longer touches scrollTop.
+  if (typeof _syncComposerPos === "function") _syncComposerPos();
+  if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
 
   // Smart-scroll: pin to bottom if the operator was already near it,
   // or if the caller forced it (e.g. opening a new thread).  Otherwise
   // surface the jump pill if the message count grew under their feet.
-  // Sync the position:fixed composer's coords to whatever the conv
-  // pane is currently doing (covers viewport/zoom/devtools changes
-  // since open + image-load reflow).  Also wire the composer
-  // resize observer so the thread's bottom padding follows when
-  // the textarea grows.
-  if (typeof _syncComposerPos === "function") _syncComposerPos();
-  if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
-
   if (scrollToBottom || wasNearBottom) {
-    thread.scrollTop = thread.scrollHeight;
-    if (jump) jump.classList.remove("show");
-    // Anchor-to-bottom flag — flipped on whenever we want to keep
-    // landing at the newest message even as content reflows after
-    // initial paint (image loads, attachment thumbnails, embed
-    // hydration).  Cleared when the operator manually scrolls up.
     thread.dataset.rrAnchor = "1";
-
-    // Brute-force pin loop.  ResizeObserver and image 'load' events
-    // both have edge cases (fixed-size grid track, nested image
-    // intrinsic-size changes, async src assignment in
-    // _rrMcSignAttachments).  Instead of trying to catch every
-    // possible reflow cause, we just poll for ~3 seconds after open:
-    // every 80ms, if anchor is still set and scrollHeight grew,
-    // re-pin to the new bottom.
-    if (thread._rrAnchorTimer) clearInterval(thread._rrAnchorTimer);
-    let lastHeight = thread.scrollHeight;
-    let elapsed = 0;
-    thread._rrAnchorTimer = setInterval(() => {
-      elapsed += 80;
-      if (thread.dataset.rrAnchor !== "1" || elapsed > 3000) {
-        clearInterval(thread._rrAnchorTimer);
-        thread._rrAnchorTimer = null;
-        return;
-      }
-      const h = thread.scrollHeight;
-      if (h !== lastHeight) {
-        lastHeight = h;
-        thread.scrollTop = h;
-      }
-    }, 80);
-
-    // Image load listener — fires per-image so we re-pin on the
-    // SAME frame each image lands, eliminating the up-to-80ms gap
-    // that polling would otherwise leave (which is what the user
-    // sees as a "glitching scroll-up").
+    if (jump) jump.classList.remove("show");
+    // Two-pass pin to bottom:
+    //   1. Synchronous: scrollTop = scrollHeight lands the viewport
+    //      at the bottom NOW so the operator never sees an
+    //      intermediate scrollTop=0 frame after innerHTML rewrite.
+    //   2. rAF: re-pin after the next layout tick, in case the bubble
+    //      fade-in transform / composer resize-observer wiring grew
+    //      the content height between innerHTML and first paint.
+    // After this, browser scroll-anchoring on the sentinel takes over
+    // for image-load and padding-change reflows — no polling, no
+    // per-image listeners, no race.
     //
-    // Crucial: don't skip on img.complete — when these <img> tags
-    // first render they have NO src (it's set later by the async
-    // _rrMcSignAttachments signed-URL resolver), and an src-less
-    // <img> reports complete:true vacuously.  We need the listener
-    // attached BEFORE src lands so 'load' fires when the image
-    // actually finishes downloading.
-    //
-    // [data-rr-anchor-bound] marker prevents stacking listeners
-    // across re-renders (new <img> elements get the listener; old
-    // ones already had it from the previous pass).
-    thread.querySelectorAll("img:not([data-rr-anchor-bound])").forEach((img) => {
-      img.setAttribute("data-rr-anchor-bound", "1");
-      img.addEventListener("load", () => {
-        if (thread.dataset.rrAnchor === "1") thread.scrollTop = thread.scrollHeight;
-      });
-      img.addEventListener("error", () => {/* ignore */});
+    // Direct scrollTop assignment (rather than sentinel.scrollIntoView)
+    // is intentional: scrollIntoView walks up ALL ancestor scroll
+    // containers, which can scroll the page itself and produce a
+    // visible jolt outside the thread.  scrollTop only moves THIS
+    // container.
+    thread.scrollTop = thread.scrollHeight;
+    requestAnimationFrame(() => {
+      if (thread.dataset.rrAnchor === "1") {
+        thread.scrollTop = thread.scrollHeight;
+      }
     });
 
     // Release anchor only on a meaningful scroll-up (>80px from
-    // bottom).  Bound once per thread element.
+    // bottom).  Bound once per thread element.  Wheel/touchmove/keydown
+    // tell us the OPERATOR initiated the scroll; we only flip the
+    // anchor off if they actually moved away from the bottom.
     if (!thread._rrAnchorReleaseBound) {
       thread._rrAnchorReleaseBound = true;
       const release = () => {
@@ -8979,6 +9002,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           const max = thread.scrollHeight;
           const view = thread.clientHeight;
           if ((max - cur - view) > 80) thread.dataset.rrAnchor = "0";
+          else thread.dataset.rrAnchor = "1";
         });
       };
       thread.addEventListener("wheel",     release, { passive: true });
@@ -9349,8 +9373,14 @@ async function refreshChannelThread(scrollToBottom) {
 
   const thread = document.getElementById("rr-cc-thread");
   if (!thread) return;
+  // Channel thread uses the same overflow-anchor sentinel pattern as
+  // direct chat (see .rr-cc-bottom-sentinel CSS) so the position:fixed
+  // composer's padding shifts and image-load reflows don't visibly
+  // jump the scroll position.
+  if (!thread.hasAttribute("data-rr-anchor")) thread.setAttribute("data-rr-anchor", "1");
+  const ccSentinelHtml = `<div class="rr-cc-bottom-sentinel" id="rr-cc-bottom-sentinel" aria-hidden="true"></div>`;
   if (msgs.length === 0) {
-    thread.innerHTML = `<div class="rr-cc-empty">No messages yet. Start the channel below.</div>`;
+    thread.innerHTML = `<div class="rr-cc-empty">No messages yet. Start the channel below.</div>` + ccSentinelHtml;
   } else {
     thread.innerHTML = msgs.map((m) => {
       const t = new Date(m.created_at);
@@ -9374,10 +9404,20 @@ async function refreshChannelThread(scrollToBottom) {
         ${bodyHtml}
         <div class="rr-cc-time">${escapeHtml(time)}</div>
       </div>`;
-    }).join("");
+    }).join("") + ccSentinelHtml;
     setTimeout(() => _rrMcSignAttachments(), 0);
   }
-  if (scrollToBottom) thread.scrollTop = thread.scrollHeight;
+  if (typeof _syncComposerPos === "function") _syncComposerPos();
+  if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
+  if (scrollToBottom) {
+    thread.dataset.rrAnchor = "1";
+    thread.scrollTop = thread.scrollHeight;
+    requestAnimationFrame(() => {
+      if (thread.dataset.rrAnchor === "1") {
+        thread.scrollTop = thread.scrollHeight;
+      }
+    });
+  }
   sb.rpc("dispatch_channel_mark_read", { p_channel_id: channelId }).then(undefined, () => {});
 }
 
