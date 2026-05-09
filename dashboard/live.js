@@ -87,7 +87,7 @@ window.RR.user = profile;
 // is always visible because that's how a restricted user appeals.
 (function applyAllowedPages() {
   const allowed = profile.allowed_pages;
-  if (profile.role === "owner") return;
+  if (profile.role === "owner" || profile.role === "platform_admin") return;
   if (!Array.isArray(allowed) || allowed.length === 0) return;
   const apply = () => {
     document.querySelectorAll(".nav-item[data-view]").forEach(btn => {
@@ -96,6 +96,27 @@ window.RR.user = profile;
       if (!allowed.includes(view)) {
         btn.style.display = "none";
       }
+    });
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", apply, { once: true });
+  } else {
+    apply();
+  }
+})();
+
+// Reveal the platform-admin nav-item only for users who actually have
+// that role.  The button is `display:none` by default in the HTML, so
+// regular owners / dispatchers / drivers never see it.  See the
+// 0124_platform_admin.sql migration + bootstrap for how to grant the
+// role.  All cross-tenant data calls go through admin_* RPCs, each of
+// which re-checks is_platform_admin() in its body — hiding the nav
+// item is UX, not security.
+(function revealPlatformAdminNav() {
+  if (profile.role !== "platform_admin") return;
+  const apply = () => {
+    document.querySelectorAll('.nav-item[data-rr-platform-admin-only="1"]').forEach((btn) => {
+      btn.style.display = "";
     });
   };
   if (document.readyState === "loading") {
@@ -800,7 +821,65 @@ window.goto = function (view) {
   if (view === "dashboard") { loadTodayPlan(); }
   if (view === "messages")  loadDriverChatInbox();
   if (view === "forms")     loadFormsList();
+  if (view === "admin")     loadPlatformAdmin();
 };
+
+// ── Platform admin view ────────────────────────────────────────────────────
+// Cross-tenant DSP management.  Backed by the SECURITY DEFINER admin_*
+// RPCs from migration 0124; each RPC re-checks is_platform_admin() in
+// its body so calling it as a non-admin returns 'forbidden'.
+//
+// This loader is invoked by the goto() wrapper above when the operator
+// switches to the admin view.  It's a no-op for non-admins (they can't
+// even see the nav-item, but if a stale URL puts them on view-admin
+// the RPC will reject them and we surface a friendly message).
+async function loadPlatformAdmin() {
+  if (profile.role !== "platform_admin") {
+    // Defensive: a non-admin somehow landed on the view (deep link,
+    // back button after role change, etc.).  Bounce them to dashboard
+    // rather than letting them sit on a permission-denied page.
+    window.goto("dashboard");
+    return;
+  }
+  await _loadPlatformAdminStats();
+}
+
+async function _loadPlatformAdminStats() {
+  const { data, error } = await sb.rpc("admin_kpis");
+  const slots = document.querySelectorAll('#view-admin [data-rr-admin-stat-value]');
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    console.error("admin_kpis failed:", error);
+    slots.forEach((el) => { el.textContent = "—"; });
+    if (typeof toast === "function") toast(`Couldn't load admin stats: ${error.message}`, "warn");
+    return;
+  }
+  const kpis = data || {};
+  const map = {
+    total:     kpis.total ?? 0,
+    active:    kpis.active ?? 0,
+    pending:   kpis.pending ?? 0,
+    suspended: kpis.suspended ?? 0,
+  };
+  for (const [key, value] of Object.entries(map)) {
+    const card = document.querySelector(`#view-admin [data-rr-admin-stat="${key}"]`);
+    if (!card) continue;
+    const slot = card.querySelector("[data-rr-admin-stat-value]");
+    if (!slot) continue;
+    slot.textContent = String(value);
+  }
+}
+
+// Placeholder CTA handlers — real Add-DSP modal + Invite-user flow
+// land in Phase 4.  Wired here so the buttons don't sit dead.
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("rr-admin-add-dsp")?.addEventListener("click", () => {
+    if (typeof toast === "function") toast("Add-DSP modal lands in Phase 4.", "info");
+  });
+  document.getElementById("rr-admin-invite-user")?.addEventListener("click", () => {
+    if (typeof toast === "function") toast("Invite-user flow lands in Phase 4.", "info");
+  });
+});
 
 
 // ─── Drivers roster ────────────────────────────────────────────────────────
