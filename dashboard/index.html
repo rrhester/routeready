@@ -934,6 +934,131 @@ a{color:inherit;text-decoration:none}
 .table tbody tr:last-child td{border-bottom:none}
 .table tbody tr:hover{background:rgba(244,246,251,.6)}
 
+/* ─────────────────────────────────────────────────────────────
+   PLATFORM-ADMIN TABLE · DSP account management
+   Reuses .table / .status-pill chrome above.  Adds toolbar,
+   pagination, action menu, skeleton + empty states.
+   ───────────────────────────────────────────────────────────── */
+.rr-admin-toolbar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2);
+  margin-bottom:var(--s-4);
+}
+.rr-admin-toolbar__search{
+  display:flex;align-items:center;gap:8px;
+  flex:1;min-width:220px;
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--r-md);padding:7px 12px;
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.rr-admin-toolbar__search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.rr-admin-toolbar__search svg{width:14px;height:14px;color:var(--text-subtle);flex-shrink:0}
+.rr-admin-toolbar__search input{
+  flex:1;border:none;background:transparent;outline:none;font:inherit;font-size:var(--fs-sm);color:var(--text);
+}
+.rr-admin-toolbar__search input::placeholder{color:var(--text-subtle)}
+.rr-admin-toolbar__select{
+  font:inherit;font-size:var(--fs-sm);color:var(--text);
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--r-md);padding:7px 30px 7px 12px;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 8px center;background-size:14px;
+  transition:border-color var(--t-fast);
+}
+.rr-admin-toolbar__select:hover{border-color:var(--text-subtle)}
+.rr-admin-toolbar__select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+/* Sticky table header so the column labels stay pinned while
+   scrolling a long DSP list. */
+.rr-admin-table-wrap{position:relative}
+.rr-admin-table thead th{position:sticky;top:0;z-index:1}
+
+/* DSP cell · name + station code stacked. */
+.rr-admin-cell-dsp{display:flex;flex-direction:column;gap:2px;min-width:160px}
+.rr-admin-cell-dsp__name{font-weight:600;color:var(--text)}
+.rr-admin-cell-dsp__sub{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.rr-admin-cell-muted{color:var(--text-subtle)}
+.rr-admin-cell-num{font-variant-numeric:tabular-nums;text-align:right}
+.rr-admin-cell-plan{
+  display:inline-flex;align-items:center;
+  padding:1px 8px;border-radius:6px;
+  font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em;
+  background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
+  text-transform:capitalize;
+}
+.rr-admin-cell-plan--growth{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-soft)}
+.rr-admin-cell-plan--enterprise{background:rgba(91,33,182,.10);color:#5B21B6;border-color:rgba(91,33,182,.20)}
+
+/* Row actions · "..." menu */
+.rr-admin-row-actions{position:relative;text-align:right}
+.rr-admin-row-actions__btn{
+  background:transparent;border:1px solid transparent;border-radius:var(--r-sm);
+  width:28px;height:28px;padding:0;cursor:pointer;color:var(--text-muted);
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.rr-admin-row-actions__btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
+.rr-admin-row-actions__btn svg{width:14px;height:14px}
+.rr-admin-row-actions__menu{
+  position:absolute;top:32px;right:0;z-index:30;
+  min-width:180px;
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--r-md);box-shadow:var(--shadow-lg);
+  padding:4px;
+}
+.rr-admin-row-actions__menu[hidden]{display:none}
+.rr-admin-row-actions__item{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:7px 10px;border-radius:var(--r-sm);
+  font:inherit;font-size:var(--fs-sm);color:var(--text);
+  background:transparent;border:0;text-align:left;cursor:pointer;
+}
+.rr-admin-row-actions__item:hover{background:var(--surface-hover)}
+.rr-admin-row-actions__item--danger{color:var(--red)}
+.rr-admin-row-actions__item--danger:hover{background:var(--red-soft)}
+.rr-admin-row-actions__item svg{width:14px;height:14px;flex-shrink:0;opacity:.7}
+.rr-admin-row-actions__sep{height:1px;background:var(--border-subtle);margin:4px 0}
+
+/* Pagination */
+.rr-admin-pagination{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+  padding:var(--s-3) var(--s-4);
+  border-top:1px solid var(--border-subtle);
+  background:linear-gradient(180deg, rgba(244,246,251,.4) 0%, var(--canvas) 100%);
+}
+.rr-admin-pagination__summary{font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums}
+.rr-admin-pagination__controls{display:flex;align-items:center;gap:var(--s-2)}
+.rr-admin-pagination__page{font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums;padding:0 var(--s-2)}
+
+/* Skeleton loader rows */
+.rr-admin-skel{padding:14px var(--s-4) !important}
+.rr-admin-skel span{
+  display:block;height:14px;border-radius:var(--r-sm);
+  background:linear-gradient(90deg, #EEF2F7 0%, #F8FAFC 50%, #EEF2F7 100%);
+  background-size:200% 100%;animation:rr-admin-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes rr-admin-shimmer{
+  0%{background-position:0% 50%}
+  100%{background-position:-200% 50%}
+}
+
+/* Empty state */
+.rr-admin-empty{
+  padding:var(--s-10) var(--s-5);text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:var(--s-3);
+  background:linear-gradient(180deg, var(--canvas) 0%, rgba(244,246,251,.4) 100%);
+  border-top:1px solid var(--border-subtle);
+}
+.rr-admin-empty[hidden]{display:none}
+.rr-admin-empty__icon{
+  width:56px;height:56px;border-radius:50%;
+  background:rgba(91,33,182,.08);color:#5B21B6;
+  display:grid;place-items:center;
+}
+.rr-admin-empty__icon svg{width:24px;height:24px}
+.rr-admin-empty__title{font-size:var(--fs-base);font-weight:600;color:var(--text);letter-spacing:-.005em}
+.rr-admin-empty__sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:32ch}
+
 /* Density modifier */
 .table-compact thead th{padding:7px var(--s-3)}
 .table-compact tbody td{padding:9px var(--s-3);font-size:var(--fs-sm)}
@@ -9876,10 +10001,87 @@ body.rr-cmdk-open{ overflow:hidden }
               <h3 class="section-title">DSP accounts</h3>
               <p class="section-sub">Search, filter, and manage all DSP clients.</p>
             </div>
+            <div id="rr-admin-row-count" class="section-sub" style="font-variant-numeric:tabular-nums">—</div>
           </div>
-          <div class="kpi-card" id="rr-admin-table-placeholder"
-               style="padding:var(--s-10) var(--s-5);text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">
-            Search · filters · table land in Phase 3.
+
+          <!-- Toolbar · search + filters + sort + export -->
+          <div class="rr-admin-toolbar">
+            <div class="rr-admin-toolbar__search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="search" id="rr-admin-search" placeholder="Search DSP, owner, station code, email…" autocomplete="off" />
+            </div>
+            <select class="rr-admin-toolbar__select" id="rr-admin-filter-status" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="suspended">Suspended</option>
+            </select>
+            <select class="rr-admin-toolbar__select" id="rr-admin-filter-plan" aria-label="Filter by plan">
+              <option value="">All plans</option>
+              <option value="starter">Starter</option>
+              <option value="growth">Growth</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+            <select class="rr-admin-toolbar__select" id="rr-admin-sort" aria-label="Sort by">
+              <option value="created_at:desc">Newest first</option>
+              <option value="created_at:asc">Oldest first</option>
+              <option value="name:asc">Name (A→Z)</option>
+              <option value="name:desc">Name (Z→A)</option>
+              <option value="driver_count:desc">Most drivers</option>
+              <option value="last_active_at:desc">Recently active</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" id="rr-admin-export" type="button" title="Export the filtered list as CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export CSV
+            </button>
+          </div>
+
+          <!-- Table -->
+          <div class="table-wrap rr-admin-table-wrap">
+            <div class="table-wrap-scroll">
+              <table class="table rr-admin-table">
+                <thead>
+                  <tr>
+                    <th>DSP</th>
+                    <th>Owner</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th style="text-align:right">Drivers</th>
+                    <th style="text-align:right">Routes</th>
+                    <th>Plan</th>
+                    <th>Last active</th>
+                    <th style="text-align:right;width:48px">&nbsp;</th>
+                  </tr>
+                </thead>
+                <tbody id="rr-admin-tbody">
+                  <!-- Rows are rendered by _renderPlatformAdminTable in live.js.
+                       Initial state: skeleton rows so the toolbar isn't sitting
+                       on a blank canvas while admin_list_dsps() is in flight. -->
+                  <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
+                  <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
+                  <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- Pagination footer -->
+            <div class="rr-admin-pagination" id="rr-admin-pagination" hidden>
+              <div class="rr-admin-pagination__summary" id="rr-admin-pagination-summary"></div>
+              <div class="rr-admin-pagination__controls">
+                <button class="btn btn-ghost btn-sm" id="rr-admin-page-prev" type="button" disabled>‹ Prev</button>
+                <span class="rr-admin-pagination__page" id="rr-admin-page-label">Page 1</span>
+                <button class="btn btn-ghost btn-sm" id="rr-admin-page-next" type="button" disabled>Next ›</button>
+              </div>
+            </div>
+            <!-- Empty state -->
+            <div class="rr-admin-empty" id="rr-admin-empty" hidden>
+              <div class="rr-admin-empty__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </div>
+              <div class="rr-admin-empty__title">No DSP accounts match</div>
+              <div class="rr-admin-empty__sub" id="rr-admin-empty-sub">Try clearing filters or search.</div>
+              <button class="btn btn-primary btn-sm" id="rr-admin-empty-cta" type="button">+ Add DSP client</button>
+            </div>
           </div>
         </div>
       </div>
@@ -17214,7 +17416,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509c-admin-integrated"></script>
+<script type="module" src="./live.js?v=20260509d-admin-table"></script>
 
 </body>
 </html>
