@@ -2771,7 +2771,19 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    MESSAGES / COMMS PLATFORM
    ───────────────────────────────────────────────────────────── */
 .msg-shell{
-  display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;
+  display:grid;grid-template-columns:300px 1fr;
+  /* `minmax(0, 1fr)` not bare `1fr` — same gotcha as PR #580's inner
+     grid.  Bare 1fr is `minmax(auto, 1fr)`, and the `auto` floor pins
+     the track to its tallest child's min-content.  When the driver
+     list has enough rows that its intrinsic size exceeds the shell's
+     JS-driven height, the grid row stretches past the shell, the
+     right column (.msg-conv) faithfully fills the over-sized cell,
+     and the composer renders BELOW the shell's overflow:hidden clip
+     (often below the viewport entirely — i.e. invisible).  Setting
+     the floor to 0 lets the track honor the shell's explicit height;
+     .msg-list-items has overflow-y:auto so its rows scroll instead
+     of pushing on the track. */
+  grid-template-rows:minmax(0, 1fr);
   background:var(--surface);
   background-image:var(--surface-grad);
   border:1px solid var(--border);border-radius:var(--r-lg);
