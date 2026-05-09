@@ -184,7 +184,26 @@ a{color:inherit;text-decoration:none}
   border-right:1px solid var(--border-inverse);
   box-shadow:inset -1px 0 0 rgba(255,255,255,.02);
 }
-.brand{display:flex;align-items:center;gap:10px;padding:0 var(--s-3) var(--s-6) var(--s-3)}
+.brand{
+  position:relative;
+  display:flex;align-items:center;gap:10px;
+  padding:0 var(--s-3) var(--s-6) var(--s-3);
+}
+/* Subtle gradient wash behind the brand area, echoing the
+   marketing site's hero gradient (blue → indigo → violet).
+   Sits behind the logo + wordmark; fades down toward the nav. */
+.brand::before{
+  content:"";
+  position:absolute;inset:-12px -12px 0 -12px;
+  background:radial-gradient(ellipse 90% 80% at 50% 30%,
+    rgba(30,136,229,.18) 0%,
+    rgba(79,70,229,.14) 35%,
+    rgba(124,58,237,.08) 65%,
+    transparent 100%);
+  pointer-events:none;z-index:0;
+  border-radius:0 0 var(--r-lg) var(--r-lg);
+}
+.brand > *{position:relative;z-index:1}
 .brand-mark{
   width:32px;height:32px;border-radius:8px;
   display:flex;align-items:center;justify-content:center;
@@ -225,11 +244,41 @@ a{color:inherit;text-decoration:none}
    drop-shadow on active state for the "filled" Microsoft feel
    without redrawing every glyph. */
 .nav-item svg{
-  width:18px;height:18px;flex-shrink:0;stroke-width:2;
+  width:16px;height:16px;flex-shrink:0;stroke-width:2.2;
   transition:stroke-width var(--t-fast), color var(--t-fast),
              filter var(--t-fast), transform var(--t-fast);
 }
 .nav-badge{ display:none }
+
+/* Per-item colored icon treatment — borrowed from the marketing
+   site's feature-card aesthetic. Each nav-item declares a color
+   via data-c=""; the svg sits inside a small tinted square that
+   always shows that color regardless of which view is active.
+   Active state strengthens the tint a touch. */
+.nav-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:7px;flex-shrink:0;
+  background:var(--ni-bg, rgba(255,255,255,.06));
+  color:var(--ni-fg, var(--text-inverse-muted));
+  transition:background var(--t-fast), color var(--t-fast),
+             box-shadow var(--t-fast);
+}
+.nav-item:hover .nav-icon{box-shadow:0 0 0 1px rgba(255,255,255,.08) inset}
+.nav-item.active .nav-icon{
+  background:var(--ni-bg-strong, var(--ni-bg, rgba(255,255,255,.1)));
+  box-shadow:0 0 0 1px rgba(255,255,255,.12) inset, 0 4px 12px var(--ni-glow, rgba(0,0,0,.18));
+}
+.nav-item.active svg{filter:none}
+
+.nav-item[data-c="dashboard"]{--ni-fg:#67E8F9;--ni-bg:rgba(34,211,238,.14);--ni-bg-strong:rgba(34,211,238,.22);--ni-glow:rgba(34,211,238,.20)}
+.nav-item[data-c="pipeline"] {--ni-fg:#A78BFA;--ni-bg:rgba(124,58,237,.16);--ni-bg-strong:rgba(124,58,237,.26);--ni-glow:rgba(124,58,237,.22)}
+.nav-item[data-c="drivers"]  {--ni-fg:#5EEAD4;--ni-bg:rgba(13,148,136,.18);--ni-bg-strong:rgba(13,148,136,.28);--ni-glow:rgba(13,148,136,.22)}
+.nav-item[data-c="staffing"] {--ni-fg:#F9A8D4;--ni-bg:rgba(219,39,119,.16);--ni-bg-strong:rgba(219,39,119,.26);--ni-glow:rgba(219,39,119,.22)}
+.nav-item[data-c="fleet"]    {--ni-fg:#FCD34D;--ni-bg:rgba(217,119,6,.16);--ni-bg-strong:rgba(217,119,6,.26);--ni-glow:rgba(217,119,6,.22)}
+.nav-item[data-c="schedule"] {--ni-fg:#818CF8;--ni-bg:rgba(79,70,229,.18);--ni-bg-strong:rgba(79,70,229,.28);--ni-glow:rgba(79,70,229,.22)}
+.nav-item[data-c="messages"] {--ni-fg:#7DD3FC;--ni-bg:rgba(2,132,199,.18);--ni-bg-strong:rgba(2,132,199,.28);--ni-glow:rgba(2,132,199,.22)}
+.nav-item[data-c="forms"]    {--ni-fg:#C4B5FD;--ni-bg:rgba(124,58,237,.14);--ni-bg-strong:rgba(124,58,237,.24);--ni-glow:rgba(124,58,237,.22)}
+.nav-item[data-c="finances"] {--ni-fg:#6EE7B7;--ni-bg:rgba(5,150,105,.18);--ni-bg-strong:rgba(5,150,105,.28);--ni-glow:rgba(5,150,105,.22)}
 
 .nav-section-label{
   font-size:var(--fs-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;
@@ -4697,47 +4746,47 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
     </div>
 
     <nav class="nav">
-      <button class="nav-item active" data-view="dashboard" onclick="goto('dashboard')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <button class="nav-item active" data-view="dashboard" data-c="dashboard" onclick="goto('dashboard')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Today
       </button>
-      <button class="nav-item" data-view="pipeline" onclick="goto('pipeline')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+      <button class="nav-item" data-view="pipeline" data-c="pipeline" onclick="goto('pipeline')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg></span>
         Hiring Pipeline
         <span class="nav-badge">12</span>
       </button>
-      <button class="nav-item" data-view="drivers" onclick="goto('drivers')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <button class="nav-item" data-view="drivers" data-c="drivers" onclick="goto('drivers')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         Drivers
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
-      <button class="nav-item" data-view="staffing" onclick="goto('staffing')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-.32 0-.63.05-.91.14"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/></svg>
+      <button class="nav-item" data-view="staffing" data-c="staffing" onclick="goto('staffing')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-.32 0-.63.05-.91.14"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/></svg></span>
         Performance
         <span class="nav-badge" id="staffing-status-dot" style="background:var(--amber);width:8px;height:8px;border-radius:50%;padding:0;min-width:0;display:inline-block" title="Cautious"></span>
       </button>
-      <button class="nav-item" data-view="fleet" onclick="goto('fleet')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg>
+      <button class="nav-item" data-view="fleet" data-c="fleet" onclick="goto('fleet')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></span>
         Fleet
         <span class="nav-badge" style="background:var(--amber)">2</span>
       </button>
-      <button class="nav-item" data-view="schedule" onclick="goto('schedule')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <button class="nav-item" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
         <span class="nav-badge" style="background:#D97706">5</span>
       </button>
-      <button class="nav-item" data-view="messages" onclick="goto('messages')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         Messages
         <span class="nav-badge">7</span>
       </button>
-      <button class="nav-item" data-view="forms" onclick="goto('forms')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <button class="nav-item" data-view="forms" data-c="forms" onclick="goto('forms')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
         Workflows
         <span class="nav-badge" style="background:var(--amber)">4</span>
       </button>
-      <button class="nav-item" data-view="finances" onclick="goto('finances')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <button class="nav-item" data-view="finances" data-c="finances" onclick="goto('finances')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
         Finances
         <span class="nav-badge" style="background:var(--green)">$2.4k</span>
       </button>
