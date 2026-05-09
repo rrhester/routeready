@@ -935,6 +935,91 @@ a{color:inherit;text-decoration:none}
 .table tbody tr:hover{background:rgba(244,246,251,.6)}
 
 /* ─────────────────────────────────────────────────────────────
+   FIRST-RUN DASHBOARD · welcome banner + Get-started tiles
+   Shown for newly-activated DSPs (within 14 days of activated_at)
+   until the owner dismisses.  live.js handles the visibility
+   logic; this CSS is only the visual treatment.
+   ───────────────────────────────────────────────────────────── */
+.rr-firstrun{margin-bottom:var(--s-6);display:flex;flex-direction:column;gap:var(--s-4)}
+.rr-firstrun[hidden]{display:none}
+
+.rr-firstrun-banner{
+  display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);align-items:center;
+  padding:var(--s-4) var(--s-5);
+  background:linear-gradient(120deg, var(--accent-soft) 0%, rgba(79,70,229,.06) 100%);
+  border:1px solid var(--accent-border);
+  border-radius:var(--r-lg);
+  position:relative;overflow:hidden;
+}
+.rr-firstrun-banner::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--brand-grad);
+  border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg);
+}
+.rr-firstrun-banner-icon{
+  width:36px;height:36px;border-radius:var(--r-md);
+  background:var(--brand-grad);color:#fff;
+  display:grid;place-items:center;flex-shrink:0;
+  box-shadow:var(--shadow-sm), var(--highlight-top);
+}
+.rr-firstrun-banner-icon svg{width:18px;height:18px}
+.rr-firstrun-banner-text{min-width:0}
+.rr-firstrun-banner-title{font-size:var(--fs-base);font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
+.rr-firstrun-banner-sub{font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px;line-height:1.4}
+.rr-firstrun-dismiss{
+  background:transparent;border:1px solid transparent;color:var(--text-muted);
+  width:28px;height:28px;border-radius:var(--r-sm);cursor:pointer;
+  display:grid;place-items:center;flex-shrink:0;
+  transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.rr-firstrun-dismiss:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
+
+.rr-firstrun-card{
+  background:var(--surface);
+  background-image:var(--surface-grad);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);
+  box-shadow:var(--shadow-sm), var(--highlight-top);
+  padding:var(--s-5);
+  display:flex;flex-direction:column;gap:var(--s-4);
+}
+.rr-firstrun-card-head{display:flex;flex-direction:column;gap:2px}
+
+.rr-firstrun-tiles{
+  display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:var(--s-3);
+}
+@media (max-width:760px){.rr-firstrun-tiles{grid-template-columns:1fr}}
+
+.rr-firstrun-tile{
+  display:grid;grid-template-columns:32px 1fr 16px;gap:var(--s-3);align-items:center;
+  background:var(--canvas);
+  border:1px solid var(--border);
+  border-radius:var(--r-md);
+  padding:var(--s-3) var(--s-4);
+  font:inherit;text-align:left;cursor:pointer;
+  transition:transform var(--t-fast), background var(--t-smooth), border-color var(--t-smooth), box-shadow var(--t-smooth);
+}
+.rr-firstrun-tile:hover{
+  background:var(--surface);border-color:var(--accent-border);
+  transform:translateY(-1px);
+  box-shadow:0 2px 8px -2px rgba(15,108,189,.12);
+}
+.rr-firstrun-tile:active{transform:translateY(0)}
+.rr-firstrun-tile-num{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--accent-soft);color:var(--accent-text);
+  display:grid;place-items:center;
+  font-size:var(--fs-sm);font-weight:700;
+  flex-shrink:0;
+}
+.rr-firstrun-tile-text{min-width:0}
+.rr-firstrun-tile-title{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3}
+.rr-firstrun-tile-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.4}
+.rr-firstrun-tile-arrow{width:14px;height:14px;color:var(--text-subtle);flex-shrink:0;
+  transition:color var(--t-fast), transform var(--t-fast)}
+.rr-firstrun-tile:hover .rr-firstrun-tile-arrow{color:var(--accent-text);transform:translateX(2px)}
+
+/* ─────────────────────────────────────────────────────────────
    ONBOARDING WIZARD
    Full-screen takeover for newly-provisioned DSP owners.  Shown
    when dsps.status is 'pending' or 'onboarding'; live.js boot
@@ -6304,6 +6389,68 @@ body.rr-cmdk-open{ overflow:hidden }
     <!-- ─── DASHBOARD VIEW ─── -->
     <div class="view active" id="view-dashboard">
       <div class="page">
+
+        <!-- First-run welcome zone · revealed by live.js for newly-
+             activated DSPs (within 14 days of activation, until the
+             owner dismisses).  Hidden by default so existing
+             workspaces never see it. -->
+        <div class="rr-firstrun" id="rr-firstrun" hidden>
+          <div class="rr-firstrun-banner">
+            <div class="rr-firstrun-banner-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="rr-firstrun-banner-text">
+              <div class="rr-firstrun-banner-title">Welcome to RouteReady<span id="rr-firstrun-name-suffix"></span>.</div>
+              <div class="rr-firstrun-banner-sub">Your workspace is live.  A few quick wins below — most teams finish them in 20 minutes.</div>
+            </div>
+            <button class="rr-firstrun-dismiss" id="rr-firstrun-dismiss" type="button" aria-label="Dismiss welcome message">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <!-- Get-started card · 4 quick-link tiles -->
+          <div class="rr-firstrun-card">
+            <div class="rr-firstrun-card-head">
+              <h3 class="section-title">Get RouteReady running</h3>
+              <p class="section-sub">Each step opens the right page so you can finish in under 30 minutes.</p>
+            </div>
+            <div class="rr-firstrun-tiles">
+              <button type="button" class="rr-firstrun-tile" onclick="goto('drivers')">
+                <span class="rr-firstrun-tile-num">1</span>
+                <div class="rr-firstrun-tile-text">
+                  <div class="rr-firstrun-tile-title">Add your first driver</div>
+                  <div class="rr-firstrun-tile-sub">Start the roster.  Drivers also self-onboard via the PWA.</div>
+                </div>
+                <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button type="button" class="rr-firstrun-tile" onclick="goto('schedule')">
+                <span class="rr-firstrun-tile-num">2</span>
+                <div class="rr-firstrun-tile-text">
+                  <div class="rr-firstrun-tile-title">Set scheduling rules</div>
+                  <div class="rr-firstrun-tile-sub">Wave times, lead times, cushion targets.</div>
+                </div>
+                <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button type="button" class="rr-firstrun-tile" onclick="goto('settings')">
+                <span class="rr-firstrun-tile-num">3</span>
+                <div class="rr-firstrun-tile-text">
+                  <div class="rr-firstrun-tile-title">Invite a dispatcher</div>
+                  <div class="rr-firstrun-tile-sub">From Settings → Team.  Magic-link invites.</div>
+                </div>
+                <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button type="button" class="rr-firstrun-tile" onclick="goto('forms')">
+                <span class="rr-firstrun-tile-num">4</span>
+                <div class="rr-firstrun-tile-text">
+                  <div class="rr-firstrun-tile-title">Set up your first workflow</div>
+                  <div class="rr-firstrun-tile-sub">Coaching, attendance reviews, custom forms.</div>
+                </div>
+                <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
@@ -18140,7 +18287,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509l-onboarding-wizard"></script>
+<script type="module" src="./live.js?v=20260509m-firstrun"></script>
 
 </body>
 </html>
