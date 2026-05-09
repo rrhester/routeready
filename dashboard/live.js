@@ -1364,15 +1364,45 @@ function _bindAdminDeleteDspHandlers() {
     if (lbl) lbl.textContent = "Deleting…";
     if (errEl) errEl.hidden = true;
 
-    const { error } = await sb.rpc("admin_delete_dsp", { p_dsp_id: dspId });
+    // Delete via the admin-delete-dsp edge function (full scrub —
+    // DB cascade + auth.users + storage objects).  Falls back to the
+    // SQL admin_delete_dsp RPC if the edge function isn't deployed
+    // yet (DB-only delete; auth users + storage are left orphaned
+    // but the DSP itself is gone).
+    let resp = await sb.functions.invoke("admin-delete-dsp", {
+      body: { p_dsp_id: dspId },
+    });
+    let raw = "";
+    if (resp.error) {
+      // Surface the function's structured error if present.
+      try {
+        const ctx = await resp.error.context?.json?.();
+        if (ctx?.error) raw = ctx.error;
+      } catch { /* fall through */ }
+      raw = raw || resp.error.message || "";
 
-    if (error) {
-      if (_isAuthError(error)) _forceRelogin("session_expired");
-      let msg = error.message || "Couldn't delete the DSP.";
-      if (/cannot_delete_own_dsp/.test(msg)) msg = "You can't delete the DSP your own account is attached to.";
-      else if (/platform_admin_in_target_dsp/.test(msg)) msg = "Cannot delete this DSP — a platform admin is a member.  Move their account to another workspace first, then retry.";
-      else if (/dsp_not_found/.test(msg))    msg = "That DSP no longer exists. Refresh the table.";
-      else if (/forbidden/.test(msg))        msg = "You don't have admin access. Sign in as the platform admin.";
+      // If the edge function literally isn't deployed yet (404),
+      // fall back to the SQL RPC so admins still have a delete
+      // path during the deploy window.
+      if (/not[\s_-]*found|404|deployment/i.test(raw) && !/dsp_not_found/.test(raw)) {
+        const sqlResp = await sb.rpc("admin_delete_dsp", { p_dsp_id: dspId });
+        if (!sqlResp.error) {
+          resp = { data: { ok: true, fallback: "sql" }, error: null };
+          raw = "";
+        } else {
+          raw = sqlResp.error.message || raw;
+        }
+      }
+    }
+
+    if (raw) {
+      if (_isAuthError(resp.error)) _forceRelogin("session_expired");
+      let msg = raw;
+      if (/cannot_delete_own_dsp/.test(raw)) msg = "You can't delete the DSP your own account is attached to.";
+      else if (/platform_admin_in_target_dsp/.test(raw)) msg = "Cannot delete this DSP — a platform admin is a member.  Move their account to another workspace first, then retry.";
+      else if (/dsp_not_found/.test(raw))    msg = "That DSP no longer exists. Refresh the table.";
+      else if (/forbidden/.test(raw))        msg = "You don't have admin access. Sign in as the platform admin.";
+      else if (/inactive_caller/.test(raw))  msg = "Your account is inactive.  Contact an admin.";
       if (errEl) {
         errEl.textContent = msg;
         errEl.hidden = false;
@@ -1382,7 +1412,24 @@ function _bindAdminDeleteDspHandlers() {
       return;
     }
 
-    if (typeof toast === "function") toast(`${name} deleted.`, "ok");
+    // Surface the per-leg cleanup tally so the operator can see what
+    // actually got scrubbed.  Keeps the toast short for the happy
+    // path; partial failures pass details into a longer toast.
+    const summary = resp.data || {};
+    const errs = Array.isArray(summary.errors) ? summary.errors : [];
+    if (errs.length > 0) {
+      console.warn("admin-delete-dsp partial errors:", errs);
+      if (typeof toast === "function") {
+        toast(`${name} deleted (with ${errs.length} cleanup warning${errs.length === 1 ? "" : "s"} — check console)`, "warn", 6000);
+      }
+    } else if (typeof toast === "function") {
+      const auth = summary.auth_users_deleted ?? 0;
+      const storage = summary.storage_objects_deleted ?? 0;
+      const tail = (auth || storage)
+        ? ` · ${auth} user${auth === 1 ? "" : "s"}, ${storage} file${storage === 1 ? "" : "s"} scrubbed`
+        : "";
+      toast(`${name} deleted${tail}.`, "ok", 5000);
+    }
     if (typeof window.closeModal === "function") window.closeModal("modal-admin-delete-dsp");
     submit.disabled = false;
     if (lbl) lbl.textContent = "Delete forever";
