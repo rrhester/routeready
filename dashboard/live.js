@@ -8362,6 +8362,46 @@ async function loadDriverChatInbox() {
   }, 8000);
 }
 
+// Compute the actual available height for the messaging shell from
+// its position on the page minus a small buffer.  This avoids the
+// fragile calc(100vh - 240px) approximation, which guesses chrome
+// height and overflows the viewport when the guess is off.  Called
+// on Messages-view enter + on resize.
+function _fitMsgShell() {
+  const el = document.querySelector(".msg-shell");
+  if (!el) return;
+  const top = el.getBoundingClientRect().top;
+  // Page padding-bottom is 0; we just want a tiny breathing-room
+  // gap so the shell doesn't kiss the very edge.
+  const target = Math.max(380, window.innerHeight - top - 16);
+  el.style.height = target + "px";
+  // The 520px min-height was forcing a too-tall shell on small
+  // viewports.  Drop it once we're driving height ourselves.
+  el.style.minHeight = "0";
+}
+window.addEventListener("resize", _fitMsgShell);
+// Run whenever the Messages view becomes active (the goto wrapper
+// adds 'active' to the corresponding .view).  MutationObserver
+// avoids touching every goto site.
+new MutationObserver(() => {
+  if (document.getElementById("view-messages")?.classList.contains("active")) {
+    _fitMsgShell();
+  }
+}).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["class"] });
+// First paint pass.
+setTimeout(_fitMsgShell, 0);
+
+// Belt-and-suspenders: if the CmdK overflow:hidden ever leaks
+// (e.g. tab close with palette open, navigation while open), strip
+// it on Messages-view enter so the body can scroll if the layout
+// math somehow still leaves the composer below the fold.
+new MutationObserver(() => {
+  if (document.getElementById("view-messages")?.classList.contains("active")) {
+    document.body.classList.remove("rr-cmdk-open");
+  }
+}).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+
+
 async function refreshDriverChatList(autoSelect) {
   const list = document.getElementById("rr-msg-driver-list");
   if (!list) return;
