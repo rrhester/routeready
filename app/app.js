@@ -962,16 +962,46 @@ async function renderChat() {
   // notification permission — they've clearly engaged with messaging.
   ensurePushSubscription(session);
 
-  // First fetch + start poller
+  // First fetch + realtime subscription + safety-net poller.
+  // Realtime is the primary path (sub-second insert delivery on
+  // driver_messages where driver_id = self).  The poller drops to
+  // 30s and only fires as a fallback for missed socket events.
   _chatLastIds = new Set();
   await refreshChat(true);
+  _chatRealtimeWire(session);
   if (_chatPollTimer) clearInterval(_chatPollTimer);
   _chatPollTimer = setInterval(() => {
     if (document.hidden) return;
     if (currentRoute() !== "/chat") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
     if (_chatTab !== "dispatch") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
     refreshChat(false);
-  }, 8000);
+  }, 30000);
+}
+
+// Realtime channel for the driver's own dispatch chat. Tears the
+// previous channel down on each call so flipping into Channels and
+// back doesn't leak subscriptions.
+let _chatRealtimeChannel = null;
+let _chatRealtimeDebounce = null;
+function _chatRealtimeWire(session) {
+  const drvId = session?.driver_id;
+  if (!drvId) return;
+  if (_chatRealtimeChannel) { try { sb.removeChannel(_chatRealtimeChannel); } catch {} _chatRealtimeChannel = null; }
+  const fire = () => {
+    clearTimeout(_chatRealtimeDebounce);
+    _chatRealtimeDebounce = setTimeout(() => {
+      if (currentRoute() !== "/chat" || _chatTab !== "dispatch") return;
+      refreshChat(false);
+    }, 200);
+  };
+  _chatRealtimeChannel = sb.channel("rr-driver-chat-" + drvId)
+    .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "driver_messages", filter: `driver_id=eq.${drvId}` },
+        fire)
+    .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "driver_messages", filter: `driver_id=eq.${drvId}` },
+        fire)
+    .subscribe();
 }
 
 async function refreshChat(scrollToBottom) {
@@ -1415,14 +1445,38 @@ async function renderChatChannelThread() {
   });
 
   await refreshChannelThread(true);
+  _chatChannelRealtimeWire(_chatChannelId);
   if (_chatChannelPollTimer) clearInterval(_chatChannelPollTimer);
+  // Realtime is primary; the poller is just a safety net.
   _chatChannelPollTimer = setInterval(() => {
     if (document.hidden) return;
     if (currentRoute() !== "/chat" || _chatTab !== "channels" || !_chatChannelId) {
       clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
     }
     refreshChannelThread(false);
-  }, 8000);
+  }, 30000);
+}
+
+let _chatChannelRealtimeChannel = null;
+let _chatChannelRealtimeDebounce = null;
+function _chatChannelRealtimeWire(channelId) {
+  if (_chatChannelRealtimeChannel) {
+    try { sb.removeChannel(_chatChannelRealtimeChannel); } catch {}
+    _chatChannelRealtimeChannel = null;
+  }
+  if (!channelId) return;
+  const fire = () => {
+    clearTimeout(_chatChannelRealtimeDebounce);
+    _chatChannelRealtimeDebounce = setTimeout(() => {
+      if (currentRoute() !== "/chat" || _chatTab !== "channels" || _chatChannelId !== channelId) return;
+      refreshChannelThread(false);
+    }, 200);
+  };
+  _chatChannelRealtimeChannel = sb.channel("rr-driver-channel-" + channelId)
+    .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "driver_channel_messages", filter: `channel_id=eq.${channelId}` },
+        fire)
+    .subscribe();
 }
 
 async function refreshChannelThread(scrollToBottom) {
