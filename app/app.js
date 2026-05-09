@@ -321,6 +321,16 @@ if (typeof window !== "undefined") {
 
 // ── Login ───────────────────────────────────────────────────────────
 function renderLogin(errorMsg) {
+  // Pre-fill the invite code from ?code=… (or ?invite=…) so a hired
+  // driver tapping the deep-link in their welcome SMS lands one tap
+  // from signed in. We only pre-fill, not auto-submit, so a wrong /
+  // expired code can be edited before sending.
+  let prefill = "";
+  try {
+    const qs = new URLSearchParams(location.search);
+    prefill = (qs.get("code") || qs.get("invite") || "").trim().toUpperCase();
+  } catch (_) { /* malformed URL — ignore */ }
+
   document.getElementById("app").innerHTML = `
     <div class="login-screen">
       <div class="brand">
@@ -331,7 +341,7 @@ function renderLogin(errorMsg) {
       <form class="form" id="login-form">
         ${errorMsg ? `<div class="err">${escapeHtml(errorMsg)}</div>` : ""}
         <label class="field-label">Invite code</label>
-        <input class="field" id="login-code" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="ABCD-1234" required />
+        <input class="field" id="login-code" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="ABCD-1234" required value="${escapeHtml(prefill)}" />
         <div style="margin-top:18px">
           <button class="btn btn-primary btn-block" type="submit">Sign in</button>
         </div>
