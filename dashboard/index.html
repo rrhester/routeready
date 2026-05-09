@@ -1042,6 +1042,89 @@ a{color:inherit;text-decoration:none}
   100%{background-position:-200% 50%}
 }
 
+/* Manage-Users slide-over · per-user row */
+.rr-admin-user-row{
+  display:grid;grid-template-columns:36px minmax(0,1fr) auto;
+  gap:var(--s-3);align-items:center;
+  padding:var(--s-3);
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-md);
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.rr-admin-user-row:hover{border-color:var(--border-strong)}
+.rr-admin-user-row[data-rr-inactive="1"]{opacity:.55}
+.rr-admin-user-row[data-rr-inactive="1"]:hover{opacity:.85}
+.rr-admin-user-row__avatar{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--brand-grad);color:#fff;
+  display:grid;place-items:center;
+  font-weight:600;font-size:var(--fs-md);letter-spacing:.02em;
+  box-shadow:var(--shadow-xs), var(--highlight-top);
+}
+.rr-admin-user-row__name{font-weight:600;font-size:var(--fs-md);color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+.rr-admin-user-row__email{font-size:var(--fs-xs);color:var(--text-subtle);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;
+  margin-top:1px}
+.rr-admin-user-row__actions{
+  display:flex;align-items:center;gap:var(--s-2);flex-shrink:0;
+}
+.rr-admin-user-row__role{
+  font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text);
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--r-md);padding:5px 22px 5px 10px;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 5px center;background-size:11px;
+  letter-spacing:.02em;
+}
+.rr-admin-user-row__role:hover{border-color:var(--text-subtle)}
+.rr-admin-user-row__role:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.rr-admin-user-row__role[data-rr-role="platform_admin"]{background-color:rgba(91,33,182,.10);color:#5B21B6;border-color:rgba(91,33,182,.20)}
+.rr-admin-user-row__role[data-rr-role="owner"]{background-color:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-soft)}
+
+/* Toggle switch (active flag).  Reused inline so we don't depend on
+   the schedule-settings .toggle pattern from elsewhere in the file. */
+.rr-admin-toggle{
+  position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;cursor:pointer;
+}
+.rr-admin-toggle input{opacity:0;width:0;height:0;position:absolute}
+.rr-admin-toggle__slider{
+  position:absolute;inset:0;
+  background:var(--border-strong);border-radius:999px;
+  transition:background var(--t-smooth);
+}
+.rr-admin-toggle__slider::before{
+  content:"";position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.16);
+  transition:transform var(--t-smooth);
+}
+.rr-admin-toggle input:checked + .rr-admin-toggle__slider{background:var(--green)}
+.rr-admin-toggle input:checked + .rr-admin-toggle__slider::before{transform:translateX(14px)}
+.rr-admin-toggle input:disabled + .rr-admin-toggle__slider{opacity:.5;cursor:not-allowed}
+
+.rr-admin-users-section-head{
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;
+  margin:var(--s-3) 0 var(--s-2);
+}
+.rr-admin-users-section-head:first-child{margin-top:0}
+.rr-admin-users-list{display:flex;flex-direction:column;gap:6px}
+
+.rr-admin-users-empty{
+  text-align:center;padding:var(--s-8) var(--s-4);color:var(--text-subtle);
+  font-size:var(--fs-sm);
+  border:1px dashed var(--border-strong);border-radius:var(--r-md);
+}
+
+/* Skeleton for the Manage Users panel · 3 rows of shimmering bars */
+.rr-admin-users-skel{display:flex;flex-direction:column;gap:8px}
+.rr-admin-users-skel > div{
+  height:56px;border-radius:var(--r-md);
+  background:linear-gradient(90deg, #EEF2F7 0%, #F8FAFC 50%, #EEF2F7 100%);
+  background-size:200% 100%;animation:rr-admin-shimmer 1.4s ease-in-out infinite;
+}
+
 /* Inline error / status banner inside the Add-DSP modal */
 .rr-admin-add-dsp-error{
   background:var(--red-soft);
@@ -11146,6 +11229,33 @@ Evidence attached:
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     PLATFORM ADMIN · MANAGE USERS SLIDE-OVER
+     Right-side drawer that lists every user attached to a DSP and
+     lets a platform admin change their role, allowed pages, or
+     active flag.  Backed by admin_dsp_detail() (read) +
+     admin_set_user_permissions() (write).
+     ═══════════════════════════════════════════════════════════ -->
+<div class="rr-drawer-backdrop" id="rr-admin-users-backdrop" data-rr-admin-users-close></div>
+<aside class="rr-drawer" id="rr-admin-users-drawer" aria-hidden="true" role="dialog" aria-labelledby="rr-admin-users-title">
+  <div class="rr-drawer-head">
+    <div style="min-width:0">
+      <p class="modal-title" id="rr-admin-users-title">Manage users</p>
+      <p class="modal-sub" id="rr-admin-users-sub">—</p>
+    </div>
+    <button class="rr-drawer-close" type="button" data-rr-admin-users-close aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="rr-drawer-body" id="rr-admin-users-body">
+    <!-- Populated by _openAdminManageUsers().  Skeleton in the
+         markup so the panel never opens onto a blank canvas. -->
+    <div class="rr-admin-users-skel" aria-hidden="true">
+      <div></div><div></div><div></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
      MAINTENANCE WORK ORDER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-work-order" onclick="if(event.target===this)closeModal('modal-work-order')">
@@ -17510,7 +17620,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509e-admin-add-dsp"></script>
+<script type="module" src="./live.js?v=20260509f-admin-manage-users"></script>
 
 </body>
 </html>
