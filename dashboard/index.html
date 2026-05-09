@@ -1042,6 +1042,19 @@ a{color:inherit;text-decoration:none}
   100%{background-position:-200% 50%}
 }
 
+/* Inline error / status banner inside the Add-DSP modal */
+.rr-admin-add-dsp-error{
+  background:var(--red-soft);
+  color:var(--red);
+  border:1px solid rgba(225,29,72,.20);
+  border-radius:var(--r-md);
+  padding:8px 12px;
+  font-size:var(--fs-sm);font-weight:500;
+  line-height:1.4;
+}
+.rr-admin-add-dsp-error[hidden]{display:none}
+.rr-admin-add-dsp-error--ok{background:var(--green-soft);color:var(--green);border-color:rgba(5,150,105,.20)}
+
 /* Empty state */
 .rr-admin-empty{
   padding:var(--s-10) var(--s-5);text-align:center;
@@ -11052,6 +11065,87 @@ Evidence attached:
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     PLATFORM ADMIN · ADD DSP CLIENT
+     Provisions a new DSP via admin_create_dsp.  Status starts as
+     'pending' until the owner accepts the invite.  See Phase 1
+     migration 0124 for the RPC.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-admin-add-dsp" onclick="if(event.target===this)closeModal('modal-admin-add-dsp')">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Add DSP client</p>
+        <p class="modal-sub">Provision a new RouteReady workspace and invite its owner.</p>
+      </div>
+      <button class="modal-close" type="button" onclick="closeModal('modal-admin-add-dsp')" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="rr-admin-add-dsp-form" autocomplete="off" novalidate>
+      <div class="modal-body">
+
+        <div class="modal-row-2">
+          <div>
+            <label class="modal-field-label" for="rr-add-dsp-name">DSP company name</label>
+            <input class="form-input" id="rr-add-dsp-name" name="name" type="text" required minlength="2" maxlength="80" placeholder="Acme Logistics" />
+          </div>
+          <div>
+            <label class="modal-field-label" for="rr-add-dsp-short-code">Station code</label>
+            <input class="form-input" id="rr-add-dsp-short-code" name="short_code" type="text" required pattern="^[A-Za-z0-9_-]{2,12}$" maxlength="12" placeholder="ACL1" style="text-transform:uppercase;font-variant-numeric:tabular-nums;letter-spacing:.04em" />
+            <p class="form-help" style="margin-top:4px">2–12 chars, A–Z / 0–9 / - / _</p>
+          </div>
+        </div>
+
+        <div class="modal-row-2">
+          <div>
+            <label class="modal-field-label" for="rr-add-dsp-owner-name">Owner name</label>
+            <input class="form-input" id="rr-add-dsp-owner-name" name="owner_name" type="text" required minlength="2" maxlength="80" placeholder="Jane Doe" />
+          </div>
+          <div>
+            <label class="modal-field-label" for="rr-add-dsp-owner-email">Owner email</label>
+            <input class="form-input" id="rr-add-dsp-owner-email" name="owner_email" type="email" required maxlength="120" placeholder="jane@acme-logistics.com" />
+          </div>
+        </div>
+
+        <div class="modal-row-2">
+          <div>
+            <label class="modal-field-label" for="rr-add-dsp-phone">Phone</label>
+            <input class="form-input" id="rr-add-dsp-phone" name="phone" type="tel" maxlength="40" placeholder="(555) 123-4567" />
+          </div>
+          <div>
+            <label class="modal-field-label" for="rr-add-dsp-plan">Subscription plan</label>
+            <select class="form-input" id="rr-add-dsp-plan" name="subscription_plan">
+              <option value="starter">Starter</option>
+              <option value="growth">Growth</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="modal-field-label" for="rr-add-dsp-address">Address</label>
+          <input class="form-input" id="rr-add-dsp-address" name="address" type="text" maxlength="200" placeholder="123 Logistics Way, Wichita, KS 67201" />
+        </div>
+
+        <div>
+          <label class="modal-field-label" for="rr-add-dsp-notes">Internal notes</label>
+          <textarea class="form-input" id="rr-add-dsp-notes" name="notes" rows="3" maxlength="2000" placeholder="Anything the RouteReady team should know about this account…" style="resize:vertical;font-family:inherit"></textarea>
+        </div>
+
+        <!-- Inline error / status -->
+        <div class="rr-admin-add-dsp-error" id="rr-admin-add-dsp-error" hidden></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-admin-add-dsp')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="rr-admin-add-dsp-submit">
+          <span data-rr-add-dsp-label>Create account</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      MAINTENANCE WORK ORDER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-work-order" onclick="if(event.target===this)closeModal('modal-work-order')">
@@ -17416,7 +17510,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509d-admin-table"></script>
+<script type="module" src="./live.js?v=20260509e-admin-add-dsp"></script>
 
 </body>
 </html>
