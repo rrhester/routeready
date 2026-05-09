@@ -1169,11 +1169,16 @@ function _adminCsvExport() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Wire the toolbar + CTA buttons once the DOM is ready.  The handlers
-// are bound up-front (not on view-enter) so the user doesn't need a
-// click delay between switching to the admin view and being able to
-// type/filter/sort.
-document.addEventListener("DOMContentLoaded", () => {
+// Wire the toolbar + CTA buttons once the DOM is ready.  IMPORTANT:
+// live.js uses top-level `await` (the auth gate at the top of the
+// file).  The HTML spec does NOT delay DOMContentLoaded for module
+// promises, so any code AFTER the top-level await runs AFTER DCL has
+// already fired.  Registering `document.addEventListener("DOMContent-
+// Loaded", ...)` here would silently never fire — the original Phase
+// 3/4a/4c bug where Add-DSP / Invite-user / search / sort / etc. all
+// looked dead.  Bind directly instead; the DOM is guaranteed parsed
+// by the time the post-await code reaches this line.
+function _bindAdminPageHandlers() {
   const search   = document.getElementById("rr-admin-search");
   const fStatus  = document.getElementById("rr-admin-filter-status");
   const fPlan    = document.getElementById("rr-admin-filter-plan");
@@ -1200,9 +1205,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("rr-admin-add-dsp")?.addEventListener("click", () => {
     _openAdminAddDspModal();
   });
-  // Invite-user is still Phase 4b territory.
+  // Invite-user is still pending edge-function wiring.
   document.getElementById("rr-admin-invite-user")?.addEventListener("click", () => {
-    if (typeof toast === "function") toast("Invite-user flow lands in Phase 4b.", "info");
+    if (typeof toast === "function") toast("Invite-user flow needs an edge-function deploy — see Phase 4 deferred items.", "info");
   });
 
   // Auto-suggest short code from DSP name as the operator types.
@@ -1224,9 +1229,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Submit handler.
+  // Form submit handlers.
   document.getElementById("rr-admin-add-dsp-form")?.addEventListener("submit", _submitAdminAddDsp);
-});
+  document.getElementById("rr-admin-edit-dsp-form")?.addEventListener("submit", _submitAdminEditDsp);
+}
+// Run immediately (post-await means the DOM is already parsed) — no
+// need to wait for DCL, and waiting would silently break us.
+_bindAdminPageHandlers();
 
 // ── Add-DSP modal · open / submit ──────────────────────────────────────────
 function _openAdminAddDspModal() {
@@ -1370,12 +1379,11 @@ async function _submitAdminEditDsp(e) {
   await _loadPlatformAdminDsps();
 }
 
-// Bind the form submit once.  Bind on DOMContentLoaded if the form
-// is already in the DOM, else wait for it.  (The form is in the
-// static HTML, so it's reliably present by the time live.js runs.)
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("rr-admin-edit-dsp-form")?.addEventListener("submit", _submitAdminEditDsp);
-});
+// Edit-DSP form submit is wired by _bindAdminPageHandlers above
+// (single bind point so we don't double-fire on submit).  Removed
+// the original DOMContentLoaded wrapper that silently never ran due
+// to live.js's top-level await — same root cause as the Add-DSP +
+// Invite-user buttons looking dead.
 
 // ── Manage-Users slide-over ────────────────────────────────────────────────
 // Right-side drawer that lists every app_users row attached to a DSP
