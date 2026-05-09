@@ -55,6 +55,15 @@
   if (errCode === "no_profile") {
     msg.className = "msg err";
     msg.textContent = "Your account isn't linked to a tenant yet. Contact your administrator.";
+  } else if (errCode === "session_expired") {
+    msg.className = "msg err";
+    msg.textContent = "Your session expired. Sign in again to continue.";
+  } else if (errCode === "dsp_unresolved") {
+    msg.className = "msg err";
+    msg.textContent = "We couldn't load your workspace. Sign in again — if it keeps happening, contact support.";
+  } else if (errCode === "profile_load_failed") {
+    msg.className = "msg err";
+    msg.textContent = "We couldn't load your profile. Sign in again — if it keeps happening, contact support.";
   }
 
   // If already signed in, bounce to next.

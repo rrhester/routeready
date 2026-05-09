@@ -35,10 +35,42 @@ if (!session) {
   throw new Error("redirecting to login");
 }
 
+// When the SDK can't refresh the access token (network blip, JWT secret
+// rotation, refresh-token expiry) the dashboard keeps running with cached
+// state but every authenticated REST call returns 401 — RLS sees the
+// caller as anon, dsp-scoped queries return 0 rows, and SECURITY DEFINER
+// RPCs raise 'forbidden'.  The operator sees half-broken panels showing
+// "Forbidden" / "no drivers" / "no forms" with no clue why.  Detect the
+// failure and force a clean re-login instead.
+function _forceRelogin(reason) {
+  const next = encodeURIComponent(location.pathname + location.search);
+  try { sb.auth.signOut().catch(() => {}); } catch {}
+  try { localStorage.clear(); sessionStorage.clear(); } catch {}
+  location.replace(`./login.html?err=${encodeURIComponent(reason || "session_expired")}&next=${next}`);
+  throw new Error(`force relogin: ${reason}`);
+}
+function _isAuthError(err) {
+  if (!err) return false;
+  if (err.status === 401 || err.status === 403) return true;
+  if (err.code === "PGRST301" || err.code === "401" || err.code === "403") return true;
+  const m = (err.message || "").toLowerCase();
+  return /jwt|unauthor|expired|forbidden/.test(m);
+}
+window._rrForceRelogin = _forceRelogin;
+sb.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") _forceRelogin("session_expired");
+});
+
 const { data: profile, error: profileErr } = await sb.from("app_users")
   .select("id, dsp_id, email, full_name, role, allowed_pages").eq("id", session.user.id).maybeSingle();
 
-if (profileErr || !profile) {
+if (profileErr) {
+  // 401 / JWT issue at boot — refresh failed.  Force re-login.
+  if (_isAuthError(profileErr)) _forceRelogin("session_expired");
+  console.error("profile load failed:", profileErr);
+  _forceRelogin("profile_load_failed");
+}
+if (!profile) {
   // Auth user exists but app_users row doesn't — auth hook failed (most
   // likely a non-allowed domain that slipped through). Send to login with
   // an error.
@@ -73,8 +105,17 @@ window.RR.user = profile;
   }
 })();
 
-const { data: dspRow } = await sb.from("dsps")
+const { data: dspRow, error: dspErr } = await sb.from("dsps")
   .select("id, name, short_code, timezone, metadata").eq("id", profile.dsp_id).single();
+if (dspErr || !dspRow || !dspRow.id) {
+  // .single() on dsps fails when (a) the JWT was rejected so RLS sees
+  // the caller as anon and returns 0 rows, or (b) profile.dsp_id is
+  // genuinely missing/wrong.  Either way, every dsp-scoped query
+  // downstream would silently return 0 rows or 401.  Don't paint a
+  // half-broken UI — bounce through login with an explanation.
+  console.error("dsp load failed:", dspErr, "profile.dsp_id:", profile.dsp_id);
+  _forceRelogin(_isAuthError(dspErr) ? "session_expired" : "dsp_unresolved");
+}
 window.RR.dsp = dspRow;
 
 // ─── Brand · paint DSP name + station code into the sidebar chip ────────
@@ -8443,6 +8484,11 @@ async function refreshDriverChatList(autoSelect) {
   if (!list) return;
   const { data, error } = await sb.rpc("dispatch_chat_threads");
   if (error) {
+    if (_isAuthError(error)) {
+      list.innerHTML = `<div style="padding:32px 20px;text-align:center"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load your conversations.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+      list.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired"));
+      return;
+    }
     list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`;
     return;
   }
@@ -8533,6 +8579,11 @@ async function refreshDriverChatThread(scrollToBottom) {
 
   const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
   if (error) {
+    if (_isAuthError(error)) {
+      conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+      conv.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired"));
+      return;
+    }
     conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message)}</div>`;
     return;
   }
