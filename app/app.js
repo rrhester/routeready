@@ -1647,7 +1647,7 @@ function channelBubbleHtml(m) {
 
   return `
     <div class="chat-bubble ${mine ? "mine" : "theirs"}">
-      ${!mine ? `<div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);margin-bottom:3px">${escapeHtml(sender)}</div>` : ""}
+      ${!mine ? `<div class="chat-sender">${escapeHtml(sender)}</div>` : ""}
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
       <div class="chat-time">${escapeHtml(time)}</div>
