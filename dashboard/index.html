@@ -1534,8 +1534,8 @@ select.form-input{
 .cd-coverage.warn .cd-coverage-icon{background:var(--amber)}
 .cd-coverage.risk .cd-coverage-icon{background:var(--red)}
 .cd-coverage-icon svg{width:12px;height:12px;stroke-width:3}
-.cd-coverage-title{font-size:var(--fs-md);font-weight:600;color:#14532D;margin-bottom:3px}
-.cd-coverage.warn .cd-coverage-title{color:#78350F}
+.cd-coverage-title{font-size:var(--fs-md);font-weight:600;color:var(--green-dark);margin-bottom:3px}
+.cd-coverage.warn .cd-coverage-title{color:var(--amber-dark)}
 .cd-coverage.risk .cd-coverage-title{color:var(--red-dark)}
 .cd-coverage-msg{font-size:var(--fs-sm);color:var(--green-dark);line-height:1.5}
 .cd-coverage.warn .cd-coverage-msg{color:var(--amber-dark)}
@@ -1632,10 +1632,10 @@ select.form-input{
 }
 .checkin-row:last-child{border-bottom:none}
 .checkin-row.marked-callout{background:#FEF2F2}
-.checkin-row.marked-late{background:#FFFBEB}
+.checkin-row.marked-late{background:var(--amber-soft)}
 .checkin-row.marked-noshow{background:#FEE2E2}
 .checkin-row.marked-present{background:#F0FDF4}
-.checkin-row.marked-vto{background:#F0F9FF}
+.checkin-row.marked-vto{background:var(--accent-soft)}
 
 .checkin-driver{display:flex;align-items:center;gap:10px}
 .checkin-driver-name{font-size:var(--fs-md);font-weight:600;color:var(--text)}
@@ -2481,7 +2481,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .cc-headline-num{font-size:48px;font-weight:700;letter-spacing:-.03em;line-height:1;color:#fff}
 .cc-headline-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:6px}
-.cc-headline-status{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-md);font-weight:600;color:#86EFAC;margin-top:6px}
+.cc-headline-status{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-md);font-weight:600;color:var(--green-bright);margin-top:6px}
 .cc-headline-status svg{width:14px;height:14px;stroke-width:2.5}
 .cc-headline-thesis{font-size:var(--fs-xs);color:rgba(255,255,255,.7);margin-top:4px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
 
@@ -2534,7 +2534,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
 /* Make Coverage Confidence KPI clickable */
 .kpi-card.coverage{cursor:pointer;transition:border-color .12s,box-shadow .12s}
-.kpi-card.coverage:hover{border-color:#86EFAC;box-shadow:0 4px 12px rgba(34,197,94,.12)}
+.kpi-card.coverage:hover{border-color:var(--green-bright);box-shadow:0 4px 12px rgba(5,150,105,.12)}
 .kpi-card.coverage::after{
   content:'›';position:absolute;top:14px;right:16px;
   color:var(--text-subtle);font-size:18px;font-weight:300;
@@ -2748,10 +2748,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--accent);color:#fff;border-radius:10px;font-size:9px;font-weight:700;
   padding:1px 5px;margin-top:3px;display:inline-block;min-width:14px;text-align:center;
 }
-.msg-item.broadcast{background:#FFFBEB}
-.msg-item.broadcast:hover{background:#FEF3C7}
-.msg-item.channel{background:#F0F9FF}
-.msg-item.channel:hover{background:#E0F2FE}
+.msg-item.broadcast{background:var(--amber-soft)}
+.msg-item.broadcast:hover{background:rgba(217,119,6,.16)}
+.msg-item.channel{background:var(--accent-soft)}
+.msg-item.channel:hover{background:var(--accent-soft-strong)}
 
 .msg-conv{
   position:relative;background:var(--surface);
@@ -3302,7 +3302,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:8px;
 }
 .okami-insight-icon svg{width:13px;height:13px;stroke-width:2}
-.okami-insight-icon.green{background:var(--green)33;color:#86EFAC}
+.okami-insight-icon.green{background:rgba(5,150,105,.20);color:var(--green-bright)}
 .okami-insight-icon.amber{background:rgba(217,119,6,.20);color:#FCD34D}
 .okami-insight-icon.red{background:var(--red)33;color:#FCA5A5}
 .okami-insight-icon.blue{background:var(--accent-border);color:#93C5FD}
