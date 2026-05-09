@@ -21,6 +21,7 @@ import { Parser } from "acorn";
 
 const targets = [
   path.join(import.meta.dirname, "..", "dashboard", "live.js"),
+  path.join(import.meta.dirname, "..", "dashboard", "admin.js"),
   path.join(import.meta.dirname, "..", "app",       "app.js"),
 ];
 
