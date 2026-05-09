@@ -2930,6 +2930,57 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   transform:translateY(0);
 }
 .rr-mc-send:disabled, .rr-cc-send:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+/* Head presence pip — small green dot tucked into the bottom-right of
+   the conversation header avatar.  Mirrors the list item dot so the
+   "online" signal reads at a glance from either surface. */
+.rr-mc-head-presence{
+  position:absolute;bottom:-2px;right:-2px;
+  width:10px;height:10px;border-radius:50%;
+  background:transparent;
+  border:2px solid var(--surface);
+  transition:background 200ms ease;
+}
+.rr-mc-head[data-rr-driver-id] .avatar-sm{ position:relative }
+/* Active when populated by _presencePaintThreadHead via .rr-mc-online-pip
+   (stamped into the sub-line) — driven by the dispatcher's presence
+   state.  We also color the pip directly when the parent head's
+   data-rr-driver-id is in the online set. */
+.rr-mc-online-pip{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--green);margin-right:4px;vertical-align:1px;
+  box-shadow:0 0 0 2px rgba(5,150,105,.16);
+}
+/* Show the head pip when an .rr-mc-online-pip lives in the sub-line
+   (we use the pip's existence as the truth signal). */
+.rr-mc-head:has(.rr-mc-online-pip) .rr-mc-head-presence{
+  background:var(--green);
+  box-shadow:0 0 0 2px rgba(5,150,105,.16);
+}
+/* Typing indicator — pill that sits just above the composer when the
+   driver is composing on their end. */
+.rr-mc-typing{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px;
+  margin:0 var(--s-5) -4px;
+  font-size:11px;color:var(--text-subtle);
+  font-weight:600;letter-spacing:.02em;
+  opacity:0;transform:translateY(4px);
+  transition:opacity 180ms ease, transform 200ms ease;
+  pointer-events:none;
+}
+.rr-mc-typing.show{ opacity:1;transform:translateY(0) }
+.rr-mc-typing-dots{ display:inline-flex;gap:3px }
+.rr-mc-typing-dots > span{
+  width:5px;height:5px;border-radius:50%;background:var(--text-subtle);
+  animation:rr-typing-bounce 1.2s ease-in-out infinite;
+}
+.rr-mc-typing-dots > span:nth-child(2){ animation-delay:.15s }
+.rr-mc-typing-dots > span:nth-child(3){ animation-delay:.30s }
+@keyframes rr-typing-bounce{
+  0%,80%,100%{ transform:translateY(0); opacity:.4 }
+  40%        { transform:translateY(-3px); opacity:1 }
+}
+.rr-mc-typing-label{ font-variant:small-caps;letter-spacing:.04em }
 
 .msg-item-unread{
   background:var(--accent);color:#fff;border-radius:10px;font-size:9px;font-weight:700;
