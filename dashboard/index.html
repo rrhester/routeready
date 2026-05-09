@@ -2896,24 +2896,41 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-msg-jump.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
 .rr-msg-jump svg{width:12px;height:12px}
-.rr-mc-composer, .rr-cc-composer{display:flex;gap:8px;align-items:flex-end;padding:var(--s-3) var(--s-5);background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+/* Composer tray sits on the canvas tone so the white textarea inside
+   it pops as the active surface.  Mirrors how Slack / iMessage stage
+   the input — the tray is chrome, the field is the writing surface. */
+.rr-mc-composer, .rr-cc-composer{
+  display:flex;gap:8px;align-items:flex-end;
+  padding:var(--s-3) var(--s-5);
+  background:var(--canvas);
+  background-image:linear-gradient(180deg, var(--canvas) 0%, var(--surface-pressed) 100%);
+  border-top:1px solid var(--border);
+  flex-shrink:0;
+}
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:40px;max-height:140px;
   padding:10px 14px;font-size:var(--fs-base);line-height:1.42;
-  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
-  resize:none;font-family:inherit;color:var(--text);
+  /* White field on a soft tray — high contrast, depth cue from the
+     inset shadow so the input reads as something to type into. */
+  background:var(--surface);
+  color:var(--text);
+  border:1px solid var(--border-strong);
+  border-radius:var(--r-md);
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
+  resize:none;font-family:inherit;
   transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 .rr-mc-composer textarea::placeholder, .rr-cc-composer textarea::placeholder{
   color:var(--text-subtle);
 }
 .rr-mc-composer textarea:hover, .rr-cc-composer textarea:hover{
-  background:var(--surface);
+  border-color:var(--text-subtle);
 }
 .rr-mc-composer textarea:focus, .rr-cc-composer textarea:focus,
 .rr-mc-composer textarea:focus-visible, .rr-cc-composer textarea:focus-visible{
-  outline:none;background:var(--surface);
-  border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+  outline:none;
+  border-color:var(--accent);
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.04), 0 0 0 3px var(--accent-soft);
 }
 .rr-mc-send, .rr-cc-send{
   background:var(--brand-grad);color:#fff;border:0;border-radius:var(--r-md);
