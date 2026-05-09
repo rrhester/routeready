@@ -8394,18 +8394,46 @@ function _syncComposerPos() {
   const cr = conv.getBoundingClientRect();
   const sr = shell.getBoundingClientRect();
   const root = document.documentElement;
-  // Composer width = conv width minus the conv's left border (1px) so
-  // it sits perfectly inside the rounded shell.
+  // Composer width = conv width so it sits perfectly inside the
+  // rounded shell.
   root.style.setProperty("--rr-mc-left",  cr.left + "px");
   root.style.setProperty("--rr-mc-width", cr.width + "px");
   // Anchor the composer to the bottom of the SHELL or the viewport,
-  // whichever is higher up the page.  If the shell extends below
-  // the viewport (off-screen), we pin the composer to the viewport's
-  // bottom instead so it's always reachable.
+  // whichever is higher up the page.
   const shellBottomFromTop = sr.top + sr.height;
   const visibleBottom = Math.min(shellBottomFromTop, window.innerHeight);
   const bottomOffset = Math.max(0, window.innerHeight - visibleBottom);
   root.style.setProperty("--rr-mc-bottom", bottomOffset + "px");
+  // Measure the composer's actual height so the thread can pad its
+  // bottom by exactly that much + a 16px buffer.  Without this,
+  // sent messages land BEHIND the composer (it's position:fixed and
+  // overlays the thread).  Multi-line composer + typing pill make
+  // the height variable, so static padding doesn't cut it.
+  const form = document.getElementById("rr-mc-form");
+  if (form) {
+    const fh = Math.ceil(form.getBoundingClientRect().height);
+    root.style.setProperty("--rr-mc-thread-pad", (fh + 16) + "px");
+    // Re-pin if anchored — padding change shrinks scrollHeight, so
+    // scrollTop relative to the new bottom needs to follow.
+    const thread = document.getElementById("rr-mc-thread");
+    if (thread && thread.dataset.rrAnchor === "1") {
+      thread.scrollTop = thread.scrollHeight;
+    }
+  }
+}
+// Watch the composer for resize (textarea grows, attachment preview
+// appears, typing pill shows/hides).  Each resize re-syncs padding
+// + scroll position so the latest message stays in view.
+let _composerResizeObserver = null;
+function _ensureComposerResizeWatch() {
+  const form = document.getElementById("rr-mc-form");
+  if (!form) return;
+  if (form._rrResizeBound) return;
+  form._rrResizeBound = true;
+  if (!_composerResizeObserver) {
+    _composerResizeObserver = new ResizeObserver(() => _syncComposerPos());
+  }
+  _composerResizeObserver.observe(form);
 }
 window.addEventListener("resize", () => { _fitMsgShell(); _syncComposerPos(); });
 window.addEventListener("scroll", _syncComposerPos, true);
@@ -8879,8 +8907,11 @@ async function refreshDriverChatThread(scrollToBottom) {
   // surface the jump pill if the message count grew under their feet.
   // Sync the position:fixed composer's coords to whatever the conv
   // pane is currently doing (covers viewport/zoom/devtools changes
-  // since open + image-load reflow).
+  // since open + image-load reflow).  Also wire the composer
+  // resize observer so the thread's bottom padding follows when
+  // the textarea grows.
   if (typeof _syncComposerPos === "function") _syncComposerPos();
+  if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
 
   if (scrollToBottom || wasNearBottom) {
     thread.scrollTop = thread.scrollHeight;
