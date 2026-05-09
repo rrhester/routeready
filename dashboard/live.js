@@ -1135,6 +1135,7 @@ function _renderAdminRow(d) {
           <button class="rr-admin-row-actions__item" data-rr-admin-action="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Manage users</button>
           <div class="rr-admin-row-actions__sep"></div>
           ${suspendItem}
+          <button class="rr-admin-row-actions__item rr-admin-row-actions__item--danger" data-rr-admin-action="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Delete account</button>
         </div>
       </td>
     </tr>`;
@@ -1211,6 +1212,10 @@ async function _runAdminAction(action, dspId) {
       }
       toast(`${dsp.name} reactivated.`, "ok");
       await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
+      return;
+    }
+    case "delete": {
+      _openAdminDeleteDspModal(dsp);
       return;
     }
   }
@@ -1306,6 +1311,85 @@ function _bindAdminPageHandlers() {
 // Run immediately (post-await means the DOM is already parsed) — no
 // need to wait for DCL, and waiting would silently break us.
 _bindAdminPageHandlers();
+
+// ── Delete-DSP modal ───────────────────────────────────────────────────────
+// Hard delete via admin_delete_dsp RPC.  Typed-name confirmation
+// guards against accidental clicks.  The Delete button stays
+// disabled until the confirmation input matches the DSP name
+// exactly (case-insensitive whitespace-trimmed).
+
+function _openAdminDeleteDspModal(dsp) {
+  const idEl    = document.getElementById("rr-delete-dsp-id");
+  const nameEl  = document.getElementById("rr-delete-dsp-name");
+  const dispEl  = document.getElementById("rr-delete-dsp-name-display");
+  const subEl   = document.getElementById("rr-delete-dsp-sub");
+  const confEl  = document.getElementById("rr-delete-dsp-confirm");
+  const submit  = document.getElementById("rr-admin-delete-dsp-submit");
+  const errEl   = document.getElementById("rr-admin-delete-dsp-error");
+  if (idEl)    idEl.value      = dsp.id;
+  if (nameEl)  nameEl.value    = dsp.name || "";
+  if (dispEl)  dispEl.textContent = dsp.name || "—";
+  if (subEl)   subEl.textContent  = `${dsp.name} · ${dsp.short_code || "—"}`;
+  if (confEl)  { confEl.value = ""; confEl.placeholder = dsp.name || ""; }
+  if (submit)  submit.disabled = true;
+  if (errEl)   { errEl.hidden = true; errEl.textContent = ""; }
+  if (typeof window.openModal === "function") window.openModal("modal-admin-delete-dsp");
+  setTimeout(() => confEl?.focus(), 60);
+}
+
+function _bindAdminDeleteDspHandlers() {
+  const confEl = document.getElementById("rr-delete-dsp-confirm");
+  const nameEl = document.getElementById("rr-delete-dsp-name");
+  const submit = document.getElementById("rr-admin-delete-dsp-submit");
+  const form   = document.getElementById("rr-admin-delete-dsp-form");
+  if (!confEl || !nameEl || !submit || !form) return;
+
+  // Live match check on the confirmation input.
+  const refresh = () => {
+    const target = (nameEl.value || "").trim().toLowerCase();
+    const typed  = (confEl.value || "").trim().toLowerCase();
+    submit.disabled = !(target && target === typed);
+  };
+  confEl.addEventListener("input", refresh);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const dspId  = document.getElementById("rr-delete-dsp-id")?.value;
+    const name   = nameEl.value || "";
+    const lbl    = submit.querySelector("[data-rr-delete-dsp-label]");
+    const errEl  = document.getElementById("rr-admin-delete-dsp-error");
+    if (!dspId) return;
+
+    submit.disabled = true;
+    if (lbl) lbl.textContent = "Deleting…";
+    if (errEl) errEl.hidden = true;
+
+    const { error } = await sb.rpc("admin_delete_dsp", { p_dsp_id: dspId });
+
+    if (error) {
+      if (_isAuthError(error)) _forceRelogin("session_expired");
+      let msg = error.message || "Couldn't delete the DSP.";
+      if (/cannot_delete_own_dsp/.test(msg)) msg = "You can't delete the DSP your own account is attached to.";
+      else if (/dsp_not_found/.test(msg))    msg = "That DSP no longer exists. Refresh the table.";
+      else if (/forbidden/.test(msg))        msg = "You don't have admin access. Sign in as the platform admin.";
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.hidden = false;
+      }
+      submit.disabled = false;
+      if (lbl) lbl.textContent = "Delete forever";
+      return;
+    }
+
+    if (typeof toast === "function") toast(`${name} deleted.`, "ok");
+    if (typeof window.closeModal === "function") window.closeModal("modal-admin-delete-dsp");
+    submit.disabled = false;
+    if (lbl) lbl.textContent = "Delete forever";
+    await Promise.all([_loadPlatformAdminStats(), _loadPlatformAdminDsps()]);
+  });
+}
+// Bind once at module init (post-await DOM is parsed; no DCL race).
+_bindAdminDeleteDspHandlers();
 
 // ── Onboarding wizard ──────────────────────────────────────────────────────
 // Backed by the migration 0126 RPCs:
