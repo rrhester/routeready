@@ -3023,7 +3023,17 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 /* Composer tray sits on the canvas tone so the white textarea inside
    it pops as the active surface.  Mirrors how Slack / iMessage stage
    the input — the tray is chrome, the field is the writing surface. */
+/* Position:fixed so the composer is GUARANTEED visible regardless of
+   parent layout math.  JS (_syncComposerPos in live.js) keeps the
+   horizontal coords aligned with the conversation pane.  If images
+   or content push the shell past the viewport, the composer still
+   sits at the bottom of the visible area. */
 .rr-mc-composer, .rr-cc-composer{
+  position:fixed;
+  left:var(--rr-mc-left, 0);
+  width:var(--rr-mc-width, auto);
+  bottom:var(--rr-mc-bottom, 0);
+  z-index:50;
   display:flex;gap:8px;align-items:flex-end;
   padding:var(--s-3) var(--s-5);
   min-height:60px;
@@ -3031,6 +3041,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background-image:linear-gradient(180deg, var(--canvas) 0%, var(--surface-pressed) 100%);
   border-top:1px solid var(--border);
   min-width:0;
+}
+/* Thread needs padding-bottom that matches composer height so the
+   last messages don't hide underneath it. */
+.rr-mc-thread, .rr-cc-thread{
+  padding-bottom:80px !important;
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:40px;max-height:140px;
