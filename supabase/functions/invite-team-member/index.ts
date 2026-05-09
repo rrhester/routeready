@@ -154,12 +154,28 @@ Deno.serve(async (req) => {
       inviteeUserId = linkResp.data?.user?.id ?? null;
       kind = "resent_magic_link";
 
-      // Patch the app_users row so the trigger that normally fires
-      // on auth.users insert can't be relied on (the auth user
-      // already existed).  Upsert into the target DSP at the chosen
-      // role.  Their PRIOR app_users row (if any in another DSP)
-      // is left alone — we only insert/update the (id, dsp_id) pair.
+      // Patch / create the app_users row.  CRITICAL: app_users.id is
+      // the primary key and there's exactly one row per auth user
+      // (the schema doesn't model multi-DSP membership today).  An
+      // unconditional upsert would silently MOVE the user out of
+      // their existing DSP into this one — the bug that put Ryan
+      // into "Fart Face Logistics" on 2026-05-09 and locked him out
+      // of his real workspace.  Refuse instead, with a clear error
+      // the caller can surface.
       if (inviteeUserId) {
+        const { data: existingMembership } = await admin
+          .from("app_users")
+          .select("id, dsp_id, email")
+          .eq("id", inviteeUserId)
+          .maybeSingle();
+
+        if (existingMembership && existingMembership.dsp_id && existingMembership.dsp_id !== effectiveDspId) {
+          return badRequest("already_in_other_dsp", 409);
+        }
+
+        // Either no app_users row yet, or already in this DSP.
+        // Safe to upsert (creates if missing, updates email/role if
+        // present).
         await admin.from("app_users").upsert({
           id:        inviteeUserId,
           dsp_id:    effectiveDspId,

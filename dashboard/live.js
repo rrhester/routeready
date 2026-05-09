@@ -1370,6 +1370,7 @@ function _bindAdminDeleteDspHandlers() {
       if (_isAuthError(error)) _forceRelogin("session_expired");
       let msg = error.message || "Couldn't delete the DSP.";
       if (/cannot_delete_own_dsp/.test(msg)) msg = "You can't delete the DSP your own account is attached to.";
+      else if (/platform_admin_in_target_dsp/.test(msg)) msg = "Cannot delete this DSP — a platform admin is a member.  Move their account to another workspace first, then retry.";
       else if (/dsp_not_found/.test(msg))    msg = "That DSP no longer exists. Refresh the table.";
       else if (/forbidden/.test(msg))        msg = "You don't have admin access. Sign in as the platform admin.";
       if (errEl) {
@@ -1776,6 +1777,7 @@ async function _submitAdminInviteUser(e) {
     } catch { /* fall through with raw */ }
     let friendly = raw;
     if (/already_on_team/.test(raw))            friendly = "That email is already on this DSP's team.";
+    else if (/already_in_other_dsp/.test(raw))  friendly = "That email is already attached to another workspace.  Move them out first, then retry.";
     else if (/target_dsp_id_required/.test(raw))friendly = "Pick a target DSP.";
     else if (/target_dsp_not_found/.test(raw))  friendly = "That DSP doesn't exist anymore.";
     else if (/cross_dsp_invite_forbidden/.test(raw)) friendly = "You can only invite into your own DSP.";
