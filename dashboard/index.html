@@ -79,13 +79,20 @@
   /* Violet pair — used on referrals, marketing chips, etc. */
   --violet-grad:linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
 
-  /* ── Semantic ──────────────────────────────────────────────── */
-  --green:#16A34A;
-  --green-soft:rgba(22,163,74,.10);
-  --amber:#D97706;
+  /* ── Semantic (cool jewel-tone family — pairs with brand) ─── */
+  --green:#059669;          /* emerald-600 — same as landing's --emerald */
+  --green-bright:#10B981;   /* emerald-500 for highlights */
+  --green-dark:#047857;     /* emerald-700 for gradient stops */
+  --green-soft:rgba(5,150,105,.10);
+  --amber:#D97706;          /* amber-600 — kept (already brand-friendly) */
+  --amber-bright:#F59E0B;   /* amber-500 for highlights / fills */
+  --amber-dark:#B45309;     /* amber-700 for gradient stops */
   --amber-soft:rgba(217,119,6,.10);
-  --red:#DC2626;
-  --red-soft:rgba(220,38,38,.10);
+  --amber-grad:linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
+  --red:#E11D48;            /* rose-600 — cooler red, harmonizes with pink/violet */
+  --red-bright:#F43F5E;     /* rose-500 for highlights */
+  --red-dark:#9F1239;       /* rose-800 for gradient stops */
+  --red-soft:rgba(225,29,72,.10);
 
   /* ── Spacing scale (8px) ──────────────────────────────────── */
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px;
@@ -1184,7 +1191,7 @@ a{color:inherit;text-decoration:none}
 
 .cd-context{
   background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r-md);
-  padding:10px 12px;font-size:var(--fs-sm);color:#92400E;line-height:1.5;
+  padding:10px 12px;font-size:var(--fs-sm);color:var(--amber-dark);line-height:1.5;
   display:flex;gap:8px;align-items:flex-start;
 }
 .cd-context svg{width:14px;height:14px;flex-shrink:0;margin-top:1px}
@@ -1270,10 +1277,10 @@ a{color:inherit;text-decoration:none}
      visible.  Tier modifiers and inline backgrounds override this. */
   background:linear-gradient(135deg,#64748B,#475569);
 }
-.avatar-sm.tier-a{background:linear-gradient(135deg,#16A34A,#15803D)}
+.avatar-sm.tier-a{background:linear-gradient(135deg,var(--green),var(--green-dark))}
 .avatar-sm.tier-b{background:var(--brand-grad)}
-.avatar-sm.tier-c{background:linear-gradient(135deg,#D97706,#B45309)}
-.avatar-sm.tier-d{background:linear-gradient(135deg,#DC2626,#991B1B)}
+.avatar-sm.tier-c{background:linear-gradient(135deg, var(--amber), var(--amber-dark))}
+.avatar-sm.tier-d{background:linear-gradient(135deg,var(--red),var(--red-dark))}
 
 .cell-driver{display:flex;align-items:center;gap:10px}
 .score-bar{
@@ -1521,18 +1528,18 @@ select.form-input{
   border-color:#FCA5A5;
 }
 .cd-coverage-icon{
-  width:22px;height:22px;border-radius:50%;background:#16A34A;color:#fff;
+  width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
-.cd-coverage.warn .cd-coverage-icon{background:#D97706}
-.cd-coverage.risk .cd-coverage-icon{background:#DC2626}
+.cd-coverage.warn .cd-coverage-icon{background:var(--amber)}
+.cd-coverage.risk .cd-coverage-icon{background:var(--red)}
 .cd-coverage-icon svg{width:12px;height:12px;stroke-width:3}
 .cd-coverage-title{font-size:var(--fs-md);font-weight:600;color:#14532D;margin-bottom:3px}
 .cd-coverage.warn .cd-coverage-title{color:#78350F}
-.cd-coverage.risk .cd-coverage-title{color:#7F1D1D}
-.cd-coverage-msg{font-size:var(--fs-sm);color:#166534;line-height:1.5}
-.cd-coverage.warn .cd-coverage-msg{color:#92400E}
-.cd-coverage.risk .cd-coverage-msg{color:#991B1B}
+.cd-coverage.risk .cd-coverage-title{color:var(--red-dark)}
+.cd-coverage-msg{font-size:var(--fs-sm);color:var(--green-dark);line-height:1.5}
+.cd-coverage.warn .cd-coverage-msg{color:var(--amber-dark)}
+.cd-coverage.risk .cd-coverage-msg{color:var(--red-dark)}
 .cd-coverage-msg strong{font-weight:600}
 
 /* Tagline pill (used in topbar context for the dashboard) */
@@ -1933,14 +1940,14 @@ select.form-input{
 .shift-chip-route{font-weight:600;color:var(--accent-text);font-variant-numeric:tabular-nums}
 .shift-chip-time{color:var(--text-muted);font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .shift-chip.swap{background:#FEF3C7;border-color:#FCD34D;border-style:dashed}
-.shift-chip.swap .shift-chip-route{color:#92400E}
+.shift-chip.swap .shift-chip-route{color:var(--amber-dark)}
 .shift-chip.off{
   background:transparent;border-color:transparent;color:var(--text-subtle);
   text-align:center;justify-content:center;align-items:center;
   font-size:11px;font-weight:500;font-style:italic;letter-spacing:.02em;
 }
 .shift-chip.timeoff{background:#FEE2E2;border-color:#FCA5A5;text-align:center;justify-content:center;align-items:center;font-weight:600}
-.shift-chip.timeoff .shift-chip-route{color:#991B1B}
+.shift-chip.timeoff .shift-chip-route{color:var(--red-dark)}
 .shift-chip.open{
   background:transparent;border:1.5px dashed var(--border-strong);color:var(--text-subtle);
   text-align:center;justify-content:center;align-items:center;font-weight:600;font-size:11px;
@@ -2172,7 +2179,7 @@ select.form-input{
   margin-bottom:var(--s-4);display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-5);align-items:center;
 }
 .live-pulse{
-  width:10px;height:10px;border-radius:50%;background:#22C55E;flex-shrink:0;
+  width:10px;height:10px;border-radius:50%;background:var(--green-bright);flex-shrink:0;
   box-shadow:0 0 0 4px rgba(34,197,94,.18);
   animation:livePulse 1.6s ease-in-out infinite;
 }
@@ -2815,7 +2822,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;
   font-size:var(--fs-xs);color:#78350F;margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;
 }
-.msg-pinned svg{width:13px;height:13px;flex-shrink:0;margin-top:1px;color:#92400E}
+.msg-pinned svg{width:13px;height:13px;flex-shrink:0;margin-top:1px;color:var(--amber-dark)}
 .msg-pinned strong{color:#78350F;font-weight:700}
 
 .msg-composer{
@@ -3015,8 +3022,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .veh-icon svg{width:18px;height:18px;stroke-width:2}
-.veh-icon.maint{background:linear-gradient(135deg,#D97706,#F59E0B)}
-.veh-icon.oos{background:linear-gradient(135deg,#DC2626,#EF4444)}
+.veh-icon.maint{background:var(--amber-grad)}
+.veh-icon.oos{background:linear-gradient(135deg,var(--red),var(--red-bright))}
 
 .fleet-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
 
@@ -3109,9 +3116,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .briefing-action:hover{background:var(--accent-soft)}
 .briefing-action svg{width:12px;height:12px;stroke-width:2.5}
 .briefing-action.urgent{background:var(--red-soft);color:var(--red);border-color:#FCA5A5}
-.briefing-action.urgent:hover{background:#DC262622}
+.briefing-action.urgent:hover{background:var(--red)22}
 .briefing-action.warn{background:var(--amber-soft);color:var(--amber);border-color:#FCD34D}
-.briefing-action.warn:hover{background:#D9770622}
+.briefing-action.warn:hover{background:rgba(217,119,6,.13)}
 
 /* Snapshot strip — demoted from full KPI grid */
 .snapshot{
@@ -3136,7 +3143,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   font-size:var(--fs-sm);font-weight:600;color:var(--green);
   cursor:pointer;font-family:inherit;
 }
-.cov-pill:hover{background:#16A34A22}
+.cov-pill:hover{background:var(--green)22}
 .cov-pill.warn{background:var(--amber-soft);border-color:#FCD34D;color:var(--amber)}
 .cov-pill.bad{background:var(--red-soft);border-color:#FCA5A5;color:var(--red)}
 .cov-pill-ring{width:14px;height:14px;flex-shrink:0}
@@ -3295,9 +3302,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:8px;
 }
 .okami-insight-icon svg{width:13px;height:13px;stroke-width:2}
-.okami-insight-icon.green{background:#16A34A33;color:#86EFAC}
-.okami-insight-icon.amber{background:#D9770633;color:#FCD34D}
-.okami-insight-icon.red{background:#DC262633;color:#FCA5A5}
+.okami-insight-icon.green{background:var(--green)33;color:#86EFAC}
+.okami-insight-icon.amber{background:rgba(217,119,6,.20);color:#FCD34D}
+.okami-insight-icon.red{background:var(--red)33;color:#FCA5A5}
 .okami-insight-icon.blue{background:var(--accent-border);color:#93C5FD}
 .okami-insight-title{font-size:var(--fs-sm);font-weight:600;color:#fff;margin-bottom:3px}
 .okami-insight-msg{font-size:var(--fs-xs);color:rgba(255,255,255,.7);line-height:1.5}
@@ -3332,7 +3339,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--canvas);color:var(--text-muted);cursor:pointer;border:1px solid var(--border);
 }
 .strategy-pill.active.hire{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
-.strategy-pill.active.adw{background:#FEF3C7;color:#92400E;border-color:#FCD34D}
+.strategy-pill.active.adw{background:#FEF3C7;color:var(--amber-dark);border-color:#FCD34D}
 .strategy-pill.active.ot{background:#EDE9FE;color:#6D28D9;border-color:#DDD6FE}
 .strategy-pill.active.seasonal{background:var(--green-soft);color:var(--green);border-color:#86EFAC}
 
@@ -3486,7 +3493,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
 /* Posted state — celebratory */
 .posted-banner{
-  background:linear-gradient(120deg,#16A34A,#22C55E);color:#fff;
+  background:linear-gradient(120deg,var(--green),var(--green-bright));color:#fff;
   border-radius:var(--r-md);padding:10px 14px;display:flex;align-items:center;gap:10px;
   font-size:var(--fs-sm);font-weight:500;
 }
@@ -3638,11 +3645,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   display:flex;align-items:center;justify-content:center;color:#fff;
 }
 .cl-card-icon svg{width:18px;height:18px;stroke-width:2}
-.cl-card-icon.opening{background:linear-gradient(135deg,#F59E0B,#FBBF24)}
+.cl-card-icon.opening{background:var(--amber-grad)}
 .cl-card-icon.closing{background:linear-gradient(135deg,#0F172A,#1E293B)}
 .cl-card-icon.vehicle{background:var(--brand-grad)}
-.cl-card-icon.onboard{background:linear-gradient(135deg,#16A34A,#22C55E)}
-.cl-card-icon.compliance{background:linear-gradient(135deg,#DC2626,#F87171)}
+.cl-card-icon.onboard{background:linear-gradient(135deg,var(--green),var(--green-bright))}
+.cl-card-icon.compliance{background:linear-gradient(135deg,var(--red),var(--red-bright))}
 .cl-card-icon.shift{background:var(--violet-grad)}
 .cl-card-cat{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)}
 .cl-card-name{font-size:var(--fs-base);font-weight:600;color:var(--text);margin-top:2px}
@@ -4044,9 +4051,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .invoice-icon.fleet{background:var(--brand-grad-dark)}
 .invoice-icon.variable{background:var(--violet-grad)}
-.invoice-icon.lmr{background:linear-gradient(135deg,#D97706,#F59E0B)}
-.invoice-icon.rental{background:linear-gradient(135deg,#16A34A,#22C55E)}
-.invoice-icon.damage{background:linear-gradient(135deg,#DC2626,#F87171)}
+.invoice-icon.lmr{background:var(--amber-grad)}
+.invoice-icon.rental{background:linear-gradient(135deg,var(--green),var(--green-bright))}
+.invoice-icon.damage{background:linear-gradient(135deg,var(--red),var(--red-bright))}
 .invoice-icon svg{width:16px;height:16px;stroke-width:2}
 .invoice-name{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 .invoice-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
@@ -4107,7 +4114,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rp-summary{
   background:linear-gradient(135deg,#FEE2E2,#FEF3C7);border:1px solid #FCA5A5;
   border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--s-3);
-  font-size:var(--fs-md);color:#7F1D1D;line-height:1.55;
+  font-size:var(--fs-md);color:var(--red-dark);line-height:1.55;
 }
 .rp-summary strong{font-weight:700}
 
@@ -4154,10 +4161,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .ti-bar-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace;white-space:nowrap}
 .ti-cluster-alert{
   background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;padding:10px 12px;
-  display:flex;gap:10px;align-items:flex-start;font-size:var(--fs-sm);color:#7F1D1D;line-height:1.5;
+  display:flex;gap:10px;align-items:flex-start;font-size:var(--fs-sm);color:var(--red-dark);line-height:1.5;
   margin-bottom:var(--s-3);
 }
-.ti-cluster-alert svg{width:14px;height:14px;flex-shrink:0;margin-top:1px;color:#DC2626}
+.ti-cluster-alert svg{width:14px;height:14px;flex-shrink:0;margin-top:1px;color:var(--red)}
 .ti-cluster-alert strong{font-weight:700}
 .ti-row.expandable{cursor:pointer}
 .ti-row.expandable:hover{background:var(--canvas)}
@@ -4391,9 +4398,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .bb-saved-icon svg{width:15px;height:15px;stroke-width:2}
 .bb-saved-icon.analyzer{background:var(--brand-grad-dark)}
 .bb-saved-icon.tracker{background:var(--violet-grad)}
-.bb-saved-icon.monitor{background:linear-gradient(135deg,#16A34A,#22C55E)}
-.bb-saved-icon.finder{background:linear-gradient(135deg,#D97706,#F59E0B)}
-.bb-saved-icon.review{background:linear-gradient(135deg,#DC2626,#F87171)}
+.bb-saved-icon.monitor{background:linear-gradient(135deg,var(--green),var(--green-bright))}
+.bb-saved-icon.finder{background:var(--amber-grad)}
+.bb-saved-icon.review{background:linear-gradient(135deg,var(--red),var(--red-bright))}
 .bb-saved-type{
   font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle);
 }
@@ -4607,10 +4614,10 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .iv-card-body{min-width:0}
 .iv-card-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .iv-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:700;color:#fff;flex-shrink:0}
-.iv-card-avatar.tier-a{background:#16A34A}
+.iv-card-avatar.tier-a{background:var(--green)}
 .iv-card-avatar.tier-b{background:var(--blue-bright)}
-.iv-card-avatar.tier-c{background:#F59E0B}
-.iv-card-avatar.tier-d{background:#EF4444}
+.iv-card-avatar.tier-c{background:var(--amber-bright)}
+.iv-card-avatar.tier-d{background:var(--red-bright)}
 .iv-card-name{font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.01em}
 .iv-card-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
 .iv-card-source{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px;margin-left:auto;letter-spacing:.02em}
@@ -4629,7 +4636,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .iv-action-btn svg{width:14px;height:14px;stroke-width:2.4}
 .iv-action-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
 .iv-action-btn.hired{background:var(--green);color:#fff;border-color:var(--green)}
-.iv-action-btn.hired:hover{background:#16A34A}
+.iv-action-btn.hired:hover{background:var(--green)}
 .iv-action-btn.nohire{color:var(--text-muted)}
 .iv-action-btn.nohire:hover{background:var(--canvas);color:var(--text)}
 .iv-action-btn.noshow{color:var(--amber);border-color:rgba(245,158,11,.4)}
@@ -4648,7 +4655,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .iv-done-icon svg{width:26px;height:26px}
 .iv-done-title{font-size:18px;font-weight:700;color:#14532D;margin:0 0 4px;letter-spacing:-.01em}
-.iv-done-sub{font-size:var(--fs-md);color:#15803D;margin:0 0 16px}
+.iv-done-sub{font-size:var(--fs-md);color:var(--green-dark);margin:0 0 16px}
 
 /* Pipeline throughput KPIs */
 .pipeline-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)}
@@ -4776,7 +4783,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .all-clear-icon svg{width:26px;height:26px;stroke-width:2.6}
 .all-clear-title{font-size:18px;font-weight:700;color:#14532D;margin:0 0 4px;letter-spacing:-.01em}
-.all-clear-sub{font-size:var(--fs-md);color:#15803D;margin:0}
+.all-clear-sub{font-size:var(--fs-md);color:var(--green-dark);margin:0}
 </style>
 </head>
 <body>
@@ -4823,7 +4830,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
       <button class="nav-item" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
-        <span class="nav-badge" style="background:#D97706">5</span>
+        <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
       <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
@@ -5098,9 +5105,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .pa-card-body{display:flex;flex-direction:column;gap:6px;min-width:0}
           .pa-card-header{display:flex;align-items:center;gap:10px}
           .pa-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);color:#fff;flex-shrink:0;background:var(--text-subtle)}
-          .pa-card-avatar.tier-a{background:linear-gradient(135deg,#16A34A,#15803D)}
+          .pa-card-avatar.tier-a{background:linear-gradient(135deg,var(--green),var(--green-dark))}
           .pa-card-avatar.tier-b{background:var(--brand-grad)}
-          .pa-card-avatar.tier-c{background:linear-gradient(135deg,#D97706,#B45309)}
+          .pa-card-avatar.tier-c{background:linear-gradient(135deg, var(--amber), var(--amber-dark))}
           .pa-card-avatar.tier-d{background:linear-gradient(135deg,#6B7280,#4B5563)}
           .pa-card-name{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.25}
           .pa-card-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
@@ -5161,7 +5168,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .pa-video:hover .pa-video-play{transform:scale(1.05)}
           .pa-video-play svg{width:18px;height:18px;margin-left:2px}
           .pa-video-meta{position:absolute;bottom:10px;left:12px;z-index:1;font-size:var(--fs-xs);color:rgba(255,255,255,.85);font-weight:500}
-          .pa-video-rating{position:absolute;top:10px;right:12px;z-index:1;font-size:var(--fs-xs);color:#FBBF24;font-weight:700;letter-spacing:1px}
+          .pa-video-rating{position:absolute;top:10px;right:12px;z-index:1;font-size:var(--fs-xs);color:var(--amber-bright);font-weight:700;letter-spacing:1px}
 
           /* Screening Q&A — 2-column grid so short answers don't waste
              a full row each, with one-line truncation that opens to
@@ -5772,7 +5779,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
           .att-status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
           .att-status-pill.good{background:var(--green-soft);color:var(--green)}
-          .att-status-pill.verbal{background:#FBBF2422;color:#A16207}
+          .att-status-pill.verbal{background:var(--amber-bright)22;color:#A16207}
           .att-status-pill.written{background:var(--amber-soft);color:var(--amber)}
           .att-status-pill.final{background:#F97316;color:#fff}
           .att-status-pill.term{background:var(--red);color:#fff}
@@ -5780,7 +5787,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
           .att-event-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
           .att-event-dot.callout{background:var(--amber)}
           .att-event-dot.noshow{background:var(--red)}
-          .att-event-dot.late{background:#FBBF24}
+          .att-event-dot.late{background:var(--amber-bright)}
           .att-event-dot.earlyout{background:#A78BFA}
           .att-event-dot.present{background:var(--green)}
           .att-event-dot.vto{background:var(--sky)}
@@ -8134,13 +8141,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <div class="asset-cat-bar"><div class="asset-cat-bar-fill" style="width:97%"></div></div>
             </div>
             <div class="asset-cat" onclick="toast('Gas cards — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:linear-gradient(135deg,#16A34A,#22C55E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+              <div class="asset-cat-icon" style="background:linear-gradient(135deg,var(--green),var(--green-bright))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
               <div class="asset-cat-name">Fuel cards</div>
               <div class="asset-cat-stats"><strong>78</strong> assigned · <strong>4</strong> in inventory · <strong>$2.4k</strong> spend this week</div>
               <div class="asset-cat-bar"><div class="asset-cat-bar-fill" style="width:95%"></div></div>
             </div>
             <div class="asset-cat" onclick="toast('Toll tags — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:linear-gradient(135deg,#D97706,#F59E0B)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="6"/></svg></div>
+              <div class="asset-cat-icon" style="background:var(--amber-grad)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="6"/></svg></div>
               <div class="asset-cat-name">Toll tags</div>
               <div class="asset-cat-stats"><strong>24</strong> assigned to vehicles · <strong>$340</strong> incurred this month</div>
               <div class="asset-cat-bar"><div class="asset-cat-bar-fill" style="width:100%"></div></div>
@@ -8158,7 +8165,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
               <div class="asset-cat-bar"><div class="asset-cat-bar-fill warn" style="width:85%"></div></div>
             </div>
             <div class="asset-cat" onclick="toast('Scanners — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:linear-gradient(135deg,#DC2626,#EF4444)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h20M7 12h2m4 0h2m4 0h2M2 17h20"/></svg></div>
+              <div class="asset-cat-icon" style="background:linear-gradient(135deg,var(--red),var(--red-bright))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h20M7 12h2m4 0h2m4 0h2M2 17h20"/></svg></div>
               <div class="asset-cat-name">Scanners</div>
               <div class="asset-cat-stats"><strong>78</strong> assigned · <strong>2</strong> in inventory · <strong>1</strong> needs repair</div>
               <div class="asset-cat-bar"><div class="asset-cat-bar-fill warn" style="width:95%"></div></div>
@@ -8900,7 +8907,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
         <!-- RECOVERY -->
         <div class="finances-tab" id="finances-tab-recovery" style="display:none">
-          <div style="background:linear-gradient(135deg,#0F172A,#16A34A);color:#fff;border-radius:var(--r-lg);padding:24px;margin-bottom:var(--s-4);display:grid;grid-template-columns:1fr auto;gap:var(--s-4);align-items:center">
+          <div style="background:linear-gradient(135deg,#0F172A,var(--green));color:#fff;border-radius:var(--r-lg);padding:24px;margin-bottom:var(--s-4);display:grid;grid-template-columns:1fr auto;gap:var(--s-4);align-items:center">
             <div>
               <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.75;margin-bottom:6px">Recovered for you, year to date</div>
               <div style="font-size:42px;font-weight:700;letter-spacing:-.03em;line-height:1">$14,420.00</div>
@@ -11090,7 +11097,7 @@ Evidence attached:
           <span class="dr-asset-status">Active</span>
         </div>
         <div class="dr-asset-row">
-          <div class="dr-asset-icon" style="background:linear-gradient(135deg,#16A34A,#22C55E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/></svg></div>
+          <div class="dr-asset-icon" style="background:linear-gradient(135deg,var(--green),var(--green-bright))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/></svg></div>
           <div><div class="dr-asset-name">Fuel card</div><div class="dr-asset-id">•••• 4242 · BP/Shell</div></div>
           <div class="dr-asset-since">Issued Nov 12, 2023</div>
           <span class="dr-asset-status">Active</span>
@@ -11108,7 +11115,7 @@ Evidence attached:
           <span class="dr-asset-status">Active</span>
         </div>
         <div class="dr-asset-row">
-          <div class="dr-asset-icon" style="background:linear-gradient(135deg,#DC2626,#EF4444)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h20M7 12h2"/></svg></div>
+          <div class="dr-asset-icon" style="background:linear-gradient(135deg,var(--red),var(--red-bright))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h20M7 12h2"/></svg></div>
           <div><div class="dr-asset-name">Scanner</div><div class="dr-asset-id">SCN-12-MD</div></div>
           <div class="dr-asset-since">Issued Nov 12, 2023</div>
           <span class="dr-asset-status">Active</span>
@@ -11487,7 +11494,7 @@ Evidence attached:
       </div>
 
       <div class="ai-modal-section" style="background:var(--amber-soft);border:1px solid #FCD34D">
-        <div class="ai-modal-section-icon" style="background:#FFFBEB;color:#92400E"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+        <div class="ai-modal-section-icon" style="background:#FFFBEB;color:var(--amber-dark)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
         <div class="ai-modal-section-body" style="color:#78350F">
           <strong>2 items need your input</strong> — Saturday May 14 needs a driver for KMO3-19D (no qualified backup available). Friday May 13 has Davidson on a route that historically has issues for him (consider reassign).
         </div>
@@ -11668,7 +11675,7 @@ Evidence attached:
       </div>
 
       <!-- HR event explainer (rewritten for clarity) -->
-      <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:#FECACA;color:#991B1B;margin-top:var(--s-3)">
+      <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:#FECACA;color:var(--red-dark);margin-top:var(--s-3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
           <strong>Suspending creates a permanent HR record.</strong> The driver is removed from upcoming shifts (which become open and need backfill), hidden from morning check-in, and their app access is revoked. A timestamped, immutable entry is added to their personnel file with reason and supporting evidence — required documentation if you later terminate or fight an unemployment claim.
@@ -11830,7 +11837,7 @@ Evidence attached:
   .hr-event-dot.suspension{background:var(--red)}
   .hr-event-dot.reinstate{background:var(--green)}
   .hr-event-dot.warning{background:var(--amber)}
-  .hr-event-dot.pending_term{background:#7F1D1D}
+  .hr-event-dot.pending_term{background:var(--red-dark)}
   .hr-event-summary{font-weight:600;font-size:var(--fs-md);color:var(--text)}
   .hr-event-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
   .hr-event-detail{font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;line-height:1.5;background:var(--canvas);border-radius:6px;padding:8px 10px;white-space:pre-wrap}
@@ -14991,7 +14998,7 @@ Evidence attached:
     if (!existing) {
       existing = document.createElement('div');
       existing.id = 'sched-suspended-banner';
-      existing.style.cssText = 'background:#FEE2E2;border:1px solid #FECACA;color:#991B1B;border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
+      existing.style.cssText = 'background:#FEE2E2;border:1px solid #FECACA;color:var(--red-dark);border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
       anchor.insertBefore(existing, anchor.firstChild);
     }
     var names = active.map(function(s){ var d = _findDriver(s.driverId); return d ? d.name : '?'; }).join(', ');
@@ -14999,7 +15006,7 @@ Evidence attached:
     existing.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'
       + '<div style="flex:1"><strong>' + active.length + ' suspended:</strong> ' + names + ' · <strong>' + releasedShifts + ' shifts</strong> released to Open Shifts pool, need backfill</div>'
-      + '<button class="btn btn-sm" onclick="openSuspendedListModal()" style="background:#fff;color:#991B1B;border-color:#FECACA">View</button>';
+      + '<button class="btn btn-sm" onclick="openSuspendedListModal()" style="background:#fff;color:var(--red-dark);border-color:#FECACA">View</button>';
     var openBadge = document.querySelector('#view-schedule .subnav-item[data-sub="open"] span');
     if (openBadge) {
       if (openBadge.dataset.origCount === undefined) openBadge.dataset.origCount = parseInt(openBadge.textContent, 10) || 0;
@@ -15220,7 +15227,7 @@ Evidence attached:
       verbal:  { bg: '#FEF3C7',            fg: '#A16207' },
       written: { bg: 'var(--amber-soft)',  fg: 'var(--amber)' },
       final:   { bg: '#FFEDD5',            fg: '#C2410C' },
-      suspend: { bg: '#FEE2E2',            fg: '#991B1B' },
+      suspend: { bg: '#FEE2E2',            fg: 'var(--red-dark)' },
       term:    { bg: 'var(--red)',         fg: '#fff' }
     })[action] || { bg: 'var(--canvas)', fg: 'var(--text)' };
     var capNote = capped ? '<span style="font-size:9px;font-weight:500;opacity:.85;display:block;margin-top:1px;letter-spacing:0;text-transform:none">capped by staffing</span>' : '';
@@ -15255,7 +15262,7 @@ Evidence attached:
         msg: 'Coverage is at risk. Terminations would put you below operational floor. Suggested actions are capped at Coach — the goal is to recover these drivers, not lose them.',
         ceilLabel: 'Coach',
         ceilColor: 'var(--red)',
-        iconBg: '#FEE2E2', iconFg: '#991B1B'
+        iconBg: '#FEE2E2', iconFg: 'var(--red-dark)'
       }
     })[level] || {};
     titleEl.textContent = copy.title || '';
@@ -15623,7 +15630,7 @@ Evidence attached:
         var badge = document.createElement('div');
         badge.className = 'lic-sched-badge';
         badge.title = 'License expires ' + _fmtDate(driver.licenseExpiry) + ' — auto-block-scheduling ' + (RR_LICENSE_POLICY.blockScheduling ? 'ON' : 'OFF');
-        badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#FEE2E2;color:#991B1B;font-size:var(--fs-xs);font-weight:700;padding:2px 6px;border-radius:6px;margin-top:4px;cursor:help';
+        badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#FEE2E2;color:var(--red-dark);font-size:var(--fs-xs);font-weight:700;padding:2px 6px;border-radius:6px;margin-top:4px;cursor:help';
         badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:10px;height:10px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>License expires ' + _fmtDate(driver.licenseExpiry);
         var inner = row.querySelector(':scope > div:last-child') || row.lastElementChild;
         if (inner && inner.classList && !inner.classList.contains('avatar-sm')) inner.appendChild(badge);
@@ -15644,7 +15651,7 @@ Evidence attached:
     if (!existingBanner) {
       existingBanner = document.createElement('div');
       existingBanner.id = 'sched-license-banner';
-      existingBanner.style.cssText = 'background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
+      existingBanner.style.cssText = 'background:#FEF3C7;border:1px solid #FCD34D;color:var(--amber-dark);border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
       // Insert AFTER suspended banner if present, else at top
       var susBanner = document.getElementById('sched-suspended-banner');
       if (susBanner) susBanner.parentNode.insertBefore(existingBanner, susBanner.nextSibling);
@@ -15654,7 +15661,7 @@ Evidence attached:
     existingBanner.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>'
       + '<div style="flex:1"><strong>' + inWeek.length + ' license(s) expire this week:</strong> ' + names + (RR_LICENSE_POLICY.blockScheduling ? ' · scheduling will be blocked past expiry date' : '') + '</div>'
-      + '<button class="btn btn-sm" onclick="goto(\'drivers\');setTimeout(function(){drSub(\'insights\');document.getElementById(\'lic-renewals-panel\').scrollIntoView({behavior:\'smooth\'});},80)" style="background:#fff;color:#92400E;border-color:#FCD34D">View renewals</button>';
+      + '<button class="btn btn-sm" onclick="goto(\'drivers\');setTimeout(function(){drSub(\'insights\');document.getElementById(\'lic-renewals-panel\').scrollIntoView({behavior:\'smooth\'});},80)" style="background:#fff;color:var(--amber-dark);border-color:#FCD34D">View renewals</button>';
   }
 
   // ─── ROSTER INDICATOR (small license pill on rows expiring ≤30d) ──
@@ -15674,7 +15681,7 @@ Evidence attached:
       pill.className = 'lic-roster-pill';
       var st = _expiryStatus(days);
       var bg = st === 'expired' || st === 'urgent' ? '#FEE2E2' : '#FEF3C7';
-      var fg = st === 'expired' || st === 'urgent' ? '#991B1B' : '#92400E';
+      var fg = st === 'expired' || st === 'urgent' ? 'var(--red-dark)' : 'var(--amber-dark)';
       pill.style.cssText = 'display:inline-flex;align-items:center;gap:3px;font-size:var(--fs-xs);font-weight:600;padding:2px 6px;border-radius:6px;margin-left:6px;background:' + bg + ';color:' + fg;
       pill.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:9px;height:9px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>License ' + _expiryLabel(days);
       pill.title = 'License expires ' + _fmtDate(driver.licenseExpiry);
@@ -15767,13 +15774,13 @@ Evidence attached:
       + '.cal-cell-head .day-quality{display:inline-flex;align-items:center;gap:3px;font-size:var(--fs-xs);font-weight:700;padding:1px 6px;border-radius:5px;margin-top:3px;letter-spacing:0;text-transform:none}'
       + '.cal-cell-head .day-quality.q-good{background:var(--green-soft);color:var(--green)}'
       + '.cal-cell-head .day-quality.q-mid{background:var(--amber-soft);color:var(--amber)}'
-      + '.cal-cell-head .day-quality.q-low{background:#FEE2E2;color:#991B1B}'
+      + '.cal-cell-head .day-quality.q-low{background:#FEE2E2;color:var(--red-dark)}'
       // Driver-score indicator on schedule rows
       + '.cal-row-score{display:inline-flex;align-items:center;gap:4px;margin-top:3px;padding:1px 6px;border-radius:4px;font-size:var(--fs-xs);font-weight:700;letter-spacing:0;text-transform:none}'
       + '.cal-row-score.s-tier-a{background:var(--green-soft);color:var(--green)}'
       + '.cal-row-score.s-tier-b{background:var(--accent-soft);color:var(--accent-text)}'
       + '.cal-row-score.s-tier-c{background:var(--amber-soft);color:var(--amber)}'
-      + '.cal-row-score.s-tier-d{background:#FEE2E2;color:#991B1B}'
+      + '.cal-row-score.s-tier-d{background:#FEE2E2;color:var(--red-dark)}'
       + '.cal-row-label.row-low-score::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red);border-radius:3px 0 0 3px}'
       + '.cal-row-label{position:relative}'
       // Pool sort toggle
