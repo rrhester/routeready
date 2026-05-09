@@ -46,7 +46,7 @@ jobs:
 
       - name: Deploy edge functions (JWT-gated)
         run: |
-          for fn in send-sms send-email send-driver-push cal-availability; do
+          for fn in send-sms send-email send-driver-push cal-availability invite-team-member; do
             echo "▶ deploying $fn (auth required)"
             supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
           done
