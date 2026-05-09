@@ -1211,6 +1211,20 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-admin-table-wrap{position:relative}
 .rr-admin-table thead th{position:sticky;top:0;z-index:1}
 
+/* Allow row action menus to escape the card boundaries.  The
+   shared .table-wrap pattern uses overflow:hidden to clip inner
+   content to the rounded border, but on the admin table that
+   clips the per-row "..." menu when it extends past the last
+   visible row.  Override on the admin variant + its inner scroll
+   wrapper so the menus render in full regardless of how much
+   real estate the card itself has.  Page-level horizontal scroll
+   handles narrow viewports if the table outgrows them. */
+.rr-admin-table-wrap{overflow:visible}
+.rr-admin-table-wrap .table-wrap-scroll{overflow:visible}
+/* Action menu sits above sibling rows + above the pagination foot
+   that lives inside the same wrap. */
+.rr-admin-row-actions__menu{z-index:40}
+
 /* DSP cell · name + station code stacked. */
 .rr-admin-cell-dsp{display:flex;flex-direction:column;gap:2px;min-width:160px}
 .rr-admin-cell-dsp__name{font-weight:600;color:var(--text)}
@@ -18353,7 +18367,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509n-delete-dsp"></script>
+<script type="module" src="./live.js?v=20260509o-menu-overflow"></script>
 
 </body>
 </html>
