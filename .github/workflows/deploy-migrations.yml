@@ -45,15 +45,41 @@ jobs:
         run: supabase db push --include-all
 
       - name: Deploy edge functions (JWT-gated)
+        # Track per-function deploy outcomes.  The original simple `for`
+        # loop would silently swallow individual function failures
+        # because the loop's exit code is its last command's, not the
+        # accumulated failure state.  That hid a broken deploy of
+        # invite-team-member on 2026-05-09 (PR #622 ran green per the
+        # workflow but the function was actually never updated).
+        # Now we capture every failure + force the step (and the run)
+        # to fail if any function couldn't deploy.
         run: |
+          set +e
+          failed=()
           for fn in send-sms send-email send-driver-push cal-availability invite-team-member admin-delete-dsp; do
             echo "▶ deploying $fn (auth required)"
-            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
+            if ! supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"; then
+              echo "::error::deploy failed for $fn"
+              failed+=("$fn")
+            fi
           done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::JWT-gated function deploys failed for: ${failed[*]}"
+            exit 1
+          fi
 
       - name: Deploy edge functions (public webhooks)
         run: |
+          set +e
+          failed=()
           for fn in webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo; do
             echo "▶ deploying $fn (no jwt)"
-            supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"
+            if ! supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"; then
+              echo "::error::deploy failed for $fn"
+              failed+=("$fn")
+            fi
           done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::Public-webhook function deploys failed for: ${failed[*]}"
+            exit 1
+          fi
