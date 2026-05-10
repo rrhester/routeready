@@ -16954,6 +16954,15 @@ async function renderScheduleWeek() {
     violationsCard.style.transition = "border-color .12s, box-shadow .12s";
     violationsCard.title = violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`;
   }
+  // Pointer to the forward-looking view — this strip is just this week.
+  let outlookLink = sub.querySelector("#rr-sched-outlook-link");
+  if (!outlookLink) {
+    outlookLink = document.createElement("div");
+    outlookLink.id = "rr-sched-outlook-link";
+    outlookLink.style.cssText = "margin:-8px 0 14px;font-size:var(--fs-xs);color:var(--text-subtle)";
+    kpis.insertAdjacentElement("afterend", outlookLink);
+  }
+  outlookLink.innerHTML = `Looking past this week? <span style="color:var(--accent-text);cursor:pointer;text-decoration:underline" onclick="goto('outlook')">Staffing outlook →</span> — coverage forecast, who to hire, who to talk to.`;
 
   // ── Day headers (skip first cell which is "Driver")
   const headRow = sub.querySelector(".cal-grid.head");
@@ -18142,7 +18151,9 @@ function _outlookMatchWeek(driverIds, driverDates, demandByDate, cap) {
 async function _fetchHiringTargets() {
   const { data, error } = await sb.rpc("hiring_target_list");
   if (error) { console.warn("hiring_target_list:", error.message); return []; }
-  return Array.isArray(data) ? data : [];
+  const list = Array.isArray(data) ? data : [];
+  window._rrHiringTargets = list;
+  return list;
 }
 function _hiringTargetRowHtml(t) {
   const need  = t.needed_count || 1;
@@ -18162,6 +18173,7 @@ function _hiringTargetRowHtml(t) {
       <div style="font-size:var(--fs-xs);color:var(--text-muted)">${got > 0 ? `In onboarding: ${names}` : "No onboarding drivers match this yet"}</div>
     </div>
     ${badge}
+    <button class="btn btn-sm" type="button" data-rr-target-edit="${escapeHtml(t.id)}">Edit</button>
     ${t.status === "open"
       ? `<button class="btn btn-sm" type="button" data-rr-target-action="filled" data-rr-target-id="${escapeHtml(t.id)}">Close</button>`
       : `<button class="btn btn-sm" type="button" data-rr-target-action="open" data-rr-target-id="${escapeHtml(t.id)}">Reopen</button>`}
@@ -18173,9 +18185,9 @@ function _renderHiringTargetsCard(elId, targets, opts = {}) {
   if (!el) return;
   const show = (opts.includeClosed ? targets : targets.filter(t => t.status === "open")).slice(0, opts.includeClosed ? 12 : 50);
   el.innerHTML = `<div class="card" style="margin-bottom:16px">
-    <div class="card-head"><div class="card-title">Hiring targets${opts.subtitle ? ` <span style="font-weight:400;color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(opts.subtitle)}</span>` : ""}</div></div>
+    <div class="card-head" style="display:flex;align-items:center;justify-content:space-between"><div class="card-title">Hiring targets${opts.subtitle ? ` <span style="font-weight:400;color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(opts.subtitle)}</span>` : ""}</div><button class="btn btn-sm" type="button" data-rr-target-new>+ New target</button></div>
     ${show.length === 0
-      ? `<div style="padding:12px 14px;color:var(--text-subtle);font-size:var(--fs-sm)">No open hiring targets — create one from the Staffing outlook page when you spot a gap.</div>`
+      ? `<div style="padding:12px 14px;color:var(--text-subtle);font-size:var(--fs-sm)">No open hiring targets — create one here, or from a gap on the Staffing outlook page.</div>`
       : show.map(_hiringTargetRowHtml).join("")}
   </div>`;
 }
@@ -18213,7 +18225,81 @@ document.addEventListener("click", async (e) => {
     await _reloadTargetsViews();
     return;
   }
+  // New / edit a target via the full form.
+  if (e.target.closest("[data-rr-target-new]")) { e.preventDefault(); _openHiringTargetModal(null); return; }
+  const te = e.target.closest("[data-rr-target-edit]");
+  if (te) {
+    e.preventDefault();
+    const id = te.getAttribute("data-rr-target-edit");
+    const t = (window._rrHiringTargets || []).find(x => x.id === id);
+    if (t) _openHiringTargetModal(t);
+    return;
+  }
 });
+
+// Create/edit form for a hiring target.  hiring_target_upsert accepts all
+// of these fields; passing an `id` updates instead of inserting.
+async function _openHiringTargetModal(target) {
+  document.getElementById("rr-hiring-target-modal")?.remove();
+  const dspId = window.RR?.dsp?.id;
+  // Service types (for the optional cert requirement) — fetch once, cache.
+  if (!window._rrServiceTypesCache && dspId) {
+    const { data } = await sb.from("service_types").select("id, code, label").eq("dsp_id", dspId).order("code");
+    window._rrServiceTypesCache = Array.isArray(data) ? data : [];
+  }
+  const svcs = window._rrServiceTypesCache || [];
+  const t = target || {};
+  const haveDays = new Set(Array.isArray(t.days) ? t.days : []);
+  const dayBoxes = _OUTLOOK_DOW.map(k => `
+    <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);cursor:pointer;user-select:none;font-size:var(--fs-sm)">
+      <input type="checkbox" data-rr-htf-day="${k}" ${haveDays.has(k) ? "checked" : ""}/><span style="font-weight:600">${_OUTLOOK_DOW_LBL[k]}</span>
+    </label>`).join("");
+  const svcOpts = `<option value="">No cert requirement</option>` + svcs.map(s => `<option value="${escapeHtml(s.id)}"${t.service_type_id === s.id ? " selected" : ""}>${escapeHtml(s.code || "")}${s.label ? ` — ${escapeHtml(s.label)}` : ""}</option>`).join("");
+  const overlay = document.createElement("div");
+  overlay.id = "rr-hiring-target-modal";
+  overlay.className = "modal-backdrop open";
+  overlay.style.zIndex = "95";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:480px">
+      <div class="modal-head">
+        <div><p class="modal-title">${target ? "Edit hiring target" : "New hiring target"}</p><p class="modal-sub">What kind of driver do you need, and how many?</p></div>
+        <button class="modal-close" type="button" data-rr-htf-close aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+        <div><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:4px">Label</div><input type="text" id="rr-htf-label" class="form-input" placeholder="e.g. Saturday drivers" value="${escapeHtml(t.label || "")}"/></div>
+        <div style="display:flex;gap:14px;align-items:flex-end">
+          <div><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:4px">How many</div><input type="number" id="rr-htf-count" class="form-input" min="1" max="100" step="1" value="${Math.max(1, t.needed_count || 1)}" style="width:90px"/></div>
+          <div style="flex:1"><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:4px">Can start by (latest)</div><select id="rr-htf-start" class="form-input">${_availStartOptionsHtml(t.earliest_start_max || "")}</select></div>
+        </div>
+        <div><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:6px">Must be able to work</div><div style="display:flex;flex-wrap:wrap;gap:6px">${dayBoxes}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:5px">Leave all unchecked for "any days".</div></div>
+        ${svcs.length ? `<div><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:4px">Cert required</div><select id="rr-htf-svc" class="form-input">${svcOpts}</select></div>` : ""}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+          <button class="btn" type="button" data-rr-htf-close>Cancel</button>
+          <button class="btn btn-primary" type="button" id="rr-htf-save" data-rr-htf-id="${escapeHtml(t.id || "")}">${target ? "Save" : "Create target"}</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => { overlay.remove(); document.body.style.overflow = ""; };
+  overlay.addEventListener("click", (ev) => { if (ev.target === overlay || ev.target.closest("[data-rr-htf-close]")) close(); });
+  document.getElementById("rr-htf-save").addEventListener("click", async () => {
+    const id    = document.getElementById("rr-htf-save").getAttribute("data-rr-htf-id") || undefined;
+    const label = (document.getElementById("rr-htf-label").value || "").trim();
+    const count = Math.max(1, Math.min(100, parseInt(document.getElementById("rr-htf-count").value, 10) || 1));
+    const start = document.getElementById("rr-htf-start").value || null;
+    const svc   = document.getElementById("rr-htf-svc")?.value || null;
+    const days  = _OUTLOOK_DOW.filter(k => document.querySelector(`#rr-hiring-target-modal [data-rr-htf-day="${k}"]`)?.checked);
+    const btn = document.getElementById("rr-htf-save"); btn.disabled = true;
+    const payload = { label, needed_count: count, days, earliest_start_max: start, service_type_id: svc };
+    if (id) payload.id = id;
+    const { error } = await sb.rpc("hiring_target_upsert", { p_payload: payload });
+    if (error) { toast("Failed: " + error.message, "warn"); btn.disabled = false; return; }
+    toast(id ? "Target updated" : "Target created", "success");
+    close();
+    await _reloadTargetsViews();
+  });
+}
 
 async function loadStaffingOutlook() {
   const body = document.getElementById("rr-outlook-body");
