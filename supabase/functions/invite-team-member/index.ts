@@ -1,5 +1,10 @@
 // invite-team-member · Dashboard-side "Invite member" flow.
 //
+// (Touch 2026-05-09 to force redeploy — PR #622's workflow run
+// silently failed to deploy this function because the bash for-loop
+// in deploy-migrations.yml swallowed the per-function failure.
+// PR fixing the workflow ships alongside this comment update.)
+//
 // POST { email, full_name, role, target_dsp_id? } with the inviter's
 // user JWT in the Authorization header.
 //
