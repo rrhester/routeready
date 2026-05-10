@@ -38,18 +38,29 @@ interface InboundPayload {
   data?: InboundPayload;
 }
 
-function pickAddress(value: string | string[] | undefined): string | null {
+function pickAddress(value: unknown): string | null {
   if (!value) return null;
   const v = Array.isArray(value) ? value[0] : value;
-  if (typeof v !== "string") return null;
+  // Some parsers send addresses as objects ({ email | address | addr }).
+  const raw = typeof v === "string"
+    ? v
+    : (v && typeof v === "object"
+        ? ((v as Record<string, unknown>).email
+            ?? (v as Record<string, unknown>).address
+            ?? (v as Record<string, unknown>).addr)
+        : null);
+  if (typeof raw !== "string") return null;
   // Strip "Display Name <email@host>" formatting, leaving just the addr.
-  const m = v.match(/<([^>]+)>/);
-  return (m ? m[1] : v).trim().toLowerCase();
+  const m = raw.match(/<([^>]+)>/);
+  return (m ? m[1] : raw).trim().toLowerCase();
 }
 
 function localPart(email: string): string {
   const at = email.indexOf("@");
-  return at > 0 ? email.slice(0, at) : email;
+  const lp = at > 0 ? email.slice(0, at) : email;
+  // Drop any "+tag" suffix so plus-addressed replies still resolve.
+  const plus = lp.indexOf("+");
+  return plus > 0 ? lp.slice(0, plus) : lp;
 }
 
 function slugifyDspName(s: string): string {

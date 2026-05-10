@@ -57,6 +57,11 @@ Deno.serve(async (req) => {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   const from   = Deno.env.get("RESEND_FROM_EMAIL");
   const replyTo = Deno.env.get("RESEND_REPLY_TO");
+  // Domain whose MX is pointed at the inbound-email parser (which POSTs
+  // to webhook-email-inbound). When set, applicant-attributed mail gets
+  // its Reply-To rewritten to <dsp-slug>@<this-domain> so replies route
+  // back into the applicant's email thread instead of a dead inbox.
+  const inboundDomain = (Deno.env.get("EMAIL_INBOUND_DOMAIN") || "").trim();
   if (!apiKey || !from) return badRequest("resend_credentials_missing", 500);
 
   const supa = serviceClient();
@@ -100,10 +105,20 @@ Deno.serve(async (req) => {
 
     const dsp = dspById.get(row.dsp_id);
     const fromHeader = brandedFrom(from, dsp?.name ?? null, dsp?.short_code ?? null);
-    // Per-DSP Reply-To wins over the server-wide RESEND_REPLY_TO env
-    // var so applicant replies land in the operator's inbox instead of
-    // the platform support address.
-    const effectiveReplyTo = dsp?.replyTo || replyTo || null;
+    // Reply-To resolution:
+    //   • Applicant-attributed mail + EMAIL_INBOUND_DOMAIN set →
+    //     <dsp-slug>@<inbound-domain>, reusing the From local-part so
+    //     webhook-email-inbound can match the reply back to this DSP
+    //     (then to the applicant) and append it to the email thread.
+    //   • Otherwise → the per-DSP reply-to, else the server-wide
+    //     RESEND_REPLY_TO env var.
+    let effectiveReplyTo: string | null = dsp?.replyTo || replyTo || null;
+    if (row.applicant_id && inboundDomain) {
+      const m = fromHeader.match(/<([^>]+)>/);
+      const fromAddr = (m ? m[1] : fromHeader).trim();
+      const at = fromAddr.indexOf("@");
+      if (at > 0) effectiveReplyTo = `${fromAddr.slice(0, at)}@${inboundDomain}`;
+    }
 
     const body: Record<string, unknown> = {
       from: fromHeader, to: [row.to_email], subject: row.subject,
