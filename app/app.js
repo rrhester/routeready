@@ -212,7 +212,6 @@ function initialsOf(name) {
 const routes = {
   "/schedule":          { render: renderSchedule,        tab: "/schedule" },
   "/tasks":             { render: renderTasksHub,        tab: "/tasks" },
-  "/tasks/attendance":  { render: renderAttendance,      tab: "/tasks", back: "/tasks", title: "Attendance" },
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
@@ -220,6 +219,7 @@ const routes = {
   "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
   "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
   "/settings/availability": { render: renderAvailability,    tab: "/profile", back: "/settings", title: "Availability" },
+  "/settings/attendance":   { render: renderAttendance,      tab: "/profile", back: "/settings", title: "Attendance" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
@@ -632,13 +632,11 @@ function renderTasksHub() {
   // The Onboarding card (driver_get_profile) and Forms cards
   // (driver_list_forms) are fetched in the background and spliced in
   // when their responses land.
-  // Availability moved into Settings (driver gear icon) — it's a
-  // preference the driver sets infrequently, not a daily task.
-  const baseCards = [
-    { route: "/tasks/attendance",   title: "Attendance",   sub: "Today's status and policy",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' },
-  ];
-  main.innerHTML = `<div id="rr-tasks-onboarding-slot"></div>${baseCards.map(taskCardHtml).join("")}<div id="rr-tasks-forms-slot"></div>`;
+  // Availability and Attendance both moved into Settings (driver gear
+  // icon) — they're things the driver checks/sets infrequently, not
+  // daily tasks.  The Tasks hub is for onboarding steps + assigned forms.
+  const baseCards = [];
+  main.innerHTML = `<div id="rr-tasks-onboarding-slot"></div>${baseCards.map(taskCardHtml).join("")}<div id="rr-tasks-forms-slot"></div><div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Nothing to do right now — you're all set.</div>`;
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
@@ -656,6 +654,7 @@ function renderTasksHub() {
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
     });
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+    document.getElementById("rr-tasks-empty")?.remove();
   }).catch(() => {});
 
   // Coaching feed — single card that opens the unified /tasks/coaching
@@ -682,6 +681,7 @@ function renderTasksHub() {
       el.dataset.rrBound = "1";
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
     });
+    document.getElementById("rr-tasks-empty")?.remove();
   }).catch(() => {});
 
   // Published forms — append one card per form when the RPC returns.
@@ -699,6 +699,7 @@ function renderTasksHub() {
     const forms = Array.isArray(data) ? data : [];
     console.info("driver_list_forms returned", forms.length, "forms", forms);
     if (forms.length === 0) return;
+    document.getElementById("rr-tasks-empty")?.remove();
     slot.innerHTML = forms.map(f => {
       const oncePer = !!f.settings?.once_per_driver;
       const done = oncePer && f.submission_count > 0;
@@ -1849,7 +1850,8 @@ function renderSettings() {
       <section class="settings-section">
         ${row("profile",      "/settings/profile",      "Profile",      "Name, pronouns, contact, emergency contact")}
         ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
-        ${row("availability", "/settings/availability", "Availability", "Days you can work")}
+        ${row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start")}
+        ${row("attendance",   "/settings/attendance",   "Attendance",   "Today's status and your DSP's points policy")}
       </section>
 
       <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
