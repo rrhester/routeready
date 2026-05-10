@@ -9844,19 +9844,6 @@ async function renderEmploymentTab(body, d) {
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
-          <div class="dd-section-title">Training</div>
-          <div class="dd-section-sub">Mark this driver as a trainer so they can be added to shifts as a ride-along.</div>
-        </div>
-        <span class="dd-badge dsp">DSP only</span>
-      </div>
-      <div class="dd-row"><label>Driver trainer</label>
-        <label class="rr-toggle"><input type="checkbox" data-rr-trainer-toggle="${escapeHtml(d.id)}" ${d.is_trainer ? "checked" : ""}/><span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span></label>
-      </div>
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head">
-        <div>
           <div class="dd-section-title">Onboarding</div>
           <div class="dd-section-sub">Milestones recorded by the DSP during hire.</div>
         </div>
@@ -9886,18 +9873,27 @@ async function renderEmploymentTab(body, d) {
     </div>`;
 }
 
-// "Driver trainer" toggle on the Employment tab — saves instantly.
+// Boolean-column toggles on the License & Certs tab (DOT cert, XL cert,
+// Driver trainer) — flipping the switch writes straight through.
+const _RR_BOOL_TOGGLE_MSG = {
+  dot_certified: ["DOT certified", "DOT certification removed"],
+  xl_certified:  ["XL certified",  "XL certification removed"],
+  is_trainer:    ["Marked as a trainer", "No longer a trainer"],
+};
 document.addEventListener("change", async (e) => {
-  const t = e.target.closest("[data-rr-trainer-toggle]");
+  const t = e.target.closest("[data-rr-bool-toggle]");
   if (!t) return;
-  const id = t.getAttribute("data-rr-trainer-toggle");
+  const id    = t.getAttribute("data-rr-bool-toggle");
+  const field = t.getAttribute("data-rr-bool-field");
+  if (!id || !field) return;
   const val = !!t.checked;
   t.disabled = true;
-  const { error } = await sb.from("drivers").update({ is_trainer: val }).eq("id", id);
+  const { error } = await sb.from("drivers").update({ [field]: val }).eq("id", id);
   t.disabled = false;
   if (error) { toast("Couldn't update: " + error.message, "warn"); t.checked = !val; return; }
-  if (_ddDriver?.driver?.id === id) _ddDriver.driver.is_trainer = val;
-  toast(val ? "Marked as a trainer" : "No longer a trainer", "success");
+  if (_ddDriver?.driver?.id === id) _ddDriver.driver[field] = val;
+  const [on, off] = _RR_BOOL_TOGGLE_MSG[field] || ["Saved", "Saved"];
+  toast(val ? on : off, "success");
 });
 
 // License & Certs — license number / image upload (driver self-serve)
@@ -9937,8 +9933,12 @@ async function renderLicenseTab(body, d) {
       <div><strong>Verification needed.</strong> Driver uploaded a license image but no expiration is on file. Read the date off the photo and enter it above.</div>
     </div>` : "";
 
-  const dotChecked = _ddVal("dot_certified", d.dot_certified) ? "checked" : "";
-  const xlChecked  = _ddVal("xl_certified",  d.xl_certified)  ? "checked" : "";
+  const hasId = !!d.id;
+  const boolToggle = (field, on) => {
+    const labelStyle = hasId ? "" : ` style="opacity:.45;pointer-events:none"`;
+    return `<label class="rr-toggle"${labelStyle}><input type="checkbox" data-rr-bool-toggle="${escapeHtml(d.id || "")}" data-rr-bool-field="${field}" ${on ? "checked" : ""}${hasId ? "" : " disabled"}/><span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span></label>`;
+  };
+  const certsHint = hasId ? "" : `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px">Save the driver record first, then you can flip these on.</div>`;
 
   body.innerHTML = `
     <div class="dd-section">
@@ -9980,30 +9980,32 @@ async function renderLicenseTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Certifications</div>
-          <div class="dd-section-sub">Smart Fill uses these gates to decide who can be assigned to certified service types.</div>
+          <div class="dd-section-sub">Smart Fill uses these gates to decide who can be assigned to certified service types. Changes save as soon as you flip the switch.</div>
         </div>
         <span class="dd-badge dsp">DSP only</span>
       </div>
       <div class="dd-row" style="align-items:flex-start">
-        <label>DOT certification</label>
+        <label>DOT certified</label>
         <div>
-          <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
-            <input type="checkbox" data-rr-dd-field="dot_certified" ${dotChecked} style="cursor:pointer;width:16px;height:16px"/>
-            <span style="font-size:var(--fs-md);color:var(--text)">Driver is DOT certified</span>
-          </label>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Step Van routes. Smart Fill blocks DOT-required service types unless this is checked.</div>
+          ${boolToggle("dot_certified", !!d.dot_certified)}
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:6px">Required for Step Van routes. Smart Fill blocks DOT-required service types unless this is on.</div>
         </div>
       </div>
       <div class="dd-row" style="align-items:flex-start">
-        <label>XL certification</label>
+        <label>XL certified</label>
         <div>
-          <label style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:8px 0">
-            <input type="checkbox" data-rr-dd-field="xl_certified" ${xlChecked} style="cursor:pointer;width:16px;height:16px"/>
-            <span style="font-size:var(--fs-md);color:var(--text)">Driver is XL certified</span>
-          </label>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:4px">Required for Extra-Large vans. Smart Fill blocks XL routes unless this is checked.</div>
+          ${boolToggle("xl_certified", !!d.xl_certified)}
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:6px">Required for Extra-Large vans. Smart Fill blocks XL routes unless this is on.</div>
         </div>
       </div>
+      <div class="dd-row" style="align-items:flex-start">
+        <label>Driver trainer</label>
+        <div>
+          ${boolToggle("is_trainer", !!d.is_trainer)}
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:6px">Lets this driver be added to a shift as a ride-along trainer on the schedule.</div>
+        </div>
+      </div>
+      ${certsHint}
     </div>`;
 }
 
