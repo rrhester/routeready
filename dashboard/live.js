@@ -15230,6 +15230,8 @@ async function loadSchedulingSettings() {
   })();
   const overrideEl = document.getElementById("rr-set-availability-override");
   if (overrideEl) overrideEl.checked = !!s.allow_availability_override;
+  const tbEl = document.getElementById("rr-set-pref-tiebreaker");
+  if (tbEl) tbEl.value = ["least_loaded","seniority","fairness"].includes(s.preference_tiebreaker) ? s.preference_tiebreaker : "least_loaded";
   // Cache the effective settings so auto-assign reads the per-week values.
   window._rrEffectiveSettings = s;
   if (wavesEl) {
@@ -15364,6 +15366,10 @@ document.addEventListener("click", async (e) => {
     // visible week. Future weeks without their own row inherit from
     // this one via private.get_week_settings (which falls back to the
     // most-recent prior saved week).
+    const prefTiebreaker = (() => {
+      const v = document.getElementById("rr-set-pref-tiebreaker")?.value;
+      return ["least_loaded","seniority","fairness"].includes(v) ? v : "least_loaded";
+    })();
     const payload = {
       week_start: ws,
       default_block_hours: block,
@@ -15371,6 +15377,7 @@ document.addEventListener("click", async (e) => {
       max_days_per_week: maxDays,
       allow_availability_override: allowOverride,
       report_lead_minutes: reportLead,
+      preference_tiebreaker: prefTiebreaker,
       waves,
       timezone: tz,
     };
@@ -16069,15 +16076,17 @@ async function autoAssignDriversForWeek() {
   const weekEnd = addDays(new Date(_schedStart + "T12:00:00"), 6);
   const weekEndIso = fmtIsoDate(weekEnd);
 
-  // Read the per-week settings (max days + override) so the cap and
-  // override flag come from the visible week, not stale DSP metadata.
+  // Read the per-week settings (max days, override flag, preferred-day
+  // tiebreaker) so they come from the visible week, not stale DSP metadata.
   let maxDays = 5;
   let allowOverride = false;
+  let tiebreaker = "least_loaded";
   try {
     const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
     if (ws) {
       maxDays = Math.max(1, Math.min(7, ws.max_days_per_week ?? 5));
       allowOverride = !!ws.allow_availability_override;
+      if (["seniority","fairness"].includes(ws.preference_tiebreaker)) tiebreaker = ws.preference_tiebreaker;
     }
   } catch (_) { /* fall back to defaults */ }
 
@@ -16087,9 +16096,10 @@ async function autoAssignDriversForWeek() {
   // approved PTO inside the week.
   const [driversRes, ptoRes, shiftsRes, svcRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, metadata, dl_expires_on, dot_certified, xl_certified")
+      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified")
       .eq("dsp_id", dspId)
-      .eq("status", "active"),
+      .eq("status", "active")
+      .order("full_name"),
     sb.from("time_off_requests")
       .select("driver_id, start_date, end_date")
       .eq("dsp_id", dspId)
@@ -16242,54 +16252,113 @@ async function autoAssignDriversForWeek() {
       return (a.starts_at || "").localeCompare(b.starts_at || "");
     });
 
-  let assigned = 0;
-  for (const sh of openShifts) {
-    const dt = new Date(sh.date + "T12:00:00");
-    const dow = DOW[dt.getDay()];
+  // ── Preferred days ──────────────────────────────────────────────────
+  // Each driver's preferred days (clamped to their available set), the
+  // lifetime "preference honored" counter for the 'fairness' tiebreaker.
+  const preferredOf = new Map();
+  const prefBase    = new Map();
+  for (const d of drivers) {
+    preferredOf.set(d.id, _preferredDaysOf(d));
+    prefBase.set(d.id, Number(d.metadata?.scheduling?.pref_honored) || 0);
+  }
 
-    // Try strict-availability candidates first; if override is allowed
-    // and none match, fall through to "any active non-PTO driver".
-    // Expired drivers_license blocks regardless of override.
-    // Service-type cert gating (e.g. Step Vans requires DOT, XL routes
-    // require XL cert) is also a hard gate — applied via
-    // driverHasCertsFor against the shift's service_type_id.
-    const baseFilter = (d) => {
-      if (!driverLicenseOkForDate(d, sh.date)) return false;
-      if (!driverHasCertsFor(d, sh.service_type_id)) return false;
-      if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
-      if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
-      if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
-      // Never auto-assign a driver to a shift that starts before the
-      // earliest time of day they said they can begin one.
-      const es = d.metadata?.availability?.earliest_start;
-      if (es && _startsBeforeEarliest(_shiftStartHM(sh.starts_at), es)) return false;
-      return true;
+  // Every hard gate except the day-of-week one (kept separate so the
+  // preference pass can restrict to "available AND prefers this day").
+  // Expired DL / missing cert / PTO / already-shifted-that-day / over the
+  // weekly cap / can't-start-that-early all block regardless of override.
+  const eligible = (d, sh, booked) => {
+    if (!driverLicenseOkForDate(d, sh.date)) return false;
+    if (!driverHasCertsFor(d, sh.service_type_id)) return false;
+    if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
+    if (booked.get(d.id)?.has(sh.date)) return false;
+    if ((booked.get(d.id)?.size || 0) >= maxDays) return false;
+    const es = d.metadata?.availability?.earliest_start;
+    if (es && _startsBeforeEarliest(_shiftStartHM(sh.starts_at), es)) return false;
+    return true;
+  };
+  const availableOn = (d, sh, dow) => driverDaysOn(d.id, sh.date).includes(dow);
+  const loadOf = (id, booked) => booked.get(id)?.size || 0;
+
+  // Winner among candidates per the DSP's configured tiebreaker; all modes
+  // fall back to least-loaded so a tie is still resolved deterministically.
+  const pickWinner = (cands, booked, prefBumps) => {
+    const score = (d) => {
+      if (tiebreaker === "seniority") return [d.hire_date || "9999-12-31", loadOf(d.id, booked)];
+      if (tiebreaker === "fairness")  return [(prefBase.get(d.id) || 0) + (prefBumps.get(d.id) || 0), loadOf(d.id, booked)];
+      return [loadOf(d.id, booked), 0];
     };
-    let candidates = drivers.filter(d => {
-      const days = driverDaysOn(d.id, sh.date);
-      if (!days.includes(dow)) return false;
-      return baseFilter(d);
-    });
-    if (candidates.length === 0 && allowOverride) {
-      candidates = drivers.filter(baseFilter);
+    let best = null, bestScore = null;
+    for (const d of cands) {
+      const s = score(d);
+      if (!best) { best = d; bestScore = s; continue; }
+      let cmp = 0;
+      for (let i = 0; i < s.length; i++) { if (s[i] < bestScore[i]) { cmp = -1; break; } if (s[i] > bestScore[i]) { cmp = 1; break; } }
+      if (cmp < 0) { best = d; bestScore = s; }
     }
+    return best;
+  };
 
+  // Build an assignment plan (no DB writes). With usePreferences on, a
+  // first pass seats drivers on shifts that land on a day they prefer
+  // (per the tiebreaker), then a second pass fills the rest by
+  // least-loaded — with the availability-override fallback when allowed.
+  const buildPlan = (usePreferences) => {
+    const booked = new Map();
+    for (const [k, v] of driverShiftDates) booked.set(k, new Set(v));
+    const prefBumps = new Map();
+    const assignments = new Map();
+    const seat = (sh, d) => {
+      assignments.set(sh.id, d.id);
+      if (!booked.has(d.id)) booked.set(d.id, new Set());
+      booked.get(d.id).add(sh.date);
+    };
+    if (usePreferences) {
+      for (const sh of openShifts) {
+        const dow = DOW[new Date(sh.date + "T12:00:00").getDay()];
+        const cands = drivers.filter(d => preferredOf.get(d.id)?.has(dow) && availableOn(d, sh, dow) && eligible(d, sh, booked));
+        if (cands.length === 0) continue;
+        const w = pickWinner(cands, booked, prefBumps);
+        if (!w) continue;
+        seat(sh, w);
+        prefBumps.set(w.id, (prefBumps.get(w.id) || 0) + 1);
+      }
+    }
+    for (const sh of openShifts) {
+      if (assignments.has(sh.id)) continue;
+      const dow = DOW[new Date(sh.date + "T12:00:00").getDay()];
+      let cands = drivers.filter(d => availableOn(d, sh, dow) && eligible(d, sh, booked));
+      if (cands.length === 0 && allowOverride) cands = drivers.filter(d => eligible(d, sh, booked));
+      if (cands.length === 0) continue;
+      cands.sort((a, b) => loadOf(a.id, booked) - loadOf(b.id, booked));
+      seat(sh, cands[0]);
+    }
+    return { assignments, prefBumps, covered: assignments.size };
+  };
 
-    if (candidates.length === 0) continue;
+  // Honor preferences when it doesn't cost coverage: keep the
+  // preference-aware plan unless the preference-blind one covers strictly
+  // more shifts.
+  const planPref = buildPlan(true);
+  const planCov  = buildPlan(false);
+  const plan = planPref.covered >= planCov.covered ? planPref : planCov;
 
-    candidates.sort((a, b) => {
-      const ac = driverShiftDates.get(a.id)?.size || 0;
-      const bc = driverShiftDates.get(b.id)?.size || 0;
-      return ac - bc;
-    });
-    const driver = candidates[0];
+  let assigned = 0;
+  for (const [shiftId, driverId] of plan.assignments) {
+    const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
+    if (!error) assigned += 1;
+  }
 
-    const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: driver.id });
-    if (error) continue;
-
-    if (!driverShiftDates.has(driver.id)) driverShiftDates.set(driver.id, new Set());
-    driverShiftDates.get(driver.id).add(sh.date);
-    assigned += 1;
+  // Bump the lifetime "preference honored" counter for the fairness
+  // tiebreaker — only when the plan we shipped actually honored some.
+  if (plan === planPref && plan.prefBumps.size > 0) {
+    await Promise.all([...plan.prefBumps].map(([id, n]) => {
+      const d = drivers.find(x => x.id === id);
+      const meta = d?.metadata || {};
+      const sched = { ...(meta.scheduling || {}), pref_honored: (Number(meta.scheduling?.pref_honored) || 0) + n };
+      return sb.from("drivers").update({ metadata: { ...meta, scheduling: sched } }).eq("id", id)
+        .then(({ error }) => { if (error) console.warn("pref_honored bump:", error.message); })
+        .catch(e => console.warn("pref_honored bump:", e));
+    }));
   }
 
   return { assigned, skippedExpired };
@@ -16320,6 +16389,20 @@ function _startsBeforeEarliest(shiftHM, earliestHM) {
   const norm = (s) => /^\d{1,2}:\d{2}$/.test(s || "") ? (String(s).length === 4 ? "0" + s : String(s)) : "";
   const a = norm(shiftHM), b = norm(earliestHM);
   return !!a && !!b && a < b;
+}
+
+// "YYYY-MM-DD" → day-of-week key ('sun'..'sat'), matching availability keys.
+const _RR_DOW_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+function _dowKey(iso) {
+  const d = new Date(iso + "T12:00:00");
+  return isNaN(d.getTime()) ? "" : _RR_DOW_KEYS[d.getDay()];
+}
+// A driver's preferred days, clamped to their currently-available days.
+function _preferredDaysOf(driver) {
+  const av = driver?.metadata?.availability || {};
+  const days = Array.isArray(av.days) ? av.days : [];
+  const pref = Array.isArray(av.preferred_days) ? av.preferred_days : [];
+  return new Set(pref.filter(k => days.includes(k)));
 }
 
 // Format a 'HH:MM' wave-time string as e.g. '1:00pm'. Used when we don't
@@ -16780,6 +16863,19 @@ async function renderScheduleWeek() {
   // Rule violations across assigned shifts in the week (now includes WOC).
   const violations = await _computeWeekViolations(grid.shifts || [], drivers, timeOff, _schedStart, fmtIsoDate(weekEnd));
 
+  // Preferred-day coverage: of the shifts assigned to drivers who flagged
+  // preferred days, how many landed on one of those days.
+  const _prefByDriver = new Map();
+  for (const d of drivers) _prefByDriver.set(d.id, _preferredDaysOf(d));
+  let prefHonored = 0, prefDenom = 0;
+  for (const sh of (grid.shifts || [])) {
+    if (!sh.driver_id || sh.status !== "scheduled") continue;
+    const pset = _prefByDriver.get(sh.driver_id);
+    if (!pset || pset.size === 0) continue;
+    prefDenom += 1;
+    if (pset.has(_dowKey(sh.date))) prefHonored += 1;
+  }
+
   // Render the Schedule KPIs using the same .stat-mini pattern that
   // Drivers Roster + the rest of the dashboard uses, so the cards
   // read at the same scale as the other KPI strips operators see.
@@ -16788,7 +16884,7 @@ async function renderScheduleWeek() {
     kpis = document.createElement("div");
     kpis.id = "rr-sched-kpis";
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = "grid-template-columns:repeat(5,minmax(0,1fr))";
+    kpis.style.cssText = "grid-template-columns:repeat(6,minmax(0,1fr))";
     // Anchor: insert directly after the toolbar rail. Selector covers
     // both the new .sched-toolbar-rail (#524) and the legacy
     // .sched-toolbar in case any DSP is on a stale bundle.
@@ -16796,7 +16892,7 @@ async function renderScheduleWeek() {
     if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
   } else {
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = "grid-template-columns:repeat(5,minmax(0,1fr))";
+    kpis.style.cssText = "grid-template-columns:repeat(6,minmax(0,1fr))";
   }
   const kpiCard = (label, value, sublabel, tone) => {
     const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "";
@@ -16832,7 +16928,11 @@ async function renderScheduleWeek() {
     kpiCard("Overtime", otValue, otSub, otTone) +
     kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
     kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
-    kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone);
+    kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone) +
+    kpiCard("Preferences",
+      prefDenom === 0 ? "—" : `${prefHonored} / ${prefDenom}`,
+      prefDenom === 0 ? "no preferences set" : (prefHonored === prefDenom ? "all on a preferred day" : "★ on the grid = preferred day"),
+      prefDenom === 0 ? "default" : (prefHonored === prefDenom ? "ok" : "warn"));
   kpis.dataset.rrViolations = JSON.stringify(violations);
   // Visual cue that the violations card opens a modal — match the
   // .stat-mini-clickable pattern other KPI strips use.
@@ -16892,15 +16992,23 @@ async function renderScheduleWeek() {
     const dlFlag = dlExpired
       ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:var(--red);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
       : "";
+    const prefSet = _prefByDriver.get(d.id) || null;
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
+      const isPref = !!prefSet && prefSet.size > 0 && prefSet.has(_dowKey(iso));
       if (ptoOn(d.id, iso))
         return `<div class="${cls}" ${data}><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>`;
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
+      // ★ = a day the driver flagged as preferred.  Green when they're
+      // actually scheduled that day, amber when they wanted it but aren't.
+      const star = isPref
+        ? `<span title="${list.length > 0 ? "Scheduled on a preferred day" : "Driver prefers this day"}" style="position:absolute;top:1px;right:3px;font-size:9px;line-height:1;color:${list.length > 0 ? "var(--green)" : "var(--amber)"}">★</span>`
+        : "";
+      const rel = isPref ? ' style="position:relative"' : "";
       if (list.length === 0)
-        return `<div class="${cls}" ${data}><div class="shift-chip off">Off</div></div>`;
-      return `<div class="${cls}" ${data}>${list.map(_schedShiftChip).join("")}</div>`;
+        return `<div class="${cls}"${rel} ${data}>${star}<div class="shift-chip off">Off</div></div>`;
+      return `<div class="${cls}"${rel} ${data}>${star}${list.map(_schedShiftChip).join("")}</div>`;
     }).join("");
     return `<div class="cal-grid">
       <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
