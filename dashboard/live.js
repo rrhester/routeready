@@ -8296,7 +8296,7 @@ document.addEventListener("click", async (e) => {
     const id = card.getAttribute("data-applicant-id");
     const outcome = outcomeBtn.getAttribute("data-rr-outcome");
     outcomeBtn.disabled = true;
-    const { error } = await sb.rpc("record_outcome", {
+    const { data: result, error } = await sb.rpc("record_outcome", {
       p_applicant_id: id, p_outcome: outcome, p_notes: null,
       p_interview_day_id: _ivDayId,
     });
@@ -8305,11 +8305,13 @@ document.addEventListener("click", async (e) => {
       outcomeBtn.disabled = false;
       return;
     }
+    const msgFailed = result && result.message_error;
     toast(
-      outcome === "hired" ? "Hired ✓ · driver record created"
-      : outcome === "no_hire" ? "Marked no hire"
-      : "Marked no show",
-      outcome === "hired" ? "success" : "warn",
+      (outcome === "hired" ? "Hired ✓ · driver record created"
+       : outcome === "no_hire" ? "Marked no hire"
+       : "Marked no show")
+      + (msgFailed ? " · applicant message not sent (no outcome template configured)" : ""),
+      outcome === "hired" && !msgFailed ? "success" : "warn",
     );
     await loadInterviewDay();
     await loadPipelineKpis();
