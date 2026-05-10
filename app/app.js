@@ -2960,7 +2960,7 @@ async function renderAvailability() {
     _inFlight++;
     submitEl.disabled = true;
     const days = _AVAIL_DAYS.filter((d) => picked.has(d.k)).map((d) => d.k);
-    const { error } = await sb.rpc("driver_submit_availability", {
+    const { data, error } = await sb.rpc("driver_submit_availability", {
       p_token: session.token, p_days: days,
     });
     _inFlight--;
@@ -2974,7 +2974,7 @@ async function renderAvailability() {
       }
       return;
     }
-    toast("Submitted for approval", "ok");
+    toast(data?.auto_approved ? "Availability updated" : "Submitted for approval", "ok");
     // Re-render so the page reflects the new pending state (toggles
     // lock, button disables, banner shows the pending message).
     renderAvailability();

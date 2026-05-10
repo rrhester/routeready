@@ -12387,8 +12387,9 @@ function _fmtRel(iso) {
 // Module-level state for the availability tab so sort + filter survive
 // re-renders triggered by approval/denial.
 let _availRequestsCache = [];
-let _availSortKey = "default"; // default | driver | station | submitted | status
+let _availSortKey = "default"; // default | driver | station | submitted | status | requests
 let _availSortDir = "asc";     // asc | desc
+let _availSearchTerm = "";     // filters rows by driver name
 
 // Build the KPI strip + management panels + sortable header inside
 // the Drivers → Availability sub-view.  Idempotent — the dataset flag
@@ -12413,16 +12414,20 @@ function _renderAvailabilityShell() {
   const list = document.getElementById("rr-avail-req-list");
   if (list) {
     list.insertAdjacentHTML("beforebegin", `
-      <div id="rr-avail-sortbar" style="display:grid;grid-template-columns:220px 1fr auto;gap:16px;padding:10px 18px;border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;background:var(--canvas)">
-        <div style="display:flex;gap:10px;align-items:center">
+      <div id="rr-avail-toolbar" style="display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--border-subtle);background:var(--canvas);flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:6px 10px">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-subtle);flex-shrink:0"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="search" id="rr-avail-search" placeholder="Find a driver…" autocomplete="off"
+                 style="flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:var(--fs-sm);color:var(--text)" />
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em">
+          <span style="margin-right:2px">Sort:</span>
           <button class="avail-sort-btn" data-rr-sort="driver">Driver</button>
           <button class="avail-sort-btn" data-rr-sort="station">Station</button>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center">
           <button class="avail-sort-btn" data-rr-sort="submitted">Submitted</button>
           <button class="avail-sort-btn" data-rr-sort="status">Status</button>
+          <button class="avail-sort-btn" data-rr-sort="requests">Requests</button>
         </div>
-        <div></div>
       </div>
     `);
     if (!document.getElementById("rr-avail-sort-style")) {
@@ -12430,13 +12435,17 @@ function _renderAvailabilityShell() {
       st.id = "rr-avail-sort-style";
       st.textContent = `
         .avail-sort-btn{font:inherit;text-transform:inherit;letter-spacing:inherit;
-          color:var(--text-subtle);background:none;border:0;padding:2px 4px;border-radius:4px;cursor:pointer}
+          color:var(--text-subtle);background:none;border:0;padding:2px 6px;border-radius:4px;cursor:pointer}
         .avail-sort-btn:hover{color:var(--text)}
         .avail-sort-btn.active{color:var(--accent);background:var(--accent-soft)}
       `;
       document.head.appendChild(st);
     }
-    document.getElementById("rr-avail-sortbar").addEventListener("click", (e) => {
+    document.getElementById("rr-avail-search").addEventListener("input", (e) => {
+      _availSearchTerm = (e.target.value || "").trim().toLowerCase();
+      _renderAvailabilityRows();
+    });
+    document.getElementById("rr-avail-toolbar").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-rr-sort]");
       if (!btn) return;
       const k = btn.dataset.rrSort;
@@ -12444,7 +12453,8 @@ function _renderAvailabilityShell() {
         _availSortDir = _availSortDir === "asc" ? "desc" : "asc";
       } else {
         _availSortKey = k;
-        _availSortDir = "asc";
+        // request-count default to descending (most-active drivers up top)
+        _availSortDir = (k === "requests" || k === "submitted") ? "desc" : "asc";
       }
       _renderAvailabilityRows();
     });
@@ -13015,6 +13025,7 @@ function _sortAvailRows(rows) {
       case "station":   av = (a.station_code || "").toLowerCase(); bv = (b.station_code || "").toLowerCase(); break;
       case "status":    av = a.status; bv = b.status; break;
       case "submitted": av = a.submitted_at || ""; bv = b.submitted_at || ""; break;
+      case "requests":  av = a.request_count ?? 0; bv = b.request_count ?? 0; break;
       default: {
         // default: pending first, then newest decided
         const ap = a.status === "pending" ? 0 : 1;
@@ -13034,11 +13045,15 @@ function _renderAvailabilityRows() {
   const wrap = document.getElementById("rr-avail-req-list");
   if (!wrap) return;
 
-  // Reflect active sort.
+  // Reflect active sort on the toolbar buttons.  Each button's base
+  // label lives in data-rr-label so toggling the ↑/↓ arrow is clean.
   document.querySelectorAll("[data-rr-sort]").forEach(b => {
-    b.classList.toggle("active", b.dataset.rrSort === _availSortKey);
-    if (b.dataset.rrSort === _availSortKey) b.textContent = b.dataset.rrSort + (_availSortDir === "asc" ? " ↑" : " ↓");
-    else b.textContent = b.dataset.rrSort;
+    if (!b.dataset.rrLabel) b.dataset.rrLabel = b.textContent;
+    const active = b.dataset.rrSort === _availSortKey;
+    b.classList.toggle("active", active);
+    b.textContent = active
+      ? b.dataset.rrLabel + (_availSortDir === "asc" ? " ↑" : " ↓")
+      : b.dataset.rrLabel;
   });
 
   if (_availRequestsCache.length === 0) {
@@ -13053,7 +13068,22 @@ function _renderAvailabilityRows() {
     return;
   }
 
-  const rows = _sortAvailRows(_availRequestsCache);
+  // Apply the driver-name search filter, then sort.
+  const filtered = _availSearchTerm
+    ? _availRequestsCache.filter((r) =>
+        (r.driver_name || "").toLowerCase().includes(_availSearchTerm) ||
+        (r.station_code || "").toLowerCase().includes(_availSearchTerm))
+    : _availRequestsCache;
+
+  if (filtered.length === 0) {
+    wrap.innerHTML = `<div class="rr-empty" style="padding:32px 18px">
+      <div class="rr-empty-title">No requests match "${escapeHtml(_availSearchTerm)}"</div>
+      <div class="rr-empty-sub">Clear the search to see all ${_availRequestsCache.length} requests.</div>
+    </div>`;
+    return;
+  }
+
+  const rows = _sortAvailRows(filtered);
 
   wrap.innerHTML = rows.map((r) => {
     const same = JSON.stringify((r.days || []).slice().sort()) === JSON.stringify(((r.current_days || []).slice()).sort());
@@ -13145,6 +13175,27 @@ function _renderAvailabilityRows() {
       }
     }
 
+    // History context · "this is their Nth request · last change M ago".
+    const reqCount = r.request_count ?? 1;
+    const ordinal = (n) => {
+      const s = ["th","st","nd","rd"], v = n % 100;
+      return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    };
+    let historyLine = "";
+    if (reqCount > 1) {
+      const prevAgo = r.prev_submitted_at ? _fmtRel(r.prev_submitted_at) : null;
+      historyLine = `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:4px;background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:1px 7px;font-weight:600">
+          ${reqCount >= 5 ? `<span style="color:var(--amber)">●</span>` : ""}${ordinal(reqCount)} request
+        </span>
+        ${prevAgo ? `<span>· previous change ${escapeHtml(prevAgo)}</span>` : ""}
+        <button type="button" data-rr-avail-history="${escapeHtml(r.driver_id)}" data-rr-avail-history-name="${escapeHtml(r.driver_name || "")}"
+                style="font:inherit;font-size:var(--fs-xs);background:none;border:0;color:var(--accent-text);cursor:pointer;text-decoration:underline;text-decoration-color:rgba(15,108,189,.3);padding:0">
+          view history
+        </button>
+      </div>`;
+    }
+
     return `
       <div class="avail-req-row" data-rr-req-id="${escapeHtml(r.id)}" style="padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:220px 1fr auto;gap:16px;align-items:start;${isPending ? "" : "background:var(--canvas)"}">
         <div>
@@ -13153,6 +13204,7 @@ function _renderAvailabilityRows() {
             ${statusPill}
           </div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">${escapeHtml(r.station_code || "—")} · ${metaLine}</div>
+          ${historyLine}
           ${noteLine}
         </div>
         <div>
@@ -13177,6 +13229,79 @@ function _fmtAvailDateShort(iso) {
   } catch { return iso; }
 }
 
+// Lightweight modal showing a driver's full availability-request
+// timeline.  Backed by availability_request_history (migration 0132).
+// Built ad-hoc — no static HTML — since it's small + single-purpose.
+async function _showAvailabilityHistory(driverId, driverName) {
+  // Remove any prior instance.
+  document.getElementById("rr-avail-history-modal")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "rr-avail-history-modal";
+  overlay.className = "modal-backdrop open";
+  overlay.style.zIndex = "90";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:560px">
+      <div class="modal-head">
+        <div>
+          <p class="modal-title">Availability history</p>
+          <p class="modal-sub">${escapeHtml(driverName)}</p>
+        </div>
+        <button class="modal-close" type="button" data-rr-ahist-close aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="rr-ahist-body" style="max-height:60vh;overflow-y:auto">
+        <div class="rr-loading">Loading history</div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => { overlay.remove(); document.body.style.overflow = ""; };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay || e.target.closest("[data-rr-ahist-close]")) close(); });
+
+  const { data, error } = await sb.rpc("availability_request_history", { p_driver_id: driverId });
+  const body = document.getElementById("rr-ahist-body");
+  if (!body) return;
+  if (error) {
+    body.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">Couldn't load history: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) {
+    body.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No availability requests on record for this driver.</div>`;
+    return;
+  }
+
+  const dayLbl = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const fmtDays = (arr) => (Array.isArray(arr) && arr.length) ? arr.map((k) => dayLbl[k] || k).join(", ") : "no days";
+  const statusPill = (s) =>
+    s === "approved" ? `<span class="status-pill status-pill-approved">Approved</span>` :
+    s === "denied"   ? `<span class="status-pill status-pill-denied">Denied</span>` :
+                       `<span class="status-pill status-pill-pending">Pending</span>`;
+
+  body.innerHTML = `
+    <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--s-3)">
+      ${rows.length} request${rows.length === 1 ? "" : "s"} on record, newest first.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:var(--s-2)">
+      ${rows.map((r) => {
+        const eff = (r.effective_from || r.effective_until)
+          ? ` · effective ${r.effective_from ? _fmtAvailDateShort(r.effective_from) : "?"}${r.effective_until ? " – " + _fmtAvailDateShort(r.effective_until) : ""}`
+          : "";
+        const decided = r.decided_at ? ` · decided ${_fmtRel(r.decided_at)}` : "";
+        return `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            ${statusPill(r.status)}
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle)">submitted ${escapeHtml(_fmtRel(r.submitted_at))}${decided}${eff}</span>
+          </div>
+          <div style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(fmtDays(r.days))}</div>
+          ${r.decision_note ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);font-style:italic;margin-top:4px">"${escapeHtml(r.decision_note)}"</div>` : ""}
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
 function _updateAvailReqBadge(count) {
   const badge = document.getElementById("rr-avail-req-badge");
   if (!badge) return;
@@ -13189,6 +13314,18 @@ function _updateAvailReqBadge(count) {
 }
 
 document.addEventListener("click", async (e) => {
+  // "view history" link on an availability request row → open a
+  // lightweight modal with the driver's full request timeline.
+  const histBtn = e.target.closest("[data-rr-avail-history]");
+  if (histBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const driverId   = histBtn.getAttribute("data-rr-avail-history");
+    const driverName = histBtn.getAttribute("data-rr-avail-history-name") || "Driver";
+    await _showAvailabilityHistory(driverId, driverName);
+    return;
+  }
+
   // Approve / deny
   const approve = e.target.closest("[data-rr-avail-approve]");
   const deny    = e.target.closest("[data-rr-avail-deny]");
