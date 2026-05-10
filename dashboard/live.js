@@ -2281,6 +2281,248 @@ async function _submitAdminAddDsp(e) {
 }
 
 
+// ─── Bulk-import drivers · CSV paste flow ─────────────────────────────────
+// UI lives at #modal-bulk-drivers (Drivers view → "Bulk import" button).
+// Parses pasted CSV, shows a live preview, then calls the
+// bulk_create_drivers RPC (migration 0130) which validates server-side
+// and returns per-row results.
+//
+// CSV parser is hand-rolled (RFC-4180-ish) so we don't pull in a
+// dependency for ~30 lines of logic.  Handles quoted fields with
+// embedded commas + escaped quotes.
+
+function _bulkDriversParseCsv(text) {
+  // Split into rows respecting quoted newlines.  Tab-separated paste
+  // (from Google Sheets / Excel) also works — we treat \t and , as
+  // delimiters interchangeably.
+  const rows = [];
+  let cur = [];
+  let field = "";
+  let inQuotes = false;
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += ch; i++; continue;
+    }
+    if (ch === '"') { inQuotes = true; i++; continue; }
+    if (ch === "," || ch === "\t") { cur.push(field); field = ""; i++; continue; }
+    if (ch === "\r") { i++; continue; }
+    if (ch === "\n") { cur.push(field); rows.push(cur); cur = []; field = ""; i++; continue; }
+    field += ch; i++;
+  }
+  if (field !== "" || cur.length) { cur.push(field); rows.push(cur); }
+  return rows.map((r) => r.map((c) => c.trim())).filter((r) => r.some((c) => c !== ""));
+}
+
+function _bulkDriversNormalize(rows) {
+  // Detect header row.  Match any of: first_name, firstname, first
+  // name, fname; same families for last, phone, email.  Letters
+  // case-insensitive.
+  const headerKey = (s) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
+  const looksLikeHeader = (r) =>
+    r.some((c) => /^(first|last|phone|email)/i.test(c)) ||
+    r.some((c) => ["firstname","lastname","phonenumber","emailaddress"].includes(headerKey(c)));
+
+  let headers = ["first_name", "last_name", "phone", "email"];
+  let dataRows = rows;
+  if (rows.length && looksLikeHeader(rows[0])) {
+    headers = rows[0].map((c) => {
+      const k = headerKey(c);
+      if (k.startsWith("first") || k === "fname")  return "first_name";
+      if (k.startsWith("last")  || k === "lname" || k === "surname") return "last_name";
+      if (k.startsWith("phone") || k === "tel" || k === "mobile" || k === "cell") return "phone";
+      if (k.startsWith("email") || k === "mail")   return "email";
+      return c.toLowerCase();
+    });
+    dataRows = rows.slice(1);
+  }
+  return dataRows.map((r) => {
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = r[idx] || ""; });
+    return {
+      first_name: (obj.first_name || "").trim(),
+      last_name:  (obj.last_name  || "").trim(),
+      phone:      (obj.phone      || "").trim(),
+      email:      (obj.email      || "").trim(),
+    };
+  });
+}
+
+function _bulkDriversValidate(rows) {
+  const issues = [];
+  rows.forEach((r, idx) => {
+    if (!r.first_name) issues.push({ row: idx + 1, msg: "missing first name" });
+    if (!r.last_name)  issues.push({ row: idx + 1, msg: "missing last name" });
+    if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) {
+      issues.push({ row: idx + 1, msg: `invalid email "${r.email}"` });
+    }
+  });
+  return issues;
+}
+
+function _renderBulkDriversPreview() {
+  const txt = document.getElementById("rr-bulk-drivers-csv")?.value || "";
+  const wrap = document.getElementById("rr-bulk-drivers-preview-wrap");
+  const body = document.getElementById("rr-bulk-drivers-preview-body");
+  const cnt  = document.getElementById("rr-bulk-drivers-preview-count");
+  const sufx = document.getElementById("rr-bulk-drivers-preview-s");
+  const warn = document.getElementById("rr-bulk-drivers-warnings");
+  const sub  = document.getElementById("rr-bulk-drivers-submit");
+  const errEl = document.getElementById("rr-bulk-drivers-error");
+
+  if (!txt.trim()) {
+    if (wrap) wrap.hidden = true;
+    if (sub)  sub.disabled = true;
+    if (errEl) errEl.hidden = true;
+    return;
+  }
+
+  let parsed, normalized, issues;
+  try {
+    parsed = _bulkDriversParseCsv(txt);
+    normalized = _bulkDriversNormalize(parsed);
+    issues = _bulkDriversValidate(normalized);
+  } catch (e) {
+    if (errEl) { errEl.textContent = `Parse error: ${e.message}`; errEl.hidden = false; }
+    if (sub)  sub.disabled = true;
+    return;
+  }
+
+  if (errEl) errEl.hidden = true;
+  if (wrap)  wrap.hidden = false;
+  if (cnt)   cnt.textContent = normalized.length;
+  if (sufx)  sufx.textContent = normalized.length === 1 ? "" : "s";
+
+  // Render preview rows · max 50 to keep DOM light, with a "+N more" line
+  if (body) {
+    const head = normalized.slice(0, 50);
+    body.innerHTML = head.map((r, i) => {
+      const rowIssues = issues.filter((x) => x.row === i + 1).map((x) => x.msg).join("; ");
+      const dot = rowIssues
+        ? `<span title="${escapeHtml(rowIssues)}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber)"></span>`
+        : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green-bright)"></span>`;
+      return `<tr>
+        <td>${dot}</td>
+        <td>${escapeHtml(r.first_name)}</td>
+        <td>${escapeHtml(r.last_name)}</td>
+        <td>${escapeHtml(r.phone)}</td>
+        <td>${escapeHtml(r.email)}</td>
+      </tr>`;
+    }).join("") + (normalized.length > 50
+      ? `<tr><td colspan="5" style="text-align:center;color:var(--text-subtle);font-style:italic">+ ${normalized.length - 50} more rows (will all be imported)</td></tr>`
+      : "");
+  }
+
+  if (warn) {
+    warn.textContent = issues.length
+      ? `${issues.length} row${issues.length === 1 ? " has" : "s have"} issues — hover the amber dot for details.  Bad rows are skipped on import.`
+      : "All rows look good.";
+  }
+
+  if (sub) sub.disabled = normalized.length === 0;
+}
+
+async function _submitBulkDrivers() {
+  const txt = document.getElementById("rr-bulk-drivers-csv")?.value || "";
+  const sub = document.getElementById("rr-bulk-drivers-submit");
+  const lbl = sub?.querySelector("[data-rr-bulk-drivers-label]");
+  const errEl = document.getElementById("rr-bulk-drivers-error");
+  const resEl = document.getElementById("rr-bulk-drivers-result");
+  if (errEl) errEl.hidden = true;
+  if (resEl) resEl.hidden = true;
+
+  let normalized;
+  try {
+    normalized = _bulkDriversNormalize(_bulkDriversParseCsv(txt));
+  } catch (e) {
+    if (errEl) { errEl.textContent = `Parse error: ${e.message}`; errEl.hidden = false; }
+    return;
+  }
+  if (normalized.length === 0) {
+    if (errEl) { errEl.textContent = "No rows to import."; errEl.hidden = false; }
+    return;
+  }
+
+  if (sub) sub.disabled = true;
+  if (lbl) lbl.textContent = `Importing ${normalized.length}…`;
+
+  const { data, error } = await sb.rpc("bulk_create_drivers", { p_rows: normalized });
+
+  if (sub) sub.disabled = false;
+  if (lbl) lbl.textContent = "Import";
+
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    let msg = error.message || "Couldn't import drivers.";
+    if (/forbidden/i.test(msg)) msg = "You don't have permission to add drivers (need dispatcher or higher).";
+    if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+    return;
+  }
+
+  const summary = data || {};
+  const inserted = summary.inserted ?? 0;
+  const skipped  = summary.skipped  ?? 0;
+  const errored  = summary.errored  ?? 0;
+  const rows     = Array.isArray(summary.rows) ? summary.rows : [];
+
+  if (resEl) {
+    const failedRows = rows.filter((r) => !r.ok);
+    resEl.innerHTML = `
+      <div style="background:${inserted > 0 ? "var(--green-soft)" : "var(--canvas)"};border:1px solid ${inserted > 0 ? "rgba(5,150,105,.20)" : "var(--border)"};border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--fs-sm);line-height:1.5">
+        <div style="font-weight:700;color:${inserted > 0 ? "var(--green-dark)" : "var(--text)"};margin-bottom:6px">Import complete</div>
+        <div style="color:var(--text-muted)">
+          ✅ ${inserted} created
+          ${skipped > 0 ? `· ⏭️ ${skipped} skipped (duplicate email)` : ""}
+          ${errored > 0 ? `· ⚠️ ${errored} errored` : ""}
+        </div>
+        ${failedRows.length > 0 ? `
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-weight:600;color:var(--text-muted)">Show ${failedRows.length} skipped/errored row${failedRows.length === 1 ? "" : "s"}</summary>
+            <ul style="margin:6px 0 0 18px;padding:0;color:var(--text-subtle);font-size:var(--fs-xs)">
+              ${failedRows.map((r) => {
+                const reason = r.reason === "duplicate_email" ? `already exists: ${r.email}`
+                  : r.reason === "missing_name"     ? "missing first or last name"
+                  : r.reason === "db_error"         ? `DB error: ${r.detail || ""}`
+                  : r.reason || "unknown";
+                return `<li>Row ${r.index}: ${escapeHtml(reason)}</li>`;
+              }).join("")}
+            </ul>
+          </details>
+        ` : ""}
+      </div>`;
+    resEl.hidden = false;
+  }
+
+  if (typeof toast === "function") {
+    toast(`Imported ${inserted} driver${inserted === 1 ? "" : "s"}` + (skipped + errored > 0 ? ` (${skipped + errored} skipped/errored — see modal)` : ""), inserted > 0 ? "ok" : "warn");
+  }
+
+  // Refresh the roster to show the new drivers.
+  if (typeof loadDriversRoster === "function" && inserted > 0) loadDriversRoster();
+}
+
+(function bindBulkDriversHandlers() {
+  // Defer to the DOM being parsed.  live.js's top-level await makes
+  // DOMContentLoaded unreliable here (same gotcha as the admin handlers),
+  // so we do an immediate bind + readyState fallback.
+  const bind = () => {
+    const ta = document.getElementById("rr-bulk-drivers-csv");
+    if (ta) ta.addEventListener("input", _renderBulkDriversPreview);
+    const sub = document.getElementById("rr-bulk-drivers-submit");
+    if (sub) sub.addEventListener("click", _submitBulkDrivers);
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind, { once: true });
+  } else {
+    bind();
+  }
+})();
+
 // ─── Drivers roster ────────────────────────────────────────────────────────
 //
 // Replaces the mockup roster rows with live rows from public.drivers.
