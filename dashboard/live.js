@@ -759,17 +759,6 @@ async function loadPipeline(stage = "all") {
 
   list.innerHTML = (rows ?? []).map(renderApplicantCard).join("")
     || `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
-
-  // Hiring-targets strip above the applicant list — open targets created
-  // from the Staffing-outlook page, with how many onboarding drivers
-  // already satisfy each one.
-  let tStrip = document.getElementById("rr-pipeline-targets");
-  if (!tStrip && list.parentNode) {
-    tStrip = document.createElement("div");
-    tStrip.id = "rr-pipeline-targets";
-    list.parentNode.insertBefore(tStrip, list);
-  }
-  if (tStrip) _renderHiringTargetsCard("rr-pipeline-targets", await _fetchHiringTargets(), {});
 }
 
 // ─── paAction override ─────────────────────────────────────────────────────
@@ -18193,8 +18182,7 @@ function _renderHiringTargetsCard(elId, targets, opts = {}) {
 }
 async function _reloadTargetsViews() {
   const targets = await _fetchHiringTargets();
-  if (document.getElementById("rr-outlook-targets"))  _renderHiringTargetsCard("rr-outlook-targets",  targets, { includeClosed: true, subtitle: "open + recently closed" });
-  if (document.getElementById("rr-pipeline-targets")) _renderHiringTargetsCard("rr-pipeline-targets", targets, {});
+  if (document.getElementById("rr-outlook-targets")) _renderHiringTargetsCard("rr-outlook-targets", targets, { includeClosed: true, subtitle: "open + recently closed" });
 }
 document.addEventListener("click", async (e) => {
   // Close / reopen / remove a target.
