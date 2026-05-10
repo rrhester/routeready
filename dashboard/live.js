@@ -18298,80 +18298,146 @@ async function loadStaffingOutlook() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { body.innerHTML = `<div class="empty-state">No workspace.</div>`; return; }
 
-  const since60 = fmtIsoDate(addDays(new Date(), -60));
+  const since60    = fmtIsoDate(addDays(new Date(), -60));
   const thisMonIso = fmtIsoDate(startOfWeekMonday(new Date()));
   const [fcRes, activeRes, onbRes, settingsRes, calloutRes, totalRes] = await Promise.all([
     sb.rpc("route_forecast_get", { p_weeks: _ROUTE_FORECAST_WEEKS }),
-    sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "active"),
-    sb.from("drivers").select("id, hire_date").eq("dsp_id", dspId).eq("status", "onboarding"),
+    sb.from("drivers").select("id, metadata, dl_expires_on").eq("dsp_id", dspId).eq("status", "active"),
+    sb.from("drivers").select("id, metadata, dl_expires_on, hire_date").eq("dsp_id", dspId).eq("status", "onboarding"),
     sb.rpc("scheduling_settings_for_week", { p_week_start: thisMonIso }),
     sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["called_off", "no_show"]),
     sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["scheduled", "completed", "called_off", "no_show"]),
   ]);
   if (fcRes.error) { body.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load: ${escapeHtml(fcRes.error.message)}</div>`; return; }
 
-  const weeksRaw    = Array.isArray(fcRes.data) ? fcRes.data : [];
-  const activeCount = activeRes.count || 0;
+  const fc          = fcRes.data || {};
+  const weeksRaw    = Array.isArray(fc.weeks) ? fc.weeks : [];
+  const startsAfter = fc.starts_after || null;          // last scheduled week's Monday (null if none)
+  const baseline    = Number(fc.baseline) || 0;
+  const active      = activeRes.data || [];
   const onb         = onbRes.data || [];
   const maxDays     = (() => { const v = settingsRes.data?.max_days_per_week; return Number.isFinite(v) ? Math.max(1, Math.min(7, v)) : 5; })();
   const calloutRate = (totalRes.count || 0) > 0 ? Math.min(0.5, (calloutRes.count || 0) / totalRes.count) : 0;
-  const perDriver   = maxDays * (1 - calloutRate);   // realistic route-days one driver covers in a week
-
-  const rows = weeksRaw.map(w => {
-    const slots     = (w.route_slots != null) ? w.route_slots : (w.scheduled || 0);
-    const estimated = (w.route_slots == null);
-    const onbHere   = onb.filter(d => (d.hire_date || "9999-12-31") <= w.week_start).length;
-    const roster    = activeCount + onbHere;
-    const need      = perDriver > 0 ? Math.ceil(slots / perDriver) : (slots > 0 ? Infinity : 0);
-    const gap       = Math.max(0, (Number.isFinite(need) ? need : 0) - roster);
-    return { week_start: w.week_start, slots, estimated, onbHere, roster, need, gap };
-  });
-  const hireTotal = rows.reduce((m, r) => Math.max(m, r.gap), 0);
-  const firstPeak = hireTotal > 0 ? rows.find(r => r.gap >= hireTotal) : null;
-  const shortNow  = rows[0] ? rows[0].gap : 0;
-  const onbTotal  = onb.length;
-
-  const fmtWk = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const showRatePct = Math.round((1 - calloutRate) * 100);
+  const showRate    = 1 - calloutRate;
+  const showPct     = Math.round(showRate * 100);
   const calloutPct  = Math.round(calloutRate * 100);
 
-  const tableRows = rows.map((r, i) => `
-    <tr${i === 0 ? ' style="background:var(--canvas)"' : ""}>
-      <td style="padding:8px 12px;white-space:nowrap">${i === 0 ? "This week" : `Week of ${escapeHtml(fmtWk(r.week_start))}`}</td>
+  // A driver's weekly route-day capacity: clamped to the days they're
+  // available for (or the full cap if they haven't set availability),
+  // never above the cap.
+  const capOf = (d) => {
+    const n = (d.metadata?.availability?.days || []).length;
+    return Math.min(maxDays, n > 0 ? n : maxDays);
+  };
+  const usableOn = (d, weekStart, isOnb) => {
+    if (d.dl_expires_on && d.dl_expires_on < weekStart) return false;          // license lapses before this week
+    if (isOnb && (d.hire_date || "9999-12-31") > weekStart) return false;       // not started yet
+    return true;
+  };
+  const noAvailCount = active.filter(d => !((d.metadata?.availability?.days) || []).length).length
+                     + onb.filter(d => !((d.metadata?.availability?.days) || []).length).length;
+  const newHireWeekly = maxDays * showRate;   // route-days a new hire is assumed to cover
+
+  // Per-week model.
+  const rows = weeksRaw.map(w => ({
+    week_start: w.week_start,
+    saved:      (w.route_slots != null) ? Number(w.route_slots) : null,
+    slots:      (w.route_slots != null) ? Number(w.route_slots) : baseline,
+    estimated:  (w.route_slots == null),
+  }));
+  const compute = () => {
+    for (const r of rows) {
+      let sumCap = 0;
+      for (const d of active) if (usableOn(d, r.week_start, false)) sumCap += capOf(d);
+      for (const d of onb)    if (usableOn(d, r.week_start, true))  sumCap += capOf(d);
+      r.capacity = Math.round(sumCap * showRate);
+      r.shortDays = Math.max(0, r.slots - r.capacity);
+      r.hire = newHireWeekly > 0 ? Math.ceil(r.shortDays / newHireWeekly) : (r.shortDays > 0 ? Infinity : 0);
+    }
+  };
+  compute();
+  const hireTotalOf = () => rows.reduce((m, r) => Math.max(m, Number.isFinite(r.hire) ? r.hire : 0), 0);
+  const firstPeakOf = (h) => h > 0 ? rows.find(r => (Number.isFinite(r.hire) ? r.hire : 0) >= h) : null;
+
+  const fmtWk = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const onbTotal = onb.length;
+  const horizonStart = rows[0]?.week_start;
+  const horizonEnd   = rows.length ? rows[rows.length - 1].week_start : null;
+
+  // ── Render shell (inputs only ever rendered once — computed cells get
+  //    patched in place so typing never re-renders the page). ──
+  const tableRows = rows.map((r) => `
+    <tr>
+      <td style="padding:8px 12px;white-space:nowrap">Week of ${escapeHtml(fmtWk(r.week_start))}</td>
       <td style="padding:8px 12px;text-align:right;white-space:nowrap">
-        <input type="number" min="0" max="100000" step="1" value="${r.slots}" data-rr-fc-week="${escapeHtml(r.week_start)}" class="form-input" style="width:88px;text-align:right${r.estimated ? ";color:var(--text-subtle)" : ""}"/>
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px">≈ ${(r.slots / 7).toFixed(1)}/day${r.estimated ? " · est" : ""}</span>
+        <input type="number" min="0" max="100000" step="1" value="${r.slots}" data-rr-fc-week="${escapeHtml(r.week_start)}" class="form-input" style="width:90px;text-align:right"/>
+        <span data-rr-fc-perday="${escapeHtml(r.week_start)}" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px">≈ ${(r.slots / 7).toFixed(1)}/day</span>
       </td>
-      <td style="padding:8px 12px;text-align:right">${Number.isFinite(r.need) ? r.need : "—"}</td>
-      <td style="padding:8px 12px;text-align:right">${r.roster}${r.onbHere ? ` <span style="color:var(--text-subtle);font-size:var(--fs-xs)">(+${r.onbHere} onb)</span>` : ""}</td>
-      <td style="padding:8px 12px;text-align:right;font-weight:700;color:${r.gap > 0 ? "var(--red)" : "var(--green)"}">${r.gap > 0 ? `+${r.gap}` : "ok"}</td>
+      <td data-rr-fc-cap="${escapeHtml(r.week_start)}" style="padding:8px 12px;text-align:right;color:var(--text-muted)">${r.capacity}</td>
+      <td data-rr-fc-short="${escapeHtml(r.week_start)}" style="padding:8px 12px;text-align:right">${r.shortDays > 0 ? r.shortDays : "—"}</td>
+      <td data-rr-fc-hire="${escapeHtml(r.week_start)}" style="padding:8px 12px;text-align:right;font-weight:700;color:${r.hire > 0 ? "var(--red)" : "var(--green)"}">${(Number.isFinite(r.hire) && r.hire > 0) ? `+${r.hire}` : (Number.isFinite(r.hire) ? "ok" : "—")}</td>
     </tr>`).join("");
+
+  const h0   = hireTotalOf();
+  const fp0  = firstPeakOf(h0);
+  const totalCapNow = (() => { let s = 0; for (const d of active) s += capOf(d); return Math.round(s * showRate); })();
 
   body.innerHTML = `
     <div class="driver-stat-row" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:18px">
-      <div class="stat-mini"><div class="stat-mini-label">Drivers to hire</div><div class="stat-mini-value" style="color:${hireTotal === 0 ? "var(--green)" : "var(--red)"};font-size:32px;line-height:1.1">${hireTotal}</div><div class="stat-mini-sub">${hireTotal === 0 ? `your roster covers the next ${_ROUTE_FORECAST_WEEKS} weeks` : `more drivers to cover your forecast over the next ${_ROUTE_FORECAST_WEEKS} weeks`}</div></div>
-      <div class="stat-mini"><div class="stat-mini-label">${hireTotal === 0 ? "Status" : "Have them by"}</div><div class="stat-mini-value" style="font-size:var(--fs-lg)">${hireTotal === 0 ? "Covered" : (firstPeak ? `Week of ${escapeHtml(fmtWk(firstPeak.week_start))}` : "—")}</div><div class="stat-mini-sub">${shortNow > 0 ? `you're already ${shortNow} short this week` : (hireTotal > 0 ? "hire ahead of this week" : "no action needed")}</div></div>
-      <div class="stat-mini"><div class="stat-mini-label">Roster today</div><div class="stat-mini-value">${activeCount}${onbTotal ? ` <span style="font-size:var(--fs-md);color:var(--text-subtle)">+${onbTotal}</span>` : ""}</div><div class="stat-mini-sub">active${onbTotal ? ` · +${onbTotal} onboarding` : ""} · ${maxDays}d/wk cap · ~${calloutPct}% call-offs</div></div>
+      <div class="stat-mini"><div class="stat-mini-label">Drivers to hire</div><div id="rr-fc-hiretotal" class="stat-mini-value" style="color:${h0 === 0 ? "var(--green)" : "var(--red)"};font-size:32px;line-height:1.1">${h0}</div><div class="stat-mini-sub">${h0 === 0 ? `your roster covers all ${_ROUTE_FORECAST_WEEKS} forecast weeks` : `more drivers to cover the next ${_ROUTE_FORECAST_WEEKS} weeks of routes`}</div></div>
+      <div class="stat-mini"><div class="stat-mini-label">${h0 === 0 ? "Status" : "Have them by"}</div><div id="rr-fc-byweek" class="stat-mini-value" style="font-size:var(--fs-lg)">${h0 === 0 ? "Covered" : (fp0 ? `Week of ${escapeHtml(fmtWk(fp0.week_start))}` : "—")}</div><div id="rr-fc-byweek-sub" class="stat-mini-sub">${h0 === 0 ? "no action needed" : "hire ahead of this week"}</div></div>
+      <div class="stat-mini"><div class="stat-mini-label">Roster capacity</div><div class="stat-mini-value">~${totalCapNow}<span style="font-size:var(--fs-md);color:var(--text-subtle)"> route-days/wk</span></div><div class="stat-mini-sub">${active.length} active${onbTotal ? ` (+${onbTotal} onboarding)` : ""} · ${maxDays}d cap · ~${calloutPct}% call-offs</div></div>
     </div>
 
     <div class="card">
-      <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div class="card-title">Route forecast · next ${_ROUTE_FORECAST_WEEKS} weeks</div><button class="btn btn-sm" type="button" id="rr-fc-fill-all" title="Copy this week's number into every later week">Fill all weeks from this week</button></div>
-      <div style="padding:10px 14px 4px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">Enter the <strong>total routes you expect to dispatch each week</strong> — route-days, e.g. 14 routes/day &times; 7 days = 98. RouteReady turns that into a headcount: a driver works up to <strong>${maxDays} days/week</strong>, and ~${calloutPct}% of shifts fall through to call-offs, so each driver covers about <strong>${perDriver.toFixed(1)}</strong> route-days a week.</div>
+      <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div class="card-title">Route forecast${horizonStart ? ` · weeks of ${escapeHtml(fmtWk(horizonStart))}–${escapeHtml(fmtWk(horizonEnd))}` : ""}</div><button class="btn btn-sm" type="button" id="rr-fc-fill-all" title="Copy the first week's number into every later week">Fill all weeks from the first</button></div>
+      <div style="padding:10px 14px 4px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">${startsAfter ? `Picks up where the schedule ends — the last scheduled week is the week of ${escapeHtml(fmtWk(startsAfter))}, so the forecast starts the week after.` : `No schedule generated yet, so the forecast starts this week.`} Enter the <strong>total routes you expect to dispatch each week</strong> (route-days — e.g. 14 routes/day &times; 7 days = 98).</div>
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md);margin-top:6px">
-        <thead><tr style="color:var(--text-subtle);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em"><th style="padding:8px 12px;text-align:left">Week</th><th style="padding:8px 12px;text-align:right">Routes / week</th><th style="padding:8px 12px;text-align:right">Drivers needed</th><th style="padding:8px 12px;text-align:right">You'll have</th><th style="padding:8px 12px;text-align:right">Hire</th></tr></thead>
+        <thead><tr style="color:var(--text-subtle);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em"><th style="padding:8px 12px;text-align:left">Week</th><th style="padding:8px 12px;text-align:right">Routes / week</th><th style="padding:8px 12px;text-align:right">Roster can do</th><th style="padding:8px 12px;text-align:right">Short by</th><th style="padding:8px 12px;text-align:right">Hire</th></tr></thead>
         <tbody>${tableRows || `<tr><td colspan="5" style="padding:16px;color:var(--text-subtle)">No weeks to show.</td></tr>`}</tbody>
       </table>
-      <div style="padding:8px 14px 14px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">"Drivers needed" = routes &divide; (${maxDays} days &times; ${showRatePct}% show rate), rounded up. "You'll have" counts your active drivers plus anyone already in onboarding by that week. "Hire" is the additional drivers you'd need. Estimated weeks are pre-filled from the current schedule — edit them; numbers save as you type.</div>
+      <div style="padding:8px 14px 14px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.6">
+        "Roster can do" = each driver's days/week (their availability, capped at ${maxDays}) summed, &times; your ${showPct}% show rate (drivers whose license lapses before a week aren't counted; onboarding drivers count once their start date passes). "Short by" = routes minus that. "Hire" rounds up the shortfall at ${newHireWeekly.toFixed(1)} route-days per new driver.${noAvailCount > 0 ? ` ${noAvailCount} driver${noAvailCount === 1 ? " has" : "s have"} no availability set — counted at the full ${maxDays} days/wk.` : ""} Numbers save as you type. PTO isn't factored this far out.
+      </div>
     </div>`;
+
+  // ── Patch computed cells + headline without re-rendering ──
+  const paint = () => {
+    const h  = hireTotalOf();
+    const fp = firstPeakOf(h);
+    for (const r of rows) {
+      const cap   = body.querySelector(`[data-rr-fc-cap="${CSS.escape(r.week_start)}"]`);
+      const sh    = body.querySelector(`[data-rr-fc-short="${CSS.escape(r.week_start)}"]`);
+      const hi    = body.querySelector(`[data-rr-fc-hire="${CSS.escape(r.week_start)}"]`);
+      const pd    = body.querySelector(`[data-rr-fc-perday="${CSS.escape(r.week_start)}"]`);
+      if (cap) cap.textContent = r.capacity;
+      if (sh)  sh.textContent  = r.shortDays > 0 ? r.shortDays : "—";
+      if (hi)  { hi.textContent = (Number.isFinite(r.hire) && r.hire > 0) ? `+${r.hire}` : (Number.isFinite(r.hire) ? "ok" : "—"); hi.style.color = r.hire > 0 ? "var(--red)" : "var(--green)"; }
+      if (pd)  pd.textContent  = `≈ ${(r.slots / 7).toFixed(1)}/day`;
+    }
+    const ht = document.getElementById("rr-fc-hiretotal");
+    if (ht) { ht.textContent = h; ht.style.color = h === 0 ? "var(--green)" : "var(--red)"; }
+    const bw = document.getElementById("rr-fc-byweek");
+    if (bw) bw.textContent = h === 0 ? "Covered" : (fp ? `Week of ${fmtWk(fp.week_start)}` : "—");
+    const bws = document.getElementById("rr-fc-byweek-sub");
+    if (bws) bws.textContent = h === 0 ? "no action needed" : "hire ahead of this week";
+  };
+
+  const saveWeek = async (weekStart, val) => {
+    const { error } = await sb.rpc("route_forecast_set", { p_week_start: weekStart, p_route_slots: val });
+    if (error) toast("Save failed: " + error.message, "warn");
+  };
 
   body.querySelectorAll("[data-rr-fc-week]").forEach(inp => {
     inp.addEventListener("change", async () => {
       const wk  = inp.getAttribute("data-rr-fc-week");
       const val = Math.max(0, Math.min(100000, parseInt(inp.value, 10) || 0));
       inp.value = String(val);
-      const { error } = await sb.rpc("route_forecast_set", { p_week_start: wk, p_route_slots: val });
-      if (error) { toast("Save failed: " + error.message, "warn"); return; }
-      loadStaffingOutlook();
+      const r = rows.find(x => x.week_start === wk);
+      if (r) { r.slots = val; r.saved = val; r.estimated = false; }
+      compute();
+      paint();
+      await saveWeek(wk, val);
     });
   });
   const fillBtn = document.getElementById("rr-fc-fill-all");
@@ -18380,11 +18446,15 @@ async function loadStaffingOutlook() {
     const v = rows[0].slots;
     fillBtn.disabled = true;
     for (const r of rows) {
-      const { error } = await sb.rpc("route_forecast_set", { p_week_start: r.week_start, p_route_slots: v });
-      if (error) { toast("Save failed: " + error.message, "warn"); fillBtn.disabled = false; return; }
+      r.slots = v; r.saved = v; r.estimated = false;
+      const inp = body.querySelector(`[data-rr-fc-week="${CSS.escape(r.week_start)}"]`);
+      if (inp) inp.value = String(v);
     }
+    compute();
+    paint();
+    for (const r of rows) await saveWeek(r.week_start, v);
+    fillBtn.disabled = false;
     toast("Filled all weeks", "success");
-    loadStaffingOutlook();
   });
 }
 
