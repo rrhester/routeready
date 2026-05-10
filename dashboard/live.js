@@ -759,6 +759,17 @@ async function loadPipeline(stage = "all") {
 
   list.innerHTML = (rows ?? []).map(renderApplicantCard).join("")
     || `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
+
+  // Hiring-targets strip above the applicant list — open targets created
+  // from the Staffing-outlook page, with how many onboarding drivers
+  // already satisfy each one.
+  let tStrip = document.getElementById("rr-pipeline-targets");
+  if (!tStrip && list.parentNode) {
+    tStrip = document.createElement("div");
+    tStrip.id = "rr-pipeline-targets";
+    list.parentNode.insertBefore(tStrip, list);
+  }
+  if (tStrip) _renderHiringTargetsCard("rr-pipeline-targets", await _fetchHiringTargets(), {});
 }
 
 // ─── paAction override ─────────────────────────────────────────────────────
@@ -18123,6 +18134,87 @@ function _outlookMatchWeek(driverIds, driverDates, demandByDate, cap) {
   return { covered, demand: totalDemand, deficitByDate };
 }
 
+// ─── Hiring targets — the pipeline ↔ schedule bridge ───────────────────
+// A hiring target turns a structural gap from the Staffing outlook ("short
+// ~2 Saturday drivers") into something the Pipeline page tracks against
+// ("Sat drivers: 1 of 2 — Devon onboarding ✓, need 1 more").
+
+async function _fetchHiringTargets() {
+  const { data, error } = await sb.rpc("hiring_target_list");
+  if (error) { console.warn("hiring_target_list:", error.message); return []; }
+  return Array.isArray(data) ? data : [];
+}
+function _hiringTargetRowHtml(t) {
+  const need  = t.needed_count || 1;
+  const got   = (t.matched || []).length;
+  const met   = got >= need;
+  const days  = (t.days || []).map(k => _OUTLOOK_DOW_LBL[k] || k).join(", ");
+  const title = (t.label && t.label.trim()) || (days ? `${days} drivers` : "Drivers");
+  const cert  = t.service_type_code ? ` · ${escapeHtml(t.service_type_code)}` : "";
+  const es    = t.earliest_start_max ? ` · start ≤ ${escapeHtml(_fmtTime12(t.earliest_start_max) || t.earliest_start_max)}` : "";
+  const names = (t.matched || []).map(m => escapeHtml(m.name)).join(", ");
+  const badge = t.status === "filled"    ? `<span class="status-pill status-pill-approved">Filled</span>`
+              : t.status === "cancelled" ? `<span class="status-pill status-pill-denied">Removed</span>`
+              : (met ? `<span class="status-pill status-pill-approved">Met · ${got}/${need}</span>` : `<span class="status-pill status-pill-pending">${got}/${need}</span>`);
+  return `<div style="padding:8px 12px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div style="flex:1;min-width:140px">
+      <div style="font-weight:600;font-size:var(--fs-md)">${escapeHtml(title)}${days && !(t.label && t.label.trim()) ? "" : (days ? ` <span style="font-weight:400;color:var(--text-subtle);font-size:var(--fs-xs)">(${escapeHtml(days)})</span>` : "")}${cert}${es}</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-muted)">${got > 0 ? `In onboarding: ${names}` : "No onboarding drivers match this yet"}</div>
+    </div>
+    ${badge}
+    ${t.status === "open"
+      ? `<button class="btn btn-sm" type="button" data-rr-target-action="filled" data-rr-target-id="${escapeHtml(t.id)}">Close</button>`
+      : `<button class="btn btn-sm" type="button" data-rr-target-action="open" data-rr-target-id="${escapeHtml(t.id)}">Reopen</button>`}
+    <button class="btn btn-sm" type="button" data-rr-target-action="cancelled" data-rr-target-id="${escapeHtml(t.id)}" title="Remove this target">✕</button>
+  </div>`;
+}
+function _renderHiringTargetsCard(elId, targets, opts = {}) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const show = (opts.includeClosed ? targets : targets.filter(t => t.status === "open")).slice(0, opts.includeClosed ? 12 : 50);
+  el.innerHTML = `<div class="card" style="margin-bottom:16px">
+    <div class="card-head"><div class="card-title">Hiring targets${opts.subtitle ? ` <span style="font-weight:400;color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(opts.subtitle)}</span>` : ""}</div></div>
+    ${show.length === 0
+      ? `<div style="padding:12px 14px;color:var(--text-subtle);font-size:var(--fs-sm)">No open hiring targets — create one from the Staffing outlook page when you spot a gap.</div>`
+      : show.map(_hiringTargetRowHtml).join("")}
+  </div>`;
+}
+async function _reloadTargetsViews() {
+  const targets = await _fetchHiringTargets();
+  if (document.getElementById("rr-outlook-targets"))  _renderHiringTargetsCard("rr-outlook-targets",  targets, { includeClosed: true, subtitle: "open + recently closed" });
+  if (document.getElementById("rr-pipeline-targets")) _renderHiringTargetsCard("rr-pipeline-targets", targets, {});
+}
+document.addEventListener("click", async (e) => {
+  // Close / reopen / remove a target.
+  const ta = e.target.closest("[data-rr-target-action]");
+  if (ta) {
+    e.preventDefault();
+    const id = ta.getAttribute("data-rr-target-id");
+    const status = ta.getAttribute("data-rr-target-action");
+    if (status === "cancelled" && !confirm("Remove this hiring target?")) return;
+    ta.disabled = true;
+    const { error } = await sb.rpc("hiring_target_upsert", { p_payload: { id, status } });
+    if (error) { toast("Failed: " + error.message, "warn"); ta.disabled = false; return; }
+    toast(status === "filled" ? "Target closed" : status === "cancelled" ? "Target removed" : "Target reopened", "success");
+    await _reloadTargetsViews();
+    return;
+  }
+  // Create a target from a Staffing-outlook "hire for these days" row.
+  const tc = e.target.closest("[data-rr-create-target]");
+  if (tc) {
+    e.preventDefault();
+    const day   = tc.getAttribute("data-rr-create-target") || "";
+    const count = Math.max(1, parseInt(tc.getAttribute("data-rr-create-count") || "1", 10) || 1);
+    const label = day ? `${_OUTLOOK_DOW_LBL[day] || day} drivers` : "New hire";
+    tc.disabled = true;
+    const { error } = await sb.rpc("hiring_target_upsert", { p_payload: { label, needed_count: count, days: day ? [day] : [] } });
+    if (error) { toast("Failed: " + error.message, "warn"); tc.disabled = false; return; }
+    toast("Hiring target created — it's tracked on the Pipeline page", "success");
+    await _reloadTargetsViews();
+    return;
+  }
+});
+
 async function loadStaffingOutlook() {
   const body = document.getElementById("rr-outlook-body");
   if (!body) return;
@@ -18234,7 +18326,7 @@ async function loadStaffingOutlook() {
     for (const k of missing) { const def = basePipe.deficitByDow.get(k) || 0; if (def > bestDef) { bestDef = def; bestDow = k; } }
     const fewDays = have.size > 0 && have.size <= 3;
     if (bestDef <= 0 && !fewDays) continue;
-    oneOnOnes.push({ name: displayDriverName(d), haveCount: have.size, bestDow, bestDef: Math.min(bestDef, _OUTLOOK_WEEKS), fewDays });
+    oneOnOnes.push({ id: d.id, name: displayDriverName(d), haveCount: have.size, bestDow, bestDef: Math.min(bestDef, _OUTLOOK_WEEKS), fewDays });
   }
   oneOnOnes.sort((a, b) => (b.bestDef - a.bestDef) || (a.haveCount - b.haveCount));
 
@@ -18259,11 +18351,12 @@ async function loadStaffingOutlook() {
       : (hasPipeline && opC !== op)
         ? `${op}% · ~${rl}% real <span style="color:var(--text-subtle)">(${opC}% on current roster)</span>`
         : `${op}% · ~${rl}% real`;
+    const link = (w.demand === 0 || i > 3) ? "" : ` <button class="btn btn-sm" type="button" data-rr-outlook-week="${i}" style="margin-left:8px" title="Open this week in the Schedule">open →</button>`;
     return `<tr>
       <td style="padding:8px 12px;white-space:nowrap">Week of ${escapeHtml(lbl)}</td>
       <td style="padding:8px 12px;text-align:center">${w.demand === 0 ? "—" : lightOf(op, rl)}</td>
       <td style="padding:8px 12px;text-align:right;white-space:nowrap">${covCell}</td>
-      <td style="padding:8px 12px;color:var(--text-subtle);font-size:var(--fs-sm)">${w.demand === 0 ? "schedule not generated yet" : (short || "fully coverable")}</td>
+      <td style="padding:8px 12px;color:var(--text-subtle);font-size:var(--fs-sm)">${w.demand === 0 ? "schedule not generated yet" : (short || "fully coverable")}${link}</td>
     </tr>`;
   }).join("");
 
@@ -18291,6 +18384,8 @@ async function loadStaffingOutlook() {
 
     ${pipelineNote}
 
+    <div id="rr-outlook-targets"></div>
+
     <div class="card" style="margin-bottom:16px">
       <div class="card-head"><div class="card-title">Week by week</div></div>
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md)">
@@ -18305,8 +18400,8 @@ async function loadStaffingOutlook() {
         <div style="padding:12px 14px">
           ${hireDays.length === 0
             ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No structural shortfall over the next ${_OUTLOOK_WEEKS} weeks${hasPipeline ? " (counting who's onboarding)" : ""} — every day is coverable.</div>`
-            : hireDays.map(x => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-subtle)"><span style="font-weight:600">${_OUTLOOK_DOW_LBL[x.k]}</span><span style="color:var(--text-muted);font-size:var(--fs-sm);text-align:right">short ~${x.def} shift${x.def === 1 ? "" : "s"} over ${_OUTLOOK_WEEKS} weeks (~${(x.def / _OUTLOOK_WEEKS).toFixed(1)}/wk)</span></div>`).join("")
-              + `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">Prioritize applicants who can work ${escapeHtml(hireDays.map(x => _OUTLOOK_DOW_LBL[x.k]).join(", "))}${hasPipeline ? " — this is what's still short after the people you're onboarding" : ""}.</div>`}
+            : hireDays.map(x => { const need = Math.max(1, Math.ceil(x.def / _OUTLOOK_WEEKS)); return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-subtle)"><span style="font-weight:600">${_OUTLOOK_DOW_LBL[x.k]}</span><span style="display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:var(--fs-sm);text-align:right">short ~${x.def} shift${x.def === 1 ? "" : "s"} over ${_OUTLOOK_WEEKS} weeks (~${(x.def / _OUTLOOK_WEEKS).toFixed(1)}/wk) <button class="btn btn-sm" type="button" data-rr-create-target="${x.k}" data-rr-create-count="${need}" title="Create a hiring target for ${_OUTLOOK_DOW_LBL[x.k]}">+ Track</button></span></div>`; }).join("")
+              + `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">"+ Track" creates a hiring target the Pipeline page measures against. Prioritize applicants who can work ${escapeHtml(hireDays.map(x => _OUTLOOK_DOW_LBL[x.k]).join(", "))}${hasPipeline ? " — this is what's still short after the people you're onboarding" : ""}.</div>`}
         </div>
       </div>
       <div class="card">
@@ -18314,7 +18409,7 @@ async function loadStaffingOutlook() {
         <div style="padding:12px 14px">
           ${oneOnOnes.length === 0
             ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No one stands out — either coverage is fine or your drivers are already broadly available.</div>`
-            : oneOnOnes.slice(0, 8).map(o => `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle)"><div style="font-weight:600">${escapeHtml(o.name)}</div><div style="font-size:var(--fs-sm);color:var(--text-muted)">Available ${o.haveCount} day${o.haveCount === 1 ? "" : "s"}/wk${o.bestDow && o.bestDef > 0 ? ` · opening ${_OUTLOOK_DOW_LBL[o.bestDow]} would help cover ~${o.bestDef} short shift${o.bestDef === 1 ? "" : "s"}` : (o.fewDays ? " · quite limited" : "")}.</div></div>`).join("")
+            : oneOnOnes.slice(0, 8).map(o => `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle)"><div style="font-weight:600;cursor:pointer" data-rr-driver-id="${escapeHtml(o.id)}" title="Open ${escapeHtml(o.name)}'s record">${escapeHtml(o.name)}</div><div style="font-size:var(--fs-sm);color:var(--text-muted)">Available ${o.haveCount} day${o.haveCount === 1 ? "" : "s"}/wk${o.bestDow && o.bestDef > 0 ? ` · opening ${_OUTLOOK_DOW_LBL[o.bestDow]} would help cover ~${o.bestDef} short shift${o.bestDef === 1 ? "" : "s"}` : (o.fewDays ? " · quite limited" : "")}.</div></div>`).join("")
               + (oneOnOnes.length > 8 ? `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">+ ${oneOnOnes.length - 8} more</div>` : "")}
         </div>
       </div>
@@ -18323,10 +18418,21 @@ async function loadStaffingOutlook() {
     <div style="margin-top:14px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.6">
       "Coverable" is the ceiling — the most shifts your roster could fill if every driver worked up to the weekly cap, given who's available and on PTO. It's not a guarantee. "~X% real" discounts it by your ${Math.round(calloutRate * 100)}% call-off / no-show rate over the last 60 days. Drivers you're onboarding count toward the weeks after their start date, but only once they have an availability set on their record. Weeks with no schedule generated yet aren't counted. Drivers with no availability set are treated as unavailable.
     </div>`;
+
+  _renderHiringTargetsCard("rr-outlook-targets", await _fetchHiringTargets(), { includeClosed: true, subtitle: "open + recently closed" });
 }
 
-// Refresh button in the Staffing-outlook page header.
-document.addEventListener("click", (e) => { if (e.target.closest("#rr-outlook-refresh")) loadStaffingOutlook(); });
+// Refresh button + "open in Schedule →" deep links on the Staffing-outlook page.
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#rr-outlook-refresh")) { loadStaffingOutlook(); return; }
+  const wk = e.target.closest("[data-rr-outlook-week]");
+  if (wk) {
+    e.preventDefault();
+    const off = wk.getAttribute("data-rr-outlook-week");
+    if (typeof window.goto === "function") window.goto("schedule");
+    setTimeout(() => { document.querySelector(`[data-rr-week-offset="${off}"]`)?.click(); }, 90);
+  }
+});
 
 
 // Hook view + sub-view loaders.
