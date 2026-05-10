@@ -9626,7 +9626,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
   if (_ddTab === "attendance")   renderAttendanceTab(body, _ddDriver.driver);
-  if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver);
+  if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver, _ddDriver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
   setDriverDrawerFoot();
@@ -9646,7 +9646,7 @@ function setDriverDrawerFoot() {
   }
 }
 
-function renderAvailabilityTab(body, d) {
+function renderAvailabilityTab(body, d, record) {
   const meta = d.metadata || {};
   const avail = meta.availability || {};
   const days = avail.days || [];
@@ -9658,7 +9658,44 @@ function renderAvailabilityTab(body, d) {
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
+
+  // Surface the request workflow state so the operator understands
+  // why the checkboxes might not match a recent approval (with the
+  // default lead time, an approved change doesn't take effect — and
+  // doesn't change metadata.availability.days — until effective_from).
+  const todayIso   = new Date().toISOString().slice(0, 10);
+  const pending    = record?.availability_pending || null;
+  const latest     = record?.availability_latest  || null;
+  const fmtDays    = (arr) => (Array.isArray(arr) && arr.length)
+    ? arr.map((k) => dayLabel[k] || k).join(", ")
+    : "no days";
+
+  let stateBanner = "";
+  if (pending) {
+    stateBanner = `
+      <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--amber-soft);border:1px solid rgba(217,119,6,.2);font-size:var(--fs-sm);color:var(--amber);line-height:1.5">
+        <strong>Driver requested a change</strong> — ${escapeHtml(fmtDays(pending.days))}.
+        Awaiting your decision in Drivers → Availability.
+      </div>`;
+  } else if (latest && latest.status === "approved" && latest.effective_from && latest.effective_from > todayIso) {
+    // Approved but not yet effective — explains the mismatch.
+    stateBanner = `
+      <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--accent-soft);border:1px solid var(--accent-border);font-size:var(--fs-sm);color:var(--accent-text);line-height:1.5">
+        <strong>Approved change takes effect ${escapeHtml(_fmtAvailDateShort(latest.effective_from))}</strong>
+        ${latest.effective_until ? ` – ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}` : ""}:
+        ${escapeHtml(fmtDays(latest.days))}.
+        The toggles below still show today's live availability until then.
+      </div>`;
+  } else if (latest && latest.status === "approved" && latest.effective_until && latest.effective_until >= todayIso) {
+    // Currently in effect.
+    stateBanner = `
+      <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--green-soft);border:1px solid rgba(5,150,105,.2);font-size:var(--fs-sm);color:var(--green);line-height:1.5">
+        Current availability is from an approved request, in effect through ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}.
+      </div>`;
+  }
+
   body.innerHTML = `
+    ${stateBanner}
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
       <label>Available days</label>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${availBoxes}</div>
@@ -13033,7 +13070,26 @@ function _renderAvailabilityRows() {
     if (isPending) {
       metaLine = `submitted ${escapeHtml(_fmtRel(r.submitted_at))}`;
     } else if (isApproved) {
-      metaLine = `approved ${escapeHtml(_fmtRel(r.decided_at))} · effective through ${escapeHtml(_fmtAvailDateShort(r.effective_until))}`;
+      // Show the full effective window — "effective through X" was
+      // misleading because it hid the START date.  With the default
+      // 7-day lead, approved changes don't take effect immediately;
+      // the operator needs to see WHEN they kick in.
+      const todayIso  = new Date().toISOString().slice(0, 10);
+      const fromIso   = r.effective_from  || null;   // ISO "YYYY-MM-DD" — sorts lexically
+      const untilIso  = r.effective_until || null;
+      const fromLabel  = fromIso  ? _fmtAvailDateShort(fromIso)  : null;
+      const untilLabel = untilIso ? _fmtAvailDateShort(untilIso) : null;
+      let effPart;
+      if (fromIso && fromIso <= todayIso && untilLabel) {
+        effPart = `effective now through ${escapeHtml(untilLabel)}`;
+      } else if (fromLabel && untilLabel) {
+        effPart = `effective ${escapeHtml(fromLabel)} – ${escapeHtml(untilLabel)}`;
+      } else if (fromLabel) {
+        effPart = `effective ${escapeHtml(fromLabel)}`;
+      } else {
+        effPart = "effective date pending";
+      }
+      metaLine = `approved ${escapeHtml(_fmtRel(r.decided_at))} · ${effPart}`;
     } else {
       metaLine = `denied ${escapeHtml(_fmtRel(r.decided_at))}`;
     }

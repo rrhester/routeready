@@ -2883,10 +2883,26 @@ async function renderAvailability() {
     ? `Effective <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval, for 3 weeks.`
     : `Effective immediately on approval, for 3 weeks.`;
 
-  // Banner only appears for the two states the driver can do something
-  // about: blackout (can't submit) and pending (waiting on approval).
-  // Approved/denied results land as a chat message instead — keeps the
-  // page clean once a decision is made.
+  // Banner states, in priority order:
+  //   1. blackout — can't submit
+  //   2. pending  — submitted, awaiting dispatcher decision
+  //   3. approved-pending-effective — dispatcher approved, but the
+  //      change doesn't take effect (and the toggles below won't
+  //      change) until the effective date.  WITHOUT this banner the
+  //      driver sees an approval message but no visible change and
+  //      thinks something's broken.
+  const lastDec = data?.last_decision || null;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const approvedNotYetEffective = lastDec
+    && lastDec.status === "approved"
+    && lastDec.effective_from
+    && lastDec.effective_from > todayIso;
+
+  const _dayLbl = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const _fmtDecDays = (arr) => (Array.isArray(arr) && arr.length)
+    ? arr.map((k) => _dayLbl[k] || k).join(", ")
+    : "no days";
+
   let bannerHtml = "";
   if (blackout) {
     bannerHtml = `<div class="avail-banner denied">
@@ -2897,6 +2913,11 @@ async function renderAvailability() {
     bannerHtml = `<div class="avail-banner pending">
       <div class="avail-banner-title">Request pending review</div>
       <div class="avail-banner-sub">You'll get a message when your dispatcher decides.</div>
+    </div>`;
+  } else if (approvedNotYetEffective) {
+    bannerHtml = `<div class="avail-banner approved">
+      <div class="avail-banner-title">Change approved · effective ${escapeHtml(_fmtAvailDate(lastDec.effective_from))}</div>
+      <div class="avail-banner-sub">${escapeHtml(_fmtDecDays(lastDec.days))} starting ${escapeHtml(_fmtAvailDate(lastDec.effective_from))}.  Your schedule keeps using the days below until then.</div>
     </div>`;
   }
 
