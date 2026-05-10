@@ -7321,10 +7321,16 @@ body.rr-cmdk-open{ overflow:hidden }
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
         <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3)">
-          <button class="btn btn-primary btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span id="rr-drivers-cta-label">Add driver</span>
-          </button>
+          <div style="display:flex;gap:var(--s-2)">
+            <button class="btn btn-primary btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span id="rr-drivers-cta-label">Add driver</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="openModal('modal-bulk-drivers')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Bulk import
+            </button>
+          </div>
           <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Click a column to sort</span>
         </div>
 
@@ -13346,6 +13352,80 @@ Evidence attached:
 </div>
 
 <!-- ─── ADD DRIVER MODAL ─── -->
+<!-- ═══════════════════════════════════════════════════════════
+     BULK IMPORT DRIVERS
+     CSV-paste flow.  Headers required: first_name, last_name,
+     phone, email.  See bulk_create_drivers RPC (migration 0130)
+     for server-side validation + per-row results.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-bulk-drivers" onclick="if(event.target===this)closeModal('modal-bulk-drivers')">
+  <div class="modal-card" style="max-width:720px">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Bulk import drivers</p>
+        <p class="modal-sub">Paste a CSV from your spreadsheet.  Each row creates one driver in onboarding status.</p>
+      </div>
+      <button class="modal-close" type="button" onclick="closeModal('modal-bulk-drivers')" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+
+      <div style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">
+        <div style="font-weight:600;color:var(--text);margin-bottom:6px">Expected format</div>
+        <code style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);background:var(--surface);padding:6px 10px;border-radius:4px;border:1px solid var(--border-subtle);display:block;white-space:pre">first_name,last_name,phone,email
+Jane,Doe,555-0100,jane@example.com
+John,Smith,555-0101,john@example.com</code>
+        <div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">
+          Header row is optional but recommended.  First name + last name are required; phone + email are optional.  Duplicates by email (within this DSP) are skipped.
+        </div>
+      </div>
+
+      <div>
+        <label class="modal-field-label" for="rr-bulk-drivers-csv">Paste your CSV</label>
+        <textarea class="form-input" id="rr-bulk-drivers-csv" rows="8"
+                  style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-sm);resize:vertical;tab-size:4"
+                  placeholder="first_name,last_name,phone,email&#10;Jane,Doe,555-0100,jane@example.com"></textarea>
+      </div>
+
+      <!-- Preview · live-rendered from the textarea content -->
+      <div id="rr-bulk-drivers-preview-wrap" hidden>
+        <div class="modal-field-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Preview · <span id="rr-bulk-drivers-preview-count">0</span> driver<span id="rr-bulk-drivers-preview-s"></span></span>
+          <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)" id="rr-bulk-drivers-warnings"></span>
+        </div>
+        <div class="table-wrap" style="max-height:240px;overflow-y:auto">
+          <table class="table table-compact" style="width:100%;font-size:var(--fs-xs)">
+            <thead>
+              <tr>
+                <th style="width:24px"></th>
+                <th>First</th>
+                <th>Last</th>
+                <th>Phone</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody id="rr-bulk-drivers-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Result · shown after submit -->
+      <div id="rr-bulk-drivers-result" hidden></div>
+
+      <!-- Error banner · client-side validation issues -->
+      <div class="rr-admin-add-dsp-error" id="rr-bulk-drivers-error" hidden></div>
+
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-bulk-drivers')">Cancel</button>
+      <button type="button" class="btn btn-primary" id="rr-bulk-drivers-submit" disabled>
+        <span data-rr-bulk-drivers-label>Import</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="modal-add-driver" onclick="if(event.target===this)closeModal('modal-add-driver')">
   <div class="modal-card">
     <div class="modal-head">
@@ -18367,7 +18447,7 @@ Evidence attached:
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260509q-delete-full-scrub"></script>
+<script type="module" src="./live.js?v=20260509r-bulk-drivers"></script>
 
 </body>
 </html>
