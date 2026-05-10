@@ -19058,6 +19058,50 @@ function _defaultFieldForType(type) {
   return base;
 }
 
+let _formSubmCache = [];
+
+// Submission detail modal — opened by the "View" button on a submission row.
+async function openSubmissionDetail(submId) {
+  document.getElementById("rr-subm-detail-modal")?.remove();
+  const s = _formSubmCache.find(x => x.id === submId);
+  if (!s) { toast("Submission not found — refresh the list", "warn"); return; }
+  const overlay = document.createElement("div");
+  overlay.id = "rr-subm-detail-modal";
+  overlay.className = "modal-backdrop open";
+  overlay.style.zIndex = "94";
+  const when = s.submitted_at ? new Date(s.submitted_at).toLocaleString() : "";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:560px">
+      <div class="modal-head">
+        <div><p class="modal-title">${escapeHtml(s.form_title || "Form")}</p><p class="modal-sub">${escapeHtml(s.driver_name || "Driver")} · ${escapeHtml(when)}${s.flagged ? " · ⚑ flagged" : ""}</p></div>
+        <button class="modal-close" type="button" data-rr-subm-close aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body" id="rr-subm-detail-body" style="max-height:70vh;overflow-y:auto"><div class="rr-loading">Loading</div></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => { overlay.remove(); document.body.style.overflow = ""; };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay || e.target.closest("[data-rr-subm-close]")) close(); });
+
+  let fields = [];
+  try { const { data: f } = await sb.rpc("get_form", { p_id: s.form_id }); if (f && Array.isArray(f.fields)) fields = f.fields; } catch (_) {}
+  const labelOf = new Map(fields.filter(f => f.id).map(f => [f.id, f.label || (_FIELD_TYPE_LABELS && _FIELD_TYPE_LABELS[f.type]) || f.id]));
+  const fmtVal = (v) => {
+    if (v == null || v === "") return `<span style="color:var(--text-subtle)">—</span>`;
+    if (Array.isArray(v)) return v.length ? escapeHtml(v.join(", ")) : `<span style="color:var(--text-subtle)">—</span>`;
+    if (typeof v === "boolean") return v ? "Yes" : "No";
+    return escapeHtml(String(v));
+  };
+  const ans = (s.answers && typeof s.answers === "object") ? s.answers : {};
+  const orderedKeys = [...fields.map(f => f.id).filter(id => id in ans), ...Object.keys(ans).filter(k => !fields.some(f => f.id === k))];
+  const body = document.getElementById("rr-subm-detail-body");
+  if (!body) return;
+  body.innerHTML = (orderedKeys.length === 0
+    ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No answers recorded.</div>`
+    : `<div style="display:flex;flex-direction:column;gap:12px">${orderedKeys.map(k => `<div><div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${escapeHtml(labelOf.get(k) || k)}</div><div style="font-size:var(--fs-md)">${fmtVal(ans[k])}</div></div>`).join("")}</div>`)
+    + (s.notes ? `<div style="margin-top:14px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:var(--fs-sm);color:var(--text-muted)"><strong>Notes:</strong> ${escapeHtml(s.notes)}</div>` : "");
+}
+
 async function loadFormSubmissions() {
   const list = document.getElementById("rr-subm-list");
   if (!list) return;
@@ -19068,6 +19112,7 @@ async function loadFormSubmissions() {
     return;
   }
   const subs = data || [];
+  _formSubmCache = subs;
   if (subs.length === 0) {
     list.innerHTML = `<div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div>`;
     return;
@@ -19081,7 +19126,7 @@ async function loadFormSubmissions() {
         <div><div class="subm-form-name">${escapeHtml(s.form_title || "Form")} · ${escapeHtml(s.driver_name || "Driver")}</div><div class="subm-form-meta">${answerCount} answer${answerCount === 1 ? "" : "s"}</div></div>
         <span class="subm-status complete">${escapeHtml(s.status || "submitted")}</span>
         <div class="cell-time">${escapeHtml(when)}</div>
-        <button class="btn btn-sm" type="button">View</button>
+        <button class="btn btn-sm" type="button" data-rr-subm-view="${escapeHtml(s.id)}">View</button>
       </div>`;
   }).join("");
   list.innerHTML = `
@@ -19129,8 +19174,9 @@ function _formCardHtml(f) {
     : `<span class="form-card-status draft">Draft</span>`;
   const updated = f.updated_at ? new Date(f.updated_at).toLocaleDateString() : "";
   return `
-    <div class="form-card" data-rr-form-edit="${escapeHtml(f.id)}">
+    <div class="form-card" data-rr-form-edit="${escapeHtml(f.id)}" style="position:relative">
       ${statusLabel}
+      <button type="button" class="form-card-del" data-rr-form-delete="${escapeHtml(f.id)}" data-rr-form-title="${escapeHtml(f.title || "Untitled form")}" title="Delete this form" style="position:absolute;top:6px;right:6px;background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:18px;line-height:1;padding:2px 7px;border-radius:6px">×</button>
       <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
       <div class="form-card-title">${escapeHtml(f.title || "Untitled form")}</div>
       <div class="form-card-desc">${escapeHtml(f.description || "")}</div>
@@ -19292,11 +19338,33 @@ document.addEventListener("click", (e) => {
 });
 
 // Event delegation — palette adds, canvas selects, props edits.
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
   // Open builder in CREATE mode
   if (e.target.closest("[data-rr-form-new]")) {
     e.preventDefault();
     openFormBuilder(null);
+    return;
+  }
+  // Delete a workflow (the ✕ on a form card) — must come before the
+  // form-edit handler, since the button sits inside the card.
+  const del = e.target.closest("[data-rr-form-delete]");
+  if (del) {
+    e.preventDefault(); e.stopPropagation();
+    const id = del.getAttribute("data-rr-form-delete");
+    const name = del.getAttribute("data-rr-form-title") || "this form";
+    if (!confirm(`Delete "${name}"? Its submissions are removed too. This can't be undone.`)) return;
+    del.disabled = true;
+    const { error } = await sb.rpc("delete_form", { p_id: id });
+    if (error) { toast("Delete failed: " + error.message, "warn"); del.disabled = false; return; }
+    toast("Workflow deleted", "success");
+    loadFormsList();
+    return;
+  }
+  // View a form submission.
+  const sv = e.target.closest("[data-rr-subm-view]");
+  if (sv) {
+    e.preventDefault();
+    await openSubmissionDetail(sv.getAttribute("data-rr-subm-view"));
     return;
   }
   // Open builder in EDIT mode
