@@ -16259,6 +16259,10 @@ async function autoAssignDriversForWeek() {
       if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
       if (driverShiftDates.get(d.id)?.has(sh.date)) return false;
       if ((driverShiftDates.get(d.id)?.size || 0) >= maxDays) return false;
+      // Never auto-assign a driver to a shift that starts before the
+      // earliest time of day they said they can begin one.
+      const es = d.metadata?.availability?.earliest_start;
+      if (es && _startsBeforeEarliest(_shiftStartHM(sh.starts_at), es)) return false;
       return true;
     };
     let candidates = drivers.filter(d => {
@@ -16300,6 +16304,22 @@ function fmtTimeShort(iso) {
   try {
     return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
   } catch { return ""; }
+}
+
+// Wall-clock "HH:MM" (browser-local) of a shift's start timestamp — the
+// same value the schedule grid shows via fmtHM / fmtTimeShort.
+function _shiftStartHM(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+// True when a shift starting at shiftHM begins before the driver's earliest
+// available start time earliestHM.  Both "HH:MM"; false if either is absent.
+function _startsBeforeEarliest(shiftHM, earliestHM) {
+  const norm = (s) => /^\d{1,2}:\d{2}$/.test(s || "") ? (String(s).length === 4 ? "0" + s : String(s)) : "";
+  const a = norm(shiftHM), b = norm(earliestHM);
+  return !!a && !!b && a < b;
 }
 
 // Format a 'HH:MM' wave-time string as e.g. '1:00pm'. Used when we don't
@@ -17433,6 +17453,18 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
           }
         }
       }
+
+      // Earliest-start: the shift begins before the time of day the driver
+      // flagged as the earliest they can start. Surfaces even under an
+      // availability override — "can't physically be there yet" is a hard rule.
+      {
+        const es  = d.metadata?.availability?.earliest_start;
+        const shm = _shiftStartHM(sh.starts_at);
+        if (es && shm && _startsBeforeEarliest(shm, es)) {
+          violations.push({ driver: display, date: sh.date, kind: "earliest_start",
+            note: `Shift starts ${_fmtTime12(shm) || shm}; available from ${_fmtTime12(es) || es}` });
+        }
+      }
     }
 
     // ── Working hours compliance (WOC) ────────────────────────────────
@@ -17580,6 +17612,15 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
       violations.push("Driver has no availability set");
     } else if (!days.includes(dow)) {
       violations.push(`Driver isn't available on ${dt.toLocaleDateString(undefined, { weekday: "long" })}`);
+    }
+  }
+
+  // Earliest-start time the driver can begin a shift (metadata.availability).
+  {
+    const es  = driver.metadata?.availability?.earliest_start;
+    const shm = _shiftStartHM(candShiftEarly?.starts_at);
+    if (es && shm && _startsBeforeEarliest(shm, es)) {
+      violations.push(`Shift starts ${_fmtTime12(shm) || shm}, driver available from ${_fmtTime12(es) || es}`);
     }
   }
 
