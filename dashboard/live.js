@@ -16404,196 +16404,6 @@ function _preferredDaysOf(driver) {
   return new Set(pref.filter(k => days.includes(k)));
 }
 
-// ─── "What needs to happen" — schedule advisor ─────────────────────────
-// One-click read on the visible week: what's blocking 100% coverage (with
-// everyone's availability honored), and what's blocking everyone landing
-// on a preferred day.  Read-only — it tells the DSP what to do; it doesn't
-// do it (Smart Fill does the doing).
-const _ADV_DOW_LBL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-async function renderScheduleAdvisor() {
-  document.getElementById("rr-sched-advisor-modal")?.remove();
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId || !_schedStart) { toast("Open a week in the Schedule first", "warn"); return; }
-
-  const monday = new Date(_schedStart + "T12:00:00");
-  const days = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(monday, i)));
-  const weekStartIso = days[0], weekEndIso = days[6];
-  const wkLbl = monday.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-  const overlay = document.createElement("div");
-  overlay.id = "rr-sched-advisor-modal";
-  overlay.className = "modal-backdrop open";
-  overlay.style.zIndex = "92";
-  overlay.innerHTML = `
-    <div class="modal-card" style="max-width:660px">
-      <div class="modal-head">
-        <div><p class="modal-title">What needs to happen</p><p class="modal-sub">Week of ${escapeHtml(wkLbl)}</p></div>
-        <button class="modal-close" type="button" data-rr-adv-close aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="modal-body" id="rr-adv-body" style="max-height:72vh;overflow-y:auto"><div class="rr-loading">Analyzing the week…</div></div>
-    </div>`;
-  document.body.appendChild(overlay);
-  document.body.style.overflow = "hidden";
-  const close = () => { overlay.remove(); document.body.style.overflow = ""; };
-  overlay.addEventListener("click", (e) => { if (e.target === overlay || e.target.closest("[data-rr-adv-close]")) close(); });
-
-  const [shiftsRes, drvRes, toRes, settingsRes, pendRes] = await Promise.all([
-    sb.from("shifts").select("id, date, driver_id, status, starts_at").eq("dsp_id", dspId).gte("date", weekStartIso).lte("date", weekEndIso),
-    sb.from("drivers").select("id, full_name, preferred_name, hire_date, metadata, dl_expires_on").eq("dsp_id", dspId).eq("status", "active").order("full_name"),
-    sb.from("time_off_requests").select("driver_id, start_date, end_date").eq("dsp_id", dspId).eq("status", "approved").lte("start_date", weekEndIso).gte("end_date", weekStartIso),
-    sb.rpc("scheduling_settings_for_week", { p_week_start: weekStartIso }),
-    sb.from("driver_availability_requests").select("driver_id, days").eq("dsp_id", dspId).eq("status", "pending"),
-  ]);
-  const body = document.getElementById("rr-adv-body");
-  if (!body) return;
-  if (drvRes.error || shiftsRes.error) { body.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">Couldn't analyze: ${escapeHtml((drvRes.error || shiftsRes.error).message)}</div>`; return; }
-
-  const drivers = drvRes.data || [];
-  const shifts  = (shiftsRes.data || []).filter(s => s.status === "scheduled");
-  const maxDays = (() => { const v = settingsRes.data?.max_days_per_week; return Number.isFinite(v) ? Math.max(1, Math.min(7, v)) : 5; })();
-  const allowOverride = !!settingsRes.data?.allow_availability_override;
-  const tiebreaker = String(settingsRes.data?.preference_tiebreaker || "least_loaded").replace(/_/g, " ");
-  const drvById = new Map(drivers.map(d => [d.id, d]));
-  const pendDaysByDriver = new Map((pendRes.data || []).map(r => [r.driver_id, new Set(Array.isArray(r.days) ? r.days : [])]));
-
-  const ptoBy = new Map();
-  for (const t of (toRes.data || [])) { if (!ptoBy.has(t.driver_id)) ptoBy.set(t.driver_id, new Set()); let c = new Date(t.start_date + "T12:00:00"); const e = new Date(t.end_date + "T12:00:00"); while (c <= e) { ptoBy.get(t.driver_id).add(fmtIsoDate(c)); c = addDays(c, 1); } }
-
-  const effAvail = new Map();
-  if (drivers.length) { const { data: rows } = await sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: drivers.map(d => d.id), p_dates: days }); if (Array.isArray(rows)) for (const r of rows) effAvail.set(`${r.driver_id}:${r.on_date}`, r.days || []); }
-  const availOn = (id, iso) => { const v = effAvail.get(`${id}:${iso}`); return Array.isArray(v) ? v : ((drvById.get(id)?.metadata?.availability?.days) || []); };
-
-  const bookedDates = new Map();
-  for (const s of shifts) { if (!s.driver_id) continue; if (!bookedDates.has(s.driver_id)) bookedDates.set(s.driver_id, new Set()); bookedDates.get(s.driver_id).add(s.date); }
-  const weekShiftCount = (id) => bookedDates.get(id)?.size || 0;
-
-  const openByDate = new Map();
-  for (const s of shifts) { if (s.driver_id) continue; if (!openByDate.has(s.date)) openByDate.set(s.date, []); openByDate.get(s.date).push(s); }
-  const totalOpen = [...openByDate.values()].reduce((a, b) => a + b.length, 0);
-  const totalAssigned = shifts.filter(s => s.driver_id).length;
-  const totalNeeded = totalOpen + totalAssigned;
-  const covPct = totalNeeded > 0 ? Math.round(totalAssigned / totalNeeded * 100) : 100;
-
-  const dlOk = (d, iso) => !(d.dl_expires_on && d.dl_expires_on < iso);
-  const freeOn = (iso) => {
-    const dow = _dowKey(iso); let n = 0;
-    for (const d of drivers) {
-      if (!availOn(d.id, iso).includes(dow)) continue;
-      if (ptoBy.get(d.id)?.has(iso)) continue;
-      if (bookedDates.get(d.id)?.has(iso)) continue;
-      if (weekShiftCount(d.id) >= maxDays) continue;
-      if (!dlOk(d, iso)) continue;
-      n++;
-    }
-    return n;
-  };
-  const gaps = [];
-  for (const [iso, list] of openByDate) { const free = freeOn(iso); gaps.push({ iso, dow: _dowKey(iso), open: list.length, free, short: Math.max(0, list.length - free) }); }
-  gaps.sort((a, b) => a.iso < b.iso ? -1 : 1);
-  const coverableBySmartFill = gaps.filter(g => g.short === 0).reduce((a, g) => a + g.open, 0);
-  const stuckTotal = gaps.reduce((a, g) => a + g.short, 0);
-
-  const generalAvail = (id) => new Set((drvById.get(id)?.metadata?.availability?.days) || []);
-  const pendHelpersFor = (dow) => {
-    const out = [];
-    for (const [drvId, ds] of pendDaysByDriver) { if (ds.has(dow) && !generalAvail(drvId).has(dow)) { const d = drvById.get(drvId); if (d) out.push(displayDriverName(d)); } }
-    return out;
-  };
-
-  const violations = await _computeWeekViolations(shifts, drivers, (toRes.data || []), weekStartIso, weekEndIso);
-
-  // ── Preferences ──
-  const shiftsByDriver = new Map();
-  for (const s of shifts) { if (!s.driver_id) continue; if (!shiftsByDriver.has(s.driver_id)) shiftsByDriver.set(s.driver_id, []); shiftsByDriver.get(s.driver_id).push(s); }
-  const shiftsOnDow = new Map();
-  for (const s of shifts) { const k = _dowKey(s.date); shiftsOnDow.set(k, (shiftsOnDow.get(k) || 0) + 1); }
-  const prefersDow = new Map();
-  for (const d of drivers) { for (const k of _preferredDaysOf(d)) { if (!prefersDow.has(k)) prefersDow.set(k, []); prefersDow.get(k).push(displayDriverName(d)); } }
-  const isoForDow = (k) => days.find(iso => _dowKey(iso) === k) || null;
-
-  let prefHonored = 0, prefDenom = 0;
-  const prefMisses = [];
-  const prefNeedsAvailReq = [];
-  for (const d of drivers) {
-    const approved = new Set((d.metadata?.availability?.days) || []);
-    for (const k of ((d.metadata?.availability?.preferred_days) || [])) if (!approved.has(k)) prefNeedsAvailReq.push({ name: displayDriverName(d), dow: k });
-    const pset = _preferredDaysOf(d);
-    if (pset.size === 0) continue;
-    const myShifts = shiftsByDriver.get(d.id) || [];
-    if (myShifts.length === 0) continue;
-    prefDenom += myShifts.length;
-    const offDays = new Set();
-    for (const s of myShifts) { const k = _dowKey(s.date); if (pset.has(k)) prefHonored++; else offDays.add(k); }
-    if (offDays.size === 0) continue;
-    // Suggestion
-    let sugg = null;
-    for (const k of pset) {
-      const iso = isoForDow(k);
-      if (iso && (openByDate.get(iso) || []).length > 0 && !(bookedDates.get(d.id)?.has(iso)) && availOn(d.id, iso).includes(k)) { sugg = `move them onto the open ${_ADV_DOW_LBL[k] || k} shift.`; break; }
-    }
-    if (!sugg) {
-      const fullK = [...pset].find(k => (prefersDow.get(k) || []).length > (shiftsOnDow.get(k) || 0));
-      if (fullK) sugg = `${_ADV_DOW_LBL[fullK] || fullK} is over-subscribed (${(prefersDow.get(fullK) || []).length} want it, ${(shiftsOnDow.get(fullK) || 0)} shifts) — who lands it follows your tiebreaker (${tiebreaker}).`;
-      else sugg = `their ${[...pset].map(k => _ADV_DOW_LBL[k] || k).join("/")} shifts are taken — a swap with an off-preference driver on one of those days would do it.`;
-    }
-    prefMisses.push({ name: displayDriverName(d), off: [...offDays].map(k => _ADV_DOW_LBL[k] || k).join("/"), pref: [...pset].map(k => _ADV_DOW_LBL[k] || k).join("/"), sugg });
-  }
-  // de-dupe prefNeedsAvailReq
-  const seenAR = new Set(); const prefNeedsAvailReqU = prefNeedsAvailReq.filter(x => { const key = x.name + "|" + x.dow; if (seenAR.has(key)) return false; seenAR.add(key); return true; });
-
-  // ── Render ──
-  const liDot = `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--text-subtle);margin:0 8px 2px 0;vertical-align:middle"></span>`;
-  const wkOf = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-  const covLine = `<div style="font-size:var(--fs-base);font-weight:600;margin-bottom:2px">Coverage: <span style="color:${covPct >= 100 ? "var(--green)" : covPct >= 90 ? "var(--amber)" : "var(--red)"}">${covPct}%</span></div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:10px">${totalAssigned} of ${totalNeeded} shifts staffed${totalOpen ? ` · ${totalOpen} open` : ""}</div>`;
-
-  let covTodo = "";
-  if (totalOpen === 0 && violations.length === 0) {
-    covTodo = `<div style="color:var(--green);font-size:var(--fs-md)">✓ Fully staffed and every assignment honors availability — nothing to do.</div>`;
-  } else {
-    const parts = [];
-    if (totalOpen > 0 && coverableBySmartFill > 0) parts.push(`<div style="margin-bottom:6px">${liDot}<strong>Run Smart Fill</strong> — it can cover ${coverableBySmartFill} of the ${totalOpen} open shift${totalOpen === 1 ? "" : "s"} with available drivers.</div>`);
-    const stuckDays = gaps.filter(g => g.short > 0);
-    if (stuckDays.length) {
-      parts.push(`<div style="margin-bottom:4px">${liDot}<strong>${stuckTotal} open shift${stuckTotal === 1 ? "" : "s"} can't be filled by any available driver:</strong></div>`);
-      for (const g of stuckDays) {
-        const helpers = pendHelpersFor(g.dow);
-        const opts = [`hire ${g.short} more ${_ADV_DOW_LBL[g.dow] || g.dow}-available driver${g.short === 1 ? "" : "s"}`];
-        if (helpers.length) opts.push(`approve ${helpers.slice(0, 2).map(escapeHtml).join(" / ")}'s pending availability change`);
-        opts.push(allowOverride ? `they'll fill under Availability override (it's on)` : `or turn on Availability override for this week`);
-        parts.push(`<div style="margin:2px 0 2px 20px;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(_ADV_DOW_LBL[g.dow] || g.dow)} ${escapeHtml(wkOf(g.iso))} — ${g.short} short → ${opts.join("; or ")}.</div>`);
-      }
-    }
-    if (violations.length) {
-      parts.push(`<div style="margin:8px 0 4px">${liDot}<strong>${violations.length} assigned shift${violations.length === 1 ? "" : "s"} break a rule right now — reassign or unassign:</strong></div>`);
-      for (const v of violations.slice(0, 12)) parts.push(`<div style="margin:2px 0 2px 20px;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(v.driver)}${v.date ? ` · ${escapeHtml(wkOf(v.date))}` : ""} — ${escapeHtml(v.note)}</div>`);
-      if (violations.length > 12) parts.push(`<div style="margin-left:20px;font-size:var(--fs-xs);color:var(--text-subtle)">+ ${violations.length - 12} more</div>`);
-    }
-    covTodo = parts.join("");
-  }
-
-  let prefSection;
-  if (prefDenom === 0 && prefNeedsAvailReqU.length === 0) {
-    prefSection = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No drivers have preferred days set, so there's nothing to honor here yet.</div>`;
-  } else {
-    const head = prefDenom > 0 ? `<div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:8px"><strong>${prefHonored} of ${prefDenom}</strong> scheduled shifts (for drivers with preferences) are on a preferred day.</div>` : "";
-    const items = [];
-    if (prefMisses.length === 0 && prefNeedsAvailReqU.length === 0) items.push(`<div style="color:var(--green);font-size:var(--fs-md)">✓ Everyone with a preference is on a preferred day.</div>`);
-    for (const m of prefMisses) items.push(`<div style="margin-bottom:6px">${liDot}<strong>${escapeHtml(m.name)}</strong> — scheduled ${escapeHtml(m.off)} this week but prefers ${escapeHtml(m.pref)}: ${escapeHtml(m.sugg)}</div>`);
-    for (const a of prefNeedsAvailReqU) items.push(`<div style="margin-bottom:6px">${liDot}<strong>${escapeHtml(a.name)}</strong> — prefers ${escapeHtml(_ADV_DOW_LBL[a.dow] || a.dow)} but that day isn't in their approved availability; they'd need to submit an availability change first.</div>`);
-    const note = (prefMisses.length || prefNeedsAvailReqU.length) ? `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">Smart Fill already weighs preferred days (tiebreaker: ${escapeHtml(tiebreaker)}) — re-run it once the coverage gaps above are closed and it'll honor what it can.</div>` : "";
-    prefSection = head + items.join("") + note;
-  }
-
-  body.innerHTML = `
-    ${covLine}
-    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.05em;text-transform:uppercase;margin:14px 0 8px">To reach 100% — honoring availability</div>
-    ${covTodo}
-    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.05em;text-transform:uppercase;margin:20px 0 8px">To honor everyone's preferred days</div>
-    ${prefSection}
-    <div style="margin-top:16px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">"Can't be filled" assumes drivers rotate freely between their available days; with a tight weekly cap a couple more may still be needed. PTO, license expiry, certs and earliest-start are all factored.</div>`;
-}
-document.addEventListener("click", (e) => { if (e.target.closest("#rr-sched-advisor")) renderScheduleAdvisor(); });
 
 // Format a 'HH:MM' wave-time string as e.g. '1:00pm'. Used when we don't
 // have a full timestamp — only a configured wave start.
@@ -17065,6 +16875,31 @@ async function renderScheduleWeek() {
     prefDenom += 1;
     if (pset.has(_dowKey(sh.date))) prefHonored += 1;
   }
+  // Drill-down detail for the Preferences KPI card: who's scheduled off a
+  // preferred day this week, what days they got vs. what they wanted.
+  const _DOW_ORD2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const _DLBL2 = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const _driverDows = new Map();
+  for (const sh of (grid.shifts || [])) {
+    if (!sh.driver_id || sh.status !== "scheduled") continue;
+    if (!_driverDows.has(sh.driver_id)) _driverDows.set(sh.driver_id, new Set());
+    _driverDows.get(sh.driver_id).add(_dowKey(sh.date));
+  }
+  const prefMissList = [];
+  for (const d of drivers) {
+    const pset = _prefByDriver.get(d.id);
+    if (!pset || pset.size === 0) continue;
+    const dows = _driverDows.get(d.id);
+    if (!dows || dows.size === 0) continue;
+    const off = _DOW_ORD2.filter(k => dows.has(k) && !pset.has(k));
+    if (off.length === 0) continue;
+    prefMissList.push({
+      name:      displayDriverName(d),
+      scheduled: _DOW_ORD2.filter(k => dows.has(k)).map(k => _DLBL2[k]),
+      pref:      _DOW_ORD2.filter(k => pset.has(k)).map(k => _DLBL2[k]),
+      off:       off.map(k => _DLBL2[k]),
+    });
+  }
 
   // Render the Schedule KPIs using the same .stat-mini pattern that
   // Drivers Roster + the rest of the dashboard uses, so the cards
@@ -17124,6 +16959,8 @@ async function renderScheduleWeek() {
       prefDenom === 0 ? "no preferences set" : (prefHonored === prefDenom ? "all on a preferred day" : "★ on the grid = preferred day"),
       prefDenom === 0 ? "default" : (prefHonored === prefDenom ? "ok" : "warn"));
   kpis.dataset.rrViolations = JSON.stringify(violations);
+  kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
+  kpis.dataset.rrPrefSummary = JSON.stringify({ honored: prefHonored, denom: prefDenom });
   // Visual cue that the violations card opens a modal — match the
   // .stat-mini-clickable pattern other KPI strips use.
   const violationsCard = kpis.querySelector("div:nth-child(5)");
@@ -17131,6 +16968,16 @@ async function renderScheduleWeek() {
     violationsCard.style.cursor = "pointer";
     violationsCard.style.transition = "border-color .12s, box-shadow .12s";
     violationsCard.title = violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`;
+  }
+  const prefCard = kpis.querySelector("div:nth-child(6)");
+  if (prefCard) {
+    if (prefDenom > 0) {
+      prefCard.style.cursor = "pointer";
+      prefCard.style.transition = "border-color .12s, box-shadow .12s";
+      prefCard.title = prefMissList.length === 0 ? "Everyone with a preference is on a preferred day" : `${prefMissList.length} driver${prefMissList.length === 1 ? "" : "s"} scheduled off a preferred day — click to review`;
+    } else {
+      prefCard.style.cursor = ""; prefCard.title = "";
+    }
   }
 
   // ── Day headers (skip first cell which is "Driver")
@@ -17547,6 +17394,35 @@ function bindSchedWeekNav() {
       </div>`;
     document.body.appendChild(m);
     m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-vio-close") m.remove(); });
+  });
+
+  // ── KPI: clicking the Preferences card opens a "who didn't get what" list.
+  sub.addEventListener("click", (e) => {
+    const kpiHost = document.getElementById("rr-sched-kpis");
+    if (!kpiHost) return;
+    if (!e.target.closest("#rr-sched-kpis > div:nth-child(6)")) return;
+    let misses = [], summary = { honored: 0, denom: 0 };
+    try { misses = JSON.parse(kpiHost.dataset.rrPrefMisses || "[]"); } catch {}
+    try { summary = JSON.parse(kpiHost.dataset.rrPrefSummary || "{}"); } catch {}
+    if (!(summary.denom > 0)) return;   // no one set a preference — nothing to drill into
+    document.getElementById("rr-pref-modal")?.remove();
+    const m = document.createElement("div");
+    m.id = "rr-pref-modal";
+    m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+    const list = misses.length === 0
+      ? '<div class="rr-empty-inline">Everyone with a preference is on a preferred day ✓</div>'
+      : misses.map(x => `<div style="padding:10px 14px;border-top:1px solid var(--border)"><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(x.name)}</div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px">Scheduled <strong>${escapeHtml((x.scheduled||[]).join(", "))}</strong>; prefers <strong>${escapeHtml((x.pref||[]).join("/"))}</strong>.</div><div style="font-size:var(--fs-xs);color:var(--red);margin-top:2px">Didn't get a preferred day on: ${escapeHtml((x.off||[]).join(", "))}</div></div>`).join("");
+    m.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:var(--fs-base);font-weight:600">Preferred days · who didn't get what</div><div style="font-size:var(--fs-sm);color:var(--text-subtle)">${summary.honored} of ${summary.denom} scheduled shifts (for drivers with preferences) are on a preferred day</div></div>
+          <button type="button" id="rr-pref-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        </div>
+        <div>${list}</div>
+        ${misses.length ? `<div style="padding:12px 16px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">Re-run Smart Fill (it weighs preferred days) after filling open shifts, or reassign these drivers onto an open shift on a preferred day.</div>` : ""}
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-pref-close") m.remove(); });
   });
 
   // ── Pool sort toggle (Day / Wave time)
@@ -18481,7 +18357,8 @@ async function loadStaffingOutlook() {
   const since60    = fmtIsoDate(addDays(new Date(), -60));
   const since120   = fmtIsoDate(addDays(new Date(), -120));
   const thisMonIso = fmtIsoDate(startOfWeekMonday(new Date()));
-  const [fcRes, activeRes, onbRes, settingsRes, hsRes, calloutRes, totalRes, pcRes, recHiresRes, recApplRes] = await Promise.all([
+  const next28Iso  = fmtIsoDate(addDays(startOfWeekMonday(new Date()), 27));
+  const [fcRes, activeRes, onbRes, settingsRes, hsRes, calloutRes, totalRes, pcRes, recHiresRes, recApplRes, openShiftsRes, pendAvailRes] = await Promise.all([
     sb.rpc("route_forecast_get", { p_weeks: _ROUTE_FORECAST_WEEKS }),
     sb.from("drivers").select("id, metadata, dl_expires_on").eq("dsp_id", dspId).eq("status", "active"),
     sb.from("drivers").select("id, metadata, dl_expires_on, hire_date").eq("dsp_id", dspId).eq("status", "onboarding"),
@@ -18492,6 +18369,8 @@ async function loadStaffingOutlook() {
     sb.rpc("pipeline_counts"),
     sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("created_at", since120),
     sb.from("applicants").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("created_at", since120),
+    sb.from("shifts").select("date").eq("dsp_id", dspId).is("driver_id", null).eq("status", "scheduled").gte("date", thisMonIso).lte("date", next28Iso),
+    sb.from("driver_availability_requests").select("driver_id").eq("dsp_id", dspId).eq("status", "pending"),
   ]);
   if (fcRes.error) { body.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load: ${escapeHtml(fcRes.error.message)}</div>`; return; }
 
@@ -18559,6 +18438,43 @@ async function loadStaffingOutlook() {
     return { txt: `Short ~${short}. Your funnel projects ~${expectedHires} hires but you need ${h} — bring in roughly ${moreAppl} more applicants to close it.`, tone: "var(--red)" };
   };
 
+  // ── "What needs to happen" — a plain numbered action list ──
+  const _DOW_LBL2 = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const openDows = (() => {
+    const m = new Map();
+    for (const r of (openShiftsRes.data || [])) { const k = _dowKey(r.date); if (k) m.set(k, (m.get(k) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  })();
+  const shortDayHint = (() => {
+    if (!openDows.length) return "";
+    const top = openDows.slice(0, 3).map(([k]) => k);
+    const lbl = (top.length && top.every(k => k === "sat" || k === "sun")) ? "weekend" : top.map(k => _DOW_LBL2[k]).join("/");
+    return ` Prioritize ${lbl}-available drivers — those run short on the current schedule.`;
+  })();
+  const onbNoAvail   = onb.filter(d => !((d.metadata?.availability?.days) || []).length).length;
+  const pendAvailCt  = (pendAvailRes.data || []).length;
+  const _todayIso    = fmtIsoDate(new Date());
+  const _in30Iso     = fmtIsoDate(addDays(new Date(), 30));
+  const dlSoon       = active.filter(d => d.dl_expires_on && d.dl_expires_on >= _todayIso && d.dl_expires_on <= _in30Iso).length;
+  const renderActionsHtml = (h, fp) => {
+    const items = [];
+    if (h > 0) {
+      const wkTxt = fp ? ` — your busiest forecast week (week of ${fmtWk(fp.week_start)}) needs ${fp.needed}, you'll have ${fp.youllHave}` : "";
+      items.push(`<strong>Hire ${h} more driver${h === 1 ? "" : "s"}</strong>${wkTxt}.${shortDayHint}`);
+      if (expectedHires < h) {
+        const moreAppl = Math.ceil((h - expectedHires) / conversion);
+        items.push(`<strong>Bring in ~${moreAppl} more applicant${moreAppl === 1 ? "" : "s"}</strong> — your funnel projects ~${expectedHires} hire${expectedHires === 1 ? "" : "s"} at ~${Math.round(conversion * 100)}% conversion, but you need ${h}.`);
+      } else if (pipelineTotal > 0 || onbTotal > 0) {
+        items.push(`Keep the funnel warm — it currently projects ~${expectedHires} hire${expectedHires === 1 ? "" : "s"}, which covers the ${h} you need.`);
+      }
+    }
+    if (onbNoAvail > 0)  items.push(`<strong>Set availability</strong> on ${onbNoAvail} onboarding driver record${onbNoAvail === 1 ? "" : "s"} so they count toward coverage.`);
+    if (pendAvailCt > 0) items.push(`<strong>Decide the ${pendAvailCt} pending availability change${pendAvailCt === 1 ? "" : "s"}</strong> in Drivers → Availability — approving the right ones can close coverage gaps.`);
+    if (dlSoon > 0)      items.push(`<strong>Renew ${dlSoon} expiring license${dlSoon === 1 ? "" : "s"}</strong> — those drivers drop off coverage within 30 days.`);
+    if (items.length === 0) return `<div style="color:var(--green);font-size:var(--fs-md)">✓ You're covered for the next ${_ROUTE_FORECAST_WEEKS} weeks — nothing needs to happen right now.</div>`;
+    return `<ol style="margin:0;padding-left:22px;line-height:1.7;font-size:var(--fs-md)">${items.map(t => `<li style="margin-bottom:4px">${t}</li>`).join("")}</ol>`;
+  };
+
   const h0  = hireTotalOf();
   const fp0 = firstPeakOf(h0);
   const v0  = pipelineVerdict(h0);
@@ -18571,6 +18487,11 @@ async function loadStaffingOutlook() {
       <div class="stat-mini"><div class="stat-mini-label">Drivers to hire</div><div id="rr-fc-hiretotal" class="stat-mini-value" style="color:${h0 === 0 ? "var(--green)" : "var(--red)"};font-size:32px;line-height:1.1">${h0}</div><div class="stat-mini-sub">at ${ratio.toFixed(1)} per route + ${cushionPct}% cushion, across the next ${_ROUTE_FORECAST_WEEKS} weeks</div></div>
       <div class="stat-mini"><div class="stat-mini-label">${h0 === 0 ? "Status" : "Have them by"}</div><div id="rr-fc-byweek" class="stat-mini-value" style="font-size:var(--fs-lg)">${h0 === 0 ? "Covered" : (fp0 ? `Week of ${escapeHtml(fmtWk(fp0.week_start))}` : "—")}</div><div id="rr-fc-byweek-sub" class="stat-mini-sub">${h0 === 0 ? "no action needed" : "hire ahead of this week"}</div></div>
       <div class="stat-mini"><div class="stat-mini-label">Roster today</div><div class="stat-mini-value">${active.length}${onbTotal ? ` <span style="font-size:var(--fs-md);color:var(--text-subtle)">+${onbTotal}</span>` : ""}</div><div class="stat-mini-sub">active${onbTotal ? ` · +${onbTotal} onboarding` : ""} · ${maxDays}d/wk cap · ~${calloutPct}% call-offs</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><div class="card-title">What needs to happen</div></div>
+      <div id="rr-fc-actions" style="padding:14px 16px">${renderActionsHtml(h0, fp0)}</div>
     </div>
 
     <div class="card" style="margin-bottom:16px">
@@ -18625,6 +18546,8 @@ async function loadStaffingOutlook() {
     if (bw) bw.textContent = h === 0 ? "Covered" : (fp ? `Week of ${fmtWk(fp.week_start)}` : "—");
     const bws = document.getElementById("rr-fc-byweek-sub");
     if (bws) bws.textContent = h === 0 ? "no action needed" : "hire ahead of this week";
+    const ac = document.getElementById("rr-fc-actions");
+    if (ac) ac.innerHTML = renderActionsHtml(h, fp);
     repaintPipeVerdict();
   };
   const saveWeek = async (weekStart, val) => {
