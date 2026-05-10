@@ -13150,6 +13150,29 @@ document.addEventListener("click", async (e) => {
     if (error) { toast("Failed: " + error.message, "warn"); btn.disabled = false; btn.textContent = approve ? "Approve" : "Deny"; return; }
     toast(approve ? "Approved" : "Denied", "success");
     loadAvailabilityRequests();
+
+    // Cache invalidation · the approval RPC just wrote to
+    // drivers.metadata.availability.days for the affected driver,
+    // but the dashboard's roster cache + any open driver-record
+    // drawer are still holding the old metadata.  Without these
+    // refreshes the operator sees the new availability in the
+    // approval queue (which we just reloaded) but stale data in
+    // the driver record card itself — the bug reported on
+    // 2026-05-09.  Denials don't touch metadata, so only refresh
+    // on approve.
+    if (approve) {
+      if (typeof loadDriversRoster === "function") loadDriversRoster();
+      if (_ddDriver?.driver?.id) {
+        const { data: fresh, error: refetchErr } = await sb.rpc(
+          "driver_record",
+          { p_id: _ddDriver.driver.id }
+        );
+        if (!refetchErr && fresh) {
+          _ddDriver = fresh;
+          if (typeof renderDriverDrawerTab === "function") renderDriverDrawerTab();
+        }
+      }
+    }
     return;
   }
   // Blackout delete
