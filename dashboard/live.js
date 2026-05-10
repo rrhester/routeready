@@ -19146,12 +19146,17 @@ async function loadFormsList() {
   if (!grid) return;
   grid.innerHTML = `<div class="rr-loading">Loading</div>`;
 
-  const { data, error } = await sb.rpc("list_forms");
+  const [{ data, error }, { data: ac }] = await Promise.all([
+    sb.rpc("list_forms"),
+    sb.rpc("form_assignment_counts"),
+  ]);
   if (error) {
     grid.innerHTML = "";
     if (empty) { empty.style.display = "block"; empty.textContent = "Couldn't load forms: " + error.message; }
     return;
   }
+  _formAssignCounts = {};
+  for (const r of (Array.isArray(ac) ? ac : [])) _formAssignCounts[r.form_id] = Number(r.n) || 0;
   const forms = data || [];
   if (count) count.textContent = String(forms.length);
   const published = forms.filter(f => f.status === "published").length;
@@ -19165,6 +19170,8 @@ async function loadFormsList() {
   if (empty) empty.style.display = "none";
   grid.innerHTML = forms.map(_formCardHtml).join("");
 }
+let _formAssignCounts = {};
+let _formAudienceDrivers = null;   // cached active-driver list for the audience picker
 
 function _formCardHtml(f) {
   const fieldCount = Array.isArray(f.fields) ? f.fields.length : 0;
@@ -19173,6 +19180,7 @@ function _formCardHtml(f) {
     ? `<span class="form-card-status"><span class="kpi-pip green"></span>Published</span>`
     : `<span class="form-card-status draft">Draft</span>`;
   const updated = f.updated_at ? new Date(f.updated_at).toLocaleDateString() : "";
+  const assignN = _formAssignCounts[f.id] || 0;
   return `
     <div class="form-card" data-rr-form-edit="${escapeHtml(f.id)}" style="position:relative">
       ${statusLabel}
@@ -19182,6 +19190,7 @@ function _formCardHtml(f) {
       <div class="form-card-desc">${escapeHtml(f.description || "")}</div>
       <div class="form-card-stats">
         <span><strong>${fieldCount}</strong> field${fieldCount === 1 ? "" : "s"}</span>
+        <span>${assignN > 0 ? `Assigned · <strong>${assignN}</strong> driver${assignN === 1 ? "" : "s"}` : "All drivers"}</span>
         ${updated ? `<span>Updated <strong>${escapeHtml(updated)}</strong></span>` : ""}
       </div>
     </div>`;
@@ -19202,10 +19211,60 @@ function openFormBuilder(form) {
     const oncePerDriver = !!form?.settings?.once_per_driver;
     allowResubmit.checked = !oncePerDriver;
   }
+  // Audience — default to "all"; populate from the form's assignments if any.
+  const radioAll  = document.querySelector('input[name="rr-form-audience"][value="all"]');
+  const radioSome = document.querySelector('input[name="rr-form-audience"][value="some"]');
+  const audList   = document.getElementById("rr-form-audience-list");
+  if (radioAll) radioAll.checked = true;
+  if (radioSome) radioSome.checked = false;
+  if (audList) { audList.style.display = "none"; audList.innerHTML = `<div class="rr-loading" style="font-size:var(--fs-xs)">Loading drivers…</div>`; }
+  if (form?.id) {
+    sb.rpc("form_get_assignments", { p_form_id: form.id }).then(({ data }) => {
+      const ids = Array.isArray(data) ? data : [];
+      if (ids.length > 0) {
+        if (radioSome) radioSome.checked = true;
+        if (radioAll)  radioAll.checked  = false;
+        if (audList) audList.style.display = "block";
+        _renderAudienceList(ids);
+      }
+    }).catch(() => {});
+  }
   _renderBuilderCanvas();
   _renderBuilderProps();
   if (typeof openModal === "function") openModal("modal-form-builder");
 }
+
+async function _renderAudienceList(checkedIds) {
+  const host = document.getElementById("rr-form-audience-list");
+  if (!host) return;
+  const checked = new Set(checkedIds || []);
+  if (!_formAudienceDrivers) {
+    const dspId = window.RR?.dsp?.id;
+    if (dspId) {
+      const { data } = await sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", dspId).eq("status", "active").order("full_name");
+      _formAudienceDrivers = Array.isArray(data) ? data : [];
+    } else _formAudienceDrivers = [];
+  }
+  if (_formAudienceDrivers.length === 0) { host.innerHTML = `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">No active drivers.</div>`; return; }
+  host.innerHTML = _formAudienceDrivers.map(d => {
+    const name = (d.preferred_name && d.preferred_name.trim()) || d.full_name || "Driver";
+    return `<label style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:var(--fs-sm);cursor:pointer"><input type="checkbox" data-rr-aud-driver="${escapeHtml(d.id)}" ${checked.has(d.id) ? "checked" : ""}/><span>${escapeHtml(name)}</span></label>`;
+  }).join("");
+}
+
+// Audience radio toggle inside the form builder.
+document.addEventListener("change", (e) => {
+  if (e.target?.name !== "rr-form-audience") return;
+  const audList = document.getElementById("rr-form-audience-list");
+  if (!audList) return;
+  if (e.target.value === "some") {
+    audList.style.display = "block";
+    // populate once (keeps any existing checks)
+    if (!audList.querySelector("[data-rr-aud-driver]")) _renderAudienceList([]);
+  } else {
+    audList.style.display = "none";
+  }
+});
 
 function _renderBuilderCanvas() {
   const list  = document.getElementById("rr-builder-fields");
@@ -19461,11 +19520,26 @@ async function _saveBuilder({ publish }) {
     fields:   _formsState.fields,
     settings,
   };
+  // Audience: "some" → the checked driver ids; otherwise [] (= all drivers).
+  const audienceSome = document.querySelector('input[name="rr-form-audience"][value="some"]')?.checked;
+  const audienceIds = audienceSome
+    ? Array.from(document.querySelectorAll('#rr-form-audience-list [data-rr-aud-driver]:checked')).map(el => el.getAttribute("data-rr-aud-driver"))
+    : [];
+  if (audienceSome && audienceIds.length === 0) {
+    toast("Pick at least one driver, or choose “All active drivers”", "warn");
+    return;
+  }
+
   const { data: saved, error } = await sb.rpc("upsert_form", {
     p_id:      _formsState.editing?.id || null,
     p_payload: payload,
   });
   if (error) { toast("Save failed: " + error.message, "warn"); return; }
+
+  if (saved?.id) {
+    const { error: asgErr } = await sb.rpc("form_set_assignments", { p_form_id: saved.id, p_driver_ids: audienceIds });
+    if (asgErr) { toast("Saved, but couldn't set audience: " + asgErr.message, "warn"); }
+  }
 
   if (publish && saved?.id) {
     const { error: pubErr } = await sb.rpc("publish_form", { p_id: saved.id });

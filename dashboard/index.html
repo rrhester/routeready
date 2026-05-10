@@ -12269,9 +12269,11 @@ Evidence attached:
         <div id="rr-builder-props-body" style="display:none"></div>
 
         <div class="field-props-head" style="margin-top:18px">Form settings</div>
-        <div class="field-prop-row">
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
           <span class="field-prop-label">Audience</span>
-          <div style="font-size:var(--fs-sm);color:var(--text-muted)">All active drivers in your DSP</div>
+          <label style="display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="rr-form-audience" value="all" checked /> All active drivers</label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="rr-form-audience" value="some" /> Specific drivers</label>
+          <div id="rr-form-audience-list" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--canvas)"><div class="rr-loading" style="font-size:var(--fs-xs)">Loading drivers…</div></div>
         </div>
         <div class="field-prop-row">
           <span class="field-prop-label">Allow multiple submissions</span>
@@ -18477,7 +18479,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260510p-workflow-fixes"></script>
+<script type="module" src="./live.js?v=20260510q-workflow-assign"></script>
 
 </body>
 </html>
