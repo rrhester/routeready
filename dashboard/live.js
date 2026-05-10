@@ -901,6 +901,7 @@ window.goto = function (view) {
   if (view === "messages")  loadDriverChatInbox();
   if (view === "forms")     loadFormsList();
   if (view === "admin")     loadPlatformAdmin();
+  if (view === "outlook")   loadStaffingOutlook();
 };
 
 // ── Platform admin view ────────────────────────────────────────────────────
@@ -18065,6 +18066,227 @@ async function loadOpenShifts() {
         </div>`).join("")}
     </div>`;
 }
+
+
+// ─── Staffing outlook ──────────────────────────────────────────────────
+// Forward-looking capacity check: across the next few weeks of generated
+// shifts, can the current roster (availability + PTO + the weekly-day cap)
+// cover the routes — and if not, who should the DSP talk to about opening
+// their availability, and what days do they need to hire for?  All the
+// math runs client-side from data the dashboard already has access to.
+
+const _OUTLOOK_WEEKS   = 4;                                           // weeks ahead to model
+const _OUTLOOK_DOW     = ["mon","tue","wed","thu","fri","sat","sun"]; // index 0 = Monday
+const _OUTLOOK_DOW_LBL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+const _dowKeyMon = (iso) => _OUTLOOK_DOW[(new Date(iso + "T12:00:00").getDay() + 6) % 7]; // getDay 0=Sun → mon-indexed
+
+// Match drivers to one week's dates: max-flow (Edmonds–Karp) over
+// source → driver (cap = weekly day-cap) → date (cap 1 per available
+// non-PTO day) → sink (cap = that date's demand).  Returns the number of
+// shifts coverable and the per-date shortfall.
+function _outlookMatchWeek(driverIds, driverDates, demandByDate, cap) {
+  const dates = [...demandByDate.keys()];
+  const totalDemand = dates.reduce((s, d) => s + demandByDate.get(d), 0);
+  if (totalDemand === 0 || driverIds.length === 0 || cap <= 0) {
+    return { covered: 0, demand: totalDemand, deficitByDate: new Map(dates.map(d => [d, demandByDate.get(d)])) };
+  }
+  const D = driverIds.length, K = dates.length;
+  const S = 0, T = D + K + 1, n = T + 1;
+  const dateNode = new Map(dates.map((d, i) => [d, 1 + D + i]));
+  const g = Array.from({ length: n }, () => []);
+  const addEdge = (u, v, c) => { g[u].push({ to: v, cap: c, rev: g[v].length }); g[v].push({ to: u, cap: 0, rev: g[u].length - 1 }); };
+  driverIds.forEach((id, i) => {
+    addEdge(S, 1 + i, cap);
+    const can = driverDates.get(id);
+    if (can) for (const d of can) if (dateNode.has(d)) addEdge(1 + i, dateNode.get(d), 1);
+  });
+  for (const d of dates) addEdge(dateNode.get(d), T, demandByDate.get(d));
+  let covered = 0;
+  for (;;) {
+    const prevNode = new Array(n).fill(-1), prevEdge = new Array(n).fill(-1);
+    const q = [S]; prevNode[S] = S;
+    while (q.length) {
+      const u = q.shift(); if (u === T) break;
+      g[u].forEach((e, i) => { if (e.cap > 0 && prevNode[e.to] === -1) { prevNode[e.to] = u; prevEdge[e.to] = i; q.push(e.to); } });
+    }
+    if (prevNode[T] === -1) break;
+    let aug = Infinity;
+    for (let v = T; v !== S; v = prevNode[v]) aug = Math.min(aug, g[prevNode[v]][prevEdge[v]].cap);
+    for (let v = T; v !== S; v = prevNode[v]) { const e = g[prevNode[v]][prevEdge[v]]; e.cap -= aug; g[v][e.rev].cap += aug; }
+    covered += aug;
+  }
+  const deficitByDate = new Map();
+  for (const d of dates) {
+    const e = g[dateNode.get(d)].find(x => x.to === T);   // forward date→sink edge; residual cap = unfilled demand
+    deficitByDate.set(d, e ? e.cap : demandByDate.get(d));
+  }
+  return { covered, demand: totalDemand, deficitByDate };
+}
+
+async function loadStaffingOutlook() {
+  const body = document.getElementById("rr-outlook-body");
+  if (!body) return;
+  body.innerHTML = `<div class="loader" style="margin:80px auto"></div>`;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { body.innerHTML = `<div class="empty-state">No workspace.</div>`; return; }
+
+  const mon0 = startOfWeekMonday(new Date());
+  const weeks = [];
+  for (let w = 0; w < _OUTLOOK_WEEKS; w++) {
+    const ws = addDays(mon0, w * 7);
+    weeks.push({ startIso: fmtIsoDate(ws), days: Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(ws, i))) });
+  }
+  const allDates  = weeks.flatMap(w => w.days);
+  const rangeStart = allDates[0], rangeEnd = allDates[allDates.length - 1];
+  const since60   = fmtIsoDate(addDays(new Date(), -60));
+
+  const [driversRes, shiftsRes, ptoRes, settingsRes, calloutRes, totalRes] = await Promise.all([
+    sb.from("drivers").select("id, full_name, preferred_name, hire_date, metadata").eq("dsp_id", dspId).eq("status", "active").order("full_name"),
+    sb.from("shifts").select("id, date, driver_id, status").eq("dsp_id", dspId).gte("date", rangeStart).lte("date", rangeEnd).eq("status", "scheduled"),
+    sb.from("time_off_requests").select("driver_id, start_date, end_date").eq("dsp_id", dspId).eq("status", "approved").lte("start_date", rangeEnd).gte("end_date", rangeStart),
+    sb.rpc("scheduling_settings_for_week", { p_week_start: weeks[0].startIso }),
+    sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["called_off","no_show"]),
+    sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["scheduled","completed","called_off","no_show"]),
+  ]);
+  if (driversRes.error) { body.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load: ${escapeHtml(driversRes.error.message)}</div>`; return; }
+
+  const drivers = driversRes.data || [];
+  const maxDays = (() => { const v = settingsRes.data?.max_days_per_week; return Number.isFinite(v) ? Math.max(1, Math.min(7, v)) : 5; })();
+  const calloutRate = (totalRes.count || 0) > 0 ? Math.min(0.5, (calloutRes.count || 0) / totalRes.count) : 0;
+
+  // Effective availability per (driver, date) — honors future-dated approvals.
+  const effAvail = new Map();
+  if (drivers.length > 0) {
+    const { data: effRows, error: effErr } = await sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: drivers.map(d => d.id), p_dates: allDates });
+    if (!effErr && Array.isArray(effRows)) for (const r of effRows) effAvail.set(`${r.driver_id}:${r.on_date}`, r.days || []);
+  }
+  const availDaysOn = (id, iso) => {
+    const v = effAvail.get(`${id}:${iso}`);
+    if (Array.isArray(v)) return v;
+    const d = drivers.find(x => x.id === id);
+    return (d?.metadata?.availability?.days) || [];
+  };
+
+  const ptoByDriver = new Map();
+  for (const t of (ptoRes.data || [])) {
+    if (!ptoByDriver.has(t.driver_id)) ptoByDriver.set(t.driver_id, new Set());
+    let cur = new Date(t.start_date + "T12:00:00"); const end = new Date(t.end_date + "T12:00:00");
+    while (cur <= end) { ptoByDriver.get(t.driver_id).add(fmtIsoDate(cur)); cur = addDays(cur, 1); }
+  }
+
+  const demandByDate = new Map();
+  for (const sh of (shiftsRes.data || [])) demandByDate.set(sh.date, (demandByDate.get(sh.date) || 0) + 1);
+
+  const driverIds = drivers.map(d => d.id);
+  const driverCanWork = (id, iso) => {
+    if (ptoByDriver.get(id)?.has(iso)) return false;
+    return availDaysOn(id, iso).includes(_dowKeyMon(iso));
+  };
+
+  const runAtCap = (cap) => {
+    let covered = 0, demand = 0;
+    const perWeek = [];
+    const deficitByDow = new Map(_OUTLOOK_DOW.map(k => [k, 0]));
+    for (const wk of weeks) {
+      const dem = new Map();
+      for (const iso of wk.days) if (demandByDate.has(iso)) dem.set(iso, demandByDate.get(iso));
+      const dd = new Map();
+      for (const id of driverIds) {
+        const s = new Set();
+        for (const iso of wk.days) if (demandByDate.has(iso) && driverCanWork(id, iso)) s.add(iso);
+        if (s.size) dd.set(id, s);
+      }
+      const r = _outlookMatchWeek(driverIds, dd, dem, cap);
+      covered += r.covered; demand += r.demand;
+      perWeek.push({ startIso: wk.startIso, covered: r.covered, demand: r.demand, deficitByDate: r.deficitByDate });
+      for (const [iso, def] of r.deficitByDate) deficitByDow.set(_dowKeyMon(iso), deficitByDow.get(_dowKeyMon(iso)) + def);
+    }
+    return { covered, demand, perWeek, deficitByDow };
+  };
+
+  const base = runAtCap(maxDays), at4 = runAtCap(4), at5 = runAtCap(5);
+
+  // "Worth a 1:1": for each driver who isn't broadly available, the
+  // single day-of-week they're missing that has the most short shifts.
+  const oneOnOnes = [];
+  for (const d of drivers) {
+    const have = new Set((d.metadata?.availability?.days) || []);
+    const missing = _OUTLOOK_DOW.filter(k => !have.has(k));
+    if (missing.length === 0) continue;
+    let bestDow = null, bestDef = 0;
+    for (const k of missing) { const def = base.deficitByDow.get(k) || 0; if (def > bestDef) { bestDef = def; bestDow = k; } }
+    const fewDays = have.size > 0 && have.size <= 3;
+    if (bestDef <= 0 && !fewDays) continue;
+    oneOnOnes.push({ name: displayDriverName(d), haveCount: have.size, bestDow, bestDef: Math.min(bestDef, _OUTLOOK_WEEKS), fewDays });
+  }
+  oneOnOnes.sort((a, b) => (b.bestDef - a.bestDef) || (a.haveCount - b.haveCount));
+
+  const noAvail = drivers.filter(d => !((d.metadata?.availability?.days) || []).length).length;
+
+  // ── Render ──
+  const pct  = (c, dem) => dem === 0 ? 100 : Math.round((c / dem) * 100);
+  const real = (c, dem) => Math.round(pct(c, dem) * (1 - calloutRate));
+  const lightOf = (op, rl) => op < 100 ? "🔴" : (rl < 100 || op < 105) ? "🟡" : "🟢";
+  const overallOnPaper = pct(base.covered, base.demand), overallReal = real(base.covered, base.demand);
+
+  const weekRows = base.perWeek.map(w => {
+    const op = pct(w.covered, w.demand), rl = real(w.covered, w.demand);
+    const short = [...w.deficitByDate.entries()].filter(([, d]) => d > 0).map(([iso, d]) => `${escapeHtml(_fmtAvailDateShort(iso))} (−${d})`).join(", ");
+    const lbl = new Date(w.startIso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return `<tr>
+      <td style="padding:8px 12px;white-space:nowrap">Week of ${escapeHtml(lbl)}</td>
+      <td style="padding:8px 12px;text-align:center">${w.demand === 0 ? "—" : lightOf(op, rl)}</td>
+      <td style="padding:8px 12px;text-align:right;white-space:nowrap">${w.demand === 0 ? "—" : `${op}% · ~${rl}% real`}</td>
+      <td style="padding:8px 12px;color:var(--text-subtle);font-size:var(--fs-sm)">${w.demand === 0 ? "schedule not generated yet" : (short || "fully coverable")}</td>
+    </tr>`;
+  }).join("");
+
+  const flipDays = _OUTLOOK_DOW.filter(k => (at4.deficitByDow.get(k) || 0) > (at5.deficitByDow.get(k) || 0)).map(k => _OUTLOOK_DOW_LBL[k]);
+  const hireDays = _OUTLOOK_DOW.map(k => ({ k, def: base.deficitByDow.get(k) || 0 })).filter(x => x.def > 0).sort((a, b) => b.def - a.def);
+
+  body.innerHTML = `
+    <div class="driver-stat-row" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
+      <div class="stat-mini"><div class="stat-mini-label">Coverable · next ${_OUTLOOK_WEEKS} weeks</div><div class="stat-mini-value" style="color:${overallOnPaper >= 100 ? "var(--green)" : overallOnPaper >= 90 ? "var(--amber)" : "var(--red)"}">${overallOnPaper}%</div><div class="stat-mini-sub">on paper · ~${overallReal}% after a ${Math.round(calloutRate * 100)}% call-off rate</div></div>
+      <div class="stat-mini"><div class="stat-mini-label">Roster</div><div class="stat-mini-value">${drivers.length}</div><div class="stat-mini-sub">active${noAvail ? ` · ${noAvail} with no availability set (counted as unavailable)` : ""}</div></div>
+      <div class="stat-mini"><div class="stat-mini-label">If everyone worked…</div><div class="stat-mini-value" style="font-size:var(--fs-lg)">4d: ${pct(at4.covered, at4.demand)}% · 5d: ${pct(at5.covered, at5.demand)}%</div><div class="stat-mini-sub">${flipDays.length ? `the 5th day closes ${escapeHtml(flipDays.join(", "))}` : "the 5th day doesn't change coverage"} · your cap is ${maxDays}d</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><div class="card-title">Week by week</div></div>
+      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md)">
+        <thead><tr style="text-align:left;color:var(--text-subtle);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em"><th style="padding:8px 12px">Week</th><th style="padding:8px 12px;text-align:center">Status</th><th style="padding:8px 12px;text-align:right">Coverage</th><th style="padding:8px 12px">Short days</th></tr></thead>
+        <tbody>${weekRows || `<tr><td colspan="4" style="padding:14px;color:var(--text-subtle)">No scheduled shifts in the next ${_OUTLOOK_WEEKS} weeks.</td></tr>`}</tbody>
+      </table>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Hire for these days</div></div>
+        <div style="padding:12px 14px">
+          ${hireDays.length === 0
+            ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No structural shortfall over the next ${_OUTLOOK_WEEKS} weeks — every day is coverable with the current roster.</div>`
+            : hireDays.map(x => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-subtle)"><span style="font-weight:600">${_OUTLOOK_DOW_LBL[x.k]}</span><span style="color:var(--text-muted);font-size:var(--fs-sm);text-align:right">short ~${x.def} shift${x.def === 1 ? "" : "s"} over ${_OUTLOOK_WEEKS} weeks (~${(x.def / _OUTLOOK_WEEKS).toFixed(1)}/wk)</span></div>`).join("")
+              + `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">Prioritize applicants who can work ${escapeHtml(hireDays.map(x => _OUTLOOK_DOW_LBL[x.k]).join(", "))}.</div>`}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Worth a 1:1 about availability</div></div>
+        <div style="padding:12px 14px">
+          ${oneOnOnes.length === 0
+            ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No one stands out — either coverage is fine or your drivers are already broadly available.</div>`
+            : oneOnOnes.slice(0, 8).map(o => `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle)"><div style="font-weight:600">${escapeHtml(o.name)}</div><div style="font-size:var(--fs-sm);color:var(--text-muted)">Available ${o.haveCount} day${o.haveCount === 1 ? "" : "s"}/wk${o.bestDow && o.bestDef > 0 ? ` · opening ${_OUTLOOK_DOW_LBL[o.bestDow]} would help cover ~${o.bestDef} short shift${o.bestDef === 1 ? "" : "s"}` : (o.fewDays ? " · quite limited" : "")}.</div></div>`).join("")
+              + (oneOnOnes.length > 8 ? `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">+ ${oneOnOnes.length - 8} more</div>` : "")}
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.6">
+      "Coverable" is the ceiling — the most shifts your roster could fill if every driver worked up to the weekly cap, given who's available and on PTO. It's not a guarantee. "~X% real" discounts it by your ${Math.round(calloutRate * 100)}% call-off / no-show rate over the last 60 days. Weeks with no schedule generated yet aren't counted; generate them to forecast them. Drivers with no availability set are treated as unavailable.
+    </div>`;
+}
+
+// Refresh button in the Staffing-outlook page header.
+document.addEventListener("click", (e) => { if (e.target.closest("#rr-outlook-refresh")) loadStaffingOutlook(); });
 
 
 // Hook view + sub-view loaders.
