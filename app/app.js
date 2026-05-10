@@ -2807,6 +2807,38 @@ const _AVAIL_DAYS = [
   { k: "sun", label: "Sun", fullLabel: "Sunday" },
 ];
 
+// While the availability page is mounted, keep it in sync with the
+// server.  The driver might have the page open when the dispatcher
+// approves their request elsewhere; without a live signal we'd
+// keep showing the "pending review" banner forever.  Two triggers:
+//   1. visibilitychange · re-fetch when the PWA comes back to the
+//      foreground (user switched apps, locked / unlocked, etc.)
+//   2. polling · re-fetch every 30s while the page is mounted
+let _availPollTimer = null;
+let _availVisHandler = null;
+function _availStopAutoRefresh() {
+  if (_availPollTimer) { clearInterval(_availPollTimer); _availPollTimer = null; }
+  if (_availVisHandler) { document.removeEventListener("visibilitychange", _availVisHandler); _availVisHandler = null; }
+}
+function _availStartAutoRefresh() {
+  _availStopAutoRefresh();
+  _availVisHandler = () => {
+    // Only re-render if we're STILL on the availability page when
+    // visibility flips back.  A different page may have mounted
+    // since (the user navigated away).
+    if (document.visibilityState === "visible" && document.getElementById("avail-list")) {
+      renderAvailability();
+    }
+  };
+  document.addEventListener("visibilitychange", _availVisHandler);
+
+  _availPollTimer = setInterval(() => {
+    // Same guard — only poll if the availability page is still mounted.
+    if (document.getElementById("avail-list")) renderAvailability();
+    else _availStopAutoRefresh();
+  }, 30000);
+}
+
 async function renderAvailability() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader"></div>`;
@@ -2880,6 +2912,10 @@ async function renderAvailability() {
 
   const listEl   = document.getElementById("avail-list");
   const submitEl = document.getElementById("avail-submit");
+
+  // Auto-refresh while this page is mounted (dispatcher may
+  // approve / deny the pending request from the dashboard).
+  _availStartAutoRefresh();
 
   let _inFlight = 0;
   window._rrAvailInFlight = () => _inFlight > 0;
