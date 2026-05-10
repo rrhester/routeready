@@ -1,40 +1,48 @@
 // webhook-email-inbound · Receives parsed email replies from an inbound
-// email service (Resend Inbound, Postmark, Cloudflare Email Worker —
-// any service that POSTs JSON works) and writes them to email_messages
-// as direction='inbound' so the applicant card can render the thread.
+// email service and writes them to email_messages as direction='inbound'
+// so the applicant card can render the thread.
 //
-// Auth: bearer token via the Authorization header. The same token must
-//       be set in the upstream service's webhook config + as the
-//       EMAIL_INBOUND_SECRET env var on the Supabase project.
+// Auth — either works, checked in this order:
+//   1. Svix signature (Resend webhooks, and any Svix-signed sender):
+//      svix-id / svix-timestamp / svix-signature headers verified against
+//      RESEND_WEBHOOK_SECRET (the `whsec_…` value Resend shows on the
+//      webhook).
+//   2. Bearer token: `Authorization: Bearer <EMAIL_INBOUND_SECRET>` — for
+//      Cloudflare Email Workers, Postmark, a custom relay, etc.
+//   At least one of RESEND_WEBHOOK_SECRET / EMAIL_INBOUND_SECRET must be
+//   set or every request is refused (500 inbound_secret_missing).
 //
-// Env required:
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-//   EMAIL_INBOUND_SECRET   shared bearer for upstream to authenticate
+// Env:
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (auto-injected)
+//   RESEND_WEBHOOK_SECRET   `whsec_…` signing secret for the Resend webhook
+//   EMAIL_INBOUND_SECRET    shared bearer for non-Svix forwarders
 //
-// Expected JSON shape (best-effort, vendor-agnostic):
-//   {
-//     to:        string | string[],     // recipient(s) — we read the slug
-//     from:      string,                // sender's email
-//     subject?:  string,
-//     text?:     string,                // plaintext body
-//     html?:     string,                // HTML body
-//     messageId?: string                // upstream message id (idempotency)
-//   }
+// Payload (lenient, vendor-agnostic). Resend's `email.received` event
+// nests the message under `data`; flat `{ to, from, subject, text, html,
+// messageId }` also works:
+//   to:        string | string[] | {email|address}[]   recipient(s)
+//   from:      string | {email|address}                sender
+//   subject?:  string
+//   text?:     string                                  plaintext body
+//   html?:     string                                  HTML body
+//   messageId?: string  (also accepts message_id / email_id / id)
 //
-// The local-part of the recipient address (slugified DSP name) selects
-// the tenant; the sender address selects the applicant inside that DSP.
-// If either lookup fails, we 200 the request anyway so the upstream
-// doesn't retry — the row is just dropped on the floor.
+// The recipient address's local-part (the slugified DSP name / short
+// code) picks the tenant; the sender address picks the applicant inside
+// it. If either lookup fails we still 200 so the upstream doesn't retry.
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 
 interface InboundPayload {
-  to?: string | string[];
-  from?: string;
+  to?: unknown;
+  from?: unknown;
   subject?: string;
   text?: string;
   html?: string;
   messageId?: string;
-  // Resend Inbound nests the parsed message under `data`. Be lenient.
+  message_id?: string;
+  email_id?: string;
+  id?: string;
+  // Resend's `email.received` event nests the message under `data`.
   data?: InboundPayload;
 }
 
@@ -70,30 +78,95 @@ function slugifyDspName(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function b64decode(s: string): Uint8Array {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function b64encode(bytes: ArrayBuffer): string {
+  const b = new Uint8Array(bytes);
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s);
+}
+
+// Verify a Svix webhook signature (the scheme Resend uses).
+//   signedContent = `${svix-id}.${svix-timestamp}.${rawBody}`
+//   sig = base64(HMAC-SHA256(key = base64decode(secret w/o "whsec_"), signedContent))
+// The svix-signature header is a space-separated list of `v1,<sig>`.
+async function verifySvix(
+  secret: string,
+  svixId: string,
+  svixTimestamp: string,
+  rawBody: string,
+  svixSignatureHeader: string,
+): Promise<boolean> {
+  // Reject stale deliveries (replay window: 5 minutes).
+  const ts = Number(svixTimestamp);
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false;
+
+  const keyMaterial = secret.startsWith("whsec_") ? secret.slice("whsec_".length) : secret;
+  let key: CryptoKey;
+  try {
+    key = await crypto.subtle.importKey(
+      "raw", b64decode(keyMaterial),
+      { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+  } catch {
+    return false;
+  }
+  const signed = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signed));
+  const expected = b64encode(mac);
+
+  // Header looks like "v1,abc123 v1,def456" (one entry per active key).
+  return svixSignatureHeader
+    .split(" ")
+    .map((part) => part.split(",")[1])
+    .filter(Boolean)
+    .some((sig) => sig === expected);
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
-  // Bearer-token auth so only configured upstream services can post here.
-  const expected = Deno.env.get("EMAIL_INBOUND_SECRET");
-  if (!expected) return badRequest("inbound_secret_missing", 500);
-  const auth = req.headers.get("authorization") || "";
-  const got = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (got !== expected) return badRequest("unauthorized", 401);
+  const svixSecret  = Deno.env.get("RESEND_WEBHOOK_SECRET");
+  const bearerSecret = Deno.env.get("EMAIL_INBOUND_SECRET");
+  if (!svixSecret && !bearerSecret) return badRequest("inbound_secret_missing", 500);
 
-  const payload = (await req.json().catch(() => ({}))) as InboundPayload;
-  const data = payload.data ?? payload; // Resend nests under `data`.
+  // Read the body once as text — Svix verifies the exact bytes.
+  const rawBody = await req.text();
+
+  let authed = false;
+  const svixId   = req.headers.get("svix-id");
+  const svixTs   = req.headers.get("svix-timestamp");
+  const svixSig  = req.headers.get("svix-signature");
+  if (svixSecret && svixId && svixTs && svixSig) {
+    authed = await verifySvix(svixSecret, svixId, svixTs, rawBody, svixSig);
+  }
+  if (!authed && bearerSecret) {
+    const auth = req.headers.get("authorization") || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    authed = token === bearerSecret;
+  }
+  if (!authed) return badRequest("unauthorized", 401);
+
+  let payload: InboundPayload = {};
+  try { payload = JSON.parse(rawBody || "{}") as InboundPayload; } catch { /* keep {} */ }
+  const data = payload.data ?? payload; // Resend nests the message under `data`.
 
   const fromEmail = pickAddress(data.from);
   const toEmail   = pickAddress(data.to);
   if (!fromEmail || !toEmail) {
     return jsonResponse({ ok: true, ignored: "missing_addresses" });
   }
+  const messageId = data.messageId ?? data.message_id ?? data.email_id ?? data.id ?? null;
 
   const supa = serviceClient();
 
-  // 1. Match recipient slug → DSP. Both slugified-name and short_code
-  // are accepted because the From local-part is derived from one of
-  // them in send-email.
+  // 1. Match recipient local-part → DSP (slugified name or short_code —
+  // both are how send-email derives the From/Reply-To local part).
   const slug = localPart(toEmail);
   const { data: dsps } = await supa.from("dsps").select("id, name, short_code");
   const dsp = (dsps ?? []).find((d) => {
@@ -110,10 +183,10 @@ Deno.serve(async (req) => {
     .select("id").eq("dsp_id", dsp.id).ilike("email", fromEmail).limit(1);
   const applicantId = app?.[0]?.id ?? null;
 
-  // 3. Idempotency — if upstream sends the same messageId twice, no-op.
-  if (data.messageId) {
+  // 3. Idempotency — re-delivery of the same message id is a no-op.
+  if (messageId) {
     const { data: existing } = await supa.from("email_messages")
-      .select("id").eq("provider", "inbound").eq("provider_message_id", data.messageId).limit(1);
+      .select("id").eq("provider", "inbound").eq("provider_message_id", messageId).limit(1);
     if (existing && existing.length > 0) {
       return jsonResponse({ ok: true, deduped: true });
     }
@@ -130,7 +203,7 @@ Deno.serve(async (req) => {
     body_text: data.text ?? null,
     body_html: data.html ?? null,
     provider: "inbound",
-    provider_message_id: data.messageId ?? null,
+    provider_message_id: messageId,
   });
 
   return jsonResponse({ ok: true, applicant_id: applicantId });
