@@ -3,82 +3,80 @@
    tabular numerals for times, high contrast for outdoor light. */
 
 :root{
-  /* ── Surfaces (mobile material) ─────────────────────────── */
-  /* Environment (Fluent — clean, cool, neutral) */
-  --bg: #F0F3F8;
+  /* Driver-PWA tokens — kept in lockstep with the dashboard's
+     :root so the two surfaces read as one product.  Mobile-specific
+     bits (glass blur, the tab-bar height, the on-screen-keyboard
+     offset, transition curves) live alongside them. */
+
+  /* ── Surfaces (same as the dashboard's --canvas / --surface) ── */
+  --bg: #F5F7FA;
   --bg-grad:
-    radial-gradient(ellipse 600px 400px at 88% 0%,  rgba(255,255,255,.55) 0%, transparent 60%),
-    radial-gradient(ellipse 700px 500px at 0% 100%, rgba(15,23,42,.025)  0%, transparent 60%),
-    linear-gradient(180deg, #F0F3F8 0%, #E6EBF2 100%);
+    radial-gradient(ellipse 1400px 900px at 85% -8%, rgba(255,255,255,.50) 0%, transparent 55%),
+    radial-gradient(ellipse 1200px 850px at 5% 90%,  rgba(15,23,42,.020)  0%, transparent 55%),
+    linear-gradient(180deg, #F5F7FA 0%, #ECF0F5 100%);
   --surface: #FFFFFF;
-  --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FBFCFE 100%);
-  --canvas: #F1F4F8;
-  --border: rgba(15,23,42,.12);
-  --border-strong: rgba(15,23,42,.18);
-  --border-subtle: rgba(15,23,42,.06);
-  --glass: rgba(255,255,255,.78);
+  --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FCFDFE 100%);
+  --surface-hover: #F4F6FA;
+  --surface-pressed: #ECF0F5;
+  --canvas: #F5F7FA;
+  --border: rgba(15,23,42,.10);
+  --border-strong: rgba(15,23,42,.16);
+  --border-subtle: rgba(15,23,42,.05);
+  --glass: rgba(255,255,255,.96);
   --text: #0B1220;
-  --text-muted: #2E3A4F;
-  --text-subtle: #5B6878;
-  /* Brand blue (Microsoft Fluent · matches dashboard --accent #0F6CBD) */
+  --text-muted: #475569;
+  --text-subtle: #94A3B8;
+
+  /* ── Accent — the dashboard's brand blue ─────────────────── */
   --accent: #0F6CBD;
-  --accent-strong: #0B5BA1;
-  --accent-soft: #DCE9F5;
+  --accent-hover: #0B5BA1;
+  --accent-strong: #0B5BA1;          /* legacy alias used in app.css */
+  --accent-text: #0B5BA1;
+  --accent-soft: rgba(15,108,189,.10);
+  --accent-soft-strong: rgba(15,108,189,.16);
+  --accent-border: rgba(15,108,189,.20);
   --accent-grad: linear-gradient(180deg, #1A7AC9 0%, #0F6CBD 100%);
+  --accent-grad-hover: linear-gradient(180deg, #2587D6 0%, #1372C2 100%);
   --accent-grad-pressed: linear-gradient(180deg, #0B5BA1 0%, #094F8C 100%);
-  --accent-glow: 0 0 0 3px rgba(15,108,189,.22);
-  --green: #15803d;
-  --amber: #b45309;
-  --red: #b91c1c;
-  /* ── Shadows (multi-layer) ─────────────────────────────── */
-  /* Shadows (Fluent — restrained, edges do the work) */
-  --shadow-xs: 0 1px 2px rgba(15,23,42,.05);
-  --shadow-sm: 0 1px 2px rgba(15,23,42,.05);
-  --shadow-md: 0 2px 4px rgba(15,23,42,.05),
-               0 1px 8px rgba(15,23,42,.05);
-  --shadow-lg: 0 4px 8px rgba(15,23,42,.07),
-               0 8px 24px rgba(15,23,42,.10);
+  --accent-glow: 0 0 0 3px rgba(15,108,189,.20);
+
+  /* ── Semantic — emerald / amber / rose, same as the dashboard ── */
+  --green: #059669; --green-bright: #10B981; --green-dark: #047857; --green-soft: rgba(5,150,105,.10);
+  --amber: #D97706; --amber-bright: #F59E0B; --amber-dark: #B45309; --amber-soft: rgba(217,119,6,.10);
+  --red:   #E11D48; --red-bright:   #F43F5E; --red-dark:   #9F1239; --red-soft:   rgba(225,29,72,.10);
+
+  /* ── Shadows — the dashboard's restrained scale ──────────── */
+  --shadow-xs: 0 1px 2px rgba(15,23,42,.04);
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.04);
+  --shadow-md: 0 2px 4px rgba(15,23,42,.04), 0 1px 8px rgba(15,23,42,.04);
+  --shadow-lg: 0 4px 8px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.08);
+  --shadow-xl: 0 8px 16px rgba(15,23,42,.08), 0 16px 48px rgba(15,23,42,.12);
   --highlight-top: inset 0 1px 0 rgba(255,255,255,.5);
   --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.7);
   --inset-pressed: inset 0 1px 2px rgba(15,23,42,.08);
-  /* Radii — Fluent functional sizes, slightly more rounded on
-     mobile than desktop because thumb tap-targets benefit from
-     it but still tighter than the previous web-SaaS scale. */
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
+
+  /* ── Radii — the dashboard's tight functional scale ──────── */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px; --r-2xl: 18px;
   --tab-h: 68px;
-  /* ── Blur for glass ─────────────────────────────────────── */
-  --blur-sm: 6px;
-  --blur-md: 14px;
-  --blur-lg: 24px;
-  /* ── Transitions (Fluent — fast, functional) ───────────── */
+
+  /* ── Glass blur (used on a couple of sticky bars) ────────── */
+  --blur-sm: 6px; --blur-md: 14px; --blur-lg: 24px;
+
+  /* ── Transitions ─────────────────────────────────────────── */
   --t-fast: 100ms cubic-bezier(.33,0,.67,1);
   --t-smooth: 150ms cubic-bezier(.33,0,.67,1);
   --t-spring: 200ms cubic-bezier(.34,1.4,.64,1);
 
-  /* Spacing scale (8px grid · matches the dashboard's --s-* so the
-     two surfaces speak the same spacing language). */
-  --s-1: 4px;
-  --s-2: 8px;
-  --s-3: 12px;
-  --s-4: 16px;
-  --s-5: 20px;
-  --s-6: 24px;
-  --s-8: 32px;
-  --s-10: 40px;
+  /* ── Spacing scale (8px) — same as the dashboard ─────────── */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
 
-  /* Type scale — canonical 7-step.  Mirrors the dashboard so a
-     primary button or card title reads the same on both surfaces. */
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
-  --fs-base: 14px;
-  --fs-lg: 16px;
-  --fs-xl: 22px;
-  --fs-xxl: 24px;
-  /* On-screen keyboard height — set by visualViewport listener in
-     app.js so layouts can subtract it and keep inputs in view. */
+  /* ── Type scale — same as the dashboard ──────────────────── */
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-base: 14px;
+  --fs-lg: 16px; --fs-xl: 22px; --fs-xxl: 24px;
+
+  /* On-screen keyboard height — set by the visualViewport listener
+     in app.js so layouts can subtract it and keep inputs in view. */
   --rr-kbd: 0px;
 }
 
@@ -346,8 +344,8 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 }
 
 .btn-danger{
-  color:var(--red);border-color:rgba(185,28,28,.34);
-  background:linear-gradient(180deg, #FFFFFF 0%, rgba(185,28,28,.04) 100%);
+  color:var(--red);border-color:rgba(225,29,72,.30);
+  background:linear-gradient(180deg, #FFFFFF 0%, rgba(225,29,72,.05) 100%);
 }
 .btn-danger:active{
   background:var(--red);color:#fff;border-color:var(--red);
@@ -1085,7 +1083,7 @@ select.field{
   box-shadow:0 3px 8px rgba(0,0,0,.15), 0 1px 2px rgba(0,0,0,.08);
   transition:transform .2s ease;
 }
-.avail-toggle.on .avail-toggle-track{background:#34c759;border-color:#34c759}
+.avail-toggle.on .avail-toggle-track{background:var(--green);border-color:var(--green)}
 .avail-toggle.on .avail-toggle-thumb{transform:translateX(20px)}
 
 .avail-policy{
