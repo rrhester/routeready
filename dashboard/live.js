@@ -8298,6 +8298,7 @@ document.addEventListener("click", async (e) => {
     outcomeBtn.disabled = true;
     const { error } = await sb.rpc("record_outcome", {
       p_applicant_id: id, p_outcome: outcome, p_notes: null,
+      p_interview_day_id: _ivDayId,
     });
     if (error) {
       toast("Action failed: " + error.message, "warn");
