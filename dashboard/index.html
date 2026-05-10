@@ -8547,6 +8547,19 @@ body.rr-cmdk-open{ overflow:hidden }
                   </label>
                 </div>
               </div>
+              <div class="rr-drawer-form-row">
+                <div>
+                  <div class="rr-drawer-form-label">Preferred-day tiebreaker</div>
+                  <div class="rr-drawer-form-help">When more drivers want a day than there are shifts on it, who gets it.</div>
+                </div>
+                <div class="rr-drawer-form-control">
+                  <select class="form-input" id="rr-set-pref-tiebreaker">
+                    <option value="least_loaded">Fewest shifts so far (default)</option>
+                    <option value="seniority">Most senior (hire date)</option>
+                    <option value="fairness">Least recently honored</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- Wave start times -->
@@ -18447,7 +18460,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260510b-earliest-start-violation"></script>
+<script type="module" src="./live.js?v=20260510c-preferred-autoschedule"></script>
 
 </body>
 </html>
