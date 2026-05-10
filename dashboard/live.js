@@ -9844,6 +9844,19 @@ async function renderEmploymentTab(body, d) {
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
+          <div class="dd-section-title">Training</div>
+          <div class="dd-section-sub">Mark this driver as a trainer so they can be added to shifts as a ride-along.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
+      </div>
+      <div class="dd-row"><label>Driver trainer</label>
+        <label class="rr-toggle"><input type="checkbox" data-rr-trainer-toggle="${escapeHtml(d.id)}" ${d.is_trainer ? "checked" : ""}/><span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span></label>
+      </div>
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
           <div class="dd-section-title">Onboarding</div>
           <div class="dd-section-sub">Milestones recorded by the DSP during hire.</div>
         </div>
@@ -9872,6 +9885,20 @@ async function renderEmploymentTab(body, d) {
       </div>
     </div>`;
 }
+
+// "Driver trainer" toggle on the Employment tab — saves instantly.
+document.addEventListener("change", async (e) => {
+  const t = e.target.closest("[data-rr-trainer-toggle]");
+  if (!t) return;
+  const id = t.getAttribute("data-rr-trainer-toggle");
+  const val = !!t.checked;
+  t.disabled = true;
+  const { error } = await sb.from("drivers").update({ is_trainer: val }).eq("id", id);
+  t.disabled = false;
+  if (error) { toast("Couldn't update: " + error.message, "warn"); t.checked = !val; return; }
+  if (_ddDriver?.driver?.id === id) _ddDriver.driver.is_trainer = val;
+  toast(val ? "Marked as a trainer" : "No longer a trainer", "success");
+});
 
 // License & Certs — license number / image upload (driver self-serve)
 // + expiration verification + DOT/XL certs (DSP only).  When the
@@ -16439,7 +16466,7 @@ async function openShiftEditModal(shiftId) {
 
   const { data: sh, error } = await sb
     .from("shifts")
-    .select("id, date, starts_at, ends_at, driver_id, route_code, drivers(full_name, preferred_name)")
+    .select("id, date, starts_at, ends_at, driver_id, route_code, trainer_driver_id, drivers(full_name, preferred_name)")
     .eq("id", shiftId)
     .single();
   if (error || !sh) {
@@ -16456,6 +16483,14 @@ async function openShiftEditModal(shiftId) {
   };
   const startHM = fmtHM(sh.starts_at);
   const endHM   = fmtHM(sh.ends_at);
+
+  const trainerPool = (Array.isArray(_schedDriverList) ? _schedDriverList : []).filter(x => x.is_trainer && x.id !== sh.driver_id);
+  const trainerOpts = '<option value="">— No trainer —</option>' + trainerPool.map(x => `<option value="${escapeHtml(x.id)}" ${x.id === sh.trainer_driver_id ? "selected" : ""}>${escapeHtml(displayDriverName(x))}</option>`).join("");
+  const trainerRow = `
+        <label style="display:flex;align-items:center;gap:14px">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Trainer</span>
+          <select id="rr-shift-edit-trainer" class="form-input" style="flex:1;max-width:220px">${trainerOpts}</select>
+        </label>${trainerPool.length === 0 ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:-6px">Mark a driver as a trainer on their record to add one here.</div>` : ""}`;
 
   m = document.createElement("div");
   m.id = "rr-shift-edit-modal";
@@ -16475,6 +16510,7 @@ async function openShiftEditModal(shiftId) {
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">End time</span>
           <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
         </label>
+        ${trainerRow}
         <div id="rr-shift-edit-status" style="font-size:var(--fs-xs);color:var(--text-subtle);min-height:14px"></div>
       </div>
       <div style="display:flex;justify-content:space-between;gap:8px;padding:14px 22px;border-top:1px solid var(--border);background:var(--canvas)">
@@ -16537,6 +16573,18 @@ async function openShiftEditModal(shiftId) {
         status.style.color = "var(--red)";
         return;
       }
+
+      const trnSel = document.getElementById("rr-shift-edit-trainer");
+      const newTrainer = trnSel ? (trnSel.value || null) : (sh.trainer_driver_id || null);
+      if (newTrainer !== (sh.trainer_driver_id || null)) {
+        const { error: trnErr } = await sb.rpc("shift_set_trainer", { p_shift_id: shiftId, p_trainer_id: newTrainer });
+        if (trnErr) {
+          status.textContent = "Trainer: " + (trnErr.message || "couldn't update").replace(/^[a-z_]+:\s*/i, "");
+          status.style.color = "var(--red)";
+          return;
+        }
+      }
+
       toast("Shift updated", "success");
       close();
       renderScheduleWeek();
@@ -16544,7 +16592,7 @@ async function openShiftEditModal(shiftId) {
   });
 }
 
-function _schedShiftChip(sh) {
+function _schedShiftChip(sh, trainerName) {
   const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
   const ex = sh.is_cushion
@@ -16558,8 +16606,17 @@ function _schedShiftChip(sh) {
   const stBadge = (stCode && stCode !== "SP")
     ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
-  const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : '';
-  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to edit start / end time or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : (trainerName ? 'border-left:3px solid var(--accent);' : '');
+  const trainerLine = trainerName
+    ? `<div class="shift-chip-trainer" style="font-size:9px;font-weight:700;letter-spacing:.03em;color:var(--accent-text);margin-top:2px">+ ${escapeHtml(trainerName)} · TRAINER</div>`
+    : "";
+  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to edit start / end time, trainer, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}${trainerLine}</div>`;
+}
+
+// A read-only chip shown in a trainer's own row for a day they're doing
+// a ride-along (the route is driven by the trainee).
+function _schedTrainingChip(t) {
+  return `<div class="shift-chip" style="border-color:var(--accent-border);background:var(--accent-soft);cursor:default" title="Riding along as trainer"><div class="shift-chip-route">Training${t.route ? ` · ${escapeHtml(t.route)}` : ""}</div>${t.traineeName ? `<div class="shift-chip-time" style="color:var(--accent-text)">${escapeHtml(t.traineeName)}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -16578,10 +16635,10 @@ async function renderScheduleWeek() {
   const weekEndIso = fmtIsoDate(weekEnd);
   const todayIso  = fmtIsoDate(new Date());
 
-  const [gridRes, driversRes, toRes] = await Promise.all([
+  const [gridRes, driversRes, toRes, trnRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, dot_certified, xl_certified, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, dot_certified, xl_certified, is_trainer, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .order("full_name"),
@@ -16591,6 +16648,11 @@ async function renderScheduleWeek() {
       .eq("status", "approved")
       .lte("start_date", weekEndIso)
       .gte("end_date", _schedStart),
+    sb.from("shifts")
+      .select("id, date, driver_id, route_code, trainer_driver_id, status")
+      .eq("dsp_id", dspId)
+      .gte("date", _schedStart).lte("date", weekEndIso)
+      .not("trainer_driver_id", "is", null),
   ]);
 
   if (gridRes.error)    { console.warn("schedule_grid:", gridRes.error.message); return; }
@@ -16602,6 +16664,19 @@ async function renderScheduleWeek() {
   const timeOff = toRes.data      || [];
 
   _schedDriverList = drivers; // existing add-shift modal reads this list
+
+  // Ride-along trainers for the visible week.
+  const _trnRows = (trnRes && Array.isArray(trnRes.data)) ? trnRes.data : [];
+  const _driverNameById = new Map(drivers.map(x => [x.id, displayDriverName(x)]));
+  const trainerByShift = new Map();                 // shiftId → trainerDriverId
+  const trainingByDriverDate = new Map();           // `${trainerId}|${iso}` → [{ route, traineeName, shiftId }]
+  for (const r of _trnRows) {
+    if (r.status !== "scheduled" || !r.trainer_driver_id) continue;
+    trainerByShift.set(r.id, r.trainer_driver_id);
+    const k = `${r.trainer_driver_id}|${r.date}`;
+    if (!trainingByDriverDate.has(k)) trainingByDriverDate.set(k, []);
+    trainingByDriverDate.get(k).push({ route: r.route_code || "", traineeName: _driverNameById.get(r.driver_id) || "", shiftId: r.id });
+  }
 
   // Driver-column sort lives in a small popover behind a sort icon —
   // matches the Turnover KPI's time-frame switcher pattern (see
@@ -17037,18 +17112,22 @@ async function renderScheduleWeek() {
       if (ptoOn(d.id, iso))
         return `<div class="${cls}" ${data}><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>`;
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
+      const training = trainingByDriverDate.get(`${d.id}|${iso}`) || [];   // days this driver is riding along as a trainer
+      const busy = list.length > 0 || training.length > 0;
       // ★ = a day the driver flagged as preferred.  Green when they're
       // actually scheduled that day, amber when they wanted it but aren't.
       const star = isPref
-        ? `<span title="${list.length > 0 ? "Scheduled on a preferred day" : "Driver prefers this day"}" style="position:absolute;top:1px;right:3px;font-size:9px;line-height:1;color:${list.length > 0 ? "var(--green)" : "var(--amber)"}">★</span>`
+        ? `<span title="${busy ? "Scheduled on a preferred day" : "Driver prefers this day"}" style="position:absolute;top:1px;right:3px;font-size:9px;line-height:1;color:${busy ? "var(--green)" : "var(--amber)"}">★</span>`
         : "";
       const rel = isPref ? ' style="position:relative"' : "";
-      if (list.length === 0)
+      if (!busy)
         return `<div class="${cls}"${rel} ${data}>${star}<div class="shift-chip off">Off</div></div>`;
-      return `<div class="${cls}"${rel} ${data}>${star}${list.map(_schedShiftChip).join("")}</div>`;
+      const chips = list.map(sh => _schedShiftChip(sh, trainerByShift.has(sh.id) ? (_driverNameById.get(trainerByShift.get(sh.id)) || "Trainer") : null)).join("")
+                  + training.map(_schedTrainingChip).join("");
+      return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
