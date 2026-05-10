@@ -550,25 +550,33 @@ select.field{
 }
 .tab{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:var(--s-1);padding:var(--s-2) 0;color:var(--text-muted);
+  gap:3px;padding:var(--s-2) 0 var(--s-1);color:var(--text-muted);
   cursor:pointer;font-size:var(--fs-xs);font-weight:600;
   letter-spacing:.005em;
   position:relative;
   transition:color var(--t-fast), transform .08s ease;
 }
 .tab:active{transform:scale(.94)}
+/* Each tab carries the dashboard's per-section accent — when active,
+   the icon sits in a soft chip of that colour and the label + the top
+   indicator pick it up too (matches the dashboard's coloured nav). */
+.tab[data-c="profile"]  { --tc:#0D9488; --tc-bg:rgba(13,148,136,.14) }
+.tab[data-c="schedule"] { --tc:#4F46E5; --tc-bg:rgba(79,70,229,.14) }
+.tab[data-c="tasks"]    { --tc:#7C3AED; --tc-bg:rgba(124,58,237,.14) }
+.tab[data-c="chat"]     { --tc:#0284C7; --tc-bg:rgba(2,132,199,.14) }
+.tab .tab-ic{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:36px;height:28px;border-radius:9px;
+  transition:background var(--t-fast);
+}
 .tab svg{width:22px;height:22px;stroke-width:2;transition:transform var(--t-fast)}
-.tab.active{color:var(--accent);font-weight:700}
-.tab.active svg{transform:translateY(-1px)}
-/* Active indicator — taller stroke (4px) but subtler shadow so it
-   reads in bright sun without screaming.  Brand-grad replaces the
-   single-tone accent for cross-surface consistency. */
+.tab.active{color:var(--tc, var(--accent));font-weight:700}
+.tab.active .tab-ic{background:var(--tc-bg, var(--accent-soft))}
 .tab.active::before{
   content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
-  width:32px;height:3px;
-  background:var(--accent-grad);
+  width:30px;height:3px;
+  background:var(--tc, var(--accent));
   border-radius:0 0 4px 4px;
-  box-shadow:0 1px 4px -1px rgba(15,108,189,.30);
 }
 .tab .badge{
   position:absolute;top:6px;right:50%;transform:translateX(18px);
