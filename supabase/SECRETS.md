@@ -29,6 +29,8 @@ supabase secrets set --project-ref doiwrhkirgblcvuskhno \
   RESEND_API_KEY=re_... \
   RESEND_FROM_EMAIL='RouteReady <hello@gorouteready.com>' \
   RESEND_REPLY_TO=support@gorouteready.com \
+  EMAIL_INBOUND_SECRET=$(openssl rand -hex 32) \
+  EMAIL_INBOUND_DOMAIN=reply.gorouteready.com \
   CAL_WEBHOOK_SECRET=... \
   APPLY_SHARED_SECRET=$(openssl rand -hex 32) \
   PUBLIC_BASE_URL=https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-twilio \
@@ -45,7 +47,9 @@ edge runtime — you do **not** set them yourself.
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | `send-sms`, `webhook-twilio` (signature check) | All SMS sends + signature verification fail. |
 | `TWILIO_MESSAGING_SERVICE_SID` *or* `TWILIO_FROM_NUMBER` | `send-sms` | At least one is required. Messaging Service is preferred. |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | `send-email` | All email sends fail with `resend_credentials_missing`. |
-| `RESEND_REPLY_TO` | `send-email` | Optional. |
+| `RESEND_REPLY_TO` | `send-email` | Optional. Reply-To for non-applicant mail (a per-DSP `reply_to_email` in `dsps.metadata` overrides it). |
+| `EMAIL_INBOUND_SECRET` | `webhook-email-inbound` | Required for inbound. The function rejects every POST (`unauthorized`, or `inbound_secret_missing` if unset). Must match the `Authorization: Bearer …` header configured on the upstream inbound webhook. |
+| `EMAIL_INBOUND_DOMAIN` | `send-email` | Optional but **required for applicant replies to thread back into the Pipeline**. When set, `send-email` rewrites the Reply-To on applicant-attributed mail to `<dsp-slug>@<this-domain>` so replies land on the inbound parser instead of a dead inbox. Leave unset to keep the old behavior (Reply-To = `RESEND_REPLY_TO` / per-DSP). |
 | `CAL_WEBHOOK_SECRET` | `webhook-cal` | Cal webhooks rejected with `cal_secret_missing`. Set this to the secret you configure in Cal.com → Settings → Webhooks. |
 | `CAL_API_KEY` | `cal-availability` | The dashboard's Calendar tab availability editor calls Cal's REST API. Generate at app.cal.com → Settings → Developer → API keys. Format `cal_live_…` (or `cal_test_…`). |
 | `CAL_USERNAME` | `cal-availability` | Cal username we manage (default `Routeready`). |
@@ -71,12 +75,31 @@ Cal.com → Settings → Developer → Webhooks → New:
 - Events: `BOOKING_CREATED`, `BOOKING_RESCHEDULED`, `BOOKING_CANCELLED`, `MEETING_ENDED`, `BOOKING_NO_SHOW_UPDATED`.
 - Create the event types `interview` and `orientation-day` under your Cal team username; the seed in `0005_seed_and_auth.sql` references those slugs.
 
-### Configure Resend
+### Configure Resend (outbound)
 
 Resend → Domains → add `gorouteready.com`, complete DNS verification, then:
 
-- Set `RESEND_FROM_EMAIL` to a sender on that verified domain.
-- (Optional) set `RESEND_REPLY_TO` to your support inbox.
+- Set `RESEND_FROM_EMAIL` to a sender on that verified domain (e.g. `RouteReady <hello@gorouteready.com>`). `send-email` rewrites the local-part to a per-DSP slug at send time, so the recipient sees `Acme Logistics <acme-logistics@gorouteready.com>`.
+- (Optional) set `RESEND_REPLY_TO` to your support inbox. This is used for non-applicant mail only — see below.
+
+### Inbound email — applicant replies into the Pipeline
+
+The dashboard's applicant **Email** thread shows replies as `inbound` rows. They get there via the `webhook-email-inbound` edge function (already deployed, `--no-verify-jwt`, so it's publicly reachable at `https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-email-inbound`). What it needs:
+
+1. **Pick an inbound domain.** Use a dedicated subdomain so you don't touch the main domain's mail flow — e.g. `reply.gorouteready.com`. Set `EMAIL_INBOUND_DOMAIN` to it (a Supabase secret). `send-email` will then put `Reply-To: <dsp-slug>@reply.gorouteready.com` on every applicant-attributed email; the `<dsp-slug>` local-part is what the webhook uses to find the tenant, and the sender's address is matched to an applicant inside it.
+
+2. **Point that domain's MX at an inbound parser.** Options:
+   - **Resend Email Receiving** (Resend → the inbound/"Receiving" section): add `reply.gorouteready.com`, set its MX records as Resend instructs, create a webhook pointing at the function URL above, and give it an `Authorization: Bearer <EMAIL_INBOUND_SECRET>` header.
+   - **Cloudflare Email Workers** (if `reply.gorouteready.com` is on Cloudflare): a ~10-line worker that parses the message and `fetch()`s the function URL with `{ to, from, subject, text, html, messageId }` JSON and the bearer header. This is the most portable option.
+   - Any service that can POST that JSON shape with the bearer works (Postmark inbound, Mailgun routes, SendGrid Inbound Parse, …) — adjust the field mapping to match the webhook's expected shape (see the docstring at the top of `supabase/functions/webhook-email-inbound/index.ts`).
+
+3. **Set `EMAIL_INBOUND_SECRET`** (`supabase secrets set EMAIL_INBOUND_SECRET=…`) and use the *same* value as the bearer token in the upstream webhook config. Without it the function 500s (`inbound_secret_missing`); with a mismatch it 401s.
+
+4. **Verify.** Send a reply from the dashboard (applicant Email modal → "Send reply"), reply to it from the applicant's mailbox, then re-open the modal — the reply should appear as an `inbound` row within a few seconds. If it doesn't: check the `webhook-email-inbound` logs (Supabase → Edge Functions → Logs) — `unknown_recipient_slug` means the Reply-To local-part doesn't match a DSP's slugified name or `short_code`; `missing_addresses` means the upstream payload shape doesn't line up; a 401/500 means the bearer/secret is off.
+
+Notes:
+- The webhook 200s even when it can't attribute a message (so the upstream doesn't retry forever); those just don't show up in any thread. An inbound mail it *can* match to a DSP but *not* to an applicant is still stored (DSP-scoped, `applicant_id` null) — it just won't surface on a card.
+- Idempotency is on `(provider='inbound', provider_message_id)`, so a parser that re-delivers the same `messageId` is a no-op.
 
 ## 3. Front-end (browser) config
 
