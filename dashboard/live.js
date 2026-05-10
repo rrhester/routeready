@@ -7928,8 +7928,6 @@ async function loadPipelineKpis() {
       ? "No applicants in the pipeline yet"
       : `${total} applicant${total === 1 ? "" : "s"} in the pipeline`;
   }
-
-  renderWeeksStrip();
 }
 
 function syncKpiWindowToggle() {
