@@ -9650,12 +9650,19 @@ function renderAvailabilityTab(body, d, record) {
   const meta = d.metadata || {};
   const avail = meta.availability || {};
   const days = avail.days || [];
+  const earliest = typeof avail.earliest_start === "string" ? avail.earliest_start : "";
+  const preferred = new Set(Array.isArray(avail.preferred_days) ? avail.preferred_days.filter(k => days.includes(k)) : []);
   const isAvail = (k) => days.includes(k);
   const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
   const availBoxes = dayKey.map(k => `
     <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
+      <span style="font-weight:600">${dayLabel[k]}</span>
+    </label>`).join("");
+  const prefBoxes = dayKey.map(k => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}">
+      <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${isAvail(k) ? "" : "disabled"}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
 
@@ -9670,11 +9677,15 @@ function renderAvailabilityTab(body, d, record) {
     ? arr.map((k) => dayLabel[k] || k).join(", ")
     : "no days";
 
+  const startStr = (v) => (v && _fmtTime12(v)) || v || "";
+  const pendStart = pending && startStr(pending.earliest_start) ? `, earliest start ${escapeHtml(startStr(pending.earliest_start))}` : "";
+  const latStart  = latest  && startStr(latest.earliest_start)  ? `, earliest start ${escapeHtml(startStr(latest.earliest_start))}`  : "";
+
   let stateBanner = "";
   if (pending) {
     stateBanner = `
       <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--amber-soft);border:1px solid rgba(217,119,6,.2);font-size:var(--fs-sm);color:var(--amber);line-height:1.5">
-        <strong>Driver requested a change</strong> — ${escapeHtml(fmtDays(pending.days))}.
+        <strong>Driver requested a change</strong> — ${escapeHtml(fmtDays(pending.days))}${pendStart}.
         Awaiting your decision in Drivers → Availability.
       </div>`;
   } else if (latest && latest.status === "approved" && latest.effective_from && latest.effective_from > todayIso) {
@@ -9683,7 +9694,7 @@ function renderAvailabilityTab(body, d, record) {
       <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--accent-soft);border:1px solid var(--accent-border);font-size:var(--fs-sm);color:var(--accent-text);line-height:1.5">
         <strong>Approved change takes effect ${escapeHtml(_fmtAvailDateShort(latest.effective_from))}</strong>
         ${latest.effective_until ? ` – ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}` : ""}:
-        ${escapeHtml(fmtDays(latest.days))}.
+        ${escapeHtml(fmtDays(latest.days))}${latStart}.
         The toggles below still show today's live availability until then.
       </div>`;
   } else if (latest && latest.status === "approved" && latest.effective_until && latest.effective_until >= todayIso) {
@@ -9699,6 +9710,20 @@ function renderAvailabilityTab(body, d, record) {
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
       <label>Available days</label>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${availBoxes}</div>
+    </div>
+    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:center">
+      <label>Earliest start</label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <select data-rr-avail-start style="font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text)">${_availStartOptionsHtml(earliest)}</select>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Earliest time of day this driver can begin a shift.</span>
+      </div>
+    </div>
+    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
+      <label>Preferred days</label>
+      <div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${prefBoxes}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Days the driver most wants to work. Only days in their available set can be preferred.</div>
+      </div>
     </div>`;
 }
 
@@ -11757,8 +11782,16 @@ document.addEventListener("click", async (e) => {
     const days = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-day]"))
       .filter(el => el.checked)
       .map(el => el.dataset.rrAvailDay);
+    const startSel = document.querySelector("#rr-dd-drawer [data-rr-avail-start]");
+    const earliest = startSel && startSel.value ? startSel.value : null;
+    const preferred = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-pref]"))
+      .filter(el => el.checked)
+      .map(el => el.dataset.rrAvailPref)
+      .filter(k => days.includes(k));   // a preferred day must be in the available set
     const meta = _ddDriver.driver.metadata || {};
-    const newMeta = { ...meta, availability: { days } };
+    const availObj = { ...(meta.availability || {}), days, preferred_days: preferred };
+    if (earliest) availObj.earliest_start = earliest; else delete availObj.earliest_start;
+    const newMeta = { ...meta, availability: availObj };
     const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", driverId);
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
     _ddDriver.driver.metadata = newMeta;
@@ -13210,9 +13243,11 @@ function _renderAvailabilityRows() {
         <div>
           <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${isApproved ? "Approved" : "Requested"}</div>
           <div>${_availDaysHtml(r.days, false)}</div>
+          ${r.earliest_start ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Earliest start · ${escapeHtml(_fmtTime12(r.earliest_start) || r.earliest_start)}</div>` : ""}
           ${(isPending && !same) ? `
             <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Currently approved</div>
             <div>${_availDaysHtml(r.current_days, true)}</div>
+            ${r.current_earliest_start ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Earliest start · ${escapeHtml(_fmtTime12(r.current_earliest_start) || r.current_earliest_start)}</div>` : ""}
           ` : ""}
         </div>
         ${actions}
@@ -13227,6 +13262,29 @@ function _fmtAvailDateShort(iso) {
     const d = new Date(iso + "T12:00:00");
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   } catch { return iso; }
+}
+
+// "09:30" → "9:30 AM".  Empty string for anything that isn't an HH:MM.
+function _fmtTime12(hhmm) {
+  if (typeof hhmm !== "string" || !/^\d{1,2}:\d{2}$/.test(hhmm)) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  const ap = h < 12 ? "AM" : "PM";
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(m).padStart(2, "0")} ${ap}`;
+}
+
+// <option> list for an "earliest start" picker: "Any" + 4:00 AM → 2:00 PM
+// in 30-minute steps, plus the current value if it falls outside that.
+function _availStartOptionsHtml(selected) {
+  const sel = typeof selected === "string" ? selected : "";
+  const canned = /^(0[4-9]|1[0-4]):(00|30)$/;
+  let out = `<option value=""${sel ? "" : " selected"}>Any start time</option>`;
+  if (sel && !canned.test(sel)) out += `<option value="${escapeHtml(sel)}" selected>${escapeHtml(_fmtTime12(sel) || sel)}</option>`;
+  for (let mm = 4 * 60; mm <= 14 * 60; mm += 30) {
+    const v = `${String(Math.floor(mm / 60)).padStart(2, "0")}:${String(mm % 60).padStart(2, "0")}`;
+    out += `<option value="${v}"${v === sel ? " selected" : ""}>${escapeHtml(_fmtTime12(v))}</option>`;
+  }
+  return out;
 }
 
 // Lightweight modal showing a driver's full availability-request
@@ -13290,12 +13348,13 @@ async function _showAvailabilityHistory(driverId, driverName) {
           ? ` · effective ${r.effective_from ? _fmtAvailDateShort(r.effective_from) : "?"}${r.effective_until ? " – " + _fmtAvailDateShort(r.effective_until) : ""}`
           : "";
         const decided = r.decided_at ? ` · decided ${_fmtRel(r.decided_at)}` : "";
+        const startTxt = r.earliest_start ? (_fmtTime12(r.earliest_start) || r.earliest_start) : "";
         return `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
             ${statusPill(r.status)}
             <span style="font-size:var(--fs-xs);color:var(--text-subtle)">submitted ${escapeHtml(_fmtRel(r.submitted_at))}${decided}${eff}</span>
           </div>
-          <div style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(fmtDays(r.days))}</div>
+          <div style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(fmtDays(r.days))}${startTxt ? ` · earliest start ${escapeHtml(startTxt)}` : ""}</div>
           ${r.decision_note ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);font-style:italic;margin-top:4px">"${escapeHtml(r.decision_note)}"</div>` : ""}
         </div>`;
       }).join("")}

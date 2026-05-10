@@ -2839,6 +2839,18 @@ function _availStartAutoRefresh() {
   }, 30000);
 }
 
+// Earliest-start picker: "Any" + 4:00 AM → 2:00 PM in 30-min steps.
+const _AVAIL_START_RE = /^(0[4-9]|1[0-4]):(00|30)$/;
+function _availStartChoices() {
+  const out = [];
+  for (let m = 4 * 60; m <= 14 * 60; m += 30) {
+    const hh = String(Math.floor(m / 60)).padStart(2, "0");
+    const mm = String(m % 60).padStart(2, "0");
+    out.push(`${hh}:${mm}`);
+  }
+  return out;
+}
+
 async function renderAvailability() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader"></div>`;
@@ -2863,9 +2875,20 @@ async function renderAvailability() {
   const blackout   = data?.blackout || null;
   const leadDays   = Number(data?.lead_days ?? 7);
 
-  // Lock toggles when there's a blackout OR a pending request waiting
-  // for approval. Either way the user can't submit a new one anyway.
+  // Lock the request form when there's a blackout OR a pending request
+  // waiting for approval. (Preferred days below stay editable — they're
+  // a free preference, not part of the approval workflow.)
   const locked = !!blackout || hasPending;
+
+  // Earliest start is carried on the request, so the form shows the
+  // pending request's value if there is one, else the approved value.
+  const liveStart    = (typeof data?.earliest_start === "string" && data.earliest_start) || "";
+  const pendingStart = (data?.pending && typeof data.pending.earliest_start === "string" && data.pending.earliest_start) || "";
+  const pickedStart  = hasPending ? pendingStart : liveStart;
+
+  // Preferred days — only days inside the currently approved availability
+  // (liveDays) can be on; anything else is shown disabled.
+  const prefSet = new Set((Array.isArray(data?.preferred_days) ? data.preferred_days : []).filter((k) => liveDays.has(k)));
 
   const rowsHtml = _AVAIL_DAYS.map((d) => {
     const on = picked.has(d.k);
@@ -2879,18 +2902,32 @@ async function renderAvailability() {
       </label>`;
   }).join("");
 
+  const startOpts = [`<option value=""${pickedStart ? "" : " selected"}>Any start time</option>`];
+  if (pickedStart && !_AVAIL_START_RE.test(pickedStart)) {
+    startOpts.push(`<option value="${escapeHtml(pickedStart)}" selected>${escapeHtml(_fmtTime12(pickedStart) || pickedStart)}</option>`);
+  }
+  for (const v of _availStartChoices()) {
+    startOpts.push(`<option value="${v}"${v === pickedStart ? " selected" : ""}>${escapeHtml(_fmtTime12(v))}</option>`);
+  }
+
+  const startBlock = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-top:14px${locked ? ";opacity:.55;pointer-events:none" : ""}">
+      <div>
+        <div style="font-weight:600">Earliest you can start</div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px">Shifts run up to ~10 hours from this time.</div>
+      </div>
+      <select id="avail-start" ${locked ? "disabled" : ""} style="font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text)">${startOpts.join("")}</select>
+    </div>`;
+
   const policyText = leadDays > 0
-    ? `Effective <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval, for 3 weeks.`
-    : `Effective immediately on approval, for 3 weeks.`;
+    ? `Day or start-time changes take effect <b>${leadDays} day${leadDays === 1 ? "" : "s"}</b> after approval, for 3 weeks.`
+    : `Day or start-time changes take effect immediately on approval, for 3 weeks.`;
 
   // Banner states, in priority order:
   //   1. blackout — can't submit
   //   2. pending  — submitted, awaiting dispatcher decision
   //   3. approved-pending-effective — dispatcher approved, but the
-  //      change doesn't take effect (and the toggles below won't
-  //      change) until the effective date.  WITHOUT this banner the
-  //      driver sees an approval message but no visible change and
-  //      thinks something's broken.
+  //      change doesn't take effect until the effective date.
   const lastDec = data?.last_decision || null;
   const todayIso = new Date().toISOString().slice(0, 10);
   const approvedNotYetEffective = lastDec
@@ -2910,29 +2947,58 @@ async function renderAvailability() {
       <div class="avail-banner-sub">Availability changes are blocked through ${escapeHtml(_fmtAvailDate(blackout.end_date))}.</div>
     </div>`;
   } else if (hasPending) {
+    const ps = pendingStart ? ` · earliest start ${escapeHtml(_fmtTime12(pendingStart))}` : "";
     bannerHtml = `<div class="avail-banner pending">
       <div class="avail-banner-title">Request pending review</div>
-      <div class="avail-banner-sub">You'll get a message when your dispatcher decides.</div>
+      <div class="avail-banner-sub">${escapeHtml(_fmtDecDays(data.pending.days))}${ps}. You'll get a message when your dispatcher decides.</div>
     </div>`;
   } else if (approvedNotYetEffective) {
+    const ds = lastDec.earliest_start ? ` · earliest start ${escapeHtml(_fmtTime12(lastDec.earliest_start))}` : "";
     bannerHtml = `<div class="avail-banner approved">
       <div class="avail-banner-title">Change approved · effective ${escapeHtml(_fmtAvailDate(lastDec.effective_from))}</div>
-      <div class="avail-banner-sub">${escapeHtml(_fmtDecDays(lastDec.days))} starting ${escapeHtml(_fmtAvailDate(lastDec.effective_from))}.  Your schedule keeps using the days below until then.</div>
+      <div class="avail-banner-sub">${escapeHtml(_fmtDecDays(lastDec.days))}${ds} starting ${escapeHtml(_fmtAvailDate(lastDec.effective_from))}.  Your schedule keeps using the days below until then.</div>
     </div>`;
   }
+
+  const prefRows = _AVAIL_DAYS.map((d) => {
+    const allowed = liveDays.has(d.k);
+    const on = prefSet.has(d.k);
+    return `
+      <label class="avail-day" data-rr-pref-row="${d.k}" style="${allowed ? "" : "opacity:.4"}">
+        <span class="avail-day-name">${escapeHtml(d.fullLabel)}</span>
+        <span class="avail-toggle ${on ? "on" : ""}">
+          <input type="checkbox" data-rr-pref="${d.k}" ${on ? "checked" : ""} ${allowed ? "" : "disabled"}/>
+          <span class="avail-toggle-track"><span class="avail-toggle-thumb"></span></span>
+        </span>
+      </label>`;
+  }).join("");
+
+  const prefBlock = `
+    <div style="margin-top:26px">
+      <div style="font-weight:700;font-size:var(--fs-lg)">Preferred days</div>
+      <div style="font-size:var(--fs-sm);color:var(--text-muted);margin:4px 0 10px">Days you'd most like to be scheduled — we'll try to honor these. You can only pick days you're already approved for; to add a new day, submit an availability change above.</div>
+      ${liveDays.size === 0
+        ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Set your available days first.</div>`
+        : `<section class="avail-list" id="avail-pref-list">${prefRows}</section>`}
+    </div>`;
 
   main.innerHTML = `
     <div class="avail-page">
       ${bannerHtml ? `<div id="avail-banner-slot">${bannerHtml}</div>` : ""}
+      <div style="font-weight:700;font-size:var(--fs-lg);margin-bottom:8px">Days you can work</div>
       <section class="avail-list" id="avail-list">${rowsHtml}</section>
+      ${startBlock}
       <button class="checkin-btn" id="avail-submit" type="button" ${locked ? "disabled" : ""}>
-        ${locked ? "Submission paused" : "Submit"}
+        ${locked ? "Submission paused" : "Submit availability change"}
       </button>
       <div class="avail-policy">${policyText}</div>
+      ${prefBlock}
     </div>`;
 
   const listEl   = document.getElementById("avail-list");
   const submitEl = document.getElementById("avail-submit");
+  const startEl  = document.getElementById("avail-start");
+  const prefEl   = document.getElementById("avail-pref-list");
 
   // Auto-refresh while this page is mounted (dispatcher may
   // approve / deny the pending request from the dashboard).
@@ -2949,36 +3015,80 @@ async function renderAvailability() {
     cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
   });
 
+  // Preferred days: persist on each toggle. Tapping a day outside the
+  // approved availability is blocked with a prompt.
+  if (prefEl) {
+    prefEl.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-rr-pref-row]");
+      if (!row) return;
+      const dk = row.getAttribute("data-rr-pref-row");
+      if (!liveDays.has(dk)) {
+        e.preventDefault();
+        const full = (_AVAIL_DAYS.find((d) => d.k === dk) || {}).fullLabel || dk;
+        toast(`${full} isn't in your approved availability. Submit an availability change to add it.`, "warn");
+      }
+    });
+    prefEl.addEventListener("change", async (e) => {
+      const cb = e.target.closest("input[data-rr-pref]");
+      if (!cb) return;
+      const dk = cb.dataset.rrPref;
+      if (!liveDays.has(dk)) { cb.checked = false; return; }
+      if (cb.checked) prefSet.add(dk); else prefSet.delete(dk);
+      cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
+      _inFlight++;
+      const { error: perr } = await sb.rpc("driver_set_preferred_days", { p_token: session.token, p_days: [...prefSet] });
+      _inFlight--;
+      if (perr) {
+        if (cb.checked) prefSet.delete(dk); else prefSet.add(dk);
+        cb.checked = !cb.checked;
+        cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
+        const m = perr.message || "";
+        toast(m.includes("preferred_day_unavailable")
+          ? m.replace(/^.*preferred_day_unavailable:\s*/, "")
+          : "Couldn't save preferred days: " + m, "warn");
+        return;
+      }
+      toast("Preferred days saved", "ok");
+    });
+  }
+
   submitEl.addEventListener("click", async () => {
     if (locked) {
       if (hasPending) toast("You already have a pending request", "warn");
       else if (blackout) toast("Submissions are paused right now", "warn");
       return;
     }
-    if (!confirm("Submit availability for approval?")) return;
+    if (!confirm("Submit this availability change for approval?")) return;
 
     _inFlight++;
     submitEl.disabled = true;
     const days = _AVAIL_DAYS.filter((d) => picked.has(d.k)).map((d) => d.k);
-    const { data, error } = await sb.rpc("driver_submit_availability", {
-      p_token: session.token, p_days: days,
+    const startVal = startEl ? (startEl.value || null) : null;
+    const { data: res, error: serr } = await sb.rpc("driver_submit_availability", {
+      p_token: session.token, p_days: days, p_earliest_start: startVal,
     });
     _inFlight--;
-    if (error) {
+    if (serr) {
       submitEl.disabled = false;
-      if ((error.message || "").includes("availability_blackout")) {
-        const reason = error.message.replace(/^.*availability_blackout:\s*/, "");
+      if ((serr.message || "").includes("availability_blackout")) {
+        const reason = serr.message.replace(/^.*availability_blackout:\s*/, "");
         toast("Submissions paused: " + reason, "warn");
       } else {
-        toast("Submit failed: " + error.message, "warn");
+        toast("Submit failed: " + serr.message, "warn");
       }
       return;
     }
-    toast(data?.auto_approved ? "Availability updated" : "Submitted for approval", "ok");
-    // Re-render so the page reflects the new pending state (toggles
-    // lock, button disables, banner shows the pending message).
+    toast(res?.auto_approved ? "Availability updated" : "Submitted for approval", "ok");
     renderAvailability();
   });
+}
+
+function _fmtTime12(hhmm) {
+  if (typeof hhmm !== "string" || !/^\d{1,2}:\d{2}$/.test(hhmm)) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  const ap = h < 12 ? "AM" : "PM";
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(m).padStart(2, "0")} ${ap}`;
 }
 
 // Refresh the Availability page on focus / visibility change so a
