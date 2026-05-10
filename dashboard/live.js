@@ -18140,8 +18140,9 @@ async function loadStaffingOutlook() {
   const rangeStart = allDates[0], rangeEnd = allDates[allDates.length - 1];
   const since60   = fmtIsoDate(addDays(new Date(), -60));
 
-  const [driversRes, shiftsRes, ptoRes, settingsRes, calloutRes, totalRes] = await Promise.all([
+  const [driversRes, onbRes, shiftsRes, ptoRes, settingsRes, calloutRes, totalRes] = await Promise.all([
     sb.from("drivers").select("id, full_name, preferred_name, hire_date, metadata").eq("dsp_id", dspId).eq("status", "active").order("full_name"),
+    sb.from("drivers").select("id, full_name, preferred_name, hire_date, metadata").eq("dsp_id", dspId).eq("status", "onboarding").order("hire_date"),
     sb.from("shifts").select("id, date, driver_id, status").eq("dsp_id", dspId).gte("date", rangeStart).lte("date", rangeEnd).eq("status", "scheduled"),
     sb.from("time_off_requests").select("driver_id, start_date, end_date").eq("dsp_id", dspId).eq("status", "approved").lte("start_date", rangeEnd).gte("end_date", rangeStart),
     sb.rpc("scheduling_settings_for_week", { p_week_start: weeks[0].startIso }),
@@ -18151,20 +18152,27 @@ async function loadStaffingOutlook() {
   if (driversRes.error) { body.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load: ${escapeHtml(driversRes.error.message)}</div>`; return; }
 
   const drivers = driversRes.data || [];
+  const onbAll  = onbRes.data || [];
+  // Onboarding drivers we can actually count: availability set + a start
+  // date.  hire_date doubles as the start date (operators set it that way).
+  const onbCountable = onbAll.filter(d => ((d.metadata?.availability?.days) || []).length > 0);
+  const onbStartBy = new Map(onbCountable.map(d => [d.id, d.hire_date]));
+  const lookupById = new Map([...drivers, ...onbAll].map(d => [d.id, d]));
+
   const maxDays = (() => { const v = settingsRes.data?.max_days_per_week; return Number.isFinite(v) ? Math.max(1, Math.min(7, v)) : 5; })();
   const calloutRate = (totalRes.count || 0) > 0 ? Math.min(0.5, (calloutRes.count || 0) / totalRes.count) : 0;
 
   // Effective availability per (driver, date) — honors future-dated approvals.
   const effAvail = new Map();
-  if (drivers.length > 0) {
-    const { data: effRows, error: effErr } = await sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: drivers.map(d => d.id), p_dates: allDates });
+  const allIdsForAvail = [...drivers, ...onbCountable].map(d => d.id);
+  if (allIdsForAvail.length > 0) {
+    const { data: effRows, error: effErr } = await sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: allIdsForAvail, p_dates: allDates });
     if (!effErr && Array.isArray(effRows)) for (const r of effRows) effAvail.set(`${r.driver_id}:${r.on_date}`, r.days || []);
   }
   const availDaysOn = (id, iso) => {
     const v = effAvail.get(`${id}:${iso}`);
     if (Array.isArray(v)) return v;
-    const d = drivers.find(x => x.id === id);
-    return (d?.metadata?.availability?.days) || [];
+    return (lookupById.get(id)?.metadata?.availability?.days) || [];
   };
 
   const ptoByDriver = new Map();
@@ -18177,13 +18185,17 @@ async function loadStaffingOutlook() {
   const demandByDate = new Map();
   for (const sh of (shiftsRes.data || [])) demandByDate.set(sh.date, (demandByDate.get(sh.date) || 0) + 1);
 
-  const driverIds = drivers.map(d => d.id);
+  const activeIds = drivers.map(d => d.id);
+  const onbIds    = onbCountable.map(d => d.id);
   const driverCanWork = (id, iso) => {
+    const start = onbStartBy.get(id);
+    if (start && start > iso) return false;            // onboarding driver hasn't started yet on this date
     if (ptoByDriver.get(id)?.has(iso)) return false;
     return availDaysOn(id, iso).includes(_dowKeyMon(iso));
   };
 
-  const runAtCap = (cap) => {
+  const runAtCap = (cap, includeOnb) => {
+    const ids = includeOnb ? activeIds.concat(onbIds) : activeIds;
     let covered = 0, demand = 0;
     const perWeek = [];
     const deficitByDow = new Map(_OUTLOOK_DOW.map(k => [k, 0]));
@@ -18191,12 +18203,12 @@ async function loadStaffingOutlook() {
       const dem = new Map();
       for (const iso of wk.days) if (demandByDate.has(iso)) dem.set(iso, demandByDate.get(iso));
       const dd = new Map();
-      for (const id of driverIds) {
+      for (const id of ids) {
         const s = new Set();
         for (const iso of wk.days) if (demandByDate.has(iso) && driverCanWork(id, iso)) s.add(iso);
         if (s.size) dd.set(id, s);
       }
-      const r = _outlookMatchWeek(driverIds, dd, dem, cap);
+      const r = _outlookMatchWeek(ids, dd, dem, cap);
       covered += r.covered; demand += r.demand;
       perWeek.push({ startIso: wk.startIso, covered: r.covered, demand: r.demand, deficitByDate: r.deficitByDate });
       for (const [iso, def] of r.deficitByDate) deficitByDow.set(_dowKeyMon(iso), deficitByDow.get(_dowKeyMon(iso)) + def);
@@ -18204,52 +18216,80 @@ async function loadStaffingOutlook() {
     return { covered, demand, perWeek, deficitByDow };
   };
 
-  const base = runAtCap(maxDays), at4 = runAtCap(4), at5 = runAtCap(5);
+  const hasPipeline = onbCountable.length > 0;
+  const baseCur  = runAtCap(maxDays, false);
+  const basePipe = hasPipeline ? runAtCap(maxDays, true) : baseCur;
+  const at4 = runAtCap(4, hasPipeline);
+  const at5 = runAtCap(5, hasPipeline);
 
-  // "Worth a 1:1": for each driver who isn't broadly available, the
-  // single day-of-week they're missing that has the most short shifts.
+  // "Worth a 1:1": current drivers who aren't broadly available, ranked by
+  // how many short shifts (after the pipeline is counted) opening their
+  // single most-useful missing day would help cover.
   const oneOnOnes = [];
   for (const d of drivers) {
     const have = new Set((d.metadata?.availability?.days) || []);
     const missing = _OUTLOOK_DOW.filter(k => !have.has(k));
     if (missing.length === 0) continue;
     let bestDow = null, bestDef = 0;
-    for (const k of missing) { const def = base.deficitByDow.get(k) || 0; if (def > bestDef) { bestDef = def; bestDow = k; } }
+    for (const k of missing) { const def = basePipe.deficitByDow.get(k) || 0; if (def > bestDef) { bestDef = def; bestDow = k; } }
     const fewDays = have.size > 0 && have.size <= 3;
     if (bestDef <= 0 && !fewDays) continue;
     oneOnOnes.push({ name: displayDriverName(d), haveCount: have.size, bestDow, bestDef: Math.min(bestDef, _OUTLOOK_WEEKS), fewDays });
   }
   oneOnOnes.sort((a, b) => (b.bestDef - a.bestDef) || (a.haveCount - b.haveCount));
 
-  const noAvail = drivers.filter(d => !((d.metadata?.availability?.days) || []).length).length;
+  const noAvail   = drivers.filter(d => !((d.metadata?.availability?.days) || []).length).length;
+  const onbMissing = onbAll.length - onbCountable.length;
 
   // ── Render ──
   const pct  = (c, dem) => dem === 0 ? 100 : Math.round((c / dem) * 100);
   const real = (c, dem) => Math.round(pct(c, dem) * (1 - calloutRate));
   const lightOf = (op, rl) => op < 100 ? "🔴" : (rl < 100 || op < 105) ? "🟡" : "🟢";
-  const overallOnPaper = pct(base.covered, base.demand), overallReal = real(base.covered, base.demand);
+  const opNow  = pct(baseCur.covered,  baseCur.demand);
+  const opPipe = pct(basePipe.covered, basePipe.demand);
+  const rlPipe = real(basePipe.covered, basePipe.demand);
 
-  const weekRows = base.perWeek.map(w => {
+  const weekRows = basePipe.perWeek.map((w, i) => {
     const op = pct(w.covered, w.demand), rl = real(w.covered, w.demand);
+    const curW = baseCur.perWeek[i];
+    const opC  = curW ? pct(curW.covered, curW.demand) : op;
     const short = [...w.deficitByDate.entries()].filter(([, d]) => d > 0).map(([iso, d]) => `${escapeHtml(_fmtAvailDateShort(iso))} (−${d})`).join(", ");
     const lbl = new Date(w.startIso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const covCell = w.demand === 0 ? "—"
+      : (hasPipeline && opC !== op)
+        ? `${op}% · ~${rl}% real <span style="color:var(--text-subtle)">(${opC}% on current roster)</span>`
+        : `${op}% · ~${rl}% real`;
     return `<tr>
       <td style="padding:8px 12px;white-space:nowrap">Week of ${escapeHtml(lbl)}</td>
       <td style="padding:8px 12px;text-align:center">${w.demand === 0 ? "—" : lightOf(op, rl)}</td>
-      <td style="padding:8px 12px;text-align:right;white-space:nowrap">${w.demand === 0 ? "—" : `${op}% · ~${rl}% real`}</td>
+      <td style="padding:8px 12px;text-align:right;white-space:nowrap">${covCell}</td>
       <td style="padding:8px 12px;color:var(--text-subtle);font-size:var(--fs-sm)">${w.demand === 0 ? "schedule not generated yet" : (short || "fully coverable")}</td>
     </tr>`;
   }).join("");
 
   const flipDays = _OUTLOOK_DOW.filter(k => (at4.deficitByDow.get(k) || 0) > (at5.deficitByDow.get(k) || 0)).map(k => _OUTLOOK_DOW_LBL[k]);
-  const hireDays = _OUTLOOK_DOW.map(k => ({ k, def: base.deficitByDow.get(k) || 0 })).filter(x => x.def > 0).sort((a, b) => b.def - a.def);
+  const hireDays = _OUTLOOK_DOW.map(k => ({ k, def: basePipe.deficitByDow.get(k) || 0 })).filter(x => x.def > 0).sort((a, b) => b.def - a.def);
+
+  const headlineVal = hasPipeline && opNow !== opPipe
+    ? `<span style="color:${opNow >= 100 ? "var(--green)" : opNow >= 90 ? "var(--amber)" : "var(--red)"}">${opNow}%</span> <span style="color:var(--text-subtle);font-weight:400">→</span> <span style="color:${opPipe >= 100 ? "var(--green)" : opPipe >= 90 ? "var(--amber)" : "var(--red)"}">${opPipe}%</span>`
+    : `<span style="color:${opPipe >= 100 ? "var(--green)" : opPipe >= 90 ? "var(--amber)" : "var(--red)"}">${opPipe}%</span>`;
+  const headlineSub = hasPipeline && opNow !== opPipe
+    ? `current roster → counting ${onbCountable.length} onboarding · ~${rlPipe}% after a ${Math.round(calloutRate * 100)}% call-off rate`
+    : `on paper · ~${rlPipe}% after a ${Math.round(calloutRate * 100)}% call-off rate`;
+
+  const pipelineNote = onbAll.length === 0 ? "" : `
+    <div style="margin-bottom:16px;padding:10px 14px;border-radius:var(--r-md);background:var(--accent-soft);border:1px solid var(--accent-border);font-size:var(--fs-sm);color:var(--accent-text);line-height:1.5">
+      <strong>Pipeline:</strong> ${onbCountable.length} onboarding driver${onbCountable.length === 1 ? "" : "s"} folded into the forecast (counted from their start date)${onbMissing > 0 ? ` · ${onbMissing} more onboarding ${onbMissing === 1 ? "driver has" : "drivers have"} no availability set — add it on their record so they count` : ""}.
+    </div>`;
 
   body.innerHTML = `
     <div class="driver-stat-row" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
-      <div class="stat-mini"><div class="stat-mini-label">Coverable · next ${_OUTLOOK_WEEKS} weeks</div><div class="stat-mini-value" style="color:${overallOnPaper >= 100 ? "var(--green)" : overallOnPaper >= 90 ? "var(--amber)" : "var(--red)"}">${overallOnPaper}%</div><div class="stat-mini-sub">on paper · ~${overallReal}% after a ${Math.round(calloutRate * 100)}% call-off rate</div></div>
-      <div class="stat-mini"><div class="stat-mini-label">Roster</div><div class="stat-mini-value">${drivers.length}</div><div class="stat-mini-sub">active${noAvail ? ` · ${noAvail} with no availability set (counted as unavailable)` : ""}</div></div>
+      <div class="stat-mini"><div class="stat-mini-label">Coverable · next ${_OUTLOOK_WEEKS} weeks</div><div class="stat-mini-value">${headlineVal}</div><div class="stat-mini-sub">${headlineSub}</div></div>
+      <div class="stat-mini"><div class="stat-mini-label">Roster</div><div class="stat-mini-value">${drivers.length}${hasPipeline ? ` <span style="font-size:var(--fs-md);color:var(--text-subtle)">+${onbCountable.length}</span>` : ""}</div><div class="stat-mini-sub">active${hasPipeline ? ` · +${onbCountable.length} onboarding counted` : ""}${noAvail ? ` · ${noAvail} with no availability set` : ""}</div></div>
       <div class="stat-mini"><div class="stat-mini-label">If everyone worked…</div><div class="stat-mini-value" style="font-size:var(--fs-lg)">4d: ${pct(at4.covered, at4.demand)}% · 5d: ${pct(at5.covered, at5.demand)}%</div><div class="stat-mini-sub">${flipDays.length ? `the 5th day closes ${escapeHtml(flipDays.join(", "))}` : "the 5th day doesn't change coverage"} · your cap is ${maxDays}d</div></div>
     </div>
+
+    ${pipelineNote}
 
     <div class="card" style="margin-bottom:16px">
       <div class="card-head"><div class="card-title">Week by week</div></div>
@@ -18264,9 +18304,9 @@ async function loadStaffingOutlook() {
         <div class="card-head"><div class="card-title">Hire for these days</div></div>
         <div style="padding:12px 14px">
           ${hireDays.length === 0
-            ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No structural shortfall over the next ${_OUTLOOK_WEEKS} weeks — every day is coverable with the current roster.</div>`
+            ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No structural shortfall over the next ${_OUTLOOK_WEEKS} weeks${hasPipeline ? " (counting who's onboarding)" : ""} — every day is coverable.</div>`
             : hireDays.map(x => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-subtle)"><span style="font-weight:600">${_OUTLOOK_DOW_LBL[x.k]}</span><span style="color:var(--text-muted);font-size:var(--fs-sm);text-align:right">short ~${x.def} shift${x.def === 1 ? "" : "s"} over ${_OUTLOOK_WEEKS} weeks (~${(x.def / _OUTLOOK_WEEKS).toFixed(1)}/wk)</span></div>`).join("")
-              + `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">Prioritize applicants who can work ${escapeHtml(hireDays.map(x => _OUTLOOK_DOW_LBL[x.k]).join(", "))}.</div>`}
+              + `<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)">Prioritize applicants who can work ${escapeHtml(hireDays.map(x => _OUTLOOK_DOW_LBL[x.k]).join(", "))}${hasPipeline ? " — this is what's still short after the people you're onboarding" : ""}.</div>`}
         </div>
       </div>
       <div class="card">
@@ -18281,7 +18321,7 @@ async function loadStaffingOutlook() {
     </div>
 
     <div style="margin-top:14px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.6">
-      "Coverable" is the ceiling — the most shifts your roster could fill if every driver worked up to the weekly cap, given who's available and on PTO. It's not a guarantee. "~X% real" discounts it by your ${Math.round(calloutRate * 100)}% call-off / no-show rate over the last 60 days. Weeks with no schedule generated yet aren't counted; generate them to forecast them. Drivers with no availability set are treated as unavailable.
+      "Coverable" is the ceiling — the most shifts your roster could fill if every driver worked up to the weekly cap, given who's available and on PTO. It's not a guarantee. "~X% real" discounts it by your ${Math.round(calloutRate * 100)}% call-off / no-show rate over the last 60 days. Drivers you're onboarding count toward the weeks after their start date, but only once they have an availability set on their record. Weeks with no schedule generated yet aren't counted. Drivers with no availability set are treated as unavailable.
     </div>`;
 }
 
