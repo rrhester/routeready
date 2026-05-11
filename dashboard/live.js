@@ -3156,6 +3156,91 @@ document.addEventListener("click", async (e) => {
   await loadDriverDrawer(driverId);
 });
 
+// "Send documents…" in the drawer Onboarding section — opens a modal
+// listing the DSP's document templates; for each pick, calls
+// documents_envelope_create which queues the email + the driver-app task.
+async function openOnboardingSendDocsModal(driverId) {
+  const drv = (_ddDriver && _ddDriver.driver) || null;
+  if (!drv || !drv.id) { toast("Save the driver record first.", "warn"); return; }
+  if (!drv.email) { toast("Driver has no email on file — add one before sending documents.", "warn"); return; }
+
+  document.getElementById("rr-osd-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-osd-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:560px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Send documents to ${escapeHtml(displayDriverName(drv))}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">The driver gets an email and a task in the RouteReady app for each template you pick.</div></div>
+        <button type="button" class="btn btn-sm" data-rr-osd-close>Close</button>
+      </div>
+      <div style="padding:20px 22px;overflow:auto;flex:1" id="rr-osd-body"><div class="rr-loading">Loading templates</div></div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div id="rr-osd-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-sm" data-rr-osd-close>Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" id="rr-osd-send" disabled>Send</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-rr-osd-close]")) m.remove(); });
+
+  const { data: tpls, error } = await sb.from("document_templates")
+    .select("id, title, description")
+    .eq("dsp_id", window.RR.dsp.id)
+    .is("archived_at", null)
+    .order("title", { ascending: true });
+  const body = m.querySelector("#rr-osd-body");
+  if (!body) return;
+  if (error) { body.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">Couldn't load templates: ${escapeHtml(error.message || "")}</div>`; return; }
+  const list = Array.isArray(tpls) ? tpls : [];
+  if (!list.length) {
+    body.innerHTML = `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">No document templates yet. Build one in <strong>Documents → Templates</strong> first, then come back here to send it.</div>`;
+    return;
+  }
+  body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${list.map(t => `
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:background .12s">
+      <input type="checkbox" data-rr-osd-tpl="${escapeHtml(t.id)}" style="margin-top:3px;flex:0 0 auto">
+      <div style="min-width:0">
+        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(t.title || "Untitled")}</div>
+        ${t.description ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.4">${escapeHtml(t.description)}</div>` : ""}
+      </div>
+    </label>`).join("")}</div>`;
+
+  const sendBtn = m.querySelector("#rr-osd-send");
+  const statusEl = m.querySelector("#rr-osd-status");
+  const checks = () => Array.from(m.querySelectorAll("[data-rr-osd-tpl]:checked"));
+  body.addEventListener("change", () => {
+    const n = checks().length;
+    sendBtn.disabled = n === 0;
+    sendBtn.textContent = n > 0 ? `Send ${n} document${n === 1 ? "" : "s"}` : "Send";
+  });
+
+  sendBtn.addEventListener("click", async () => {
+    const picks = checks().map(c => c.getAttribute("data-rr-osd-tpl"));
+    if (!picks.length) return;
+    sendBtn.disabled = true;
+    let ok = 0, fail = 0; let firstErr = null;
+    for (let i = 0; i < picks.length; i++) {
+      statusEl.textContent = `Sending ${i + 1} of ${picks.length}…`;
+      const { error: err } = await sb.rpc("documents_envelope_create", { p_template_id: picks[i], p_recipient_driver_id: drv.id });
+      if (err) { fail++; if (!firstErr) firstErr = err.message; } else ok++;
+    }
+    statusEl.textContent = "";
+    if (fail === 0) { toast(`Sent ${ok} document${ok === 1 ? "" : "s"} ✓`, "success"); m.remove(); await loadDriverDrawer(drv.id); }
+    else { sendBtn.disabled = false; toast(`Sent ${ok}, ${fail} failed${firstErr ? ": " + firstErr : ""}`, "warn"); }
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-ob-senddocs]");
+  if (!b || !b.closest("#rr-dd-drawer")) return;
+  e.preventDefault();
+  const id = _ddDriver && _ddDriver.driver && _ddDriver.driver.id;
+  if (id) openOnboardingSendDocsModal(id);
+});
+
 // Driver-record Activity tab — filter chips swap _ddActivityFilter and
 // re-render the tab in place.
 document.addEventListener("click", (e) => {
@@ -3184,7 +3269,7 @@ async function loadOnboardingOps() {
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
 
-  const [{ data: drv, error }, i9Res, progRes] = await Promise.all([
+  const [{ data: drv, error }, i9Res, progRes, envRes] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier,
                background_check_completed_at, drug_test_completed_at,
@@ -3195,6 +3280,7 @@ async function loadOnboardingOps() {
       .limit(300),
     sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
     sb.from("onboarding_progress").select("*").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
+    sb.from("document_envelopes").select("recipient_driver_id, status, signed_at, sent_at").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
   ]);
   if (error) {
     body.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Couldn't load onboarding</h3><p>${escapeHtml(error.message || "")}</p></div>`;
@@ -3226,11 +3312,19 @@ async function loadOnboardingOps() {
   const gateLabels = { bg_clear: "background checks", drug_clear: "drug tests", handbook: "handbooks", i9: "Form I-9", offer: "job offers" };
   const slow = Object.entries(gateStuck).sort((a, b) => b[1] - a[1])[0];
   const slowTxt = slow && slow[1] > 0 ? `${gateLabels[slow[0]] || slow[0]} (${slow[1]} pending)` : null;
+  // E-signature envelopes sent to the onboarding cohort. The Documents
+  // KPI tile shows "signed / sent" so the metric is live as soon as any
+  // template has been sent — without the doc-assignment feature.
+  const envAll = Array.isArray(envRes?.data) ? envRes.data : [];
+  const onbIds = new Set(rows.map(r => r.id));
+  let envSent = 0, envSigned = 0;
+  for (const e of envAll) { if (!onbIds.has(e.recipient_driver_id)) continue; envSent++; if (e.signed_at) envSigned++; }
 
   // KPI strip — one tile per onboarding step.
   const c = (k) => `${stepDone[k] || 0} / ${N}`;
   const kpis = [
     { label: "Welcome email",      value: c("welcome"),   sub: "sent" },
+    { label: "Documents",          value: envSent ? `${envSigned} / ${envSent}` : "—", sub: envSent ? "signed of sent" : "build templates in Documents" },
     { label: "Background check",    value: c("bg_clear"),  sub: "cleared" },
     { label: "Drug test",          value: c("drug_clear"),sub: "cleared" },
     { label: "Handbook",           value: c("handbook"),  sub: "completed" },
@@ -10816,10 +10910,11 @@ async function renderEmploymentTab(body, d) {
       return `
     <div class="dd-section">
       <div class="dd-section-head">
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="dd-section-title">Onboarding</div>
           <div class="dd-section-sub">Every step from welcome email through activation — what's been sent, what's completed, and the five gates that decide when this driver can be made active.</div>
         </div>
+        ${can ? `<button type="button" class="btn btn-sm" data-rr-ob-senddocs style="flex:0 0 auto">Send documents…</button>` : ""}
         <span class="dd-badge dsp">DSP only</span>
       </div>
       ${readyBanner}
