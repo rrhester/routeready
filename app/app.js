@@ -3588,6 +3588,14 @@ const _DOCS_STATUS_LABEL = {
   voided:   "Cancelled by sender",
   expired:  "Expired",
 };
+const _DOCS_STATUS_LABEL_INFO = {
+  sent:     "To review",
+  viewed:   "To review",
+  signed:   "Reviewed",
+  declined: "Declined",
+  voided:   "Cancelled by sender",
+  expired:  "Expired",
+};
 const _DOCS_STATUS_COLOR = {
   sent:     "color:var(--amber-dark);background:var(--amber-soft)",
   viewed:   "color:var(--amber-dark);background:var(--amber-soft)",
@@ -3596,6 +3604,7 @@ const _DOCS_STATUS_COLOR = {
   voided:   "color:var(--text-subtle);background:var(--canvas)",
   expired:  "color:var(--text-subtle);background:var(--canvas)",
 };
+const _docLabel = (e) => ((e && e.kind === "informational") ? _DOCS_STATUS_LABEL_INFO : _DOCS_STATUS_LABEL)[e?.status] || e?.status || "";
 
 async function renderDocumentsList() {
   const main = document.getElementById("main");
@@ -3623,7 +3632,7 @@ async function renderDocumentsList() {
             </div>
             <div style="flex:1;min-width:0">
               <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(e.template_title || "Document")}</div>
-              <div style="margin-top:3px"><span class="tag" style="${_DOCS_STATUS_COLOR[e.status] || ""};font-size:11px">${escapeHtml(_DOCS_STATUS_LABEL[e.status] || e.status)}</span></div>
+              <div style="margin-top:3px"><span class="tag" style="${_DOCS_STATUS_COLOR[e.status] || ""};font-size:11px">${escapeHtml(_docLabel(e))}</span></div>
             </div>
             ${isPending
               ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" style="color:var(--text-subtle);flex:0 0 auto"><polyline points="9 18 15 12 9 6"/></svg>'
@@ -3633,7 +3642,7 @@ async function renderDocumentsList() {
   };
 
   if (pending.length === 0 && completed.length === 0) {
-    main.innerHTML = `<div class="empty-state" style="padding:64px 24px;color:var(--text-subtle);text-align:center"><strong style="display:block;color:var(--text);margin-bottom:4px">No documents</strong>You'll see anything dispatch sends you for signature here.</div>`;
+    main.innerHTML = `<div class="empty-state" style="padding:64px 24px;color:var(--text-subtle);text-align:center"><strong style="display:block;color:var(--text);margin-bottom:4px">No documents</strong>You'll see anything your team sends you here — to sign or to review.</div>`;
     return;
   }
   main.innerHTML = `<div style="padding-bottom:24px">${section("To sign", pending, true)}${section("Recent", completed, false)}</div>`;
@@ -3699,12 +3708,13 @@ async function renderDocumentSign() {
     main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Document not available.</div>`;
     return;
   }
+  const isInfo = (tpl.kind === "informational");
 
   if (!["sent","viewed"].includes(env.status)) {
     main.innerHTML = `
       <div style="padding:32px 20px;text-align:center">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:6px">${escapeHtml(tpl.title || "Document")}</div>
-        <div><span class="tag" style="${_DOCS_STATUS_COLOR[env.status] || ""};font-size:11px">${escapeHtml(_DOCS_STATUS_LABEL[env.status] || env.status)}</span></div>
+        <div><span class="tag" style="${_DOCS_STATUS_COLOR[env.status] || ""};font-size:11px">${escapeHtml(_docLabel({ status: env.status, kind: tpl.kind }))}</span></div>
         <div style="margin-top:14px;color:var(--text-subtle);font-size:var(--fs-sm)">No further action needed.</div>
       </div>`;
     return;
@@ -3739,6 +3749,19 @@ async function renderDocumentSign() {
 
       ${fillSection}
 
+      ${isInfo ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+          <input type="checkbox" id="rr-doc-consent" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto">
+          <span style="font-size:var(--fs-sm);line-height:1.5;color:var(--text)">I confirm I have reviewed this document. This acknowledgment is recorded with my name and a timestamp.</span>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Your name</span>
+          <input type="text" id="rr-sig-typed" autocomplete="name" value="${escapeHtml(env.recipient_name || "")}" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
+        </label>
+      </div>
+      <div style="display:flex"><button type="button" id="rr-doc-submit" class="btn btn-primary" style="flex:1">I've reviewed this — acknowledge</button></div>
+      ` : `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
           <input type="checkbox" id="rr-doc-consent" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto">
@@ -3748,8 +3771,6 @@ async function renderDocumentSign() {
 
       <div>
         <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Your signature</div>
-        <!-- White "paper" surface regardless of light/dark theme so the
-             dark ink we draw is always visible. -->
         <div style="position:relative;background:#ffffff;border:1px solid var(--border);border-radius:12px;overflow:hidden">
           <canvas id="rr-sig-canvas" style="display:block;width:100%;height:200px;background:#ffffff;touch-action:none;cursor:crosshair"></canvas>
           <button type="button" id="rr-sig-clear" style="position:absolute;top:8px;right:8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
@@ -3764,81 +3785,67 @@ async function renderDocumentSign() {
       <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
         <button type="button" id="rr-doc-decline" class="btn" style="background:transparent;color:var(--red);border:1px solid var(--border)">Decline</button>
         <button type="button" id="rr-doc-submit" class="btn btn-primary" style="flex:1">Sign &amp; submit</button>
-      </div>
+      </div>`}
     </div>`;
 
-  // Canvas signature pad — pointer events handle mouse + touch + pen.
-  const canvas = document.getElementById("rr-sig-canvas");
-  const ctx = canvas.getContext("2d");
-  const hint = document.getElementById("rr-sig-hint");
-  function fitCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width  = Math.round(rect.width  * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    ctx.scale(dpr, dpr);
-    ctx.lineWidth = 2.4;
-    ctx.lineCap   = "round";
-    ctx.lineJoin  = "round";
-    ctx.strokeStyle = "#0f172a";
-  }
-  fitCanvas();
-  let drawing = false, lastX = 0, lastY = 0, hasInk = false;
-  const pos = (e) => {
-    const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-  canvas.addEventListener("pointerdown", (e) => {
-    canvas.setPointerCapture(e.pointerId);
-    drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; e.preventDefault();
-    if (!hasInk) { hint.style.display = "none"; hasInk = true; }
-  });
-  canvas.addEventListener("pointermove", (e) => {
-    if (!drawing) return;
-    const p = pos(e);
-    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
-    lastX = p.x; lastY = p.y;
-  });
-  const endStroke = () => { drawing = false; };
-  canvas.addEventListener("pointerup",     endStroke);
-  canvas.addEventListener("pointercancel", endStroke);
-  canvas.addEventListener("pointerleave",  endStroke);
-  document.getElementById("rr-sig-clear").addEventListener("click", () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  let hasInk = false, canvas = null, ctx = null;
+  if (!isInfo) {
+    // Canvas signature pad — pointer events handle mouse + touch + pen.
+    canvas = document.getElementById("rr-sig-canvas");
+    ctx = canvas.getContext("2d");
+    const hint = document.getElementById("rr-sig-hint");
+    var fitCanvas = function () {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width  = Math.round(rect.width  * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      ctx.scale(dpr, dpr);
+      ctx.lineWidth = 2.4; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0f172a";
+    };
     fitCanvas();
-    hasInk = false;
-    hint.style.display = "";
-  });
-
-  document.getElementById("rr-doc-decline").addEventListener("click", async () => {
-    const reason = prompt("Decline this document? Optional reason (kept on the audit trail):");
-    if (reason === null) return;
-    const { error: err } = await sb.rpc("driver_envelope_decline", {
-      p_token: session.token, p_signing_token: signingToken, p_reason: reason || null,
+    let drawing = false, lastX = 0, lastY = 0;
+    const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    canvas.addEventListener("pointerdown", (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; e.preventDefault();
+      if (!hasInk) { hint.style.display = "none"; hasInk = true; }
     });
-    if (err) { toast("Couldn't decline: " + err.message, "warn"); return; }
-    toast("Declined", "warn");
-    navigate("/tasks/documents");
-  });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!drawing) return;
+      const p = pos(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+      lastX = p.x; lastY = p.y;
+    });
+    const endStroke = () => { drawing = false; };
+    canvas.addEventListener("pointerup",     endStroke);
+    canvas.addEventListener("pointercancel", endStroke);
+    canvas.addEventListener("pointerleave",  endStroke);
+    document.getElementById("rr-sig-clear").addEventListener("click", () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); fitCanvas(); hasInk = false; hint.style.display = "";
+    });
+    document.getElementById("rr-doc-decline").addEventListener("click", async () => {
+      const reason = prompt("Decline this document? Optional reason (kept on the audit trail):");
+      if (reason === null) return;
+      const { error: err } = await sb.rpc("driver_envelope_decline", {
+        p_token: session.token, p_signing_token: signingToken, p_reason: reason || null,
+      });
+      if (err) { toast("Couldn't decline: " + err.message, "warn"); return; }
+      toast("Declined", "warn");
+      navigate("/tasks/documents");
+    });
+  }
 
   document.getElementById("rr-doc-submit").addEventListener("click", async () => {
     const consentBox = document.getElementById("rr-doc-consent");
     if (!consentBox.checked) {
-      toast("Please accept the consent disclosure to sign.", "warn"); return;
+      toast(isInfo ? "Please confirm you've reviewed the document." : "Please accept the consent disclosure to sign.", "warn"); return;
     }
     const typed = (document.getElementById("rr-sig-typed").value || "").trim();
     let method = null, data = null;
-    if (hasInk) {
-      method = "drawn";
-      data = canvas.toDataURL("image/png");
-    } else if (typed.length >= 2) {
-      method = "typed";
-      data = typed;
-    } else {
-      toast("Draw your signature or type your full name.", "warn"); return;
-    }
+    if (!isInfo && hasInk) { method = "drawn"; data = canvas.toDataURL("image/png"); }
+    else if (typed.length >= 2) { method = "typed"; data = typed; }
+    else { toast(isInfo ? "Enter your name to acknowledge." : "Draw your signature or type your full name.", "warn"); return; }
 
-    // Collect the recipient-fill field values keyed by field id.
     const fieldValues = {};
     for (const f of fillFields) {
       const el = main.querySelector(`[data-rr-fld="${f.id}"]`);
@@ -3847,7 +3854,8 @@ async function renderDocumentSign() {
     }
 
     const btn = document.getElementById("rr-doc-submit");
-    btn.disabled = true; btn.textContent = "Signing…";
+    const origLabel = btn.textContent;
+    btn.disabled = true; btn.textContent = isInfo ? "Saving…" : "Signing…";
     if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
 
     const args = {
@@ -3855,29 +3863,23 @@ async function renderDocumentSign() {
       p_signing_token:    signingToken,
       p_signature_method: method,
       p_signature_data:   data,
-      p_consent_version:  _ESIGN_CONSENT_VERSION,
-      p_consent_text:     _ESIGN_CONSENT_TEXT,
+      p_consent_version:  isInfo ? "ack-v1-2026-05" : _ESIGN_CONSENT_VERSION,
+      p_consent_text:     isInfo ? "I confirm I have reviewed this document. This acknowledgment is recorded with my name and a timestamp." : _ESIGN_CONSENT_TEXT,
       p_typed_name:       typed || null,
       p_ip:               null,
       p_user_agent:       navigator.userAgent || null,
     };
-    // Only pass field values when the template actually has fill
-    // fields — keeps the call shape compatible with the older RPC
-    // signature on backends where the recipient-fields migration
-    // hasn't landed yet.
     if (fillFields.length > 0) args.p_field_values = fieldValues;
     let { error: err } = await sb.rpc("driver_envelope_sign", args);
-    // If the backend is mid-deploy and only has the older signature,
-    // retry once without the field values rather than blocking signing.
     if (err && /p_field_values|schema cache|PGRST202/i.test(String(err.message || err))) {
       delete args.p_field_values;
       ({ error: err } = await sb.rpc("driver_envelope_sign", args));
     }
     if (err) {
-      btn.disabled = false; btn.textContent = "Sign & submit";
-      toast("Couldn't sign: " + err.message, "warn"); return;
+      btn.disabled = false; btn.textContent = origLabel;
+      toast((isInfo ? "Couldn't acknowledge: " : "Couldn't sign: ") + err.message, "warn"); return;
     }
-    toast("Signed ✓", "success");
+    toast(isInfo ? "Acknowledged ✓" : "Signed ✓", "success");
     navigate("/tasks/documents");
   });
 }
