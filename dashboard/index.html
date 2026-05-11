@@ -7358,6 +7358,10 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
+        <!-- Work-authorization (Form I-9) attention strip · only shown
+             when something needs action; populated by refreshI9Badge(). -->
+        <div id="rr-i9-roster-banner" style="display:none;margin-bottom:var(--s-4)"></div>
+
         <!-- Roster KPI drill-down panel · opens when an operator clicks
              one of the clickable KPI tiles above. -->
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
@@ -19110,7 +19114,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260511q-i9-timeline"></script>
+<script type="module" src="./live.js?v=20260511r-i9-compliance-posture"></script>
 
 </body>
 </html>
