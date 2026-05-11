@@ -78,6 +78,45 @@ function slugifyDspName(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function htmlToText(html: string): string {
+  return html
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/\s*(p|div|tr|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Resend's `email.received` webhook is metadata-only (no body). Fetch
+// the parsed message from Resend's API by its email id to get text/html.
+async function fetchResendInboundBody(
+  emailId: string | null,
+): Promise<{ text: string | null; html: string | null }> {
+  const empty = { text: null as string | null, html: null as string | null };
+  if (!emailId) return empty;
+  const apiKey = Deno.env.get("RESEND_API_KEY");
+  if (!apiKey) return empty;
+  try {
+    const r = await fetch(`https://api.resend.com/emails/${encodeURIComponent(emailId)}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!r.ok) {
+      console.log(`fetchResendInboundBody: ${r.status} for ${emailId}`);
+      return empty;
+    }
+    const j = await r.json().catch(() => ({})) as Record<string, unknown>;
+    return {
+      text: typeof j.text === "string" && j.text ? j.text : null,
+      html: typeof j.html === "string" && j.html ? j.html : null,
+    };
+  } catch (e) {
+    console.log(`fetchResendInboundBody: ${(e as Error)?.message ?? e}`);
+    return empty;
+  }
+}
+
 function b64decode(s: string): Uint8Array {
   const bin = atob(s);
   const out = new Uint8Array(bin.length);
@@ -202,17 +241,35 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 3. Idempotency — re-delivery of the same message id is a no-op,
-  // except we'll backfill the applicant if we couldn't attribute it
-  // before but can now.
+  // 3. Body. Resend's email.received webhook is metadata-only, so fetch
+  // the parsed message from Resend's API; fall back to anything inline
+  // in the payload (other parsers carry text/html), then to an HTML→text
+  // pass so the thread always shows the reply text.
+  let bodyText: string | null = typeof data.text === "string" && data.text ? data.text : null;
+  let bodyHtml: string | null = typeof data.html === "string" && data.html ? data.html : null;
+  if (!bodyText && !bodyHtml) {
+    const fetched = await fetchResendInboundBody(typeof data.email_id === "string" ? data.email_id : null);
+    bodyText = fetched.text;
+    bodyHtml = fetched.html;
+  }
+  if (!bodyText && bodyHtml) bodyText = htmlToText(bodyHtml);
+
+  // 4. Idempotency — a re-delivered message id is a no-op, but backfill
+  // the applicant and/or body if the stored row is missing them.
   if (messageId) {
     const { data: existing } = await supa.from("email_messages")
-      .select("id, applicant_id").eq("provider", "inbound").eq("provider_message_id", messageId).limit(1);
+      .select("id, applicant_id, body_text, body_html")
+      .eq("provider", "inbound").eq("provider_message_id", messageId).limit(1);
     if (existing && existing.length > 0) {
-      if (existing[0].applicant_id == null && applicantId != null) {
-        await supa.from("email_messages").update({ applicant_id: applicantId }).eq("id", existing[0].id);
+      const row = existing[0];
+      const patch: Record<string, unknown> = {};
+      if (row.applicant_id == null && applicantId != null) patch.applicant_id = applicantId;
+      if (row.body_text == null && row.body_html == null && (bodyText || bodyHtml)) {
+        patch.body_text = bodyText;
+        patch.body_html = bodyHtml;
       }
-      return jsonResponse({ ok: true, deduped: true, applicant_id: applicantId ?? existing[0].applicant_id ?? null });
+      if (Object.keys(patch).length > 0) await supa.from("email_messages").update(patch).eq("id", row.id);
+      return jsonResponse({ ok: true, deduped: true, applicant_id: applicantId ?? row.applicant_id ?? null });
     }
   }
 
@@ -224,8 +281,8 @@ Deno.serve(async (req) => {
     to_email: toEmail,
     from_email: fromEmail,
     subject: data.subject ?? "(no subject)",
-    body_text: data.text ?? null,
-    body_html: data.html ?? null,
+    body_text: bodyText,
+    body_html: bodyHtml,
     provider: "inbound",
     provider_message_id: messageId,
   });
