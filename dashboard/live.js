@@ -3115,10 +3115,19 @@ document.addEventListener("click", (e) => {
 });
 
 // ── Onboarding command center (dedicated sidebar page) ───────────────
+window.obSub = function (which) {
+  document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
+  const ov = document.getElementById("obsub-overview");
+  const wa = document.getElementById("obsub-workauth");
+  if (ov) ov.style.display = which === "workauth" ? "none" : "";
+  if (wa) wa.style.display = which === "workauth" ? "" : "none";
+};
+
 async function loadOnboardingOps() {
-  const body  = document.getElementById("rr-onboardops-body");
+  const body  = document.getElementById("obsub-overview");
   const subEl = document.getElementById("rr-onboardops-sub");
   if (!body) return;
+  if (typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
 
@@ -3202,18 +3211,6 @@ async function loadOnboardingOps() {
         <span style="font-size:var(--fs-xs);color:var(--text-subtle)">sorted by what needs you</span>
       </div>
       ${enriched.length ? enriched.map(rowHtml).join("") : `<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`}
-    </div>
-
-    <div>
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:var(--s-3);flex-wrap:wrap">
-        <div>
-          <h2 style="font-size:var(--fs-lg);font-weight:700;margin:0;color:var(--text)">Work authorization · Form I-9</h2>
-          <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 0;max-width:640px;line-height:1.5">Section 1 is the employee's (they complete it in the RouteReady app); Section 2 — your review of their identity / work-authorization documents — is due within 3 business days of their first day. Open a driver to record Section 1 or complete Section 2. Not legal advice.</p>
-        </div>
-        <span id="rr-i9-list-status" style="font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap">—</span>
-      </div>
-      <div id="rr-i9-kpis" class="driver-stat-row" style="margin-bottom:var(--s-4)"></div>
-      <div id="rr-i9-queue"><div class="rr-loading">Loading</div></div>
     </div>`;
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
