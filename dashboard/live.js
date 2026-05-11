@@ -2627,7 +2627,6 @@ async function loadDriversRoster() {
   _rosterRows = rows ?? [];
   refreshDriverStatRow(_rosterRows);
   _populateRosterStationFilter(_rosterRows);
-  if (typeof _obSetNavBadge === "function") _obSetNavBadge(_rosterRows);
   renderDriverTable(_rosterRows, error);
 
   // Page sub-line: live count of active drivers + distinct active stations.
@@ -3116,18 +3115,6 @@ document.addEventListener("click", (e) => {
 });
 
 // ── Onboarding command center (dedicated sidebar page) ───────────────
-function _obSetNavBadge(rows) {
-  const el = document.getElementById("rr-onboard-nav-badge");
-  if (!el) return;
-  const onb = (rows || []).filter(d => (d.status || "") === "onboarding");
-  if (!onb.length) { el.style.display = "none"; return; }
-  let blocked = 0;
-  for (const d of onb) if (_obReadiness(d).key === "blocked") blocked++;
-  el.textContent = blocked > 0 ? `${blocked}` : String(onb.length);
-  el.style.background = blocked > 0 ? "var(--red)" : "var(--amber)";
-  el.style.display = "inline-block";
-}
-
 async function loadOnboardingOps() {
   const body  = document.getElementById("rr-onboardops-body");
   const subEl = document.getElementById("rr-onboardops-sub");
@@ -3151,10 +3138,10 @@ async function loadOnboardingOps() {
     return;
   }
   const rows = Array.isArray(drv) ? drv : [];
+  const N = rows.length;
   const i9All = Array.isArray(i9Res?.data) ? i9Res.data : [];
   _rosterI9 = new Map(i9All.map((r) => [r.driver_id, r]));   // so _obReadiness / _i9OnboardCell see fresh I-9 state
-  _obSetNavBadge(rows);
-  if (subEl) subEl.textContent = rows.length ? `${rows.length} driver${rows.length === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
+  if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
   const enriched = rows.map(d => ({ d, ob: _obReadiness(d) }));
   enriched.sort((a, b) => {
@@ -3164,17 +3151,30 @@ async function loadOnboardingOps() {
     return da - db;
   });
   let ready = 0, blocked = 0;
+  const done = { bg: 0, drug: 0, i9: 0, train: 0 };
   const stuck = { bg: 0, drug: 0, i9: 0, train: 0 };
   for (const { ob } of enriched) {
     if (ob.key === "ready") ready++; else if (ob.key === "blocked") blocked++;
-    for (const m of ob.milestones) if (!m.done) stuck[m.k]++;
+    for (const m of ob.milestones) { if (m.done) done[m.k]++; else stuck[m.k]++; }
   }
   const slowLabels = { bg: "background checks", drug: "drug tests", i9: "Form I-9", train: "training" };
   const slow = Object.entries(stuck).sort((a, b) => b[1] - a[1])[0];
   const slowTxt = slow && slow[1] > 0 ? `${slowLabels[slow[0]]} (${slow[1]} pending)` : null;
 
-  const i9rows = i9All.filter(r => rows.some(d => d.id === r.driver_id));
-  const i9t = _i9TallyFromRows(i9rows);
+  // KPI strip — one tile per onboarding step, plus the ready count.
+  const kpis = [
+    { label: "Documents",          value: "—",              sub: "set up in Documents → templates" },
+    { label: "Background check",    value: `${done.bg} / ${N}`,    sub: "cleared" },
+    { label: "Drug test",          value: `${done.drug} / ${N}`,  sub: "complete" },
+    { label: "Work authorization", value: `${done.i9} / ${N}`,    sub: "Form I-9 verified" },
+    { label: "Training",           value: `${done.train} / ${N}`, sub: "complete" },
+    { label: "Ready to activate",  value: `${ready}`,             sub: `of ${N} driver${N === 1 ? "" : "s"}`, tone: ready ? "color:var(--green)" : "" },
+  ];
+  const kpiRow = `<div class="driver-stat-row" style="margin-bottom:8px">${kpis.map(k => `<div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone || ""}">${escapeHtml(k.value)}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("")}</div>`;
+  const noteParts = [];
+  if (blocked) noteParts.push(`<strong style="color:var(--red)">${blocked} blocked</strong>`);
+  if (slowTxt) noteParts.push(`biggest bottleneck: ${escapeHtml(slowTxt)}`);
+  const noteLine = noteParts.length ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-4)">${noteParts.join('<span style="color:var(--text-subtle)"> · </span>')}</div>` : `<div style="margin-bottom:var(--s-4)"></div>`;
 
   const rowHtml = ({ d, ob }) => {
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
@@ -3193,27 +3193,27 @@ async function loadOnboardingOps() {
       </div>`;
   };
 
-  const summaryParts = [`<strong>${rows.length}</strong> onboarding`];
-  if (ready)   summaryParts.push(`<strong style="color:var(--green)">${ready}</strong> ready to activate`);
-  if (blocked) summaryParts.push(`<strong style="color:var(--red)">${blocked}</strong> blocked`);
-  const i9Urgent = i9t.s2_overdue || i9t.needs_correction;
-
   body.innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:var(--fs-sm);margin-bottom:var(--s-4)">
-      <span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap">${summaryParts.join('<span style="color:var(--text-subtle)">·</span>')}</span>
-      ${slowTxt ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs);margin-left:auto">Biggest bottleneck: ${escapeHtml(slowTxt)}</span>` : ""}
-    </div>
-    ${i9t.attention ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid ${i9Urgent ? "#fecaca" : "#fde68a"};border-radius:10px;background:${i9Urgent ? "#fef2f2" : "#fffbeb"};font-size:var(--fs-sm);margin-bottom:var(--s-4)">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${i9Urgent ? "#991b1b" : "#92400e"}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-      <div style="flex:1;min-width:180px;color:${i9Urgent ? "#991b1b" : "#92400e"}"><strong>${i9t.attention}</strong> Form I-9 ${i9t.attention === 1 ? "item needs" : "items need"} attention${i9t.s2_overdue ? ` — ${i9t.s2_overdue} overdue` : ""}.</div>
-      <button type="button" class="btn btn-sm" onclick="goto('drivers');setTimeout(function(){if(window.drSub)drSub('workauth')},40)" style="flex:0 0 auto">Open the I-9 queue</button>
-    </div>` : ""}
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+    ${kpiRow}
+    ${noteLine}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">
         <div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Onboarding drivers</div>
         <span style="font-size:var(--fs-xs);color:var(--text-subtle)">sorted by what needs you</span>
       </div>
       ${enriched.length ? enriched.map(rowHtml).join("") : `<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`}
+    </div>
+
+    <div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:var(--s-3);flex-wrap:wrap">
+        <div>
+          <h2 style="font-size:var(--fs-lg);font-weight:700;margin:0;color:var(--text)">Work authorization · Form I-9</h2>
+          <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 0;max-width:640px;line-height:1.5">Section 1 is the employee's (they complete it in the RouteReady app); Section 2 — your review of their identity / work-authorization documents — is due within 3 business days of their first day. Open a driver to record Section 1 or complete Section 2. Not legal advice.</p>
+        </div>
+        <span id="rr-i9-list-status" style="font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap">—</span>
+      </div>
+      <div id="rr-i9-kpis" class="driver-stat-row" style="margin-bottom:var(--s-4)"></div>
+      <div id="rr-i9-queue"><div class="rr-loading">Loading</div></div>
     </div>`;
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
@@ -3223,6 +3223,9 @@ async function loadOnboardingOps() {
       if (id) openDriverDrawer(id, { tab: "employment" });
     });
   });
+
+  // Fill the embedded Work-authorization (Form I-9) queue.
+  loadDriverWorkAuthView();
 }
 
 function renderOnboardingRow(d) {
@@ -11765,7 +11768,7 @@ async function refreshI9Badge() {
 // Open the driver drawer straight onto the Employment tab from the queue.
 document.addEventListener("click", (e) => {
   const open = e.target.closest("[data-rr-i9-open]");
-  if (!open || !e.target.closest("#dr-sub-workauth")) return;
+  if (!open || !e.target.closest("#view-onboarding-ops")) return;
   e.preventDefault();
   const id = open.getAttribute("data-rr-i9-open");
   if (id) openDriverDrawer(id, { tab: "employment" });
