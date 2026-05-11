@@ -731,6 +731,30 @@ async function _renderEmailThread(applicantId) {
   body.scrollTop = body.scrollHeight;
 }
 
+// Trim the quoted-original tail from an email reply ("On … wrote: > …",
+// Outlook "Original Message" blocks, signature delimiters) so the bubble
+// shows just what the person actually typed. Conservative: if trimming
+// would leave nothing, keep the original.
+function _stripQuotedReply(text) {
+  if (!text) return "";
+  const s = String(text).replace(/\r\n/g, "\n");
+  const markers = [
+    /\n>+ ?.*$/m,                                   // first quoted line
+    /\nOn\b[\s\S]{0,400}?\bwrote: *(?:\n|$)/,       // "On <date>, <name> wrote:" (may wrap)
+    /\n-{2,} ?Original Message ?-{2,}/i,            // Outlook
+    /\n_{10,}\n/,                                   // Outlook divider
+    /\nFrom: .*\n(?:Sent|Date|To|Subject): /i,      // Outlook header block
+    /\n-- ?\n/,                                     // signature delimiter
+  ];
+  let cutAt = s.length;
+  for (const re of markers) {
+    const m = s.match(re);
+    if (m && m.index !== undefined && m.index < cutAt) cutAt = m.index;
+  }
+  const trimmed = s.slice(0, cutAt).replace(/\s+$/g, "");
+  return trimmed.trim() ? trimmed : s.replace(/\s+$/g, "");
+}
+
 function _renderEmailRow(r) {
   const inbound = r.direction === "inbound";
   const align = inbound ? "flex-start" : "flex-end";
@@ -739,8 +763,11 @@ function _renderEmailRow(r) {
   const when   = r.created_at ? new Date(r.created_at).toLocaleString() : "";
   const status = inbound ? "" : ` · ${r.status}`;
   // Plaintext only — body_html is intentionally not injected to avoid
-  // remote-content shenanigans inside the operator dashboard.
-  const text = (r.body_text || "").replace(/\s+$/g, "");
+  // remote-content shenanigans inside the operator dashboard. For inbound
+  // replies, drop the quoted-original tail.
+  const text = inbound
+    ? _stripQuotedReply(r.body_text || "")
+    : (r.body_text || "").replace(/\s+$/g, "");
   return `
     <div style="display:flex;flex-direction:column;align-items:${align};gap:4px">
       <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(sender)} · ${escapeHtml(when)}${status}</div>
