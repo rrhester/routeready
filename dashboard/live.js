@@ -3114,37 +3114,41 @@ function _obSetStrip(rows) {
   el.style.display = "block";
 }
 
-// Driver-drawer Onboarding section: "Mark now" fills a milestone with
-// the current time; "Activate driver" flips status → active. Both
-// persist through the drawer's existing Save flow.
-document.addEventListener("click", (e) => {
-  if (!e.target.closest("#rr-dd-drawer")) return;
-  const setNow = e.target.closest("[data-rr-ob-setnow]");
-  if (setNow) {
-    e.preventDefault();
-    const name = setNow.getAttribute("data-rr-ob-setnow");
-    const kind = setNow.getAttribute("data-rr-ob-kind");
-    const inp = document.querySelector(`#rr-dd-drawer [data-rr-dd-field="${name}"]`);
-    if (!inp) return;
-    const now = new Date();
-    if (kind === "date") inp.value = now.toISOString().slice(0, 10);
-    else inp.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
+// Refresh whichever onboarding surface is open after an action.
+async function _refreshAfterOnboardingAction(driverId) {
+  if (document.getElementById("rr-ob-detail"))      await _loadOnboardingDetail(driverId);
+  else if (document.getElementById("rr-dd-drawer")) await loadDriverDrawer(driverId);
+  if (document.getElementById("view-onboarding-ops")?.classList.contains("active")) loadOnboardingOps();
+}
+
+// "Activate driver" — works from the drawer's status select (legacy) or
+// the onboarding-detail panel (direct status update).
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("[data-rr-ob-activate]")) return;
+  if (!e.target.closest("#rr-dd-drawer, #rr-ob-detail")) return;
+  e.preventDefault();
+  if (document.getElementById("rr-ob-detail")) {
+    const id = (_ddDriver && _ddDriver.driver && _ddDriver.driver.id) || null;
+    if (!id) return;
+    const b = e.target.closest("[data-rr-ob-activate]");
+    const orig = b.textContent; b.disabled = true; b.textContent = "Activating…";
+    const { error } = await sb.from("drivers").update({ status: "active" }).eq("id", id);
+    if (error) { b.disabled = false; b.textContent = orig; toast("Couldn't activate: " + (error.message || ""), "warn"); return; }
+    await _refreshAfterOnboardingAction(id);
     return;
   }
-  if (e.target.closest("[data-rr-ob-activate]")) {
-    e.preventDefault();
-    const sel = document.querySelector('#rr-dd-drawer [data-rr-dd-field="status"]');
-    if (sel) sel.value = "active";
-    document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
-  }
+  // Drawer (legacy) — flip the status select and click Save.
+  const sel = document.querySelector('#rr-dd-drawer [data-rr-dd-field="status"]');
+  if (sel) sel.value = "active";
+  document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
 });
 
 // Onboarding step timestamps (welcome email / handbook / offer / scheduled …):
-// "Mark now" / "Undo" persist via onboarding_progress_set, then reload.
+// "Mark now" / "Undo" persist via onboarding_progress_set, then refresh
+// whichever surface is open (drawer or onboarding-detail panel).
 document.addEventListener("click", async (e) => {
   const b = e.target.closest("[data-rr-ob-prog]");
-  if (!b || !b.closest("#rr-dd-drawer")) return;
+  if (!b || !b.closest("#rr-dd-drawer, #rr-ob-detail")) return;
   e.preventDefault();
   const driverId = _ddDriver?.driver?.id;
   if (!driverId) return;
@@ -3153,12 +3157,159 @@ document.addEventListener("click", async (e) => {
   const orig = b.textContent; b.disabled = true; b.textContent = "Saving…";
   const { error } = await sb.rpc("onboarding_progress_set", { p_driver_id: driverId, p_field: field, p_value: clear ? null : new Date().toISOString() });
   if (error) { b.disabled = false; b.textContent = orig; toast("Couldn't update: " + (error.message || "error"), "warn"); return; }
-  await loadDriverDrawer(driverId);
+  await _refreshAfterOnboardingAction(driverId);
+});
+
+// Background-check / drug-test "Mark now" inside the onboarding-detail
+// panel — direct drivers update (no Save-form needed since the panel
+// doesn't have a Save flow).
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-rr-ob-drv]");
+  if (!b || !b.closest("#rr-ob-detail")) return;
+  e.preventDefault();
+  const driverId = _ddDriver?.driver?.id;
+  if (!driverId) return;
+  const field = b.getAttribute("data-rr-ob-drv");
+  const clear = b.getAttribute("data-rr-ob-act") === "clear";
+  const orig = b.textContent; b.disabled = true; b.textContent = "Saving…";
+  const { error } = await sb.from("drivers").update({ [field]: clear ? null : new Date().toISOString() }).eq("id", driverId);
+  if (error) { b.disabled = false; b.textContent = orig; toast("Couldn't update: " + (error.message || ""), "warn"); return; }
+  await _refreshAfterOnboardingAction(driverId);
+});
+
+// "Open Form I-9 →" inside the onboarding-detail panel — close the
+// panel and switch the Onboarding page to the Work Authorization tab.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-rr-obd-i9]")) return;
+  e.preventDefault();
+  document.getElementById("rr-ob-detail")?.remove();
+  if (typeof window.goto === "function") window.goto("onboarding-ops");
+  setTimeout(() => { if (typeof window.obSub === "function") window.obSub("workauth"); }, 30);
+});
+
+// "Manage onboarding →" link in the driver drawer's slim Employment
+// summary — opens the onboarding-detail panel for this driver.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-ob-open-detail]");
+  if (!b) return;
+  e.preventDefault();
+  const id = b.getAttribute("data-rr-ob-open-detail");
+  if (id) openOnboardingDetail(id);
 });
 
 // "Send documents…" in the drawer Onboarding section — opens a modal
 // listing the DSP's document templates; for each pick, calls
 // documents_envelope_create which queues the email + the driver-app task.
+// Onboarding detail panel — a dedicated slide-over for one driver's
+// onboarding work (10-step tracker, send documents, activate, Form I-9
+// status). Opened from the Onboarding page row or from the slim summary
+// in the driver-record's Employment tab. The full driver record (the
+// generic drawer with all 8 tabs) stays separate.
+async function openOnboardingDetail(driverId) {
+  let panel = document.getElementById("rr-ob-detail");
+  if (panel) panel.remove();
+  panel = document.createElement("div");
+  panel.id = "rr-ob-detail";
+  panel.innerHTML = `
+    <style>
+      #rr-ob-detail{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;justify-content:flex-end}
+      #rr-ob-detail-panel{width:620px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
+      #rr-ob-detail .obd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
+      #rr-ob-detail .obd-head{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px}
+      #rr-ob-detail .obd-head h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em}
+      #rr-ob-detail .obd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
+      #rr-ob-detail .obd-body{padding:20px 24px;flex:1}
+      #rr-ob-detail .obd-close{background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px}
+      @media (max-width:640px){
+        #rr-ob-detail .obd-head{padding:16px 18px}
+        #rr-ob-detail .obd-body{padding:18px}
+      }
+    </style>
+    <div id="rr-ob-detail-panel" data-rr-driver-id="${escapeHtml(driverId)}">
+      <div class="obd-chrome">
+        <div class="obd-head">
+          <div style="display:flex;align-items:center;gap:12px;min-width:0">
+            <div class="avatar-sm" id="rr-obd-avatar" style="width:42px;height:42px;font-size:var(--fs-md);flex-shrink:0">--</div>
+            <div style="min-width:0">
+              <h3 id="rr-obd-title">Onboarding</h3>
+              <div class="sub" id="rr-obd-sub"></div>
+            </div>
+          </div>
+          <button type="button" class="obd-close" data-rr-obd-close aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="obd-body" id="rr-obd-body"><div class="rr-loading">Loading</div></div>
+    </div>`;
+  document.body.appendChild(panel);
+  panel.addEventListener("click", (e) => { if (e.target === panel || e.target.closest("[data-rr-obd-close]")) panel.remove(); });
+
+  await _loadOnboardingDetail(driverId);
+}
+
+async function _loadOnboardingDetail(driverId) {
+  const panel = document.getElementById("rr-ob-detail");
+  if (!panel) return;
+  const { data: rec, error } = await sb.rpc("driver_record", { p_id: driverId });
+  if (error || !rec) { toast("Couldn't load driver: " + (error?.message || ""), "warn"); return; }
+  _ddDriver = rec;
+  if (typeof getDriverStationsCached === "function") getDriverStationsCached();
+  try { const { data: i9 } = await sb.rpc("i9_get", { p_driver_id: driverId }); _ddDriver.i9 = i9 || { record: null, events: [] }; } catch { _ddDriver.i9 = { record: null, events: [] }; }
+  try { const { data: prog } = await sb.from("onboarding_progress").select("*").eq("driver_id", driverId).maybeSingle(); _ddDriver.prog = prog || null; } catch { _ddDriver.prog = null; }
+  _renderOnboardingDetail();
+}
+
+function _renderOnboardingDetail() {
+  const panel = document.getElementById("rr-ob-detail");
+  if (!panel || !_ddDriver) return;
+  const d = _ddDriver.driver;
+  const prog = _ddDriver.prog || {};
+  const i9rec = _ddDriver.i9?.record || null;
+  const i9d = _i9Derived(i9rec);
+  const obD = _obReadiness(d, i9rec, _ddDriver.prog || null);
+  const can = !!d.id;
+  const v = (s) => escapeHtml(s ?? "");
+  const fmtDT = (x) => x ? new Date(x).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+  const segs = obD.gates.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
+  const nextC = obD.key === "blocked" ? "var(--red)" : obD.tone === "amber" ? "var(--amber-dark)" : (obD.key === "ready" || obD.key === "active") ? "var(--green)" : "var(--text-subtle)";
+  const ddRow = (label, html) => `<div class="dd-row" style="grid-template-columns:170px 1fr;align-items:start"><label>${escapeHtml(label)}</label><div style="font-size:var(--fs-sm);min-width:0;line-height:1.6">${html}</div></div>`;
+  const progAct = (field, val) => !can ? "" : (val
+    ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-ob-prog="${field}" data-rr-ob-act="clear" style="margin-left:8px">Undo</button>`
+    : `<button type="button" class="btn btn-sm" data-rr-ob-prog="${field}" data-rr-ob-act="set" style="margin-left:8px">Mark now</button>`);
+  const drvAct = (field, val) => !can ? "" : (val
+    ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-ob-drv="${field}" data-rr-ob-act="clear" style="margin-left:8px">Undo</button>`
+    : `<button type="button" class="btn btn-sm" data-rr-ob-drv="${field}" data-rr-ob-act="set" style="margin-left:8px">Mark now</button>`);
+  const valLine = (val, doneTxt, todoTxt) => `<span style="${val ? "color:var(--text)" : "color:var(--text-subtle)"}">${escapeHtml(val ? doneTxt : todoTxt)}</span>`;
+  const readyBanner = (obD.key === "ready" && can && d.status !== "active") ? `
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 14px;margin-bottom:14px">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <div style="flex:1;min-width:150px;font-size:var(--fs-sm);color:#166534;line-height:1.4">All ${obD.totalN} onboarding gates are complete — this driver is ready to drive.</div>
+      <button type="button" class="btn btn-sm btn-primary" data-rr-ob-activate style="flex:0 0 auto">Activate driver</button>
+    </div>` : "";
+
+  document.getElementById("rr-obd-title").textContent = displayDriverName(d) || "Onboarding";
+  const subEl = document.getElementById("rr-obd-sub");
+  if (subEl) subEl.textContent = d.hire_date ? `Hired ${new Date(d.hire_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}` : "Onboarding";
+  const avEl = document.getElementById("rr-obd-avatar");
+  if (avEl) { avEl.textContent = displayDriverInitials(d); avEl.classList.remove("tier-a","tier-b","tier-c","tier-d"); if (d.tier) avEl.classList.add("tier-" + String(d.tier).toLowerCase()); avEl.setAttribute("data-rr-driver-id", d.id); _paintDriverAvatars(avEl.parentElement || document); }
+
+  const body = document.getElementById("rr-obd-body");
+  body.innerHTML = `
+    ${readyBanner}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">${_obPill(obD.label, obD.tone)}<span style="font-size:var(--fs-sm);color:var(--text-subtle)">${obD.doneN} of ${obD.totalN} gates complete</span>${can ? `<button type="button" class="btn btn-sm" data-rr-ob-senddocs style="margin-left:auto">Send documents…</button>` : ""}</div>
+    <div style="display:flex;gap:4px;margin-bottom:${obD.next ? "6px" : "14px"}">${segs}</div>
+    ${obD.next ? `<div style="font-size:var(--fs-xs);color:${nextC};margin-bottom:14px">${escapeHtml(obD.next)}</div>` : ""}
+    ${ddRow("Welcome email", `${valLine(prog.welcome_email_sent_at, "Sent " + fmtDT(prog.welcome_email_sent_at), "Not sent yet")}${progAct("welcome_email_sent_at", prog.welcome_email_sent_at)}`)}
+    ${ddRow("Background-check instructions", `${valLine(prog.bg_instructions_sent_at, "Sent " + fmtDT(prog.bg_instructions_sent_at), "Not sent yet")}${progAct("bg_instructions_sent_at", prog.bg_instructions_sent_at)}`)}
+    ${ddRow("Background check cleared", `${valLine(d.background_check_completed_at, "Cleared " + fmtDT(d.background_check_completed_at), "Not cleared yet")}${drvAct("background_check_completed_at", d.background_check_completed_at)}`)}
+    ${ddRow("Drug-testing information", `${valLine(prog.drug_info_sent_at, "Sent " + fmtDT(prog.drug_info_sent_at), "Not sent yet")}${progAct("drug_info_sent_at", prog.drug_info_sent_at)}`)}
+    ${ddRow("Drug test cleared", `${valLine(d.drug_test_completed_at, "Cleared " + fmtDT(d.drug_test_completed_at), "Not cleared yet")}${drvAct("drug_test_completed_at", d.drug_test_completed_at)}`)}
+    ${ddRow("Employment handbook", `<div>${valLine(prog.handbook_sent_at, "Sent " + fmtDT(prog.handbook_sent_at), "Not sent yet")}${progAct("handbook_sent_at", prog.handbook_sent_at)}</div><div style="margin-top:4px">${valLine(prog.handbook_completed_at, "Completed " + fmtDT(prog.handbook_completed_at), "Not completed")}${progAct("handbook_completed_at", prog.handbook_completed_at)}</div>`)}
+    ${ddRow("Form I-9", `<div>${valLine(prog.i9_sent_at, "Sent to the employee " + fmtDT(prog.i9_sent_at), "Not sent yet")}${progAct("i9_sent_at", prog.i9_sent_at)}</div><div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${_i9StatusPill(i9d)}<button type="button" class="btn btn-sm btn-ghost" data-rr-obd-i9 style="font-size:11px">Open Form I-9 →</button></div>`)}
+    ${ddRow("Job offer", `<div>${valLine(prog.job_offer_sent_at, "Sent " + fmtDT(prog.job_offer_sent_at), "Not sent yet")}${progAct("job_offer_sent_at", prog.job_offer_sent_at)}</div><div style="margin-top:4px">${valLine(prog.job_offer_completed_at, "Signed " + fmtDT(prog.job_offer_completed_at), "Not signed")}${progAct("job_offer_completed_at", prog.job_offer_completed_at)}</div>`)}
+    ${ddRow("Driver active", d.status === "active" ? `<span style="color:var(--green);font-weight:600">Yes — onboarding complete</span>` : `<span style="color:var(--text-subtle)">No — finish the gates above${obD.key === "ready" ? ", then use the Activate button above" : ""}</span>`)}
+    ${ddRow("Driver scheduled", `${valLine(prog.scheduled_at, "First shift assigned " + fmtDT(prog.scheduled_at), "Not scheduled yet")}${progAct("scheduled_at", prog.scheduled_at)}`)}`;
+}
+
 async function openOnboardingSendDocsModal(driverId) {
   const drv = (_ddDriver && _ddDriver.driver) || null;
   if (!drv || !drv.id) { toast("Save the driver record first.", "warn"); return; }
@@ -3228,14 +3379,14 @@ async function openOnboardingSendDocsModal(driverId) {
       if (err) { fail++; if (!firstErr) firstErr = err.message; } else ok++;
     }
     statusEl.textContent = "";
-    if (fail === 0) { toast(`Sent ${ok} document${ok === 1 ? "" : "s"} ✓`, "success"); m.remove(); await loadDriverDrawer(drv.id); }
+    if (fail === 0) { toast(`Sent ${ok} document${ok === 1 ? "" : "s"} ✓`, "success"); m.remove(); await _refreshAfterOnboardingAction(drv.id); }
     else { sendBtn.disabled = false; toast(`Sent ${ok}, ${fail} failed${firstErr ? ": " + firstErr : ""}`, "warn"); }
   });
 }
 
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-rr-ob-senddocs]");
-  if (!b || !b.closest("#rr-dd-drawer")) return;
+  if (!b || !b.closest("#rr-dd-drawer, #rr-ob-detail")) return;
   e.preventDefault();
   const id = _ddDriver && _ddDriver.driver && _ddDriver.driver.id;
   if (id) openOnboardingSendDocsModal(id);
@@ -3371,7 +3522,7 @@ async function loadOnboardingOps() {
     el.addEventListener("click", (e) => {
       e.preventDefault();
       const id = el.getAttribute("data-rr-onboardops-open");
-      if (id) openDriverDrawer(id, { tab: "employment" });
+      if (id) openOnboardingDetail(id);
     });
   });
 
@@ -10221,6 +10372,7 @@ async function openDriverDrawer(driverId, opts) {
     <style>
       #rr-dd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
       #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
+      .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:20px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
@@ -10285,6 +10437,7 @@ async function openDriverDrawer(driverId, opts) {
       }
     </style>
     <div id="rr-dd-panel">
+      <div class="dd-chrome">
       <div class="dd-head">
         <div style="display:flex;align-items:center;gap:14px;min-width:0">
           <div class="avatar-sm" id="rr-dd-avatar" data-rr-driver-id="" style="width:48px;height:48px;font-size:var(--fs-lg);flex-shrink:0">--</div>
@@ -10309,6 +10462,7 @@ async function openDriverDrawer(driverId, opts) {
         <button type="button" class="dd-tab" data-rr-dd-tab="activity">Activity</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
+      </div><!-- /.dd-chrome -->
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
@@ -10887,53 +11041,31 @@ async function renderEmploymentTab(body, d) {
     </div>
 
     ${(() => {
-      const prog = _ddDriver?.prog || {};
+      // Onboarding lives on the Onboarding page (Drivers → Onboarding in
+      // the sidebar). A slim summary here, with a jump to the full
+      // per-driver detail panel — keeps the driver record focused on the
+      // employment record itself.
       const i9rec = _ddDriver?.i9?.record || null;
-      const i9d  = _i9Derived(i9rec);
-      const obD  = _obReadiness(d, i9rec, _ddDriver?.prog || null);
-      const can  = !!d.id;
-      const fmtDT = (x) => x ? new Date(x).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
-      const segs = obD.gates.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
-      const nextC = obD.key === "blocked" ? "var(--red)" : obD.tone === "amber" ? "var(--amber-dark)" : (obD.key === "ready" || obD.key === "active") ? "var(--green)" : "var(--text-subtle)";
-      const ddRow = (label, html) => `<div class="dd-row" style="grid-template-columns:190px 1fr;align-items:start"><label>${escapeHtml(label)}</label><div style="font-size:var(--fs-sm);min-width:0;line-height:1.6">${html}</div></div>`;
-      const progAct = (field, val) => !can ? "" : (val
-        ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-ob-prog="${field}" data-rr-ob-act="clear" style="margin-left:8px">Undo</button>`
-        : `<button type="button" class="btn btn-sm" data-rr-ob-prog="${field}" data-rr-ob-act="set" style="margin-left:8px">Mark now</button>`);
-      const valLine = (val, doneTxt, todoTxt) => `<span style="${val ? "color:var(--text)" : "color:var(--text-subtle)"}">${escapeHtml(val ? doneTxt : todoTxt)}</span>`;
-      const dtInput = (field, raw) => `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><input type="datetime-local" data-rr-dd-field="${field}" value="${v((raw || '').slice(0,16))}" style="max-width:208px"/>${can ? `<button type="button" class="btn btn-sm" data-rr-ob-setnow="${field}" data-rr-ob-kind="datetime">Mark now</button>` : ""}</div>`;
-      const readyBanner = (obD.key === "ready" && can && d.status !== "active") ? `
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 14px;margin-bottom:12px">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <div style="flex:1;min-width:150px;font-size:var(--fs-sm);color:#166534;line-height:1.4">All ${obD.totalN} onboarding gates are complete — this driver is ready to drive.</div>
-        <button type="button" class="btn btn-sm btn-primary" data-rr-ob-activate style="flex:0 0 auto">Activate driver</button>
-      </div>` : "";
+      const ob = _obReadiness(d, i9rec, _ddDriver?.prog || null);
       return `
     <div class="dd-section">
       <div class="dd-section-head">
-        <div style="flex:1;min-width:0">
-          <div class="dd-section-title">Onboarding</div>
-          <div class="dd-section-sub">Every step from welcome email through activation — what's been sent, what's completed, and the five gates that decide when this driver can be made active.</div>
+        <div>
+          <div class="dd-section-title">Onboarding &amp; Form I-9</div>
+          <div class="dd-section-sub">Every onboarding step — welcome email through activation, plus Form I-9 — is managed on the Onboarding page.</div>
         </div>
-        ${can ? `<button type="button" class="btn btn-sm" data-rr-ob-senddocs style="flex:0 0 auto">Send documents…</button>` : ""}
-        <span class="dd-badge dsp">DSP only</span>
       </div>
-      ${readyBanner}
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">${_obPill(obD.label, obD.tone)}<span style="font-size:var(--fs-sm);color:var(--text-subtle)">${obD.doneN} of ${obD.totalN} gates complete</span></div>
-      <div style="display:flex;gap:4px;margin-bottom:${obD.next ? "6px" : "14px"}">${segs}</div>
-      ${obD.next ? `<div style="font-size:var(--fs-xs);color:${nextC};margin-bottom:14px">${escapeHtml(obD.next)}</div>` : ""}
-      ${ddRow("Welcome email", `${valLine(prog.welcome_email_sent_at, "Sent " + fmtDT(prog.welcome_email_sent_at), "Not sent yet")}${progAct("welcome_email_sent_at", prog.welcome_email_sent_at)}`)}
-      ${ddRow("Background-check instructions", `${valLine(prog.bg_instructions_sent_at, "Sent " + fmtDT(prog.bg_instructions_sent_at), "Not sent yet")}${progAct("bg_instructions_sent_at", prog.bg_instructions_sent_at)}`)}
-      ${ddRow("Background check cleared", dtInput("background_check_completed_at", _ddVal("background_check_completed_at", d.background_check_completed_at)))}
-      ${ddRow("Drug-testing information", `${valLine(prog.drug_info_sent_at, "Sent " + fmtDT(prog.drug_info_sent_at), "Not sent yet")}${progAct("drug_info_sent_at", prog.drug_info_sent_at)}`)}
-      ${ddRow("Drug test cleared", dtInput("drug_test_completed_at", _ddVal("drug_test_completed_at", d.drug_test_completed_at)))}
-      ${ddRow("Employment handbook", `<div>${valLine(prog.handbook_sent_at, "Sent " + fmtDT(prog.handbook_sent_at), "Not sent yet")}${progAct("handbook_sent_at", prog.handbook_sent_at)}</div><div style="margin-top:4px">${valLine(prog.handbook_completed_at, "Completed " + fmtDT(prog.handbook_completed_at), "Not completed")}${progAct("handbook_completed_at", prog.handbook_completed_at)}</div>`)}
-      ${ddRow("Form I-9", `<div>${valLine(prog.i9_sent_at, "Sent to the employee " + fmtDT(prog.i9_sent_at), "Not sent yet")}${progAct("i9_sent_at", prog.i9_sent_at)}</div><div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${_i9StatusPill(i9d)}<span style="color:var(--text-subtle);font-size:var(--fs-xs)">manage in the Form I-9 panel below</span></div>`)}
-      ${ddRow("Job offer", `<div>${valLine(prog.job_offer_sent_at, "Sent " + fmtDT(prog.job_offer_sent_at), "Not sent yet")}${progAct("job_offer_sent_at", prog.job_offer_sent_at)}</div><div style="margin-top:4px">${valLine(prog.job_offer_completed_at, "Signed " + fmtDT(prog.job_offer_completed_at), "Not signed")}${progAct("job_offer_completed_at", prog.job_offer_completed_at)}</div>`)}
-      ${ddRow("Driver active", d.status === "active" ? `<span style="color:var(--green);font-weight:600">Yes — onboarding complete</span>` : `<span style="color:var(--text-subtle)">No — finish the gates above${obD.key === "ready" ? ", then use the Activate button above" : ""}</span>`)}
-      ${ddRow("Driver scheduled", `${valLine(prog.scheduled_at, "First shift assigned " + fmtDT(prog.scheduled_at), "Not scheduled yet")}${progAct("scheduled_at", prog.scheduled_at)}`)}
-    </div>
-
-    ${_i9PanelHtml(_ddDriver?.i9, d)}`;
+      <div class="dd-row" style="grid-template-columns:1fr;border-top:none;padding-top:4px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
+            ${_obPill(ob.label, ob.tone)}
+            <span style="font-size:var(--fs-sm);color:var(--text-subtle)">${ob.doneN} of ${ob.totalN} gates</span>
+            ${ob.next ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(ob.next)}</span>` : ""}
+          </div>
+          ${d.id ? `<button type="button" class="btn btn-sm btn-primary" data-rr-ob-open-detail="${escapeHtml(d.id)}" style="flex:0 0 auto">Manage onboarding →</button>` : ""}
+        </div>
+      </div>
+    </div>`;
     })()}
 
     <div class="dd-section">
