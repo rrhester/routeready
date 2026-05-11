@@ -7362,6 +7362,10 @@ body.rr-cmdk-open{ overflow:hidden }
              when something needs action; populated by refreshI9Badge(). -->
         <div id="rr-i9-roster-banner" style="display:none;margin-bottom:var(--s-4)"></div>
 
+        <!-- Onboarding readiness strip · only shown on the Onboarding
+             stage tab; populated by renderDriverTable(). -->
+        <div id="rr-onboarding-strip" style="display:none;margin-bottom:var(--s-4)"></div>
+
         <!-- Roster KPI drill-down panel · opens when an operator clicks
              one of the clickable KPI tiles above. -->
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
@@ -19114,7 +19118,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260511s-i9-polish"></script>
+<script type="module" src="./live.js?v=20260511t-onboarding-readiness"></script>
 
 </body>
 </html>
