@@ -809,6 +809,13 @@ async function renderChat() {
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
         <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+          <div class="chat-qa-strip" id="chat-qa-strip">
+            <button type="button" class="chat-qa-chip" data-qa="Running late">Running late</button>
+            <button type="button" class="chat-qa-chip" data-qa="Truck issue">Truck issue</button>
+            <button type="button" class="chat-qa-chip" data-qa="On the road">On the road</button>
+            <button type="button" class="chat-qa-chip" data-qa="Done with route">Done with route</button>
+            <button type="button" class="chat-qa-chip" data-qa="Need coverage">Need coverage</button>
+          </div>
           <div id="chat-attachment-preview" style="display:none"></div>
           <textarea id="chat-input" rows="1" placeholder="Message dispatch…" maxlength="2000"></textarea>
         </div>
@@ -835,6 +842,19 @@ async function renderChat() {
       e.preventDefault();
       document.getElementById("chat-form").requestSubmit();
     }
+  });
+
+  // Quick-action chips — one tap drops a status phrase into the composer
+  // (appended, not auto-sent, so the driver can add detail and review).
+  document.getElementById("chat-qa-strip")?.addEventListener("click", (e) => {
+    const chip = e.target.closest(".chat-qa-chip");
+    if (!chip) return;
+    const phrase = chip.getAttribute("data-qa") || "";
+    const cur = ta.value.trim();
+    ta.value = cur ? cur + " " + phrase : phrase;
+    ta.dispatchEvent(new Event("input"));
+    ta.focus();
+    try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch {}
   });
 
   // Attachment picker — paperclip opens the file input.  Pending file
