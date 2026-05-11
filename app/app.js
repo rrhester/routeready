@@ -3713,7 +3713,7 @@ async function renderDocumentSign() {
     btn.disabled = true; btn.textContent = "Signing…";
     if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
 
-    const { error: err } = await sb.rpc("driver_envelope_sign", {
+    const args = {
       p_token:            session.token,
       p_signing_token:    signingToken,
       p_signature_method: method,
@@ -3723,8 +3723,19 @@ async function renderDocumentSign() {
       p_typed_name:       typed || null,
       p_ip:               null,
       p_user_agent:       navigator.userAgent || null,
-      p_field_values:     fieldValues,
-    });
+    };
+    // Only pass field values when the template actually has fill
+    // fields — keeps the call shape compatible with the older RPC
+    // signature on backends where the recipient-fields migration
+    // hasn't landed yet.
+    if (fillFields.length > 0) args.p_field_values = fieldValues;
+    let { error: err } = await sb.rpc("driver_envelope_sign", args);
+    // If the backend is mid-deploy and only has the older signature,
+    // retry once without the field values rather than blocking signing.
+    if (err && /p_field_values|schema cache|PGRST202/i.test(String(err.message || err))) {
+      delete args.p_field_values;
+      ({ error: err } = await sb.rpc("driver_envelope_sign", args));
+    }
     if (err) {
       btn.disabled = false; btn.textContent = "Sign & submit";
       toast("Couldn't sign: " + err.message, "warn"); return;
