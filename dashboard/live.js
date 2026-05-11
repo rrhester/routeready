@@ -10389,8 +10389,10 @@ function _i9PanelHtml(i9, d) {
     actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-section1>${rec && rec.section1_completed_at ? "Edit Section 1" : "Record Section 1"}</button>`);
   }
   if (canDoS2) actions.push(`<button type="button" class="btn btn-sm btn-primary" data-rr-i9-section2>${rec && rec.section2_completed_at ? "Update Section 2" : "Complete Section 2"}</button>`);
+  if (rec && rec.section1_completed_at) actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-print>View / print Form I-9</button>`);
   if (rec && st === "verified") actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-reopen>Reopen for correction</button>`);
 
+  const ret = _i9RetentionUntil(rec, d);
   const events = i9 && Array.isArray(i9.events) ? i9.events : [];
 
   return `
@@ -10417,7 +10419,7 @@ function _i9PanelHtml(i9, d) {
           </div>
         </details>
       </div>` : ""}
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.45">Not legal advice. Retain completed forms per the federal rule (3 years after hire, or 1 year after employment ends — whichever is later). Anti-discrimination rules apply: the employee chooses which acceptable document(s) to present; do not specify or reject valid documents.</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.45">Not legal advice. ${ret ? `Retain this form until at least <strong>${escapeHtml(new Date(ret.date + "T12:00:00").toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}))}</strong> — 3 years after the date employment began, or 1 year after employment ends if later. ` : "Retain completed forms 3 years after hire, or 1 year after employment ends — whichever is later. "}Anti-discrimination rules apply: the employee chooses which acceptable document(s) to present; do not specify or reject valid documents.</div>
     </div>`;
 }
 
@@ -10778,6 +10780,11 @@ document.addEventListener("click", async (e) => {
     await loadDriverDrawer(driverId);
     return;
   }
+  if (e.target.closest("[data-rr-i9-print]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!driverId) return;
+    openI9FormPrint(driverId); return;
+  }
   const docOpen = e.target.closest("[data-rr-i9-doc-open]");
   if (docOpen) {
     e.preventDefault(); e.stopImmediatePropagation();
@@ -10788,6 +10795,176 @@ document.addEventListener("click", async (e) => {
     return;
   }
 });
+
+// Federal retention rule: keep the form 3 years after the date employment
+// began, or 1 year after employment ended, whichever is later.
+function _i9RetentionUntil(rec, drv) {
+  const start = (rec && rec.first_day_of_employment) || (drv && drv.hire_date) || null;
+  if (!start) return null;
+  const plusYears = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCFullYear(d.getUTCFullYear() + n); return d.toISOString().slice(0, 10); };
+  const base = plusYears(start, 3);
+  // We don't reliably track the termination date; if the driver is
+  // terminated, the rule is "1 year after employment ended (or 3 years
+  // after hire, whichever is later)" — surface the conditional.
+  return { date: base, terminated: !!(drv && drv.status === "terminated") };
+}
+
+// A printable, official-style rendering of the completed Form I-9 from
+// RouteReady's records. Not the USCIS fillable PDF — a faithful
+// reproduction of the same sections, fields, and attestations, with the
+// captured signatures, ready to "Save as PDF" / print and retain.
+function _i9FormPrintStylesOnce() {
+  if (document.getElementById("rr-i9form-styles")) return;
+  const s = document.createElement("style");
+  s.id = "rr-i9form-styles";
+  s.textContent = `
+    #rr-i9form-modal{position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10002;display:flex;flex-direction:column}
+    #rr-i9form-modal .i9f-toolbar{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:var(--surface);border-bottom:1px solid var(--border)}
+    #rr-i9form-modal .i9f-toolbar .t{font-weight:700;color:var(--text)}
+    #rr-i9form-modal .i9f-toolbar .t small{display:block;font-weight:500;color:var(--text-subtle);font-size:11px}
+    #rr-i9form-modal .i9f-scroll{flex:1;overflow:auto;padding:24px;display:flex;justify-content:center;background:#e5e7eb}
+    #rr-i9form-modal .i9f-doc{background:#fff;color:#111827;width:8.5in;min-height:11in;padding:0.6in 0.7in;box-shadow:0 4px 24px rgba(0,0,0,.18);font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;line-height:1.4}
+    .i9f-doc h1{font-size:14px;margin:0 0 2px;letter-spacing:.01em}
+    .i9f-doc .i9f-sub{font-size:10px;color:#374151;margin-bottom:2px}
+    .i9f-doc .i9f-note{font-size:9px;color:#6b7280;margin-bottom:14px;border-bottom:2px solid #111827;padding-bottom:8px}
+    .i9f-doc h2{font-size:11.5px;background:#1f2937;color:#fff;padding:4px 8px;margin:18px 0 8px;letter-spacing:.02em}
+    .i9f-doc h3{font-size:10.5px;margin:12px 0 4px;color:#1f2937;text-transform:uppercase;letter-spacing:.04em}
+    .i9f-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-bottom:8px}
+    .i9f-grid.c3{grid-template-columns:1fr 1fr 1fr}
+    .i9f-f{border-bottom:1px solid #9ca3af;padding:2px 2px 1px;min-height:18px}
+    .i9f-f .lab{display:block;font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}
+    .i9f-f .val{font-size:11px;color:#111827}
+    .i9f-attest{font-size:9.5px;color:#1f2937;border:1px solid #9ca3af;background:#f9fafb;padding:8px;margin:8px 0}
+    .i9f-cit{margin:6px 0}
+    .i9f-cit .opt{display:flex;align-items:flex-start;gap:6px;padding:1px 0;font-size:10px}
+    .i9f-cit .box{width:11px;height:11px;border:1.4px solid #111827;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;line-height:1}
+    .i9f-sig{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:10px;align-items:end}
+    .i9f-sig .sigbox{border:1px solid #9ca3af;height:46px;display:flex;align-items:center;justify-content:flex-start;padding:2px 6px;background:#fff}
+    .i9f-sig .sigbox img{max-height:42px;max-width:100%}
+    .i9f-sig .sigbox .typed{font-family:"Brush Script MT","Segoe Script",cursive;font-size:20px;color:#111827}
+    .i9f-sig .lab{font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;display:block}
+    .i9f-foot{margin-top:22px;border-top:2px solid #111827;padding-top:8px;font-size:8.5px;color:#6b7280;line-height:1.45}
+    .i9f-empty{font-size:10px;color:#9ca3af;font-style:italic;padding:6px 0}
+    @media print {
+      body * { visibility: hidden !important; }
+      #rr-i9form-modal, #rr-i9form-modal * { visibility: visible !important; }
+      #rr-i9form-modal { position: absolute; inset: 0; background: #fff; }
+      #rr-i9form-modal .i9f-toolbar { display: none !important; }
+      #rr-i9form-modal .i9f-scroll { overflow: visible; padding: 0; background: #fff; display: block; }
+      #rr-i9form-modal .i9f-doc { box-shadow: none; width: auto; min-height: 0; padding: 0.4in 0.5in; }
+      .i9f-doc h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }`;
+  document.head.appendChild(s);
+}
+function _i9SigBoxHtml(sig, fallbackName) {
+  const s = sig && typeof sig === "object" ? sig : null;
+  if (s && s.method === "drawn" && s.data) return `<img src="${escapeHtml(s.data)}" alt="signature">`;
+  const typed = (s && (s.data || s.signer_name)) || fallbackName || "";
+  if (typed) return `<span class="typed">${escapeHtml(typed)}</span>`;
+  return `<span style="color:#9ca3af;font-size:10px;font-style:italic">— not signed —</span>`;
+}
+async function openI9FormPrint(driverId) {
+  let rec = (_ddDriver && _ddDriver.i9 && _ddDriver.i9.record && _ddDriver.driver && _ddDriver.driver.id === driverId) ? _ddDriver.i9.record : null;
+  let drv = (_ddDriver && _ddDriver.driver && _ddDriver.driver.id === driverId) ? _ddDriver.driver : null;
+  if (!rec) {
+    const { data, error } = await sb.rpc("i9_get", { p_driver_id: driverId });
+    if (error || !data || !data.record) { toast("No Form I-9 on file yet.", "warn"); return; }
+    rec = data.record;
+  }
+  if (!drv) { try { const { data } = await sb.rpc("driver_record", { p_id: driverId }); drv = data?.driver || {}; } catch { drv = {}; } }
+  const s1 = rec.section1 && typeof rec.section1 === "object" ? rec.section1 : {};
+  const s2 = rec.section2 && typeof rec.section2 === "object" ? rec.section2 : {};
+  const dspName = window.RR?.dsp?.name || "Delivery Service Partner";
+  const fmtD = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "—";
+  const F = (lab, val) => `<div class="i9f-f"><span class="lab">${escapeHtml(lab)}</span><span class="val">${val ? escapeHtml(String(val)) : "&nbsp;"}</span></div>`;
+  const empName = [s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || displayDriverName(drv) || "—";
+  const citMap = { citizen: 1, national: 2, lpr: 3, authorized: 4 };
+  const citNum = citMap[s1.citizen_status] || 0;
+  const citRow = (n, label, extra) => `<div class="opt"><span class="box">${citNum === n ? "X" : ""}</span><span><strong>${n}.</strong> ${escapeHtml(label)}${extra ? ` <span style="color:#374151">${extra}</span>` : ""}</span></div>`;
+  let authExtra = "";
+  if (s1.citizen_status === "authorized") {
+    const kindLbl = { uscis: "USCIS/A-Number", i94: "Form I-94 #", passport: "Foreign passport #" }[s1.auth_doc_kind] || "Document #";
+    authExtra = `— expires ${escapeHtml(s1.auth_expires || "N/A")}; ${escapeHtml(kindLbl)}: ${escapeHtml(s1.auth_doc_number || "—")}${s1.auth_doc_kind === "passport" && s1.auth_passport_country ? " (" + escapeHtml(s1.auth_passport_country) + ")" : ""}`;
+  }
+  const docsArr = Array.isArray(s2.documents) ? s2.documents : [];
+  const docCell = (d) => d ? `${F("Document title", d.title)}${F("Issuing authority", d.issuing_authority)}${F("Document number", d.number)}${F("Expiration date", d.expires_on || "N/A")}` : `<div class="i9f-empty">—</div>`;
+  let s2DocsHtml;
+  if (rec.section2_completed_at) {
+    if (s2.list_used === "A") {
+      s2DocsHtml = `<h3>List A — identity & employment authorization</h3>${docCell(docsArr[0])}`;
+    } else {
+      const b = docsArr.find(x => x.list === "B") || docsArr[0];
+      const c = docsArr.find(x => x.list === "C") || docsArr[1];
+      s2DocsHtml = `<div class="i9f-grid"><div><h3>List B — identity</h3>${docCell(b)}</div><div><h3>List C — employment authorization</h3>${docCell(c)}</div></div>`;
+    }
+  } else {
+    s2DocsHtml = `<div class="i9f-empty">Section 2 not yet completed.</div>`;
+  }
+  const ret = _i9RetentionUntil(rec, drv);
+  const generatedAt = new Date();
+  const doc = `
+    <div class="i9f-doc">
+      <h1>Form I-9, Employment Eligibility Verification</h1>
+      <div class="i9f-sub">Department of Homeland Security · U.S. Citizenship and Immigration Services</div>
+      <div class="i9f-note">Reproduced from RouteReady's records for ${escapeHtml(dspName)} on ${generatedAt.toLocaleString()}. The official USCIS form is edition 08/01/23; this captures the same information and attestations. Not legal advice.</div>
+
+      <h2>Section 1. Employee Information and Attestation</h2>
+      <div class="i9f-grid c3">${F("Last name (family name)", s1.last_name)}${F("First name (given name)", s1.first_name)}${F("Middle initial", s1.middle_initial)}</div>
+      <div class="i9f-grid">${F("Other last names used (if any)", s1.other_last_names)}${F("U.S. Social Security Number", s1.ssn)}</div>
+      <div class="i9f-grid c3">${F("Address (street number and name)", s1.addr_street)}${F("Apt. number", s1.addr_apt)}${F("City or town", s1.addr_city)}</div>
+      <div class="i9f-grid c3">${F("State", s1.addr_state)}${F("ZIP code", s1.addr_zip)}${F("Date of birth (mm/dd/yyyy)", s1.dob)}</div>
+      <div class="i9f-grid">${F("Employee's email address", s1.email)}${F("Employee's telephone number", s1.phone)}</div>
+
+      <h3>Citizenship / immigration status — I attest that I am (check one):</h3>
+      <div class="i9f-cit">
+        ${citRow(1, "A citizen of the United States")}
+        ${citRow(2, "A noncitizen national of the United States")}
+        ${citRow(3, "A lawful permanent resident", s1.citizen_status === "lpr" ? `— USCIS/A-Number: ${escapeHtml(s1.lpr_uscis_number || "—")}` : "")}
+        ${citRow(4, "A noncitizen authorized to work", authExtra)}
+      </div>
+
+      <div class="i9f-attest">I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form. I attest, under penalty of perjury, that the information provided above and the citizenship or immigration status selected are true and correct.</div>
+
+      <div class="i9f-sig">
+        <div><div class="sigbox">${_i9SigBoxHtml(rec.section1_signature, empName)}</div><span class="lab">Signature of employee</span></div>
+        <div>${F("Date", rec.section1_completed_at ? fmtD(rec.section1_completed_at) : "")}</div>
+      </div>
+      <div style="font-size:8.5px;color:#6b7280;margin-top:4px">Completed ${rec.section1_completed_at ? escapeHtml(new Date(rec.section1_completed_at).toLocaleString()) : "—"}${rec.section1_completed_via ? " · " + (rec.section1_completed_via === "driver_app" ? "signed electronically by the employee in the RouteReady app" : "recorded by the employer on the employee's behalf") : ""}.${s1.preparer_used ? " A preparer or translator assisted the employee (see Supplement A — collect their information separately)." : ""}</div>
+
+      <h2>Section 2. Employer Review and Verification</h2>
+      <div class="i9f-grid c3">${F("Employee's first day of employment (mm/dd/yyyy)", rec.first_day_of_employment ? fmtD(rec.first_day_of_employment) : "")}${F("Examination method", s2.exam_method === "remote_alternative" ? "DHS-authorized alternative procedure (remote)" : rec.section2_completed_at ? "Physical, in-person examination" : "")}${F("Documents presented", s2.list_used === "A" ? "List A" : rec.section2_completed_at ? "List B + List C" : "")}</div>
+      ${s2DocsHtml}
+      ${s2.additional_info ? `<div class="i9f-grid"><div class="i9f-f"><span class="lab">Additional information</span><span class="val">${escapeHtml(s2.additional_info)}</span></div></div>` : ""}
+      <div class="i9f-attest">I attest, under penalty of perjury, that (1) I have examined the documentation presented by the above-named employee, (2) the documentation appears to be genuine and to relate to the employee named, and (3) to the best of my knowledge, the employee is authorized to work in the United States.${s2.exam_method === "remote_alternative" ? " I further attest that I examined the documentation remotely in accordance with the DHS-authorized alternative procedure, and that the employer is enrolled in and in good standing with E-Verify." : ""}</div>
+      <div class="i9f-sig">
+        <div><div class="sigbox">${_i9SigBoxHtml(rec.section2_signature, rec.section2_completed_by_name)}</div><span class="lab">Signature of employer or authorized representative</span></div>
+        <div>${F("Date", rec.section2_completed_at ? fmtD(rec.section2_completed_at) : "")}</div>
+      </div>
+      <div class="i9f-grid c3">${F("Name of employer representative", rec.section2_completed_by_name)}${F("Title", rec.section2_completed_by_title)}${F("Business or organization name", dspName)}</div>
+      ${Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length ? `<div style="font-size:8.5px;color:#6b7280;margin-top:4px">${rec.section2_document_paths.length} document image(s) retained on the employee's record in RouteReady.</div>` : ""}
+
+      <div class="i9f-foot">
+        Form I-9 status: <strong>${escapeHtml((_I9_STATUS[rec.status] || { label: rec.status }).label)}</strong>.
+        ${ret ? `Retain this form until at least <strong>${escapeHtml(fmtD(ret.date))}</strong> (3 years after the date employment began${ret.terminated ? ", or 1 year after employment ended — whichever is later" : ", or 1 year after employment ends if that is later"}).` : ""}
+        This reproduction is generated from RouteReady's records and is accompanied by an internal audit trail of every change. It does not replace your obligation to follow current USCIS guidance and to use the official form where required. Generated ${generatedAt.toLocaleString()}.
+      </div>
+    </div>`;
+
+  _i9FormPrintStylesOnce();
+  document.getElementById("rr-i9form-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-i9form-modal";
+  m.innerHTML = `
+    <div class="i9f-toolbar">
+      <div class="t">Form I-9 — ${escapeHtml(empName)}<small>${escapeHtml(dspName)} · ${escapeHtml((_I9_STATUS[rec.status] || { label: rec.status }).label)} · reproduced from RouteReady's records</small></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-sm btn-primary" id="i9f-print">Save as PDF</button><button class="btn btn-sm" id="i9f-close">Close</button></div>
+    </div>
+    <div class="i9f-scroll">${doc}</div>`;
+  document.body.appendChild(m);
+  m.querySelector("#i9f-close").addEventListener("click", () => m.remove());
+  m.querySelector("#i9f-print").addEventListener("click", () => window.print());
+  document.addEventListener("keydown", function esc(ev) { if (ev.key === "Escape") { m.remove(); document.removeEventListener("keydown", esc); } });
+}
 
 // ════════════════════════════════════════════════════════════════════
 // Form I-9 · Work Authorization compliance sub-tab (Drivers page)
@@ -11126,13 +11303,14 @@ async function _buildEmploymentReport(driverId, m) {
   const fmtDT = (iso) => iso ? new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
   const esc = (s) => escapeHtml(s ?? "");
 
-  const [recRes, shRes, coRes, envRes, toRes, msgRes] = await Promise.all([
+  const [recRes, shRes, coRes, envRes, toRes, msgRes, i9Res] = await Promise.all([
     sb.rpc("driver_record", { p_id: driverId }),
     sb.from("shifts").select("id, date, status, route_code, station:station_id (code)").eq("driver_id", driverId).order("date", { ascending: true }).limit(3000),
     sb.from("coachings").select("*").eq("driver_id", driverId).is("archived_at", null).order("occurred_at", { ascending: true }),
     sb.from("document_envelopes").select("id, status, sent_at, viewed_at, signed_at, declined_at, voided_at, signed_pdf_path, certificate_pdf_path, document_templates(title)").eq("recipient_driver_id", driverId).order("sent_at", { ascending: true }),
     sb.from("time_off_requests").select("id, start_date, end_date, status, reason, created_at").eq("driver_id", driverId).order("start_date", { ascending: true }),
     sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 500 }).then(r => r, () => ({ data: [] })),
+    sb.rpc("i9_get", { p_driver_id: driverId }).then(r => r, () => ({ data: null })),
   ]);
 
   if (recRes.error) throw new Error(recRes.error.message);
@@ -11214,6 +11392,28 @@ async function _buildEmploymentReport(driverId, m) {
   // ── Documents ──
   const docRows = envelopes.map(e => `<tr><td>${esc(e.document_templates?.title || "Document")}</td><td>${esc((_docsLifecycle ? _docsLifecycle(e.status).label : e.status))}</td><td>${e.signed_at ? fmtD(e.signed_at) : e.sent_at ? "Sent " + fmtD(e.sent_at) : "—"}</td></tr>`).join("");
 
+  // ── Form I-9 (work authorization) ──
+  const i9Rec = i9Res?.data?.record || null;
+  const i9Events = (i9Res?.data?.events) || [];
+  let i9Html;
+  if (i9Rec) {
+    const i9s1 = i9Rec.section1 && typeof i9Rec.section1 === "object" ? i9Rec.section1 : {};
+    const i9s2 = i9Rec.section2 && typeof i9Rec.section2 === "object" ? i9Rec.section2 : {};
+    const i9ret = _i9RetentionUntil(i9Rec, drv);
+    const i9stLbl = (_I9_STATUS[i9Rec.status] || { label: i9Rec.status }).label;
+    const i9name = [i9s1.first_name, i9s1.middle_initial, i9s1.last_name].filter(Boolean).join(" ");
+    i9Html = `<dl class="er-kv">
+      <dt>Status</dt><dd>${esc(i9stLbl)}</dd>
+      <dt>First day of employment</dt><dd>${i9Rec.first_day_of_employment ? fmtD(i9Rec.first_day_of_employment) : "—"}</dd>
+      <dt>Section 1 (employee)</dt><dd>${i9Rec.section1_completed_at ? esc(`${i9name || "—"} — ${_I9_CITIZEN_LABELS[i9s1.citizen_status] || i9s1.citizen_status || "—"}; completed ${fmtDT(i9Rec.section1_completed_at)} ${i9Rec.section1_completed_via === "driver_app" ? "(signed by the employee in the app)" : "(recorded by the employer)"}`) : "Not completed"}</dd>
+      <dt>Section 2 (employer)</dt><dd>${i9Rec.section2_completed_at ? esc(`${i9s2.list_used === "A" ? "List A document" : "List B + List C documents"}; ${i9s2.exam_method === "remote_alternative" ? "DHS-authorized alternative remote procedure" : "in-person examination"}; verified ${fmtDT(i9Rec.section2_completed_at)}${i9Rec.section2_completed_by_name ? " by " + i9Rec.section2_completed_by_name : ""}`) : "Not completed"}</dd>
+      ${i9ret ? `<dt>Retain until</dt><dd>${fmtD(i9ret.date)} (3 yrs after hire, or 1 yr after separation if later)</dd>` : ""}
+    </dl>
+    <div class="b" style="font-size:11px;color:var(--text-subtle);margin-top:8px">Form I-9 is RouteReady's electronic Employment Eligibility Verification record, with an internal audit trail of ${i9Events.length} event${i9Events.length === 1 ? "" : "s"}. The full reproduced form is available from the driver's work-authorization panel.</div>`;
+  } else {
+    i9Html = `<div class="er-empty">No Form I-9 on file.</div>`;
+  }
+
   // ── Time off ──
   const toRows = timeOff.map(t => `<tr><td>${fmtD(t.start_date)} – ${fmtD(t.end_date)}</td><td>${esc(t.status)}</td><td>${esc(t.reason || "—")}</td></tr>`).join("");
 
@@ -11261,7 +11461,10 @@ async function _buildEmploymentReport(driverId, m) {
     <h2><span class="num">6.</span> Signed documents</h2>
     ${docRows ? `<table class="er-table"><thead><tr><th>Document</th><th>Status</th><th>Date</th></tr></thead><tbody>${docRows}</tbody></table><div class="b" style="font-size:10.5px;color:var(--text-subtle);margin-top:6px">${signedDocs.length} document${signedDocs.length === 1 ? "" : "s"} signed &amp; sealed. Sealed PDFs and Certificates of Completion are retained in RouteReady and independently verifiable.</div>` : `<div class="er-empty">No e-signature documents on file.</div>`}
 
-    <h2><span class="num">7.</span> Separation summary</h2>
+    <h2><span class="num">7.</span> Work authorization (Form I-9)</h2>
+    ${i9Html}
+
+    <h2><span class="num">8.</span> Separation summary</h2>
     <dl class="er-kv">
       <dt>Current employment status</dt><dd>${esc(sep[0])}</dd>
       <dt>Status note</dt><dd style="font-weight:500;color:var(--text-muted)">${esc(sep[1])}</dd>
@@ -11278,7 +11481,7 @@ async function _buildEmploymentReport(driverId, m) {
 
   const body = m.querySelector("#er-body");
   if (body) body.innerHTML = html;
-  const summary = `${name} · ${shifts.length} shifts · ${coachings.length} coachings · ${envelopes.length} documents · status ${sep[0]}`;
+  const summary = `${name} · ${shifts.length} shifts · ${coachings.length} coachings · ${envelopes.length} documents · I-9 ${(_I9_STATUS[i9Rec?.status] || { label: "not started" }).label} · status ${sep[0]}`;
   const small = m.querySelector(".er-toolbar .t small");
   if (small) small.textContent = summary;
   // Stash the snapshot so "Save to driver record" can archive this exact packet.
