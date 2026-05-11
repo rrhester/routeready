@@ -11303,7 +11303,7 @@ const _I9_BUCKETS = [
   { key: "needs_correction",  label: "Needs correction",       tone: "background:#fee2e2;color:#991b1b" },
   { key: "awaiting_employee", label: "Awaiting employee",      tone: "background:#f1f5f9;color:#475569" },
   { key: "s2_needed",         label: "Section 2 needed",       tone: "background:#e0f2fe;color:#0369a1" },
-  { key: "reverification",    label: "Reverification due",     tone: "background:#fef3c7;color:#92400e" },
+  { key: "reverification",    label: "Reverification due",     tone: "background:#fffbeb;color:#b45309" },
   { key: "verified",          label: "Verified",               tone: "background:#dcfce7;color:#166534" },
 ];
 // Map the derived status into one of the prioritized queue buckets +
@@ -11369,7 +11369,29 @@ async function loadDriverWorkAuthView() {
   ];
   if (kpiEl) kpiEl.innerHTML = kpis.map(k => `
     <div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone}">${k.n}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("");
-  if (statusEl) statusEl.textContent = `${rows.length} employee${rows.length === 1 ? "" : "s"} · ${overdueCount} overdue`;
+
+  // Compliance posture — calm one-liner + the roster attention strip.
+  const tally = {
+    s2_overdue: grouped.s2_overdue.length, s2_due: grouped.s2_due.length,
+    needs_correction: grouped.needs_correction.length, reverification: grouped.reverification.length,
+    blocked: grouped.s2_needed.filter(r => r._cls && r._cls.note).length, total: rows.length,
+  };
+  tally.attention = tally.s2_overdue + tally.s2_due + tally.needs_correction + tally.reverification + tally.blocked;
+  if (statusEl) {
+    if (!rows.length) statusEl.textContent = "No employees yet.";
+    else if (!tally.attention) statusEl.innerHTML = `<span style="color:var(--green);font-weight:600">✓ Work authorization in order</span> · ${rows.length} employee${rows.length === 1 ? "" : "s"}`;
+    else {
+      const parts = [];
+      if (tally.s2_overdue) parts.push(`${tally.s2_overdue} overdue`);
+      if (tally.needs_correction) parts.push(`${tally.needs_correction} need correction`);
+      if (tally.s2_due) parts.push(`${tally.s2_due} due soon`);
+      if (tally.reverification) parts.push(`${tally.reverification} reverification`);
+      if (tally.blocked) parts.push(`${tally.blocked} missing first day`);
+      const c = (tally.s2_overdue || tally.needs_correction) ? "var(--red)" : "var(--amber-dark)";
+      statusEl.innerHTML = `<strong style="color:${c}">${tally.attention}</strong> need attention <span style="color:var(--text-subtle)">· ${parts.join(" · ")}</span>`;
+    }
+  }
+  _i9SetRosterBanner(tally);
 
   const fmtD = (x) => x ? new Date(x + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
   const rowHtml = (r) => {
@@ -11382,8 +11404,11 @@ async function loadDriverWorkAuthView() {
     else if (cls.bucket === "awaiting_employee") line = r.status === "no_record" ? "No I-9 started yet" : "Section 1 not started";
     else if (cls.bucket === "reverification") line = `Work authorization expires ${fmtD(cls.reverDate)}${cls.reverDays < 0 ? " (expired)" : ` — ${cls.reverDays} day${cls.reverDays === 1 ? "" : "s"}`}`;
     else if (cls.bucket === "verified")     line = `Verified ${r.section2_completed_at ? new Date(r.section2_completed_at).toLocaleDateString() : ""}${r.section2_completed_by_name ? " by " + escapeHtml(r.section2_completed_by_name) : ""}`;
+    const tier = (cls.bucket === "s2_overdue" || cls.bucket === "needs_correction") ? "var(--red)"
+      : (cls.bucket === "s2_due" || cls.bucket === "reverification" || (cls.bucket === "s2_needed" && cls.note)) ? "var(--amber-dark)"
+      : "transparent";
     return `
-      <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border);cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0 10px 12px;border-top:1px solid var(--border);border-left:3px solid ${tier};cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
         <div style="min-width:0">
           <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.driver_name || "—")} ${_i9StatusChip(cls.d || r)}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">· onboarding</span>` : ""}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${line}${r.hire_date ? ` · hired ${new Date(r.hire_date).toLocaleDateString()}` : ""}</div>
@@ -11415,14 +11440,51 @@ function _i9SetOverdueBadge(n) {
   if (n > 0) { el.textContent = n; el.style.display = "inline-block"; }
   else el.style.display = "none";
 }
+
+function _i9TallyFromRows(rows) {
+  const t = { s2_overdue: 0, s2_due: 0, needs_correction: 0, reverification: 0, blocked: 0, total: (rows || []).length };
+  for (const r of rows || []) {
+    const cls = _i9Classify(r);
+    if (cls.bucket === "s2_overdue") t.s2_overdue++;
+    else if (cls.bucket === "s2_due") t.s2_due++;
+    else if (cls.bucket === "needs_correction") t.needs_correction++;
+    else if (cls.bucket === "reverification") t.reverification++;
+    if (cls.bucket === "s2_needed" && cls.note) t.blocked++;
+  }
+  t.attention = t.s2_overdue + t.s2_due + t.needs_correction + t.reverification + t.blocked;
+  return t;
+}
+
+// The Drivers-roster attention strip — only shown when a Form I-9
+// actually needs action; otherwise hidden (no clutter on the roster).
+function _i9SetRosterBanner(t) {
+  const el = document.getElementById("rr-i9-roster-banner");
+  if (!el) return;
+  if (!t || !t.attention) { el.style.display = "none"; el.innerHTML = ""; return; }
+  const urgent = t.s2_overdue || t.needs_correction;
+  const tone = urgent ? "background:#fef2f2;border-color:#fecaca;color:#991b1b" : "background:#fffbeb;border-color:#fde68a;color:#92400e";
+  const parts = [];
+  if (t.s2_overdue) parts.push(`${t.s2_overdue} overdue`);
+  if (t.needs_correction) parts.push(`${t.needs_correction} need correction`);
+  if (t.s2_due) parts.push(`${t.s2_due} due soon`);
+  if (t.reverification) parts.push(`${t.reverification} reverification`);
+  if (t.blocked) parts.push(`${t.blocked} missing first day`);
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid;border-radius:10px;font-size:var(--fs-sm);${tone}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div style="flex:1;min-width:0"><strong>${t.attention}</strong> Form I-9 ${t.attention === 1 ? "item needs" : "items need"} attention <span style="opacity:.8">· ${escapeHtml(parts.join(" · "))}</span></div>
+    <button type="button" class="btn btn-sm" onclick="drSub('workauth')">Review</button>
+  </div>`;
+  el.style.display = "block";
+}
+
 // Best-effort badge refresh on boot / periodic refresh — cheap RPC.
 async function refreshI9Badge() {
   try {
     const { data } = await sb.rpc("i9_list");
     if (!Array.isArray(data)) return;
-    let overdue = 0;
-    for (const r of data) { if (_i9Classify(r).bucket === "s2_overdue") overdue++; }
-    _i9SetOverdueBadge(overdue);
+    const t = _i9TallyFromRows(data);
+    _i9SetOverdueBadge(t.s2_overdue);
+    _i9SetRosterBanner(t);
   } catch {}
 }
 
