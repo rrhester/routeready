@@ -102,10 +102,11 @@ async function verifySvix(
   rawBody: string,
   svixSignatureHeader: string,
 ): Promise<boolean> {
-  // Reject stale deliveries (replay window: 5 minutes).
-  const ts = Number(svixTimestamp);
-  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false;
-
+  // NB: no timestamp-age check on purpose — Resend retries reuse the
+  // original svix-timestamp, so a freshness window would make every
+  // retry of a momentarily-failed delivery fail forever. The HMAC is the
+  // real protection here, and the insert path is idempotent on the
+  // message id anyway.
   const keyMaterial = secret.startsWith("whsec_") ? secret.slice("whsec_".length) : secret;
   let key: CryptoKey;
   try {
