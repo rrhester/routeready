@@ -11,16 +11,35 @@
 // header — same model as driver_chat_list / driver_chat_send.
 //
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (auto-injected).
-import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { serviceClient } from "../_shared/supabase.ts";
 
 interface FetchPayload {
   token?: string;
   signing_token?: string;
 }
 
+// Now deployed --no-verify-jwt, so the Supabase gateway no longer
+// injects CORS headers for us — the function must respond to the
+// browser's preflight + tag every response itself.
+const CORS = {
+  "access-control-allow-origin":  "*",
+  "access-control-allow-headers": "content-type, authorization, x-client-info, apikey",
+  "access-control-allow-methods": "POST, OPTIONS",
+};
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { "content-type": "application/json", ...CORS, ...(init.headers || {}) },
+  });
+}
+function badRequest(msg: string, status = 400) {
+  return jsonResponse({ error: msg }, { status });
+}
+
 const px = (s: string | undefined | null) => (s ? s.slice(0, 8) : "(none)");
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
   const payload = (await req.json().catch(() => ({}))) as FetchPayload;
