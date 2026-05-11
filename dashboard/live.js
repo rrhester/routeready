@@ -9881,6 +9881,14 @@ async function loadDriverDrawer(driverId) {
       .limit(50);
     _ddDriver.empReports = reps || [];
   } catch { _ddDriver.empReports = []; }
+  try {
+    const { data: i9 } = await sb.from("i9_records").select("*").eq("driver_id", driverId).maybeSingle();
+    _ddDriver.i9 = i9 || null;
+    if (i9) {
+      const { data: ev } = await sb.from("i9_events").select("id, kind, actor_kind, actor_name, event_data, created_at").eq("i9_record_id", i9.id).order("id", { ascending: true });
+      _ddDriver.i9events = ev || [];
+    } else { _ddDriver.i9events = []; }
+  } catch { _ddDriver.i9 = null; _ddDriver.i9events = []; }
 
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
@@ -10177,6 +10185,8 @@ async function renderEmploymentTab(body, d) {
       </div>
     </div>
 
+    ${_i9PanelHtml(d, _ddDriver?.i9, _ddDriver?.i9events)}
+
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
@@ -10196,6 +10206,218 @@ async function renderEmploymentTab(body, d) {
         </div>
       </div>
     </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Form I-9 — work-authorization verification, integrated into onboarding.
+// ════════════════════════════════════════════════════════════════════
+const _I9_STATUS = {
+  not_started:       { label: "Not started",        fg: "var(--text-subtle)", bg: "var(--canvas)",      blurb: "I-9 verification hasn't been started for this driver." },
+  section1_complete: { label: "Section 1 complete", fg: "var(--amber-dark)",  bg: "var(--amber-soft)",  blurb: "Employee information recorded; awaiting employer document review (Section 2)." },
+  verified:          { label: "Verified",           fg: "var(--green)",       bg: "var(--green-soft)",  blurb: "Section 1 and Section 2 complete. Work-authorization documents reviewed and attested." },
+  needs_correction:  { label: "Needs correction",   fg: "var(--red)",         bg: "var(--red-soft)",    blurb: "Reopened for correction. Review the note and re-verify." },
+};
+function _i9St(s){ return _I9_STATUS[s] || _I9_STATUS.not_started; }
+function _i9Chip(s){ const x = _i9St(s); return `<span title="${escapeHtml(x.blurb)}" style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:650;padding:2px 9px;border-radius:999px;background:${x.bg};color:${x.fg}">${escapeHtml(x.label)}</span>`; }
+const _I9_CITIZEN_LABEL = {
+  citizen: "A citizen of the United States",
+  national: "A noncitizen national of the United States",
+  lpr: "A lawful permanent resident",
+  alien_authorized: "A noncitizen (other) authorized to work",
+};
+
+function _i9PanelHtml(d, i9, events) {
+  const status = i9?.status || "not_started";
+  const x = _i9St(status);
+  const s1 = i9?.section1 || {};
+  const s2 = i9?.section2 || {};
+  const evs = (events || []).slice(-6).reverse();
+  const evHtml = evs.map(e => {
+    const lbl = ({ created:"Record created", section1_saved:"Section 1 saved", section1_completed:"Section 1 completed", section2_completed:"Section 2 — documents reviewed & attested", reopened:"Reopened for correction" })[e.kind] || e.kind.replace(/_/g," ");
+    return `<div style="font-size:var(--fs-xs);color:var(--text-subtle);padding:3px 0;display:flex;gap:8px"><span style="color:var(--text-muted);min-width:140px;font-variant-numeric:tabular-nums">${escapeHtml(new Date(e.created_at).toLocaleString())}</span><span>${escapeHtml(lbl)}${e.actor_name ? " · " + escapeHtml(e.actor_name) : ""}${e.event_data?.reason ? " — " + escapeHtml(e.event_data.reason) : ""}</span></div>`;
+  }).join("");
+  const summary = (i9 && status !== "not_started") ? `
+    <div style="background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:var(--fs-sm);line-height:1.6">
+      ${s1.first_name || s1.last_name ? `<div><span style="color:var(--text-subtle)">Employee:</span> ${escapeHtml([s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" "))}${s1.citizen_status ? ` · ${escapeHtml(_I9_CITIZEN_LABEL[s1.citizen_status] || s1.citizen_status)}` : ""}</div>` : ""}
+      ${i9.section1_completed_at ? `<div><span style="color:var(--text-subtle)">Section 1:</span> completed ${escapeHtml(new Date(i9.section1_completed_at).toLocaleDateString())}${i9.section1_completed_via ? ` (${escapeHtml(i9.section1_completed_via === "driver_app" ? "by employee in app" : "recorded by employer")})` : ""}</div>` : ""}
+      ${i9.section2_completed_at ? `<div><span style="color:var(--text-subtle)">Section 2:</span> ${escapeHtml(s2.option === "A" ? "List A document" : "List B + List C")} reviewed ${escapeHtml(new Date(i9.section2_completed_at).toLocaleDateString())}${i9.section2_completed_by_name ? " by " + escapeHtml(i9.section2_completed_by_name) : ""}</div>` : ""}
+      ${Array.isArray(s2.documents) && s2.documents.length ? `<div style="color:var(--text-muted);font-size:var(--fs-xs);margin-top:3px">${s2.documents.map(dd => escapeHtml([dd.title, dd.number ? "#" + dd.number : null, dd.expires_on ? "exp " + dd.expires_on : null].filter(Boolean).join(" · "))).join(" — ")}</div>` : ""}
+      ${i9.needs_correction_note ? `<div style="color:var(--red);margin-top:4px">Correction note: ${escapeHtml(i9.needs_correction_note)}</div>` : ""}
+    </div>` : "";
+  const primaryLabel = status === "verified" ? "View / edit I-9"
+                     : status === "not_started" ? "Start I-9 verification"
+                     : "Continue I-9 — complete Section 2";
+  return `
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title" style="display:flex;align-items:center;gap:10px">Work authorization · Form I-9 ${_i9Chip(status)}</div>
+          <div class="dd-section-sub">Employment Eligibility Verification. Record the employee's information (Section 1) and your review of their identity / work-authorization documents (Section 2). It's part of onboarding readiness and feeds the employment documentation report.</div>
+        </div>
+        <span class="dd-badge dsp">DSP only</span>
+      </div>
+      ${summary}
+      <div class="dd-row" style="grid-template-columns:1fr;gap:10px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn btn-primary btn-sm" data-rr-i9-edit="${escapeHtml(d.id || "")}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            ${primaryLabel}
+          </button>
+          ${status === "verified" ? `<button type="button" class="btn btn-sm" data-rr-i9-reopen="${escapeHtml(d.id || "")}" style="color:var(--red)">Reopen for correction</button>` : ""}
+        </div>
+        ${evHtml ? `<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px"><div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:4px">I-9 history</div>${evHtml}</div>` : ""}
+      </div>
+    </div>`;
+}
+
+document.addEventListener("click", async (e) => {
+  const ed = e.target.closest("[data-rr-i9-edit]");
+  if (ed) { e.preventDefault(); const id = ed.getAttribute("data-rr-i9-edit"); if (id) _openI9Modal(id); return; }
+  const rp = e.target.closest("[data-rr-i9-reopen]");
+  if (rp) {
+    e.preventDefault();
+    const id = rp.getAttribute("data-rr-i9-reopen");
+    const reason = prompt("Reopen this I-9 for correction. Reason (recorded on the I-9 history):");
+    if (reason === null) return;
+    const { error } = await sb.rpc("i9_reopen", { p_driver_id: id, p_reason: reason || null });
+    if (error) { toast("Couldn't reopen: " + error.message, "warn"); return; }
+    toast("I-9 reopened for correction", "warn");
+    if (_ddDriver?.driver?.id === id) { await loadDriverDrawer(id); }
+    return;
+  }
+});
+
+function _openI9Modal(driverId) {
+  _erEmpStylesOnce();  // reuse the report modal's base shell styling
+  document.getElementById("rr-i9-modal")?.remove();
+  const i9 = (_ddDriver?.driver?.id === driverId ? _ddDriver?.i9 : null) || {};
+  const s1 = i9.section1 || {};
+  const s2 = i9.section2 || {};
+  const drv = (_ddDriver?.driver?.id === driverId ? _ddDriver?.driver : null) || {};
+  const v = (x) => escapeHtml(x ?? "");
+  const docSlot = (id, label, slot) => `
+    <div style="border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--canvas)">
+      <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:7px">${label}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:var(--fs-xs);color:var(--text-subtle)">Document title<input class="dd-row-input" data-i9="${id}_title" value="${v(slot?.title)}" placeholder="e.g. U.S. Passport"></label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:var(--fs-xs);color:var(--text-subtle)">Issuing authority<input class="dd-row-input" data-i9="${id}_authority" value="${v(slot?.authority)}" placeholder="e.g. U.S. Department of State"></label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:var(--fs-xs);color:var(--text-subtle)">Document number<input class="dd-row-input" data-i9="${id}_number" value="${v(slot?.number)}"></label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:var(--fs-xs);color:var(--text-subtle)">Expiration (if any)<input type="date" class="dd-row-input" data-i9="${id}_expires" value="${v(slot?.expires_on)}"></label>
+      </div>
+    </div>`;
+  const docsA = (s2.documents || []).find(x => x.list === "A") || {};
+  const docB  = (s2.documents || []).find(x => x.list === "B") || {};
+  const docC  = (s2.documents || []).find(x => x.list === "C") || {};
+  const option = s2.option || "A";
+  const cit = s1.citizen_status || "";
+  const inputCss = "background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font:inherit;font-size:var(--fs-md);width:100%";
+  const lbl = (t) => `<div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">${t}</div>`;
+  const m = document.createElement("div");
+  m.id = "rr-i9-modal"; m.className = ""; // styled below via #rr-emp-report-modal-like rules — actually reuse er-* shell
+  m.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(11,18,32,.5);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border-strong);border-radius:14px;width:100%;max-width:680px;box-shadow:0 24px 60px rgba(11,18,32,.28);overflow:hidden;margin:0 auto 24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--surface),var(--canvas) 280%);position:sticky;top:0;z-index:2">
+        <div><div style="font-size:14px;font-weight:700;color:var(--text)">Form I-9 · Employment Eligibility Verification</div><div style="font-size:11px;color:var(--text-subtle);margin-top:1px">${v(displayDriverName(drv))} · Section 1 (employee) + Section 2 (employer review)</div></div>
+        <button class="btn btn-sm" id="i9-close">Close</button>
+      </div>
+      <div style="padding:18px 20px;font-size:var(--fs-md)">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text);margin-bottom:10px">Section 1 — Employee information &amp; attestation</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 90px;gap:10px;margin-bottom:10px">
+          <div>${lbl("Last name (family)")}<input data-i9="last_name" style="${inputCss}" value="${v(s1.last_name || drv.last_name)}"></div>
+          <div>${lbl("First name (given)")}<input data-i9="first_name" style="${inputCss}" value="${v(s1.first_name || drv.first_name)}"></div>
+          <div>${lbl("M.I.")}<input data-i9="middle_initial" maxlength="1" style="${inputCss}" value="${v(s1.middle_initial)}"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>${lbl("Other last names used")}<input data-i9="other_last_names" style="${inputCss}" value="${v(s1.other_last_names)}"></div>
+          <div>${lbl("Date of birth")}<input type="date" data-i9="dob" style="${inputCss}" value="${v(s1.dob || drv.birthday)}"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 70px 1fr 90px 70px;gap:10px;margin-bottom:10px">
+          <div>${lbl("Street address")}<input data-i9="addr_street" style="${inputCss}" value="${v(s1.addr_street)}"></div>
+          <div>${lbl("Apt #")}<input data-i9="addr_apt" style="${inputCss}" value="${v(s1.addr_apt)}"></div>
+          <div>${lbl("City")}<input data-i9="addr_city" style="${inputCss}" value="${v(s1.addr_city)}"></div>
+          <div>${lbl("State")}<input data-i9="addr_state" maxlength="2" style="${inputCss}" value="${v(s1.addr_state)}"></div>
+          <div>${lbl("ZIP")}<input data-i9="addr_zip" maxlength="10" style="${inputCss}" value="${v(s1.addr_zip)}"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>${lbl("SSN (optional)")}<input data-i9="ssn" style="${inputCss}" placeholder="optional" value="${v(s1.ssn)}"></div>
+          <div>${lbl("Email")}<input data-i9="email" style="${inputCss}" value="${v(s1.email || drv.email)}"></div>
+          <div>${lbl("Phone")}<input data-i9="phone" style="${inputCss}" value="${v(s1.phone || drv.phone)}"></div>
+        </div>
+        ${lbl("Citizenship / immigration status")}
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+          ${Object.entries(_I9_CITIZEN_LABEL).map(([k,t]) => `<label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);cursor:pointer"><input type="radio" name="i9-cit" value="${k}" ${k===cit?"checked":""}>${escapeHtml(t)}</label>`).join("")}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+          <div>${lbl("USCIS A-Number / I-94 / Foreign passport # (if applicable)")}<input data-i9="auth_doc_number" style="${inputCss}" value="${v(s1.auth_doc_number)}"></div>
+          <div>${lbl("Work authorization expires (if applicable)")}<input type="date" data-i9="auth_expires" style="${inputCss}" value="${v(s1.auth_expires)}"></div>
+        </div>
+
+        <div style="font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text);margin:18px 0 10px;padding-top:14px;border-top:1px solid var(--border)">Section 2 — Employer review of documents</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>${lbl("Document option")}<select data-i9="option" style="${inputCss}">
+            <option value="A" ${option==="A"?"selected":""}>List A — one document (e.g. U.S. Passport, Permanent Resident Card)</option>
+            <option value="BC" ${option==="BC"?"selected":""}>List B + List C — one identity doc + one work-authorization doc</option>
+          </select></div>
+          <div>${lbl("First day of employment")}<input type="date" data-i9="first_day" style="${inputCss}" value="${v(s2.first_day_of_employment || drv.hire_date)}"></div>
+        </div>
+        <div id="i9-doc-a" style="margin-bottom:10px;${option==="A"?"":"display:none"}">${docSlot("a","List A document", docsA)}</div>
+        <div id="i9-doc-bc" style="${option==="A"?"display:none":""};display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+          ${docSlot("b","List B — identity document", docB)}
+          ${docSlot("c","List C — work-authorization document", docC)}
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:10px;background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:14px;font-size:var(--fs-sm);line-height:1.5;cursor:pointer">
+          <input type="checkbox" id="i9-attest" ${i9.status==="verified"?"checked":""} style="margin-top:2px;width:16px;height:16px;flex:0 0 auto">
+          <span>I attest, under penalty of perjury, that I have examined the document(s) presented by the above-named individual, that the document(s) appear to be genuine and to relate to the individual named, and that to the best of my knowledge the individual is authorized to work in the United States.</span>
+        </label>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn" id="i9-cancel">Cancel</button>
+          <button class="btn btn-primary" id="i9-save">Save &amp; verify I-9</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  m.querySelector("#i9-close").addEventListener("click", close);
+  m.querySelector("#i9-cancel").addEventListener("click", close);
+  document.addEventListener("keydown", function esc(ev){ if (ev.key==="Escape"){ close(); document.removeEventListener("keydown", esc);} });
+  m.querySelector('[data-i9="option"]').addEventListener("change", (e) => {
+    const a = m.querySelector("#i9-doc-a"), bc = m.querySelector("#i9-doc-bc");
+    if (e.target.value === "A") { a.style.display = ""; bc.style.display = "none"; } else { a.style.display = "none"; bc.style.display = "flex"; }
+  });
+  m.querySelector("#i9-save").addEventListener("click", () => _saveI9(driverId, m, close));
+}
+
+async function _saveI9(driverId, m, close) {
+  const g = (k) => (m.querySelector(`[data-i9="${k}"]`)?.value || "").trim() || null;
+  const cit = m.querySelector('input[name="i9-cit"]:checked')?.value || null;
+  if (!g("last_name") || !g("first_name")) { toast("Employee name is required (Section 1).", "warn"); return; }
+  if (!cit) { toast("Select the employee's citizenship / immigration status.", "warn"); return; }
+  if (!m.querySelector("#i9-attest")?.checked) { toast("Confirm the employer attestation to verify the I-9.", "warn"); return; }
+  const option = g("option") || "A";
+  const documents = [];
+  const doc = (id, list) => { const t = g(id+"_title"); if (t) documents.push({ list, title: t, authority: g(id+"_authority"), number: g(id+"_number"), expires_on: g(id+"_expires") }); };
+  if (option === "A") doc("a", "A"); else { doc("b", "B"); doc("c", "C"); }
+  if (documents.length === 0) { toast("Record at least one Section 2 document.", "warn"); return; }
+  if (option === "BC" && documents.length < 2) { toast("List B + List C requires one document from each list.", "warn"); return; }
+
+  const section1 = {
+    last_name: g("last_name"), first_name: g("first_name"), middle_initial: g("middle_initial"),
+    other_last_names: g("other_last_names"), dob: g("dob"),
+    addr_street: g("addr_street"), addr_apt: g("addr_apt"), addr_city: g("addr_city"), addr_state: g("addr_state"), addr_zip: g("addr_zip"),
+    ssn: g("ssn"), email: g("email"), phone: g("phone"),
+    citizen_status: cit, auth_doc_number: g("auth_doc_number"), auth_expires: g("auth_expires"),
+  };
+  const section2 = { option, documents, first_day_of_employment: g("first_day") };
+  const btn = m.querySelector("#i9-save"); if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  const r1 = await sb.rpc("i9_save_section1", { p_driver_id: driverId, p_section1: section1, p_complete: true });
+  if (r1.error) { if (btn){btn.disabled=false;btn.textContent="Save & verify I-9";} toast("Couldn't save Section 1: " + r1.error.message, "warn"); return; }
+  const r2 = await sb.rpc("i9_complete_section2", { p_driver_id: driverId, p_section2: section2, p_document_paths: [] });
+  if (r2.error) { if (btn){btn.disabled=false;btn.textContent="Save & verify I-9";} toast("Couldn't complete Section 2: " + r2.error.message, "warn"); return; }
+  toast("I-9 verified ✓", "success");
+  if (close) close();
+  if (_ddDriver?.driver?.id === driverId) { await loadDriverDrawer(driverId); }
 }
 
 function _empSavedReportsList(reps) {
@@ -10388,14 +10610,16 @@ async function _buildEmploymentReport(driverId, m) {
   const fmtDT = (iso) => iso ? new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
   const esc = (s) => escapeHtml(s ?? "");
 
-  const [recRes, shRes, coRes, envRes, toRes, msgRes] = await Promise.all([
+  const [recRes, shRes, coRes, envRes, toRes, msgRes, i9Res] = await Promise.all([
     sb.rpc("driver_record", { p_id: driverId }),
     sb.from("shifts").select("id, date, status, route_code, station:station_id (code)").eq("driver_id", driverId).order("date", { ascending: true }).limit(3000),
     sb.from("coachings").select("*").eq("driver_id", driverId).is("archived_at", null).order("occurred_at", { ascending: true }),
     sb.from("document_envelopes").select("id, status, sent_at, viewed_at, signed_at, declined_at, voided_at, signed_pdf_path, certificate_pdf_path, document_templates(title)").eq("recipient_driver_id", driverId).order("sent_at", { ascending: true }),
     sb.from("time_off_requests").select("id, start_date, end_date, status, reason, created_at").eq("driver_id", driverId).order("start_date", { ascending: true }),
     sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 500 }).then(r => r, () => ({ data: [] })),
+    sb.from("i9_records").select("*").eq("driver_id", driverId).maybeSingle().then(r => r, () => ({ data: null })),
   ]);
+  const i9 = i9Res?.data || null;
 
   if (recRes.error) throw new Error(recRes.error.message);
   const drv = recRes.data?.driver || {};
@@ -10523,7 +10747,23 @@ async function _buildEmploymentReport(driverId, m) {
     <h2><span class="num">6.</span> Signed documents</h2>
     ${docRows ? `<table class="er-table"><thead><tr><th>Document</th><th>Status</th><th>Date</th></tr></thead><tbody>${docRows}</tbody></table><div class="b" style="font-size:10.5px;color:var(--text-subtle);margin-top:6px">${signedDocs.length} document${signedDocs.length === 1 ? "" : "s"} signed &amp; sealed. Sealed PDFs and Certificates of Completion are retained in RouteReady and independently verifiable.</div>` : `<div class="er-empty">No e-signature documents on file.</div>`}
 
-    <h2><span class="num">7.</span> Separation summary</h2>
+    <h2><span class="num">7.</span> Work authorization (Form I-9)</h2>
+    ${i9 ? (() => {
+      const s1 = i9.section1 || {}, s2 = i9.section2 || {};
+      const st = (_i9St ? _i9St(i9.status) : { label: i9.status });
+      const docs = Array.isArray(s2.documents) ? s2.documents : [];
+      return `<dl class="er-kv">
+        <dt>I-9 status</dt><dd>${esc(st.label)}</dd>
+        <dt>Citizenship / status attested</dt><dd>${esc((_I9_CITIZEN_LABEL && _I9_CITIZEN_LABEL[s1.citizen_status]) || s1.citizen_status || "—")}</dd>
+        <dt>Section 1 completed</dt><dd>${i9.section1_completed_at ? fmtD(i9.section1_completed_at) + (i9.section1_completed_via ? " (" + esc(i9.section1_completed_via === "driver_app" ? "by employee" : "recorded by employer") + ")" : "") : "—"}</dd>
+        <dt>Section 2 completed</dt><dd>${i9.section2_completed_at ? fmtD(i9.section2_completed_at) + (i9.section2_completed_by_name ? " by " + esc(i9.section2_completed_by_name) : "") : "—"}</dd>
+        <dt>Documents reviewed</dt><dd>${docs.length ? esc(docs.map(dd => [dd.title, dd.number ? "#" + dd.number : null, dd.expires_on ? "exp " + dd.expires_on : null].filter(Boolean).join(" · ")).join(" — ")) : "—"}</dd>
+        <dt>First day of employment</dt><dd>${s2.first_day_of_employment ? fmtD(s2.first_day_of_employment) : "—"}</dd>
+        ${i9.needs_correction_note ? `<dt>Correction note</dt><dd>${esc(i9.needs_correction_note)}</dd>` : ""}
+      </dl><div class="b" style="font-size:11px;color:var(--text-subtle);margin-top:8px">Form I-9 verifies identity and authorization to work in the United States. Document numbers and other sensitive details are retained in RouteReady; they are summarized here, not reproduced in full.</div>`;
+    })() : `<div class="er-empty">No I-9 record on file for this driver.</div>`}
+
+    <h2><span class="num">8.</span> Separation summary</h2>
     <dl class="er-kv">
       <dt>Current employment status</dt><dd>${esc(sep[0])}</dd>
       <dt>Status note</dt><dd style="font-weight:500;color:var(--text-muted)">${esc(sep[1])}</dd>
