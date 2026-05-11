@@ -21257,6 +21257,9 @@ async function _docsOpenAudit(envelopeId) {
   const docTitle = envRow?.document_templates?.title || "Document";
 
   // Records (downloads) row.
+  const reSealBtn = status === "signed"
+    ? `<button class="btn btn-sm btn-ghost" data-rr-docs-reseal="${escapeHtml(envelopeId)}" title="Re-run the seal — re-stamps the PDF, rebuilds the Certificate of Completion, re-signs the cryptographic seal, and retries the RFC 3161 timestamp.">Re-seal · retry timestamp</button>`
+    : "";
   const recordsRow = (hasSealed || hasCert || hasSeal || envRow?.signing_token) ? `
     <div class="docs-coc-sectionlabel">Records</div>
     <div class="docs-records">
@@ -21264,10 +21267,11 @@ async function _docsOpenAudit(envelopeId) {
       ${hasCert   ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-cert="${escapeHtml(envelopeId)}">Certificate of Completion</button>` : ""}
       ${hasSeal   ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-seal="${escapeHtml(envelopeId)}">Cryptographic seal (.json)</button>` : ""}
       ${envRow?.signing_token ? `<button class="btn btn-sm btn-ghost" data-rr-docs-verify-link="${escapeHtml(envRow.signing_token)}" title="Anyone with this link can independently confirm this record — no login.">Copy public verification link</button>` : ""}
+      ${reSealBtn}
     </div>` : `
     <div class="docs-coc-sectionlabel">Records</div>
     <div style="font-size:11.5px;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:10px 12px;line-height:1.55">
-      The sealed PDF and Certificate of Completion are generated automatically once the signer completes. They'll appear here within a minute of signing.
+      The sealed PDF and Certificate of Completion are generated automatically once the signer completes — usually within a minute. ${reSealBtn ? `If they haven't appeared, you can ${reSealBtn}` : ""}
     </div>`;
 
   // Security record card.
@@ -21382,6 +21386,20 @@ document.addEventListener("click", (e) => {
   if (dlCert) { _docsDownloadEnvelopePdf(dlCert.getAttribute("data-rr-docs-download-cert"), "certificate"); return; }
   const dlSeal = e.target.closest("[data-rr-docs-download-seal]");
   if (dlSeal) { _docsDownloadEnvelopePdf(dlSeal.getAttribute("data-rr-docs-download-seal"), "seal"); return; }
+  const reseal = e.target.closest("[data-rr-docs-reseal]");
+  if (reseal) {
+    const id = reseal.getAttribute("data-rr-docs-reseal");
+    if (!confirm("Re-seal this document? It re-stamps the PDF, rebuilds the Certificate of Completion, re-signs the cryptographic seal, and retries the RFC 3161 timestamp. The new artifacts replace the old ones and append fresh events to the audit chain.")) return;
+    reseal.disabled = true; reseal.textContent = "Re-sealing…";
+    sb.rpc("documents_envelope_reseal", { p_envelope_id: id }).then(({ error }) => {
+      if (error) { reseal.disabled = false; reseal.textContent = "Re-seal · retry timestamp"; toast("Couldn't re-seal: " + error.message, "warn"); return; }
+      toast("Re-sealing started — give it a minute, then reopen this record.", "success");
+      // Close the modal so the operator reopens fresh; refresh the list.
+      document.querySelector(".docs-coc-backdrop")?.remove();
+      if (typeof loadDocumentsView === "function" && _docsSub === "envelopes") loadDocumentsView("envelopes");
+    });
+    return;
+  }
   const verifyLink = e.target.closest("[data-rr-docs-verify-link]");
   if (verifyLink) {
     const base = window.RR?.dsp?.metadata?.public_base_url || window.RR_CONFIG?.PUBLIC_BASE_URL || location.origin;
