@@ -2589,19 +2589,25 @@ let _rosterFilters = { station: "", tenure: "", score: "", sort: "score-asc" };
 // Cached roster rows so filter/sort changes don't refetch.
 let _rosterRows = [];
 
+let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
+
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
 
-  const { data: rows, error } = await sb.from("drivers")
-    .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
-             background_check_completed_at, drug_test_completed_at,
-             training_scheduled_at, training_date,
-             station:station_id (code)`)
-    .eq("dsp_id", window.RR.dsp.id)
-    .order("hire_date", { ascending: false })
-    .limit(500);
+  const [{ data: rows, error }, { data: appStatus }] = await Promise.all([
+    sb.from("drivers")
+      .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
+               background_check_completed_at, drug_test_completed_at,
+               training_scheduled_at, training_date,
+               station:station_id (code)`)
+      .eq("dsp_id", window.RR.dsp.id)
+      .order("hire_date", { ascending: false })
+      .limit(500),
+    sb.rpc("driver_app_status"),
+  ]);
 
+  _rosterAppStatus = new Map((appStatus ?? []).map((s) => [s.driver_id, s]));
   _rosterRows = rows ?? [];
   refreshDriverStatRow(_rosterRows);
   _populateRosterStationFilter(_rosterRows);
@@ -2616,7 +2622,10 @@ async function loadDriversRoster() {
       all.filter(r => r.status === "active" && r.station?.code).map(r => r.station.code)
     );
     const stationN = stationCodes.size;
-    sub.textContent = `${active} active driver${active === 1 ? "" : "s"}${stationN > 0 ? ` across ${stationN} station${stationN === 1 ? "" : "s"}` : ""}`;
+    const onApp = [..._rosterAppStatus.values()].filter(s => s.signed_in_at).length;
+    sub.textContent = `${active} active driver${active === 1 ? "" : "s"}`
+      + (stationN > 0 ? ` across ${stationN} station${stationN === 1 ? "" : "s"}` : "")
+      + (onApp > 0 ? ` · ${onApp} on the app` : "");
   }
 }
 
@@ -2747,9 +2756,10 @@ function renderDriverTable(rows, error) {
       <th>Training scheduled</th>
       <th>Status</th>
       <th>Training date</th>
+      <th>App</th>
       <th></th>`;
   } else {
-    const colCount = 7;
+    const colCount = 8;
     thead.innerHTML = `
       <th data-rr-roster-sort="name"   style="cursor:pointer;user-select:none">Driver${caret("name")}</th>
       <th>Station</th>
@@ -2757,11 +2767,12 @@ function renderDriverTable(rows, error) {
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score${caret("score")}</th>
       <th>Attendance · 30d</th>
       <th>Last coached</th>
+      <th>App</th>
       <th></th>`;
     thead.dataset.rrColCount = String(colCount);
   }
 
-  const colspan = _driverStage === "onboarding" ? 8 : 7;
+  const colspan = _driverStage === "onboarding" ? 9 : 8;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:24px;text-align:center;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</td></tr>`;
     return;
@@ -2787,6 +2798,23 @@ function pillCheck(when) {
   return `<span class="tag" style="background:var(--canvas);color:var(--text-subtle)">Pending</span>`;
 }
 
+// Driver-app onboarding badge for the roster: "On the app" / "Invited" /
+// "Not invited", plus a 📲 if they've installed the PWA + enabled push.
+function _appStatusCell(driverId) {
+  const s = _rosterAppStatus.get(driverId);
+  if (!s) return `<span style="color:var(--text-subtle)">—</span>`;
+  const push = s.has_push
+    ? ` <span title="Installed the app · notifications on" style="font-size:11px">📲</span>` : "";
+  if (s.signed_in_at) {
+    const seenTitle = `Signed in ${new Date(s.signed_in_at).toLocaleString()}`
+      + (s.last_seen_at ? ` · last active ${new Date(s.last_seen_at).toLocaleString()}` : "");
+    const seenShort = s.last_seen_at ? ` <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(_relTimeShort(s.last_seen_at))}</span>` : "";
+    return `<span class="tag" style="background:var(--green-soft);color:var(--green)" title="${escapeHtml(seenTitle)}">On the app</span>${seenShort}${push}`;
+  }
+  if (s.invited) return `<span class="tag" style="background:var(--amber-soft);color:var(--amber-dark)" title="Invite sent — hasn't signed in yet">Invited</span>${push}`;
+  return `<span class="tag" style="background:var(--canvas);color:var(--text-subtle)">Not invited</span>`;
+}
+
 function renderOnboardingRow(d) {
   const initials = displayDriverInitials(d);
   const display = displayDriverName(d);
@@ -2809,6 +2837,7 @@ function renderOnboardingRow(d) {
       <td>${d.training_scheduled_at ? new Date(d.training_scheduled_at).toLocaleString() : '<span style="color:var(--text-subtle)">—</span>'}</td>
       <td>${renderDriverStatusBadge(d.status)}</td>
       <td class="cell-time">${d.training_date ? new Date(d.training_date).toLocaleDateString() : "—"}</td>
+      <td>${_appStatusCell(d.id)}</td>
       <td></td>
     </tr>`;
 }
@@ -2833,6 +2862,7 @@ function renderDriverRow(d) {
       <td>—</td>
       <td>—</td>
       <td class="cell-time">—</td>
+      <td>${_appStatusCell(d.id)}</td>
       <td></td>
     </tr>`;
 }
