@@ -3004,8 +3004,8 @@ function _appStatusCell(driverId) {
 // I-9 verified, training) folded into one state + a one-line next step,
 // so the roster reads "who's ready / who's blocked / where's the
 // bottleneck" at a glance instead of a wall of datetime cells.
-function _obReadiness(d) {
-  const i9r = _rosterI9 ? _rosterI9.get(d.id) : null;
+function _obReadiness(d, i9recOverride) {
+  const i9r = (i9recOverride !== undefined) ? i9recOverride : (_rosterI9 ? _rosterI9.get(d.id) : null);
   const i9  = _i9Derived(i9r);
   const i9cls = _i9Classify(i9r);
   const today = new Date().toISOString().slice(0, 10);
@@ -3086,6 +3086,23 @@ function _obSetStrip(rows) {
   </div>`;
   el.style.display = "block";
 }
+
+// "Mark now" buttons in the driver-drawer Onboarding section: fill the
+// matching datetime/date field with the current time and persist via the
+// drawer's existing Save flow.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-ob-setnow]");
+  if (!b || !b.closest("#rr-dd-drawer")) return;
+  e.preventDefault();
+  const name = b.getAttribute("data-rr-ob-setnow");
+  const kind = b.getAttribute("data-rr-ob-kind");
+  const inp = document.querySelector(`#rr-dd-drawer [data-rr-dd-field="${name}"]`);
+  if (!inp) return;
+  const now = new Date();
+  if (kind === "date") inp.value = now.toISOString().slice(0, 10);
+  else inp.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
+});
 
 function renderOnboardingRow(d) {
   const initials = displayDriverInitials(d);
@@ -10308,21 +10325,32 @@ async function renderEmploymentTab(body, d) {
       </div>
     </div>
 
+    ${(() => {
+      const obD = _obReadiness(d, _ddDriver?.i9?.record);
+      const segs = obD.milestones.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
+      const nextC = obD.key === "blocked" ? "var(--red)" : obD.tone === "amber" ? "var(--amber-dark)" : obD.key === "ready" ? "var(--green)" : "var(--text-subtle)";
+      const setBtn = d.id ? (field, kind) => `<button type="button" class="btn btn-sm" data-rr-ob-setnow="${field}" data-rr-ob-kind="${kind}" style="margin-left:8px;flex:0 0 auto">Mark now</button>` : () => "";
+      const fieldRow = (label, field, kind, val) => `<div class="dd-row"><label>${escapeHtml(label)}</label><div style="display:flex;align-items:center;min-width:0">${kind === "date" ? `<input type="date" data-rr-dd-field="${field}" value="${val}"/>` : `<input type="datetime-local" data-rr-dd-field="${field}" value="${val}"/>`}${setBtn(field, kind)}</div></div>`;
+      return `
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Onboarding</div>
-          <div class="dd-section-sub">Milestones recorded by the DSP during hire.</div>
+          <div class="dd-section-sub">Three milestones recorded here, plus the Form I-9 below — four steps to activation.</div>
         </div>
         <span class="dd-badge dsp">DSP only</span>
       </div>
-      <div class="dd-row"><label>Background check</label><input type="datetime-local" data-rr-dd-field="background_check_completed_at" value="${v((_ddVal("background_check_completed_at", d.background_check_completed_at) || '').slice(0,16))}"/></div>
-      <div class="dd-row"><label>Drug test</label><input type="datetime-local" data-rr-dd-field="drug_test_completed_at" value="${v((_ddVal("drug_test_completed_at", d.drug_test_completed_at) || '').slice(0,16))}"/></div>
-      <div class="dd-row"><label>Training scheduled</label><input type="datetime-local" data-rr-dd-field="training_scheduled_at" value="${v((_ddVal("training_scheduled_at", d.training_scheduled_at) || '').slice(0,16))}"/></div>
-      <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(_ddVal("training_date", d.training_date))}"/></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">${_obPill(obD.label, obD.tone)}<span style="font-size:var(--fs-sm);color:var(--text-subtle)">${obD.doneN} of ${obD.totalN} steps complete</span></div>
+      <div style="display:flex;gap:4px;margin-bottom:${obD.next ? "6px" : "14px"}">${segs}</div>
+      ${obD.next ? `<div style="font-size:var(--fs-xs);color:${nextC};margin-bottom:14px">${escapeHtml(obD.next)}</div>` : ""}
+      ${fieldRow("Background check", "background_check_completed_at", "datetime", v((_ddVal("background_check_completed_at", d.background_check_completed_at) || '').slice(0, 16)))}
+      ${fieldRow("Drug test", "drug_test_completed_at", "datetime", v((_ddVal("drug_test_completed_at", d.drug_test_completed_at) || '').slice(0, 16)))}
+      ${fieldRow("Training scheduled", "training_scheduled_at", "datetime", v((_ddVal("training_scheduled_at", d.training_scheduled_at) || '').slice(0, 16)))}
+      ${fieldRow("Training date", "training_date", "date", v(_ddVal("training_date", d.training_date)))}
     </div>
 
-    ${_i9PanelHtml(_ddDriver?.i9, d)}
+    ${_i9PanelHtml(_ddDriver?.i9, d)}`;
+    })()}
 
     <div class="dd-section">
       <div class="dd-section-head">
