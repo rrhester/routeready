@@ -2596,7 +2596,7 @@ async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
   // Paint skeleton rows immediately so the page feels instant.
-  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 11 : 9);
+  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 7 : 9);
 
   const [{ data: rows, error }, { data: appStatus }, { data: coachRows }, { data: i9Rows }] = await Promise.all([
     sb.from("drivers")
@@ -2792,12 +2792,8 @@ function renderDriverTable(rows, error) {
     thead.innerHTML = cbHeader + `
       <th>Driver</th>
       <th>Days since hire</th>
-      <th>Background check</th>
-      <th>Drug test</th>
+      <th>Onboarding</th>
       <th>Form I-9</th>
-      <th>Training scheduled</th>
-      <th>Status</th>
-      <th>Training date</th>
       <th>App</th>
       <th></th>`;
   } else {
@@ -2813,7 +2809,9 @@ function renderDriverTable(rows, error) {
     thead.dataset.rrColCount = "9";
   }
 
-  const colspan = _driverStage === "onboarding" ? 11 : 9;
+  _obSetStrip(error ? null : rows);
+
+  const colspan = _driverStage === "onboarding" ? 7 : 9;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
       error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
@@ -2823,7 +2821,16 @@ function renderDriverTable(rows, error) {
   }
 
   const stageTotal = _rowsForStage(rows, _driverStage).length;
-  const visible = visibleDriversForStage(rows, _driverStage);
+  let visible = visibleDriversForStage(rows, _driverStage);
+  if (_driverStage === "onboarding") {
+    visible = visible.slice().sort((a, b) => {
+      const wa = _obReadiness(a).weight, wb = _obReadiness(b).weight;
+      if (wa !== wb) return wa - wb;
+      const da = a.hire_date ? new Date(a.hire_date).getTime() : 0;
+      const db = b.hire_date ? new Date(b.hire_date).getTime() : 0;
+      return da - db;   // oldest hire first within a bucket
+    });
+  }
   if (visible.length === 0) {
     const searching = !!(_rosterFilters.q || _rosterFilters.station || _rosterFilters.tenure || _rosterFilters.score);
     const cfg = searching
@@ -2992,6 +2999,94 @@ function _appStatusCell(driverId) {
   return `<span class="dr-app-chip none" title="No app invite sent yet"><i class="dot"></i>Not invited</span>`;
 }
 
+// ── Onboarding readiness — one computed state per onboarding driver ───
+// Four operator-visible milestones (background check, drug test, Form
+// I-9 verified, training) folded into one state + a one-line next step,
+// so the roster reads "who's ready / who's blocked / where's the
+// bottleneck" at a glance instead of a wall of datetime cells.
+function _obReadiness(d) {
+  const i9r = _rosterI9 ? _rosterI9.get(d.id) : null;
+  const i9  = _i9Derived(i9r);
+  const i9cls = _i9Classify(i9r);
+  const today = new Date().toISOString().slice(0, 10);
+  const i9Done = i9.key === "verified" || i9.key === "verified_expiring" || i9.key === "sealing";
+  const milestones = [
+    { k: "bg",    label: "Background check",  done: !!d.background_check_completed_at },
+    { k: "drug",  label: "Drug test",         done: !!d.drug_test_completed_at },
+    { k: "i9",    label: "Form I-9 verified", done: i9Done },
+    { k: "train", label: "Training",          done: !!d.training_date && d.training_date <= today },
+  ];
+  const doneN = milestones.filter(m => m.done).length;
+  const totalN = milestones.length;
+
+  let block = null;          // hard blocker — urgent, sorts to the top
+  if (i9cls.bucket === "s2_overdue") block = "Form I-9 Section 2 overdue";
+  else if (i9cls.bucket === "needs_correction") block = "Form I-9 correction unresolved";
+  let soft = null;           // approaching / needs nudging — amber
+  if (!block) {
+    if (i9cls.bucket === "s2_due") soft = "Form I-9 Section 2 due soon";
+    else if (i9cls.bucket === "s2_needed" && i9cls.note) soft = "Set the Form I-9 first day to start the clock";
+  }
+
+  let key, label, tone;
+  if (doneN === totalN)       { key = "ready";       label = "Ready to activate"; tone = "green"; }
+  else if (block)             { key = "blocked";     label = "Blocked";           tone = "red"; }
+  else if (doneN === 0 && !soft) { key = "not_started"; label = "Not started";    tone = "slate"; }
+  else                        { key = "in_progress"; label = "In progress";       tone = soft ? "amber" : "slate"; }
+
+  let next = "";
+  if (key === "ready") next = "All steps complete — activate when ready";
+  else if (block) next = block;
+  else if (soft) next = soft;
+  else {
+    const pend = milestones.find(m => !m.done);
+    if (pend) {
+      if (pend.k === "i9") next = (i9.key === "no_record" || i9.key === "not_started") ? "Awaiting employee — Form I-9 Section 1"
+        : i9.key === "section1_in_progress" ? "Employee completing Form I-9 Section 1"
+        : i9.key === "section1_complete" ? "Complete Form I-9 Section 2"
+        : "Form I-9 in progress";
+      else if (pend.k === "train") next = d.training_scheduled_at ? `Training scheduled ${new Date(d.training_scheduled_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "Schedule training";
+      else next = `Record the ${pend.label.toLowerCase()}`;
+    }
+  }
+  const weight = key === "blocked" ? 0 : key === "ready" ? 1 : (key === "in_progress" && tone === "amber") ? 2 : key === "in_progress" ? 3 : 4;
+  return { key, label, tone, doneN, totalN, milestones, next, weight };
+}
+function _obPill(label, tone) {
+  const T = tone === "green" ? "background:#dcfce7;color:#166534"
+    : tone === "red" ? "background:#fee2e2;color:#991b1b"
+    : tone === "amber" ? "background:#fef3c7;color:#92400e"
+    : "background:#f1f5f9;color:#475569";
+  return `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
+}
+// The "N onboarding · X ready · Y blocked · biggest bottleneck …" strip
+// over the roster table — only on the Onboarding stage tab.
+function _obSetStrip(rows) {
+  const el = document.getElementById("rr-onboarding-strip");
+  if (!el) return;
+  const list = (_driverStage === "onboarding" && Array.isArray(rows)) ? _rowsForStage(rows, "onboarding") : [];
+  if (!list.length) { el.style.display = "none"; el.innerHTML = ""; return; }
+  let ready = 0, blocked = 0;
+  const stuck = { bg: 0, drug: 0, i9: 0, train: 0 };
+  for (const d of list) {
+    const ob = _obReadiness(d);
+    if (ob.key === "ready") ready++;
+    else if (ob.key === "blocked") blocked++;
+    for (const m of ob.milestones) if (!m.done) stuck[m.k]++;
+  }
+  const labels = { bg: "background checks", drug: "drug tests", i9: "Form I-9", train: "training" };
+  const slow = Object.entries(stuck).sort((a, b) => b[1] - a[1])[0];
+  const slowTxt = slow && slow[1] > 0 ? `${labels[slow[0]]} (${slow[1]} pending)` : null;
+  const parts = [`<strong>${list.length}</strong> onboarding`];
+  if (ready)   parts.push(`<strong style="color:var(--green)">${ready}</strong> ready to activate`);
+  if (blocked) parts.push(`<strong style="color:var(--red)">${blocked}</strong> blocked`);
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:var(--fs-sm)">
+    <span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap">${parts.join('<span style="color:var(--text-subtle)">·</span>')}</span>
+    ${slowTxt ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs);margin-left:auto">Biggest bottleneck: ${escapeHtml(slowTxt)}</span>` : ""}
+  </div>`;
+  el.style.display = "block";
+}
+
 function renderOnboardingRow(d) {
   const initials = displayDriverInitials(d);
   const display = displayDriverName(d);
@@ -3003,6 +3098,9 @@ function renderOnboardingRow(d) {
   const daysCell = days != null
     ? `<span style="font-weight:600">${days}</span> <span style="font-size:var(--fs-xs);color:var(--text-subtle)">day${days === 1 ? "" : "s"}</span>`
     : '<span style="color:var(--text-subtle)">—</span>';
+  const ob = _obReadiness(d);
+  const pips = ob.milestones.map(m => `<span title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:${m.done ? "#16a34a" : "var(--border)"}"></span>`).join("");
+  const nextColor = ob.key === "blocked" ? "var(--red)" : ob.tone === "amber" ? "var(--amber-dark)" : ob.key === "ready" ? "var(--green)" : "var(--text-subtle)";
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
@@ -3010,12 +3108,13 @@ function renderOnboardingRow(d) {
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${daysCell}</td>
-      <td>${pillCheck(d.background_check_completed_at)}</td>
-      <td>${pillCheck(d.drug_test_completed_at)}</td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:170px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${ob.doneN}/${ob.totalN}</span><span style="display:inline-flex;align-items:center;gap:3px">${pips}</span></div>
+          ${ob.next ? `<div style="font-size:var(--fs-xs);color:${nextColor};line-height:1.3">${escapeHtml(ob.next)}</div>` : ""}
+        </div>
+      </td>
       <td>${_i9OnboardCell(d.id)}</td>
-      <td>${d.training_scheduled_at ? new Date(d.training_scheduled_at).toLocaleString() : '<span style="color:var(--text-subtle)">—</span>'}</td>
-      <td>${renderDriverStatusBadge(d.status)}</td>
-      <td class="cell-time">${d.training_date ? new Date(d.training_date).toLocaleDateString() : "—"}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td></td>
     </tr>`;
