@@ -3865,9 +3865,78 @@ const _i9Fld = (id, label, opts = {}) => `
       style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
   </label>`;
 
+// Small inline check icon for completed sections.
+const _I9_CHECK_SVG = `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+// One-time inline styles: skeleton pulse, section check chip, field error.
+function _i9InjectStyles() {
+  if (document.getElementById("i9-inline-styles")) return;
+  const st = document.createElement("style");
+  st.id = "i9-inline-styles";
+  st.textContent =
+    "@keyframes i9-pulse{0%,100%{opacity:.5}50%{opacity:.85}}" +
+    ".i9-skel{background:var(--border);border-radius:8px;animation:i9-pulse 1.3s ease-in-out infinite}" +
+    ".i9-card-check{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#16a34a;flex:0 0 auto}" +
+    ".i9-err-msg{font-size:var(--fs-xs);color:var(--red);margin-top:4px}" +
+    "input.i9-err{border-color:var(--red) !important}";
+  document.head.appendChild(st);
+}
+
+function _i9SkeletonHtml() {
+  const card = (lines) => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px"><div class="i9-skel" style="height:11px;width:38%"></div>${Array.from({ length: lines }).map(() => `<div class="i9-skel" style="height:38px;width:100%"></div>`).join("")}</div>`;
+  return `<div style="display:flex;flex-direction:column;gap:16px">
+    <div class="i9-skel" style="height:48px;width:100%;border-radius:12px"></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><div class="i9-skel" style="height:18px;width:50%"></div><div class="i9-skel" style="height:12px;width:88%"></div></div>
+    ${card(2)}${card(3)}${card(2)}${card(4)}${card(1)}
+    <div class="i9-skel" style="height:200px;width:100%;border-radius:12px"></div>
+    <div class="i9-skel" style="height:44px;width:100%;border-radius:8px"></div>
+  </div>`;
+}
+
+// The completion screen — checkmark-circle treatment + what-happens-next.
+function _i9RenderCompletion(main, rec, session) {
+  const onDate = rec.section1_completed_at ? new Date(rec.section1_completed_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : null;
+  const fdoe = rec.first_day_of_employment ? new Date(rec.first_day_of_employment + "T00:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : null;
+  const onboarding = !!(session && session.status === "onboarding");
+  const dest = onboarding ? "/tasks/onboarding" : "/tasks";
+  main.innerHTML = `
+    <div style="padding:36px 20px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px">
+      <div style="width:64px;height:64px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#15803d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div style="font-size:20px;font-weight:700;color:var(--text)">Form I-9 · Section 1 complete</div>
+        <div style="margin-top:8px;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.6;max-width:360px">You signed your part of Form I-9${onDate ? ` on ${escapeHtml(onDate)}` : ""}. Nothing else is needed from you here.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:left;font-size:var(--fs-sm);color:var(--text);line-height:1.6;max-width:360px;width:100%">
+        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:6px">What happens next</div>
+        Your employer reviews your identity and work-authorization documents and completes Section 2.${fdoe ? ` Bring your documents on your first day of work — <strong>${escapeHtml(fdoe)}</strong>.` : " Bring your documents on your first day of work."}
+      </div>
+      <button type="button" id="i9-done-back" class="btn btn-primary" style="min-width:200px;margin-top:4px">Back to ${onboarding ? "onboarding" : "tasks"}</button>
+    </div>`;
+  document.getElementById("i9-done-back")?.addEventListener("click", () => navigate(dest));
+}
+
+// The 6 logical sections of Section 1, in order, for the progress header
+// + per-card checkmarks. `done` reads the live form state.
+const _I9_SECTIONS = [
+  { id: "name",    done: (s) => !!(s.last_name && s.first_name) },
+  { id: "address", done: (s) => !!(s.addr_street && s.addr_city && s.addr_state && s.addr_zip) },
+  { id: "about",   done: (s) => !!s.dob },
+  { id: "status",  done: (s) => {
+      if (!["citizen", "national", "lpr", "authorized"].includes(s.citizen_status)) return false;
+      if (s.citizen_status === "lpr") return !!s.lpr_uscis_number;
+      if (s.citizen_status === "authorized") return !!s.auth_doc_number && (s.auth_doc_kind !== "passport" || !!s.auth_passport_country);
+      return true;
+    } },
+  { id: "attest",  done: (s) => !!s._attestChecked },
+  { id: "sign",    done: (s) => !!s._sigOk },
+];
+
 async function renderI9Section1() {
   const main = document.getElementById("main");
-  main.innerHTML = `<div class="loader" style="margin:96px auto"></div>`;
+  _i9InjectStyles();
+  main.innerHTML = _i9SkeletonHtml();
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
@@ -3882,30 +3951,28 @@ async function renderI9Section1() {
   const s1  = rec.section1 && typeof rec.section1 === "object" ? rec.section1 : {};
   const submitted = rec.status && rec.status !== "not_started" && rec.status !== "needs_correction";
 
-  if (submitted) {
-    main.innerHTML = `
-      <div style="padding:32px 22px;text-align:center">
-        <div style="width:54px;height:54px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#15803d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Section 1 submitted</div>
-        <div style="margin-top:8px;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.55">
-          You've completed and signed your part of Form I-9${rec.section1_completed_at ? ` on ${new Date(rec.section1_completed_at).toLocaleDateString()}` : ""}.
-          Your employer will review your identity and work-authorization documents to complete Section 2.
-        </div>
-      </div>`;
-    return;
-  }
+  if (submitted) { _i9RenderCompletion(main, rec, session); return; }
 
   const v = (k, fallback = "") => escapeHtml(s1[k] != null && s1[k] !== "" ? String(s1[k]) : fallback);
   const cs = s1.citizen_status || "";
   const fdoe = rec.first_day_of_employment ? new Date(rec.first_day_of_employment + "T00:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : null;
+  // Section-card header: an uppercase title + a checkmark chip that shows
+  // once that section is complete.
+  const head = (id, title, reqStar) => `<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">${escapeHtml(title)}${reqStar ? ' <span style="color:var(--red)">*</span>' : ""}</div><span class="i9-card-check" data-i9-check="${id}" style="display:none">${_I9_CHECK_SVG}</span></div>`;
+  const cardOpen = (id, extra = "") => `<div data-i9-card="${id}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;${extra}">`;
 
   main.innerHTML = `
-    <div style="padding:14px 16px 110px 16px;display:flex;flex-direction:column;gap:16px">
+    <div data-i9-progress style="position:sticky;top:0;z-index:3;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 2px 10px rgba(15,23,42,.07)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">Form I-9 · Section 1</span>
+        <span data-i9-count style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600">0 of 6 sections</span>
+      </div>
+      <div style="margin-top:7px;height:4px;border-radius:999px;background:var(--border);overflow:hidden"><div data-i9-bar style="height:100%;width:0%;background:var(--accent);transition:width .25s ease;border-radius:999px"></div></div>
+    </div>
+
+    <div style="padding:14px 0 110px 0;display:flex;flex-direction:column;gap:16px">
       <div>
-        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Form I-9 · Section 1</div>
-        <div style="margin-top:4px;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.55">
+        <div style="margin-top:2px;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.55">
           Employee Information and Attestation. Federal law requires every employee to complete this part by their first day of work${fdoe ? ` — yours is <strong>${escapeHtml(fdoe)}</strong>` : ""}.
         </div>
       </div>
@@ -3915,8 +3982,8 @@ async function renderI9Section1() {
           <strong>Your employer asked for a correction.</strong>${rec.needs_correction_note ? `<div style="margin-top:4px">${escapeHtml(rec.needs_correction_note)}</div>` : ""}
         </div>` : ""}
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Your legal name</div>
+      ${cardOpen("name")}
+        ${head("name", "Your legal name")}
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           ${_i9Fld("i9-last", "Last name (family name)", { req: true, flex: "1 1 140px", value: v("last_name", pre.last_name || "") })}
           ${_i9Fld("i9-first", "First name (given name)", { req: true, flex: "1 1 140px", value: v("first_name", pre.first_name || "") })}
@@ -3925,8 +3992,8 @@ async function renderI9Section1() {
         ${_i9Fld("i9-other", "Other last names used (if any)", { value: v("other_last_names") })}
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Address</div>
+      ${cardOpen("address")}
+        ${head("address", "Address")}
         ${pre.address_on_file ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">On file with your employer: ${escapeHtml(pre.address_on_file)}</div>` : ""}
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           ${_i9Fld("i9-street", "Street number and name", { req: true, flex: "1 1 200px", value: v("addr_street") })}
@@ -3939,8 +4006,8 @@ async function renderI9Section1() {
         </div>
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">About you</div>
+      ${cardOpen("about")}
+        ${head("about", "About you")}
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           ${_i9Fld("i9-dob", "Date of birth", { req: true, type: "date", flex: "1 1 150px", value: v("dob", pre.dob_on_file || "") })}
           ${_i9Fld("i9-ssn", "U.S. Social Security Number", { flex: "1 1 150px", attrs: 'inputmode="numeric" placeholder="optional" maxlength="11"', value: v("ssn") })}
@@ -3952,8 +4019,8 @@ async function renderI9Section1() {
         </div>
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Citizenship / immigration status <span style="color:var(--red)">*</span></div>
+      ${cardOpen("status")}
+        ${head("status", "Citizenship / immigration status", true)}
         <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Select the one option that applies to you.</div>
         ${_I9_CITIZEN_OPTIONS.map((o, i) => `
           <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:8px 0;border-bottom:${i < 3 ? "1px solid var(--border)" : "none"}">
@@ -3986,15 +4053,22 @@ async function renderI9Section1() {
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">If someone helped you, uncheck this — your employer will collect their information separately.</div>
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+      ${cardOpen("attest", "gap:10px")}
+        ${head("attest", "Attestation")}
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
           <input type="checkbox" id="i9-attest" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto">
           <span style="font-size:var(--fs-sm);line-height:1.55;color:var(--text)">${escapeHtml(_I9_CONSENT_TEXT)}</span>
         </label>
       </div>
 
-      <div>
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Your signature</div>
+      <div data-i9-card="sign">
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Review &amp; sign</div>
+        <div style="background:var(--canvas);border:1px dashed var(--border);border-radius:10px;padding:12px 14px;font-size:var(--fs-sm);line-height:1.6;color:var(--text);margin-bottom:12px">
+          <div><span style="color:var(--text-muted);display:inline-block;min-width:62px">Name</span><span data-i9-recap="name">—</span></div>
+          <div><span style="color:var(--text-muted);display:inline-block;min-width:62px">Address</span><span data-i9-recap="addr">—</span></div>
+          <div><span style="color:var(--text-muted);display:inline-block;min-width:62px">Status</span><span data-i9-recap="status">—</span></div>
+          <div style="color:var(--text-subtle);font-size:var(--fs-xs);margin-top:6px">Check these are right, then sign below.</div>
+        </div>
         <div style="position:relative;background:#ffffff;border:1px solid var(--border);border-radius:12px;overflow:hidden">
           <canvas id="i9-sig-canvas" style="display:block;width:100%;height:200px;background:#ffffff;touch-action:none;cursor:crosshair"></canvas>
           <button type="button" id="i9-sig-clear" style="position:absolute;top:8px;right:8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
@@ -4011,7 +4085,7 @@ async function renderI9Section1() {
         <button type="button" id="i9-submit" class="btn btn-primary" style="flex:1">Submit &amp; sign</button>
       </div>
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);text-align:center;line-height:1.5">
-        This is not legal advice. Your submission is recorded on Form I-9 (USCIS edition 08/01/23) by your employer.
+        This is not legal advice. Your submission is recorded on Form I-9 by your employer.
       </div>
     </div>`;
 
@@ -4031,8 +4105,6 @@ async function renderI9Section1() {
 
   const sig = _i9MountSignaturePad("i9-sig-canvas", "i9-sig-clear", "i9-sig-hint");
 
-  // Gather the section1 jsonb from the form. `forSubmit` toggles the
-  // required-field check (draft saves are allowed to be incomplete).
   function collect() {
     const csChoice = main.querySelector('input[name="i9-cs"]:checked')?.value || "";
     const authKind = main.querySelector('input[name="i9-authkind"]:checked')?.value || "uscis";
@@ -4051,13 +4123,80 @@ async function renderI9Section1() {
       preparer_used: !document.getElementById("i9-no-preparer")?.checked,
     };
   }
-  function validate(s) {
-    const need = [["last_name","Last name"],["first_name","First name"],["addr_street","Street address"],["addr_city","City"],["addr_state","State"],["addr_zip","ZIP code"],["dob","Date of birth"]];
-    for (const [k, lab] of need) if (!s[k]) return `${lab} is required.`;
-    if (!["citizen","national","lpr","authorized"].includes(s.citizen_status)) return "Select your citizenship or immigration status.";
-    if (s.citizen_status === "lpr" && !s.lpr_uscis_number) return "Enter your USCIS / A-Number.";
-    if (s.citizen_status === "authorized" && !s.auth_doc_number) return "Enter a work-authorization document number.";
-    if (s.citizen_status === "authorized" && s.auth_doc_kind === "passport" && !s.auth_passport_country) return "Enter the passport's country of issuance.";
+
+  const sigState = () => {
+    const typed = (document.getElementById("i9-sig-typed")?.value || "").trim();
+    return sig.hasInk() || typed.length >= 2;
+  };
+
+  // Live progress: section count, the bar, per-card checkmarks, recap.
+  const recapName = (s) => [s.first_name, s.middle_initial && (s.middle_initial + "."), s.last_name].filter(Boolean).join(" ").trim();
+  const recapAddr = (s) => { const a = [s.addr_street, s.addr_apt && ("Apt " + s.addr_apt)].filter(Boolean).join(", "); const b = [s.addr_city, [s.addr_state, s.addr_zip].filter(Boolean).join(" ")].filter(Boolean).join(", "); return [a, b].filter(Boolean).join(", "); };
+  const recapStatus = (s) => { const o = _I9_CITIZEN_OPTIONS.find((x) => x.v === s.citizen_status); return o ? o.label : ""; };
+  function updateProgress() {
+    const s = collect();
+    s._attestChecked = !!document.getElementById("i9-attest")?.checked;
+    s._sigOk = sigState();
+    let done = 0;
+    for (const sec of _I9_SECTIONS) {
+      const ok = sec.done(s);
+      if (ok) done++;
+      const chk = main.querySelector(`[data-i9-check="${sec.id}"]`);
+      if (chk) chk.style.display = ok ? "inline-flex" : "none";
+    }
+    const cnt = main.querySelector("[data-i9-count]");
+    if (cnt) cnt.textContent = `${done} of ${_I9_SECTIONS.length} sections`;
+    const bar = main.querySelector("[data-i9-bar]");
+    if (bar) bar.style.width = Math.round((done / _I9_SECTIONS.length) * 100) + "%";
+    const setRecap = (k, val) => { const el = main.querySelector(`[data-i9-recap="${k}"]`); if (el) { el.textContent = val || "—"; el.style.color = val ? "var(--text)" : "var(--text-subtle)"; } };
+    setRecap("name", recapName(s));
+    setRecap("addr", recapAddr(s));
+    setRecap("status", recapStatus(s));
+  }
+  main.querySelectorAll("input, select").forEach((el) => {
+    el.addEventListener("input", () => { el.classList.remove("i9-err"); el.parentElement?.querySelector(".i9-err-msg")?.remove(); updateProgress(); });
+    el.addEventListener("change", updateProgress);
+  });
+  document.getElementById("i9-sig-canvas")?.addEventListener("pointerup", updateProgress);
+  document.getElementById("i9-sig-clear")?.addEventListener("click", () => setTimeout(updateProgress, 0));
+  updateProgress();
+
+  // Inline required-field errors on submit.
+  function clearErrors() {
+    main.querySelectorAll("input.i9-err").forEach((i) => i.classList.remove("i9-err"));
+    main.querySelectorAll(".i9-err-msg").forEach((e) => e.remove());
+  }
+  function fieldError(id, msg) {
+    const inp = document.getElementById(id);
+    if (!inp) return null;
+    inp.classList.add("i9-err");
+    if (!inp.parentElement.querySelector(".i9-err-msg")) {
+      const e = document.createElement("div");
+      e.className = "i9-err-msg"; e.textContent = msg;
+      inp.parentElement.appendChild(e);
+    }
+    return inp;
+  }
+  function scrollToCard(id) { main.querySelector(`[data-i9-card="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }
+
+  // Returns the first thing to fix, as {focus} (a node to scroll to), or null.
+  function firstProblem(s) {
+    const req = [
+      ["i9-last", s.last_name, "Enter your last name"],
+      ["i9-first", s.first_name, "Enter your first name"],
+      ["i9-street", s.addr_street, "Enter your street address"],
+      ["i9-city", s.addr_city, "Enter your city or town"],
+      ["i9-state", s.addr_state, "Enter your state"],
+      ["i9-zip", s.addr_zip, "Enter your ZIP code"],
+      ["i9-dob", s.dob, "Enter your date of birth"],
+    ];
+    let firstNode = null;
+    for (const [id, val, msg] of req) { if (!val) { const n = fieldError(id, msg); if (!firstNode) firstNode = n; } }
+    if (firstNode) return { focus: firstNode };
+    if (!["citizen", "national", "lpr", "authorized"].includes(s.citizen_status)) { toast("Select your citizenship or immigration status.", "warn"); return { focus: main.querySelector('[data-i9-card="status"]') }; }
+    if (s.citizen_status === "lpr" && !s.lpr_uscis_number) return { focus: fieldError("i9-lpr-num", "Enter your USCIS / A-Number") };
+    if (s.citizen_status === "authorized" && !s.auth_doc_number) return { focus: fieldError("i9-auth-num", "Enter a work-authorization document number") };
+    if (s.citizen_status === "authorized" && s.auth_doc_kind === "passport" && !s.auth_passport_country) return { focus: fieldError("i9-auth-country", "Enter the passport's country of issuance") };
     return null;
   }
 
@@ -4071,15 +4210,16 @@ async function renderI9Section1() {
   });
 
   document.getElementById("i9-submit").addEventListener("click", async () => {
+    clearErrors();
     const s = collect();
-    const problem = validate(s);
-    if (problem) { toast(problem, "warn"); return; }
-    if (!document.getElementById("i9-attest")?.checked) { toast("Please read and accept the attestation to sign.", "warn"); return; }
+    const problem = firstProblem(s);
+    if (problem) { if (problem.focus) { problem.focus.scrollIntoView({ behavior: "smooth", block: "center" }); if (typeof problem.focus.focus === "function" && problem.focus.tagName === "INPUT") setTimeout(() => problem.focus.focus(), 250); } else toast("Please complete the highlighted fields.", "warn"); return; }
+    if (!document.getElementById("i9-attest")?.checked) { toast("Please read and accept the attestation to sign.", "warn"); scrollToCard("attest"); return; }
     const typed = (document.getElementById("i9-sig-typed").value || "").trim();
     let method = null, sigData = null;
     if (sig.hasInk()) { method = "drawn"; sigData = sig.dataUrl(); }
     else if (typed.length >= 2) { method = "typed"; sigData = typed; }
-    else { toast("Draw your signature or type your full legal name.", "warn"); return; }
+    else { toast("Draw your signature or type your full legal name.", "warn"); scrollToCard("sign"); return; }
     const signerName = typed || session.name || `${s.first_name} ${s.last_name}`.trim();
 
     const btn = document.getElementById("i9-submit");
@@ -4098,7 +4238,7 @@ async function renderI9Section1() {
       btn.disabled = false; btn.textContent = "Submit & sign";
       toast("Couldn't submit: " + err.message, "warn"); return;
     }
-    toast("Form I-9 Section 1 submitted ✓", "success");
-    navigate(session.status === "onboarding" ? "/tasks/onboarding" : "/tasks");
+    if (navigator.vibrate) { try { navigator.vibrate([10, 40, 10]); } catch {} }
+    _i9RenderCompletion(main, { ...rec, status: "section1_complete", section1_completed_at: new Date().toISOString() }, session);
   });
 }
