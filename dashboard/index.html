@@ -7884,6 +7884,16 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
               <div class="form-row">
                 <div>
+                  <div class="form-label">Business address</div>
+                  <div class="form-help">Your DSP's business/organization address. Appears on Form I-9 Section 2 ("Employer's Business or Organization Address") and other employer documents.</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input class="form-input" id="rr-set-dsp-address" placeholder="123 Main St, Springfield, MO 65810" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-dsp-address-save" type="button">Save</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
                   <div class="form-label">Station code</div>
                   <div class="form-help">Your primary Amazon delivery station.</div>
                 </div>
@@ -19100,7 +19110,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260511m-i9-onboarding-col"></script>
+<script type="module" src="./live.js?v=20260511n-dsp-business-address"></script>
 
 </body>
 </html>

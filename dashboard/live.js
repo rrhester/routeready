@@ -4638,6 +4638,13 @@ function _prefillWeatherInputs() {
   if (nameEl) nameEl.value = window.RR?.dsp?.name        || "";
   if (codeEl) codeEl.value = window.RR?.dsp?.short_code  || "";
   if (replyEl) replyEl.value = window.RR?.dsp?.metadata?.reply_to_email || "";
+  // Business address — fetch fresh (it isn't always in window.RR.dsp).
+  const addrEl = document.getElementById("rr-set-dsp-address");
+  if (addrEl && window.RR?.dsp?.id) {
+    sb.from("dsps").select("business_address,address").eq("id", window.RR.dsp.id).single()
+      .then(({ data }) => { if (data && !addrEl.value) addrEl.value = data.business_address || data.address || ""; })
+      .then(undefined, () => {});
+  }
 }
 
 // Save DSP name → dsps.name, then refresh sidebar chip + page title.
@@ -4706,6 +4713,27 @@ document.addEventListener("click", async (e) => {
     toast(next ? "Reply email saved" : "Reply email cleared", "success");
   } catch (err) {
     console.error("reply email save:", err);
+    toast("Save failed: " + (err.message || String(err)), "warn");
+  }
+});
+
+// Save business address → dsps.business_address (+ dsps.address for
+// parity with the onboarding flow). Used on Form I-9 Section 2 and other
+// employer documents.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-set-dsp-address-save")) return;
+  e.preventDefault();
+  const dspId = window.RR?.dsp?.id;
+  const input = document.getElementById("rr-set-dsp-address");
+  if (!dspId || !input) return;
+  const next = (input.value || "").trim();
+  try {
+    const { error } = await sb.from("dsps").update({ business_address: next || null, address: next || null }).eq("id", dspId);
+    if (error) throw error;
+    if (window.RR?.dsp) window.RR.dsp.business_address = next || null;
+    toast(next ? "Business address saved" : "Business address cleared", "success");
+  } catch (err) {
+    console.error("business address save:", err);
     toast("Save failed: " + (err.message || String(err)), "warn");
   }
 });
