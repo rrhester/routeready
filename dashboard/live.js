@@ -2584,8 +2584,8 @@ async function _submitBulkDrivers() {
 
 // Driver stage state — what the operator has filtered to.
 let _driverStage = "active";
-// Roster filter / sort state (set by the toolbar dropdowns).
-let _rosterFilters = { station: "", tenure: "", score: "", sort: "score-asc" };
+// Roster filter / sort state (set by the toolbar dropdowns + search).
+let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "score-asc" };
 // Cached roster rows so filter/sort changes don't refetch.
 let _rosterRows = [];
 
@@ -2594,6 +2594,8 @@ let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, las
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
+  // Paint skeleton rows immediately so the page feels instant.
+  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 9 : 8);
 
   const [{ data: rows, error }, { data: appStatus }] = await Promise.all([
     sb.from("drivers")
@@ -2629,22 +2631,33 @@ async function loadDriversRoster() {
   }
 }
 
-function visibleDriversForStage(rows, stage) {
-  let out;
+function _rowsForStage(rows, stage) {
   switch (stage) {
-    case "onboarding": out = rows.filter(r => r.status === "onboarding"); break;
-    case "active":     out = rows.filter(r => r.status === "active"); break;
-    case "atrisk":     out = rows.filter(r => r.status === "active" && (r.score ?? 999) < 70); break;
-    case "onleave":    out = rows.filter(r => r.status === "leave"); break;
-    case "inactive":   out = rows.filter(r => ["inactive","terminated"].includes(r.status)); break;
-    default:           out = rows;
+    case "onboarding": return rows.filter(r => r.status === "onboarding");
+    case "active":     return rows.filter(r => r.status === "active");
+    case "atrisk":     return rows.filter(r => r.status === "active" && (r.score ?? 999) < 70);
+    case "onleave":    return rows.filter(r => r.status === "leave");
+    case "inactive":   return rows.filter(r => ["inactive","terminated"].includes(r.status));
+    default:           return rows;
   }
-  return _applyRosterFiltersAndSort(out);
+}
+function visibleDriversForStage(rows, stage) {
+  return _applyRosterFiltersAndSort(_rowsForStage(rows, stage));
 }
 
 function _applyRosterFiltersAndSort(rows) {
   const f = _rosterFilters;
   let out = rows;
+  if (f.q) {
+    const q = f.q.toLowerCase();
+    out = out.filter(r => {
+      const hay = [
+        r.preferred_name, r.full_name, r.first_name, r.last_name,
+        r.email, r.phone, r.station?.code,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }
   if (f.station) out = out.filter(r => (r.station?.code || "") === f.station);
   if (f.tenure) {
     const today = Date.now();
@@ -2703,8 +2716,22 @@ document.addEventListener("change", (e) => {
       tenure:  document.getElementById("rr-roster-tenure")?.value  || "",
       score:   document.getElementById("rr-roster-score")?.value   || "",
     };
+    const stSel = document.getElementById("rr-roster-station");
+    if (stSel) stSel.classList.toggle("is-set", !!stSel.value);
     renderDriverTable(_rosterRows, null);
   }
+});
+
+// Roster search — live filter against name / email / phone / station.
+let _rosterSearchT = null;
+document.addEventListener("input", (e) => {
+  if (e.target?.id !== "rr-roster-search") return;
+  const val = e.target.value || "";
+  clearTimeout(_rosterSearchT);
+  _rosterSearchT = setTimeout(() => {
+    _rosterFilters = { ..._rosterFilters, q: val.trim() };
+    renderDriverTable(_rosterRows, null);
+  }, 120);
 });
 
 // Click a sortable column header → toggle direction (or set to that
@@ -2774,23 +2801,64 @@ function renderDriverTable(rows, error) {
 
   const colspan = _driverStage === "onboarding" ? 9 : 8;
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:24px;text-align:center;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
+      error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
+    })}</td></tr>`;
+    _updateRosterHint(0, 0);
     return;
   }
 
+  const stageTotal = _rowsForStage(rows, _driverStage).length;
   const visible = visibleDriversForStage(rows, _driverStage);
   if (visible.length === 0) {
-    const empty = _driverStage === "onboarding"
-      ? "No drivers in onboarding right now."
+    const searching = !!(_rosterFilters.q || _rosterFilters.station || _rosterFilters.tenure || _rosterFilters.score);
+    const cfg = searching
+      ? { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+          title: "No drivers match", body: "Try a different search term or clear the filters." }
+      : _driverStage === "onboarding"
+      ? { title: "No one in onboarding", body: "Drivers in onboarding appear here. New hires from Interview Day land here automatically; they can also self-onboard via the PWA." }
       : _driverStage === "active"
-      ? "No active drivers yet. Hire someone in Interview Day to fill this list."
-      : "No drivers in this stage.";
-    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:48px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">${empty}</td></tr>`;
+      ? { title: "No active drivers yet", body: "Hire someone in Interview Day, or use Add driver / Bulk import to build the roster." }
+      : _driverStage === "atrisk"
+      ? { title: "No at-risk drivers", body: "Drivers whose score drops below 70 surface here so you can intervene early." }
+      : _driverStage === "onleave"
+      ? { title: "No one on leave", body: "Drivers marked on leave appear here." }
+      : { title: "No drivers in this stage", body: "Nothing to show here right now." };
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty(cfg)}</td></tr>`;
+    _updateRosterHint(0, stageTotal);
     return;
   }
 
   const renderer = _driverStage === "onboarding" ? renderOnboardingRow : renderDriverRow;
   tbody.innerHTML = visible.map(renderer).join("");
+  _updateRosterHint(visible.length, stageTotal);
+}
+
+function _rosterEmpty({ icon, title, body, error }) {
+  const ic = error
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+    : (icon || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>');
+  return `<div class="dr-empty"><div class="ic"${error ? ' style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"' : ""}>${ic}</div><h3>${escapeHtml(title)}</h3><p>${body}</p></div>`;
+}
+
+function _rosterSkeleton(colspan, n = 6) {
+  const cells = Array.from({ length: colspan - 2 }, () => `<td><div class="dr-skel-cell" style="width:${50 + Math.round(Math.random()*40)}%"></div></td>`).join("");
+  const row = `<tr style="pointer-events:none">
+    <td><div class="cell-driver"><div class="dr-skel-avatar"></div><div style="flex:1"><div class="dr-skel-cell" style="width:55%"></div><div class="dr-skel-cell" style="width:38%;margin-top:6px;height:10px"></div></div></div></td>
+    ${cells}
+    <td></td>
+  </tr>`;
+  return Array.from({ length: n }, () => row).join("");
+}
+
+function _updateRosterHint(shown, total) {
+  const el = document.getElementById("rr-roster-bar-hint");
+  if (!el) return;
+  if (_rosterFilters.q || _rosterFilters.station || _rosterFilters.tenure || _rosterFilters.score) {
+    el.textContent = `${shown} of ${total} ${total === 1 ? "driver" : "drivers"}`;
+  } else {
+    el.textContent = "Click a column to sort";
+  }
 }
 
 function pillCheck(when) {
@@ -2798,19 +2866,18 @@ function pillCheck(when) {
   return `<span class="tag" style="background:var(--canvas);color:var(--text-subtle)">Pending</span>`;
 }
 
-// Driver-app onboarding badge for the roster: "On the app" / "Invited" /
-// "Not invited".
+// Driver-app presence chip for the roster: On the app / Invited / Not invited.
 function _appStatusCell(driverId) {
   const s = _rosterAppStatus.get(driverId);
   if (!s) return `<span style="color:var(--text-subtle)">—</span>`;
   if (s.signed_in_at) {
     const seenTitle = `Signed in ${new Date(s.signed_in_at).toLocaleString()}`
       + (s.last_seen_at ? ` · last active ${new Date(s.last_seen_at).toLocaleString()}` : "");
-    const seenShort = s.last_seen_at ? ` <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(_relTimeShort(s.last_seen_at))}</span>` : "";
-    return `<span class="tag" style="background:var(--green-soft);color:var(--green)" title="${escapeHtml(seenTitle)}">On the app</span>${seenShort}`;
+    const seenShort = s.last_seen_at ? `<span class="dr-app-rel">${escapeHtml(_relTimeShort(s.last_seen_at))}</span>` : "";
+    return `<span class="dr-app-chip on" title="${escapeHtml(seenTitle)}"><i class="dot"></i>On the app</span>${seenShort}`;
   }
-  if (s.invited) return `<span class="tag" style="background:var(--amber-soft);color:var(--amber-dark)" title="Invite sent — hasn't signed in yet">Invited</span>`;
-  return `<span class="tag" style="background:var(--canvas);color:var(--text-subtle)">Not invited</span>`;
+  if (s.invited) return `<span class="dr-app-chip invited" title="Invite sent — hasn't signed in yet"><i class="dot"></i>Invited</span>`;
+  return `<span class="dr-app-chip none" title="No app invite sent yet"><i class="dot"></i>Not invited</span>`;
 }
 
 function renderOnboardingRow(d) {
@@ -2850,16 +2917,17 @@ function renderDriverRow(d) {
   // Status column dropped from the active roster — it'd always read
   // "Active" by definition.  The Active / Onboarding / At risk /
   // Inactive stage tabs above already split that.
+  const dim = '<span style="color:var(--text-subtle)">—</span>';
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
-      <td>${escapeHtml(station)}</td>
+      <td>${station === "—" ? dim : escapeHtml(station)}</td>
       <td>${tenure}</td>
-      <td>—</td>
-      <td>—</td>
-      <td class="cell-time">—</td>
+      <td>${dim}</td>
+      <td>${dim}</td>
+      <td class="cell-time">${dim}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td></td>
     </tr>`;
