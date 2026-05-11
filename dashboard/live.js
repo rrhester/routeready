@@ -19754,7 +19754,7 @@ async function _renderDocsTemplates() {
   if (!list) return;
   list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
   const { data, error } = await sb.from("document_templates")
-    .select("id, title, description, source_path, source_hash, created_at")
+    .select("id, title, description, source_path, source_hash, fields, created_at")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) {
@@ -19774,7 +19774,9 @@ async function _renderDocsTemplates() {
         <div style="font-weight:600;font-size:var(--fs-md);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title)}</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">sha256 ${escapeHtml(String(t.source_hash || "").slice(0,16))}… · ${new Date(t.created_at).toLocaleDateString()}</div>
       </div>
-      <div style="display:flex;gap:6px;flex:0 0 auto">
+      <div style="display:flex;gap:6px;flex:0 0 auto;align-items:center">
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-right:4px">${(Array.isArray(t.fields) ? t.fields.length : 0)} field${(Array.isArray(t.fields) && t.fields.length === 1) ? "" : "s"}</span>
+        <button class="btn btn-sm" data-rr-docs-fields="${escapeHtml(t.id)}">Fields</button>
         <button class="btn btn-sm btn-primary" data-rr-docs-send="${escapeHtml(t.id)}">Send</button>
         <button class="btn btn-sm" data-rr-docs-archive="${escapeHtml(t.id)}" title="Archive">✕</button>
       </div>
@@ -19860,7 +19862,7 @@ async function _docsHandleFileChosen(file) {
   }
 
   const title = file.name.replace(/\.pdf$/i, "");
-  const { error } = await sb.rpc("documents_template_create", {
+  const { data: created, error } = await sb.rpc("documents_template_create", {
     p_title:        title,
     p_source_path:  path,
     p_source_hash:  hash,
@@ -19873,8 +19875,201 @@ async function _docsHandleFileChosen(file) {
     toast("Couldn't save template: " + error.message, "warn");
     return;
   }
-  toast("Template uploaded ✓", "success");
+  toast("Template uploaded ✓ — place signature fields next", "success");
   loadDocumentsView("templates");
+  // Drop the dispatcher straight into the field-placement editor so
+  // they can mark "sign here" boxes before the first send. They can
+  // always close and the template stays usable with the worker's
+  // default placement (bottom-right of the last page).
+  const newId = created?.id || created?.[0]?.id;
+  if (newId) _docsOpenFieldEditor(newId);
+}
+
+// ── Field-placement editor (slice 6) ───────────────────────────────────
+// Lazy-loads pdf.js from a CDN, renders each page as a canvas, and
+// overlays a transparent layer where the user click-drags to place
+// signature fields. Coordinates are stored as fractions of the page
+// dimensions (top-left origin) — the Cloudflare sealing worker reads
+// the exact same shape and flips y for pdf-lib's bottom-origin model.
+let _pdfjsPromise = null;
+function _loadPdfJs() {
+  if (_pdfjsPromise) return _pdfjsPromise;
+  _pdfjsPromise = (async () => {
+    const mod = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs");
+    mod.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs";
+    return mod;
+  })();
+  return _pdfjsPromise;
+}
+
+async function _docsOpenFieldEditor(templateId) {
+  const { data: tpl, error: tplErr } = await sb.from("document_templates")
+    .select("id, title, source_path, fields").eq("id", templateId).single();
+  if (tplErr || !tpl) { toast("Couldn't load template: " + (tplErr?.message || "missing"), "warn"); return; }
+  const { data: urlData, error: urlErr } = await sb.storage
+    .from("documents").createSignedUrl(tpl.source_path, 60 * 30);
+  if (urlErr || !urlData?.signedUrl) { toast("Couldn't open PDF: " + (urlErr?.message || ""), "warn"); return; }
+
+  const m = document.createElement("div");
+  m.className = "modal-backdrop";
+  m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:stretch;justify-content:center;padding:18px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:920px;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-weight:600;font-size:var(--fs-lg)">Place signature fields</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(tpl.title)} — click and drag on a page to drop a signature box. Click an existing box to remove it.</div>
+        </div>
+        <button class="btn btn-sm" id="docs-fe-close">Close</button>
+      </div>
+      <div id="docs-fe-pages" style="flex:1;overflow-y:auto;padding:18px;background:var(--canvas);display:flex;flex-direction:column;align-items:center;gap:14px">
+        <div class="loader" style="margin:60px auto"></div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface)">
+        <div id="docs-fe-count" style="font-size:var(--fs-xs);color:var(--text-subtle)">0 fields</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="docs-fe-cancel">Cancel</button>
+          <button class="btn btn-primary" id="docs-fe-save">Save fields</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  document.getElementById("docs-fe-close").addEventListener("click", close);
+  document.getElementById("docs-fe-cancel").addEventListener("click", close);
+
+  // Working set, kept in fractional coords (top-left origin) so we
+  // can render them at any page scale.
+  const fields = Array.isArray(tpl.fields) ? tpl.fields.map((f) => ({ ...f })) : [];
+  const updateCount = () => {
+    document.getElementById("docs-fe-count").textContent =
+      `${fields.length} field${fields.length === 1 ? "" : "s"}`;
+  };
+  updateCount();
+
+  const pagesEl = document.getElementById("docs-fe-pages");
+  let pdfjs;
+  try {
+    pdfjs = await _loadPdfJs();
+  } catch (err) {
+    pagesEl.innerHTML = `<div style="color:var(--red);padding:32px">Couldn't load PDF renderer: ${escapeHtml(err.message || String(err))}</div>`;
+    return;
+  }
+
+  let pdf;
+  try {
+    pdf = await pdfjs.getDocument({ url: urlData.signedUrl }).promise;
+  } catch (err) {
+    pagesEl.innerHTML = `<div style="color:var(--red);padding:32px">Couldn't open PDF: ${escapeHtml(err.message || String(err))}</div>`;
+    return;
+  }
+
+  pagesEl.innerHTML = "";
+  const pageWrappers = [];
+  const TARGET_W = 720;
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = TARGET_W / baseViewport.width;
+    const viewport = page.getViewport({ scale });
+
+    const wrap = document.createElement("div");
+    wrap.style.cssText = `position:relative;width:${viewport.width}px;height:${viewport.height}px;box-shadow:0 4px 14px rgba(0,0,0,.10);background:#fff`;
+    wrap.dataset.page = String(p);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width * (window.devicePixelRatio || 1));
+    canvas.height = Math.round(viewport.height * (window.devicePixelRatio || 1));
+    canvas.style.cssText = `width:${viewport.width}px;height:${viewport.height}px;display:block`;
+    wrap.appendChild(canvas);
+
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:absolute;inset:0;cursor:crosshair";
+    wrap.appendChild(overlay);
+
+    pagesEl.appendChild(wrap);
+    pageWrappers.push({ pageIdx: p, wrap, overlay, viewport });
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  }
+
+  // Render existing fields on the matching page overlays.
+  const renderFieldDom = (f, overlay, vp) => {
+    const node = document.createElement("div");
+    node.className = "rr-docs-field";
+    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:rgba(96,165,250,.20);border:1.5px dashed #2563eb;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#1d4ed8;cursor:pointer;user-select:none`;
+    node.textContent = "Signature";
+    node.title = "Click to remove";
+    node.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const i = fields.indexOf(f);
+      if (i >= 0) { fields.splice(i, 1); node.remove(); updateCount(); }
+    });
+    overlay.appendChild(node);
+    return node;
+  };
+  for (const f of fields) {
+    const pageNum = f.page ?? 1;
+    const pw = pageWrappers.find((x) => x.pageIdx === pageNum);
+    if (pw) renderFieldDom(f, pw.overlay, pw.viewport);
+  }
+
+  // Click-and-drag to create a new signature field on a page.
+  const MIN_FRAC = 0.04;  // ignore microscopic drags
+  for (const { pageIdx, overlay, viewport } of pageWrappers) {
+    let startX = 0, startY = 0, ghost = null;
+    overlay.addEventListener("pointerdown", (e) => {
+      if (e.target !== overlay) return; // ignore clicks on existing field boxes
+      overlay.setPointerCapture(e.pointerId);
+      const r = overlay.getBoundingClientRect();
+      startX = e.clientX - r.left; startY = e.clientY - r.top;
+      ghost = document.createElement("div");
+      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:rgba(96,165,250,.20);border:1.5px dashed #2563eb;border-radius:4px;pointer-events:none`;
+      overlay.appendChild(ghost);
+    });
+    overlay.addEventListener("pointermove", (e) => {
+      if (!ghost) return;
+      const r = overlay.getBoundingClientRect();
+      const cx = e.clientX - r.left, cy = e.clientY - r.top;
+      const left = Math.min(startX, cx), top = Math.min(startY, cy);
+      const w = Math.abs(cx - startX), h = Math.abs(cy - startY);
+      ghost.style.left = left + "px"; ghost.style.top = top + "px";
+      ghost.style.width = w + "px"; ghost.style.height = h + "px";
+    });
+    const finish = (e) => {
+      if (!ghost) return;
+      const left = parseFloat(ghost.style.left), top = parseFloat(ghost.style.top);
+      const w = parseFloat(ghost.style.width), h = parseFloat(ghost.style.height);
+      ghost.remove(); ghost = null;
+      const fx = left / viewport.width, fy = top / viewport.height;
+      const fw = w / viewport.width, fh = h / viewport.height;
+      if (fw < MIN_FRAC || fh < MIN_FRAC) return;
+      const f = { id: crypto.randomUUID(), kind: "signature", page: pageIdx, x: fx, y: fy, w: fw, h: fh };
+      fields.push(f);
+      renderFieldDom(f, overlay, viewport);
+      updateCount();
+    };
+    overlay.addEventListener("pointerup", finish);
+    overlay.addEventListener("pointercancel", finish);
+  }
+
+  document.getElementById("docs-fe-save").addEventListener("click", async () => {
+    const btn = document.getElementById("docs-fe-save");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const { error } = await sb.rpc("documents_template_set_fields", {
+      p_template_id: templateId,
+      p_fields:      fields,
+    });
+    if (error) {
+      btn.disabled = false; btn.textContent = "Save fields";
+      toast("Couldn't save: " + error.message, "warn"); return;
+    }
+    toast("Fields saved ✓", "success");
+    close();
+    loadDocumentsView("templates");
+  });
 }
 
 // ── Send: pick a driver, fan out an envelope ───────────────────────────
@@ -19891,28 +20086,42 @@ async function _docsOpenSend(templateId) {
   m.id = "docs-send-modal";
   m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;overflow:hidden">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
         <div style="font-weight:600;font-size:var(--fs-lg)">Send for signature</div>
         <button class="btn btn-sm" id="docs-send-close">Close</button>
       </div>
-      <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-        <label style="display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Send to</span>
-          <select id="docs-send-driver" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font:inherit">
-            <option value="">Pick a driver…</option>
-            ${list.map((d) => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.preferred_name || d.full_name)} · ${escapeHtml(d.email)}</option>`).join("")}
-          </select>
-          ${list.length === 0 ? `<span style="font-size:var(--fs-xs);color:var(--red)">No active drivers with an email on file.</span>` : ""}
-        </label>
-        <label style="display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Expires (optional)</span>
-          <input type="date" id="docs-send-expires" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font:inherit">
-        </label>
+      <div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="docs-send-filter" type="search" placeholder="Filter drivers…" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
+          <button class="btn btn-sm" id="docs-send-selectall">Select all</button>
+        </div>
+        ${list.length === 0
+          ? `<div style="font-size:var(--fs-sm);color:var(--red)">No active drivers with an email on file.</div>`
+          : ""}
       </div>
-      <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--canvas)">
-        <button class="btn" id="docs-send-cancel">Cancel</button>
-        <button class="btn btn-primary" id="docs-send-confirm">Send envelope</button>
+      <div id="docs-send-driver-list" style="flex:1;overflow-y:auto;padding:6px 12px">
+        ${list.map((d) => `
+          <label class="docs-send-row" data-name="${escapeHtml((d.preferred_name || d.full_name || "").toLowerCase())} ${escapeHtml((d.email || "").toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer">
+            <input type="checkbox" value="${escapeHtml(d.id)}" style="width:16px;height:16px;accent-color:var(--accent)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${escapeHtml(d.preferred_name || d.full_name)}</div>
+              <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(d.email)}</div>
+            </div>
+          </label>`).join("")}
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px;background:var(--canvas)">
+        <label style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);min-width:64px">Expires</span>
+          <input type="date" id="docs-send-expires" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--surface)">
+        </label>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div id="docs-send-count" style="font-size:var(--fs-xs);color:var(--text-subtle)">0 selected</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn" id="docs-send-cancel">Cancel</button>
+            <button class="btn btn-primary" id="docs-send-confirm">Send envelopes</button>
+          </div>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(m);
@@ -19920,24 +20129,58 @@ async function _docsOpenSend(templateId) {
   m.addEventListener("click", (e) => { if (e.target === m) close(); });
   document.getElementById("docs-send-close").addEventListener("click", close);
   document.getElementById("docs-send-cancel").addEventListener("click", close);
+
+  const listEl = document.getElementById("docs-send-driver-list");
+  const countEl = document.getElementById("docs-send-count");
+  const checkedIds = () => Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map((x) => x.value);
+  const visibleRows = () => Array.from(listEl.querySelectorAll(".docs-send-row")).filter((r) => r.style.display !== "none");
+  const refreshCount = () => {
+    const n = checkedIds().length;
+    countEl.textContent = `${n} selected`;
+  };
+  listEl.addEventListener("change", refreshCount);
+
+  document.getElementById("docs-send-filter").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const row of listEl.querySelectorAll(".docs-send-row")) {
+      row.style.display = !q || row.dataset.name.includes(q) ? "" : "none";
+    }
+  });
+  document.getElementById("docs-send-selectall").addEventListener("click", () => {
+    const rows = visibleRows();
+    const cbs = rows.map((r) => r.querySelector('input[type="checkbox"]'));
+    const allOn = cbs.length > 0 && cbs.every((cb) => cb.checked);
+    cbs.forEach((cb) => { cb.checked = !allOn; });
+    refreshCount();
+  });
+
   document.getElementById("docs-send-confirm").addEventListener("click", async () => {
-    const drvId = document.getElementById("docs-send-driver").value;
+    const ids = checkedIds();
     const expRaw = document.getElementById("docs-send-expires").value;
-    if (!drvId) { toast("Pick a driver", "warn"); return; }
+    if (ids.length === 0) { toast("Pick at least one driver", "warn"); return; }
     const btn = document.getElementById("docs-send-confirm");
-    btn.disabled = true; btn.textContent = "Sending…";
-    const { error } = await sb.rpc("documents_envelope_create", {
-      p_template_id:         templateId,
-      p_recipient_driver_id: drvId,
-      p_expires_at:          expRaw ? new Date(expRaw).toISOString() : null,
-    });
-    if (error) {
-      btn.disabled = false; btn.textContent = "Send envelope";
-      toast("Couldn't send: " + error.message, "warn");
-      return;
+    btn.disabled = true; btn.textContent = `Sending 1/${ids.length}…`;
+    // Sequential so one bad email doesn't kill the rest, and so we
+    // can report per-driver outcomes. The dispatcher sends a handful
+    // of these at a time — no need for parallelism.
+    let sent = 0, failed = 0;
+    const errors = [];
+    for (let i = 0; i < ids.length; i++) {
+      btn.textContent = `Sending ${i + 1}/${ids.length}…`;
+      const { error } = await sb.rpc("documents_envelope_create", {
+        p_template_id:         templateId,
+        p_recipient_driver_id: ids[i],
+        p_expires_at:          expRaw ? new Date(expRaw).toISOString() : null,
+      });
+      if (error) { failed++; errors.push(error.message); }
+      else sent++;
     }
     close();
-    toast("Envelope sent ✓", "success");
+    if (failed === 0) {
+      toast(`Sent ${sent} envelope${sent === 1 ? "" : "s"} ✓`, "success");
+    } else {
+      toast(`Sent ${sent}, ${failed} failed: ${errors[0] || ""}`, "warn");
+    }
     loadDocumentsView("envelopes");
   });
 }
@@ -20045,6 +20288,8 @@ document.addEventListener("click", (e) => {
   }
   const send = e.target.closest("[data-rr-docs-send]");
   if (send) { _docsOpenSend(send.getAttribute("data-rr-docs-send")); return; }
+  const fields = e.target.closest("[data-rr-docs-fields]");
+  if (fields) { _docsOpenFieldEditor(fields.getAttribute("data-rr-docs-fields")); return; }
   const archive = e.target.closest("[data-rr-docs-archive]");
   if (archive) { _docsArchiveTemplate(archive.getAttribute("data-rr-docs-archive")); return; }
   const audit = e.target.closest("[data-rr-docs-audit]");
