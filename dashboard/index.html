@@ -7435,10 +7435,34 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers .dr-empty h3{ margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text); }
           #view-drivers .dr-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55; }
 
-          /* A touch more breathing room + crisper hover on the roster table */
-          #view-drivers #dr-sub-roster .table tbody td{ padding-top:11px;padding-bottom:11px; }
-          #view-drivers #dr-sub-roster .table tbody tr:hover{ background:var(--canvas); }
-          #view-drivers #dr-sub-roster .table thead th{ letter-spacing:.04em; }
+          /* A touch more breathing room + crisper hover across every
+             table in the Drivers page (roster + licenses + attendance
+             + coaching). Consistent with the Documents records table. */
+          #view-drivers .table tbody td{ padding-top:11px;padding-bottom:11px; }
+          #view-drivers .table tbody tr:hover{ background:var(--canvas); }
+          #view-drivers .table thead th{ letter-spacing:.04em; }
+
+          /* Shared skeleton list — used by every Drivers sub-view loader
+             so the panel feels instant before its data lands. */
+          #view-drivers .dr-skel-list{ padding:6px 0; }
+          #view-drivers .dr-skel-list .row{
+            display:flex;align-items:center;gap:12px;padding:13px 18px;border-top:1px solid var(--border);
+          }
+          #view-drivers .dr-skel-list .row:first-child{ border-top:none; }
+          #view-drivers .dr-skel-list .row .bar{ height:13px;border-radius:5px;background:var(--canvas);position:relative;overflow:hidden; }
+          #view-drivers .dr-skel-list .row .bar::after{
+            content:"";position:absolute;inset:0;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+            transform:translateX(-100%);animation:drShimmer 1.25s ease-in-out infinite;
+          }
+
+          /* Consistent section heading for the card-flush panels in
+             Licenses / Availability so they read like the rest. */
+          #view-drivers .card-flush > .dr-panel-head{
+            padding:14px 18px;border-bottom:1px solid var(--border);
+          }
+          #view-drivers .card-flush > .dr-panel-head .t{ font-size:13px;font-weight:700;color:var(--text);letter-spacing:.01em; }
+          #view-drivers .card-flush > .dr-panel-head .s{ font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5; }
         </style>
 
         <div class="dr-roster-bar">
