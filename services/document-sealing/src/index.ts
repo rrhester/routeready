@@ -175,7 +175,21 @@ export default {
       return json({ error: "unauthorized" }, 401);
     }
 
-    const body = (await req.json().catch(() => ({}))) as { envelope_id?: string; force?: boolean };
+    const body = (await req.json().catch(() => ({}))) as { envelope_id?: string; i9_record_id?: string; force?: boolean };
+
+    // Form I-9 sealing path: render the completed form to a PDF, append
+    // a Certificate of Completion, seal + timestamp it, and call
+    // i9_log_sealed back. Same security envelope as the e-sign documents.
+    if (body?.i9_record_id) {
+      try {
+        const result = await sealI9(body.i9_record_id, env, body?.force === true);
+        return json(result, 200);
+      } catch (err) {
+        console.error("sealI9 failed:", err);
+        return json({ error: String((err as Error)?.message || err) }, 500);
+      }
+    }
+
     const envelopeId = body?.envelope_id;
     if (!envelopeId) return json({ error: "missing_envelope_id" }, 400);
 
@@ -355,6 +369,322 @@ async function sealEnvelope(envelopeId: string, env: Env, force = false) {
     sealed_byte_count:     sealedBytes.byteLength,
     sealed:                !!sealInfo,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Form I-9 sealing — render the completed form to a real PDF, append a
+// Certificate of Completion, then run it through the same seal pipeline
+// (ECDSA P-256 over SHA-256 + RFC 3161 timestamp + JSON sidecar).
+// ─────────────────────────────────────────────────────────────────────────
+
+interface I9Record {
+  id: string;
+  dsp_id: string;
+  driver_id: string;
+  status: string;
+  first_day_of_employment: string | null;
+  section1: Record<string, unknown> | null;
+  section1_signature: Record<string, unknown> | null;
+  section1_completed_at: string | null;
+  section1_completed_via: string | null;
+  section1_consent_text: string | null;
+  section2: Record<string, unknown> | null;
+  section2_signature: Record<string, unknown> | null;
+  section2_document_paths: string[] | null;
+  section2_completed_at: string | null;
+  section2_completed_by_name: string | null;
+  section2_completed_by_title: string | null;
+  section2_consent_text: string | null;
+  needs_correction_note: string | null;
+  pdf_path: string | null;
+}
+interface I9Event {
+  id: number;
+  kind: string;
+  actor_kind: string;
+  actor_name: string | null;
+  ip: string | null;
+  event_data: Record<string, unknown> | null;
+  created_at: string;
+}
+interface DriverRow { id: string; full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; }
+interface DspRow { id: string; name: string; }
+
+async function sealI9(i9RecordId: string, env: Env, force = false) {
+  const recArr = await sb<I9Record>(env, `i9_records?id=eq.${i9RecordId}&select=*`);
+  if (!recArr[0]) throw new Error("i9_not_found");
+  const rec = recArr[0];
+  if (rec.status !== "verified") return { skipped: "not_verified", status: rec.status };
+  if (rec.pdf_path && !force) return { skipped: "already_sealed", path: rec.pdf_path };
+
+  const drvArr = await sb<DriverRow>(env, `drivers?id=eq.${rec.driver_id}&select=id,full_name,preferred_name,first_name,last_name`);
+  const dspArr = await sb<DspRow>(env, `dsps?id=eq.${rec.dsp_id}&select=id,name`);
+  const drv = drvArr[0] || { id: rec.driver_id, full_name: "Employee", preferred_name: null, first_name: null, last_name: null };
+  const dsp = dspArr[0] || { id: rec.dsp_id, name: "Employer" };
+  const events = await sb<I9Event>(env, `i9_events?i9_record_id=eq.${i9RecordId}&order=id.asc&select=id,kind,actor_kind,actor_name,ip,event_data,created_at`);
+
+  const keyMeta = await loadSealKeyMeta(env);
+  const sealPath = `${rec.dsp_id}/i9-seal/${rec.id}.json`;
+  const sealStub: SealStub | null = keyMeta
+    ? { key_id: keyMeta.key_id, key_fingerprint: keyMeta.key_fingerprint, seal_path: sealPath }
+    : null;
+
+  // Build the form PDF + embedded Certificate of Completion.
+  const pdf = await PDFDocument.create();
+  const helv = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  await buildI9Pdf(pdf, rec, drv, dsp, helv, bold);
+  await appendI9Certificate(pdf, rec, dsp, events, helv, bold, sealStub, null);
+  const sealedBytes = await pdf.save();
+
+  let sealInfo = keyMeta ? await signBytes(keyMeta, rec.id, sealedBytes) : null;
+  let tsaError: string | null = null;
+  if (sealInfo) {
+    const ts = await maybeTimestamp(env, sealedBytes);
+    if (ts.info) sealInfo = { ...sealInfo, ...ts.info };
+    if (ts.error) tsaError = ts.error;
+  }
+  const sidecarBytes = sealInfo ? new TextEncoder().encode(JSON.stringify(sealInfo, null, 2)) : null;
+
+  // Standalone Certificate of Completion (separate file → can print the
+  // full digest + signature without circularity).
+  const certPdf = await PDFDocument.create();
+  const certHelv = await certPdf.embedFont(StandardFonts.Helvetica);
+  const certBold = await certPdf.embedFont(StandardFonts.HelveticaBold);
+  await appendI9Certificate(certPdf, rec, dsp, events, certHelv, certBold, sealStub, sealInfo);
+  const certBytes = await certPdf.save();
+
+  const pdfPath  = `${rec.dsp_id}/i9/${rec.id}.pdf`;
+  const certPath = `${rec.dsp_id}/i9-certificates/${rec.id}.pdf`;
+  await uploadStorage(env, "documents", pdfPath,  sealedBytes, "application/pdf");
+  await uploadStorage(env, "documents", certPath, certBytes,   "application/pdf");
+  if (sidecarBytes) await uploadStorage(env, "documents", sealPath, sidecarBytes, "application/json");
+
+  await sbRpc(env, "i9_log_sealed", {
+    p_i9_record_id:    rec.id,
+    p_pdf_path:        pdfPath,
+    p_certificate_path: certPath,
+    p_seal_path:       sidecarBytes ? sealPath : null,
+    p_byte_count:      sealedBytes.byteLength,
+    p_pdf_sha256:      sealInfo?.pdf_sha256 ?? null,
+    p_signature_b64:   sealInfo?.signature_b64 ?? null,
+    p_key_fingerprint: sealInfo?.key_fingerprint ?? null,
+    p_tsa_url:         sealInfo?.tsa_url ?? null,
+    p_tsa_gen_time:    sealInfo?.tsa_gen_time ?? null,
+  }).catch((err) => { throw new Error("i9_log_sealed failed: " + String((err as Error)?.message || err)); });
+
+  return {
+    ok: true,
+    i9_record_id:        rec.id,
+    pdf_path:            pdfPath,
+    certificate_pdf_path: certPath,
+    seal_path:           sidecarBytes ? sealPath : null,
+    byte_count:          sealedBytes.byteLength,
+    sealed:              !!sealInfo,
+    tsa_error:           sealInfo && !sealInfo.tst_b64 ? tsaError : null,
+  };
+}
+
+const I9_CIT_LABELS: Record<string, string> = {
+  citizen: "A citizen of the United States",
+  national: "A noncitizen national of the United States",
+  lpr: "A lawful permanent resident",
+  authorized: "A noncitizen authorized to work in the United States",
+};
+
+// A faithful reproduction of Form I-9 (USCIS edition 08/01/23) drawn
+// from the captured data — not the USCIS fillable PDF, but the same
+// sections, fields, attestations, and the captured signatures.
+async function buildI9Pdf(
+  pdf: PDFDocument, rec: I9Record, drv: DriverRow, dsp: DspRow, helv: PDFFont, bold: PDFFont,
+) {
+  const s1 = (rec.section1 || {}) as Record<string, string>;
+  const s2 = (rec.section2 || {}) as Record<string, unknown>;
+  const ink = rgb(0.07, 0.09, 0.13);
+  const grey = rgb(0.40, 0.45, 0.52);
+  const lite = rgb(0.62, 0.66, 0.72);
+  const PW = 612, PH = 792, M = 48;
+  let page = pdf.addPage([PW, PH]);
+  let y = PH - 50;
+  const ensure = (need: number) => { if (y < need) { page = pdf.addPage([PW, PH]); y = PH - 50; } };
+  const text = (s: string, x: number, opts?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb>; maxWidth?: number }) => {
+    page.drawText(s ?? "", { x, y, size: opts?.size ?? 9, font: opts?.font ?? helv, color: opts?.color ?? ink, maxWidth: opts?.maxWidth });
+  };
+  const line = (s: string, opts?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => {
+    const sz = opts?.size ?? 9; ensure(54);
+    text(s, M, { ...opts, size: sz, maxWidth: PW - M * 2 });
+    y -= sz + 5;
+  };
+  const rule = () => { ensure(54); page.drawLine({ start: { x: M, y: y + 4 }, end: { x: PW - M, y: y + 4 }, thickness: 0.6, color: lite }); y -= 8; };
+  const sectionBar = (s: string) => { ensure(70); y -= 8; page.drawRectangle({ x: M, y: y - 4, width: PW - M * 2, height: 18, color: rgb(0.12, 0.16, 0.22) }); page.drawText(s, { x: M + 8, y: y, size: 10, font: bold, color: rgb(1, 1, 1) }); y -= 26; };
+  // Two-column field rows.
+  const field = (label: string, value: string, x: number, w: number) => {
+    page.drawText(label.toUpperCase(), { x, y: y, size: 6.5, font: helv, color: grey });
+    page.drawText(value || " ", { x, y: y - 11, size: 10, font: helv, color: ink, maxWidth: w });
+    page.drawLine({ start: { x, y: y - 14 }, end: { x: x + w, y: y - 14 }, thickness: 0.5, color: lite });
+  };
+  const row2 = (l1: string, v1: string, l2: string, v2: string) => {
+    ensure(60); const colW = (PW - M * 2 - 16) / 2;
+    field(l1, v1, M, colW); field(l2, v2, M + colW + 16, colW); y -= 24;
+  };
+  const row3 = (l1: string, v1: string, l2: string, v2: string, l3: string, v3: string) => {
+    ensure(60); const colW = (PW - M * 2 - 32) / 3;
+    field(l1, v1, M, colW); field(l2, v2, M + colW + 16, colW); field(l3, v3, M + (colW + 16) * 2, colW); y -= 24;
+  };
+  const para = (s: string, opts?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => {
+    const sz = opts?.size ?? 8; for (const ln of wrapText(s, Math.floor((PW - M * 2) / (sz * 0.52)))) { ensure(54); text(ln, M, { ...opts, size: sz, maxWidth: PW - M * 2 }); y -= sz + 3; }
+  };
+  const checkRow = (checked: boolean, num: number, label: string, extra?: string) => {
+    ensure(56);
+    page.drawRectangle({ x: M, y: y - 2, width: 10, height: 10, borderColor: ink, borderWidth: 1, color: checked ? rgb(0.12, 0.16, 0.22) : rgb(1, 1, 1) });
+    if (checked) page.drawText("X", { x: M + 1.5, y: y - 1.5, size: 9, font: bold, color: rgb(1, 1, 1) });
+    page.drawText(`${num}. ${label}`, { x: M + 16, y: y, size: 9, font: helv, color: ink });
+    if (extra) { y -= 12; page.drawText("   " + extra, { x: M + 16, y: y, size: 8, font: helv, color: grey }); }
+    y -= 16;
+  };
+  const sigBlock = async (sig: Record<string, unknown> | null, fallbackName: string, dateIso: string | null, label: string) => {
+    ensure(80);
+    const boxW = (PW - M * 2) * 0.62, boxX = M, boxH = 40;
+    page.drawRectangle({ x: boxX, y: y - boxH, width: boxW, height: boxH, borderColor: lite, borderWidth: 0.6 });
+    const method = sig && typeof sig === "object" ? (sig.method as string) : null;
+    const data = sig && typeof sig === "object" ? (sig.data as string) : null;
+    if (method === "drawn" && data && data.startsWith("data:image")) {
+      try {
+        const png = data.includes("image/png") ? await pdf.embedPng(data) : await pdf.embedJpg(data);
+        const scale = Math.min((boxW - 8) / png.width, (boxH - 8) / png.height);
+        page.drawImage(png, { x: boxX + 4, y: y - boxH + 4, width: png.width * scale, height: png.height * scale });
+      } catch { page.drawText(fallbackName, { x: boxX + 6, y: y - boxH / 2, size: 14, font: helv, color: ink }); }
+    } else {
+      page.drawText((data && method === "typed" ? data : fallbackName) || "—", { x: boxX + 6, y: y - boxH / 2 + 2, size: 16, font: helv, color: ink });
+    }
+    page.drawText(label, { x: boxX, y: y - boxH - 10, size: 6.5, font: helv, color: grey });
+    const dx = boxX + boxW + 16;
+    page.drawText("DATE", { x: dx, y: y, size: 6.5, font: helv, color: grey });
+    page.drawText(dateIso ? new Date(dateIso).toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }) : "—", { x: dx, y: y - 13, size: 10, font: helv, color: ink });
+    page.drawLine({ start: { x: dx, y: y - 16 }, end: { x: PW - M, y: y - 16 }, thickness: 0.5, color: lite });
+    y -= boxH + 20;
+  };
+  const fmtD = (x?: string | null) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00Z").toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }) : "";
+
+  // ── Header ──
+  text("Form I-9, Employment Eligibility Verification", M, { font: bold, size: 15 }); y -= 18;
+  text("Department of Homeland Security · U.S. Citizenship and Immigration Services", M, { size: 8.5, color: grey }); y -= 14;
+  para(`Reproduced from RouteReady's records for ${dsp.name} on ${new Date().toLocaleString()}. The official USCIS form is edition 08/01/23; this captures the same information and attestations. Not legal advice.`, { size: 7.5, color: lite });
+  rule();
+
+  // ── Section 1 ──
+  sectionBar("Section 1.  Employee Information and Attestation");
+  row3("Last name (family name)", s1.last_name || "", "First name (given name)", s1.first_name || "", "Middle initial", s1.middle_initial || "");
+  row2("Other last names used (if any)", s1.other_last_names || "", "U.S. Social Security Number", s1.ssn || "");
+  row3("Address (street number and name)", s1.addr_street || "", "Apt. number", s1.addr_apt || "", "City or town", s1.addr_city || "");
+  row3("State", s1.addr_state || "", "ZIP code", s1.addr_zip || "", "Date of birth (mm/dd/yyyy)", fmtD(s1.dob));
+  row2("Employee's email address", s1.email || "", "Employee's telephone number", s1.phone || "");
+  y -= 4;
+  line("I attest, under penalty of perjury, that I am (check one):", { font: bold, size: 8.5, color: grey });
+  const cs = s1.citizen_status || "";
+  checkRow(cs === "citizen", 1, I9_CIT_LABELS.citizen);
+  checkRow(cs === "national", 2, I9_CIT_LABELS.national);
+  checkRow(cs === "lpr", 3, I9_CIT_LABELS.lpr, cs === "lpr" ? `USCIS/A-Number: ${s1.lpr_uscis_number || "—"}` : undefined);
+  let authExtra: string | undefined;
+  if (cs === "authorized") {
+    const kindLbl: Record<string, string> = { uscis: "USCIS/A-Number", i94: "Form I-94 Admission #", passport: "Foreign passport #" };
+    authExtra = `Expires: ${s1.auth_expires || "N/A"}   ·   ${kindLbl[s1.auth_doc_kind] || "Document #"}: ${s1.auth_doc_number || "—"}${s1.auth_doc_kind === "passport" && s1.auth_passport_country ? `  (country: ${s1.auth_passport_country})` : ""}`;
+  }
+  checkRow(cs === "authorized", 4, I9_CIT_LABELS.authorized, authExtra);
+  y -= 4;
+  para("I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form. I attest, under penalty of perjury, that the information provided above and the citizenship or immigration status I selected are true and correct.", { size: 8, color: ink });
+  y -= 4;
+  await sigBlock(rec.section1_signature, [drv.preferred_name, drv.full_name, [s1.first_name, s1.last_name].filter(Boolean).join(" ")].find(Boolean) || "Employee", rec.section1_completed_at, "Signature of employee");
+  line(`Completed ${rec.section1_completed_at ? new Date(rec.section1_completed_at).toLocaleString() : "—"}${rec.section1_completed_via ? "  ·  " + (rec.section1_completed_via === "driver_app" ? "signed electronically by the employee in the RouteReady app" : "recorded by the employer on the employee's behalf") : ""}${s1.preparer_used ? "  ·  a preparer/translator assisted (Supplement A — collected separately)" : ""}.`, { size: 7.5, color: grey });
+
+  // ── Section 2 ──
+  sectionBar("Section 2.  Employer Review and Verification");
+  const exam = (s2.exam_method as string) === "remote_alternative" ? "DHS-authorized alternative procedure (remote)" : "Physical, in-person examination";
+  const listUsed = (s2.list_used as string) === "A" ? "List A" : "List B + List C";
+  row3("Employee's first day of employment (mm/dd/yyyy)", fmtD(rec.first_day_of_employment), "Examination method", exam, "Documents presented", listUsed);
+  const docs = Array.isArray(s2.documents) ? (s2.documents as Array<Record<string, string>>) : [];
+  const docBlock = (title: string, d?: Record<string, string>) => {
+    line(title, { font: bold, size: 8, color: grey });
+    if (!d) { line("—", { size: 9, color: lite }); return; }
+    row2("Document title", d.title || "", "Issuing authority", d.issuing_authority || "");
+    row2("Document number", d.number || "", "Expiration date (if any)", d.expires_on ? fmtD(d.expires_on) : "N/A");
+  };
+  if ((s2.list_used as string) === "A") {
+    docBlock("List A — identity & employment authorization", docs[0]);
+  } else {
+    docBlock("List B — identity", docs.find((x) => x.list === "B") || docs[0]);
+    docBlock("List C — employment authorization", docs.find((x) => x.list === "C") || docs[1]);
+  }
+  if (s2.additional_info) { line("Additional information", { font: bold, size: 8, color: grey }); para(String(s2.additional_info), { size: 8.5, color: ink }); }
+  y -= 4;
+  para(`I attest, under penalty of perjury, that (1) I have examined the documentation presented by the above-named employee, (2) the documentation appears to be genuine and to relate to the employee named, and (3) to the best of my knowledge, the employee is authorized to work in the United States.${(s2.exam_method as string) === "remote_alternative" ? " I further attest that I examined the documentation remotely in accordance with the DHS-authorized alternative procedure, and that the employer is enrolled in and in good standing with E-Verify." : ""}`, { size: 8, color: ink });
+  y -= 4;
+  await sigBlock(rec.section2_signature, rec.section2_completed_by_name || "Employer representative", rec.section2_completed_at, "Signature of employer or authorized representative");
+  row3("Name of employer representative", rec.section2_completed_by_name || "", "Title", rec.section2_completed_by_title || "", "Business or organization name", dsp.name);
+  if (Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length) line(`${rec.section2_document_paths.length} document image(s) retained on the employee's record in RouteReady.`, { size: 7.5, color: grey });
+
+  rule();
+  para("This reproduction is generated from RouteReady's records and is accompanied by a cryptographic seal, an RFC 3161 trusted timestamp, and a Certificate of Completion on the following page(s). It does not replace your obligation to follow current USCIS guidance or to use the official form where required. Retain Form I-9 for 3 years after the date employment began, or 1 year after employment ends — whichever is later.", { size: 7.5, color: lite });
+}
+
+async function appendI9Certificate(
+  pdf: PDFDocument, rec: I9Record, dsp: DspRow, events: I9Event[], helv: PDFFont, bold: PDFFont,
+  sealStub: SealStub | null, sealFull: SealInfo | null,
+) {
+  let page = pdf.addPage([612, 792]);
+  let y = 740; const M = 48; const innerW = 612 - M * 2;
+  const w = (t: string, o?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => {
+    if (y < 60) { page = pdf.addPage([612, 792]); y = 740; }
+    page.drawText(t, { x: M, y, size: o?.size ?? 10, font: o?.font ?? helv, color: o?.color ?? rgb(0.10, 0.13, 0.20), maxWidth: innerW });
+    y -= (o?.size ?? 10) + 4;
+  };
+  w("Certificate of Completion — Form I-9", { font: bold, size: 20, color: rgb(0.05, 0.08, 0.15) });
+  y -= 4;
+  w("Documents the Employment Eligibility Verification (Form I-9) for the named employee, as recorded in RouteReady.", { color: rgb(0.34, 0.40, 0.50) });
+  y -= 8;
+  w("EMPLOYER", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
+  w(dsp.name, { font: bold, size: 12 });
+  const s1 = (rec.section1 || {}) as Record<string, string>;
+  w("EMPLOYEE", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
+  w(`${[s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || "—"}  ·  ${I9_CIT_LABELS[s1.citizen_status] || s1.citizen_status || "—"}`, { font: bold, size: 11 });
+  w("Status:  " + rec.status, { size: 9, color: rgb(0.34, 0.40, 0.50) });
+  if (rec.first_day_of_employment) w("First day of employment:  " + rec.first_day_of_employment, { size: 9, color: rgb(0.34, 0.40, 0.50) });
+  if (rec.section1_completed_at) w("Section 1 completed:  " + new Date(rec.section1_completed_at).toISOString() + (rec.section1_completed_via === "driver_app" ? "  (signed by the employee in the app)" : "  (recorded by the employer)"), { size: 9, color: rgb(0.34, 0.40, 0.50) });
+  if (rec.section2_completed_at) w("Section 2 completed:  " + new Date(rec.section2_completed_at).toISOString() + (rec.section2_completed_by_name ? "  by " + rec.section2_completed_by_name : ""), { size: 9, color: rgb(0.34, 0.40, 0.50) });
+  y -= 6;
+  w("AUDIT TRAIL  (append-only)", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
+  for (const e of events) {
+    const who = e.actor_kind + (e.actor_name ? " · " + e.actor_name : "");
+    const meta = e.ip ? "ip " + e.ip : "";
+    w(humanKind(e.kind) + "  ·  " + new Date(e.created_at).toISOString(), { font: bold, size: 10 });
+    w("  " + who + (meta ? "  ·  " + meta : ""), { size: 9, color: rgb(0.34, 0.40, 0.50) });
+    if (e.kind === "reopened" && e.event_data && e.event_data.reason) w("  reason: " + String(e.event_data.reason), { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  }
+  if (sealStub) {
+    y -= 6;
+    w("CRYPTOGRAPHIC SEAL  (ECDSA P-256)", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
+    w("Key id:      " + sealStub.key_id + "  (fingerprint " + sealStub.key_fingerprint + ")", { size: 9, color: rgb(0.34, 0.40, 0.50) });
+    if (sealFull) {
+      w("Algorithm:   " + sealFull.signature_alg, { size: 9, color: rgb(0.34, 0.40, 0.50) });
+      w("PDF SHA-256: " + sealFull.pdf_sha256, { size: 9, color: rgb(0.34, 0.40, 0.50) });
+      w("Sealed at:   " + sealFull.signed_at, { size: 9, color: rgb(0.34, 0.40, 0.50) });
+      w("Signature (base64, raw r||s):", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+      for (const chunk of wrapText(sealFull.signature_b64, 86)) w("  " + chunk, { size: 7, color: rgb(0.50, 0.55, 0.65) });
+      if (sealFull.tst_b64) {
+        y -= 4;
+        w("RFC 3161 TRUSTED TIMESTAMP", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
+        w("Authority:   " + (sealFull.tsa_url || "(unspecified)"), { size: 9, color: rgb(0.34, 0.40, 0.50) });
+        if (sealFull.tsa_gen_time) w("Attested time: " + sealFull.tsa_gen_time + "  (by the TSA, not by RouteReady)", { size: 9, color: rgb(0.04, 0.40, 0.34) });
+        w("The TimeStampToken (base64) is in " + sealStub.seal_path + " as tst_b64; verify with: openssl ts -reply -in tst.tsr -text", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+      }
+    } else {
+      w("The PDF SHA-256, signature, public key, and (if any) RFC 3161 timestamp live next to this PDF at " + sealStub.seal_path + ".", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+    }
+    w("Public key is also served at GET /public-key on the sealing service.", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+  }
+  y -= 8;
+  w("Issued by RouteReady  ·  rr-document-sealing", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  w("Not legal advice. The official Form I-9 (USCIS edition 08/01/23) and its instructions govern.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
 // ─────────────────────────────────────────────────────────────────────────
