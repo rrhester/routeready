@@ -20802,6 +20802,18 @@ async function _docsHandleFileChosen(file) {
 // signature fields. Coordinates are stored as fractions of the page
 // dimensions (top-left origin) — the Cloudflare sealing worker reads
 // the exact same shape and flips y for pdf-lib's bottom-origin model.
+// Field kinds the placement editor can drop. signature = recipient
+// draws/types; the rest are auto-filled by the sealing worker from the
+// signing event (DocuSign-style "Date Signed" / "Full Name" fields —
+// read-only, the signer never edits them).
+const _DOCS_FIELD_META = {
+  signature: { label: "Signature",      tint: "rgba(96,165,250,.20)",  border: "#2563eb", text: "#1d4ed8", auto: false, hint: "Recipient draws or types their signature." },
+  initials:  { label: "Initials (auto)", tint: "rgba(124,58,237,.16)", border: "#7c3aed", text: "#6d28d9", auto: true,  hint: "Auto-filled with the recipient's initials." },
+  name:      { label: "Name (auto)",     tint: "rgba(217,119,6,.16)",  border: "#b45309", text: "#92400e", auto: true,  hint: "Auto-filled with the recipient's full name." },
+  date:      { label: "Date (auto)",     tint: "rgba(5,150,105,.18)",  border: "#059669", text: "#047857", auto: true,  hint: "Auto-filled with the signing date." },
+};
+function _docsFieldMeta(k){ return _DOCS_FIELD_META[k] || _DOCS_FIELD_META.signature; }
+
 let _pdfjsPromise = null;
 function _loadPdfJs() {
   if (_pdfjsPromise) return _pdfjsPromise;
@@ -20833,8 +20845,7 @@ async function _docsOpenFieldEditor(templateId) {
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px">
-            <button type="button" id="docs-fe-kind-signature" class="docs-fe-kind active" data-kind="signature" style="appearance:none;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:5px;cursor:pointer;color:var(--text-muted)">Signature</button>
-            <button type="button" id="docs-fe-kind-date" class="docs-fe-kind" data-kind="date" style="appearance:none;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:5px;cursor:pointer;color:var(--text-muted)">Date</button>
+            ${["signature","initials","name","date"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 10px;border-radius:5px;cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${k === "signature" ? "Signature" : k === "initials" ? "Initials" : k === "name" ? "Name" : "Date"}</button>`).join("")}
           </div>
           <button class="btn btn-sm" id="docs-fe-close">Close</button>
         </div>
@@ -20857,6 +20868,7 @@ async function _docsOpenFieldEditor(templateId) {
 
   // Which field kind the next drag will place. Default: signature.
   let currentKind = "signature";
+  const kindLabelOf = (k) => k === "signature" ? "Signature" : k === "initials" ? "Initials" : k === "name" ? "Name" : "Date";
   const kindBtns = m.querySelectorAll(".docs-fe-kind");
   kindBtns.forEach((b) => b.addEventListener("click", () => {
     currentKind = b.getAttribute("data-kind");
@@ -20868,21 +20880,18 @@ async function _docsOpenFieldEditor(templateId) {
       x.style.boxShadow = on ? "var(--shadow-sm)" : "none";
     });
     const lbl = document.getElementById("docs-fe-kind-label");
-    if (lbl) lbl.textContent = currentKind === "date" ? "Date" : "Signature";
+    if (lbl) lbl.textContent = kindLabelOf(currentKind);
   }));
-  // Initialize the toggle visuals.
-  m.querySelector("#docs-fe-kind-signature").style.background = "var(--surface)";
-  m.querySelector("#docs-fe-kind-signature").style.boxShadow = "var(--shadow-sm)";
-  m.querySelector("#docs-fe-kind-signature").style.color = "var(--text)";
 
   // Working set, kept in fractional coords (top-left origin) so we
   // can render them at any page scale.
   const fields = Array.isArray(tpl.fields) ? tpl.fields.map((f) => ({ ...f })) : [];
   const updateCount = () => {
-    const sig = fields.filter((f) => (f.kind || "signature") === "signature").length;
-    const dat = fields.filter((f) => f.kind === "date").length;
+    const c = { signature: 0, initials: 0, name: 0, date: 0 };
+    for (const f of fields) { const k = f.kind || "signature"; if (c[k] != null) c[k]++; }
+    const parts = Object.entries(c).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`);
     const el = document.getElementById("docs-fe-count");
-    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${(sig || dat) ? ` (${sig} signature · ${dat} date)` : ""} · placing: <strong id="docs-fe-kind-label">${currentKind === "date" ? "Date" : "Signature"}</strong> — date fields are auto-filled with the signing date`;
+    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${parts.length ? ` (${parts.join(" · ")})` : ""} · placing: <strong id="docs-fe-kind-label">${kindLabelOf(currentKind)}</strong> — Name / Initials / Date fields are filled automatically`;
   };
   updateCount();
 
@@ -20936,15 +20945,12 @@ async function _docsOpenFieldEditor(templateId) {
 
   // Render existing fields on the matching page overlays.
   const renderFieldDom = (f, overlay, vp) => {
-    const isDate = (f.kind || "signature") === "date";
-    const tint = isDate ? "rgba(5,150,105,.18)" : "rgba(96,165,250,.20)";
-    const bd   = isDate ? "#059669" : "#2563eb";
-    const txt  = isDate ? "#047857" : "#1d4ed8";
+    const meta = _docsFieldMeta(f.kind || "signature");
     const node = document.createElement("div");
     node.className = "rr-docs-field";
-    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${tint};border:1.5px dashed ${bd};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${txt};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px`;
-    node.textContent = isDate ? "Date (auto)" : "Signature";
-    node.title = isDate ? "Auto-filled with the signing date · click to remove" : "Signature · click to remove";
+    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${meta.tint};border:1.5px dashed ${meta.border};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${meta.text};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px`;
+    node.textContent = meta.label;
+    node.title = `${meta.hint} · click to remove`;
     node.addEventListener("click", (e) => {
       e.stopPropagation();
       const i = fields.indexOf(f);
@@ -20969,8 +20975,8 @@ async function _docsOpenFieldEditor(templateId) {
       const r = overlay.getBoundingClientRect();
       startX = e.clientX - r.left; startY = e.clientY - r.top;
       ghost = document.createElement("div");
-      const gt = currentKind === "date" ? ["rgba(5,150,105,.18)", "#059669"] : ["rgba(96,165,250,.20)", "#2563eb"];
-      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gt[0]};border:1.5px dashed ${gt[1]};border-radius:4px;pointer-events:none`;
+      const gm = _docsFieldMeta(currentKind);
+      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gm.tint};border:1.5px dashed ${gm.border};border-radius:4px;pointer-events:none`;
       overlay.appendChild(ghost);
     });
     overlay.addEventListener("pointermove", (e) => {

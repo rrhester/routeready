@@ -595,17 +595,18 @@ async function stampSignature(
     ? envelope.fields_snapshot
     : null;
 
-  // The signing date stamped into any `date` fields — the actual date
-  // the driver completed the signature (from envelope.signed_at), never
-  // a user-entered value. Falls back to today if signed_at is somehow
-  // missing.
+  // Auto-filled field values, all derived from the signing event — the
+  // signer never edits these (DocuSign-style "Date Signed" / "Full
+  // Name" fields). Date falls back to today if signed_at is missing.
   const signedDate = envelope.signed_at ? new Date(envelope.signed_at) : new Date();
   const dateStr = `${String(signedDate.getUTCMonth() + 1).padStart(2, "0")}/${String(signedDate.getUTCDate()).padStart(2, "0")}/${signedDate.getUTCFullYear()}`;
+  const fullName = (typedName || envelope.recipient_name || "").trim();
+  const initialsStr = fullName.split(/\s+/).map((p) => p[0]).filter(Boolean).join("").toUpperCase().slice(0, 5) || "—";
 
   if (fields) {
     for (const f of fields) {
       const kind = f.kind || "signature";
-      if (kind !== "signature" && kind !== "date") continue;
+      if (!["signature", "date", "name", "initials"].includes(kind)) continue;
       const pageIdx = Math.max(0, Math.min(pages.length - 1, (f.page ?? 1) - 1));
       const page = pages[pageIdx];
       const { width: pw, height: ph } = page.getSize();
@@ -615,11 +616,10 @@ async function stampSignature(
       const w = (f.w ?? 0.3) * pw;
       const h = (f.h ?? 0.08) * ph;
       const y = ph - ((f.y ?? 0.85) * ph) - h;
-      if (kind === "date") {
-        drawDateBox(page, x, y, w, h, dateStr, bold);
-      } else {
-        await drawSignatureBox(pdf, page, x, y, w, h, method, payload, typedName, bold);
-      }
+      if (kind === "date")          drawAutoTextBox(page, x, y, w, h, dateStr, "Date", bold);
+      else if (kind === "name")     drawAutoTextBox(page, x, y, w, h, fullName, "Name", bold);
+      else if (kind === "initials") drawAutoTextBox(page, x, y, w, h, initialsStr, "Initials", bold);
+      else                          await drawSignatureBox(pdf, page, x, y, w, h, method, payload, typedName, bold);
     }
   } else {
     // Default placement: bottom-right of the last page.
@@ -679,23 +679,26 @@ async function drawSignatureBox(
   });
 }
 
-// A `date` field is auto-filled with the actual signing date (from
-// envelope.signed_at) — never a value the signer typed. Drawn centered
-// in its box, MM/DD/YYYY, with a thin underline like the signature box.
-function drawDateBox(
+// An auto-filled text field (Date / Name / Initials) — the value comes
+// from the signing event, never from something the signer typed. Drawn
+// in its box (left-aligned, shrunk to fit width) with a small caption
+// above and an underline, mirroring the signature box.
+function drawAutoTextBox(
   page: PDFPage,
   x: number, y: number, w: number, h: number,
-  dateStr: string,
+  value: string,
+  caption: string,
   bold: PDFFont,
 ) {
-  page.drawText("Date", {
+  page.drawText(caption, {
     x, y: y + h + 4, size: 8, font: bold, color: rgb(0.18, 0.22, 0.30),
   });
-  // Size the text to the box; cap so it doesn't get huge in a tall box.
-  const size = Math.min(h * 0.62, 16);
-  const textW = bold.widthOfTextAtSize(dateStr, size);
-  page.drawText(dateStr, {
-    x: x + Math.max(2, (w - textW) / 2),
+  const txt = value || "—";
+  let size = Math.min(h * 0.62, 16);
+  // Shrink to fit the box width.
+  while (size > 6 && bold.widthOfTextAtSize(txt, size) > w - 8) size -= 0.5;
+  page.drawText(txt, {
+    x: x + 4,
     y: y + (h - size) / 2 + 2,
     size, font: bold, color: rgb(0.06, 0.10, 0.18),
   });
@@ -809,7 +812,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.4", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.5", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
