@@ -21234,18 +21234,28 @@ async function _docsOpenAudit(envelopeId) {
   const status    = envRow?.status || "sent";
   const lc        = _docsLifecycle(status);
 
-  // Use the *latest* pdf_signed event — after a re-seal there can be
-  // several, and the most recent one reflects the current seal (incl.
-  // whether a timestamp landed).
+  // The seal sidecar (<dsp>/seal/<id>.json) is the *canonical* record
+  // of the cryptographic seal — the worker writes it on every (re-)seal
+  // and it carries the digest, signature, key fingerprint, and the RFC
+  // 3161 timestamp. Read it directly; fall back to the pdf_signed audit
+  // event if there's no sidecar.
+  let sidecar = null;
+  if (envRow?.seal_path) {
+    try {
+      const { data: su } = await sb.storage.from("documents").createSignedUrl(envRow.seal_path, 300);
+      if (su?.signedUrl) sidecar = await fetch(su.signedUrl).then((r) => r.json()).catch(() => null);
+    } catch { sidecar = null; }
+  }
   const _signedEvts = (events || []).filter((e) => e.kind === "pdf_signed");
   const signedEvt = _signedEvts.length ? _signedEvts[_signedEvts.length - 1] : null;
-  const sealKeyFp   = signedEvt?.event_data?.key_fingerprint || null;
-  const sealAlg     = signedEvt?.event_data?.signature_alg   || null;
-  const sealDigest  = signedEvt?.event_data?.pdf_sha256      || null;
-  const sealTsa     = signedEvt?.event_data?.tsa_url         || null;
-  const sealTsaTime = signedEvt?.event_data?.tsa_gen_time    || null;
-  const sealTsaErr  = signedEvt?.event_data?.tsa_error       || null;
-  const sealedAt    = signedEvt?.event_data?.signed_at       || null;
+  const evd = signedEvt?.event_data || {};
+  const sealKeyFp   = sidecar?.key_fingerprint || evd.key_fingerprint || null;
+  const sealAlg     = sidecar?.signature_alg   || evd.signature_alg   || null;
+  const sealDigest  = sidecar?.pdf_sha256      || evd.pdf_sha256      || null;
+  const sealTsa     = sidecar?.tsa_url         || evd.tsa_url         || null;
+  const sealTsaTime = sidecar?.tsa_gen_time    || evd.tsa_gen_time    || null;
+  const sealTsaErr  = (!sealTsa && !sealTsaTime) ? (evd.tsa_error || (sidecar ? "the seal sidecar has no RFC 3161 token — re-seal to retry the timestamp" : null)) : null;
+  const sealedAt    = sidecar?.signed_at       || evd.signed_at       || null;
 
   // Verdict banner up top.
   verdictSlot.innerHTML = allOk
