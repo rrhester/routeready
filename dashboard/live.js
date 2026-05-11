@@ -21565,6 +21565,35 @@ async function loadDocumentsView(sub) {
   else                               await _renderDocsEnvelopes();
 }
 
+// One I-9 card for the Documents views. `r` is an i9_records row joined
+// to drivers(full_name, preferred_name).
+function _i9DocsCardHtml(r) {
+  const dName = escapeHtml((r.drivers && (r.drivers.preferred_name || r.drivers.full_name)) || "—");
+  const fmtD = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const sealedBadge = r.pdf_path
+    ? `<span class="docs-mono-chip" style="background:var(--green-soft);color:var(--green)"><span class="lbl">Sealed</span>${escapeHtml(r.pdf_sealed_at ? new Date(r.pdf_sealed_at).toLocaleDateString() : "yes")}</span>`
+    : r.status === "verified" ? `<span class="docs-mono-chip" style="background:var(--amber-soft);color:var(--amber-dark)"><span class="lbl">PDF</span>generating…</span>` : "";
+  const meta = r.section2_completed_at ? "Verified " + fmtD(r.section2_completed_at) + (r.section2_completed_by_name ? " by " + escapeHtml(r.section2_completed_by_name) : "")
+    : r.section1_completed_at ? "Section 1 done " + fmtD(r.section1_completed_at) : "Not started";
+  return `
+    <div class="docs-template-card" data-rr-docs-i9="${escapeHtml(r.driver_id)}" data-i9-pdf="${escapeHtml(r.pdf_path || "")}" data-i9-cert="${escapeHtml(r.pdf_certificate_path || "")}">
+      <div class="docs-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
+      <div style="flex:1;min-width:0">
+        <div class="docs-card-title">${dName} — Form I-9</div>
+        <div class="docs-meta-row">
+          <span>${_i9StatusChip(r.status)}</span>
+          ${sealedBadge}
+          <span class="docs-meta-dim">${meta}${r.first_day_of_employment ? " · first day " + escapeHtml(fmtD(r.first_day_of_employment)) : ""}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;flex:0 0 auto;align-items:center">
+        ${r.pdf_path ? `<button class="btn btn-sm btn-primary" data-rr-docs-i9-act="form">Open form</button><button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="cert">Certificate</button>` : ""}
+        <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="chain">Chain of custody</button>
+        <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="record">Open record</button>
+      </div>
+    </div>`;
+}
+
 // ── Documents · Form I-9 tab ───────────────────────────────────────────
 // The sealed Form I-9 documents (and any in-progress ones), surfaced
 // alongside the e-signature records — same trust treatment.
@@ -21589,39 +21618,18 @@ async function _renderDocsI9() {
   const nVerified = rows.filter(r => r.status === "verified").length;
   const nSealed   = rows.filter(r => r.pdf_path).length;
   const nPending  = rows.filter(r => r.status !== "verified").length;
-  const dName = (r) => escapeHtml((r.drivers && (r.drivers.preferred_name || r.drivers.full_name)) || "—");
-  const fmtD = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
-  const sealedBadge = (r) => r.pdf_path
-    ? `<span class="docs-mono-chip" style="background:var(--green-soft);color:var(--green)"><span class="lbl">Sealed</span>${escapeHtml(r.pdf_sealed_at ? new Date(r.pdf_sealed_at).toLocaleDateString() : "yes")}</span>`
-    : r.status === "verified" ? `<span class="docs-mono-chip" style="background:var(--amber-soft);color:var(--amber-dark)"><span class="lbl">PDF</span>generating…</span>` : "";
   list.innerHTML = `
     <div class="docs-section-bar">
       <h2>Form I-9 · Employment Eligibility Verification</h2>
       <div class="docs-counts"><span><b>${rows.length}</b> on file</span><span><b>${nVerified}</b> verified</span><span><b>${nSealed}</b> sealed PDF</span>${nPending ? `<span><b>${nPending}</b> in progress</span>` : ""}</div>
     </div>
-    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:-4px 0 12px;line-height:1.5">A verified Form I-9 is rendered into a real PDF, given a Certificate of Completion, cryptographically sealed (ECDSA P-256), and stamped with an RFC 3161 trusted timestamp — the same security envelope as the signature records. Open a record to manage Section 1 / Section 2. Not legal advice.</div>
-    ${rows.map(r => `
-      <div class="docs-template-card" data-rr-docs-i9="${escapeHtml(r.driver_id)}" data-i9-pdf="${escapeHtml(r.pdf_path || "")}" data-i9-cert="${escapeHtml(r.pdf_certificate_path || "")}">
-        <div class="docs-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
-        <div style="flex:1;min-width:0">
-          <div class="docs-card-title">${dName(r)} — Form I-9</div>
-          <div class="docs-meta-row">
-            <span>${_i9StatusChip(r.status)}</span>
-            ${sealedBadge(r)}
-            <span class="docs-meta-dim">${r.section2_completed_at ? "Verified " + escapeHtml(fmtD(r.section2_completed_at)) + (r.section2_completed_by_name ? " by " + escapeHtml(r.section2_completed_by_name) : "") : r.section1_completed_at ? "Section 1 done " + escapeHtml(fmtD(r.section1_completed_at)) : "Not started"}${r.first_day_of_employment ? " · first day " + escapeHtml(fmtD(r.first_day_of_employment)) : ""}</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:7px;flex:0 0 auto;align-items:center">
-          ${r.pdf_path ? `<button class="btn btn-sm btn-primary" data-rr-docs-i9-act="form">Open form</button><button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="cert">Certificate</button>` : ""}
-          <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="chain">Chain of custody</button>
-          <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="record">Open record</button>
-        </div>
-      </div>`).join("")}`;
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:-4px 0 12px;line-height:1.5">A verified Form I-9 is rendered into a real PDF (the official USCIS form when reachable, otherwise RouteReady's reproduction), given a Certificate of Completion, cryptographically sealed (ECDSA P-256), and stamped with an RFC 3161 trusted timestamp — the same security envelope as the signature records. Open a record to manage Section 1 / Section 2. Not legal advice.</div>
+    ${rows.map(_i9DocsCardHtml).join("")}`;
 }
 
 document.addEventListener("click", async (e) => {
   const card = e.target.closest("[data-rr-docs-i9]");
-  if (!card || !e.target.closest("#docs-i9-list")) return;
+  if (!card || !(e.target.closest("#docs-i9-list") || e.target.closest("#docs-envelopes-list"))) return;
   const driverId = card.getAttribute("data-rr-docs-i9");
   const actBtn = e.target.closest("[data-rr-docs-i9-act]");
   const act = actBtn ? actBtn.getAttribute("data-rr-docs-i9-act") : "chain";
@@ -21697,16 +21705,35 @@ async function _renderDocsEnvelopes() {
   const list = document.getElementById("docs-envelopes-list");
   if (!list) return;
   list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
-  const { data, error } = await sb.from("document_envelopes")
-    .select("id, recipient_name, recipient_email, status, sent_at, viewed_at, signed_at, voided_at, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, document_templates(title)")
-    .order("sent_at", { ascending: false })
-    .limit(200);
+  const [envRes, i9Res] = await Promise.all([
+    sb.from("document_envelopes")
+      .select("id, recipient_name, recipient_email, status, sent_at, viewed_at, signed_at, voided_at, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, document_templates(title)")
+      .order("sent_at", { ascending: false })
+      .limit(200),
+    sb.from("i9_records")
+      .select("id, driver_id, status, first_day_of_employment, section1_completed_at, section2_completed_at, section2_completed_by_name, pdf_path, pdf_certificate_path, pdf_seal_path, pdf_sealed_at, drivers(full_name, preferred_name)")
+      .eq("status", "verified").not("pdf_path", "is", null)
+      .order("section2_completed_at", { ascending: false }).limit(100)
+      .then((r) => r, () => ({ data: [] })),
+  ]);
+  const { data, error } = envRes;
   if (error) {
     list.innerHTML = _docsEmptyState({ error: true, title: "Couldn't load signature records", body: escapeHtml(error.message) });
     return;
   }
-  if (!data || data.length === 0) {
-    list.innerHTML = _docsEmptyState({
+  const i9Sealed = Array.isArray(i9Res?.data) ? i9Res.data : [];
+  // "Form I-9 — sealed forms" section, shown above the e-signature
+  // records (the dedicated Form I-9 tab has the full list incl. in-progress).
+  const i9SectionHtml = i9Sealed.length ? `
+    <div class="docs-section-bar">
+      <h2>Form I-9 — sealed forms</h2>
+      <div class="docs-counts"><span><b>${i9Sealed.length}</b> sealed</span><span>ECDSA P-256 · RFC 3161 timestamped · Certificate of Completion</span></div>
+    </div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:-4px 0 12px;line-height:1.5">Each verified Form I-9 is rendered into a real PDF — the official USCIS form when reachable, otherwise RouteReady's reproduction — and run through the same seal + timestamp pipeline as the signature records below. The full list (including in-progress I-9s) is on the "Form I-9" tab.</div>
+    ${i9Sealed.map(_i9DocsCardHtml).join("")}
+    <div style="height:14px"></div>` : "";
+  if ((!data || data.length === 0)) {
+    list.innerHTML = i9SectionHtml + _docsEmptyState({
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
       title: "No signature records yet",
       body: "Send a template from the Templates tab. Every envelope you send opens a tamper-evident, hash-chained record of who signed what, when, and from where — retained and independently verifiable.",
@@ -21754,7 +21781,7 @@ async function _renderDocsEnvelopes() {
       </tr>`;
   }).join("");
 
-  list.innerHTML = `
+  list.innerHTML = i9SectionHtml + `
     <div class="docs-section-bar">
       <h2>Signature records</h2>
       <div class="docs-counts">

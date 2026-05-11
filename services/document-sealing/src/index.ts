@@ -53,6 +53,9 @@ import {
   PDFDocument,
   StandardFonts,
   rgb,
+  PDFTextField,
+  PDFCheckBox,
+  PDFDropdown,
   type PDFFont,
   type PDFPage,
 } from "pdf-lib";
@@ -74,6 +77,11 @@ interface Env {
   // RFC 3161 Time Stamping Authority endpoint. Defaults to FreeTSA's
   // public service. Set to a commercial TSA if you want an SLA.
   RR_TSA_URL?: string;
+  // Where to fetch the official USCIS Form I-9 fillable PDF. Defaults to
+  // the USCIS URL; override if it moves or you want to pin an edition.
+  // If unreachable / unparseable, the sealer falls back to RouteReady's
+  // faithful reproduction.
+  RR_I9_FORM_URL?: string;
 }
 
 interface AuditEvent {
@@ -429,12 +437,13 @@ async function sealI9(i9RecordId: string, env: Env, force = false) {
     ? { key_id: keyMeta.key_id, key_fingerprint: keyMeta.key_fingerprint, seal_path: sealPath }
     : null;
 
-  // Build the form PDF + embedded Certificate of Completion.
+  // Build the form PDF (official USCIS form if reachable, else our
+  // reproduction) + embedded Certificate of Completion.
   const pdf = await PDFDocument.create();
   const helv = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  await buildI9Pdf(pdf, rec, drv, dsp, helv, bold);
-  await appendI9Certificate(pdf, rec, dsp, events, helv, bold, sealStub, null);
+  const formInfo = await buildI9Pdf(pdf, rec, drv, dsp, helv, bold, env);
+  await appendI9Certificate(pdf, rec, dsp, events, helv, bold, sealStub, null, formInfo.source);
   const sealedBytes = await pdf.save();
 
   let sealInfo = keyMeta ? await signBytes(keyMeta, rec.id, sealedBytes) : null;
@@ -451,7 +460,7 @@ async function sealI9(i9RecordId: string, env: Env, force = false) {
   const certPdf = await PDFDocument.create();
   const certHelv = await certPdf.embedFont(StandardFonts.Helvetica);
   const certBold = await certPdf.embedFont(StandardFonts.HelveticaBold);
-  await appendI9Certificate(certPdf, rec, dsp, events, certHelv, certBold, sealStub, sealInfo);
+  await appendI9Certificate(certPdf, rec, dsp, events, certHelv, certBold, sealStub, sealInfo, formInfo.source);
   const certBytes = await certPdf.save();
 
   const pdfPath  = `${rec.dsp_id}/i9/${rec.id}.pdf`;
@@ -481,6 +490,8 @@ async function sealI9(i9RecordId: string, env: Env, force = false) {
     seal_path:           sidecarBytes ? sealPath : null,
     byte_count:          sealedBytes.byteLength,
     sealed:              !!sealInfo,
+    form_source:         formInfo.source,
+    form_detail:         formInfo.detail ?? null,
     tsa_error:           sealInfo && !sealInfo.tst_b64 ? tsaError : null,
   };
 }
@@ -492,10 +503,197 @@ const I9_CIT_LABELS: Record<string, string> = {
   authorized: "A noncitizen authorized to work in the United States",
 };
 
-// A faithful reproduction of Form I-9 (USCIS edition 08/01/23) drawn
-// from the captured data — not the USCIS fillable PDF, but the same
-// sections, fields, attestations, and the captured signatures.
+// Build the I-9 form pages into `pdf`. Preferred path: fetch the official
+// USCIS fillable Form I-9, fill its AcroForm fields from the captured
+// data, flatten it, and append an "Electronic Signature Record" page
+// (the official form's signature lines can't carry our images). If the
+// official PDF is unreachable / unparseable / has no fields, fall back
+// to RouteReady's faithful reproduction. Returns which path was used.
 async function buildI9Pdf(
+  pdf: PDFDocument, rec: I9Record, drv: DriverRow, dsp: DspRow, helv: PDFFont, bold: PDFFont, env: Env,
+): Promise<{ source: "official_form" | "reproduction"; detail?: string }> {
+  const url = env.RR_I9_FORM_URL || "https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf";
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12_000);
+    let bytes: Uint8Array;
+    try {
+      const r = await fetch(url, { headers: { "User-Agent": "rr-document-sealing", "Accept": "application/pdf" }, signal: ctrl.signal });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      bytes = new Uint8Array(await r.arrayBuffer());
+    } finally { clearTimeout(t); }
+    if (bytes.byteLength < 10_000) throw new Error("response too small to be the form");
+    const official = await PDFDocument.load(bytes, { ignoreEncryption: true, throwOnInvalidObject: false });
+    let form;
+    try { form = official.getForm(); } catch { form = null; }
+    const fields = form ? form.getFields() : [];
+    if (!form || fields.length === 0) throw new Error("no AcroForm fields");
+    tryFillOfficialI9(fields, rec, dsp);
+    try { form.flatten(); } catch (e) { console.warn("i9 form flatten failed (filled fields kept):", e); }
+    const pages = await pdf.copyPages(official, official.getPageIndices());
+    for (const p of pages) pdf.addPage(p);
+    await appendI9SignaturePage(pdf, rec, drv, dsp, helv, bold);
+    return { source: "official_form" };
+  } catch (e) {
+    console.warn("official Form I-9 unavailable — using reproduction:", (e as Error)?.message || e);
+    await buildI9Reproduction(pdf, rec, drv, dsp, helv, bold);
+    return { source: "reproduction", detail: String((e as Error)?.message || e) };
+  }
+}
+
+// Fuzzy-fill the official USCIS Form I-9 AcroForm. Field names vary by
+// edition, so we match by (lowercased) substring patterns and set the
+// first field whose name contains every term of a pattern. Best-effort:
+// an unmatched field is simply skipped (and the data is still on the
+// signature-record page + the Certificate of Completion either way).
+function tryFillOfficialI9(
+  fields: ReturnType<NonNullable<ReturnType<PDFDocument["getForm"]>>["getFields"]>,
+  rec: I9Record, dsp: DspRow,
+) {
+  const s1 = (rec.section1 || {}) as Record<string, string>;
+  const s2 = (rec.section2 || {}) as Record<string, unknown>;
+  const named = fields.map((f) => ({ f, n: f.getName().toLowerCase() }));
+  const setText = (pats: string[][], value?: string | null) => {
+    if (!value) return;
+    for (const terms of pats) {
+      const hit = named.find((x) => x.f instanceof PDFTextField && terms.every((t) => x.n.includes(t)));
+      if (hit) { try { (hit.f as PDFTextField).setText(String(value)); } catch {} return; }
+    }
+  };
+  const setDropdownOrText = (pats: string[][], value?: string | null) => {
+    if (!value) return;
+    for (const terms of pats) {
+      const hit = named.find((x) => terms.every((t) => x.n.includes(t)) && (x.f instanceof PDFDropdown || x.f instanceof PDFTextField));
+      if (hit) {
+        try {
+          if (hit.f instanceof PDFDropdown) { try { (hit.f as PDFDropdown).select(String(value)); } catch { (hit.f as PDFDropdown).addOptions([String(value)]); (hit.f as PDFDropdown).select(String(value)); } }
+          else (hit.f as PDFTextField).setText(String(value));
+        } catch {}
+        return;
+      }
+    }
+  };
+  const checkBox = (pats: string[][]) => {
+    for (const terms of pats) {
+      const hit = named.find((x) => x.f instanceof PDFCheckBox && terms.every((t) => x.n.includes(t)));
+      if (hit) { try { (hit.f as PDFCheckBox).check(); } catch {} return true; }
+    }
+    return false;
+  };
+  const mmddyyyy = (iso?: string | null) => { if (!iso) return ""; const d = new Date(/T/.test(iso) ? iso : iso + "T12:00:00Z"); if (isNaN(d.getTime())) return ""; const p = (n: number) => String(n).padStart(2, "0"); return `${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())}/${d.getUTCFullYear()}`; };
+
+  // ── Section 1 ──
+  setText([["last name"], ["family name"]], s1.last_name);
+  setText([["first name"], ["given name"]], s1.first_name);
+  setText([["middle initial"], ["middle"]], s1.middle_initial);
+  setText([["other last name"], ["other", "name"]], s1.other_last_names);
+  setText([["address", "street"], ["street number"], ["street name"]], s1.addr_street);
+  setText([["apt", "number"], ["apartment"], ["apt"]], s1.addr_apt);
+  setText([["city", "town"], ["city"]], s1.addr_city);
+  setDropdownOrText([["state"]], s1.addr_state);
+  setText([["zip"]], s1.addr_zip);
+  setText([["date of birth"], ["birth"]], mmddyyyy(s1.dob));
+  setText([["social security"], ["ssn"]], s1.ssn);
+  setText([["mail address"], ["email"], ["e-mail"]], s1.email);
+  setText([["telephone"], ["phone"]], s1.phone);
+  // Citizenship: try a radio group first, then the classic CB_1..CB_4 checkboxes.
+  const cs = s1.citizen_status;
+  const csIdx = cs === "citizen" ? 1 : cs === "national" ? 2 : cs === "lpr" ? 3 : cs === "authorized" ? 4 : 0;
+  if (csIdx) {
+    const radio = named.find((x) => /citizenship|attest.*status|status.*attest/.test(x.n) && typeof (x.f as { select?: unknown }).select === "function");
+    let done = false;
+    if (radio) {
+      try {
+        const opts = (radio.f as unknown as { getOptions(): string[] }).getOptions();
+        if (opts && opts[csIdx - 1]) { (radio.f as unknown as { select(v: string): void }).select(opts[csIdx - 1]); done = true; }
+      } catch {}
+    }
+    if (!done) {
+      const labels = ["citizen of the united states", "noncitizen national", "permanent resident", "authorized to work"];
+      const byLabel = checkBox([[labels[csIdx - 1]]]);
+      if (!byLabel) checkBox([["cb_" + csIdx], ["cb", String(csIdx)]]);
+    }
+  }
+  if (cs === "lpr") setText([["uscis", "number"], ["a-number"], ["alien", "number"], ["a number"]], s1.lpr_uscis_number);
+  if (cs === "authorized") {
+    setText([["expiration", "mm"], ["exp date"], ["expiration date"], ["authoriz", "expir"]], mmddyyyy(s1.auth_expires) || (s1.auth_expires || ""));
+    if (s1.auth_doc_kind === "uscis") setText([["uscis", "number"], ["a-number"], ["a number"]], s1.auth_doc_number);
+    if (s1.auth_doc_kind === "i94")   setText([["i-94"], ["i94"], ["admission", "number"]], s1.auth_doc_number);
+    if (s1.auth_doc_kind === "passport") { setText([["passport", "number"], ["foreign passport"]], s1.auth_doc_number); setText([["country", "issuance"], ["country"]], s1.auth_passport_country); }
+  }
+  setText([["today", "date"], ["signature", "date"]], mmddyyyy(rec.section1_completed_at));
+
+  // ── Section 2 ──
+  setText([["first day of employment"], ["first day"]], mmddyyyy(rec.first_day_of_employment));
+  const docs = Array.isArray(s2.documents) ? (s2.documents as Array<Record<string, string>>) : [];
+  if ((s2.list_used as string) === "A") {
+    const d = docs[0] || {};
+    setText([["list a", "title"], ["document title 1"], ["document title", "1"]], d.title);
+    setText([["list a", "issuing"], ["issuing authority 1"], ["issuing authority", "1"]], d.issuing_authority);
+    setText([["list a", "number"], ["document number 1"], ["document number", "1"]], d.number);
+    setText([["list a", "expiration"], ["expiration date 1"], ["expiration", "1"]], mmddyyyy(d.expires_on));
+  } else {
+    const b = docs.find((x) => x.list === "B") || docs[0] || {};
+    const c = docs.find((x) => x.list === "C") || docs[1] || {};
+    setText([["list b", "title"]], b.title);
+    setText([["list b", "issuing"]], b.issuing_authority);
+    setText([["list b", "number"]], b.number);
+    setText([["list b", "expiration"]], mmddyyyy(b.expires_on));
+    setText([["list c", "title"]], c.title);
+    setText([["list c", "issuing"]], c.issuing_authority);
+    setText([["list c", "number"]], c.number);
+    setText([["list c", "expiration"]], mmddyyyy(c.expires_on));
+  }
+  if (s2.additional_info) setText([["additional information"], ["additional info"]], String(s2.additional_info));
+  setText([["last name", "employer"], ["last name", "representative"]], rec.section2_completed_by_name ? rec.section2_completed_by_name.split(/\s+/).slice(-1)[0] : "");
+  setText([["first name", "employer"], ["first name", "representative"]], rec.section2_completed_by_name ? rec.section2_completed_by_name.split(/\s+/).slice(0, -1).join(" ") || rec.section2_completed_by_name : "");
+  setText([["title", "employer"], ["title", "representative"]], rec.section2_completed_by_title);
+  setText([["employer", "business"], ["organization name"], ["business", "name"]], dsp.name);
+  setText([["today", "date", "2"], ["signature", "date", "employer"]], mmddyyyy(rec.section2_completed_at));
+}
+
+async function appendI9SignaturePage(pdf: PDFDocument, rec: I9Record, drv: DriverRow, dsp: DspRow, helv: PDFFont, bold: PDFFont) {
+  const s1 = (rec.section1 || {}) as Record<string, string>;
+  const ink = rgb(0.07, 0.09, 0.13), grey = rgb(0.40, 0.45, 0.52), lite = rgb(0.62, 0.66, 0.72);
+  const page = pdf.addPage([612, 792]); const M = 48; let y = 740;
+  const text = (s: string, x: number, o?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => page.drawText(s ?? "", { x, y, size: o?.size ?? 9, font: o?.font ?? helv, color: o?.color ?? ink, maxWidth: 612 - M * 2 });
+  const line = (s: string, o?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => { text(s, M, o); y -= (o?.size ?? 9) + 6; };
+  const fmtD = (x?: string | null) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00Z").toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—";
+  const sigBox = async (sig: Record<string, unknown> | null, fallbackName: string, dateIso: string | null, label: string, sub: string) => {
+    const boxW = (612 - M * 2) * 0.62, boxH = 44;
+    page.drawRectangle({ x: M, y: y - boxH, width: boxW, height: boxH, borderColor: lite, borderWidth: 0.7 });
+    const method = sig && typeof sig === "object" ? (sig.method as string) : null;
+    const data = sig && typeof sig === "object" ? (sig.data as string) : null;
+    if (method === "drawn" && typeof data === "string" && data.startsWith("data:image")) {
+      try { const png = data.includes("image/png") ? await pdf.embedPng(data) : await pdf.embedJpg(data); const sc = Math.min((boxW - 10) / png.width, (boxH - 10) / png.height); page.drawImage(png, { x: M + 5, y: y - boxH + 5, width: png.width * sc, height: png.height * sc }); }
+      catch { page.drawText(fallbackName, { x: M + 8, y: y - boxH / 2, size: 15, font: helv, color: ink }); }
+    } else { page.drawText((data && method === "typed" ? data : fallbackName) || "—", { x: M + 8, y: y - boxH / 2 + 2, size: 17, font: helv, color: ink }); }
+    page.drawText(label, { x: M, y: y - boxH - 11, size: 7, font: helv, color: grey });
+    const dx = M + boxW + 18;
+    page.drawText("DATE", { x: dx, y, size: 7, font: helv, color: grey });
+    page.drawText(dateIso ? new Date(dateIso).toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }) : "—", { x: dx, y: y - 14, size: 11, font: helv, color: ink });
+    page.drawLine({ start: { x: dx, y: y - 17 }, end: { x: 612 - M, y: y - 17 }, thickness: 0.6, color: lite });
+    y -= boxH + 22;
+    if (sub) { text(sub, M, { size: 7.5, color: grey }); y -= 14; }
+  };
+  text("Form I-9 — Electronic Signature Record", M, { font: bold, size: 15 }); y -= 20;
+  line(`Attached to the official Form I-9 above for ${[s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || (drv.preferred_name || drv.full_name)} · ${dsp.name}.`, { size: 9, color: grey });
+  line("The official USCIS form's signature lines cannot carry an electronic signature image; the captured signatures and their provenance are recorded here, and the whole document is cryptographically sealed and timestamped on the Certificate of Completion that follows.", { size: 8, color: lite });
+  y -= 8;
+  line("SECTION 1 — EMPLOYEE", { font: bold, size: 9, color: grey });
+  await sigBox(rec.section1_signature, [s1.first_name, s1.last_name].filter(Boolean).join(" ") || (drv.preferred_name || drv.full_name) || "Employee", rec.section1_completed_at, "Signature of employee",
+    `Completed ${rec.section1_completed_at ? new Date(rec.section1_completed_at).toLocaleString() : "—"}${rec.section1_completed_via ? " · " + (rec.section1_completed_via === "driver_app" ? "signed electronically by the employee in the RouteReady app" : "recorded by the employer on the employee's behalf") : ""}.`);
+  y -= 6;
+  line("SECTION 2 — EMPLOYER OR AUTHORIZED REPRESENTATIVE", { font: bold, size: 9, color: grey });
+  await sigBox(rec.section2_signature, rec.section2_completed_by_name || "Employer representative", rec.section2_completed_at, "Signature of employer or authorized representative",
+    `${rec.section2_completed_by_name || "—"}${rec.section2_completed_by_title ? ", " + rec.section2_completed_by_title : ""} · ${dsp.name} · verified ${rec.section2_completed_at ? new Date(rec.section2_completed_at).toLocaleString() : "—"} · examined ${(((rec.section2 || {}) as Record<string, unknown>).exam_method) === "remote_alternative" ? "remotely under the DHS-authorized alternative procedure" : "physically, in person"}.`);
+  y -= 8;
+  line(`Retain Form I-9 until at least ${fmtD((function () { const base = rec.first_day_of_employment || null; if (!base) return null; const d = new Date(base + "T00:00:00Z"); d.setUTCFullYear(d.getUTCFullYear() + 3); return d.toISOString().slice(0, 10); })())} — 3 years after the date employment began, or 1 year after employment ends, whichever is later. Not legal advice.`, { size: 8, color: lite });
+}
+
+// A faithful reproduction of Form I-9 (USCIS edition 08/01/23) drawn
+// from the captured data — used when the official PDF can't be fetched.
+async function buildI9Reproduction(
   pdf: PDFDocument, rec: I9Record, drv: DriverRow, dsp: DspRow, helv: PDFFont, bold: PDFFont,
 ) {
   const s1 = (rec.section1 || {}) as Record<string, string>;
@@ -629,7 +827,7 @@ async function buildI9Pdf(
 
 async function appendI9Certificate(
   pdf: PDFDocument, rec: I9Record, dsp: DspRow, events: I9Event[], helv: PDFFont, bold: PDFFont,
-  sealStub: SealStub | null, sealFull: SealInfo | null,
+  sealStub: SealStub | null, sealFull: SealInfo | null, formSource: "official_form" | "reproduction" = "reproduction",
 ) {
   let page = pdf.addPage([612, 792]);
   let y = 740; const M = 48; const innerW = 612 - M * 2;
@@ -641,6 +839,9 @@ async function appendI9Certificate(
   w("Certificate of Completion — Form I-9", { font: bold, size: 20, color: rgb(0.05, 0.08, 0.15) });
   y -= 4;
   w("Documents the Employment Eligibility Verification (Form I-9) for the named employee, as recorded in RouteReady.", { color: rgb(0.34, 0.40, 0.50) });
+  w(formSource === "official_form"
+    ? "The attached pages are the official USCIS Form I-9 (08/01/23 edition) filled from the captured data, followed by an Electronic Signature Record."
+    : "The attached pages are RouteReady's faithful reproduction of Form I-9 (08/01/23 edition) — the official PDF could not be retrieved at sealing time.", { size: 9, color: rgb(0.34, 0.40, 0.50) });
   y -= 8;
   w("EMPLOYER", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
   w(dsp.name, { font: bold, size: 12 });
