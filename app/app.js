@@ -216,6 +216,8 @@ const routes = {
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
   "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
+  "/tasks/documents":   { render: renderDocumentsList,   tab: "/tasks", back: "/tasks", title: "Documents" },
+  "/tasks/documents/sign":{ render: renderDocumentSign,  tab: "/tasks", back: "/tasks/documents", title: "Sign document" },
   "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
   "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
   "/settings/availability": { render: renderAvailability,    tab: "/profile", back: "/settings", title: "Availability" },
@@ -718,6 +720,28 @@ function renderTasksHub() {
     if (slot) slot.innerHTML = `<div class="rr-debug-banner">Forms request rejected: ${escapeHtml(String(err))}</div>`;
     console.warn("driver_list_forms rejected:", err);
   });
+
+  // Documents to sign — single card surfacing the count of pending
+  // envelopes the dispatcher has sent for this driver.
+  sb.rpc("driver_envelopes_list", { p_token: session.token }).then(({ data, error }) => {
+    if (error) return;
+    const pending = Array.isArray(data?.pending) ? data.pending : [];
+    if (pending.length === 0) return;
+    const slot = document.getElementById("rr-tasks-forms-slot");
+    if (!slot) return;
+    document.getElementById("rr-tasks-empty")?.remove();
+    slot.insertAdjacentHTML("afterend", taskCardHtml({
+      route: "/tasks/documents",
+      title: "Documents to sign",
+      sub: `${pending.length} pending`,
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>',
+    }));
+    document.querySelectorAll("[data-task-route='/tasks/documents']").forEach((el) => {
+      if (el.dataset.rrBound) return;
+      el.dataset.rrBound = "1";
+      el.addEventListener("click", () => navigate(el.dataset.taskRoute));
+    });
+  }).catch(() => {});
 }
 function taskCardHtml(c) {
   return `
@@ -3401,3 +3425,255 @@ function setHeader(title, sub) {
 
 // ── Boot ────────────────────────────────────────────────────────────
 render();
+
+
+// ───────────────────────────────────────────────────────────────────────
+// Documents (e-signature) · driver-side. List + sign flow. The
+// dispatcher composes envelopes from the dashboard; this surface lets
+// the driver review, accept the ESIGN consent disclosure, and sign.
+// PDF sealing (PKCS#7 + RFC 3161 + Certificate of Completion) happens
+// in the slice-4 signing service after the envelope flips to 'signed'.
+// ───────────────────────────────────────────────────────────────────────
+
+const _ESIGN_CONSENT_VERSION = "esign-v1-2026-05";
+const _ESIGN_CONSENT_TEXT =
+  "By signing below, I consent to use electronic signatures and agree " +
+  "that my signature has the same legal effect as a handwritten signature. " +
+  "I understand this consent and my signature are recorded with my name, " +
+  "IP address, device information, and a timestamp, and that this record " +
+  "is retained as evidence of the agreement.";
+
+const _DOCS_STATUS_LABEL = {
+  sent:     "Awaiting your signature",
+  viewed:   "Awaiting your signature",
+  signed:   "Signed",
+  declined: "Declined",
+  voided:   "Cancelled by sender",
+  expired:  "Expired",
+};
+const _DOCS_STATUS_COLOR = {
+  sent:     "color:var(--amber-dark);background:var(--amber-soft)",
+  viewed:   "color:var(--amber-dark);background:var(--amber-soft)",
+  signed:   "color:var(--green);background:var(--green-soft)",
+  declined: "color:var(--red);background:rgba(225,29,72,.10)",
+  voided:   "color:var(--text-subtle);background:var(--canvas)",
+  expired:  "color:var(--text-subtle);background:var(--canvas)",
+};
+
+async function renderDocumentsList() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:96px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+  const { data, error } = await sb.rpc("driver_envelopes_list", { p_token: session.token });
+  if (error) {
+    if (/unauthorized|revoked|inactive/.test(error.message || "")) { writeSession(null); render(); return; }
+    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">${escapeHtml(error.message || "Couldn't load documents.")}</div>`;
+    return;
+  }
+  const pending   = Array.isArray(data?.pending)   ? data.pending   : [];
+  const completed = Array.isArray(data?.completed) ? data.completed : [];
+
+  const section = (title, items, isPending) => {
+    if (items.length === 0) return "";
+    return `
+      <div style="padding:18px 16px 6px 16px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)">${escapeHtml(title)}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:0 14px">
+        ${items.map((e) => `
+          <button class="rr-doc-row" data-sign="${escapeHtml(e.signing_token)}" style="text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%">
+            <div style="width:34px;height:42px;flex:0 0 auto;background:var(--accent-soft);color:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(e.template_title || "Document")}</div>
+              <div style="margin-top:3px"><span class="tag" style="${_DOCS_STATUS_COLOR[e.status] || ""};font-size:11px">${escapeHtml(_DOCS_STATUS_LABEL[e.status] || e.status)}</span></div>
+            </div>
+            ${isPending
+              ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" style="color:var(--text-subtle);flex:0 0 auto"><polyline points="9 18 15 12 9 6"/></svg>'
+              : ""}
+          </button>`).join("")}
+      </div>`;
+  };
+
+  if (pending.length === 0 && completed.length === 0) {
+    main.innerHTML = `<div class="empty-state" style="padding:64px 24px;color:var(--text-subtle);text-align:center"><strong style="display:block;color:var(--text);margin-bottom:4px">No documents</strong>You'll see anything dispatch sends you for signature here.</div>`;
+    return;
+  }
+  main.innerHTML = `<div style="padding-bottom:24px">${section("To sign", pending, true)}${section("Recent", completed, false)}</div>`;
+  main.querySelectorAll(".rr-doc-row").forEach((row) => {
+    row.addEventListener("click", () => navigate("/tasks/documents/sign?st=" + row.getAttribute("data-sign")));
+  });
+}
+
+async function renderDocumentSign() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:96px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+  const q = routeQuery();
+  const signingToken = q.get("st");
+  if (!signingToken) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Missing document reference.</div>`;
+    return;
+  }
+
+  // Fetch the envelope + signed URL via the edge function. This also
+  // logs the 'viewed' event on first open.
+  const { data: fetched, error } = await sb.functions.invoke("driver-document-fetch", {
+    body: { token: session.token, signing_token: signingToken },
+  });
+  if (error) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Couldn't open document: ${escapeHtml(error.message || "unknown")}.</div>`;
+    return;
+  }
+  const env = fetched?.envelope;
+  const tpl = fetched?.template;
+  const url = fetched?.signed_url;
+  if (!env || !tpl || !url) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Document not available.</div>`;
+    return;
+  }
+
+  if (!["sent","viewed"].includes(env.status)) {
+    main.innerHTML = `
+      <div style="padding:32px 20px;text-align:center">
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:6px">${escapeHtml(tpl.title || "Document")}</div>
+        <div><span class="tag" style="${_DOCS_STATUS_COLOR[env.status] || ""};font-size:11px">${escapeHtml(_DOCS_STATUS_LABEL[env.status] || env.status)}</span></div>
+        <div style="margin-top:14px;color:var(--text-subtle);font-size:var(--fs-sm)">No further action needed.</div>
+      </div>`;
+    return;
+  }
+
+  main.innerHTML = `
+    <div style="padding:14px 16px 96px 16px;display:flex;flex-direction:column;gap:14px">
+      <div>
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">${escapeHtml(tpl.title || "Document")}</div>
+        ${tpl.description ? `<div style="margin-top:4px;color:var(--text-muted);font-size:var(--fs-sm)">${escapeHtml(tpl.description)}</div>` : ""}
+      </div>
+
+      <a href="${url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--text);text-decoration:none;font-weight:600">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent)" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span style="flex:1">View document (PDF)</span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--text-subtle)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+          <input type="checkbox" id="rr-doc-consent" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto">
+          <span style="font-size:var(--fs-sm);line-height:1.5;color:var(--text)">${escapeHtml(_ESIGN_CONSENT_TEXT)}</span>
+        </label>
+      </div>
+
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Your signature</div>
+        <div style="position:relative;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <canvas id="rr-sig-canvas" style="display:block;width:100%;height:200px;touch-action:none;cursor:crosshair"></canvas>
+          <button type="button" id="rr-sig-clear" style="position:absolute;top:8px;right:8px;background:var(--canvas);border:1px solid var(--border);border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
+          <div id="rr-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--text-subtle);font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:4px;margin-top:10px">
+          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Or type your full name</span>
+          <input type="text" id="rr-sig-typed" placeholder="Your full legal name" autocomplete="name" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
+        </label>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
+        <button type="button" id="rr-doc-decline" class="btn" style="background:transparent;color:var(--red);border:1px solid var(--border)">Decline</button>
+        <button type="button" id="rr-doc-submit" class="btn btn-primary" style="flex:1">Sign &amp; submit</button>
+      </div>
+    </div>`;
+
+  // Canvas signature pad — pointer events handle mouse + touch + pen.
+  const canvas = document.getElementById("rr-sig-canvas");
+  const ctx = canvas.getContext("2d");
+  const hint = document.getElementById("rr-sig-hint");
+  function fitCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.round(rect.width  * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2.4;
+    ctx.lineCap   = "round";
+    ctx.lineJoin  = "round";
+    ctx.strokeStyle = "#0f172a";
+  }
+  fitCanvas();
+  let drawing = false, lastX = 0, lastY = 0, hasInk = false;
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  canvas.addEventListener("pointerdown", (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; e.preventDefault();
+    if (!hasInk) { hint.style.display = "none"; hasInk = true; }
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  });
+  const endStroke = () => { drawing = false; };
+  canvas.addEventListener("pointerup",     endStroke);
+  canvas.addEventListener("pointercancel", endStroke);
+  canvas.addEventListener("pointerleave",  endStroke);
+  document.getElementById("rr-sig-clear").addEventListener("click", () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    fitCanvas();
+    hasInk = false;
+    hint.style.display = "";
+  });
+
+  document.getElementById("rr-doc-decline").addEventListener("click", async () => {
+    const reason = prompt("Decline this document? Optional reason (kept on the audit trail):");
+    if (reason === null) return;
+    const { error: err } = await sb.rpc("driver_envelope_decline", {
+      p_token: session.token, p_signing_token: signingToken, p_reason: reason || null,
+    });
+    if (err) { toast("Couldn't decline: " + err.message, "warn"); return; }
+    toast("Declined", "warn");
+    navigate("/tasks/documents");
+  });
+
+  document.getElementById("rr-doc-submit").addEventListener("click", async () => {
+    const consentBox = document.getElementById("rr-doc-consent");
+    if (!consentBox.checked) {
+      toast("Please accept the consent disclosure to sign.", "warn"); return;
+    }
+    const typed = (document.getElementById("rr-sig-typed").value || "").trim();
+    let method = null, data = null;
+    if (hasInk) {
+      method = "drawn";
+      data = canvas.toDataURL("image/png");
+    } else if (typed.length >= 2) {
+      method = "typed";
+      data = typed;
+    } else {
+      toast("Draw your signature or type your full name.", "warn"); return;
+    }
+
+    const btn = document.getElementById("rr-doc-submit");
+    btn.disabled = true; btn.textContent = "Signing…";
+    if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+
+    const { error: err } = await sb.rpc("driver_envelope_sign", {
+      p_token:            session.token,
+      p_signing_token:    signingToken,
+      p_signature_method: method,
+      p_signature_data:   data,
+      p_consent_version:  _ESIGN_CONSENT_VERSION,
+      p_consent_text:     _ESIGN_CONSENT_TEXT,
+      p_typed_name:       typed || null,
+      p_ip:               null,
+      p_user_agent:       navigator.userAgent || null,
+    });
+    if (err) {
+      btn.disabled = false; btn.textContent = "Sign & submit";
+      toast("Couldn't sign: " + err.message, "warn"); return;
+    }
+    toast("Signed ✓", "success");
+    navigate("/tasks/documents");
+  });
+}

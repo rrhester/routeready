@@ -56,7 +56,7 @@ jobs:
         run: |
           set +e
           failed=()
-          for fn in send-sms send-email send-driver-push cal-availability invite-team-member admin-delete-dsp; do
+          for fn in send-sms send-email send-driver-push cal-availability invite-team-member admin-delete-dsp driver-document-fetch; do
             echo "▶ deploying $fn (auth required)"
             if ! supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::error::deploy failed for $fn"
