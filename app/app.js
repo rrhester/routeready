@@ -746,6 +746,48 @@ let _chatLastIds = new Set();
 let _chatTab        = "dispatch";  // "dispatch" | "channels"
 let _chatChannelId  = null;        // when set, render the channel thread
 let _chatChannelMeta = null;       // cached header info for the thread
+
+// ─── Connection-state banner ───────────────────────────────────────
+// A small floating pill at the top of the message area: "Reconnecting…"
+// (amber) while the realtime channel is down, then a brief "Back online"
+// (green). While disconnected we also poll refreshChat() so messages
+// still land. Keeps the chat from ever feeling silently frozen.
+let _chatDisconnected   = false;
+let _chatConnPollTimer  = null;
+
+function _showChatConnBanner(text, kind, autohideMs) {
+  const b = document.getElementById("chat-conn-banner");
+  if (!b) return;
+  b.textContent = text;
+  b.className = "chat-conn-banner" + (kind ? " " + kind : "") + " show";
+  b.hidden = false;
+  if (b._t) clearTimeout(b._t);
+  if (autohideMs) {
+    b._t = setTimeout(() => {
+      b.classList.remove("show");
+      b._t = setTimeout(() => { b.hidden = true; }, 280);
+    }, autohideMs);
+  }
+}
+function _onChatRealtimeStatus(status) {
+  // Supabase realtime channel statuses: SUBSCRIBED | TIMED_OUT |
+  // CHANNEL_ERROR | CLOSED. Treat the error/timeout states as a drop;
+  // ignore CLOSED (it also fires on intentional teardown).
+  if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT") && !_chatDisconnected) {
+    _chatDisconnected = true;
+    _showChatConnBanner("Reconnecting…", "warn");
+    clearInterval(_chatConnPollTimer);
+    _chatConnPollTimer = setInterval(() => {
+      if (currentRoute() === "/chat" && _chatTab === "dispatch") refreshChat(false);
+    }, 8000);
+  } else if (status === "SUBSCRIBED" && _chatDisconnected) {
+    _chatDisconnected = false;
+    clearInterval(_chatConnPollTimer);
+    _showChatConnBanner("Back online", "ok", 1800);
+    refreshChat(false); // reconcile anything missed while down
+  }
+}
+
 async function renderChat() {
   if (_chatTab === "channels") {
     if (_chatChannelId) return renderChatChannelThread();
@@ -755,6 +797,7 @@ async function renderChat() {
   const main = document.getElementById("main");
   main.innerHTML = `
     <div id="chat-shell">
+      <div id="chat-conn-banner" class="chat-conn-banner" hidden></div>
       <div id="chat-tabs" class="chat-tabs">
         <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
         <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
@@ -777,6 +820,7 @@ async function renderChat() {
 
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
+  if (_chatDisconnected) _showChatConnBanner("Reconnecting…", "warn");
 
   // Auto-grow textarea
   const ta = document.getElementById("chat-input");
@@ -1099,7 +1143,7 @@ function _chatRealtimeWire(session) {
     .on("postgres_changes",
         { event: "UPDATE", schema: "public", table: "driver_messages", filter: `driver_id=eq.${drvId}` },
         fire)
-    .subscribe();
+    .subscribe(_onChatRealtimeStatus);
 }
 
 async function refreshChat(scrollToBottom) {
