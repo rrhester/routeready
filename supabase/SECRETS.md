@@ -166,11 +166,10 @@ running migration 0007 before setting them is safe — the cron drainer
 A separate Cloudflare Worker (`services/document-sealing`) stamps the driver's signature onto the source PDF, appends a Certificate of Completion, uploads both, and logs `pdf_sealed` to the audit chain. It's invoked by a Postgres trigger on `document_envelopes` when `status` flips to `signed` (migration `0155`).
 
 ```sql
-alter database postgres set "app.sealing_service_url"
-  to 'https://rr-document-sealing.<account>.workers.dev';
-
-alter database postgres set "app.sealing_service_secret"
-  to '<openssl rand -hex 32 — same value set on the Worker>';
+insert into private.app_settings (key, value) values
+  ('sealing_service_url',    'https://rr-document-sealing.<account>.workers.dev'),
+  ('sealing_service_secret', '<openssl rand -hex 32 — same value set on the Worker>')
+on conflict (key) do update set value = excluded.value, updated_at = now();
 ```
 
 If either setting is missing or empty, the trigger no-ops with a notice (the signing flow still completes; the envelope just doesn't get sealed until you wire this up). See `services/document-sealing/README.md` for the one-time Worker setup (`wrangler secret put SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SEALING_SECRET` and `wrangler deploy`).
