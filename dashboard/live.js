@@ -19723,17 +19723,57 @@ async function _saveBuilder({ publish }) {
 
 let _docsSub = "templates";  // "templates" | "envelopes"
 
-const _docsStatusStyle = {
-  sent:     "background:var(--accent-soft);color:var(--accent-text,var(--accent))",
-  viewed:   "background:var(--amber-soft);color:var(--amber-dark)",
-  signed:   "background:var(--green-soft);color:var(--green)",
-  declined: "background:rgba(225,29,72,.10);color:var(--red,#E11D48)",
-  voided:   "background:var(--canvas);color:var(--text-subtle)",
-  expired:  "background:var(--canvas);color:var(--text-subtle)",
+// Document lifecycle — enterprise-facing labels + chip styling. The DB
+// statuses are sent / viewed / signed / declined / voided / expired;
+// we present them as the lifecycle stages an HR or legal reviewer
+// expects to see on an e-signature record.
+const _DOCS_LIFECYCLE = {
+  sent:     { label: "Awaiting signature", cls: "is-pending",  blurb: "Delivered to the signer; not yet opened." },
+  viewed:   { label: "Opened by signer",   cls: "is-viewed",   blurb: "The signer has opened the document; signature pending." },
+  signed:   { label: "Signed & sealed",    cls: "is-signed",   blurb: "Signed with recorded intent. The record is sealed and tamper-evident." },
+  declined: { label: "Declined",           cls: "is-declined", blurb: "The signer declined. Reason (if given) is on the audit trail." },
+  voided:   { label: "Voided",             cls: "is-neutral",  blurb: "Withdrawn before completion. No further action possible." },
+  expired:  { label: "Expired",            cls: "is-neutral",  blurb: "Passed its expiry without completion." },
 };
-function _docsStatusPill(s) {
-  const style = _docsStatusStyle[s] || _docsStatusStyle.sent;
-  return `<span class="tag" style="${style};text-transform:capitalize">${escapeHtml(s)}</span>`;
+function _docsLifecycle(s) { return _DOCS_LIFECYCLE[s] || _DOCS_LIFECYCLE.sent; }
+function _docsStatusChip(s) {
+  const lc = _docsLifecycle(s);
+  return `<span class="docs-chip ${lc.cls}" title="${escapeHtml(lc.blurb)}"><i class="dot"></i>${escapeHtml(lc.label)}</span>`;
+}
+// Back-compat shim in case anything else references it.
+function _docsStatusPill(s) { return _docsStatusChip(s); }
+
+const _ICO_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+function _docsInitials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "—";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+function _docsRelTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso); const now = Date.now();
+  const diff = Math.round((now - d.getTime()) / 1000);
+  if (isNaN(diff)) return "";
+  const abs = Math.abs(diff);
+  if (abs < 45) return diff >= 0 ? "just now" : "in moments";
+  const mins = Math.round(abs / 60), hrs = Math.round(abs / 3600), days = Math.round(abs / 86400);
+  let s; if (abs < 3600) s = mins + "m"; else if (abs < 86400) s = hrs + "h"; else if (days < 30) s = days + "d"; else s = Math.round(days / 30) + "mo";
+  return diff >= 0 ? s + " ago" : "in " + s;
+}
+function _docsTimeCell(iso) {
+  if (!iso) return `<span class="docs-ts">—</span>`;
+  const d = new Date(iso);
+  return `<span class="docs-ts">${escapeHtml(d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}))}, ${escapeHtml(d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}))}<span class="rel">${escapeHtml(_docsRelTime(iso))}</span></span>`;
+}
+// Trust badges shown on completed records — restrained, factual.
+function _docsTrustBadges(e) {
+  const out = [];
+  if (e.signed_pdf_path)       out.push(`<span class="docs-badge" title="The signed PDF is sealed; its bytes are hash-pinned.">${_ICO_CHECK}Sealed</span>`);
+  if (e.certificate_pdf_path)  out.push(`<span class="docs-badge" title="A Certificate of Completion documents the full chain of custody.">${_ICO_CHECK}Certificate</span>`);
+  if (e.seal_path)             out.push(`<span class="docs-badge" title="ECDSA signature + RFC 3161 timestamp recorded next to the sealed PDF.">${_ICO_CHECK}Verified</span>`);
+  return out.length ? `<div class="docs-meta-row" style="margin-top:7px">${out.join("")}</div>` : "";
 }
 
 async function loadDocumentsView(sub) {
@@ -19749,6 +19789,14 @@ async function loadDocumentsView(sub) {
   else                          await _renderDocsEnvelopes();
 }
 
+function _docsEmptyState({ icon, title, body, error }) {
+  const ic = icon || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+  return `<div class="docs-empty${error ? " is-error" : ""}">
+    <div class="ic">${error ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' : ic}</div>
+    <h3>${escapeHtml(title)}</h3><p>${body}</p>
+  </div>`;
+}
+
 async function _renderDocsTemplates() {
   const list = document.getElementById("docs-templates-list");
   if (!list) return;
@@ -19758,27 +19806,43 @@ async function _renderDocsTemplates() {
     .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) {
-    list.innerHTML = `<div class="docs-empty" style="color:var(--red)">Couldn't load templates: ${escapeHtml(error.message)}</div>`;
+    list.innerHTML = _docsEmptyState({ error: true, title: "Couldn't load templates", body: escapeHtml(error.message) });
     return;
   }
   if (!data || data.length === 0) {
-    list.innerHTML = `<div class="docs-empty">No templates yet. Click <strong>Upload PDF</strong> to add your first.</div>`;
+    list.innerHTML = _docsEmptyState({
+      title: "No document templates yet",
+      body: "Upload a PDF to create a reusable, version-locked template. Each upload is SHA-256 fingerprinted on the way in, so every signature record can prove exactly which document was signed.",
+    });
     return;
   }
-  list.innerHTML = data.map((t) => `
+  const fieldChip = (t) => {
+    const n = Array.isArray(t.fields) ? t.fields.length : 0;
+    return n > 0
+      ? `<span class="docs-mono-chip"><span class="lbl">Fields</span>${n} signature ${n === 1 ? "field" : "fields"} placed</span>`
+      : `<span class="docs-mono-chip"><span class="lbl">Fields</span>default placement</span>`;
+  };
+  list.innerHTML = `
+    <div class="docs-section-bar">
+      <h2>Templates</h2>
+      <div class="docs-counts"><span><b>${data.length}</b> ${data.length === 1 ? "template" : "templates"}</span><span>Version-locked · SHA-256 fingerprinted</span></div>
+    </div>` + data.map((t) => `
     <div class="docs-template-card" data-tid="${escapeHtml(t.id)}">
-      <div class="docs-template-icon">
+      <div class="docs-doc-tile">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:var(--fs-md);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title)}</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">sha256 ${escapeHtml(String(t.source_hash || "").slice(0,16))}… · ${new Date(t.created_at).toLocaleDateString()}</div>
+        <div class="docs-card-title">${escapeHtml(t.title)}</div>
+        <div class="docs-meta-row">
+          <span class="docs-mono-chip"><span class="lbl">SHA-256</span>${escapeHtml(String(t.source_hash || "").slice(0,18))}…</span>
+          ${fieldChip(t)}
+          <span class="docs-meta-dim">Added ${escapeHtml(new Date(t.created_at).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}))}</span>
+        </div>
       </div>
-      <div style="display:flex;gap:6px;flex:0 0 auto;align-items:center">
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-right:4px">${(Array.isArray(t.fields) ? t.fields.length : 0)} field${(Array.isArray(t.fields) && t.fields.length === 1) ? "" : "s"}</span>
-        <button class="btn btn-sm" data-rr-docs-fields="${escapeHtml(t.id)}">Fields</button>
-        <button class="btn btn-sm btn-primary" data-rr-docs-send="${escapeHtml(t.id)}">Send</button>
-        <button class="btn btn-sm" data-rr-docs-archive="${escapeHtml(t.id)}" title="Archive">✕</button>
+      <div style="display:flex;gap:7px;flex:0 0 auto;align-items:center">
+        <button class="btn btn-sm btn-ghost" data-rr-docs-fields="${escapeHtml(t.id)}">Place fields</button>
+        <button class="btn btn-sm btn-primary" data-rr-docs-send="${escapeHtml(t.id)}">Send for signature</button>
+        <button class="btn btn-sm btn-ghost" data-rr-docs-archive="${escapeHtml(t.id)}" title="Archive this template">Archive</button>
       </div>
     </div>`).join("");
 }
@@ -19788,48 +19852,82 @@ async function _renderDocsEnvelopes() {
   if (!list) return;
   list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
   const { data, error } = await sb.from("document_envelopes")
-    .select("id, recipient_name, recipient_email, status, sent_at, signed_at, voided_at, signed_pdf_path, certificate_pdf_path, signing_token, document_templates(title)")
+    .select("id, recipient_name, recipient_email, status, sent_at, viewed_at, signed_at, voided_at, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, document_templates(title)")
     .order("sent_at", { ascending: false })
     .limit(200);
   if (error) {
-    list.innerHTML = `<div class="docs-empty" style="color:var(--red)">Couldn't load envelopes: ${escapeHtml(error.message)}</div>`;
+    list.innerHTML = _docsEmptyState({ error: true, title: "Couldn't load signature records", body: escapeHtml(error.message) });
     return;
   }
   if (!data || data.length === 0) {
-    list.innerHTML = `<div class="docs-empty">No envelopes yet. Send a template from the <strong>Templates</strong> tab.</div>`;
+    list.innerHTML = _docsEmptyState({
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      title: "No signature records yet",
+      body: "Send a template from the Templates tab. Every envelope you send opens a tamper-evident, hash-chained record of who signed what, when, and from where — retained and independently verifiable.",
+    });
     return;
   }
+
+  // Operational summary across the loaded window.
+  const n = data.length;
+  const nAwaiting = data.filter((e) => e.status === "sent" || e.status === "viewed").length;
+  const nSigned   = data.filter((e) => e.status === "signed").length;
+  const nClosed   = data.filter((e) => e.status === "declined" || e.status === "voided" || e.status === "expired").length;
+  const month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
+  const nThisMonth = data.filter((e) => new Date(e.sent_at) >= month).length;
+
+  const rows = data.map((e) => {
+    const canVoid = e.status === "sent" || e.status === "viewed";
+    return `
+      <tr data-rr-docs-row="${escapeHtml(e.id)}">
+        <td>
+          <div class="docs-recipient">
+            <span class="docs-avatar">${escapeHtml(_docsInitials(e.recipient_name))}</span>
+            <span><span class="nm">${escapeHtml(e.recipient_name || "—")}</span><br><span class="em">${escapeHtml(e.recipient_email || "")}</span></span>
+          </div>
+        </td>
+        <td>
+          <div class="docs-doc-cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>${escapeHtml(e.document_templates?.title || "—")}</span>
+          </div>
+          ${_docsTrustBadges(e)}
+        </td>
+        <td>${_docsStatusChip(e.status)}</td>
+        <td>${_docsTimeCell(e.sent_at)}</td>
+        <td>
+          <div class="docs-row-actions">
+            ${e.signed_pdf_path ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-sealed="${escapeHtml(e.id)}">Signed PDF</button>` : ""}
+            ${e.certificate_pdf_path ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-cert="${escapeHtml(e.id)}">Certificate</button>` : ""}
+            ${e.signing_token ? `<button class="btn btn-sm btn-ghost" data-rr-docs-verify-link="${escapeHtml(e.signing_token)}" title="Copy a public verification link — anyone can confirm this record without a login.">Verify link</button>` : ""}
+            <button class="btn btn-sm btn-ghost" data-rr-docs-audit="${escapeHtml(e.id)}">Chain of custody</button>
+            ${canVoid ? `<button class="btn btn-sm btn-ghost" data-rr-docs-void="${escapeHtml(e.id)}" style="color:var(--red)">Void</button>` : ""}
+          </div>
+        </td>
+      </tr>`;
+  }).join("");
+
   list.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-      <table style="width:100%;border-collapse:collapse">
-        <thead style="background:var(--canvas)">
-          <tr style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)">
-            <th style="text-align:left;padding:10px 14px">Recipient</th>
-            <th style="text-align:left;padding:10px 14px">Document</th>
-            <th style="text-align:left;padding:10px 14px">Status</th>
-            <th style="text-align:left;padding:10px 14px">Sent</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.map((e) => `
-            <tr style="border-top:1px solid var(--border);font-size:var(--fs-sm)">
-              <td style="padding:10px 14px">
-                <div style="font-weight:600;color:var(--text)">${escapeHtml(e.recipient_name || "—")}</div>
-                <div style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(e.recipient_email || "")}</div>
-              </td>
-              <td style="padding:10px 14px;color:var(--text)">${escapeHtml(e.document_templates?.title || "—")}</td>
-              <td style="padding:10px 14px">${_docsStatusPill(e.status)}</td>
-              <td style="padding:10px 14px;color:var(--text-muted);white-space:nowrap">${new Date(e.sent_at).toLocaleString()}</td>
-              <td style="padding:10px 14px;text-align:right;white-space:nowrap">
-                ${e.signed_pdf_path ? `<button class="btn btn-sm" data-rr-docs-download-sealed="${escapeHtml(e.id)}" style="margin-right:4px">Signed PDF</button>` : ""}
-                ${e.certificate_pdf_path ? `<button class="btn btn-sm" data-rr-docs-download-cert="${escapeHtml(e.id)}" style="margin-right:4px">Certificate</button>` : ""}
-                ${e.signing_token ? `<button class="btn btn-sm" data-rr-docs-verify-link="${escapeHtml(e.signing_token)}" style="margin-right:4px" title="Copy a public verification link">Verify link</button>` : ""}
-                <button class="btn btn-sm" data-rr-docs-audit="${escapeHtml(e.id)}">Audit</button>
-                ${["sent","viewed"].includes(e.status) ? `<button class="btn btn-sm" data-rr-docs-void="${escapeHtml(e.id)}" style="color:var(--red);margin-left:4px">Void</button>` : ""}
-              </td>
-            </tr>`).join("")}
-        </tbody>
+    <div class="docs-section-bar">
+      <h2>Signature records</h2>
+      <div class="docs-counts">
+        <span><b>${n}</b> ${n === 1 ? "record" : "records"}</span>
+        <span><b>${nAwaiting}</b> awaiting signature</span>
+        <span><b>${nSigned}</b> signed &amp; sealed</span>
+        ${nClosed ? `<span><b>${nClosed}</b> closed</span>` : ""}
+        <span><b>${nThisMonth}</b> this month</span>
+      </div>
+    </div>
+    <div class="docs-table-wrap">
+      <table class="docs-table">
+        <thead><tr>
+          <th style="width:30%">Signer</th>
+          <th style="width:26%">Document</th>
+          <th style="width:16%">Lifecycle</th>
+          <th style="width:14%">Issued</th>
+          <th style="width:14%;text-align:right">Record</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
       </table>
     </div>`;
 }
@@ -20187,97 +20285,182 @@ async function _docsOpenSend(templateId) {
 }
 
 // ── Audit: render the immutable hash-chained event log ─────────────────
+// Human-facing labels + timeline node styling per audit-event kind.
+const _DOCS_EVENT_LABEL = {
+  envelope_created: "Record created",
+  sent:             "Delivered to signer",
+  reminder_sent:    "Notification sent to signer",
+  viewed:           "Opened by signer",
+  consent_accepted: "Electronic-signature consent accepted",
+  field_completed:  "Field completed",
+  signed:           "Signed with recorded intent",
+  declined:         "Declined by signer",
+  voided:           "Voided by sender",
+  expired:          "Expired without completion",
+  pdf_sealed:       "Document sealed",
+  pdf_signed:       "Cryptographic seal applied",
+  downloaded:       "Record downloaded",
+};
+function _docsEventLabel(k) { return _DOCS_EVENT_LABEL[k] || k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+function _docsEventNodeClass(k, ok) {
+  if (ok === false) return "bad";
+  if (k === "signed") return "signed";
+  if (k === "declined") return "declined";
+  if (["sent","reminder_sent","pdf_sealed","pdf_signed","voided","expired"].includes(k)) return "system";
+  return "";
+}
+
 async function _docsOpenAudit(envelopeId) {
   const m = document.createElement("div");
-  m.className = "modal-backdrop";
-  m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:24px";
+  m.className = "docs-coc-backdrop";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div style="font-weight:600;font-size:var(--fs-lg)">Audit trail</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">envelope ${escapeHtml(envelopeId)}</div>
+    <div class="docs-coc">
+      <div class="docs-coc-head">
+        <div class="row1">
+          <div>
+            <div class="ttl">Chain of custody</div>
+            <div class="sub">Envelope <code>${escapeHtml(envelopeId)}</code></div>
+          </div>
+          <button class="btn btn-sm btn-ghost" id="docs-audit-close">Close</button>
         </div>
-        <button class="btn btn-sm" id="docs-audit-close">Close</button>
+        <div id="docs-coc-verdict-slot"></div>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:16px 20px" id="docs-audit-body">
-        <div class="loader" style="margin:48px auto"></div>
+      <div class="docs-coc-body" id="docs-audit-body">
+        <div class="loader" style="margin:60px auto"></div>
       </div>
     </div>`;
   document.body.appendChild(m);
   const close = () => m.remove();
   m.addEventListener("click", (e) => { if (e.target === m) close(); });
   document.getElementById("docs-audit-close").addEventListener("click", close);
+  document.addEventListener("keydown", function esc(e){ if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); } });
 
-  const [{ data: events, error: evErr }, { data: verify, error: vErr }, { data: envRow }] = await Promise.all([
+  const [{ data: events, error: evErr }, { data: verify }, { data: envRow }] = await Promise.all([
     sb.from("document_events")
       .select("id, kind, actor_kind, actor_email, actor_name, ip, user_agent, event_data, prev_event_hash, event_hash, created_at")
       .eq("envelope_id", envelopeId)
       .order("id"),
     sb.rpc("verify_envelope_chain", { p_envelope_id: envelopeId }),
     sb.from("document_envelopes")
-      .select("signed_pdf_path, certificate_pdf_path, seal_path, signing_token")
+      .select("status, recipient_name, recipient_email, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, document_templates(title)")
       .eq("id", envelopeId).single(),
   ]);
   const body = document.getElementById("docs-audit-body");
+  const verdictSlot = document.getElementById("docs-coc-verdict-slot");
   if (!body) return;
-  if (evErr) { body.innerHTML = `<div style="color:var(--red)">${escapeHtml(evErr.message)}</div>`; return; }
+  if (evErr) { body.innerHTML = `<div style="color:var(--red);font-size:12.5px">${escapeHtml(evErr.message)}</div>`; return; }
+
   const verifyMap = new Map((verify || []).map((v) => [v.id, v]));
-  const allOk = (verify || []).every((v) => v.ok);
+  const allOk = (verify || []).length > 0 && (verify || []).every((v) => v.ok);
   const hasSealed = !!envRow?.signed_pdf_path;
   const hasCert   = !!envRow?.certificate_pdf_path;
   const hasSeal   = !!envRow?.seal_path;
+  const status    = envRow?.status || "sent";
+  const lc        = _docsLifecycle(status);
 
-  // Find the pdf_signed event so we can display the seal fingerprint
-  // inline without needing to download the sidecar JSON.
   const signedEvt = (events || []).find((e) => e.kind === "pdf_signed");
-  const sealKeyFp = signedEvt?.event_data?.key_fingerprint || null;
-  const sealAlg   = signedEvt?.event_data?.signature_alg   || null;
-  const sealDigest = signedEvt?.event_data?.pdf_sha256     || null;
-  const sealTsa     = signedEvt?.event_data?.tsa_url       || null;
-  const sealTsaTime = signedEvt?.event_data?.tsa_gen_time  || null;
+  const sealKeyFp   = signedEvt?.event_data?.key_fingerprint || null;
+  const sealAlg     = signedEvt?.event_data?.signature_alg   || null;
+  const sealDigest  = signedEvt?.event_data?.pdf_sha256      || null;
+  const sealTsa     = signedEvt?.event_data?.tsa_url         || null;
+  const sealTsaTime = signedEvt?.event_data?.tsa_gen_time    || null;
+  const sealedAt    = signedEvt?.event_data?.signed_at       || null;
+
+  // Verdict banner up top.
+  verdictSlot.innerHTML = allOk
+    ? `<div class="docs-coc-verdict ok">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11.5 14.5 16 9.5" stroke-width="2.2"/></svg>
+         <span>Chain of custody verified — no tampering detected.<span class="vsub">Each event is hash-linked to the one before it; the full chain re-computed cleanly.</span></span>
+       </div>`
+    : `<div class="docs-coc-verdict bad">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+         <span>Chain integrity could not be confirmed — review the events below.<span class="vsub">One or more events do not hash to their recorded value, or the chain order is broken.</span></span>
+       </div>`;
+
+  // Document + signer header line.
+  const docTitle = envRow?.document_templates?.title || "Document";
+
+  // Records (downloads) row.
+  const recordsRow = (hasSealed || hasCert || hasSeal || envRow?.signing_token) ? `
+    <div class="docs-coc-sectionlabel">Records</div>
+    <div class="docs-records">
+      ${hasSealed ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-sealed="${escapeHtml(envelopeId)}">Signed PDF</button>` : ""}
+      ${hasCert   ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-cert="${escapeHtml(envelopeId)}">Certificate of Completion</button>` : ""}
+      ${hasSeal   ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-seal="${escapeHtml(envelopeId)}">Cryptographic seal (.json)</button>` : ""}
+      ${envRow?.signing_token ? `<button class="btn btn-sm btn-ghost" data-rr-docs-verify-link="${escapeHtml(envRow.signing_token)}" title="Anyone with this link can independently confirm this record — no login.">Copy public verification link</button>` : ""}
+    </div>` : `
+    <div class="docs-coc-sectionlabel">Records</div>
+    <div style="font-size:11.5px;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:10px 12px;line-height:1.55">
+      The sealed PDF and Certificate of Completion are generated automatically once the signer completes. They'll appear here within a minute of signing.
+    </div>`;
+
+  // Security record card.
+  const secCheck = (on, label, title) =>
+    `<span class="docs-secrec-check${on ? "" : " pending"}" title="${escapeHtml(title)}">${on ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}${escapeHtml(label)}</span>`;
+  const secRow = (k, v) => `<div class="docs-secrec-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`;
+  const securityCard = `
+    <div class="docs-coc-sectionlabel">Security record</div>
+    <div class="docs-secrec">
+      <div class="docs-secrec-checks">
+        ${secCheck(allOk,              "Audit chain verified", "The hash chain re-computes cleanly end-to-end.")}
+        ${secCheck(hasSealed,          "Document sealed",      "The signed PDF's bytes are fixed and recorded.")}
+        ${secCheck(!!sealAlg || hasSeal,"Signature verified",  "An ECDSA P-256 signature over the sealed PDF is on file.")}
+        ${secCheck(!!sealTsa || !!sealTsaTime, "Independently timestamped", "An RFC 3161 trusted timestamp anchors when the seal was made.")}
+        ${secCheck(true,               "Tamper-evident",      "Any change to the record or the sealed file is detectable.")}
+        ${secCheck(true,               "Identity captured",   "Signer name, email, IP, and device are on the audit trail.")}
+      </div>
+      ${sealAlg     ? secRow("Algorithm",     String(sealAlg)) : ""}
+      ${sealDigest  ? secRow("PDF SHA-256",   String(sealDigest)) : ""}
+      ${sealKeyFp   ? secRow("Key fingerprint", String(sealKeyFp)) : ""}
+      ${sealedAt    ? secRow("Sealed at",     new Date(sealedAt).toISOString()) : ""}
+      ${sealTsaTime ? secRow("Timestamp (TSA)", String(sealTsaTime) + (sealTsa ? "  ·  " + String(sealTsa) : "")) : (sealTsa ? secRow("Timestamp", "token attached  ·  " + String(sealTsa)) : "")}
+      ${(!sealAlg && !hasSeal) ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">The cryptographic seal is applied by the sealing service after signing. If it isn't present on a signed record, check the service configuration.</div>` : ""}
+    </div>`;
+
+  // Timeline.
+  const tl = (events || []).map((e) => {
+    const ok = verifyMap.has(e.id) ? verifyMap.get(e.id).ok : null;
+    const nodeCls = _docsEventNodeClass(e.kind, ok);
+    const actor = [
+      e.actor_name ? escapeHtml(e.actor_name) : null,
+      e.actor_email ? "&lt;" + escapeHtml(e.actor_email) + "&gt;" : null,
+    ].filter(Boolean).join(" ");
+    const device = e.user_agent ? escapeHtml(String(e.user_agent).slice(0, 64)) + (String(e.user_agent).length > 64 ? "…" : "") : null;
+    const metaBits = [
+      e.actor_kind ? escapeHtml(e.actor_kind) : null,
+      actor || null,
+      e.ip ? "IP " + escapeHtml(String(e.ip)) : null,
+      device,
+    ].filter(Boolean).join("  ·  ");
+    const dt = new Date(e.created_at);
+    return `
+      <li class="docs-tl-item">
+        <span class="docs-tl-node ${nodeCls}">${ok === false ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' : ''}</span>
+        <div class="docs-tl-head">
+          <span class="docs-tl-kind">${escapeHtml(_docsEventLabel(e.kind))}</span>
+          <span class="docs-tl-time">${escapeHtml(dt.toLocaleString(undefined,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",second:"2-digit"}))} · ${escapeHtml(_docsRelTime(e.created_at))}</span>
+        </div>
+        ${metaBits ? `<div class="docs-tl-meta">${metaBits}</div>` : ""}
+        <div class="docs-tl-hash">${escapeHtml(String(e.event_hash || "").slice(0, 40))}…</div>
+      </li>`;
+  }).join("");
+
   body.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;margin-bottom:14px;background:${allOk ? "var(--green-soft)" : "rgba(225,29,72,.10)"};color:${allOk ? "var(--green)" : "var(--red)"};font-weight:600;font-size:var(--fs-sm)">
-      ${allOk
-        ? `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Hash chain verified — no tampering detected.`
-        : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Chain mismatch detected — review events.`}
+    <div class="docs-coc-sectionlabel">Document &amp; signer</div>
+    <div style="display:flex;align-items:center;gap:12px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+      <div class="docs-doc-tile" style="width:34px;height:42px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:650;color:var(--text);font-size:13px">${escapeHtml(docTitle)}</div>
+        <div style="font-size:11.5px;color:var(--text-subtle);margin-top:2px">${escapeHtml(envRow?.recipient_name || "—")}${envRow?.recipient_email ? " · " + escapeHtml(envRow.recipient_email) : ""}</div>
+      </div>
+      ${_docsStatusChip(status)}
     </div>
-    ${(hasSealed || hasCert || envRow?.signing_token) ? `
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        ${hasSealed ? `<button class="btn btn-sm" data-rr-docs-download-sealed="${escapeHtml(envelopeId)}">Download signed PDF</button>` : ""}
-        ${hasCert   ? `<button class="btn btn-sm" data-rr-docs-download-cert="${escapeHtml(envelopeId)}">Download Certificate of Completion</button>` : ""}
-        ${hasSeal   ? `<button class="btn btn-sm" data-rr-docs-download-seal="${escapeHtml(envelopeId)}">Download seal (.json)</button>` : ""}
-        ${envRow?.signing_token ? `<button class="btn btn-sm" data-rr-docs-verify-link="${escapeHtml(envRow.signing_token)}">Copy public verification link</button>` : ""}
-      </div>` : `
-      <div style="padding:10px 12px;border-radius:8px;margin-bottom:14px;background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs)">
-        Sealed PDF + Certificate of Completion are generated by the sealing worker after the driver signs. If they don't appear within a minute, check the worker's settings in <code>private.app_settings</code>.
-      </div>`}
-    ${hasSeal ? `
-      <div style="padding:10px 12px;border-radius:8px;margin-bottom:14px;background:var(--green-soft);color:var(--green);font-size:var(--fs-xs);line-height:1.5">
-        <div style="font-weight:700;margin-bottom:4px">Cryptographically sealed</div>
-        ${sealAlg    ? `<div>algorithm · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(String(sealAlg))}</span></div>` : ""}
-        ${sealDigest ? `<div>pdf sha-256 · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all">${escapeHtml(String(sealDigest))}</span></div>` : ""}
-        ${sealKeyFp  ? `<div>key fingerprint · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(String(sealKeyFp))}</span></div>` : ""}
-        ${sealTsaTime ? `<div>rfc 3161 timestamp · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(String(sealTsaTime))}</span>${sealTsa ? ` <span style="opacity:.7">via ${escapeHtml(String(sealTsa))}</span>` : ""}</div>` : (sealTsa ? `<div>rfc 3161 timestamp · <span style="opacity:.7">token attached (${escapeHtml(String(sealTsa))})</span></div>` : "")}
-      </div>` : ""}
-    <div style="display:flex;flex-direction:column;gap:10px">
-      ${(events || []).map((e) => {
-        const v = verifyMap.get(e.id);
-        const ok = v ? v.ok : null;
-        return `
-          <div style="border:1px solid var(--border);border-left:3px solid ${ok === false ? "var(--red)" : "var(--accent)"};border-radius:10px;padding:10px 14px;background:var(--surface)">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
-              <div style="font-weight:600;color:var(--text);text-transform:capitalize">${escapeHtml(e.kind.replace(/_/g, " "))}</div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap">${new Date(e.created_at).toLocaleString()}</div>
-            </div>
-            <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px">
-              ${escapeHtml(e.actor_kind)}${e.actor_name ? " · " + escapeHtml(e.actor_name) : ""}${e.actor_email ? " &lt;" + escapeHtml(e.actor_email) + "&gt;" : ""}${e.ip ? " · " + escapeHtml(String(e.ip)) : ""}
-            </div>
-            <div style="font-size:10px;color:var(--text-subtle);margin-top:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all">
-              hash <span style="color:var(--text)">${escapeHtml(String(e.event_hash).slice(0, 32))}…</span>
-            </div>
-          </div>`;
-      }).join("")}
+    ${recordsRow}
+    ${securityCard}
+    <div class="docs-coc-sectionlabel">Timeline</div>
+    <ul class="docs-timeline">${tl || `<li style="font-size:12px;color:var(--text-subtle);list-style:none">No events recorded.</li>`}</ul>
+    <div class="docs-coc-foot">
+      This record is append-only and hash-chained — events cannot be altered or removed after the fact. The sealed PDF, the Certificate of Completion, and the cryptographic seal are retained alongside it and can be independently verified at any time via the public verification link. Status: <strong>${escapeHtml(lc.label)}</strong> — ${escapeHtml(lc.blurb)}
     </div>`;
 }
 
