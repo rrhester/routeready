@@ -16,11 +16,26 @@
 //      the 'documents' bucket and stamp the envelope.
 //   7. Log a `pdf_sealed` event on the audit chain.
 //
-// PKCS#7 detached signature + RFC 3161 timestamping land in a follow-up
-// PR (slice 4b) — this Worker is the plumbing. Until then the sealed
-// PDF is human-defensible (signature visible, Certificate of Completion
-// attached, hash chain intact in our DB) but not cryptographically
-// tamper-evident to a PDF reader.
+// Slice 4b — cryptographic integrity (Phase 1):
+//   • The Worker computes SHA-256 of the sealed PDF bytes (after the
+//     signature stamp + COC are baked in).
+//   • It signs that digest with an ECDSA P-256 key held as a Worker
+//     secret (RR_SIGNING_PRIVATE_JWK). The matching public key is
+//     exposed via GET /public-key so verifiers can validate the seal
+//     without our private material.
+//   • A JSON sidecar is written to <dsp>/seal/<id>.json containing
+//     the digest, signature, key fingerprint, and timestamps — this
+//     means the sealed PDF bytes stay byte-identical to what you'd
+//     hand to a court while the proof lives next to it.
+//   • The Certificate of Completion prints the digest + signature
+//     fingerprint, and a `pdf_signed` event lands on the audit chain.
+//
+// If RR_SIGNING_PRIVATE_JWK isn't set, sealing degrades to the
+// previous (uncryptographic) behavior — the sealed PDF + COC still
+// upload, just without the sidecar.
+//
+// RFC 3161 TSA timestamping is a planned Phase 2: same shape but
+// stamps `tst_b64` into the sidecar from FreeTSA or similar.
 //
 // Inputs (POST JSON body): { envelope_id: string }
 // Auth: Authorization: Bearer <SEALING_SECRET>
@@ -37,6 +52,16 @@ interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   SEALING_SECRET: string;
+  // ECDSA P-256 private key in JWK JSON form. Generate locally with:
+  //   openssl ecparam -name prime256v1 -genkey -noout -out key.pem
+  //   openssl ec -in key.pem -text -noout    # inspect
+  //   then convert to JWK and `wrangler secret put RR_SIGNING_PRIVATE_JWK`.
+  // If unset, sealing skips the cryptographic step gracefully.
+  RR_SIGNING_PRIVATE_JWK?: string;
+  // Optional human-readable identifier for the active key, written into
+  // every seal — useful when you rotate keys and need to know which
+  // public key validates which seal.
+  RR_SIGNING_KEY_ID?: string;
 }
 
 interface AuditEvent {
@@ -74,6 +99,7 @@ interface Envelope {
   sent_at: string;
   signed_pdf_path: string | null;
   certificate_pdf_path: string | null;
+  seal_path: string | null;
 }
 
 interface Template {
@@ -85,6 +111,22 @@ interface Template {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    const url = new URL(req.url);
+
+    // Public-key endpoint — anyone can fetch this. Returns the
+    // ECDSA P-256 public JWK that validates seals we produce. Used by
+    // future external verifiers (slice 5) and is also documented for
+    // counterparties who want to verify a sealed PDF independently.
+    if (req.method === "GET" && url.pathname === "/public-key") {
+      try {
+        const pub = await loadPublicKeyJwk(env);
+        if (!pub) return json({ error: "signing_key_not_configured" }, 404);
+        return json(pub, 200, { "Cache-Control": "public, max-age=300" });
+      } catch (err) {
+        return json({ error: String((err as Error)?.message || err) }, 500);
+      }
+    }
+
     if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
     // Shared-secret auth between the Postgres trigger and the Worker.
@@ -139,34 +181,59 @@ async function sealEnvelope(envelopeId: string, env: Env) {
   // 3. Download source PDF.
   const sourceBytes = await downloadStorage(env, "documents", tpl.source_path);
 
-  // 4. Stamp the signature into the PDF.
+  // 3b. Load the signing key metadata up front. The key id +
+  // fingerprint don't depend on the PDF bytes, so we can print them
+  // inside the embedded Certificate of Completion. The actual digest
+  // + signature can only be computed *after* the final PDF exists —
+  // and would be circular if printed inside it — so those go in the
+  // sidecar JSON (and the standalone COC, which is a separate file).
+  const keyMeta = await loadSealKeyMeta(env);
+  const sealPath = `${env_.dsp_id}/seal/${env_.id}.json`;
+  const sealStub: SealStub | null = keyMeta
+    ? { key_id: keyMeta.key_id, key_fingerprint: keyMeta.key_fingerprint, seal_path: sealPath }
+    : null;
+
+  // 4. Stamp the signature into the PDF + append the Certificate of
+  // Completion (with the seal stub if we have a key).
   const pdf = await PDFDocument.load(sourceBytes);
   const helv = await pdf.embedFont(StandardFonts.Helvetica);
   const helvBold = await pdf.embedFont(StandardFonts.HelveticaBold);
   await stampSignature(pdf, env_, sigMethod, sigData, typedName, helvBold);
-
-  // 5. Append the Certificate of Completion page(s) and finalize.
-  await appendCertificate(pdf, env_, tpl, events, helv, helvBold);
+  await appendCertificate(pdf, env_, tpl, events, helv, helvBold, sealStub, null);
   const sealedBytes = await pdf.save();
 
-  // 6. Also save the Certificate of Completion as a standalone PDF so
-  // the dashboard can link to it independently of the sealed document.
+  // 5. Cryptographic seal (Phase 1): ECDSA P-256 signature over the
+  // sealed PDF's SHA-256. Null if no key is configured.
+  const sealInfo = keyMeta ? await signBytes(keyMeta, env_.id, sealedBytes) : null;
+  const sidecarBytes = sealInfo
+    ? new TextEncoder().encode(JSON.stringify(sealInfo, null, 2))
+    : null;
+
+  // 6. Save the Certificate of Completion as a standalone PDF — this
+  // one isn't part of the sealed bytes, so it can print the full
+  // digest + signature fingerprint.
   const certPdf = await PDFDocument.create();
   const certHelv = await certPdf.embedFont(StandardFonts.Helvetica);
   const certHelvBold = await certPdf.embedFont(StandardFonts.HelveticaBold);
-  await appendCertificate(certPdf, env_, tpl, events, certHelv, certHelvBold);
+  await appendCertificate(certPdf, env_, tpl, events, certHelv, certHelvBold, sealStub, sealInfo);
   const certBytes = await certPdf.save();
 
-  // 7. Upload to <dsp>/signed/<envelope>.pdf and <dsp>/certificates/<envelope>.pdf.
+  // 7. Upload to <dsp>/signed/<envelope>.pdf, <dsp>/certificates/<envelope>.pdf,
+  // and (if sealed) <dsp>/seal/<envelope>.json.
   const sealedPath = `${env_.dsp_id}/signed/${env_.id}.pdf`;
   const certPath = `${env_.dsp_id}/certificates/${env_.id}.pdf`;
+  // sealPath was computed in step 3b.
   await uploadStorage(env, "documents", sealedPath, sealedBytes, "application/pdf");
   await uploadStorage(env, "documents", certPath,   certBytes,   "application/pdf");
+  if (sidecarBytes) {
+    await uploadStorage(env, "documents", sealPath, sidecarBytes, "application/json");
+  }
 
   // 8. Update the envelope row with the storage paths.
   await sbPatch(env, `document_envelopes?id=eq.${env_.id}`, {
     signed_pdf_path:      sealedPath,
     certificate_pdf_path: certPath,
+    seal_path:            sidecarBytes ? sealPath : null,
   });
 
   // 9. Append the pdf_sealed event to the audit chain (will be the next
@@ -203,13 +270,155 @@ async function sealEnvelope(envelopeId: string, env: Env) {
     });
   });
 
+  // 10. If we cryptographically sealed, append a `pdf_signed` event
+  // documenting the seal. Best-effort — the sealed PDF + sidecar
+  // already make the proof verifiable independently of the chain.
+  if (sealInfo) {
+    await sbRpc(env, "append_document_event", {
+      p_envelope_id:     env_.id,
+      p_kind:            "pdf_signed",
+      p_actor_kind:      "system",
+      p_actor_user_id:   null,
+      p_actor_driver_id: null,
+      p_actor_email:     null,
+      p_actor_name:      null,
+      p_ip:              null,
+      p_user_agent:      "rr-document-sealing/0.1",
+      p_event_data: {
+        seal_path:        sealPath,
+        pdf_sha256:       sealInfo.pdf_sha256,
+        signature_alg:    sealInfo.signature_alg,
+        signature_b64:    sealInfo.signature_b64,
+        key_id:           sealInfo.key_id,
+        key_fingerprint:  sealInfo.key_fingerprint,
+        signed_at:        sealInfo.signed_at,
+      },
+    }).catch((err) => {
+      console.error("pdf_signed audit log failed", err);
+    });
+  }
+
   return {
     ok: true,
     envelope_id:           env_.id,
     signed_pdf_path:       sealedPath,
     certificate_pdf_path:  certPath,
+    seal_path:             sidecarBytes ? sealPath : null,
     sealed_byte_count:     sealedBytes.byteLength,
+    sealed:                !!sealInfo,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Cryptographic seal (Phase 1) — ECDSA P-256 over the sealed PDF bytes.
+// ─────────────────────────────────────────────────────────────────────────
+
+// What we can print inside the *embedded* COC (no PDF digest — that
+// would be circular). What we put in the sidecar JSON + standalone COC
+// + audit event (the full thing) is SealInfo.
+interface SealStub {
+  key_id:          string;
+  key_fingerprint: string;
+  seal_path:       string;
+}
+interface SealInfo {
+  version:         "rr-seal-v1";
+  envelope_id:     string;
+  pdf_sha256:      string;
+  signature_alg:   "ECDSA-P256-SHA256";
+  signature_b64:   string;
+  key_id:          string;
+  key_fingerprint: string;
+  public_jwk:      JsonWebKey;
+  signed_at:       string;
+}
+
+interface SealKeyMeta {
+  privKey:         CryptoKey;
+  pubJwk:          JsonWebKey;
+  key_id:          string;
+  key_fingerprint: string;
+}
+
+// Imports RR_SIGNING_PRIVATE_JWK and derives the public material +
+// fingerprint. Returns null (and logs) when no key is configured or
+// the JWK is malformed — callers degrade to unsealed sealing.
+async function loadSealKeyMeta(env: Env): Promise<SealKeyMeta | null> {
+  if (!env.RR_SIGNING_PRIVATE_JWK) return null;
+  let priv: JsonWebKey;
+  try {
+    priv = JSON.parse(env.RR_SIGNING_PRIVATE_JWK);
+  } catch {
+    console.error("RR_SIGNING_PRIVATE_JWK is not valid JSON; skipping seal");
+    return null;
+  }
+  try {
+    const privKey = await crypto.subtle.importKey(
+      "jwk", priv, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"],
+    );
+    const pubJwk: JsonWebKey = { kty: priv.kty, crv: priv.crv, x: priv.x, y: priv.y };
+    const pubKey = await crypto.subtle.importKey(
+      "jwk", pubJwk, { name: "ECDSA", namedCurve: "P-256" }, true, ["verify"],
+    );
+    // Fingerprint = first 32 hex chars of SHA-256 over the canonical SPKI bytes.
+    const spki = (await crypto.subtle.exportKey("spki", pubKey)) as ArrayBuffer;
+    const fpFull = await crypto.subtle.digest("SHA-256", spki);
+    const fingerprint = bytesToHex(new Uint8Array(fpFull)).slice(0, 32);
+    return {
+      privKey,
+      pubJwk,
+      key_id:          env.RR_SIGNING_KEY_ID || "rr-seal-2026",
+      key_fingerprint: fingerprint,
+    };
+  } catch (err) {
+    console.error("failed to import signing key; skipping seal", err);
+    return null;
+  }
+}
+
+// Signs SHA-256(bytes) with the configured ECDSA P-256 key.
+async function signBytes(
+  meta: SealKeyMeta,
+  envelopeId: string,
+  bytes: Uint8Array,
+): Promise<SealInfo | null> {
+  try {
+    const pdfDigest = await crypto.subtle.digest("SHA-256", bytes);
+    const sig = await crypto.subtle.sign(
+      { name: "ECDSA", hash: "SHA-256" }, meta.privKey, pdfDigest,
+    );
+    return {
+      version:         "rr-seal-v1",
+      envelope_id:     envelopeId,
+      pdf_sha256:      bytesToHex(new Uint8Array(pdfDigest)),
+      signature_alg:   "ECDSA-P256-SHA256",
+      signature_b64:   bytesToBase64(new Uint8Array(sig)),
+      key_id:          meta.key_id,
+      key_fingerprint: meta.key_fingerprint,
+      public_jwk:      meta.pubJwk,
+      signed_at:       new Date().toISOString(),
+    };
+  } catch (err) {
+    console.error("seal signing failed; uploading unsealed", err);
+    return null;
+  }
+}
+
+async function loadPublicKeyJwk(env: Env): Promise<JsonWebKey | null> {
+  if (!env.RR_SIGNING_PRIVATE_JWK) return null;
+  const priv: JsonWebKey = JSON.parse(env.RR_SIGNING_PRIVATE_JWK);
+  return { kty: priv.kty, crv: priv.crv, x: priv.x, y: priv.y, key_ops: ["verify"] };
+}
+
+function bytesToHex(b: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2, "0");
+  return s;
+}
+function bytesToBase64(b: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -308,13 +517,17 @@ async function appendCertificate(
   events: AuditEvent[],
   helv: PDFFont,
   bold: PDFFont,
+  // stub is safe to print inside the embedded COC (no circular digest);
+  // full carries pdf_sha256 + signature and is only passed when we're
+  // building the standalone COC (a separate file).
+  sealStub: SealStub | null,
+  sealFull: SealInfo | null,
 ) {
   let page = pdf.addPage([612, 792]); // US Letter
   const { width: pw } = page.getSize();
   let cursorY = 740;
   const margin = 48;
   const innerW = pw - margin * 2;
-  const lineHeight = 14;
 
   const writeLine = (text: string, opts?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => {
     if (cursorY < 60) {
@@ -368,10 +581,38 @@ async function appendCertificate(
     cursorY -= 2;
   }
 
+  // Cryptographic seal section. Inside the *embedded* COC we can only
+  // safely print the key id / fingerprint + a pointer to the sidecar
+  // (printing the PDF's own SHA-256 would be circular). The standalone
+  // COC gets the full digest + signature because it's a separate file.
+  if (sealStub) {
+    cursorY -= 6;
+    writeLine("CRYPTOGRAPHIC SEAL  (ECDSA P-256)", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
+    writeLine("Key id:      " + sealStub.key_id + "  (fingerprint " + sealStub.key_fingerprint + ")", { size: 9, color: rgb(0.34, 0.40, 0.50) });
+    if (sealFull) {
+      writeLine("Algorithm:   " + sealFull.signature_alg, { size: 9, color: rgb(0.34, 0.40, 0.50) });
+      writeLine("PDF SHA-256: " + sealFull.pdf_sha256,    { size: 9, color: rgb(0.34, 0.40, 0.50) });
+      writeLine("Sealed at:   " + sealFull.signed_at,     { size: 9, color: rgb(0.34, 0.40, 0.50) });
+      writeLine("Signature (base64, raw r||s):", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+      for (const chunk of wrapText(sealFull.signature_b64, 86)) {
+        writeLine("  " + chunk, { size: 7, color: rgb(0.50, 0.55, 0.65) });
+      }
+    } else {
+      writeLine("The PDF SHA-256, signature, and public key live next to the sealed PDF at " + sealStub.seal_path + ".", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+    }
+    writeLine("Public key is also served at GET /public-key on the sealing service.", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+  }
+
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.1", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.2", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+}
+
+function wrapText(s: string, n: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < s.length; i += n) out.push(s.slice(i, i + n));
+  return out;
 }
 
 function humanKind(kind: string): string {
@@ -451,9 +692,9 @@ async function uploadStorage(env: Env, bucket: string, path: string, bytes: Uint
 
 // ─────────────────────────────────────────────────────────────────────────
 
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
   });
 }
