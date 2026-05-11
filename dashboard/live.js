@@ -2841,6 +2841,17 @@ function _rosterEmpty({ icon, title, body, error }) {
   return `<div class="dr-empty"><div class="ic"${error ? ' style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"' : ""}>${ic}</div><h3>${escapeHtml(title)}</h3><p>${body}</p></div>`;
 }
 
+// Generic card/list skeleton for the Drivers sub-views (Licenses,
+// Attendance, Coaching, Availability) — painted before their data lands.
+function _drSkelList(n = 6) {
+  const row = `<div class="row">
+    <div style="flex:1"><div class="bar" style="width:${40 + Math.round(Math.random()*30)}%"></div><div class="bar" style="width:${20 + Math.round(Math.random()*20)}%;margin-top:7px;height:10px"></div></div>
+    <div class="bar" style="width:80px;height:11px"></div>
+    <div class="bar" style="width:64px;height:22px;border-radius:999px"></div>
+  </div>`;
+  return `<div class="dr-skel-list">${Array.from({ length: n }, () => row).join("")}</div>`;
+}
+
 function _rosterSkeleton(colspan, n = 6) {
   const cells = Array.from({ length: colspan - 2 }, () => `<td><div class="dr-skel-cell" style="width:${50 + Math.round(Math.random()*40)}%"></div></td>`).join("");
   const row = `<tr style="pointer-events:none">
@@ -2988,6 +2999,8 @@ document.addEventListener("click", (e) => {
 async function loadAttendanceLive() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
+  const _attBody0 = document.getElementById("att-report-body");
+  if (_attBody0 && !_attBody0.children.length) _attBody0.innerHTML = `<tr><td colspan="6" style="padding:0">${_drSkelList(6)}</td></tr>`;
 
   // Window = the policy decay window.  This is the "standing
   // attendance" view, so it always reflects what's currently scoring
@@ -6856,7 +6869,7 @@ async function loadDriverLicensesView() {
 
   // Wipe synchronously so any mockup-rendered rows can't flash through
   // while the live select is in flight.
-  body.innerHTML = `<div class="rr-loading">Loading</div>`;
+  body.innerHTML = _drSkelList(7);
   if (status) status.textContent = "—";
   // Renewal-reminder configuration moved to Settings → License renewals
   // and Schedule → Scheduling rules; this view just shows the renewal
@@ -12728,7 +12741,7 @@ async function loadAvailabilityRequests() {
   // Header + KPI shells render synchronously so the operator sees
   // structure even while the data loads.
   _renderAvailabilityShell();
-  wrap.innerHTML = `<div class="rr-loading">Loading requests</div>`;
+  wrap.innerHTML = _drSkelList(5);
 
   // Fire all five endpoints in parallel.  The decision-support
   // numbers under each pending request need:
@@ -13672,7 +13685,7 @@ document.addEventListener("click", async (e) => {
 async function loadCoachingFeed() {
   const wrap = document.getElementById("rr-coach-feed");
   if (!wrap) return;
-  wrap.innerHTML = `<div class="rr-loading">Loading</div>`;
+  wrap.innerHTML = _drSkelList(7);
 
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
