@@ -978,6 +978,37 @@ select.field{
   box-shadow:none;
 }
 .chat-bubble.failed .chat-time{ color:var(--red); opacity:1 }
+
+/* Operational message types — priority + ack-required. Dispatcher sets
+   these via dispatch_chat_send; driver sees them on inbound bubbles. */
+.chat-bubble.urgent{
+  box-shadow:inset 3px 0 0 var(--red, #E11D48);
+  background:rgba(225,29,72,.06);
+}
+.chat-bubble.high{
+  box-shadow:inset 3px 0 0 var(--amber, #D97706);
+}
+.chat-pri-tag{
+  display:inline-block;align-self:flex-start;
+  background:var(--red, #E11D48);color:#fff;
+  font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:999px;margin-bottom:6px;
+}
+.chat-ack-btn{
+  margin-top:8px;
+  background:var(--brand-grad, var(--accent-grad));color:#fff;
+  border:0;border-radius:8px;padding:8px 14px;
+  font:inherit;font-size:var(--fs-sm);font-weight:700;letter-spacing:.01em;
+  cursor:pointer;box-shadow:0 4px 10px -4px rgba(15,108,189,.40);
+  transition:transform .08s ease, box-shadow .12s ease, opacity .12s ease;
+}
+.chat-ack-btn:active{ transform:scale(.97); }
+.chat-ack-btn:disabled{ opacity:.6;cursor:not-allowed;box-shadow:none; }
+.chat-ack.acked{
+  display:inline-flex;align-items:center;gap:4px;margin-top:6px;
+  font-size:var(--fs-xs);font-weight:700;color:var(--green, #059669);
+}
+.chat-ack.acked svg{ width:12px;height:12px; }
 /* Read receipt — slim "Read" pill aligned right under the driver's
    last sent message.  Explicit token-aligned spacing (no negative
    margins) so the receipt's position is stable across line-height

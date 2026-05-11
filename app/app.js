@@ -866,6 +866,31 @@ async function renderChat() {
     try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch {}
   });
 
+  // Acknowledge button on requires_ack dispatch messages — delegated so
+  // re-renders don't re-bind.
+  document.getElementById("chat-msgs")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-rr-ack]");
+    if (!btn || btn.disabled) return;
+    const id = btn.getAttribute("data-rr-ack");
+    btn.disabled = true; btn.textContent = "Acknowledging…";
+    if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+    const cur = readSession();
+    const { error } = await sb.rpc("driver_ack_message", { p_token: cur?.token, p_message_id: id });
+    if (error) {
+      toast("Couldn't acknowledge: " + (error.message || "try again"), "warn");
+      btn.disabled = false; btn.textContent = "Acknowledge";
+      return;
+    }
+    // The realtime UPDATE on driver_messages.acked_at will trigger a
+    // refreshChat; until it arrives, paint an immediate optimistic flip
+    // so the driver sees the result.
+    const bubble = btn.closest(".chat-bubble");
+    if (bubble) {
+      btn.outerHTML = `<div class="chat-ack acked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>Acknowledged · just now</div>`;
+    }
+    refreshChat(false);
+  });
+
   // Attachment picker — paperclip opens the file input.  Pending file
   // sits in window._rrChatPending until the operator hits send.
   const fileInput = document.getElementById("chat-file");
@@ -1403,10 +1428,29 @@ function chatBubbleHtml(m, pos) {
     }
   }
 
+  // Priority + ack-required (set by dispatch via dispatch_chat_send).
+  // Urgent/high gets a left accent bar via .urgent / .high classes;
+  // ack-required dispatch messages render an Acknowledge button until
+  // the driver taps it (then it flips to a green "Acknowledged" pill).
+  const priCls = m.priority === "urgent" ? " urgent"
+                : m.priority === "high"   ? " high" : "";
+  const showUrgentTag = !mine && m.priority === "urgent";
+  let ack = "";
+  if (!mine && m.requires_ack) {
+    if (m.acked_at) {
+      const at = new Date(m.acked_at).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+      ack = `<div class="chat-ack acked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>Acknowledged · ${escapeHtml(at)}</div>`;
+    } else {
+      ack = `<button type="button" class="chat-ack-btn" data-rr-ack="${escapeHtml(m.id)}">Acknowledge</button>`;
+    }
+  }
+
   return `
-    <div class="chat-bubble ${mine ? "mine" : "theirs"}"${groupAttr}>
+    <div class="chat-bubble ${mine ? "mine" : "theirs"}${priCls}"${groupAttr}>
+      ${showUrgentTag ? `<div class="chat-pri-tag">Urgent</div>` : ""}
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
+      ${ack}
       <div class="chat-time">${escapeHtml(time)}</div>
     </div>`;
 }
