@@ -10403,7 +10403,11 @@ async function _buildEmploymentReport(driverId, m) {
   const coachings = (coRes.data || []);
   const envelopes = (envRes.data || []);
   const timeOff = (toRes.data || []);
-  const msgs = (msgRes.data || []).filter(x => x && (x.body || x.text || x.message));
+  // dispatch_chat_thread returns { driver, messages, peer_last_read_at } —
+  // not a bare array — so dig the messages out defensively.
+  const _msgsRaw = msgRes.data;
+  const msgs = (Array.isArray(_msgsRaw) ? _msgsRaw : (_msgsRaw?.messages || []))
+    .filter(x => x && (x.body || x.text || x.message));
 
   const name = displayDriverName(drv) || "—";
   const todayIso = fmtIsoDate(new Date());
@@ -10447,9 +10451,12 @@ async function _buildEmploymentReport(driverId, m) {
   // ── Communications timeline ──
   const msgTl = msgs.slice(-60).map(x => {
     const when = x.created_at || x.sent_at || x.at;
-    const dir = x.direction || (x.from_driver || x.is_from_driver ? "From driver" : x.sender === "driver" ? "From driver" : "From dispatch");
-    const txt = String(x.body || x.text || x.message || "").slice(0, 280);
-    return `<li class="sys"><div class="d">${fmtDT(when)} · ${esc(dir)}</div><div class="b">${esc(txt)}${(x.body || x.text || x.message || "").length > 280 ? "…" : ""}</div></li>`;
+    const dir = x.sender_kind === "driver" ? "From driver"
+              : x.sender_kind === "dispatch" ? `From dispatch${x.sender_name ? " · " + esc(x.sender_name) : ""}`
+              : (x.direction === "inbound" ? "From driver" : x.direction === "outbound" ? "From dispatch" : "—");
+    const raw = String(x.body || x.text || x.message || "");
+    const txt = raw.slice(0, 280);
+    return `<li class="sys"><div class="d">${fmtDT(when)} · ${dir}</div><div class="b">${esc(txt)}${raw.length > 280 ? "…" : ""}</div></li>`;
   }).join("");
 
   // ── Scheduling history (last 26 weeks, weekly rollup) ──
