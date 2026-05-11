@@ -10106,7 +10106,7 @@ async function openDriverDrawer(driverId, opts) {
   // opts.tab — open the drawer with that tab pre-selected (e.g. the
   // Attendance Report row click drops the operator straight into the
   // driver's Attendance tab).
-  const initialTab = (opts && opts.tab) || "profile";
+  const initialTab = (opts && opts.tab) || "overview";
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
   drawer = document.createElement("div");
@@ -10119,7 +10119,7 @@ async function openDriverDrawer(driverId, opts) {
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
       .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:9px;margin:16px 28px 0}
-      .dd-tab{flex:1;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 12px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
+      .dd-tab{flex:1;min-width:0;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 10px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
       .dd-body{padding:22px 28px;flex:1}
@@ -10161,9 +10161,10 @@ async function openDriverDrawer(driverId, opts) {
         <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
       </div>
       <div class="dd-tabs">
-        <button type="button" class="dd-tab active" data-rr-dd-tab="profile">Profile</button>
+        <button type="button" class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="profile">Profile</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="license">License &amp; Certs</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="license">License</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
@@ -10191,6 +10192,7 @@ async function openDriverDrawer(driverId, opts) {
     // require an existing driver record (Availability / License / DOT
     // / Documents all reference drivers.id) — they toast a "Save the
     // record first" prompt when triggered before the Overview save.
+    _ddTab = "profile";   // a brand-new record opens on the form to fill in
     renderDriverDrawerTab();
   }
 }
@@ -10206,6 +10208,7 @@ async function loadDriverDrawer(driverId) {
   const { data, error } = await sb.rpc("driver_record", { p_id: driverId });
   if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
   _ddDriver = data;
+  if (typeof getDriverStationsCached === "function") getDriverStationsCached();   // warm the station-name cache for the Overview tab
 
   // E-signature envelopes sent to this driver — same rows the Documents
   // page shows, surfaced here so a completed signature lands on the
@@ -10280,6 +10283,7 @@ function renderDriverDrawerTab() {
     t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
   });
   const body = document.getElementById("rr-dd-body");
+  if (_ddTab === "overview")     renderOverviewTab(body, _ddDriver);
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
   if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
@@ -10295,6 +10299,8 @@ function setDriverDrawerFoot() {
   if (!foot) return;
   if (_ddTab === "profile" || _ddTab === "employment" || _ddTab === "license") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`;
+  } else if (_ddTab === "overview") {
+    foot.innerHTML = `<button class="btn" data-rr-dd-close>Close</button>`;
   } else if (_ddTab === "availability") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
   } else {
@@ -10397,6 +10403,107 @@ function _ddVal(name, fallback) {
 // Identity / contact / emergency contact.  Carries the green "Driver
 // self-serve" badge so operators know these fields will be writeable
 // from the driver app.
+// Overview — the landing tab. A calm, scan-first snapshot: status &
+// readiness, what needs attention, the key facts, recent activity. The
+// detail (and editing) lives in the other tabs; this is the "I trust
+// this record / I understand this employee at a glance" surface.
+function renderOverviewTab(body, dd) {
+  const d = (dd && dd.driver) || {};
+  const fmtD  = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+  const fmtTs = (x) => x ? new Date(x).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+  const station = (_driverStationsCache || []).find(s => s.id === d.station_id);
+  const stationTxt = d.station_id ? (station ? station.code : "Assigned") : "Unassigned";
+  const tenureTxt = d.hire_date ? (() => {
+    const days = Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000));
+    if (days < 45) return `${days}d`;
+    const mo = Math.round(days / 30.4);
+    return mo < 24 ? `${mo} mo` : `${(days / 365.25).toFixed(1)} yr`;
+  })() : null;
+  const onboarding = d.status === "onboarding";
+  const ob = onboarding ? _obReadiness(d, dd && dd.i9 ? dd.i9.record : null, (dd && dd.prog) || null) : null;
+  const i9d = _i9Derived(dd && dd.i9 ? dd.i9.record : null);
+  const app = _rosterAppStatus ? _rosterAppStatus.get(d.id) : null;
+
+  // ── needs attention ──
+  const attn = [];
+  if (d.dl_expires_on) {
+    const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - Date.now()) / 86400000);
+    if (days < 0) attn.push({ t: "red",   txt: `Driver's license expired ${fmtD(d.dl_expires_on)}` });
+    else if (days <= 30) attn.push({ t: "amber", txt: `Driver's license expires ${fmtD(d.dl_expires_on)} — ${days} day${days === 1 ? "" : "s"}` });
+  } else if (d.dl_image_path) {
+    attn.push({ t: "amber", txt: "Driver's license uploaded — expiry not verified yet" });
+  } else if (d.status !== "onboarding") {
+    attn.push({ t: "amber", txt: "No driver's license on file" });
+  }
+  if (i9d.key !== "verified") {
+    if (i9d.attention === "overdue" || i9d.key === "needs_correction") attn.push({ t: "red",   txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
+    else if (i9d.attention === "due_soon" || i9d.attention === "blocked") attn.push({ t: "amber", txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
+    else if (i9d.key !== "no_record") attn.push({ t: "slate", txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
+  } else if (i9d.key === "verified_expiring") {
+    attn.push({ t: "amber", txt: "Work authorization expiring — plan reverification" });
+  }
+  if (ob) {
+    if (ob.key === "blocked") attn.push({ t: "red", txt: `Onboarding blocked — ${ob.next.toLowerCase()}` });
+    else if (ob.tone === "amber") attn.push({ t: "amber", txt: `Onboarding — ${ob.next.toLowerCase()}` });
+  }
+  if (d.status === "active" && d.score != null && d.score < 70) attn.push({ t: "red", txt: `Performance score ${d.score} — below threshold` });
+  if (app && !app.signed_in_at && app.invited) attn.push({ t: "slate", txt: "Invited to the RouteReady app — hasn't signed in yet" });
+  else if (app && !app.invited && !app.signed_in_at && d.status !== "inactive" && d.status !== "terminated") attn.push({ t: "slate", txt: "Not invited to the RouteReady app yet" });
+
+  // ── recent activity (merged, newest first) ──
+  const ev = [];
+  for (const c of (dd.coachings || [])) if (c.occurred_at) ev.push({ at: c.occurred_at, txt: `Coaching logged${c.category ? " · " + c.category : ""}` });
+  for (const e of (dd.envelopes || [])) {
+    const t = (e.document_templates && e.document_templates.title) || "Document";
+    if (e.signed_at) ev.push({ at: e.signed_at, txt: `Signed: ${t}` });
+    else if (e.sent_at) ev.push({ at: e.sent_at, txt: `Sent for signature: ${t}` });
+  }
+  for (const x of ((dd.i9 && dd.i9.events) || [])) if (x.created_at) ev.push({ at: x.created_at, txt: `Form I-9 · ${typeof _i9EventMeta === "function" ? _i9EventMeta(x).title : x.kind}` });
+  for (const r of (dd.empReports || [])) if (r.generated_at) ev.push({ at: r.generated_at, txt: "Employment report generated" });
+  ev.sort((a, b) => new Date(b.at) - new Date(a.at));
+  const recent = ev.slice(0, 6);
+
+  const dot = (t) => `<span style="width:7px;height:7px;border-radius:50%;flex:0 0 auto;margin-top:5px;background:${t === "red" ? "#dc2626" : t === "amber" ? "#d97706" : "#94a3b8"}"></span>`;
+  const fact = (label, val) => `<div><div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml(label)}</div><div style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(val)}</div></div>`;
+
+  body.innerHTML = `
+    <div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ${typeof renderDriverStatusBadge === "function" ? renderDriverStatusBadge(d.status) : `<span class="dd-badge dsp">${escapeHtml(d.status || "—")}</span>`}
+        ${ob ? `${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${ob.doneN}/${ob.totalN} gates</span>` : ""}
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(stationTxt)}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}${d.tier ? " · Tier " + escapeHtml(String(d.tier)) : ""}</span>
+      </div>
+      ${ob ? `<div style="display:flex;gap:4px;margin-top:12px;max-width:340px">${ob.gates.map(g => `<div title="${escapeHtml(g.label)}${g.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${g.done ? "#16a34a" : "var(--border)"}"></div>`).join("")}</div>` : ""}
+      ${ob ? `<div style="margin-top:12px"><button type="button" class="btn btn-sm btn-primary" data-rr-dd-tab="employment">Continue onboarding & Form I-9 →</button></div>` : ""}
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head"><div><div class="dd-section-title">Needs attention</div></div></div>
+      ${attn.length
+        ? `<div style="display:flex;flex-direction:column;gap:9px">${attn.map(a => `<div style="display:flex;align-items:flex-start;gap:9px;font-size:var(--fs-sm);line-height:1.4">${dot(a.t)}<span style="color:${a.t === "red" ? "#991b1b" : a.t === "amber" ? "#92400e" : "var(--text)"}">${escapeHtml(a.txt)}</span></div>`).join("")}</div>`
+        : `<div style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--text-subtle)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#16a34a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><polyline points="20 6 9 17 4 12"/></svg>Nothing needs attention — this record is in good standing.</div>`}
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head"><div><div class="dd-section-title">At a glance</div></div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px 14px">
+        ${fact("Phone", d.phone || "—")}
+        ${fact("Email", d.email || "—")}
+        ${fact("Station", stationTxt)}
+        ${fact("Hired", d.hire_date ? fmtD(d.hire_date) + (tenureTxt ? " · " + tenureTxt : "") : "—")}
+        ${d.status === "active" && d.score != null ? fact("Performance score", String(d.score)) : ""}
+        ${fact("Driver's license", d.dl_number ? (d.dl_number + (d.dl_expires_on ? " · exp " + fmtD(d.dl_expires_on) : "")) : "Not on file")}
+        ${fact("Form I-9", i9d.label)}
+        ${fact("App access", app ? (app.signed_in_at ? "Signed in" : app.invited ? "Invited" : "Not invited") : "—")}
+      </div>
+    </div>
+
+    ${recent.length ? `<div class="dd-section">
+      <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div></div>
+      <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
+    </div>` : ""}`;
+}
+
 function renderProfileTab(body, d) {
   const showPronouns = window.RR.dsp?.metadata?.drivers?.show_pronouns !== false;
   const v = (s) => escapeHtml(s ?? "");
