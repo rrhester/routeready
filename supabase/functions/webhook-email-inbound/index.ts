@@ -99,7 +99,9 @@ async function fetchResendInboundBody(
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) return empty;
   try {
-    const r = await fetch(`https://api.resend.com/emails/${encodeURIComponent(emailId)}`, {
+    // Resend's "Retrieve Received Email" endpoint (not the sent-email
+    // /emails/{id}, which 404s for inbound).
+    const r = await fetch(`https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!r.ok) {
