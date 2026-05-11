@@ -99,13 +99,16 @@ interface Envelope {
   doc_hash_at_send: string;
   doc_hash_at_sign: string | null;
   fields_snapshot: Array<{
+    id?: string;
     kind?: string;
+    label?: string;
     page?: number;
     x?: number;
     y?: number;
     w?: number;
     h?: number;
   }>;
+  field_values?: Record<string, unknown> | null;
   status: string;
   signed_at: string | null;
   sent_at: string;
@@ -602,11 +605,12 @@ async function stampSignature(
   const dateStr = `${String(signedDate.getUTCMonth() + 1).padStart(2, "0")}/${String(signedDate.getUTCDate()).padStart(2, "0")}/${signedDate.getUTCFullYear()}`;
   const fullName = (typedName || envelope.recipient_name || "").trim();
   const initialsStr = fullName.split(/\s+/).map((p) => p[0]).filter(Boolean).join("").toUpperCase().slice(0, 5) || "—";
+  const fieldValues = (envelope.field_values && typeof envelope.field_values === "object") ? envelope.field_values : {};
 
   if (fields) {
     for (const f of fields) {
       const kind = f.kind || "signature";
-      if (!["signature", "date", "name", "initials"].includes(kind)) continue;
+      if (!["signature", "date", "name", "initials", "text", "checkbox"].includes(kind)) continue;
       const pageIdx = Math.max(0, Math.min(pages.length - 1, (f.page ?? 1) - 1));
       const page = pages[pageIdx];
       const { width: pw, height: ph } = page.getSize();
@@ -619,6 +623,8 @@ async function stampSignature(
       if (kind === "date")          drawAutoTextBox(page, x, y, w, h, dateStr, "Date", bold);
       else if (kind === "name")     drawAutoTextBox(page, x, y, w, h, fullName, "Name", bold);
       else if (kind === "initials") drawAutoTextBox(page, x, y, w, h, initialsStr, "Initials", bold);
+      else if (kind === "text")     drawAutoTextBox(page, x, y, w, h, String((f.id && (fieldValues as Record<string, unknown>)[f.id]) ?? ""), f.label || "", bold);
+      else if (kind === "checkbox") drawCheckboxBox(page, x, y, w, h, !!(f.id && (fieldValues as Record<string, unknown>)[f.id]), f.label || "", bold);
       else                          await drawSignatureBox(pdf, page, x, y, w, h, method, payload, typedName, bold);
     }
   } else {
@@ -706,6 +712,50 @@ function drawAutoTextBox(
     start: { x, y: y - 2 }, end: { x: x + w, y: y - 2 },
     thickness: 0.6, color: rgb(0.55, 0.60, 0.70),
   });
+}
+
+// A recipient-completed checkbox: a small square at the left of the
+// box, marked "X" when the signer checked it, with the field's label
+// to its right. Nothing is drawn for an unchecked box's mark, so a
+// "no" reads as a clear empty square.
+function drawCheckboxBox(
+  page: PDFPage,
+  x: number, y: number, w: number, h: number,
+  checked: boolean,
+  label: string,
+  bold: PDFFont,
+) {
+  const box = Math.min(h * 0.7, 14, w * 0.5);
+  const bx = x;
+  const by = y + (h - box) / 2;
+  page.drawRectangle({
+    x: bx, y: by, width: box, height: box,
+    borderColor: rgb(0.30, 0.34, 0.42), borderWidth: 1,
+    color: rgb(1, 1, 1),
+  });
+  if (checked) {
+    const s = box * 1.05;
+    page.drawText("X", {
+      x: bx + (box - bold.widthOfTextAtSize("X", s)) / 2,
+      y: by + (box - s) / 2 + s * 0.18,
+      size: s, font: bold, color: rgb(0.06, 0.10, 0.18),
+    });
+  }
+  const lbl = (label || "").trim();
+  if (lbl) {
+    let size = Math.min(box * 0.92, 11);
+    const maxW = w - box - 6;
+    let txt = lbl;
+    while (size > 6 && bold.widthOfTextAtSize(txt, size) > maxW) {
+      if (bold.widthOfTextAtSize(txt + "…", size) > maxW && txt.length > 1) txt = txt.slice(0, -1);
+      else size -= 0.5;
+    }
+    if (txt !== lbl) txt = txt.replace(/…?$/, "…");
+    page.drawText(txt, {
+      x: bx + box + 5, y: y + (h - size) / 2 + 1,
+      size, font: bold, color: rgb(0.18, 0.22, 0.30),
+    });
+  }
 }
 
 async function appendCertificate(
@@ -812,7 +862,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.5", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.6", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
