@@ -2597,7 +2597,7 @@ async function loadDriversRoster() {
   // Paint skeleton rows immediately so the page feels instant.
   tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 10 : 9);
 
-  const [{ data: rows, error }, { data: appStatus }] = await Promise.all([
+  const [{ data: rows, error }, { data: appStatus }, { data: coachRows }] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
                background_check_completed_at, drug_test_completed_at,
@@ -2607,9 +2607,19 @@ async function loadDriversRoster() {
       .order("hire_date", { ascending: false })
       .limit(500),
     sb.rpc("driver_app_status"),
+    sb.from("coachings")
+      .select("driver_id, occurred_at")
+      .eq("dsp_id", window.RR.dsp.id)
+      .is("archived_at", null)
+      .order("occurred_at", { ascending: false })
+      .limit(2000),
   ]);
 
   _rosterAppStatus = new Map((appStatus ?? []).map((s) => [s.driver_id, s]));
+  _rosterLastCoached = new Map();
+  for (const c of (coachRows ?? [])) {
+    if (!_rosterLastCoached.has(c.driver_id)) _rosterLastCoached.set(c.driver_id, c.occurred_at);
+  }
   _rosterRows = rows ?? [];
   refreshDriverStatRow(_rosterRows);
   _populateRosterStationFilter(_rosterRows);
@@ -3025,12 +3035,35 @@ function renderDriverRow(d) {
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${station === "—" ? dim : escapeHtml(station)}</td>
       <td>${tenure}</td>
+      <td>${_scoreCell(d.score)}</td>
       <td>${dim}</td>
-      <td>${dim}</td>
-      <td class="cell-time">${dim}</td>
+      <td class="cell-time">${_lastCoachedCell(d.id)}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td></td>
     </tr>`;
+}
+
+// Driver score → small colored pill (red < 70, amber 70–84, green 85+).
+function _scoreCell(s) {
+  if (s == null) return '<span style="color:var(--text-subtle)">—</span>';
+  const v = Math.round(Number(s));
+  const c = v < 70 ? ["var(--red)", "var(--red-soft)"]
+          : v < 85 ? ["var(--amber-dark)", "var(--amber-soft)"]
+          :          ["var(--green)", "var(--green-soft)"];
+  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;border-radius:999px;background:${c[1]};color:${c[0]}" title="Driver score">${v}</span>`;
+}
+
+// "Last coached" — pulled from the per-driver latest coaching loaded
+// alongside the roster. Older than 30 days reads muted; recent reads
+// in normal text; never coached is a dash.
+let _rosterLastCoached = new Map();   // driver_id -> ISO date string
+function _lastCoachedCell(driverId) {
+  const iso = _rosterLastCoached.get(driverId);
+  if (!iso) return '<span style="color:var(--text-subtle)">—</span>';
+  const d = new Date(iso);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const dim = days > 30;
+  return `<span style="${dim ? "color:var(--text-subtle)" : ""}" title="${escapeHtml(d.toLocaleString())}">${escapeHtml(d.toLocaleDateString(undefined,{month:"short",day:"numeric"}))}<span style="display:block;font-size:var(--fs-xs);color:var(--text-subtle)">${days === 0 ? "today" : days + "d ago"}</span></span>`;
 }
 
 // Override the mockup's filterDriversStage so it actually filters the
@@ -6972,65 +7005,66 @@ async function loadDriverLicensesView() {
     .limit(500);
 
   if (error) {
-    body.innerHTML = `<div style="padding:16px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(error.message)}</div>`;
+    body.innerHTML = _rosterEmpty({ error: true, title: "Couldn't load licenses", body: escapeHtml(error.message) });
     return;
   }
   if (!rows || rows.length === 0) {
-    body.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">
-      <strong style="color:var(--text-muted);display:block;margin-bottom:4px">No license dates on file</strong>
-      Open a driver record → License tab to add a license number and expiration.
-    </div>`;
-    if (status) status.textContent = "0 drivers with licenses";
+    body.innerHTML = _rosterEmpty({
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="15" x2="13" y2="15"/></svg>',
+      title: "No driver licenses on file",
+      body: "Open a driver record → License tab to add a license number and expiration. Renewals within 30 days (or already expired) will surface here automatically.",
+    });
+    if (status) status.textContent = "0 with licenses";
     return;
   }
 
   const today = Date.now();
-  const expired = rows.filter(r => new Date(r.dl_expires_on).getTime() < today).length;
-  const within30 = rows.filter(r => {
-    const t = new Date(r.dl_expires_on).getTime();
-    return t >= today && t < today + 30 * 86400000;
-  }).length;
+  const dayMs = 86400000;
+  const expired   = rows.filter(r => new Date(r.dl_expires_on).getTime() < today).length;
+  const within30  = rows.filter(r => { const t = new Date(r.dl_expires_on).getTime(); return t >= today && t < today + 30*dayMs; }).length;
+  const within90  = rows.filter(r => { const t = new Date(r.dl_expires_on).getTime(); return t >= today + 30*dayMs && t < today + 90*dayMs; }).length;
   if (status) status.textContent = `${expired} expired · ${within30} within 30 days · ${rows.length} total`;
 
   body.innerHTML = `
-    <div class="card card-flush">
-      <div style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:10px 16px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
-        <div>Driver</div>
-        <div>Station</div>
-        <div>DL number</div>
-        <div>Expires</div>
-        <div></div>
+    <div class="docs-section-bar" style="padding:0 18px">
+      <div class="docs-counts" style="font-size:var(--fs-xs);color:var(--text-subtle);display:flex;gap:14px;flex-wrap:wrap;padding:12px 0">
+        <span><b style="color:var(--text-muted)">${rows.length}</b> with licenses</span>
+        ${expired ? `<span style="color:var(--red)"><b>${expired}</b> expired</span>` : ""}
+        ${within30 ? `<span style="color:var(--amber-dark)"><b>${within30}</b> expiring ≤30d</span>` : ""}
+        ${within90 ? `<span><b style="color:var(--text-muted)">${within90}</b> renewal due ≤90d</span>` : ""}
       </div>
-      ${rows.map(renderLicenseRow).join("")}
-    </div>`;
+    </div>
+    <table class="table table-clickable">
+      <thead><tr>
+        <th style="width:32%">Driver</th>
+        <th style="width:14%">Station</th>
+        <th style="width:20%">DL number</th>
+        <th style="width:18%">Status</th>
+        <th style="width:16%">Expires</th>
+      </tr></thead>
+      <tbody>${rows.map(renderLicenseRow).join("")}</tbody>
+    </table>`;
 }
 
+function _licenseChip(days) {
+  if (days < 0)   return `<span class="docs-chip-x" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--red-soft);color:var(--red);border:1px solid rgba(225,29,72,.18)"><i style="width:6px;height:6px;border-radius:50%;background:var(--red)"></i>Expired</span>`;
+  if (days <= 30) return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--amber-soft);color:var(--amber-dark);border:1px solid rgba(217,119,6,.18)"><i style="width:6px;height:6px;border-radius:50%;background:var(--amber)"></i>Expiring soon</span>`;
+  if (days <= 90) return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--canvas);color:var(--amber-dark);border:1px solid var(--border)"><i style="width:6px;height:6px;border-radius:50%;background:var(--amber)"></i>Renewal due</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--green-soft);color:var(--green);border:1px solid rgba(5,150,105,.20)"><i style="width:6px;height:6px;border-radius:50%;background:var(--green)"></i>Valid</span>`;
+}
 function renderLicenseRow(d) {
   const exp = new Date(d.dl_expires_on);
   const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
-  // Don't tint the entire row anymore — operators found the orange/red
-  // washes too noisy.  The pill on the right is enough warning.
-  let pillStyle = "color:var(--text-subtle)";
-  let label = `Expires in ${days}d`;
-  if (days < 0) {
-    pillStyle = "color:var(--red);font-weight:700";
-    label = `Expired ${-days}d ago`;
-  } else if (days <= 30) {
-    pillStyle = "color:var(--amber-dark);font-weight:700";
-    label = `Expires in ${days}d`;
-  }
   const initials = displayDriverInitials(d);
+  const rel = days < 0 ? `Expired ${-days}d ago` : days === 0 ? "Expires today" : `in ${days}d`;
   return `
-    <div data-driver-id="${d.id}" data-rr-open-driver style="display:grid;grid-template-columns:1fr 110px 110px 130px 90px;gap:12px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;cursor:pointer">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="avatar-sm">${initials}</div>
-        <div><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(displayDriverName(d))}</div></div>
-      </div>
-      <div style="font-size:var(--fs-md)">${escapeHtml(d.station?.code || "—")}</div>
-      <div style="font-size:var(--fs-md);font-family:'SF Mono',Menlo,monospace">${escapeHtml(d.dl_number || "—")}</div>
-      <div style="font-size:var(--fs-md)">${exp.toLocaleDateString()}<div style="font-size:var(--fs-xs);${pillStyle}">${label}</div></div>
-      <div><button class="btn btn-sm" data-rr-open-driver data-driver-id="${d.id}">Edit</button></div>
-    </div>`;
+    <tr data-driver-id="${d.id}" data-rr-open-driver>
+      <td><div class="cell-driver"><div class="avatar-sm">${initials}</div><div><div class="cell-name">${escapeHtml(displayDriverName(d))}</div></div></div></td>
+      <td>${d.station?.code ? escapeHtml(d.station.code) : '<span style="color:var(--text-subtle)">—</span>'}</td>
+      <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm)">${escapeHtml(d.dl_number || "—")}</td>
+      <td>${_licenseChip(days)}</td>
+      <td>${exp.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}<div style="font-size:var(--fs-xs);color:${days < 0 ? "var(--red)" : days <= 30 ? "var(--amber-dark)" : "var(--text-subtle)"}">${rel}</div></td>
+    </tr>`;
 }
 
 const _legacyDrSub = window.drSub;
@@ -13855,7 +13889,12 @@ function _renderCoachFeed() {
   rows.sort(cmp);
 
   if (rows.length === 0) {
-    wrap.innerHTML = `<div class="rr-empty-inline">No coachings match the current filter.</div>`;
+    const searching = !!(document.getElementById("rr-coach-search")?.value || "").trim();
+    wrap.innerHTML = (typeof _rosterEmpty === "function")
+      ? _rosterEmpty(searching
+          ? { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>', title: "No coachings match", body: "Try a different search term." }
+          : { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', title: "No coachings logged yet", body: "Use “Coach a driver” to record a coaching conversation. Driver-visible coachings appear in the driver's RouteReady app with a tappable acknowledge-and-sign link." })
+      : `<div class="rr-empty-inline">No coachings match the current filter.</div>`;
     return;
   }
 
@@ -13866,14 +13905,14 @@ function _renderCoachFeed() {
       : ' <span style="font-size:9px">▼</span>';
   };
   const th = (col, label) =>
-    `<th data-rr-coach-sort="${col}" style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);cursor:pointer;user-select:none">${label}${caret(col)}</th>`;
+    `<th data-rr-coach-sort="${col}" style="cursor:pointer;user-select:none">${label}${caret(col)}</th>`;
 
-  const head = `<thead><tr style="background:var(--canvas);border-bottom:1px solid var(--border)">
+  const head = `<thead><tr>
     ${th("date",     "Date")}
     ${th("driver",   "Driver")}
     ${th("severity", "Severity")}
     ${th("topic",    "Topic")}
-    <th style="text-align:left;padding:10px 14px;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Summary</th>
+    <th>Summary</th>
     ${th("coach",    "Coached by")}
     ${th("followup", "Follow-up")}
     ${th("status",   "Status")}
@@ -13898,19 +13937,22 @@ function _renderCoachFeed() {
           ? `<span style="font-size:var(--fs-xs);color:var(--green)">Resolved</span>`
           : ack || `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Open</span>`);
 
-    return `<tr style="border-top:1px solid var(--border);cursor:pointer" data-rr-coach-feed-driver="${c.driver_id}">
-      <td style="padding:10px 14px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;color:var(--text-muted)">${escapeHtml(occurred)}</td>
-      <td style="padding:10px 14px"><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
-      <td style="padding:10px 14px">${sevChip}</td>
-      <td style="padding:10px 14px;font-size:var(--fs-sm);text-transform:capitalize">${escapeHtml(c.topic || "")}</td>
-      <td style="padding:10px 14px;font-size:var(--fs-md);max-width:320px">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
-      <td style="padding:10px 14px;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(c.coached_by_name || "—")}</td>
-      <td style="padding:10px 14px">${followCell}</td>
-      <td style="padding:10px 14px">${status}</td>
+    const topicChip = c.topic
+      ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted)">${escapeHtml(c.topic)}</span>`
+      : '<span style="color:var(--text-subtle)">—</span>';
+    return `<tr data-rr-coach-feed-driver="${c.driver_id}" style="cursor:pointer">
+      <td style="font-variant-numeric:tabular-nums;color:var(--text-muted)">${escapeHtml(occurred)}</td>
+      <td><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
+      <td>${sevChip}</td>
+      <td>${topicChip}</td>
+      <td style="max-width:320px">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
+      <td style="color:var(--text-muted)">${escapeHtml(c.coached_by_name || "—")}</td>
+      <td>${followCell}</td>
+      <td>${status}</td>
     </tr>`;
   }).join("");
 
-  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse">${head}<tbody>${body}</tbody></table>`;
+  wrap.innerHTML = `<table class="table table-clickable">${head}<tbody>${body}</tbody></table>`;
 }
 
 document.addEventListener("input", (e) => {
