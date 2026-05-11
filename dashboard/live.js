@@ -9873,6 +9873,14 @@ async function loadDriverDrawer(driverId) {
       .order("sent_at", { ascending: false });
     _ddDriver.envelopes = envs || [];
   } catch { _ddDriver.envelopes = []; }
+  try {
+    const { data: reps } = await sb.from("employment_reports")
+      .select("id, generated_at, generated_by_name, summary, snapshot")
+      .eq("driver_id", driverId)
+      .order("generated_at", { ascending: false })
+      .limit(50);
+    _ddDriver.empReports = reps || [];
+  } catch { _ddDriver.empReports = []; }
 
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
@@ -10183,9 +10191,27 @@ async function renderEmploymentTab(body, d) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
             Generate Employment Documentation Report
           </button>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.45">The report is neutral and chronological — it organizes what RouteReady recorded, it doesn't argue. Review the preview, then Save as PDF.</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.45">The report is neutral and chronological — it organizes what RouteReady recorded, it doesn't argue. Review the preview, then Save as PDF — or archive it onto this record for a retained, point-in-time copy.</div>
+          ${_empSavedReportsList(_ddDriver?.empReports)}
         </div>
       </div>
+    </div>`;
+}
+
+function _empSavedReportsList(reps) {
+  if (!reps || reps.length === 0) return "";
+  const rows = reps.map(r => `
+    <div class="dd-list-row" style="padding:8px 0">
+      <div>
+        <div class="dd-list-title" style="font-size:var(--fs-md)">Report — ${escapeHtml(new Date(r.generated_at).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}))}</div>
+        <div class="dd-list-sub">Archived ${escapeHtml(new Date(r.generated_at).toLocaleString())}${r.generated_by_name ? " · " + escapeHtml(r.generated_by_name) : ""}</div>
+      </div>
+      <div><button type="button" class="btn btn-sm" data-rr-emp-report-open="${escapeHtml(r.id)}">Open</button></div>
+    </div>`).join("");
+  return `
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:6px">Archived reports · ${reps.length}</div>
+      ${rows}
     </div>`;
 }
 
@@ -10196,11 +10222,68 @@ async function renderEmploymentTab(body, d) {
 // communications, scheduling history, e-signature documents — assembled
 // into a print/PDF-ready packet. Not an argument; an organized record.
 // ════════════════════════════════════════════════════════════════════
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-rr-emp-report]");
-  if (btn) { e.preventDefault(); const id = btn.getAttribute("data-rr-emp-report"); if (id) _openEmploymentReport(id); }
-  if (e.target.closest("#er-print")) { _printEmploymentReport(); }
+  if (btn) { e.preventDefault(); const id = btn.getAttribute("data-rr-emp-report"); if (id) _openEmploymentReport(id); return; }
+  if (e.target.closest("#er-print")) { _printEmploymentReport(); return; }
+  if (e.target.closest("#er-save")) { await _saveEmploymentReport(); return; }
+  const openSaved = e.target.closest("[data-rr-emp-report-open]");
+  if (openSaved) {
+    e.preventDefault();
+    const rid = openSaved.getAttribute("data-rr-emp-report-open");
+    const rec = (_ddDriver?.empReports || []).find(r => r.id === rid);
+    if (rec) _openSavedEmploymentReport(rec);
+    return;
+  }
 });
+
+async function _saveEmploymentReport() {
+  const m = document.getElementById("rr-emp-report-modal");
+  if (!m || !m._erSnapshot || !m._erDriverId) return;
+  const btn = m.querySelector("#er-save");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  const { data, error } = await sb.rpc("employment_report_save", {
+    p_driver_id: m._erDriverId,
+    p_summary:   m._erSummary || null,
+    p_snapshot:  m._erSnapshot,
+  });
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = "Save to driver record"; }
+    toast("Couldn't archive the report: " + error.message, "warn");
+    return;
+  }
+  if (btn) { btn.textContent = "Archived ✓"; }
+  toast("Report archived to the driver's record ✓", "success");
+  // Refresh the Employment tab list if the drawer's open.
+  if (_ddDriver && _ddDriver.driver && _ddDriver.driver.id === m._erDriverId) {
+    try { (_ddDriver.empReports = _ddDriver.empReports || []).unshift(data); } catch {}
+    if (_ddTab === "employment") renderDriverDrawerTab();
+  }
+}
+
+function _openSavedEmploymentReport(rec) {
+  _erEmpStylesOnce();
+  document.getElementById("rr-emp-report-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-emp-report-modal";
+  const name = rec.snapshot?.name || "—";
+  m.innerHTML = `
+    <div class="er-shell">
+      <div class="er-toolbar">
+        <div class="t">Employment Documentation Report<small>Archived ${new Date(rec.generated_at).toLocaleString()}${rec.generated_by_name ? " · " + escapeHtml(rec.generated_by_name) : ""} · view-only</small></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-primary" id="er-print">Save as PDF</button>
+          <button class="btn btn-sm" id="er-close">Close</button>
+        </div>
+      </div>
+      <div class="er-doc" id="er-body">${rec.snapshot?.html || `<div style="padding:24px;color:var(--text-subtle)">This archived report has no stored content.</div>`}</div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  m.querySelector("#er-close").addEventListener("click", close);
+  document.addEventListener("keydown", function esc(ev){ if (ev.key === "Escape") { close(); document.removeEventListener("keydown", esc); } });
+}
 
 function _printEmploymentReport() {
   const root = document.documentElement;
@@ -10280,6 +10363,7 @@ function _openEmploymentReport(driverId) {
       <div class="er-toolbar">
         <div class="t">Employment Documentation Report<small>Compiling records…</small></div>
         <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" id="er-save" disabled title="Archive this exact report onto the driver's record">Save to driver record</button>
           <button class="btn btn-sm btn-primary" id="er-print" disabled>Save as PDF</button>
           <button class="btn btn-sm" id="er-close">Close</button>
         </div>
@@ -10449,10 +10533,15 @@ async function _buildEmploymentReport(driverId, m) {
 
   const body = m.querySelector("#er-body");
   if (body) body.innerHTML = html;
+  const summary = `${name} · ${shifts.length} shifts · ${coachings.length} coachings · ${envelopes.length} documents · status ${sep[0]}`;
   const small = m.querySelector(".er-toolbar .t small");
-  if (small) small.textContent = `${esc(name)} · ${shifts.length} shifts · ${coachings.length} coachings · ${envelopes.length} documents`;
-  const printBtn = m.querySelector("#er-print");
-  if (printBtn) printBtn.disabled = false;
+  if (small) small.textContent = summary;
+  // Stash the snapshot so "Save to driver record" can archive this exact packet.
+  m._erDriverId = driverId;
+  m._erSummary  = summary;
+  m._erSnapshot = { html, name, generated_label: generatedAt.toLocaleString(), generated_at: generatedAt.toISOString() };
+  const printBtn = m.querySelector("#er-print"); if (printBtn) printBtn.disabled = false;
+  const saveBtn  = m.querySelector("#er-save");  if (saveBtn)  saveBtn.disabled  = false;
 }
 
 // Boolean-column toggles on the License & Certs tab (DOT cert, XL cert,
