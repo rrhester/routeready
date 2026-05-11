@@ -2272,7 +2272,10 @@ async function renderOnboarding() {
 
   const [profRes, i9Res] = await Promise.all([
     sb.rpc("driver_get_profile", { p_token: session.token }),
-    sb.rpc("driver_i9_get",      { p_token: session.token }).catch(() => ({ data: null })),
+    // PostgrestBuilder is a bare thenable (no .catch) — use the
+    // two-arg .then form so a missing/erroring RPC can't blow up the
+    // onboarding screen.
+    sb.rpc("driver_i9_get",      { p_token: session.token }).then((r) => r, () => ({ data: null })),
   ]);
   const { data: prof, error } = profRes;
   if (error) {
