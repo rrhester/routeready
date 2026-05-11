@@ -3024,26 +3024,25 @@ function renderOnboardingRow(d) {
 // Compact Form I-9 status cell for the onboarding roster.
 function _i9OnboardCell(driverId) {
   const r = _rosterI9 ? _rosterI9.get(driverId) : null;
-  const st = r ? (r.status || "no_record") : "no_record";
-  let extra = "";
-  if (st === "section1_complete") {
-    if (!r.first_day_of_employment) {
-      extra = `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px">set first day</div>`;
-    } else {
-      const dl = (typeof _i9Section2Deadline === "function") ? _i9Section2Deadline(r.first_day_of_employment) : null;
-      const days = dl ? Math.round((new Date(dl + "T00:00:00Z") - new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z")) / 86400000) : null;
-      if (days != null) {
-        const tone = days < 0 ? "var(--red)" : days <= 2 ? "var(--amber-dark)" : "var(--text-subtle)";
-        const txt = days < 0 ? `Sec 2 overdue ${Math.abs(days)}bd` : days === 0 ? "Sec 2 due today" : `Sec 2 due in ${days}bd`;
-        extra = `<div style="font-size:var(--fs-xs);color:${tone};margin-top:2px">${txt}</div>`;
-      }
-    }
-  } else if (st === "needs_correction") {
-    extra = `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">awaiting employee</div>`;
-  } else if (st === "verified" && r.section2_completed_at) {
-    extra = `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${new Date(r.section2_completed_at).toLocaleDateString()}</div>`;
+  const d = _i9Derived(r);
+  const fmtD = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  let sub = "";
+  if (d.key === "section1_complete") {
+    if (d.attention === "blocked") sub = { c: "var(--amber-dark)", t: "set first day to start the clock" };
+    else if (d.daysLeft != null) sub = {
+      c: d.attention === "overdue" ? "var(--red)" : d.attention === "due_soon" ? "var(--amber-dark)" : "var(--text-subtle)",
+      t: d.attention === "overdue" ? `due ${fmtD(d.deadline)} — ${Math.abs(d.daysLeft)} bd overdue` : d.daysLeft === 0 ? `due today` : `due ${fmtD(d.deadline)} — ${d.daysLeft} bd left`,
+    };
+  } else if (d.key === "needs_correction") {
+    sub = { c: "var(--text-subtle)", t: r && r.needs_correction_note ? r.needs_correction_note : "awaiting the employee" };
+  } else if (d.key === "verified" || d.key === "verified_expiring") {
+    sub = { c: "var(--text-subtle)", t: r && r.section2_completed_at ? `verified ${fmtD(r.section2_completed_at)}` : "verified" };
+  } else if (d.key === "section1_in_progress") {
+    sub = { c: "var(--text-subtle)", t: "employee has started Section 1" };
+  } else if (d.key === "no_record" || d.key === "not_started") {
+    sub = { c: "var(--text-subtle)", t: "employee completes Section 1 in the app" };
   }
-  return `${typeof _i9StatusChip === "function" ? _i9StatusChip(st) : '<span class="tag">' + escapeHtml(st) + '</span>'}${extra}`;
+  return `${_i9StatusPill(d)}${sub ? `<div style="font-size:var(--fs-xs);color:${sub.c};margin-top:3px">${escapeHtml(sub.t)}</div>` : ""}`;
 }
 
 function renderDriverRow(d) {
@@ -10291,12 +10290,6 @@ function _empSavedReportsList(reps) {
 // slice; this captures the data + attestations + an audit trail.
 // ════════════════════════════════════════════════════════════════════
 
-const _I9_STATUS = {
-  not_started:       { label: "Not started",        css: "background:#f1f5f9;color:#475569" },
-  section1_complete: { label: "Section 1 complete", css: "background:#fef9c3;color:#854d0e" },
-  verified:          { label: "Verified",           css: "background:#dcfce7;color:#166534" },
-  needs_correction:  { label: "Needs correction",   css: "background:#fee2e2;color:#991b1b" },
-};
 const _I9_CITIZEN_LABELS = {
   citizen:    "U.S. citizen",
   national:   "Noncitizen national of the U.S.",
@@ -10388,10 +10381,66 @@ function _i9Section2DueState(rec) {
   return { deadline, days, overdue: days < 0, dueToday: days === 0 };
 }
 
+// ── Canonical derived I-9 workflow status ─────────────────────────────
+// One source of truth for the I-9 workflow state, consumed by every
+// chip / queue row / drawer header / report. `rec` may come from i9_get
+// (full row — has pdf_path + section1/section2 jsonb) or i9_list (the
+// queue projection — section1_completed_at / section1_citizen_status /
+// section1_auth_expires / section2_completed_at / first_day_of_employment
+// / status). Returns:
+//   { key, label, chipLabel, phase, attention, deadline?, daysLeft?, reverDate? }
+//   phase     : 'employee' | 'employer' | 'system' | 'done' | 'none'
+//   attention : 'overdue' | 'due_soon' | 'blocked' | 'ok'
+function _i9Derived(rec) {
+  const blank = { key: "no_record", label: "Not started", chipLabel: "Not started", phase: "employee", attention: "ok" };
+  if (!rec) return blank;
+  const st = rec.status || "no_record";
+  const s1j = rec.section1 && typeof rec.section1 === "object" ? rec.section1 : null;
+  const s1Citizen = (s1j ? s1j.citizen_status : rec.section1_citizen_status) || null;
+  const s1Started = !!rec.section1_completed_at || !!s1Citizen ||
+    !!(s1j && (s1j.last_name || s1j.first_name || s1j.addr_street));
+  const authRaw = (s1j ? s1j.auth_expires : rec.section1_auth_expires) || null;
+
+  if (st === "no_record") return blank;
+  if (st === "not_started") {
+    return s1Started
+      ? { key: "section1_in_progress", label: "Section 1 in progress", chipLabel: "Section 1 in progress", phase: "employee", attention: "ok" }
+      : { key: "not_started", label: "Awaiting employee", chipLabel: "Awaiting employee", phase: "employee", attention: "ok" };
+  }
+  if (st === "needs_correction") {
+    return { key: "needs_correction", label: "Needs correction", chipLabel: "Needs correction", phase: "employee", attention: "blocked" };
+  }
+  if (st === "section1_complete") {
+    let deadline = null, daysLeft = null, attention = "ok";
+    if (rec.first_day_of_employment) {
+      deadline = _i9Section2Deadline(rec.first_day_of_employment);
+      if (deadline) { daysLeft = _i9DaysFromToday(deadline); attention = daysLeft < 0 ? "overdue" : daysLeft <= 2 ? "due_soon" : "ok"; }
+    } else { attention = "blocked"; }
+    const chipLabel = attention === "overdue" ? "Section 2 overdue"
+      : attention === "due_soon" ? "Section 2 due soon"
+      : attention === "blocked" ? "Set first day"
+      : "Awaiting employer";
+    return { key: "section1_complete", label: "Awaiting employer review", chipLabel, phase: "employer", attention, deadline, daysLeft };
+  }
+  if (st === "verified") {
+    if ("pdf_path" in rec && !rec.pdf_path) {
+      return { key: "sealing", label: "Sealing…", chipLabel: "Sealing…", phase: "system", attention: "ok" };
+    }
+    const exp = _i9ParseLooseDate(authRaw);
+    if (exp) {
+      const d = _i9DaysFromToday(exp);
+      if (d != null && d <= 30) return { key: "verified_expiring", label: "Verified · work authorization expiring", chipLabel: "Auth expiring", phase: "done", attention: d < 0 ? "overdue" : "due_soon", reverDate: exp, daysLeft: d };
+    }
+    return { key: "verified", label: "Verified", chipLabel: "Verified", phase: "done", attention: "ok" };
+  }
+  return { key: String(st), label: String(st), chipLabel: String(st), phase: "none", attention: "ok" };
+}
+function _i9DerivedLabel(rec) { return _i9Derived(rec).label; }
+
 function _i9PanelHtml(i9, d) {
   const rec = i9 && i9.record ? i9.record : null;
   const st  = rec ? (rec.status || "not_started") : "not_started";
-  const meta = _I9_STATUS[st] || _I9_STATUS.not_started;
+  const der = _i9Derived(rec);
   const s1 = rec && rec.section1 && typeof rec.section1 === "object" ? rec.section1 : {};
   const s2 = rec && rec.section2 && typeof rec.section2 === "object" ? rec.section2 : {};
   const fmtD = (x) => x ? new Date(x).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
@@ -10481,7 +10530,7 @@ function _i9PanelHtml(i9, d) {
           <div class="dd-section-title">Work authorization · Form I-9</div>
           <div class="dd-section-sub">Employment Eligibility Verification. Section 1 is the employee's; Section 2 (your document review) is due within 3 business days of the first day of work.</div>
         </div>
-        <span class="dd-badge" style="${meta.css}">${escapeHtml(meta.label)}</span>
+        ${_i9StatusPill(der)}
       </div>
       ${clock}
       ${rec && rec.needs_correction_note ? `<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm);color:#991b1b"><strong>Correction requested:</strong> ${escapeHtml(rec.needs_correction_note)}</div>` : ""}
@@ -11053,7 +11102,7 @@ async function openI9FormPrint(driverId) {
       ${Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length ? `<div style="font-size:8.5px;color:#6b7280;margin-top:4px">${rec.section2_document_paths.length} document image(s) retained on the employee's record in RouteReady.</div>` : ""}
 
       <div class="i9f-foot">
-        Form I-9 status: <strong>${escapeHtml((_I9_STATUS[rec.status] || { label: rec.status }).label)}</strong>.
+        Form I-9 status: <strong>${escapeHtml(_i9DerivedLabel(rec))}</strong>.
         ${ret ? `Retain this form until at least <strong>${escapeHtml(fmtD(ret.date))}</strong> (3 years after the date employment began${ret.terminated ? ", or 1 year after employment ended — whichever is later" : ", or 1 year after employment ends if that is later"}).` : ""}
         This reproduction is generated from RouteReady's records and is accompanied by an internal audit trail of every change. It does not replace your obligation to follow current USCIS guidance and to use the official form where required. Generated ${generatedAt.toLocaleString()}.
       </div>
@@ -11065,7 +11114,7 @@ async function openI9FormPrint(driverId) {
   m.id = "rr-i9form-modal";
   m.innerHTML = `
     <div class="i9f-toolbar">
-      <div class="t">Form I-9 — ${escapeHtml(empName)}<small>${escapeHtml(dspName)} · ${escapeHtml((_I9_STATUS[rec.status] || { label: rec.status }).label)} · reproduced from RouteReady's records</small></div>
+      <div class="t">Form I-9 — ${escapeHtml(empName)}<small>${escapeHtml(dspName)} · ${escapeHtml(_i9DerivedLabel(rec))} · reproduced from RouteReady's records</small></div>
       <div style="display:flex;gap:8px"><button class="btn btn-sm btn-primary" id="i9f-print">Save as PDF</button><button class="btn btn-sm" id="i9f-close">Close</button></div>
     </div>
     <div class="i9f-scroll">${doc}</div>`;
@@ -11121,7 +11170,7 @@ async function _i9OpenChainModal(driverId) {
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:14px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Form I-9 — chain of custody</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(empName)} · ${escapeHtml(dspName)} · ${escapeHtml((_I9_STATUS[rec.status] || { label: rec.status }).label)}</div></div>
+        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Form I-9 — chain of custody</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(empName)} · ${escapeHtml(dspName)} · ${escapeHtml(_i9DerivedLabel(rec))}</div></div>
         <button type="button" class="btn btn-sm" data-rr-i9-chain-close>Close</button>
       </div>
       <div style="padding:20px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:18px">
@@ -11178,39 +11227,38 @@ const _I9_BUCKETS = [
   { key: "reverification",    label: "Reverification due",     tone: "background:#fef3c7;color:#92400e" },
   { key: "verified",          label: "Verified",               tone: "background:#dcfce7;color:#166534" },
 ];
+// Map the derived status into one of the prioritized queue buckets +
+// carry the deadline metadata along (so the row can render the sub-line).
 function _i9Classify(row) {
-  const st = row.status;
-  if (st === "no_record" || st === "not_started") return { bucket: "awaiting_employee" };
-  if (st === "needs_correction") return { bucket: "needs_correction" };
-  if (st === "section1_complete") {
-    if (!row.first_day_of_employment) return { bucket: "s2_needed", note: "first day of employment not set" };
-    const deadline = _i9Section2Deadline(row.first_day_of_employment);
-    const days = _i9DaysFromToday(deadline);
-    if (days != null && days < 0) return { bucket: "s2_overdue", deadline, days };
-    if (days != null && days <= 2) return { bucket: "s2_due", deadline, days };
-    return { bucket: "s2_needed", deadline, days };
+  const d = _i9Derived(row);
+  if (d.key === "needs_correction") return { bucket: "needs_correction", d };
+  if (d.key === "no_record" || d.key === "not_started" || d.key === "section1_in_progress") return { bucket: "awaiting_employee", d };
+  if (d.key === "section1_complete") {
+    const bucket = d.attention === "overdue" ? "s2_overdue" : d.attention === "due_soon" ? "s2_due" : "s2_needed";
+    return { bucket, deadline: d.deadline, days: d.daysLeft, note: d.attention === "blocked" ? "first day of employment not set" : null, d };
   }
-  if (st === "verified") {
-    const exp = _i9ParseLooseDate(row.section1_auth_expires);
-    if (exp) {
-      const d = _i9DaysFromToday(exp);
-      if (d != null && d <= 30) return { bucket: "reverification", reverDate: exp, reverDays: d };
-    }
-    return { bucket: "verified" };
-  }
-  return { bucket: "verified" };
+  if (d.key === "verified_expiring") return { bucket: "reverification", reverDate: d.reverDate, reverDays: d.daysLeft, d };
+  return { bucket: "verified", d };  // verified / sealing
 }
 
-function _i9StatusChip(st) {
-  const m = {
-    no_record:         { t: "No record",          c: "background:#f1f5f9;color:#475569" },
-    not_started:       { t: "Not started",        c: "background:#f1f5f9;color:#475569" },
-    section1_complete: { t: "Section 1 complete",  c: "background:#fef9c3;color:#854d0e" },
-    needs_correction:  { t: "Needs correction",   c: "background:#fee2e2;color:#991b1b" },
-    verified:          { t: "Verified",            c: "background:#dcfce7;color:#166534" },
-  }[st] || { t: st, c: "background:#f1f5f9;color:#475569" };
-  return `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:10px;white-space:nowrap;${m.c}">${escapeHtml(m.t)}</span>`;
+// Refined status pill — coloured by attention first, then workflow phase,
+// with a small phase dot. One visual language for chips everywhere.
+function _i9StatusPill(d) {
+  const T = (d.attention === "overdue" || d.key === "needs_correction") ? { bg: "#fee2e2", fg: "#991b1b", dot: "#dc2626" }
+    : (d.attention === "due_soon" || d.attention === "blocked")          ? { bg: "#fef3c7", fg: "#92400e", dot: "#d97706" }
+    : d.phase === "done"                                                ? { bg: "#dcfce7", fg: "#166534", dot: "#16a34a" }
+    : d.phase === "employer"                                            ? { bg: "#e0f2fe", fg: "#075985", dot: "#0284c7" }
+    : /* employee / system / none */                                      { bg: "#f1f5f9", fg: "#475569", dot: "#94a3b8" };
+  return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.01em;line-height:1.3;padding:2px 9px 2px 7px;border-radius:999px;white-space:nowrap;background:${T.bg};color:${T.fg}"><span style="width:6px;height:6px;border-radius:50%;background:${T.dot};flex:0 0 auto"></span>${escapeHtml(d.chipLabel)}</span>`;
 }
+// Accepts a derived object, an i9 record/row, or a raw status string.
+function _i9StatusChip(arg) {
+  const d = (arg && typeof arg === "object" && "phase" in arg) ? arg
+    : (arg && typeof arg === "object") ? _i9Derived(arg)
+    : _i9Derived({ status: String(arg || "no_record") });
+  return _i9StatusPill(d);
+}
+// Generic pill (used for queue section headers etc.).
 const _i9Chip = (label, tone) => `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:10px;white-space:nowrap;${tone}">${escapeHtml(label)}</span>`;
 
 async function loadDriverWorkAuthView() {
@@ -11258,7 +11306,7 @@ async function loadDriverWorkAuthView() {
     return `
       <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border);cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
         <div style="min-width:0">
-          <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.driver_name || "—")} ${_i9StatusChip(r.status)}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">· onboarding</span>` : ""}</div>
+          <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.driver_name || "—")} ${_i9StatusChip(cls.d || r)}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">· onboarding</span>` : ""}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${line}${r.hire_date ? ` · hired ${new Date(r.hire_date).toLocaleDateString()}` : ""}</div>
         </div>
         <div><button type="button" class="btn btn-sm" data-rr-i9-open="${escapeHtml(r.driver_id)}">Open</button></div>
@@ -11578,7 +11626,7 @@ async function _buildEmploymentReport(driverId, m) {
     const i9s1 = i9Rec.section1 && typeof i9Rec.section1 === "object" ? i9Rec.section1 : {};
     const i9s2 = i9Rec.section2 && typeof i9Rec.section2 === "object" ? i9Rec.section2 : {};
     const i9ret = _i9RetentionUntil(i9Rec, drv);
-    const i9stLbl = (_I9_STATUS[i9Rec.status] || { label: i9Rec.status }).label;
+    const i9stLbl = _i9DerivedLabel(i9Rec);
     const i9name = [i9s1.first_name, i9s1.middle_initial, i9s1.last_name].filter(Boolean).join(" ");
     i9Html = `<dl class="er-kv">
       <dt>Status</dt><dd>${esc(i9stLbl)}</dd>
@@ -11659,7 +11707,7 @@ async function _buildEmploymentReport(driverId, m) {
 
   const body = m.querySelector("#er-body");
   if (body) body.innerHTML = html;
-  const summary = `${name} · ${shifts.length} shifts · ${coachings.length} coachings · ${envelopes.length} documents · I-9 ${(_I9_STATUS[i9Rec?.status] || { label: "not started" }).label} · status ${sep[0]}`;
+  const summary = `${name} · ${shifts.length} shifts · ${coachings.length} coachings · ${envelopes.length} documents · I-9 ${(i9Rec ? _i9DerivedLabel(i9Rec) : "not started")} · status ${sep[0]}`;
   const small = m.querySelector(".er-toolbar .t small");
   if (small) small.textContent = summary;
   // Stash the snapshot so "Save to driver record" can archive this exact packet.
@@ -21639,7 +21687,7 @@ function _i9DocsCardHtml(r) {
       <div style="flex:1;min-width:0">
         <div class="docs-card-title">${dName} — Form I-9</div>
         <div class="docs-meta-row">
-          <span>${_i9StatusChip(r.status)}</span>
+          <span>${_i9StatusChip(r)}</span>
           ${sealedBadge}
           <span class="docs-meta-dim">${meta}${r.first_day_of_employment ? " · first day " + escapeHtml(fmtD(r.first_day_of_employment)) : ""}</span>
         </div>
