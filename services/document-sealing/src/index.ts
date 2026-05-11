@@ -558,10 +558,16 @@ async function buildI9Pdf(
     try { form = official.getForm(); } catch { form = null; }
     const fields = form ? form.getFields() : [];
     if (!form || fields.length === 0) throw new Error("no AcroForm fields");
-    tryFillOfficialI9(fields, rec, dsp);
+    const sigRects = tryFillOfficialI9(fields, rec, dsp);
     try { form.flatten(); } catch (e) { console.warn("i9 form flatten failed (filled fields kept):", e); }
     const pages = await pdf.copyPages(official, official.getPageIndices());
     for (const p of pages) pdf.addPage(p);
+    // Stamp the captured signatures onto the form's signature lines
+    // (Section 1 + Section 2 are both on page 1 of the official form).
+    if (pages[0]) {
+      await stampSigOnPage(pdf, pages[0], sigRects.employeeSigRect, rec.section1_signature);
+      await stampSigOnPage(pdf, pages[0], sigRects.employerSigRect, rec.section2_signature);
+    }
     await appendI9SignaturePage(pdf, rec, drv, dsp, helv, bold);
     return { source: "official_form" };
   } catch (e) {
@@ -571,134 +577,137 @@ async function buildI9Pdf(
   }
 }
 
-// Fuzzy-fill the official USCIS Form I-9 AcroForm. Field names vary by
-// edition, so we match by (lowercased) substring patterns and set the
-// first field whose name contains every term of a pattern. Best-effort:
-// an unmatched field is simply skipped (and the data is still on the
-// signature-record page + the Certificate of Completion either way).
+// Fill the official USCIS Form I-9 AcroForm — exact field names for the
+// current edition (01/20/25), with looser aliases as fallbacks for other
+// editions. Field names are normalised (lowercase; _ - . [] () → spaces;
+// collapsed) before an *equality* lookup, so `Last_Name_Family_Name[0]`
+// and `Last Name (Family Name)` both resolve. Returns the page-1
+// rectangles of the two signature lines so the caller can stamp the
+// captured signature images onto them after flattening.
 function tryFillOfficialI9(
   fields: ReturnType<NonNullable<ReturnType<PDFDocument["getForm"]>>["getFields"]>,
   rec: I9Record, dsp: DspRow,
-) {
+): { employeeSigRect: number[] | null; employerSigRect: number[] | null } {
   const s1 = (rec.section1 || {}) as Record<string, string>;
   const s2 = (rec.section2 || {}) as Record<string, unknown>;
-  // Normalise each field name: lowercase, turn _ - . [] () and digits-in-
-  // brackets into spaces, collapse whitespace. So `Last_Name_Family_Name[0]`
-  // → `last name family name 0`, `topmostSubform[0].Page1[0].City_or_Town[0]`
-  // → `topmostsubform 0 page1 0 city or town 0`. Patterns then match
-  // robustly across editions / XFA hierarchical names.
   const norm = (s: string) => s.toLowerCase().replace(/[_\-./\\]+/g, " ").replace(/[[\]()]+/g, " ").replace(/\s+/g, " ").trim();
-  const named = fields.map((f) => ({ f, n: norm(f.getName()) }));
-  const used = new Set<unknown>();   // don't set the same field twice
-  const findFirst = (pats: string[][], pred: (x: { f: unknown; n: string }) => boolean) => {
-    for (const terms of pats) {
-      const hit = named.find((x) => !used.has(x.f) && pred(x) && terms.every((t) => x.n.includes(norm(t))));
-      if (hit) return hit;
+  const byNorm = new Map<string, (typeof fields)[number]>();
+  for (const f of fields) { const k = norm(f.getName()); if (!byNorm.has(k)) byNorm.set(k, f); }
+  const used = new Set<unknown>();
+  const find = (names: string[]) => { for (const nm of names) { const f = byNorm.get(norm(nm)); if (f && !used.has(f)) return f; } return null; };
+  const setT = (value: string | null | undefined, ...names: string[]) => {
+    if (value == null || value === "") return;
+    const f = find(names);
+    if (!f) return;
+    used.add(f);
+    try {
+      if (f instanceof PDFDropdown) { const v = String(value).trim().toUpperCase(); try { f.select(v); } catch { /* not a valid option — leave blank */ } }
+      else if (f instanceof PDFTextField) f.setText(String(value));
+    } catch { /* ignore */ }
+  };
+  const check = (...names: string[]) => { const f = find(names); if (f instanceof PDFCheckBox) { used.add(f); try { f.check(); } catch { /* ignore */ } } };
+  const rectOf = (...names: string[]): number[] | null => {
+    for (const nm of names) {
+      const f = byNorm.get(norm(nm)); if (!f) continue;
+      try {
+        const w = (f as unknown as { acroField: { getWidgets(): Array<{ getRectangle(): { x: number; y: number; width: number; height: number } }> } }).acroField.getWidgets()[0];
+        if (w) { const r = w.getRectangle(); return [r.x, r.y, r.width, r.height]; }
+      } catch { /* ignore */ }
     }
     return null;
   };
-  const setText = (pats: string[][], value?: string | null) => {
-    if (!value) return;
-    const hit = findFirst(pats, (x) => x.f instanceof PDFTextField);
-    if (hit) { try { (hit.f as PDFTextField).setText(String(value)); } catch { /* ignore */ } used.add(hit.f); }
-  };
-  const setDropdownOrText = (pats: string[][], value?: string | null) => {
-    if (!value) return;
-    const hit = findFirst(pats, (x) => x.f instanceof PDFDropdown || x.f instanceof PDFTextField);
-    if (hit) {
-      try {
-        if (hit.f instanceof PDFDropdown) { try { (hit.f as PDFDropdown).select(String(value)); } catch { try { (hit.f as PDFDropdown).addOptions([String(value)]); (hit.f as PDFDropdown).select(String(value)); } catch { /* ignore */ } } }
-        else (hit.f as PDFTextField).setText(String(value));
-      } catch { /* ignore */ }
-      used.add(hit.f);
-    }
-  };
-  const checkBox = (pats: string[][]) => {
-    const hit = findFirst(pats, (x) => x.f instanceof PDFCheckBox);
-    if (hit) { try { (hit.f as PDFCheckBox).check(); } catch { /* ignore */ } used.add(hit.f); return true; }
-    return false;
-  };
   const mmddyyyy = (iso?: string | null) => { if (!iso) return ""; const d = new Date(/T/.test(iso) ? iso : iso + "T12:00:00Z"); if (isNaN(d.getTime())) return ""; const p = (n: number) => String(n).padStart(2, "0"); return `${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())}/${d.getUTCFullYear()}`; };
 
-  // ── Section 1 ──
-  setText([["last name", "family"], ["last name"], ["family name"], ["lastname"], ["last", "name"]], s1.last_name);
-  setText([["first name", "given"], ["first name"], ["given name"], ["firstname"], ["first", "name"]], s1.first_name);
-  setText([["middle initial"], ["middle"], ["mi"]], s1.middle_initial);
-  setText([["other last name"], ["other names"], ["other", "name"], ["maiden"]], s1.other_last_names);
-  setText([["address", "street"], ["street number and name"], ["street number"], ["street name"], ["address 1"], ["address"]], s1.addr_street);
-  setText([["apt", "number"], ["apartment"], ["apt"], ["unit"]], s1.addr_apt);
-  setText([["city or town"], ["city", "town"], ["city"]], s1.addr_city);
-  setDropdownOrText([["state"], ["st"]], s1.addr_state);
-  setText([["zip"], ["postal"]], s1.addr_zip);
-  setText([["date of birth"], ["dob"], ["birth"]], mmddyyyy(s1.dob));
-  setText([["social security"], ["ssn"], ["us social security number"]], s1.ssn);
-  setText([["e mail address"], ["email address"], ["mail address"], ["email"], ["e mail"]], s1.email);
-  setText([["telephone"], ["phone number"], ["phone"]], s1.phone);
-  // Citizenship: prefer a radio group, fall back to checkboxes (labelled
-  // or CB_1..CB_4 / numbered).
+  // ── Section 1 — Employee Information and Attestation ──
+  setT(s1.last_name, "Last Name (Family Name)", "Last Name Family Name", "last name");
+  setT(s1.first_name, "First Name Given Name", "First Name (Given Name)", "first name");
+  setT(s1.middle_initial, "Employee Middle Initial (if any)", "Middle Initial (if any)", "middle initial");
+  setT(s1.other_last_names, "Employee Other Last Names Used (if any)", "Other Last Names Used (if any)", "other last names used");
+  setT(s1.addr_street, "Address Street Number and Name", "Address (Street Number and Name)", "address street number and name");
+  setT(s1.addr_apt, "Apt Number (if any)", "Apt. Number (if any)", "apt number");
+  setT(s1.addr_city, "City or Town", "city or town");
+  setT(s1.addr_state, "State", "state");
+  setT(s1.addr_zip, "ZIP Code", "Zip Code", "zip code");
+  setT(mmddyyyy(s1.dob), "Date of Birth mmddyyyy", "Date of Birth (mm/dd/yyyy)", "date of birth mmddyyyy", "date of birth");
+  setT(s1.ssn, "US Social Security Number", "U.S. Social Security Number", "us social security number");
+  setT(s1.email, "Employees E-mail Address", "Employee's Email Address", "employees e mail address", "employee s email address");
+  setT(s1.phone, "Telephone Number", "Employee's Telephone Number", "telephone number");
+  // Citizenship attestation — CB_1..CB_4 on 01/20/25.
   const cs = s1.citizen_status;
-  const csIdx = cs === "citizen" ? 1 : cs === "national" ? 2 : cs === "lpr" ? 3 : cs === "authorized" ? 4 : 0;
-  if (csIdx) {
-    const radio = named.find((x) => /citizenship|immigration status|attest.*status|status.*attest/.test(x.n) && typeof (x.f as { select?: unknown }).select === "function");
-    let done = false;
-    if (radio) {
-      try {
-        const opts = (radio.f as unknown as { getOptions(): string[] }).getOptions();
-        if (opts && opts[csIdx - 1]) { (radio.f as unknown as { select(v: string): void }).select(opts[csIdx - 1]); used.add(radio.f); done = true; }
-      } catch { /* ignore */ }
-    }
-    if (!done) {
-      const labels = ["citizen of the united states", "noncitizen national", "permanent resident", "authorized to work"];
-      const byLabel = checkBox([[labels[csIdx - 1]]]);
-      if (!byLabel) checkBox([["cb " + csIdx], ["checkbox " + csIdx], ["cb", String(csIdx)]]);
-    }
-  }
-  if (cs === "lpr") setText([["uscis", "alien"], ["uscis a number"], ["a number"], ["alien", "number"], ["uscis", "number"]], s1.lpr_uscis_number);
+  if (cs === "citizen")    check("CB_1", "1 A citizen of the United States", "citizen of the united states");
+  if (cs === "national")   check("CB_2", "2 A noncitizen national of the United States", "noncitizen national");
+  if (cs === "lpr")        check("CB_3", "3 A lawful permanent resident", "lawful permanent resident");
+  if (cs === "authorized") check("CB_4", "4 A noncitizen authorized to work", "noncitizen authorized to work", "authorized to work");
+  if (cs === "lpr") setT(s1.lpr_uscis_number, "3 A lawful permanent resident Enter USCIS or ANumber", "uscis a number", "uscis or a number");
   if (cs === "authorized") {
-    setText([["work until", "exp"], ["expiration", "mm"], ["exp date"], ["expiration date"], ["authoriz", "expir"], ["exp", "if any"]], mmddyyyy(s1.auth_expires) || (s1.auth_expires || ""));
-    if (s1.auth_doc_kind === "uscis") setText([["uscis a number"], ["uscis", "number"], ["a number"], ["alien", "number"]], s1.auth_doc_number);
-    if (s1.auth_doc_kind === "i94")   setText([["i 94 admission"], ["i 94"], ["i94"], ["admission", "number"]], s1.auth_doc_number);
-    if (s1.auth_doc_kind === "passport") { setText([["foreign passport", "number"], ["passport", "number"], ["foreign passport"]], s1.auth_doc_number); setText([["country of issuance"], ["country", "issuance"], ["country"]], s1.auth_passport_country); }
+    setT(mmddyyyy(s1.auth_expires) || (s1.auth_expires || "N/A"), "Exp Date mmddyyyy", "exp date mmddyyyy", "expiration date mm dd yyyy");
+    if (s1.auth_doc_kind === "uscis")    setT(s1.auth_doc_number, "USCIS ANumber", "uscis a number", "uscis a-number");
+    if (s1.auth_doc_kind === "i94")      setT(s1.auth_doc_number, "Form I94 Admission Number", "form i 94 admission number", "i94 admission number");
+    if (s1.auth_doc_kind === "passport") setT([s1.auth_doc_number, s1.auth_passport_country].filter(Boolean).join(" — "), "Foreign Passport Number and Country of IssuanceRow1", "foreign passport number and country of issuance");
   }
-  setText([["today s date", "9"], ["today s date", "section 1"], ["today s date", "1"], ["today s date"], ["todays date"], ["signature", "date", "employee"], ["today", "date"]], mmddyyyy(rec.section1_completed_at));
+  setT(mmddyyyy(rec.section1_completed_at), "Today's Date mmddyyy", "Today's Date (mm/dd/yyyy)", "todays date mmddyyy", "today s date mmddyyy");
 
-  // ── Section 2 ──
-  setText([["first day of employment"], ["first day", "employ"], ["first day"], ["employment", "start"]], mmddyyyy(rec.first_day_of_employment));
+  // ── Section 2 — Employer Review and Verification ──
+  setT(mmddyyyy(rec.first_day_of_employment), "FirstDayEmployed mmddyyyy", "first day employed mmddyyyy", "first day of employment");
   const docs = Array.isArray(s2.documents) ? (s2.documents as Array<Record<string, string>>) : [];
   if ((s2.list_used as string) === "A") {
     const d = docs[0] || {};
-    // The 01/20/25 form numbers the List-A rows 1..3; ours is row 1.
-    setText([["list a", "document title 1"], ["document title 1"], ["list a", "title"], ["document title", "1"], ["document title"]], d.title);
-    setText([["list a", "issuing authority 1"], ["issuing authority 1"], ["list a", "issuing"], ["issuing authority", "1"], ["issuing authority"]], d.issuing_authority);
-    setText([["list a", "document number 1"], ["document number 1"], ["list a", "number"], ["document number", "1"], ["document number"]], d.number);
-    setText([["list a", "expiration date 1"], ["expiration date 1"], ["list a", "expiration"], ["expiration date", "1"], ["expiration date"]], mmddyyyy(d.expires_on));
+    setT(d.title, "Document Title 1", "list a document title 1");
+    setT(d.issuing_authority, "Issuing Authority 1", "list a issuing authority 1");
+    setT(d.number, "Document Number 0 (if any)", "list a document number 1");
+    setT(mmddyyyy(d.expires_on), "Expiration Date if any", "list a expiration date 1");
   } else {
     const b = docs.find((x) => x.list === "B") || docs[0] || {};
     const c = docs.find((x) => x.list === "C") || docs[1] || {};
-    setText([["list b", "document title"], ["list b", "title"], ["document title b"]], b.title);
-    setText([["list b", "issuing authority"], ["list b", "issuing"], ["issuing authority b"]], b.issuing_authority);
-    setText([["list b", "document number"], ["list b", "number"], ["document number b"]], b.number);
-    setText([["list b", "expiration"], ["expiration date b"]], mmddyyyy(b.expires_on));
-    setText([["list c", "document title"], ["list c", "title"], ["document title c"]], c.title);
-    setText([["list c", "issuing authority"], ["list c", "issuing"], ["issuing authority c"]], c.issuing_authority);
-    setText([["list c", "document number"], ["list c", "number"], ["document number c"]], c.number);
-    setText([["list c", "expiration"], ["expiration date c"]], mmddyyyy(c.expires_on));
+    setT(b.title, "List B Document 1 Title", "list b document title 1");
+    setT(b.issuing_authority, "List B Issuing Authority 1");
+    setT(b.number, "List B Document Number 1");
+    setT(mmddyyyy(b.expires_on), "List B Expiration Date 1");
+    setT(c.title, "List C Document Title 1");
+    setT(c.issuing_authority, "List C Issuing Authority 1");
+    setT(c.number, "List C Document Number 1");
+    setT(mmddyyyy(c.expires_on), "List C Expiration Date 1");
   }
-  if (s2.additional_info) setText([["additional information"], ["additional info"]], String(s2.additional_info));
-  // The 01/20/25 form has ONE combined "Last Name, First Name and Title of
-  // Employer or Authorized Representative" field — fill it in that order.
+  if (s2.exam_method === "remote_alternative") check("CB_Alt", "check here if you used an alternative procedure");
+  if (s2.additional_info) setT(String(s2.additional_info), "Additional Information", "additional information");
   const repName = (rec.section2_completed_by_name || "").trim();
   const repLast = repName ? repName.split(/\s+/).slice(-1)[0] : "";
-  const repFirst = repName ? (repName.split(/\s+/).slice(0, -1).join(" ") || repName) : "";
+  const repFirst = repName ? (repName.split(/\s+/).slice(0, -1).join(" ") || "") : "";
   const repTitle = (rec.section2_completed_by_title || "").trim();
-  const repCombined = [repLast || repName, repFirst, repTitle].filter(Boolean).join(", ");
-  setText([["last name", "first name", "title", "employer"], ["last name", "first name", "title", "representative"], ["last name first name and title"], ["name and title", "employer"]], repCombined);
-  // …and, on editions that split them, the separate fields (each set once).
-  setText([["last name", "employer"], ["last name", "representative"], ["last name of employer"]], repLast);
-  setText([["first name", "employer"], ["first name", "representative"], ["first name of employer"]], repFirst);
-  setText([["title", "employer"], ["title", "representative"], ["title of employer"]], repTitle);
-  setText([["employer s business or organization name"], ["business or organization name"], ["employer", "business"], ["employer", "organization"], ["organization name"], ["business name"]], dsp.name);
-  setText([["today s date", "section 2"], ["today s date", "2"], ["signature", "date", "employer"], ["signature", "date", "representative"], ["today s date"], ["todays date"], ["today", "date"]], mmddyyyy(rec.section2_completed_at));
+  setT([repLast || repName, repFirst, repTitle].filter(Boolean).join(", "),
+    "Last Name First Name and Title of Employer or Authorized Representative",
+    "last name first name and title of employer or authorized representative",
+    "last name first name and title employer");
+  // Editions that split the fields:
+  setT(repLast, "Last Name of Employer or Authorized Representative", "last name of employer");
+  setT(repFirst, "First Name of Employer or Authorized Representative", "first name of employer");
+  setT(repTitle, "Title of Employer or Authorized Representative", "title of employer");
+  setT(dsp.name, "Employers Business or Org Name", "Employer's Business or Organization Name", "employers business or org name");
+  setT(mmddyyyy(rec.section2_completed_at), "S2 Todays Date mmddyyyy", "s2 todays date mmddyyyy", "todays date section 2");
+
+  return {
+    employeeSigRect: rectOf("Signature of Employee", "signature of employee"),
+    employerSigRect: rectOf("Signature of Employer or AR", "signature of employer or ar", "signature of employer or authorized representative"),
+  };
+}
+
+// Stamp a captured signature (drawn image or typed text) onto a page at
+// the given rect [x, y, w, h] (PDF coords, bottom-left origin).
+async function stampSigOnPage(pdf: PDFDocument, page: PDFPage, rect: number[] | null, sig: Record<string, unknown> | null) {
+  if (!rect || !sig || typeof sig !== "object") return;
+  const method = sig.method as string | undefined;
+  const data = sig.data as string | undefined;
+  const pad = 2, [x, y, w, h] = rect;
+  if (method === "drawn" && typeof data === "string" && data.startsWith("data:image")) {
+    try {
+      const img = data.includes("image/png") ? await pdf.embedPng(data) : await pdf.embedJpg(data);
+      const sc = Math.min((w - pad * 2) / img.width, (h - pad * 2) / img.height);
+      page.drawImage(img, { x: x + pad, y: y + pad, width: img.width * sc, height: img.height * sc });
+      return;
+    } catch { /* fall through to text */ }
+  }
+  const txt = (typeof data === "string" && data) || (typeof sig.signer_name === "string" ? sig.signer_name as string : "");
+  if (txt) { try { page.drawText(String(txt).slice(0, 60), { x: x + pad, y: y + Math.max(pad, h / 2 - 5), size: Math.min(11, h - pad), color: rgb(0.07, 0.09, 0.13) }); } catch { /* ignore */ } }
 }
 
 async function appendI9SignaturePage(pdf: PDFDocument, rec: I9Record, drv: DriverRow, dsp: DspRow, helv: PDFFont, bold: PDFFont) {
