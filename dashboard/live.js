@@ -946,7 +946,7 @@ window.goto = function (view) {
   if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
-  if (view === "drivers")   loadDriversRoster();
+  if (view === "drivers")   { loadDriversRoster(); refreshI9Badge(); }
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); }
   if (view === "messages")  loadDriverChatInbox();
@@ -7080,6 +7080,7 @@ window.drSub = function (sub) {
   if (sub === "attendance")   { _rrApplyAttPolicyMode(); loadAttendanceLive(); _rrInitAttTabDnD(); }
   if (sub === "coaching")     loadCoachingFeed();
   if (sub === "availability") loadAvailabilityRequests();
+  if (sub === "workauth")     loadDriverWorkAuthView();
   _swapDriversCta(sub);
 };
 
@@ -10786,6 +10787,170 @@ document.addEventListener("click", async (e) => {
     else toast("Couldn't open that file.", "warn");
     return;
   }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Form I-9 · Work Authorization compliance sub-tab (Drivers page)
+// A prioritized queue + KPI strip computed from i9_list. The 3-business-
+// day Section-2 clock keys off first_day_of_employment (weekends +
+// observed US federal holidays skipped — see _i9Section2Deadline).
+// ════════════════════════════════════════════════════════════════════
+
+function _i9ParseLooseDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (m) return `${m[3]}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
+  return null;
+}
+function _i9DaysFromToday(iso) {
+  if (!iso) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  return Math.round((new Date(iso + "T00:00:00Z") - new Date(today + "T00:00:00Z")) / 86400000);
+}
+
+// Classify a single i9_list row into a queue bucket. Buckets, in
+// priority order: s2_overdue · s2_due · needs_correction ·
+// awaiting_employee · s2_needed · reverification · verified.
+const _I9_BUCKETS = [
+  { key: "s2_overdue",        label: "Section 2 overdue",      tone: "background:#fee2e2;color:#991b1b" },
+  { key: "s2_due",            label: "Section 2 due soon",     tone: "background:#fef3c7;color:#92400e" },
+  { key: "needs_correction",  label: "Needs correction",       tone: "background:#fee2e2;color:#991b1b" },
+  { key: "awaiting_employee", label: "Awaiting employee",      tone: "background:#f1f5f9;color:#475569" },
+  { key: "s2_needed",         label: "Section 2 needed",       tone: "background:#e0f2fe;color:#0369a1" },
+  { key: "reverification",    label: "Reverification due",     tone: "background:#fef3c7;color:#92400e" },
+  { key: "verified",          label: "Verified",               tone: "background:#dcfce7;color:#166534" },
+];
+function _i9Classify(row) {
+  const st = row.status;
+  if (st === "no_record" || st === "not_started") return { bucket: "awaiting_employee" };
+  if (st === "needs_correction") return { bucket: "needs_correction" };
+  if (st === "section1_complete") {
+    if (!row.first_day_of_employment) return { bucket: "s2_needed", note: "first day of employment not set" };
+    const deadline = _i9Section2Deadline(row.first_day_of_employment);
+    const days = _i9DaysFromToday(deadline);
+    if (days != null && days < 0) return { bucket: "s2_overdue", deadline, days };
+    if (days != null && days <= 2) return { bucket: "s2_due", deadline, days };
+    return { bucket: "s2_needed", deadline, days };
+  }
+  if (st === "verified") {
+    const exp = _i9ParseLooseDate(row.section1_auth_expires);
+    if (exp) {
+      const d = _i9DaysFromToday(exp);
+      if (d != null && d <= 30) return { bucket: "reverification", reverDate: exp, reverDays: d };
+    }
+    return { bucket: "verified" };
+  }
+  return { bucket: "verified" };
+}
+
+function _i9StatusChip(st) {
+  const m = {
+    no_record:         { t: "No record",          c: "background:#f1f5f9;color:#475569" },
+    not_started:       { t: "Not started",        c: "background:#f1f5f9;color:#475569" },
+    section1_complete: { t: "Section 1 complete",  c: "background:#fef9c3;color:#854d0e" },
+    needs_correction:  { t: "Needs correction",   c: "background:#fee2e2;color:#991b1b" },
+    verified:          { t: "Verified",            c: "background:#dcfce7;color:#166534" },
+  }[st] || { t: st, c: "background:#f1f5f9;color:#475569" };
+  return `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:10px;white-space:nowrap;${m.c}">${escapeHtml(m.t)}</span>`;
+}
+const _i9Chip = (label, tone) => `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:10px;white-space:nowrap;${tone}">${escapeHtml(label)}</span>`;
+
+async function loadDriverWorkAuthView() {
+  const queueEl = document.getElementById("rr-i9-queue");
+  const kpiEl   = document.getElementById("rr-i9-kpis");
+  const statusEl = document.getElementById("rr-i9-list-status");
+  if (!queueEl) return;
+  queueEl.innerHTML = `<div class="rr-loading">Loading</div>`;
+  const { data, error } = await sb.rpc("i9_list");
+  if (error) { queueEl.innerHTML = `<div class="dr-empty"><h3>Couldn't load</h3><p>${escapeHtml(error.message || "")}</p></div>`; return; }
+  const rows = Array.isArray(data) ? data : [];
+  // Annotate + bucket.
+  const grouped = {}; _I9_BUCKETS.forEach(b => grouped[b.key] = []);
+  let overdueCount = 0;
+  for (const r of rows) {
+    const cls = _i9Classify(r);
+    r._cls = cls;
+    grouped[cls.bucket].push(r);
+    if (cls.bucket === "s2_overdue") overdueCount++;
+  }
+  // KPI strip — the six most actionable counts.
+  const kpis = [
+    { label: "Section 2 overdue", n: grouped.s2_overdue.length,        sub: "past 3 business days", tone: grouped.s2_overdue.length ? "color:var(--red)" : "" },
+    { label: "Due soon",          n: grouped.s2_due.length,            sub: "within 3 business days", tone: grouped.s2_due.length ? "color:var(--amber-dark)" : "" },
+    { label: "Needs correction",  n: grouped.needs_correction.length,  sub: "employer reopened", tone: grouped.needs_correction.length ? "color:var(--red)" : "" },
+    { label: "Awaiting employee", n: grouped.awaiting_employee.length, sub: "Section 1 not done", tone: "" },
+    { label: "Reverification",    n: grouped.reverification.length,    sub: "auth expiring ≤30d", tone: grouped.reverification.length ? "color:var(--amber-dark)" : "" },
+    { label: "Verified",          n: grouped.verified.length,          sub: `of ${rows.length} employees`, tone: "color:var(--green)" },
+  ];
+  if (kpiEl) kpiEl.innerHTML = kpis.map(k => `
+    <div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone}">${k.n}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("");
+  if (statusEl) statusEl.textContent = `${rows.length} employee${rows.length === 1 ? "" : "s"} · ${overdueCount} overdue`;
+
+  const fmtD = (x) => x ? new Date(x + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const rowHtml = (r) => {
+    const cls = r._cls || {};
+    let line = "";
+    if (cls.bucket === "s2_overdue")        line = `Section 2 was due ${fmtD(cls.deadline)} — ${Math.abs(cls.days)} business day${Math.abs(cls.days) === 1 ? "" : "s"} overdue`;
+    else if (cls.bucket === "s2_due")       line = cls.days === 0 ? `Section 2 due today (${fmtD(cls.deadline)})` : `Section 2 due ${fmtD(cls.deadline)} — ${cls.days} business day${cls.days === 1 ? "" : "s"} left`;
+    else if (cls.bucket === "s2_needed")    line = cls.note ? `Section 1 done · ${escapeHtml(cls.note)}` : `Section 1 done · Section 2 due ${fmtD(cls.deadline)}`;
+    else if (cls.bucket === "needs_correction") line = r.needs_correction_note ? `Reopened: ${r.needs_correction_note}` : "Reopened for correction — awaiting the employee";
+    else if (cls.bucket === "awaiting_employee") line = r.status === "no_record" ? "No I-9 started yet" : "Section 1 not started";
+    else if (cls.bucket === "reverification") line = `Work authorization expires ${fmtD(cls.reverDate)}${cls.reverDays < 0 ? " (expired)" : ` — ${cls.reverDays} day${cls.reverDays === 1 ? "" : "s"}`}`;
+    else if (cls.bucket === "verified")     line = `Verified ${r.section2_completed_at ? new Date(r.section2_completed_at).toLocaleDateString() : ""}${r.section2_completed_by_name ? " by " + escapeHtml(r.section2_completed_by_name) : ""}`;
+    return `
+      <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border);cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
+        <div style="min-width:0">
+          <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.driver_name || "—")} ${_i9StatusChip(r.status)}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">· onboarding</span>` : ""}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${line}${r.hire_date ? ` · hired ${new Date(r.hire_date).toLocaleDateString()}` : ""}</div>
+        </div>
+        <div><button type="button" class="btn btn-sm" data-rr-i9-open="${escapeHtml(r.driver_id)}">Open</button></div>
+      </div>`;
+  };
+  const sections = _I9_BUCKETS.map(b => {
+    const list = grouped[b.key];
+    if (!list.length) return "";
+    return `
+      <div style="margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          ${_i9Chip(b.label, b.tone)}
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${list.length}</span>
+        </div>
+        <div style="display:flex;flex-direction:column">${list.map(rowHtml).join("")}</div>
+      </div>`;
+  }).join("");
+  queueEl.innerHTML = sections || `<div class="dr-empty"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>Nothing on the queue</h3><p>Every employee's Form I-9 is in order.</p></div>`;
+
+  // Refresh the subnav badge with the overdue count.
+  _i9SetOverdueBadge(overdueCount);
+}
+
+function _i9SetOverdueBadge(n) {
+  const el = document.getElementById("rr-i9-overdue-badge");
+  if (!el) return;
+  if (n > 0) { el.textContent = n; el.style.display = "inline-block"; }
+  else el.style.display = "none";
+}
+// Best-effort badge refresh on boot / periodic refresh — cheap RPC.
+async function refreshI9Badge() {
+  try {
+    const { data } = await sb.rpc("i9_list");
+    if (!Array.isArray(data)) return;
+    let overdue = 0;
+    for (const r of data) { if (_i9Classify(r).bucket === "s2_overdue") overdue++; }
+    _i9SetOverdueBadge(overdue);
+  } catch {}
+}
+
+// Open the driver drawer straight onto the Employment tab from the queue.
+document.addEventListener("click", (e) => {
+  const open = e.target.closest("[data-rr-i9-open]");
+  if (!open || !e.target.closest("#dr-sub-workauth")) return;
+  e.preventDefault();
+  const id = open.getAttribute("data-rr-i9-open");
+  if (id) openDriverDrawer(id, { tab: "employment" });
 });
 
 // ════════════════════════════════════════════════════════════════════
@@ -15253,6 +15418,7 @@ function refreshActiveView() {
   } else if (activeView === "view-drivers") {
     const subActive = document.querySelector(".dr-subview.active")?.id;
     if (subActive === "dr-sub-licenses") loadDriverLicensesView();
+    else if (subActive === "dr-sub-workauth") loadDriverWorkAuthView();
     else loadDriversRoster();
   }
 }
