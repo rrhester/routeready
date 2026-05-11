@@ -7327,6 +7327,7 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="subnav">
           <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')">Onboarding</button>
           <button class="subnav-item" data-obsub="workauth" onclick="obSub('workauth')">Work authorization</button>
+          <button class="subnav-item" data-obsub="builder" onclick="obSub('builder')">Builder</button>
         </div>
 
         <div id="obsub-overview"><div class="rr-loading">Loading</div></div>
@@ -7342,6 +7343,8 @@ body.rr-cmdk-open{ overflow:hidden }
           <div id="rr-i9-kpis" class="driver-stat-row" style="margin-bottom:var(--s-4)"></div>
           <div id="rr-i9-queue"><div class="rr-loading">Loading</div></div>
         </div>
+
+        <div id="obsub-builder" style="display:none"><div class="rr-loading">Loading</div></div>
       </div>
     </div>
 
@@ -19143,7 +19146,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260512j-doc-tiers"></script>
+<script type="module" src="./live.js?v=20260512k-onboarding-builder"></script>
 
 </body>
 </html>
