@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>RouteReady · Verify a signed document</title>
+  <link rel="icon" type="image/png" href="/header-bg.png">
+  <script src="/dashboard/config.js"></script>
+  <style>
+    :root {
+      --bg:#0b1220; --surface:#121b2e; --card:#16213a; --border:#26324c;
+      --text:#e7ecf5; --muted:#9aa7bd; --subtle:#6b7689;
+      --accent:#5b9dff; --green:#34d399; --red:#f87171; --amber:#fbbf24;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; background:var(--bg); color:var(--text);
+      font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      padding:24px 16px 64px;
+    }
+    .wrap { max-width:760px; margin:0 auto; }
+    h1 { font-size:20px; margin:0 0 4px; }
+    .lede { color:var(--muted); margin:0 0 22px; font-size:14px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+    .card h2 { font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--subtle); margin:0 0 10px; }
+    .kv { display:grid; grid-template-columns:140px 1fr; gap:4px 12px; font-size:14px; }
+    .kv dt { color:var(--muted); }
+    .kv dd { margin:0; word-break:break-word; }
+    .mono { font-family:var(--mono); font-size:12.5px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+    .pill.ok    { background:rgba(52,211,153,.14); color:var(--green); }
+    .pill.bad   { background:rgba(248,113,113,.14); color:var(--red); }
+    .pill.warn  { background:rgba(251,191,36,.14); color:var(--amber); }
+    .pill.muted { background:rgba(154,167,189,.14); color:var(--muted); }
+    .check { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+    .check:first-child { border-top:none; }
+    .check .icon { flex:0 0 auto; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; margin-top:1px; }
+    .icon.ok   { background:rgba(52,211,153,.18); color:var(--green); }
+    .icon.bad  { background:rgba(248,113,113,.18); color:var(--red); }
+    .icon.warn { background:rgba(251,191,36,.18); color:var(--amber); }
+    .icon.pend { background:rgba(154,167,189,.18); color:var(--muted); }
+    .check .body { flex:1; }
+    .check .body .title { font-weight:600; }
+    .check .body .detail { color:var(--muted); font-size:13px; margin-top:2px; }
+    .timeline .evt { border-top:1px solid var(--border); padding:10px 0; }
+    .timeline .evt:first-child { border-top:none; }
+    .timeline .evt .head { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+    .timeline .evt .head .k { font-weight:600; text-transform:capitalize; }
+    .timeline .evt .head .t { color:var(--subtle); font-size:12px; white-space:nowrap; }
+    .timeline .evt .who { color:var(--muted); font-size:13px; margin-top:2px; }
+    .timeline .evt .h { color:var(--subtle); font-size:11px; margin-top:5px; }
+    a.btn, button.btn {
+      display:inline-block; background:var(--surface); border:1px solid var(--border);
+      color:var(--text); border-radius:8px; padding:8px 14px; font:inherit; font-size:13px;
+      font-weight:600; text-decoration:none; cursor:pointer; margin-right:8px; margin-top:6px;
+    }
+    a.btn:hover, button.btn:hover { border-color:var(--accent); }
+    .tokenbox { display:flex; gap:8px; margin-bottom:20px; }
+    .tokenbox input { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 12px; font:inherit; font-family:var(--mono); font-size:13px; }
+    .loader { width:22px; height:22px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; margin:40px auto; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .err { color:var(--red); }
+    footer { margin-top:28px; color:var(--subtle); font-size:12px; text-align:center; }
+    code { background:rgba(154,167,189,.12); padding:1px 5px; border-radius:4px; font-family:var(--mono); font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Verify a signed document</h1>
+    <p class="lede">Paste the verification token from a RouteReady document (or follow a <code>/verify/&lt;token&gt;</code> link). This page checks the audit trail, the cryptographic seal, and the trusted timestamp — independently, in your browser.</p>
+
+    <div class="tokenbox">
+      <input id="tok" type="text" placeholder="verification token (hex)" spellcheck="false" autocapitalize="off" autocomplete="off">
+      <button class="btn" id="go">Verify</button>
+    </div>
+
+    <div id="out"></div>
+
+    <footer>RouteReady · electronic signature verification. The cryptographic checks run client-side; nothing you enter here is sent anywhere except the lookup of the public record for this token.</footer>
+  </div>
+
+<script>
+const CFG = window.RR_CONFIG || {};
+const FN  = (CFG.SUPABASE_URL || "") + "/functions/v1/document-verify";
+const out = document.getElementById("out");
+const tokInput = document.getElementById("tok");
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+function hex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join(""); }
+function b64ToBytes(b64){ const bin=atob(b64); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); return u; }
+function fmtTime(s){ if(!s) return "—"; try { return new Date(s).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}) + " (" + new Date(s).toISOString() + ")"; } catch { return s; } }
+function humanKind(k){ return String(k||"").replace(/_/g," "); }
+
+function tokenFromUrl(){
+  // Support /verify/<token> (via the netlify rewrite to ?token=) and a
+  // bare ?token=… and a #<token> fragment.
+  const u = new URL(location.href);
+  let t = u.searchParams.get("token");
+  if (!t && location.hash.length > 1) t = decodeURIComponent(location.hash.slice(1));
+  return (t || "").trim();
+}
+
+function checkRow(state, title, detail){
+  const icon = state==="ok"?'<span class="icon ok">✓</span>'
+             : state==="bad"?'<span class="icon bad">✕</span>'
+             : state==="warn"?'<span class="icon warn">!</span>'
+             : '<span class="icon pend">·</span>';
+  return `<div class="check">${icon}<div class="body"><div class="title">${esc(title)}</div>${detail?`<div class="detail">${detail}</div>`:""}</div></div>`;
+}
+
+function statusPill(s){
+  const map = { signed:["ok","Signed"], viewed:["warn","Viewed — not yet signed"], sent:["muted","Sent — awaiting signature"],
+                declined:["bad","Declined"], voided:["bad","Voided"], expired:["bad","Expired"] };
+  const [cls,label] = map[s] || ["muted", s||"unknown"];
+  return `<span class="pill ${cls}">${esc(label)}</span>`;
+}
+
+async function verify(token){
+  out.innerHTML = '<div class="loader"></div>';
+  if (!FN || !CFG.SUPABASE_URL){ out.innerHTML = '<div class="card err">Configuration missing (SUPABASE_URL). Contact RouteReady.</div>'; return; }
+  let data;
+  try {
+    const r = await fetch(FN + "?token=" + encodeURIComponent(token), { method:"GET" });
+    data = await r.json().catch(()=>null);
+    if (!r.ok || !data){ out.innerHTML = `<div class="card err">Lookup failed${data&&data.error?": "+esc(data.error):""}.</div>`; return; }
+  } catch (e){
+    out.innerHTML = `<div class="card err">Network error: ${esc(e.message||e)}.</div>`; return;
+  }
+  if (!data.found){
+    out.innerHTML = '<div class="card"><h2>Not found</h2><p>No document matches that verification token.</p></div>';
+    return;
+  }
+
+  const env = data.envelope || {};
+  const seal = data.seal || null;
+
+  // ── Build the record cards first (synchronous) ──
+  let html = "";
+
+  html += `<div class="card">
+    <h2>Document</h2>
+    <dl class="kv">
+      <dt>Title</dt><dd>${esc(env.document_title || "(untitled)")}</dd>
+      <dt>Status</dt><dd>${statusPill(env.status)}</dd>
+      <dt>Signer</dt><dd>${esc(env.recipient_name)}${env.recipient_email?` &lt;${esc(env.recipient_email)}&gt;`:""}</dd>
+      <dt>Sent</dt><dd>${fmtTime(env.sent_at)}</dd>
+      ${env.viewed_at?`<dt>First opened</dt><dd>${fmtTime(env.viewed_at)}</dd>`:""}
+      ${env.signed_at?`<dt>Signed</dt><dd>${fmtTime(env.signed_at)}</dd>`:""}
+      ${env.declined_at?`<dt>Declined</dt><dd>${fmtTime(env.declined_at)}</dd>`:""}
+      ${env.voided_at?`<dt>Voided</dt><dd>${fmtTime(env.voided_at)}</dd>`:""}
+      <dt>Hash at send</dt><dd class="mono">${esc(env.doc_hash_at_send||"—")}</dd>
+      ${env.doc_hash_at_sign?`<dt>Hash at sign</dt><dd class="mono">${esc(env.doc_hash_at_sign)}</dd>`:""}
+    </dl>
+  </div>`;
+
+  // ── Verification checklist (some checks resolve async below) ──
+  const chainState = data.chain_ok===true?"ok":(data.chain_ok===false?"bad":"warn");
+  let checks = "";
+  checks += checkRow(chainState,
+    data.chain_ok===true ? "Audit chain verified — no tampering detected"
+      : data.chain_ok===false ? "Audit chain MISMATCH — events may have been altered"
+      : "Audit chain status unavailable",
+    `${(data.events||[]).length} hash-chained event${(data.events||[]).length===1?"":"s"}.`);
+
+  // Hash-at-send vs hash-at-sign.
+  if (env.doc_hash_at_sign){
+    const same = env.doc_hash_at_send === env.doc_hash_at_sign;
+    checks += checkRow(same?"ok":"bad",
+      same ? "Document unchanged between send and sign" : "Document hash changed between send and sign",
+      same ? "The bytes the signer reviewed match the bytes they signed." : "WARNING — investigate.");
+  }
+
+  if (seal){
+    checks += `<div id="chk-pdf">${checkRow("pend","Checking the sealed PDF against the seal digest…","")}</div>`;
+    checks += `<div id="chk-sig">${checkRow("pend","Verifying the ECDSA signature…","")}</div>`;
+    if (seal.tst_b64){
+      checks += checkRow("ok","RFC 3161 trusted timestamp present",
+        `Attested time: <span class="mono">${esc(seal.tsa_gen_time || "(see token)")}</span>${seal.tsa_url?` · authority: <span class="mono">${esc(seal.tsa_url)}</span>`:""}. The TimeStampToken is in the seal sidecar; verify with <code>openssl ts -verify</code>.`);
+    } else {
+      checks += checkRow("warn","No trusted timestamp on this seal","The seal still proves file integrity; “when” rests on the audit-chain timestamps.");
+    }
+  } else {
+    checks += checkRow("warn","No cryptographic seal on this envelope",
+      env.status==="signed" ? "The audit trail is intact, but the sealing worker hasn't produced (or wasn't configured to produce) a signed-PDF seal for this record." : "Cryptographic sealing happens after signing.");
+  }
+
+  html += `<div class="card"><h2>Verification</h2>${checks}</div>`;
+
+  // ── Cryptographic seal details ──
+  if (seal){
+    html += `<div class="card">
+      <h2>Cryptographic seal</h2>
+      <dl class="kv">
+        <dt>Algorithm</dt><dd class="mono">${esc(seal.signature_alg||"—")}</dd>
+        <dt>PDF SHA-256</dt><dd class="mono">${esc(seal.pdf_sha256||"—")}</dd>
+        <dt>Key id</dt><dd class="mono">${esc(seal.key_id||"—")}</dd>
+        <dt>Key fingerprint</dt><dd class="mono">${esc(seal.key_fingerprint||"—")}</dd>
+        <dt>Sealed at</dt><dd>${fmtTime(seal.signed_at)}</dd>
+        ${seal.tsa_url?`<dt>Timestamp authority</dt><dd class="mono">${esc(seal.tsa_url)}</dd>`:""}
+        ${seal.tsa_gen_time?`<dt>Timestamp time</dt><dd>${fmtTime(seal.tsa_gen_time)}</dd>`:""}
+      </dl>
+    </div>`;
+  }
+
+  // ── Downloads ──
+  if (data.signed_pdf_url || data.certificate_pdf_url){
+    html += `<div class="card"><h2>Documents</h2>
+      ${data.signed_pdf_url?`<a class="btn" href="${esc(data.signed_pdf_url)}" target="_blank" rel="noopener">Signed PDF</a>`:""}
+      ${data.certificate_pdf_url?`<a class="btn" href="${esc(data.certificate_pdf_url)}" target="_blank" rel="noopener">Certificate of Completion</a>`:""}
+      <div style="color:var(--subtle);font-size:12px;margin-top:8px">Download links expire in ~10 minutes; refresh this page for fresh ones.</div>
+    </div>`;
+  }
+
+  // ── Timeline ──
+  html += `<div class="card"><h2>Audit trail</h2><div class="timeline">${
+    (data.events||[]).map(e=>{
+      const who = esc(e.actor_kind||"") + (e.actor_name?` · ${esc(e.actor_name)}`:"") + (e.actor_email?` &lt;${esc(e.actor_email)}&gt;`:"");
+      return `<div class="evt">
+        <div class="head"><span class="k">${esc(humanKind(e.kind))}</span><span class="t">${fmtTime(e.created_at)}</span></div>
+        <div class="who">${who}</div>
+        <div class="h mono">prev ${esc(String(e.prev_event_hash||"").slice(0,24))}… → hash ${esc(String(e.event_hash||"").slice(0,24))}…</div>
+      </div>`;
+    }).join("")
+  }</div></div>`;
+
+  out.innerHTML = html;
+
+  // ── Async crypto checks (only if there's a seal + a fetchable PDF) ──
+  if (seal && data.signed_pdf_url){
+    try {
+      const pdfResp = await fetch(data.signed_pdf_url);
+      const pdfBuf  = await pdfResp.arrayBuffer();
+      const digest  = await crypto.subtle.digest("SHA-256", pdfBuf);
+      const digestHex = hex(digest);
+      const pdfMatch = digestHex === (seal.pdf_sha256||"").toLowerCase();
+      const pdfEl = document.getElementById("chk-pdf");
+      if (pdfEl) pdfEl.innerHTML = checkRow(pdfMatch?"ok":"bad",
+        pdfMatch ? "Sealed PDF matches the seal digest" : "Sealed PDF does NOT match the seal digest",
+        `<span class="mono">SHA-256 ${esc(digestHex)}</span>${pdfMatch?"":" — the file differs from what was sealed."}`);
+
+      // Verify the ECDSA signature over the SHA-256 digest with the
+      // seal's public key. (The worker signs the digest bytes with
+      // ECDSA-SHA256, so we hand the same digest bytes to verify().)
+      const sigEl = document.getElementById("chk-sig");
+      try {
+        if (!seal.public_jwk || !seal.signature_b64) throw new Error("seal missing public key or signature");
+        const pub = await crypto.subtle.importKey("jwk", seal.public_jwk, { name:"ECDSA", namedCurve:"P-256" }, false, ["verify"]);
+        const sig = b64ToBytes(seal.signature_b64);
+        const okSig = await crypto.subtle.verify({ name:"ECDSA", hash:"SHA-256" }, pub, sig, new Uint8Array(digest));
+        if (sigEl) sigEl.innerHTML = checkRow(okSig?"ok":"bad",
+          okSig ? "ECDSA signature valid" : "ECDSA signature INVALID",
+          okSig ? "The seal was produced by the holder of the RouteReady signing key, over this exact PDF." : "The signature does not validate against the seal's public key.");
+      } catch (e2){
+        if (sigEl) sigEl.innerHTML = checkRow("warn","Couldn't verify the signature", esc(e2.message||e2));
+      }
+    } catch (e){
+      const pdfEl = document.getElementById("chk-pdf"), sigEl = document.getElementById("chk-sig");
+      if (pdfEl) pdfEl.innerHTML = checkRow("warn","Couldn't fetch the sealed PDF to re-hash it", esc(e.message||e));
+      if (sigEl) sigEl.innerHTML = "";
+    }
+  }
+}
+
+document.getElementById("go").addEventListener("click", ()=>{
+  const t = tokInput.value.trim();
+  if (t) { history.replaceState(null,"","/verify?token="+encodeURIComponent(t)); verify(t); }
+});
+tokInput.addEventListener("keydown", e=>{ if (e.key==="Enter") document.getElementById("go").click(); });
+
+const initial = tokenFromUrl();
+if (initial){ tokInput.value = initial; verify(initial); }
+</script>
+</body>
+</html>
