@@ -3519,25 +3519,40 @@ async function renderDocumentSign() {
 
   // Fetch the envelope + signed URL via the edge function. This also
   // logs the 'viewed' event on first open.
-  const { data: fetched, error } = await sb.functions.invoke("driver-document-fetch", {
-    body: { token: session.token, signing_token: signingToken },
-  });
-  if (error) {
-    // sb.functions.invoke surfaces only a generic "non-2xx" string on
-    // failure; the real reason ('unauthorized', 'envelope_not_found',
-    // etc.) lives on the underlying Response inside error.context.
-    // Pull it out so the driver sees something actionable.
-    let detail = error.message || "unknown";
-    try {
-      if (error.context && typeof error.context.json === "function") {
-        const body = await error.context.json();
-        if (body?.error) detail = String(body.error);
-      } else if (error.context && typeof error.context.text === "function") {
-        const txt = await error.context.text();
-        if (txt) detail = txt;
-      }
-    } catch { /* fall back to the generic message */ }
-    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Couldn't open document: ${escapeHtml(detail)}.</div>`;
+  //
+  // We deliberately use raw fetch instead of sb.functions.invoke —
+  // the supabase-js helper consumes the response body internally to
+  // build error.message, which leaves error.context's body locked
+  // and forces us back to the generic "Edge Function returned a
+  // non-2xx status code" string. With raw fetch we always get the
+  // full JSON the function returned (code/details/hint included).
+  let fetched = null;
+  let fetchErrDetail = null;
+  try {
+    const resp = await fetch(`${cfg.SUPABASE_URL}/functions/v1/driver-document-fetch`, {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY,
+        "apikey":        cfg.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ token: session.token, signing_token: signingToken }),
+    });
+    const text = await resp.text();
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+    if (!resp.ok) {
+      fetchErrDetail = (body && (body.error || body.message))
+        || text
+        || `HTTP ${resp.status}`;
+    } else {
+      fetched = body;
+    }
+  } catch (e) {
+    fetchErrDetail = (e && e.message) || "network_error";
+  }
+  if (fetchErrDetail) {
+    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Couldn't open document: ${escapeHtml(fetchErrDetail)}.</div>`;
     return;
   }
   const env = fetched?.envelope;
