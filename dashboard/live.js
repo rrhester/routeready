@@ -22744,47 +22744,54 @@ async function _renderDocsTemplates() {
   if (!list) return;
   list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
   const { data, error } = await sb.from("document_templates")
-    .select("id, title, description, source_path, source_hash, fields, created_at")
+    .select("id, title, description, source_path, source_hash, fields, kind, created_at")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) {
-    list.innerHTML = _docsEmptyState({ error: true, title: "Couldn't load templates", body: escapeHtml(error.message) });
+    list.innerHTML = _docsEmptyState({ error: true, title: "Couldn't load documents", body: escapeHtml(error.message) });
     return;
   }
   if (!data || data.length === 0) {
     list.innerHTML = _docsEmptyState({
-      title: "No document templates yet",
-      body: "Upload a PDF to create a reusable, version-locked template. Each upload is SHA-256 fingerprinted on the way in, so every signature record can prove exactly which document was signed.",
+      title: "No documents yet",
+      body: "Upload a PDF — it becomes a reusable, version-locked document you can attach to onboarding steps, messages, and acknowledgements. Pick its tier on upload: secure compliance (signing + sealed audit) or informational (open & acknowledge).",
     });
     return;
   }
+  const isSecure = (t) => (t.kind || "secure") !== "informational";
   const fieldChip = (t) => {
     const n = Array.isArray(t.fields) ? t.fields.length : 0;
     return n > 0
       ? `<span class="docs-mono-chip"><span class="lbl">Fields</span>${n} signature ${n === 1 ? "field" : "fields"} placed</span>`
       : `<span class="docs-mono-chip"><span class="lbl">Fields</span>default placement</span>`;
   };
+  const tierBadge = (t) => isSecure(t)
+    ? `<span class="docs-tier secure" title="Compliance-grade: signing, hash-chained audit, ECDSA + RFC 3161 seal, Certificate of Completion"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>Secure</span>`
+    : `<span class="docs-tier info" title="Informational: the driver opens and acknowledges it — no signature, no seal"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/></svg>Informational</span>`;
+  const nSecure = data.filter(isSecure).length, nInfo = data.length - nSecure;
   list.innerHTML = `
     <div class="docs-section-bar">
-      <h2>Templates</h2>
-      <div class="docs-counts"><span><b>${data.length}</b> ${data.length === 1 ? "template" : "templates"}</span><span>Version-locked · SHA-256 fingerprinted</span></div>
+      <h2>Document library</h2>
+      <div class="docs-counts"><span><b>${nSecure}</b> secure</span><span><b>${nInfo}</b> informational</span><span>Reusable across onboarding steps, messages & acknowledgements</span></div>
     </div>` + data.map((t) => `
-    <div class="docs-template-card" data-tid="${escapeHtml(t.id)}">
-      <div class="docs-doc-tile">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <div class="docs-template-card ${isSecure(t) ? "" : "is-info"}" data-tid="${escapeHtml(t.id)}">
+      <div class="docs-doc-tile ${isSecure(t) ? "tile-secure" : "tile-info"}">
+        ${isSecure(t)
+          ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`
+          : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`}
       </div>
       <div style="flex:1;min-width:0">
         <div class="docs-card-title">${escapeHtml(t.title)}</div>
         <div class="docs-meta-row">
-          <span class="docs-mono-chip"><span class="lbl">SHA-256</span>${escapeHtml(String(t.source_hash || "").slice(0,18))}…</span>
-          ${fieldChip(t)}
+          ${tierBadge(t)}
+          ${isSecure(t) ? `<span class="docs-mono-chip"><span class="lbl">SHA-256</span>${escapeHtml(String(t.source_hash || "").slice(0,18))}…</span>${fieldChip(t)}` : `<span class="docs-mono-chip"><span class="lbl">View only</span>open &amp; acknowledge</span>`}
           <span class="docs-meta-dim">Added ${escapeHtml(new Date(t.created_at).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}))}</span>
         </div>
       </div>
       <div style="display:flex;gap:7px;flex:0 0 auto;align-items:center">
-        <button class="btn btn-sm btn-ghost" data-rr-docs-fields="${escapeHtml(t.id)}">Place fields</button>
-        <button class="btn btn-sm btn-primary" data-rr-docs-send="${escapeHtml(t.id)}">Send for signature</button>
-        <button class="btn btn-sm btn-ghost" data-rr-docs-archive="${escapeHtml(t.id)}" title="Archive this template">Archive</button>
+        ${isSecure(t) ? `<button class="btn btn-sm btn-ghost" data-rr-docs-fields="${escapeHtml(t.id)}">Place fields</button>` : ""}
+        <button class="btn btn-sm btn-primary" data-rr-docs-send="${escapeHtml(t.id)}">${isSecure(t) ? "Send for signature" : "Send to driver"}</button>
+        <button class="btn btn-sm btn-ghost" data-rr-docs-archive="${escapeHtml(t.id)}" title="Archive this document">Archive</button>
       </div>
     </div>`).join("");
 }
@@ -22997,12 +23004,52 @@ function _docsWireBulk(list, data) {
 // ── Upload a PDF as a template ─────────────────────────────────────────
 async function _docsHandleFileChosen(file) {
   if (!file) return;
-  if (file.type && file.type !== "application/pdf") {
-    toast("Please pick a PDF.", "warn"); return;
-  }
-  if (file.size > 25 * 1024 * 1024) {
-    toast("PDF too large (max 25 MB).", "warn"); return;
-  }
+  if (file.type && file.type !== "application/pdf") { toast("Please pick a PDF.", "warn"); return; }
+  if (file.size > 25 * 1024 * 1024) { toast("PDF too large (max 25 MB).", "warn"); return; }
+  _docsAskKind(file);
+}
+
+// Pick the document tier before uploading — secure (signing + seal +
+// audit) vs informational (open & acknowledge). Communicates the
+// distinction up front so the DSP never wonders later.
+function _docsAskKind(file) {
+  document.getElementById("rr-docs-kind-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-docs-kind-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
+  const opt = (kind, iconBg, iconColor, iconSvg, title, body) => `
+    <button type="button" class="rr-kind-opt" data-kind="${kind}" style="text-align:left;border:1.5px solid var(--border);border-radius:11px;padding:14px 16px;cursor:pointer;background:var(--surface);display:flex;gap:12px;align-items:flex-start;transition:border-color .12s,box-shadow .12s">
+      <span style="flex:0 0 auto;width:34px;height:34px;border-radius:9px;background:${iconBg};color:${iconColor};display:flex;align-items:center;justify-content:center">${iconSvg}</span>
+      <span style="min-width:0"><span style="font-size:var(--fs-md);font-weight:700;color:var(--text);display:block">${escapeHtml(title)}</span><span style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45;display:block;margin-top:3px">${escapeHtml(body)}</span></span>
+    </button>`;
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:540px;width:100%;box-shadow:var(--shadow-lg)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">What kind of document is this?</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(file.name)}</div></div>
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px">
+        ${opt("secure", "#dcfce7", "#15803d",
+          `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
+          "Secure compliance document",
+          "Signature targets, identity-bound signing, hash-chained audit trail, ECDSA + RFC 3161 seal, Certificate of Completion. For I-9s, employment agreements, tax forms, legal acknowledgements.")}
+        ${opt("informational", "var(--canvas)", "var(--text-muted)",
+          `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`,
+          "Informational document",
+          "A PDF the driver opens and acknowledges — no signature, no seal. For welcome packets, orientation guides, uniform & parking instructions, safety reminders. Still delivered & tracked: you'll see who opened it.")}
+      </div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-kind-close>Cancel</button></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.querySelectorAll(".rr-kind-opt").forEach(b => {
+    b.addEventListener("mouseover", () => { b.style.borderColor = "var(--accent)"; b.style.boxShadow = "0 0 0 3px var(--accent-soft)"; });
+    b.addEventListener("mouseout",  () => { b.style.borderColor = "var(--border)"; b.style.boxShadow = "none"; });
+  });
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-kind-close]")) { m.remove(); return; }
+    const o = e.target.closest(".rr-kind-opt");
+    if (o) { const kind = o.getAttribute("data-kind"); m.remove(); _docsUploadTemplate(file, kind); }
+  });
+}
+
+async function _docsUploadTemplate(file, kind) {
   const btn = document.getElementById("docs-upload-btn");
   const origLabel = btn ? btn.innerHTML : "";
   if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
@@ -23029,6 +23076,7 @@ async function _docsHandleFileChosen(file) {
     p_source_hash:  hash,
     p_source_size:  file.size,
     p_fields:       [],
+    p_kind:         kind === "informational" ? "informational" : "secure",
   });
   if (btn) { btn.disabled = false; btn.innerHTML = origLabel; }
   if (error) {
@@ -23036,14 +23084,14 @@ async function _docsHandleFileChosen(file) {
     toast("Couldn't save template: " + error.message, "warn");
     return;
   }
-  toast("Template uploaded ✓ — place signature fields next", "success");
   loadDocumentsView("templates");
-  // Drop the dispatcher straight into the field-placement editor so
-  // they can mark "sign here" boxes before the first send. They can
-  // always close and the template stays usable with the worker's
-  // default placement (bottom-right of the last page).
   const newId = created?.id || created?.[0]?.id;
-  if (newId) _docsOpenFieldEditor(newId);
+  if (kind === "informational") {
+    toast("Informational document added ✓", "success");
+  } else {
+    toast("Secure template uploaded ✓ — place signature fields next", "success");
+    if (newId) _docsOpenFieldEditor(newId);
+  }
 }
 
 // ── Field-placement editor (slice 6) ───────────────────────────────────
