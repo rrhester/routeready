@@ -1,0 +1,19 @@
+{
+  "name": "rr-document-sealing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RouteReady · Cloudflare Worker that seals a signed document — stamps the signature image, appends a Certificate of Completion, uploads to Supabase Storage. PKCS#7 + RFC 3161 sealing is added in slice 4b.",
+  "scripts": {
+    "dev":    "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail":   "wrangler tail"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240909.0",
+    "typescript": "^5.4.0",
+    "wrangler": "^3.78.0"
+  }
+}

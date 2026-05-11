@@ -1,0 +1,18 @@
+name = "rr-document-sealing"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# This Worker stamps the driver's signature onto the source PDF,
+# appends a Certificate of Completion, and (in a later iteration)
+# adds a PKCS#7 detached signature with an RFC 3161 timestamp. It's
+# invoked by a Postgres trigger on document_envelopes when status
+# flips to 'signed' (via pg_net.http_post — see migration 0155).
+#
+# Secrets (set with `wrangler secret put …`):
+#   SUPABASE_URL              auto: project URL
+#   SUPABASE_SERVICE_ROLE_KEY auto: service role key (NOT the anon key)
+#   SEALING_SECRET            shared bearer with the Postgres trigger
+#   ESIGN_SIGNING_KEY_PEM     PKCS#8 PEM private key (added in slice 4b)
+#   ESIGN_SIGNING_CERT_PEM    PEM cert chain                (added in 4b)
+#   ESIGN_TSA_URL             RFC 3161 TSA endpoint         (added in 4b)
