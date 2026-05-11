@@ -3087,21 +3087,30 @@ function _obSetStrip(rows) {
   el.style.display = "block";
 }
 
-// "Mark now" buttons in the driver-drawer Onboarding section: fill the
-// matching datetime/date field with the current time and persist via the
-// drawer's existing Save flow.
+// Driver-drawer Onboarding section: "Mark now" fills a milestone with
+// the current time; "Activate driver" flips status → active. Both
+// persist through the drawer's existing Save flow.
 document.addEventListener("click", (e) => {
-  const b = e.target.closest("[data-rr-ob-setnow]");
-  if (!b || !b.closest("#rr-dd-drawer")) return;
-  e.preventDefault();
-  const name = b.getAttribute("data-rr-ob-setnow");
-  const kind = b.getAttribute("data-rr-ob-kind");
-  const inp = document.querySelector(`#rr-dd-drawer [data-rr-dd-field="${name}"]`);
-  if (!inp) return;
-  const now = new Date();
-  if (kind === "date") inp.value = now.toISOString().slice(0, 10);
-  else inp.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
+  if (!e.target.closest("#rr-dd-drawer")) return;
+  const setNow = e.target.closest("[data-rr-ob-setnow]");
+  if (setNow) {
+    e.preventDefault();
+    const name = setNow.getAttribute("data-rr-ob-setnow");
+    const kind = setNow.getAttribute("data-rr-ob-kind");
+    const inp = document.querySelector(`#rr-dd-drawer [data-rr-dd-field="${name}"]`);
+    if (!inp) return;
+    const now = new Date();
+    if (kind === "date") inp.value = now.toISOString().slice(0, 10);
+    else inp.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
+    return;
+  }
+  if (e.target.closest("[data-rr-ob-activate]")) {
+    e.preventDefault();
+    const sel = document.querySelector('#rr-dd-drawer [data-rr-dd-field="status"]');
+    if (sel) sel.value = "active";
+    document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
+  }
 });
 
 function renderOnboardingRow(d) {
@@ -10331,6 +10340,12 @@ async function renderEmploymentTab(body, d) {
       const nextC = obD.key === "blocked" ? "var(--red)" : obD.tone === "amber" ? "var(--amber-dark)" : obD.key === "ready" ? "var(--green)" : "var(--text-subtle)";
       const setBtn = d.id ? (field, kind) => `<button type="button" class="btn btn-sm" data-rr-ob-setnow="${field}" data-rr-ob-kind="${kind}" style="margin-left:8px;flex:0 0 auto">Mark now</button>` : () => "";
       const fieldRow = (label, field, kind, val) => `<div class="dd-row"><label>${escapeHtml(label)}</label><div style="display:flex;align-items:center;min-width:0">${kind === "date" ? `<input type="date" data-rr-dd-field="${field}" value="${val}"/>` : `<input type="datetime-local" data-rr-dd-field="${field}" value="${val}"/>`}${setBtn(field, kind)}</div></div>`;
+      const readyBanner = (obD.key === "ready" && d.id && d.status !== "active") ? `
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 14px;margin-bottom:12px">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div style="flex:1;min-width:150px;font-size:var(--fs-sm);color:#166534;line-height:1.4">All four onboarding steps are complete — this driver is ready to drive.</div>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-ob-activate style="flex:0 0 auto">Activate driver</button>
+      </div>` : "";
       return `
     <div class="dd-section">
       <div class="dd-section-head">
@@ -10340,6 +10355,7 @@ async function renderEmploymentTab(body, d) {
         </div>
         <span class="dd-badge dsp">DSP only</span>
       </div>
+      ${readyBanner}
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">${_obPill(obD.label, obD.tone)}<span style="font-size:var(--fs-sm);color:var(--text-subtle)">${obD.doneN} of ${obD.totalN} steps complete</span></div>
       <div style="display:flex;gap:4px;margin-bottom:${obD.next ? "6px" : "14px"}">${segs}</div>
       ${obD.next ? `<div style="font-size:var(--fs-xs);color:${nextC};margin-bottom:14px">${escapeHtml(obD.next)}</div>` : ""}
