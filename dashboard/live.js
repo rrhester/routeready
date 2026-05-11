@@ -20826,18 +20826,24 @@ async function _docsOpenFieldEditor(templateId) {
   m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:stretch;justify-content:center;padding:18px";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:920px;display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:600;font-size:var(--fs-lg)">Place signature fields</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(tpl.title)} — click and drag on a page to drop a signature box. Click an existing box to remove it.</div>
+          <div style="font-weight:600;font-size:var(--fs-lg)">Place fields</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(tpl.title)} — pick a field type, then click and drag on a page to drop it. Click a box to remove it.</div>
         </div>
-        <button class="btn btn-sm" id="docs-fe-close">Close</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px">
+            <button type="button" id="docs-fe-kind-signature" class="docs-fe-kind active" data-kind="signature" style="appearance:none;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:5px;cursor:pointer;color:var(--text-muted)">Signature</button>
+            <button type="button" id="docs-fe-kind-date" class="docs-fe-kind" data-kind="date" style="appearance:none;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:5px;cursor:pointer;color:var(--text-muted)">Date</button>
+          </div>
+          <button class="btn btn-sm" id="docs-fe-close">Close</button>
+        </div>
       </div>
       <div id="docs-fe-pages" style="flex:1;overflow-y:auto;padding:18px;background:var(--canvas);display:flex;flex-direction:column;align-items:center;gap:14px">
         <div class="loader" style="margin:60px auto"></div>
       </div>
       <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface)">
-        <div id="docs-fe-count" style="font-size:var(--fs-xs);color:var(--text-subtle)">0 fields</div>
+        <div id="docs-fe-count" style="font-size:var(--fs-xs);color:var(--text-subtle)">0 fields · placing: <strong id="docs-fe-kind-label">Signature</strong> — date fields are auto-filled with the signing date</div>
         <div style="display:flex;gap:8px">
           <button class="btn" id="docs-fe-cancel">Cancel</button>
           <button class="btn btn-primary" id="docs-fe-save">Save fields</button>
@@ -20849,12 +20855,34 @@ async function _docsOpenFieldEditor(templateId) {
   document.getElementById("docs-fe-close").addEventListener("click", close);
   document.getElementById("docs-fe-cancel").addEventListener("click", close);
 
+  // Which field kind the next drag will place. Default: signature.
+  let currentKind = "signature";
+  const kindBtns = m.querySelectorAll(".docs-fe-kind");
+  kindBtns.forEach((b) => b.addEventListener("click", () => {
+    currentKind = b.getAttribute("data-kind");
+    kindBtns.forEach((x) => {
+      const on = x === b;
+      x.classList.toggle("active", on);
+      x.style.background = on ? "var(--surface)" : "transparent";
+      x.style.color = on ? "var(--text)" : "var(--text-muted)";
+      x.style.boxShadow = on ? "var(--shadow-sm)" : "none";
+    });
+    const lbl = document.getElementById("docs-fe-kind-label");
+    if (lbl) lbl.textContent = currentKind === "date" ? "Date" : "Signature";
+  }));
+  // Initialize the toggle visuals.
+  m.querySelector("#docs-fe-kind-signature").style.background = "var(--surface)";
+  m.querySelector("#docs-fe-kind-signature").style.boxShadow = "var(--shadow-sm)";
+  m.querySelector("#docs-fe-kind-signature").style.color = "var(--text)";
+
   // Working set, kept in fractional coords (top-left origin) so we
   // can render them at any page scale.
   const fields = Array.isArray(tpl.fields) ? tpl.fields.map((f) => ({ ...f })) : [];
   const updateCount = () => {
-    document.getElementById("docs-fe-count").textContent =
-      `${fields.length} field${fields.length === 1 ? "" : "s"}`;
+    const sig = fields.filter((f) => (f.kind || "signature") === "signature").length;
+    const dat = fields.filter((f) => f.kind === "date").length;
+    const el = document.getElementById("docs-fe-count");
+    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${(sig || dat) ? ` (${sig} signature · ${dat} date)` : ""} · placing: <strong id="docs-fe-kind-label">${currentKind === "date" ? "Date" : "Signature"}</strong> — date fields are auto-filled with the signing date`;
   };
   updateCount();
 
@@ -20908,11 +20936,15 @@ async function _docsOpenFieldEditor(templateId) {
 
   // Render existing fields on the matching page overlays.
   const renderFieldDom = (f, overlay, vp) => {
+    const isDate = (f.kind || "signature") === "date";
+    const tint = isDate ? "rgba(5,150,105,.18)" : "rgba(96,165,250,.20)";
+    const bd   = isDate ? "#059669" : "#2563eb";
+    const txt  = isDate ? "#047857" : "#1d4ed8";
     const node = document.createElement("div");
     node.className = "rr-docs-field";
-    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:rgba(96,165,250,.20);border:1.5px dashed #2563eb;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#1d4ed8;cursor:pointer;user-select:none`;
-    node.textContent = "Signature";
-    node.title = "Click to remove";
+    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${tint};border:1.5px dashed ${bd};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${txt};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px`;
+    node.textContent = isDate ? "Date (auto)" : "Signature";
+    node.title = isDate ? "Auto-filled with the signing date · click to remove" : "Signature · click to remove";
     node.addEventListener("click", (e) => {
       e.stopPropagation();
       const i = fields.indexOf(f);
@@ -20937,7 +20969,8 @@ async function _docsOpenFieldEditor(templateId) {
       const r = overlay.getBoundingClientRect();
       startX = e.clientX - r.left; startY = e.clientY - r.top;
       ghost = document.createElement("div");
-      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:rgba(96,165,250,.20);border:1.5px dashed #2563eb;border-radius:4px;pointer-events:none`;
+      const gt = currentKind === "date" ? ["rgba(5,150,105,.18)", "#059669"] : ["rgba(96,165,250,.20)", "#2563eb"];
+      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gt[0]};border:1.5px dashed ${gt[1]};border-radius:4px;pointer-events:none`;
       overlay.appendChild(ghost);
     });
     overlay.addEventListener("pointermove", (e) => {
@@ -20957,7 +20990,7 @@ async function _docsOpenFieldEditor(templateId) {
       const fx = left / viewport.width, fy = top / viewport.height;
       const fw = w / viewport.width, fh = h / viewport.height;
       if (fw < MIN_FRAC || fh < MIN_FRAC) return;
-      const f = { id: crypto.randomUUID(), kind: "signature", page: pageIdx, x: fx, y: fy, w: fw, h: fh };
+      const f = { id: crypto.randomUUID(), kind: currentKind, page: pageIdx, x: fx, y: fy, w: fw, h: fh };
       fields.push(f);
       renderFieldDom(f, overlay, viewport);
       updateCount();
