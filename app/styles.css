@@ -705,7 +705,7 @@ select.field{
 }
 .chat-msgs{
   position:absolute;
-  top:0;left:0;right:0;bottom:60px;
+  top:0;left:0;right:0;bottom:96px;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:16px;
   display:flex;flex-direction:column;gap:2px;
@@ -819,7 +819,7 @@ select.field{
 /* Jump-to-latest pill — surfaces when a poll lands new messages but
    the driver is scrolled up. Same animation as the dispatcher pill. */
 .chat-jump{
-  position:absolute;left:50%;bottom:74px;transform:translateX(-50%) translateY(8px);
+  position:absolute;left:50%;bottom:110px;transform:translateX(-50%) translateY(8px);
   display:inline-flex;align-items:center;gap:6px;
   padding:6px 14px;font-size:var(--fs-sm);font-weight:600;color:#fff;
   background:var(--brand-grad, var(--accent-grad));
@@ -848,6 +848,27 @@ select.field{
 .chat-conn-banner.show{ opacity:1;transform:translate(-50%,0); }
 .chat-conn-banner.warn{ background:var(--amber, #D97706); }
 .chat-conn-banner.ok{ background:var(--green, #059669); }
+
+/* Quick-action chips — a horizontally-scrollable strip inside the
+   composer (above the textarea). One tap drops a status phrase in for
+   the driver to add detail to and send. Slack-mobile-style action row. */
+.chat-qa-strip{
+  display:flex;gap:6px;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  margin:0 -2px;padding:1px 2px;
+}
+.chat-qa-strip::-webkit-scrollbar{ display:none;width:0;height:0; }
+.chat-qa-chip{
+  flex:0 0 auto;
+  background:var(--canvas);border:1px solid var(--border);border-radius:999px;
+  padding:6px 12px;font:inherit;font-size:var(--fs-sm);font-weight:600;
+  color:var(--text-muted);cursor:pointer;white-space:nowrap;
+  transition:background .12s ease, color .12s ease, transform .08s ease, border-color .12s ease;
+}
+.chat-qa-chip:hover{ background:var(--surface);color:var(--text); }
+.chat-qa-chip:active{ transform:scale(.96);background:var(--accent-soft,var(--canvas));color:var(--accent-text,var(--accent));border-color:transparent; }
+
 .chat-channel-list{
   position:absolute;
   top:0;left:0;right:0;bottom:0;
@@ -977,7 +998,7 @@ select.field{
 /* Typing pill — sits just above the composer when dispatch is typing.
    Subtle bounce on the dots. */
 .chat-typing{
-  position:absolute;left:14px;bottom:66px;
+  position:absolute;left:14px;bottom:102px;
   display:flex;align-items:center;gap:8px;
   padding:6px 12px;
   font-size:11px;color:var(--text-subtle);
