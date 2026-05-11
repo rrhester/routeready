@@ -11,7 +11,43 @@ PKCS#7 detached signature + RFC 3161 timestamping land in slice 4b. Until then t
 
 Triggered by a Postgres trigger on `document_envelopes` UPDATE when `status` transitions to `signed` (see `supabase/migrations/0155_documents_sealing_trigger.sql`).
 
+## How deploys happen
+
+The Worker auto-deploys via GitHub Actions (`.github/workflows/deploy-document-sealing.yml`) whenever anything under `services/document-sealing/` changes on `main`. You never need a local terminal once the one-time setup below is done.
+
+If you ever do want to deploy from your own machine (debugging a candidate change before pushing): `npm install` here, then `npx wrangler login`, then `npx wrangler deploy`.
+
 ## One-time setup
+
+Done entirely from a browser.
+
+1. **Cloudflare API token** — Cloudflare → My Profile → API Tokens → **Create Token** → "Edit Cloudflare Workers" template → constrain to your account → Continue / Create. Copy the token.
+2. **GitHub Actions secrets** — your repo → Settings → Secrets and variables → Actions → New repository secret. Add two:
+   - `CLOUDFLARE_API_TOKEN` — the token from step 1.
+   - `CLOUDFLARE_ACCOUNT_ID` — top-right of any Cloudflare dashboard page (the long hex string under your account name).
+3. **Trigger the first deploy** — the workflow runs automatically whenever `services/document-sealing/**` changes; the easiest way to trigger it the first time is to merge a PR that touches this dir, or go to GitHub → Actions → "Deploy document-sealing Worker" → **Run workflow**.
+
+   First run creates the Worker on Cloudflare. After it succeeds, the Worker exists at `https://rr-document-sealing.<your-cf-subdomain>.workers.dev` (if you've never used Workers on this Cloudflare account, the dashboard will prompt you to pick a `workers.dev` subdomain the first time — do that before triggering the deploy).
+4. **Worker runtime secrets** — Cloudflare → Workers & Pages → `rr-document-sealing` → Settings → Variables → **Secrets** → add three:
+   - `SUPABASE_URL` — `https://<project-ref>.supabase.co`
+   - `SUPABASE_SERVICE_ROLE_KEY` — Supabase → Project Settings → API → `service_role` (NOT the anon key)
+   - `SEALING_SECRET` — generate any random string (a 32-byte hex is fine); **keep it open** — you need the same value on the DB side in the next step.
+5. **Supabase Postgres settings** — Supabase → SQL Editor:
+   ```sql
+   alter database postgres set "app.sealing_service_url"
+     to 'https://rr-document-sealing.<your-cf-subdomain>.workers.dev';
+
+   alter database postgres set "app.sealing_service_secret"
+     to '<the SAME SEALING_SECRET from step 4>';
+   ```
+
+Done. Future code changes to the worker auto-deploy on push.
+
+---
+
+## (Local terminal fallback)
+
+If you ever want to deploy directly from a workstation:
 
 1. `npm install` in this directory.
 2. Authenticate Wrangler against your Cloudflare account: `npx wrangler login`.
