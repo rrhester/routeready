@@ -323,17 +323,11 @@ async function sealEnvelope(envelopeId: string, env: Env, force = false) {
   // 10. If we cryptographically sealed, append a `pdf_signed` event
   // documenting the seal. Best-effort — the sealed PDF + sidecar
   // already make the proof verifiable independently of the chain.
+  // (Goes through document_log_signed, the public service-role wrapper;
+  // append_document_event itself is private-only.)
   if (sealInfo) {
-    await sbRpc(env, "append_document_event", {
-      p_envelope_id:     env_.id,
-      p_kind:            "pdf_signed",
-      p_actor_kind:      "system",
-      p_actor_user_id:   null,
-      p_actor_driver_id: null,
-      p_actor_email:     null,
-      p_actor_name:      null,
-      p_ip:              null,
-      p_user_agent:      "rr-document-sealing/0.1",
+    await sbRpc(env, "document_log_signed", {
+      p_envelope_id: env_.id,
       p_event_data: {
         seal_path:        sealPath,
         pdf_sha256:       sealInfo.pdf_sha256,
@@ -943,7 +937,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.11", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.12", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
