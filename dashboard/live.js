@@ -2590,14 +2590,15 @@ let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "score-a
 let _rosterRows = [];
 
 let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
+let _rosterI9 = new Map();          // driver_id -> i9_list row (status, first_day_of_employment, …)
 
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
   // Paint skeleton rows immediately so the page feels instant.
-  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 10 : 9);
+  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 11 : 9);
 
-  const [{ data: rows, error }, { data: appStatus }, { data: coachRows }] = await Promise.all([
+  const [{ data: rows, error }, { data: appStatus }, { data: coachRows }, { data: i9Rows }] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
                background_check_completed_at, drug_test_completed_at,
@@ -2613,9 +2614,11 @@ async function loadDriversRoster() {
       .is("archived_at", null)
       .order("occurred_at", { ascending: false })
       .limit(2000),
+    sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
   ]);
 
   _rosterAppStatus = new Map((appStatus ?? []).map((s) => [s.driver_id, s]));
+  _rosterI9 = new Map((Array.isArray(i9Rows) ? i9Rows : []).map((r) => [r.driver_id, r]));
   _rosterLastCoached = new Map();
   for (const c of (coachRows ?? [])) {
     if (!_rosterLastCoached.has(c.driver_id)) _rosterLastCoached.set(c.driver_id, c.occurred_at);
@@ -2791,6 +2794,7 @@ function renderDriverTable(rows, error) {
       <th>Days since hire</th>
       <th>Background check</th>
       <th>Drug test</th>
+      <th>Form I-9</th>
       <th>Training scheduled</th>
       <th>Status</th>
       <th>Training date</th>
@@ -2809,7 +2813,7 @@ function renderDriverTable(rows, error) {
     thead.dataset.rrColCount = "9";
   }
 
-  const colspan = _driverStage === "onboarding" ? 10 : 9;
+  const colspan = _driverStage === "onboarding" ? 11 : 9;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
       error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
@@ -3008,12 +3012,38 @@ function renderOnboardingRow(d) {
       <td>${daysCell}</td>
       <td>${pillCheck(d.background_check_completed_at)}</td>
       <td>${pillCheck(d.drug_test_completed_at)}</td>
+      <td>${_i9OnboardCell(d.id)}</td>
       <td>${d.training_scheduled_at ? new Date(d.training_scheduled_at).toLocaleString() : '<span style="color:var(--text-subtle)">—</span>'}</td>
       <td>${renderDriverStatusBadge(d.status)}</td>
       <td class="cell-time">${d.training_date ? new Date(d.training_date).toLocaleDateString() : "—"}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td></td>
     </tr>`;
+}
+
+// Compact Form I-9 status cell for the onboarding roster.
+function _i9OnboardCell(driverId) {
+  const r = _rosterI9 ? _rosterI9.get(driverId) : null;
+  const st = r ? (r.status || "no_record") : "no_record";
+  let extra = "";
+  if (st === "section1_complete") {
+    if (!r.first_day_of_employment) {
+      extra = `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px">set first day</div>`;
+    } else {
+      const dl = (typeof _i9Section2Deadline === "function") ? _i9Section2Deadline(r.first_day_of_employment) : null;
+      const days = dl ? Math.round((new Date(dl + "T00:00:00Z") - new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z")) / 86400000) : null;
+      if (days != null) {
+        const tone = days < 0 ? "var(--red)" : days <= 2 ? "var(--amber-dark)" : "var(--text-subtle)";
+        const txt = days < 0 ? `Sec 2 overdue ${Math.abs(days)}bd` : days === 0 ? "Sec 2 due today" : `Sec 2 due in ${days}bd`;
+        extra = `<div style="font-size:var(--fs-xs);color:${tone};margin-top:2px">${txt}</div>`;
+      }
+    }
+  } else if (st === "needs_correction") {
+    extra = `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">awaiting employee</div>`;
+  } else if (st === "verified" && r.section2_completed_at) {
+    extra = `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${new Date(r.section2_completed_at).toLocaleDateString()}</div>`;
+  }
+  return `${typeof _i9StatusChip === "function" ? _i9StatusChip(st) : '<span class="tag">' + escapeHtml(st) + '</span>'}${extra}`;
 }
 
 function renderDriverRow(d) {
