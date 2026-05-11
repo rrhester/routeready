@@ -179,17 +179,40 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: true, ignored: "unknown_recipient_slug", slug });
   }
 
-  // 2. Match sender email → applicant in that DSP.
-  const { data: app } = await supa.from("applicants")
-    .select("id").eq("dsp_id", dsp.id).ilike("email", fromEmail).limit(1);
-  const applicantId = app?.[0]?.id ?? null;
+  // 2. Match sender email → applicant in that DSP. If several applicants
+  // share the address (re-applies, a referrer who also applied, test
+  // data), attach the reply to the one with the most recent email
+  // activity — the live conversation — falling back to the newest.
+  let applicantId: string | null = null;
+  {
+    const { data: cands } = await supa.from("applicants")
+      .select("id, created_at").eq("dsp_id", dsp.id).ilike("email", fromEmail);
+    if (cands && cands.length === 1) {
+      applicantId = cands[0].id as string;
+    } else if (cands && cands.length > 1) {
+      const ids = cands.map((c) => c.id as string);
+      const { data: recent } = await supa.from("email_messages")
+        .select("applicant_id, created_at")
+        .in("applicant_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      applicantId = (recent?.[0]?.applicant_id as string | null | undefined)
+        ?? cands.slice().sort((a, b) =>
+             String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0].id as string;
+    }
+  }
 
-  // 3. Idempotency — re-delivery of the same message id is a no-op.
+  // 3. Idempotency — re-delivery of the same message id is a no-op,
+  // except we'll backfill the applicant if we couldn't attribute it
+  // before but can now.
   if (messageId) {
     const { data: existing } = await supa.from("email_messages")
-      .select("id").eq("provider", "inbound").eq("provider_message_id", messageId).limit(1);
+      .select("id, applicant_id").eq("provider", "inbound").eq("provider_message_id", messageId).limit(1);
     if (existing && existing.length > 0) {
-      return jsonResponse({ ok: true, deduped: true });
+      if (existing[0].applicant_id == null && applicantId != null) {
+        await supa.from("email_messages").update({ applicant_id: applicantId }).eq("id", existing[0].id);
+      }
+      return jsonResponse({ ok: true, deduped: true, applicant_id: applicantId ?? existing[0].applicant_id ?? null });
     }
   }
 
