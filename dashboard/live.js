@@ -20807,10 +20807,12 @@ async function _docsHandleFileChosen(file) {
 // signing event (DocuSign-style "Date Signed" / "Full Name" fields —
 // read-only, the signer never edits them).
 const _DOCS_FIELD_META = {
-  signature: { label: "Signature",      tint: "rgba(96,165,250,.20)",  border: "#2563eb", text: "#1d4ed8", auto: false, hint: "Recipient draws or types their signature." },
-  initials:  { label: "Initials (auto)", tint: "rgba(124,58,237,.16)", border: "#7c3aed", text: "#6d28d9", auto: true,  hint: "Auto-filled with the recipient's initials." },
-  name:      { label: "Name (auto)",     tint: "rgba(217,119,6,.16)",  border: "#b45309", text: "#92400e", auto: true,  hint: "Auto-filled with the recipient's full name." },
-  date:      { label: "Date (auto)",     tint: "rgba(5,150,105,.18)",  border: "#059669", text: "#047857", auto: true,  hint: "Auto-filled with the signing date." },
+  signature: { label: "Signature",      tint: "rgba(96,165,250,.20)",  border: "#2563eb", text: "#1d4ed8", auto: false, fill: false, hint: "Recipient draws or types their signature." },
+  initials:  { label: "Initials (auto)", tint: "rgba(124,58,237,.16)", border: "#7c3aed", text: "#6d28d9", auto: true,  fill: false, hint: "Auto-filled with the recipient's initials." },
+  name:      { label: "Name (auto)",     tint: "rgba(217,119,6,.16)",  border: "#b45309", text: "#92400e", auto: true,  fill: false, hint: "Auto-filled with the recipient's full name." },
+  date:      { label: "Date (auto)",     tint: "rgba(5,150,105,.18)",  border: "#059669", text: "#047857", auto: true,  fill: false, hint: "Auto-filled with the signing date." },
+  text:      { label: "Text",            tint: "rgba(100,116,139,.16)", border: "#475569", text: "#334155", auto: false, fill: true,  hint: "Recipient types a value (with a label you set)." },
+  checkbox:  { label: "Checkbox",        tint: "rgba(100,116,139,.16)", border: "#475569", text: "#334155", auto: false, fill: true,  hint: "Recipient checks a box (with a label you set)." },
 };
 function _docsFieldMeta(k){ return _DOCS_FIELD_META[k] || _DOCS_FIELD_META.signature; }
 
@@ -20844,8 +20846,8 @@ async function _docsOpenFieldEditor(templateId) {
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(tpl.title)} — pick a field type, then click and drag on a page to drop it. Click a box to remove it.</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px">
-            ${["signature","initials","name","date"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 10px;border-radius:5px;cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${k === "signature" ? "Signature" : k === "initials" ? "Initials" : k === "name" ? "Name" : "Date"}</button>`).join("")}
+          <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap">
+            ${["signature","initials","name","date","text","checkbox"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 9px;border-radius:5px;cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${({signature:"Signature",initials:"Initials",name:"Name",date:"Date",text:"Text",checkbox:"Checkbox"})[k]}</button>`).join("")}
           </div>
           <button class="btn btn-sm" id="docs-fe-close">Close</button>
         </div>
@@ -20868,7 +20870,7 @@ async function _docsOpenFieldEditor(templateId) {
 
   // Which field kind the next drag will place. Default: signature.
   let currentKind = "signature";
-  const kindLabelOf = (k) => k === "signature" ? "Signature" : k === "initials" ? "Initials" : k === "name" ? "Name" : "Date";
+  const kindLabelOf = (k) => ({ signature:"Signature", initials:"Initials", name:"Name", date:"Date", text:"Text", checkbox:"Checkbox" })[k] || "Signature";
   const kindBtns = m.querySelectorAll(".docs-fe-kind");
   kindBtns.forEach((b) => b.addEventListener("click", () => {
     currentKind = b.getAttribute("data-kind");
@@ -20887,11 +20889,11 @@ async function _docsOpenFieldEditor(templateId) {
   // can render them at any page scale.
   const fields = Array.isArray(tpl.fields) ? tpl.fields.map((f) => ({ ...f })) : [];
   const updateCount = () => {
-    const c = { signature: 0, initials: 0, name: 0, date: 0 };
+    const c = { signature: 0, initials: 0, name: 0, date: 0, text: 0, checkbox: 0 };
     for (const f of fields) { const k = f.kind || "signature"; if (c[k] != null) c[k]++; }
     const parts = Object.entries(c).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`);
     const el = document.getElementById("docs-fe-count");
-    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${parts.length ? ` (${parts.join(" · ")})` : ""} · placing: <strong id="docs-fe-kind-label">${kindLabelOf(currentKind)}</strong> — Name / Initials / Date fields are filled automatically`;
+    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${parts.length ? ` (${parts.join(" · ")})` : ""} · placing: <strong id="docs-fe-kind-label">${kindLabelOf(currentKind)}</strong> — Name / Initials / Date auto-fill; Text / Checkbox are completed by the signer`;
   };
   updateCount();
 
@@ -20948,9 +20950,9 @@ async function _docsOpenFieldEditor(templateId) {
     const meta = _docsFieldMeta(f.kind || "signature");
     const node = document.createElement("div");
     node.className = "rr-docs-field";
-    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${meta.tint};border:1.5px dashed ${meta.border};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${meta.text};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px`;
-    node.textContent = meta.label;
-    node.title = `${meta.hint} · click to remove`;
+    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${meta.tint};border:1.5px dashed ${meta.border};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${meta.text};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px;overflow:hidden`;
+    node.textContent = meta.fill ? (f.kind === "checkbox" ? "☐ " : "") + (f.label || meta.label) : meta.label;
+    node.title = `${meta.hint}${f.label ? ` (“${f.label}”)` : ""} · click to remove`;
     node.addEventListener("click", (e) => {
       e.stopPropagation();
       const i = fields.indexOf(f);
@@ -20997,6 +20999,14 @@ async function _docsOpenFieldEditor(templateId) {
       const fw = w / viewport.width, fh = h / viewport.height;
       if (fw < MIN_FRAC || fh < MIN_FRAC) return;
       const f = { id: crypto.randomUUID(), kind: currentKind, page: pageIdx, x: fx, y: fy, w: fw, h: fh };
+      if (_docsFieldMeta(currentKind).fill) {
+        const lbl = prompt(currentKind === "checkbox"
+          ? "Label for this checkbox (what the signer sees, e.g. \"I have received a copy\"):"
+          : "Label for this text field (what the signer sees, e.g. \"Emergency contact name\"):", "");
+        if (lbl === null) return;            // cancelled — don't create the field
+        f.label = (lbl || "").trim() || (currentKind === "checkbox" ? "Checkbox" : "Text field");
+        f.required = false;
+      }
       fields.push(f);
       renderFieldDom(f, overlay, viewport);
       updateCount();

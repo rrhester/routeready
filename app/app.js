@@ -3573,6 +3573,20 @@ async function renderDocumentSign() {
     return;
   }
 
+  // Recipient-fill fields (text / checkbox) the dispatcher placed on
+  // the template — the driver completes these here; the values are
+  // sent with the signature and the sealing worker stamps them onto
+  // the PDF at their positions.
+  const fillFields = (env.fields_snapshot || []).filter((f) => f && (f.kind === "text" || f.kind === "checkbox"));
+  const fillSection = fillFields.length ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Complete these fields</div>
+        ${fillFields.map((f) => f.kind === "checkbox"
+          ? `<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer"><input type="checkbox" data-rr-fld="${escapeHtml(f.id)}" style="margin-top:2px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto"><span style="font-size:var(--fs-sm);line-height:1.5;color:var(--text)">${escapeHtml(f.label || "Checkbox")}</span></label>`
+          : `<label style="display:flex;flex-direction:column;gap:4px"><span style="font-size:var(--fs-xs);color:var(--text-muted)">${escapeHtml(f.label || "Text field")}</span><input type="text" data-rr-fld="${escapeHtml(f.id)}" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)"></label>`
+        ).join("")}
+      </div>` : "";
+
   main.innerHTML = `
     <div style="padding:14px 16px 96px 16px;display:flex;flex-direction:column;gap:14px">
       <div>
@@ -3585,6 +3599,8 @@ async function renderDocumentSign() {
         <span style="flex:1">View document (PDF)</span>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--text-subtle)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       </a>
+
+      ${fillSection}
 
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
@@ -3685,6 +3701,14 @@ async function renderDocumentSign() {
       toast("Draw your signature or type your full name.", "warn"); return;
     }
 
+    // Collect the recipient-fill field values keyed by field id.
+    const fieldValues = {};
+    for (const f of fillFields) {
+      const el = main.querySelector(`[data-rr-fld="${f.id}"]`);
+      if (!el) continue;
+      fieldValues[f.id] = f.kind === "checkbox" ? !!el.checked : (el.value || "").trim();
+    }
+
     const btn = document.getElementById("rr-doc-submit");
     btn.disabled = true; btn.textContent = "Signing…";
     if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
@@ -3699,6 +3723,7 @@ async function renderDocumentSign() {
       p_typed_name:       typed || null,
       p_ip:               null,
       p_user_agent:       navigator.userAgent || null,
+      p_field_values:     fieldValues,
     });
     if (err) {
       btn.disabled = false; btn.textContent = "Sign & submit";
