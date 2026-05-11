@@ -446,7 +446,7 @@ interface I9Event {
   created_at: string;
 }
 interface DriverRow { id: string; full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; }
-interface DspRow { id: string; name: string; }
+interface DspRow { id: string; name: string; business_address?: string | null; address?: string | null; }
 
 async function sealI9(i9RecordId: string, env: Env, force = false) {
   const recArr = await sb<I9Record>(env, `i9_records?id=eq.${i9RecordId}&select=*`);
@@ -456,7 +456,7 @@ async function sealI9(i9RecordId: string, env: Env, force = false) {
   if (rec.pdf_path && !force) return { skipped: "already_sealed", path: rec.pdf_path };
 
   const drvArr = await sb<DriverRow>(env, `drivers?id=eq.${rec.driver_id}&select=id,full_name,preferred_name,first_name,last_name`);
-  const dspArr = await sb<DspRow>(env, `dsps?id=eq.${rec.dsp_id}&select=id,name`);
+  const dspArr = await sb<DspRow>(env, `dsps?id=eq.${rec.dsp_id}&select=id,name,business_address,address`);
   const drv = drvArr[0] || { id: rec.driver_id, full_name: "Employee", preferred_name: null, first_name: null, last_name: null };
   const dsp = dspArr[0] || { id: rec.dsp_id, name: "Employer" };
   const events = await sb<I9Event>(env, `i9_events?i9_record_id=eq.${i9RecordId}&order=id.asc&select=id,kind,actor_kind,actor_name,ip,event_data,created_at`);
@@ -683,6 +683,8 @@ function tryFillOfficialI9(
   setT(repFirst, "First Name of Employer or Authorized Representative", "first name of employer");
   setT(repTitle, "Title of Employer or Authorized Representative", "title of employer");
   setT(dsp.name, "Employers Business or Org Name", "Employer's Business or Organization Name", "employers business or org name");
+  setT((dsp.business_address || dsp.address || "").replace(/\s*\n+\s*/g, ", ").trim(),
+    "Employers Business or Org Address", "Employer's Business or Organization Address", "employers business or org address");
   setT(mmddyyyy(rec.section2_completed_at), "S2 Todays Date mmddyyyy", "s2 todays date mmddyyyy", "todays date section 2");
 
   return {
@@ -698,16 +700,20 @@ async function stampSigOnPage(pdf: PDFDocument, page: PDFPage, rect: number[] | 
   const method = sig.method as string | undefined;
   const data = sig.data as string | undefined;
   const pad = 2, [x, y, w, h] = rect;
+  // The official form's "Signature" field is just a thin line — render the
+  // captured signature at a legible height (≈22pt), sitting on the line and
+  // overflowing upward into the cell's whitespace.
+  const targetH = Math.max(h, 22);
   if (method === "drawn" && typeof data === "string" && data.startsWith("data:image")) {
     try {
       const img = data.includes("image/png") ? await pdf.embedPng(data) : await pdf.embedJpg(data);
-      const sc = Math.min((w - pad * 2) / img.width, (h - pad * 2) / img.height);
-      page.drawImage(img, { x: x + pad, y: y + pad, width: img.width * sc, height: img.height * sc });
+      const sc = Math.min((w - pad * 2) / img.width, (targetH - pad) / img.height);
+      page.drawImage(img, { x: x + pad, y: y + 1, width: img.width * sc, height: img.height * sc });
       return;
     } catch { /* fall through to text */ }
   }
   const txt = (typeof data === "string" && data) || (typeof sig.signer_name === "string" ? sig.signer_name as string : "");
-  if (txt) { try { page.drawText(String(txt).slice(0, 60), { x: x + pad, y: y + Math.max(pad, h / 2 - 5), size: Math.min(11, h - pad), color: rgb(0.07, 0.09, 0.13) }); } catch { /* ignore */ } }
+  if (txt) { try { page.drawText(String(txt).slice(0, 60), { x: x + pad, y: y + 2, size: Math.min(16, targetH - 4), color: rgb(0.07, 0.09, 0.13) }); } catch { /* ignore */ } }
 }
 
 async function appendI9SignaturePage(pdf: PDFDocument, rec: I9Record, drv: DriverRow, dsp: DspRow, helv: PDFFont, bold: PDFFont) {
