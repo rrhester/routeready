@@ -10176,6 +10176,19 @@ async function openDriverDrawer(driverId, opts) {
       .dd-callout.warn{background:var(--amber-soft);color:var(--text)}
       .dd-callout.warn strong{color:var(--amber)}
       .dd-callout svg{flex-shrink:0;margin-top:2px}
+      .dd-skel-line{height:11px;background:var(--border);border-radius:6px;margin:8px 0;animation:dd-skel-pulse 1.3s ease-in-out infinite}
+      .dd-skel-block{margin-bottom:24px}
+      .dd-skel-block .head{height:14px;width:30%;background:var(--border);border-radius:6px;margin:0 0 12px;animation:dd-skel-pulse 1.3s ease-in-out infinite}
+      @keyframes dd-skel-pulse{0%,100%{opacity:.5}50%{opacity:.85}}
+      @media (max-width:640px){
+        .dd-head{padding:16px 18px}
+        .dd-tabs{margin:14px 18px 0}
+        .dd-tab-note{margin:9px 18px 0}
+        .dd-body{padding:18px}
+        .dd-foot{padding:12px 18px}
+        .dd-row{grid-template-columns:1fr;gap:5px}
+        .dd-row label{font-size:var(--fs-xs)}
+      }
     </style>
     <div id="rr-dd-panel">
       <div class="dd-head">
@@ -10360,6 +10373,10 @@ function renderDriverDrawerTab() {
     }
   }
   const body = document.getElementById("rr-dd-body");
+  // Skeleton briefly visible while async tab renderers (Employment /
+  // License / Attendance / Availability) fetch their data; sync renderers
+  // overwrite this immediately.
+  body.innerHTML = `<div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:100%"></div><div class="dd-skel-line" style="width:88%"></div><div class="dd-skel-line" style="width:72%"></div></div><div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:96%"></div><div class="dd-skel-line" style="width:78%"></div></div><div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:90%"></div><div class="dd-skel-line" style="width:60%"></div></div>`;
   if (_ddTab === "overview")     renderOverviewTab(body, _ddDriver);
   if (_ddTab === "activity")     renderActivityTab(body, _ddDriver);
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
