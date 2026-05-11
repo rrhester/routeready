@@ -142,6 +142,30 @@ export default {
       }
     }
 
+    // Diagnostic: probe each configured TSA with a fixed hash and report
+    // exactly what came back (status, content-type, response prefix,
+    // parsed PKI status, genTime, or the error). No auth — it leaks
+    // nothing sensitive, just whether the TSA is reachable from here.
+    if (req.method === "GET" && url.pathname === "/timestamp-test") {
+      const urls = (env.RR_TSA_URL || DEFAULT_TSA_URL).split(",").map((s) => s.trim()).filter(Boolean);
+      const fixed = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("rr-tsa-test")));
+      const reqDer = buildTimeStampReq(fixed);
+      const out: unknown[] = [];
+      for (const u of urls) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 12_000);
+        try {
+          const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/timestamp-query", "Accept": "application/timestamp-reply" }, body: reqDer, signal: ctrl.signal });
+          const buf = new Uint8Array(await r.arrayBuffer());
+          const hex = Array.from(buf.slice(0, 40)).map((b) => b.toString(16).padStart(2, "0")).join("");
+          out.push({ url: u, ok: r.ok, status: r.status, contentType: r.headers.get("content-type"), bodyLen: buf.byteLength, bodyHexPrefix: hex, pkiStatus: r.ok ? readTsaStatus(buf) : null, genTime: r.ok ? extractGenTime(buf) : null });
+        } catch (err) {
+          out.push({ url: u, error: String((err as Error)?.message || err) });
+        } finally { clearTimeout(t); }
+      }
+      return json({ reqDerLen: reqDer.byteLength, results: out }, 200);
+    }
+
     if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
     // Shared-secret auth between the Postgres trigger and the Worker.
@@ -889,7 +913,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.7", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.8", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
