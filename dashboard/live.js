@@ -10588,27 +10588,62 @@ function _i9PanelHtml(i9, drv) {
       ${events.length ? `
       <details style="margin-top:8px">
         <summary style="${sumStyle}">Activity · ${events.length} event${events.length === 1 ? "" : "s"}</summary>
-        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
-          ${events.slice().reverse().map(ev => `<div style="display:flex;gap:10px;font-size:var(--fs-xs);line-height:1.4"><span style="white-space:nowrap;color:var(--text-subtle);flex:0 0 auto">${escapeHtml(new Date(ev.created_at).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}</span><span style="color:var(--text)">${escapeHtml(_i9EventLabel(ev))}</span></div>`).join("")}
-        </div>
+        <div style="margin-top:10px">${_i9Timeline(events)}</div>
       </details>` : ""}
     </div>`;
 }
 
-function _i9EventLabel(ev) {
+// One event → { dot, title, by, detail } for the vertical timeline.
+function _i9EventMeta(ev) {
   const who = ev.actor_kind === "driver" ? "Employee" : ev.actor_kind === "system" ? "System" : (ev.actor_name || "Dispatcher");
-  const m = {
-    created: "I-9 record created",
-    first_day_set: "First day of employment set",
-    section1_saved: "Section 1 draft saved",
-    section1_consent: "Section 1 e-sign consent accepted",
-    section1_completed: "Section 1 completed & signed",
-    section2_completed: "Section 2 completed & attested",
-    reopened: "Reopened for correction",
+  const K = {
+    created:            { dot: "#94a3b8", t: "I-9 record created" },
+    first_day_set:      { dot: "#0284c7", t: "First day of employment set" },
+    section1_saved:     { dot: "#cbd5e1", t: "Section 1 draft saved" },
+    section1_consent:   { dot: "#0284c7", t: "Section 1 e-signature consent accepted" },
+    section1_completed: { dot: "#16a34a", t: "Section 1 completed & signed" },
+    section2_completed: { dot: "#16a34a", t: "Section 2 completed & attested" },
+    reopened:           { dot: "#dc2626", t: "Reopened for correction" },
+    pdf_sealed:         { dot: "#16a34a", t: "Sealed PDF generated" },
   };
-  let txt = m[ev.kind] || ev.kind;
-  if (ev.kind === "reopened" && ev.event_data && ev.event_data.reason) txt += ` — "${ev.event_data.reason}"`;
-  return `${who}: ${txt}`;
+  const base = K[ev.kind] || { dot: "#94a3b8", t: String(ev.kind || "event").replace(/_/g, " ") };
+  const d = ev.event_data && typeof ev.event_data === "object" ? ev.event_data : {};
+  let detail = null;
+  if (ev.kind === "reopened" && d.reason) detail = `Reason: "${d.reason}"`;
+  else if (ev.kind === "first_day_set" && (d.first_day || d.first_day_of_employment)) { const v = d.first_day || d.first_day_of_employment; detail = new Date(/T/.test(v) ? v : v + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); }
+  else if (ev.kind === "section2_completed" && d.title) detail = String(d.title);
+  else if (ev.kind === "pdf_sealed") detail = d.tsa_url ? `RFC 3161 timestamp · ${d.tsa_url}` : (d.pdf_sha256 ? "SHA-256 " + String(d.pdf_sha256).slice(0, 16) + "…" : null);
+  let by = who;
+  if (ev.actor_kind !== "driver" && ev.actor_kind !== "system" && ev.actor_name && ev.actor_name !== who) by = ev.actor_name;
+  if (ev.ip) by += ` · ${ev.ip}`;
+  return { dot: base.dot, title: base.t, by, detail };
+}
+
+// Vertical, day-grouped activity timeline. Hairline rail, a coloured dot
+// per event, human one-liners. Used in the drawer's Activity disclosure
+// and the chain-of-custody modal.
+function _i9Timeline(events) {
+  const list = (events || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  if (!list.length) return `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No events recorded yet.</div>`;
+  const dayKey = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  const timeOf = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  let html = "", lastDay = null;
+  list.forEach((ev, i) => {
+    const dk = dayKey(ev.created_at);
+    if (dk !== lastDay) { html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);margin:${i ? "14px" : "2px"} 0 7px">${escapeHtml(dk)}</div>`; lastDay = dk; }
+    const meta = _i9EventMeta(ev);
+    const isLast = i === list.length - 1;
+    html += `
+      <div style="position:relative;padding:0 0 ${isLast ? "0" : "16px"} 20px;margin-left:6px;border-left:1.5px solid var(--border)">
+        <div style="position:absolute;left:-6px;top:1px;width:11px;height:11px;border-radius:50%;background:${meta.dot};box-shadow:0 0 0 3px var(--surface)"></div>
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
+          <span style="font-size:var(--fs-sm);color:var(--text);font-weight:600">${escapeHtml(meta.title)}</span>
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;flex:0 0 auto">${escapeHtml(timeOf(ev.created_at))}</span>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${escapeHtml(meta.by)}${meta.detail ? ` · ${escapeHtml(meta.detail)}` : ""}</div>
+      </div>`;
+  });
+  return html;
 }
 
 // ── shared signature-pad helper for the I-9 modals ─────────────────────
@@ -11218,11 +11253,12 @@ async function _i9OpenChainModal(driverId) {
       </div>
       <div style="padding:20px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:18px">
         <div>${rec.pdf_path ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-sm btn-primary" data-rr-i9-chain-pdf="form">Open Form I-9 (PDF)</button><button type="button" class="btn btn-sm" data-rr-i9-chain-pdf="cert">Certificate of Completion</button></div>` : ""}</div>
-        <div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:8px">Cryptographic seal</div>${sealBlock}</div>
-        <div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:8px">Audit trail · ${(events||[]).length} event${(events||[]).length===1?"":"s"}</div>
-          <div style="display:flex;flex-direction:column;gap:6px">${(events||[]).map(ev => `<div style="display:flex;gap:10px;font-size:var(--fs-sm)"><span style="color:var(--text-subtle);white-space:nowrap">${escapeHtml(new Date(ev.created_at).toLocaleString())}</span><span style="color:var(--text)">${escapeHtml(_i9EventLabel(ev))}</span></div>`).join("")}</div>
-        </div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">This is RouteReady's electronic record of the Form I-9. The sealed PDF's bytes are byte-identical to what's stored; the seal + timestamp prove it hasn't been altered since ${rec.pdf_sealed_at ? new Date(rec.pdf_sealed_at).toLocaleString() : "sealing"}. Not legal advice — the official Form I-9 (USCIS edition 08/01/23) and its instructions govern.</div>
+        <div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:10px">Activity · ${(events||[]).length} event${(events||[]).length===1?"":"s"}</div>${_i9Timeline(events)}</div>
+        <details style="border-top:1px solid var(--border);padding-top:14px">
+          <summary style="cursor:pointer;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)">Verification details</summary>
+          <div style="margin-top:12px">${sealBlock}</div>
+        </details>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">RouteReady's electronic record of the Form I-9. The sealed PDF's bytes are byte-identical to what's stored; the seal + timestamp prove it hasn't been altered since ${rec.pdf_sealed_at ? new Date(rec.pdf_sealed_at).toLocaleString() : "sealing"}. Not legal advice — the official Form I-9 and its instructions govern.</div>
       </div>
     </div>`;
   document.body.appendChild(m);
