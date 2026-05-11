@@ -10275,6 +10275,11 @@ let _msgInboxList = [];
 let _msgInboxSelectedId = null;
 let _msgInboxListTimer = null;
 let _msgInboxThreadTimer = null;
+// Per-compose state for the operator's next outbound dispatch message:
+// priority (normal/high/urgent) and whether driver must acknowledge.
+// Reset to defaults after each send so an "urgent" doesn't stick around.
+let _dispatchPriority    = "normal";
+let _dispatchRequiresAck = false;
 
 async function loadDriverChatInbox() {
   await refreshDriverChatList(true);
@@ -10520,12 +10525,35 @@ async function refreshDriverChatThread(scrollToBottom) {
           </button>
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
             <div id="rr-mc-attach-preview" style="display:none"></div>
+            <div class="rr-mc-options" id="rr-mc-options">
+              <div class="rr-mc-pri" role="radiogroup" aria-label="Priority">
+                <button type="button" class="rr-mc-pri-btn ${_dispatchPriority === "normal" ? "on" : ""}" data-rr-pri="normal">Normal</button>
+                <button type="button" class="rr-mc-pri-btn ${_dispatchPriority === "high"   ? "on" : ""}" data-rr-pri="high">High</button>
+                <button type="button" class="rr-mc-pri-btn urgent ${_dispatchPriority === "urgent" ? "on" : ""}" data-rr-pri="urgent">Urgent</button>
+              </div>
+              <label class="rr-mc-ack-toggle">
+                <input type="checkbox" id="rr-mc-req-ack" ${_dispatchRequiresAck ? "checked" : ""}>
+                Require acknowledgement
+              </label>
+            </div>
             <textarea id="rr-mc-input" rows="1" placeholder="Reply to ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
           </div>
           <button class="rr-mc-send" type="submit">Send</button>
         </form>
       </div>`;
     const ta = document.getElementById("rr-mc-input");
+    // Priority radio + ack checkbox for the next outbound message.
+    document.getElementById("rr-mc-options")?.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-rr-pri]");
+      if (!b) return;
+      _dispatchPriority = b.getAttribute("data-rr-pri") || "normal";
+      document.querySelectorAll("#rr-mc-options .rr-mc-pri-btn").forEach((el) => {
+        el.classList.toggle("on", el.getAttribute("data-rr-pri") === _dispatchPriority);
+      });
+    });
+    document.getElementById("rr-mc-req-ack")?.addEventListener("change", (e) => {
+      _dispatchRequiresAck = !!e.target.checked;
+    });
     ta.addEventListener("input", () => {
       ta.style.height = "auto"; ta.style.height = Math.min(160, ta.scrollHeight) + "px";
       // Keep the caret visible inside the textarea — once the draft
@@ -10696,6 +10724,8 @@ async function refreshDriverChatThread(scrollToBottom) {
         p_attachment_mime:       attachment?.mime || null,
         p_attachment_name:       attachment?.name || null,
         p_attachment_size_bytes: attachment?.size || null,
+        p_priority:              _dispatchPriority,
+        p_requires_ack:          _dispatchRequiresAck,
       });
       send.disabled = false;
       if (error) {
@@ -10711,6 +10741,15 @@ async function refreshDriverChatThread(scrollToBottom) {
         toast("Couldn't send: " + error.message, "warn");
         return;
       }
+      // Reset priority/ack to defaults so the operator doesn't keep
+      // accidentally sending urgent / requires-ack messages after one.
+      _dispatchPriority = "normal";
+      _dispatchRequiresAck = false;
+      document.querySelectorAll("#rr-mc-options .rr-mc-pri-btn").forEach((el) => {
+        el.classList.toggle("on", el.getAttribute("data-rr-pri") === "normal");
+      });
+      const ackBox = document.getElementById("rr-mc-req-ack");
+      if (ackBox) ackBox.checked = false;
       // Don't force a scroll on the refresh — the operator was already
       // pinned at bottom (we scrolled them when the stub appeared).
       // The smart-scroll logic in the renderer will keep them there.
@@ -10844,9 +10883,19 @@ async function refreshDriverChatThread(scrollToBottom) {
           </div>`
         : "";
       const deletedClass = isDeleted ? " is-deleted" : "";
-      html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
+      // Priority + ack — only on dispatch-sent messages (priority/ack
+      // are operator-initiated; drivers can't send urgent or require-ack).
+      const priCls = (isMine && m.priority === "urgent") ? " urgent"
+                  : (isMine && m.priority === "high")   ? " high" : "";
+      const priTag = (isMine && m.priority === "urgent") ? `<div class="rr-mc-pri-tag">Urgent</div>` : "";
+      const ackChip = (isMine && m.requires_ack)
+        ? (m.acked_at
+            ? `<div class="rr-mc-ack acked">✓ Acknowledged · ${escapeHtml(new Date(m.acked_at).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }))}</div>`
+            : `<div class="rr-mc-ack pending">Awaiting acknowledgement</div>`)
+        : "";
+      html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
-        ${attach}${bodyHtml}
+        ${priTag}${attach}${bodyHtml}${ackChip}
         <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
       </div>`;
       // Drop the read-receipt pill immediately after the last
