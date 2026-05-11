@@ -7361,18 +7361,104 @@ body.rr-cmdk-open{ overflow:hidden }
              one of the clickable KPI tiles above. -->
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3)">
-          <div style="display:flex;gap:var(--s-2)">
-            <button class="btn btn-primary btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span id="rr-drivers-cta-label">Add driver</span>
-            </button>
-            <button class="btn btn-ghost btn-sm" type="button" onclick="openModal('modal-bulk-drivers')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Bulk import
-            </button>
+        <style>
+          /* ── Drivers · roster refinements (scoped) ──────────────────── */
+          #view-drivers .dr-roster-bar{
+            display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap;
+          }
+          #view-drivers .dr-roster-bar .dr-search{
+            position:relative;flex:1;min-width:220px;max-width:380px;
+          }
+          #view-drivers .dr-roster-bar .dr-search svg{
+            position:absolute;left:11px;top:50%;transform:translateY(-50%);
+            width:14px;height:14px;color:var(--text-subtle);pointer-events:none;
+          }
+          #view-drivers .dr-roster-bar .dr-search input{
+            width:100%;padding:8px 11px 8px 32px;border:1px solid var(--border);border-radius:9px;
+            font:inherit;font-size:var(--fs-md);background:var(--canvas);color:var(--text);
+            transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+          }
+          #view-drivers .dr-roster-bar .dr-search input:focus{
+            outline:none;background:var(--surface);border-color:var(--accent);
+            box-shadow:0 0 0 3px var(--accent-soft);
+          }
+          #view-drivers .dr-roster-bar .dr-bar-hint{ font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap; }
+          #view-drivers .dr-roster-bar .dr-bar-spacer{ flex:1; }
+          #view-drivers .dr-roster-bar select.dr-filter{
+            padding:8px 28px 8px 11px;border:1px solid var(--border);border-radius:9px;
+            font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text-muted);background:var(--canvas);
+            cursor:pointer;appearance:none;-webkit-appearance:none;
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 9px center;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-drivers .dr-roster-bar select.dr-filter:focus{ outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
+          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:rgba(15,108,189,.30);background-color:var(--accent-soft); }
+
+          /* App-presence chip (consistent with the platform's chip rhythm) */
+          #view-drivers .dr-app-chip{
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 9px 3px 7px;line-height:1.4;
+            border:1px solid transparent;white-space:nowrap;
+          }
+          #view-drivers .dr-app-chip .dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto; }
+          #view-drivers .dr-app-chip.on{ background:var(--green-soft);color:var(--green);border-color:rgba(5,150,105,.20); }
+          #view-drivers .dr-app-chip.on .dot{ background:var(--green); }
+          #view-drivers .dr-app-chip.invited{ background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.18); }
+          #view-drivers .dr-app-chip.invited .dot{ background:var(--amber); }
+          #view-drivers .dr-app-chip.none{ background:var(--canvas);color:var(--text-subtle);border-color:var(--border); }
+          #view-drivers .dr-app-chip.none .dot{ background:var(--text-subtle); }
+          #view-drivers .dr-app-rel{ font-size:var(--fs-xs);color:var(--text-subtle);margin-left:6px; }
+
+          /* Skeleton rows */
+          #view-drivers .dr-skel-cell{ height:13px;border-radius:5px;background:var(--canvas);position:relative;overflow:hidden; }
+          #view-drivers .dr-skel-cell::after{
+            content:"";position:absolute;inset:0;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+            transform:translateX(-100%);animation:drShimmer 1.25s ease-in-out infinite;
+          }
+          #view-drivers .dr-skel-avatar{ width:32px;height:32px;border-radius:50%;background:var(--canvas);position:relative;overflow:hidden; }
+          #view-drivers .dr-skel-avatar::after{
+            content:"";position:absolute;inset:0;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+            transform:translateX(-100%);animation:drShimmer 1.25s ease-in-out infinite;
+          }
+          @keyframes drShimmer{ to{ transform:translateX(100%); } }
+
+          /* Empty state */
+          #view-drivers .dr-empty{ padding:52px 28px;text-align:center; }
+          #view-drivers .dr-empty .ic{
+            width:46px;height:46px;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;
+            color:var(--accent);background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
+          }
+          #view-drivers .dr-empty .ic svg{ width:22px;height:22px; }
+          #view-drivers .dr-empty h3{ margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text); }
+          #view-drivers .dr-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55; }
+
+          /* A touch more breathing room + crisper hover on the roster table */
+          #view-drivers #dr-sub-roster .table tbody td{ padding-top:11px;padding-bottom:11px; }
+          #view-drivers #dr-sub-roster .table tbody tr:hover{ background:var(--canvas); }
+          #view-drivers #dr-sub-roster .table thead th{ letter-spacing:.04em; }
+        </style>
+
+        <div class="dr-roster-bar">
+          <button class="btn btn-primary btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span id="rr-drivers-cta-label">Add driver</span>
+          </button>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="openModal('modal-bulk-drivers')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Bulk import
+          </button>
+          <div class="dr-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="rr-roster-search" placeholder="Search name, email, phone, or station…" autocomplete="off" spellcheck="false">
           </div>
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Click a column to sort</span>
+          <select id="rr-roster-station" class="dr-filter" aria-label="Filter by station">
+            <option value="">Station: All</option>
+          </select>
+          <div class="dr-bar-spacer"></div>
+          <span class="dr-bar-hint" id="rr-roster-bar-hint">Click a column to sort</span>
         </div>
 
         <div class="table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
@@ -7389,7 +7475,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </tr>
             </thead>
             <tbody id="drivers-tbody">
-              <tr><td colspan="7"><div class="rr-loading">Loading drivers</div></td></tr>
+              <tr><td colspan="7" style="padding:0"></td></tr>
             </tbody>
           </table>
         </div>
