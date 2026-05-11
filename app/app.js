@@ -747,6 +747,15 @@ let _chatTab        = "dispatch";  // "dispatch" | "channels"
 let _chatChannelId  = null;        // when set, render the channel thread
 let _chatChannelMeta = null;       // cached header info for the thread
 
+// Count of messages that have landed while the driver is scrolled up —
+// shown on the jump-to-latest pill ("3 new ↓"); reset when they return
+// to the bottom.
+let _chatNewCount = 0;
+function _setChatJumpLabel() {
+  const el = document.getElementById("chat-jump-label");
+  if (el) el.textContent = _chatNewCount > 0 ? `${_chatNewCount} new` : "New messages";
+}
+
 // ─── Connection-state banner ───────────────────────────────────────
 // A small floating pill at the top of the message area: "Reconnecting…"
 // (amber) while the realtime channel is down, then a brief "Back online"
@@ -894,6 +903,7 @@ async function renderChat() {
     const body = (ta.value || "").trim();
     const file = window._rrChatPending;
     if (!body && !file) return;
+    if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
     const sendBtn = e.target.querySelector(".chat-send");
     if (sendBtn) sendBtn.disabled = true;
 
@@ -1295,7 +1305,7 @@ async function refreshChat(scrollToBottom) {
     wrap.innerHTML = html + liveStubs +
       `<button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        New messages
+        <span id="chat-jump-label">New messages</span>
       </button>
       <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
     _rrSignChatAttachments();
@@ -1315,6 +1325,7 @@ async function refreshChat(scrollToBottom) {
       wrap.dataset.rrAnchor = "1";
       wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
       jump.classList.remove("show");
+      _chatNewCount = 0; _setChatJumpLabel();
     });
   }
 
@@ -1322,12 +1333,18 @@ async function refreshChat(scrollToBottom) {
     wrap.dataset.rrAnchor = "1";
     wrap.scrollTop = wrap.scrollHeight;
     if (jump) jump.classList.remove("show");
+    _chatNewCount = 0; _setChatJumpLabel();
   } else if (prevMsgCount >= 0 && messages.length > prevMsgCount) {
     // Driver was scrolled up; new content arrived — keep them put and
-    // surface the jump-pill.  Anchor stays at "0" so the sentinel's
-    // overflow-anchor is `none` and the browser won't yank them down.
+    // surface the jump-pill with a running count.  Anchor stays at "0"
+    // so the sentinel's overflow-anchor is `none` and the browser won't
+    // yank them down.
+    _chatNewCount += messages.length - prevMsgCount;
+    _setChatJumpLabel();
     wrap.dataset.rrAnchor = "0";
     if (jump) jump.classList.add("show");
+  } else {
+    _setChatJumpLabel();
   }
 
   // Drop the badge to 0 — they're looking at the chat.
@@ -1446,9 +1463,13 @@ function _rrChatBindAnchorRelease(wrap) {
       const view = wrap.clientHeight;
       if ((max - cur - view) > 80) wrap.dataset.rrAnchor = "0";
       else wrap.dataset.rrAnchor = "1";
-      // Also fold the jump-pill in once they're back near bottom.
+      // Also fold the jump-pill in once they're back near bottom, and
+      // clear the "N new" count — they've caught up.
       const jump = wrap.querySelector(".chat-jump");
-      if (jump && (max - cur - view) <= 80) jump.classList.remove("show");
+      if ((max - cur - view) <= 80) {
+        if (jump) jump.classList.remove("show");
+        if (_chatNewCount) { _chatNewCount = 0; _setChatJumpLabel(); }
+      }
     });
   };
   wrap.addEventListener("scroll",    release, { passive: true });
