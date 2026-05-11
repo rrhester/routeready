@@ -1211,15 +1211,17 @@ async function refreshChat(scrollToBottom) {
       <button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest"></button>
       <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
   } else {
-    // Index of the last driver-sent message read by dispatch.
+    // Index of the last driver-sent message read by dispatch, and of the
+    // last driver-sent message overall (for the "Sent" affordance).
     let lastReadMineIdx = -1;
-    if (peerReadAt > 0) {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const m = messages[i];
-        if (m.sender_kind !== "driver") continue;
-        if (new Date(m.created_at).getTime() <= peerReadAt) { lastReadMineIdx = i; break; }
-      }
+    let lastMineIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender_kind !== "driver") continue;
+      if (lastMineIdx === -1) lastMineIdx = i;
+      if (peerReadAt > 0 && new Date(messages[i].created_at).getTime() <= peerReadAt) { lastReadMineIdx = i; break; }
     }
+    const _ckRead = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6.5 9.2 15.5 6.5 12.8"/><path d="M22 6.5 14.6 14.4"/></svg>`;
+    const _ckSent = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>`;
     let html = "";
     let lastSender = null;
     let lastTimeMs = 0;
@@ -1257,7 +1259,10 @@ async function refreshChat(scrollToBottom) {
       lastTimeMs = t.getTime();
       html += chatBubbleHtml(m, pos);
       if (i === lastReadMineIdx) {
-        html += `<div class="chat-read-receipt">Read</div>`;
+        html += `<div class="chat-read-receipt read">${_ckRead}Read</div>`;
+      } else if (i === lastMineIdx) {
+        // Latest message went out but dispatch hasn't opened it yet.
+        html += `<div class="chat-read-receipt sent">${_ckSent}Sent</div>`;
       }
     });
     // Carry forward in-flight / failed optimistic bubbles.
