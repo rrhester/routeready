@@ -10122,6 +10122,18 @@ async function openDriverDrawer(driverId, opts) {
       .dd-tab{flex:1;min-width:0;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 10px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+      .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
+      .dd-tab-note .dn-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+      .dd-tab-note.show{display:flex}
+      .dd-tab-note.driver{color:var(--green)}
+      .dd-head-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:5px}
+      .dd-hchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.01em;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.5}
+      .dd-hchip-on{color:var(--green);border-color:rgba(22,163,74,.28);background:#f0fdf4}
+      .dd-hchip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+      /* The per-section "Driver self-serve" / "DSP only" badges have been
+         consolidated into a single line under the tab strip (#rr-dd-tab-note).
+         Hide the inline copies wherever they still appear in section headers. */
+      .dd-badge.driver, .dd-badge.dsp{display:none}
       .dd-body{padding:22px 28px;flex:1}
       /* Section header inside a tab — visually breaks up long forms and
          carries the self-serve vs DSP-only contract for the upcoming
@@ -10169,6 +10181,7 @@ async function openDriverDrawer(driverId, opts) {
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
       </div>
+      <div class="dd-tab-note" id="rr-dd-tab-note"></div>
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
@@ -10243,12 +10256,28 @@ async function loadDriverDrawer(driverId) {
   const titleEl = document.getElementById("rr-dd-title");
   if (!titleEl) return;
   titleEl.textContent = displayDriverName(drv) || "—";
-  const sub = [
-    drv.station_id ? "Station —" : "No station",
-    drv.hire_date ? `Hired ${new Date(drv.hire_date).toLocaleDateString()}` : null,
-    drv.tier ? `Tier ${drv.tier}` : null,
-  ].filter(Boolean).join(" · ");
-  document.getElementById("rr-dd-sub").textContent = sub;
+  // Header chips — status pill (lead), station code (resolved from the
+  // cached station list), hire-date + tenure, tier, and (when known)
+  // app presence. Replaces the flat "Station — · Hired … · Tier …" line.
+  const stationCode = (_driverStationsCache || []).find(s => s.id === drv.station_id)?.code;
+  const tenureTxt = drv.hire_date ? (() => {
+    const days = Math.max(0, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / 86400000));
+    if (days < 45) return `${days}d`;
+    const mo = Math.round(days / 30.4);
+    return mo < 24 ? `${mo} mo` : `${(days / 365.25).toFixed(1)} yr`;
+  })() : null;
+  const appS = _rosterAppStatus ? _rosterAppStatus.get(drv.id) : null;
+  const headChips = [];
+  headChips.push(renderDriverStatusBadge(drv.status));
+  if (stationCode) headChips.push(`<span class="dd-hchip">${escapeHtml(stationCode)}</span>`);
+  else if (drv.station_id) headChips.push(`<span class="dd-hchip">Station assigned</span>`);
+  else headChips.push(`<span class="dd-hchip">Unassigned</span>`);
+  if (drv.hire_date) headChips.push(`<span class="dd-hchip">Hired ${escapeHtml(new Date(drv.hire_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }))}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}</span>`);
+  if (drv.tier) headChips.push(`<span class="dd-hchip">Tier ${escapeHtml(String(drv.tier))}</span>`);
+  if (appS && appS.signed_in_at) headChips.push(`<span class="dd-hchip dd-hchip-on"><i class="dot"></i>On the app</span>`);
+  else if (appS && appS.invited)  headChips.push(`<span class="dd-hchip">App invited</span>`);
+  const subEl = document.getElementById("rr-dd-sub");
+  if (subEl) subEl.innerHTML = `<div class="dd-head-chips">${headChips.join("")}</div>`;
 
   // Avatar in the drawer header — initials by default; the photo
   // painter (boot-time MutationObserver) replaces them with the
@@ -10282,6 +10311,27 @@ function renderDriverDrawerTab() {
   document.querySelectorAll("#rr-dd-drawer .dd-tab").forEach(t => {
     t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
   });
+  // Tab-level contract note (replaces the per-section "Driver self-serve" /
+  // "DSP only" badges that used to repeat across every section header).
+  const note = document.getElementById("rr-dd-tab-note");
+  if (note) {
+    const NOTES = {
+      profile:      { cls: "driver", txt: "Driver self-serve — the driver can edit these in the RouteReady app" },
+      employment:   { cls: "",       txt: "DSP only — these fields aren't visible to the driver" },
+      license:      { cls: "",       txt: "DSP only — license & certifications recorded by the dispatcher" },
+      availability: { cls: "driver", txt: "Driver self-serve — the driver sets their own availability in the app" },
+    };
+    const n = NOTES[_ddTab];
+    if (n) {
+      note.classList.add("show");
+      note.classList.toggle("driver", n.cls === "driver");
+      note.innerHTML = `<span class="dn-dot"></span>${escapeHtml(n.txt)}`;
+    } else {
+      note.classList.remove("show");
+      note.classList.remove("driver");
+      note.innerHTML = "";
+    }
+  }
   const body = document.getElementById("rr-dd-body");
   if (_ddTab === "overview")     renderOverviewTab(body, _ddDriver);
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
