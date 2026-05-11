@@ -2264,17 +2264,49 @@ async function renderSettingsLicense() {
 // driver can complete their half of the work.  When the DSP flips
 // status to "active", the Onboarding card disappears from the Tasks
 // hub on the next render.
+// Onboarding hub — a guided, momentum-first screen. One hero "next
+// step", the driver's own steps as a clean checklist, and a calm,
+// separate "your team is handling" section so the driver always knows
+// what's theirs to do and never wonders what happens next.
+const _OB_CHECK = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#15803d" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const _OB_CHEVRON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+function _obProgressRing(done, total) {
+  const r = 23, c = 2 * Math.PI * r;
+  const frac = total ? done / total : 0;
+  const allDone = total > 0 && done === total;
+  return `<svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
+    <circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--canvas)" stroke-width="5"/>
+    <circle cx="29" cy="29" r="${r}" fill="none" stroke="${allDone ? "#16a34a" : "var(--accent)"}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - frac)).toFixed(1)}" transform="rotate(-90 29 29)" style="transition:stroke-dashoffset .4s ease"/>
+  </svg>`;
+}
+
+function _obDot(state) {
+  if (state === "done") return `<span class="ob-dot done">${_OB_CHECK}</span>`;
+  if (state === "active") return `<span class="ob-dot active"></span>`;
+  return `<span class="ob-dot empty"></span>`;
+}
+
+function _obSkeleton() {
+  const line = (w) => `<div class="i9-skel" style="height:12px;width:${w}"></div>`;
+  return `<div class="ob">
+    <div class="ob-hero"><div class="i9-skel" style="width:58px;height:58px;border-radius:50%;flex:0 0 auto"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px">${line("55%")}${line("85%")}</div></div>
+    <div class="ob-skel-card">${line("28%")}${line("70%")}<div class="i9-skel" style="height:40px;width:100%;margin-top:4px"></div></div>
+    <div class="ob-list"><div class="ob-item">${_obDot("empty")}<div style="flex:1;display:flex;flex-direction:column;gap:6px">${line("40%")}${line("60%")}</div></div><div class="ob-item">${_obDot("empty")}<div style="flex:1;display:flex;flex-direction:column;gap:6px">${line("38%")}${line("55%")}</div></div></div>
+  </div>`;
+}
+
 async function renderOnboarding() {
   const main = document.getElementById("main");
-  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  if (typeof _i9InjectStyles === "function") _i9InjectStyles();   // shares the .i9-skel pulse
+  main.innerHTML = _obSkeleton();
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
   const [profRes, i9Res] = await Promise.all([
     sb.rpc("driver_get_profile", { p_token: session.token }),
-    // PostgrestBuilder is a bare thenable (no .catch) — use the
-    // two-arg .then form so a missing/erroring RPC can't blow up the
-    // onboarding screen.
+    // PostgrestBuilder is a bare thenable (no .catch) — two-arg .then so
+    // a missing/erroring RPC can't blow up the onboarding screen.
     sb.rpc("driver_i9_get",      { p_token: session.token }).then((r) => r, () => ({ data: null })),
   ]);
   const { data: prof, error } = profRes;
@@ -2293,53 +2325,118 @@ async function renderOnboarding() {
   const dtDone          = !!prof.drug_test_completed_at;
   const trainScheduled  = !!prof.training_scheduled_at;
   const trainDone       = !!prof.training_date && prof.training_date <= new Date().toISOString().slice(0, 10);
-  const i9S1Done        = !!i9 && i9.status !== "not_started" && i9.status !== "needs_correction";
+  const i9Status        = i9 ? (i9.status || "not_started") : "not_started";
+  const i9NeedsFix      = !!i9 && i9Status === "needs_correction";
+  const i9S1Done        = !!i9 && i9Status !== "not_started" && i9Status !== "needs_correction";
+  const fname           = prof.preferred_name ? escapeHtml(prof.preferred_name) : "";
 
-  const items = [
-    { key: "profile",  title: "Complete your profile",     sub: "Phone, email, address, emergency contact",      done: profileComplete, action: "/settings", actionLabel: "Update profile", driverDriven: true },
-    { key: "license",  title: "Upload your driver's license", sub: "License number + photo of the card",         done: licenseUploaded, action: "/settings", actionLabel: licenseUploaded ? "Replace image" : "Upload license", driverDriven: true },
-    { key: "i9",       title: "Form I-9 — Section 1",
-      sub: i9 && i9.status === "needs_correction" ? "Your employer asked for a correction"
-         : i9S1Done ? "Submitted — your employer verifies your documents next"
-         : "Confirm your employment eligibility (federal requirement)",
-      done: i9S1Done, action: "/tasks/i9", actionLabel: i9 && i9.status === "needs_correction" ? "Fix Section 1" : "Complete Form I-9", driverDriven: true },
-    { key: "bg",       title: "Background check",          sub: "Recorded by your dispatcher",                   done: bgDone,          driverDriven: false },
-    { key: "drug",     title: "Drug test",                 sub: "Recorded by your dispatcher",                   done: dtDone,          driverDriven: false },
-    { key: "training", title: "Training",                  sub: trainScheduled
-                                                                  ? `Scheduled for ${new Date(prof.training_scheduled_at).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}`
-                                                                  : "Your dispatcher will schedule this",
-                       done: trainDone, driverDriven: false },
+  // Steps the driver completes themselves.
+  const mySteps = [
+    { key: "profile", title: "Complete your profile", done: profileComplete, action: "/settings", cta: "Update profile",
+      subDone: "Phone, email, address & emergency contact on file",
+      subTodo: "Add your phone, email, address, and emergency contact" },
+    { key: "license", title: "Upload your driver's license", done: licenseUploaded, action: "/settings", cta: licenseUploaded ? "Replace image" : "Upload license",
+      subDone: "License number & photo on file",
+      subTodo: "Enter your license number and take a photo of the card" },
+    { key: "i9", title: "Form I-9 — Section 1", done: i9S1Done, action: "/tasks/i9", attention: i9NeedsFix,
+      cta: i9NeedsFix ? "Fix Section 1" : "Complete Form I-9",
+      subDone: "Signed — your employer verifies your documents next",
+      subTodo: i9NeedsFix ? "Your employer asked for a correction — please update and re-sign"
+                          : "Confirm your work eligibility — required before your first day" },
   ];
+  // Steps the DSP records.
+  const teamSteps = [
+    { key: "bg", title: "Background check", done: bgDone, subDone: "Cleared", subTodo: "Your team runs this" },
+    { key: "drug", title: "Drug test", done: dtDone, subDone: "Complete", subTodo: "Your team schedules this" },
+    { key: "training", title: "Training", done: trainDone,
+      subDone: prof.training_date ? `Completed ${new Date(prof.training_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "Complete",
+      subTodo: trainScheduled ? `Scheduled for ${new Date(prof.training_scheduled_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "Your team will schedule this" },
+  ];
+  const total = mySteps.length + teamSteps.length;
+  const doneCount = mySteps.filter(s => s.done).length + teamSteps.filter(s => s.done).length;
+  const allDone = doneCount === total;
+  const allMyDone = mySteps.every(s => s.done);
+  const pendingTeam = teamSteps.filter(s => !s.done);
+  const teamPhrase = pendingTeam.map(s => s.title.toLowerCase()).join(" and ") || "the last steps";
 
-  const completedCount = items.filter(i => i.done).length;
+  // The single highlighted "next step": a correction first, else the
+  // first thing the driver can still do.
+  const nextMy = mySteps.find(s => s.attention && !s.done) || mySteps.find(s => !s.done) || null;
+
+  // Hero.
+  const heroTitle = allDone ? `You're all set${fname ? ", " + fname : ""}`
+    : doneCount === 0 ? `Welcome aboard${fname ? ", " + fname : ""}`
+    : (total - doneCount) === 1 ? `One step to go${fname ? ", " + fname : ""}`
+    : `You're making progress${fname ? ", " + fname : ""}`;
+  const heroSub = allDone ? "Everything's done. Your dispatcher is activating your account now — you'll be notified the moment you're cleared to drive."
+    : allMyDone ? `Your part is done. Your team is finishing ${teamPhrase} — nothing else needs you right now.`
+    : `${doneCount} of ${total} steps complete. Knock out the next one and you'll be ${total - doneCount === 1 ? "finished" : "almost there"}.`;
+
+  // Next-step / status card.
+  let nextCard = "";
+  if (nextMy) {
+    const cls = nextMy.attention ? "action" : "";
+    nextCard = `
+      <div class="ob-next ${cls}">
+        <div class="ob-next-eyebrow">${nextMy.attention ? "Action needed" : "Your next step"}</div>
+        <div class="ob-next-title">${escapeHtml(nextMy.title)}</div>
+        <div class="ob-next-sub">${escapeHtml(nextMy.subTodo)}</div>
+        <button class="btn btn-primary ob-next-cta" type="button" data-onboard-go="${nextMy.action}">${escapeHtml(nextMy.cta)}</button>
+      </div>`;
+  } else if (!allDone) {
+    nextCard = `
+      <div class="ob-next idle">
+        <div class="ob-next-eyebrow">You're ahead of schedule</div>
+        <div class="ob-next-title">Nothing for you to do right now</div>
+        <div class="ob-next-sub">Your team is wrapping up ${escapeHtml(teamPhrase)}. We'll let you know if anything needs you.</div>
+      </div>`;
+  }
+
+  const myItemHtml = (s) => {
+    const state = s.done ? "done" : (nextMy && nextMy.key === s.key) ? "active" : "empty";
+    const rowCls = s.done ? "done" : (nextMy && nextMy.key === s.key && s.attention) ? "action" : (nextMy && nextMy.key === s.key) ? "active" : "";
+    return `
+      <div class="ob-item ${rowCls}">
+        ${_obDot(state)}
+        <div style="min-width:0">
+          <div class="ob-item-title">${escapeHtml(s.title)}</div>
+          <div class="ob-item-sub">${escapeHtml(s.done ? s.subDone : s.subTodo)}</div>
+        </div>
+        ${s.done ? "" : `<button class="ob-go" type="button" data-onboard-go="${s.action}" aria-label="${escapeHtml(s.cta)}">${_OB_CHEVRON}</button>`}
+      </div>`;
+  };
+  const teamItemHtml = (s) => `
+      <div class="ob-item ${s.done ? "done" : ""}">
+        ${_obDot(s.done ? "done" : "empty")}
+        <div style="min-width:0">
+          <div class="ob-item-title">${escapeHtml(s.title)}</div>
+          <div class="ob-item-sub">${escapeHtml(s.done ? s.subDone : s.subTodo)}</div>
+        </div>
+      </div>`;
 
   main.innerHTML = `
-    <div class="onboarding-page">
-      <div class="onboarding-banner">
-        <div class="onboarding-banner-title">Welcome aboard${prof.preferred_name ? ", " + escapeHtml(prof.preferred_name) : ""}!</div>
-        <div class="onboarding-banner-sub">${completedCount} of ${items.length} steps complete. Your dispatcher activates your account when everything's done.</div>
-        <div class="onboarding-progress"><div class="onboarding-progress-bar" style="width:${Math.round((completedCount / items.length) * 100)}%"></div></div>
+    <div class="ob">
+      <div class="ob-hero ${allDone ? "done" : ""}">
+        <div class="ob-ring">${_obProgressRing(doneCount, total)}<div class="ob-ring-num" ${allDone ? 'style="color:#15803d"' : ""}>${doneCount}/${total}</div></div>
+        <div style="min-width:0">
+          <div class="ob-hero-title">${heroTitle}</div>
+          <div class="ob-hero-sub">${heroSub}</div>
+        </div>
       </div>
 
-      <section class="onboarding-list">
-        ${items.map(i => `
-          <div class="onboarding-row ${i.done ? "done" : ""}">
-            <div class="onboarding-check">
-              ${i.done
-                ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-                : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>'}
-            </div>
-            <div class="onboarding-text">
-              <div class="onboarding-title">${escapeHtml(i.title)}</div>
-              <div class="onboarding-sub">${escapeHtml(i.sub)}</div>
-              ${!i.driverDriven ? `<div class="onboarding-tag">DSP records this</div>` : ""}
-            </div>
-            ${i.action && !i.done
-              ? `<button class="btn btn-sm" data-onboard-go="${i.action}" type="button">${escapeHtml(i.actionLabel)}</button>`
-              : ""}
-          </div>
-        `).join("")}
-      </section>
+      ${nextCard}
+
+      <div>
+        <div class="ob-sec">Your steps</div>
+        <div class="ob-list" style="margin-top:6px">${mySteps.map(myItemHtml).join("")}</div>
+      </div>
+
+      <div>
+        <div class="ob-sec">Your team is handling</div>
+        <div class="ob-list" style="margin-top:6px">${teamSteps.map(teamItemHtml).join("")}</div>
+      </div>
+
+      <div class="ob-foot">Your dispatcher activates your account once every step is complete.</div>
     </div>`;
 
   main.querySelectorAll("[data-onboard-go]").forEach(el => {
