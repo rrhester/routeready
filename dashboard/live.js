@@ -19889,6 +19889,7 @@ async function _renderDocsEnvelopes() {
     const canVoid = e.status === "sent" || e.status === "viewed";
     return `
       <tr data-rr-docs-row="${escapeHtml(e.id)}">
+        <td class="docs-cb"><input type="checkbox" class="docs-cb-in" data-rr-docs-pick="${escapeHtml(e.id)}" aria-label="Select record"></td>
         <td>
           <div class="docs-recipient">
             <span class="docs-avatar">${escapeHtml(_docsInitials(e.recipient_name))}</span>
@@ -19927,11 +19928,19 @@ async function _renderDocsEnvelopes() {
         <span><b>${nThisMonth}</b> this month</span>
       </div>
     </div>
+    <div class="docs-bulkbar" id="docs-bulkbar" hidden>
+      <span class="cnt" id="docs-bulk-count">0 selected</span>
+      <span class="spacer"></span>
+      <button class="btn btn-sm btn-ghost" id="docs-bulk-export">Export CSV</button>
+      <button class="btn btn-sm btn-ghost" id="docs-bulk-void" style="color:var(--red)">Void selected</button>
+      <button class="btn btn-sm btn-ghost" id="docs-bulk-clear">Clear</button>
+    </div>
     <div class="docs-table-wrap">
       <table class="docs-table">
         <thead><tr>
-          <th style="width:30%">Signer</th>
-          <th style="width:26%">Document</th>
+          <th class="docs-cb"><input type="checkbox" class="docs-cb-in" id="docs-cb-all" aria-label="Select all records"></th>
+          <th style="width:28%">Signer</th>
+          <th style="width:25%">Document</th>
           <th style="width:16%">Lifecycle</th>
           <th style="width:14%">Issued</th>
           <th style="width:14%;text-align:right">Record</th>
@@ -19939,6 +19948,98 @@ async function _renderDocsEnvelopes() {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+
+  _docsWireBulk(list, data);
+}
+
+// Bulk-select wiring for the records table — Export CSV + Void selected.
+function _docsWireBulk(list, data) {
+  const byId = new Map(data.map((e) => [e.id, e]));
+  const bar      = list.querySelector("#docs-bulkbar");
+  const cntEl    = list.querySelector("#docs-bulk-count");
+  const allCb    = list.querySelector("#docs-cb-all");
+  const rowCbs   = () => Array.from(list.querySelectorAll('input.docs-cb-in[data-rr-docs-pick]'));
+  const checked  = () => rowCbs().filter((c) => c.checked);
+  const checkedIds = () => checked().map((c) => c.getAttribute("data-rr-docs-pick"));
+
+  const refresh = () => {
+    const sel = checked();
+    const total = rowCbs().length;
+    if (sel.length === 0) { bar.hidden = true; allCb.checked = false; allCb.indeterminate = false; return; }
+    bar.hidden = false;
+    cntEl.textContent = sel.length === 1 ? "1 record selected" : `${sel.length} records selected`;
+    allCb.checked = sel.length === total;
+    allCb.indeterminate = sel.length > 0 && sel.length < total;
+  };
+
+  // Delegate on the table wrapper (recreated on every render — no
+  // listener accumulation across reloads).
+  const tableWrap = list.querySelector(".docs-table-wrap");
+  tableWrap?.addEventListener("change", (e) => {
+    if (e.target === allCb) { rowCbs().forEach((c) => { c.checked = allCb.checked; }); refresh(); return; }
+    if (e.target.matches('input.docs-cb-in[data-rr-docs-pick]')) refresh();
+  });
+  list.querySelector("#docs-bulk-clear")?.addEventListener("click", () => {
+    rowCbs().forEach((c) => { c.checked = false; }); refresh();
+  });
+
+  list.querySelector("#docs-bulk-export")?.addEventListener("click", () => {
+    const ids = checkedIds();
+    const rows = (ids.length ? ids.map((id) => byId.get(id)).filter(Boolean) : data);
+    const cols = ["Signer name","Signer email","Document","Status","Issued (UTC)","Signed (UTC)","Envelope ID","Signed PDF","Certificate","Cryptographic seal","Public verification link"];
+    const base = (window.RR_CONFIG?.PUBLIC_BASE_URL || location.origin).replace(/\/$/, "");
+    const cell = (v) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [cols.join(",")];
+    for (const e of rows) {
+      lines.push([
+        e.recipient_name || "",
+        e.recipient_email || "",
+        e.document_templates?.title || "",
+        _docsLifecycle(e.status).label,
+        e.sent_at ? new Date(e.sent_at).toISOString() : "",
+        e.signed_at ? new Date(e.signed_at).toISOString() : "",
+        e.id,
+        e.signed_pdf_path ? "yes" : "no",
+        e.certificate_pdf_path ? "yes" : "no",
+        e.seal_path ? "yes" : "no",
+        e.signing_token ? `${base}/verify/${e.signing_token}` : "",
+      ].map(cell).join(","));
+    }
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `signature-records-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(`Exported ${rows.length} ${rows.length === 1 ? "record" : "records"} ✓`, "success");
+  });
+
+  list.querySelector("#docs-bulk-void")?.addEventListener("click", async () => {
+    const ids = checkedIds();
+    const voidable = ids.map((id) => byId.get(id)).filter((e) => e && (e.status === "sent" || e.status === "viewed"));
+    if (voidable.length === 0) {
+      toast("None of the selected records can be voided (only awaiting / opened records can).", "warn");
+      return;
+    }
+    const reason = prompt(`Void ${voidable.length} record${voidable.length === 1 ? "" : "s"}? Optional reason (recorded on each audit trail):`);
+    if (reason === null) return;
+    const btn = list.querySelector("#docs-bulk-void");
+    btn.disabled = true;
+    let ok = 0, fail = 0;
+    for (let i = 0; i < voidable.length; i++) {
+      btn.textContent = `Voiding ${i + 1}/${voidable.length}…`;
+      const { error } = await sb.rpc("documents_envelope_void", { p_envelope_id: voidable[i].id, p_reason: reason || null });
+      if (error) fail++; else ok++;
+    }
+    if (fail === 0) toast(`Voided ${ok} ${ok === 1 ? "record" : "records"} ✓`, "warn");
+    else toast(`Voided ${ok}, ${fail} failed.`, "warn");
+    loadDocumentsView("envelopes");
+  });
+
+  refresh();
 }
 
 // ── Upload a PDF as a template ─────────────────────────────────────────
