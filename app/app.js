@@ -3595,10 +3595,12 @@ async function renderDocumentSign() {
 
       <div>
         <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Your signature</div>
-        <div style="position:relative;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-          <canvas id="rr-sig-canvas" style="display:block;width:100%;height:200px;touch-action:none;cursor:crosshair"></canvas>
-          <button type="button" id="rr-sig-clear" style="position:absolute;top:8px;right:8px;background:var(--canvas);border:1px solid var(--border);border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
-          <div id="rr-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--text-subtle);font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
+        <!-- White "paper" surface regardless of light/dark theme so the
+             dark ink we draw is always visible. -->
+        <div style="position:relative;background:#ffffff;border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <canvas id="rr-sig-canvas" style="display:block;width:100%;height:200px;background:#ffffff;touch-action:none;cursor:crosshair"></canvas>
+          <button type="button" id="rr-sig-clear" style="position:absolute;top:8px;right:8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
+          <div id="rr-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;margin-top:10px">
           <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Or type your full name</span>
