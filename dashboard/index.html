@@ -6212,6 +6212,10 @@ body.rr-cmdk-open{ overflow:hidden }
         Workflows
         <span class="nav-badge" style="background:var(--amber)">4</span>
       </button>
+      <button class="nav-item" data-view="documents" data-c="forms" onclick="goto('documents')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        Documents
+      </button>
       <button class="nav-item" data-view="finances" data-c="finances" onclick="goto('finances')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
         Finances
@@ -10356,6 +10360,68 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
+         DOCUMENTS — E-signature for HR / operational paperwork.
+         Slice 2 of the build: templates list + envelope inbox + send/
+         audit flows. PDF signing service + driver-side viewer ship in
+         later slices.
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-documents">
+      <div class="page">
+        <div class="page-header">
+          <div class="page-header-l">
+            <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></div>
+            <div>
+              <h1 class="page-title">Documents</h1>
+              <p class="page-sub">Send PDFs to drivers for legally-binding e-signature. Every envelope has an immutable, hash-chained audit trail.</p>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-primary" id="docs-upload-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Upload PDF
+            </button>
+            <input type="file" id="docs-file-input" accept="application/pdf" hidden>
+          </div>
+        </div>
+        <div class="subnav" id="docs-subnav">
+          <button class="subnav-item active" data-docs-sub="templates">Templates</button>
+          <button class="subnav-item" data-docs-sub="envelopes">Envelopes</button>
+        </div>
+
+        <style>
+          .docs-list{display:flex;flex-direction:column;gap:8px}
+          .docs-template-card{
+            display:flex;align-items:center;gap:14px;
+            background:var(--surface);border:1px solid var(--border);border-radius:12px;
+            padding:14px 16px;
+            transition:box-shadow .12s ease, border-color .12s ease;
+          }
+          .docs-template-card:hover{ box-shadow:var(--shadow-sm);border-color:var(--border-strong, var(--border)) }
+          .docs-template-icon{
+            width:38px;height:46px;flex:0 0 auto;
+            background:var(--accent-soft);color:var(--accent);
+            border-radius:6px;
+            display:flex;align-items:center;justify-content:center;
+          }
+          .docs-template-icon svg{width:20px;height:20px}
+          .docs-empty{
+            background:var(--surface);border:1px dashed var(--border);border-radius:12px;
+            padding:48px 24px;text-align:center;color:var(--text-subtle);
+          }
+          .docs-tag-row{display:inline-flex;gap:8px;align-items:center}
+        </style>
+
+        <div id="docs-templates-tab">
+          <div id="docs-templates-list" class="docs-list"><div class="loader" style="margin:48px auto"></div></div>
+        </div>
+        <div id="docs-envelopes-tab" style="display:none">
+          <div id="docs-envelopes-list"><div class="loader" style="margin:48px auto"></div></div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
          FINANCES — Invoice Forensics + Auto-Dispute
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-finances">
@@ -14339,6 +14405,7 @@ John,Smith,555-0101,john@example.com</code>
       messages: 'Messages',
       forms: 'Workflows',
       checklists: 'Workflows',
+      documents: 'Documents',
       finances: 'Finances',
       build: 'Build Your Own Tool',
       settings: 'Settings',
@@ -18521,7 +18588,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260511f-chat-priority-ack"></script>
+<script type="module" src="./live.js?v=20260511g-documents-mvp"></script>
 
 </body>
 </html>

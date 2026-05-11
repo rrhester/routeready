@@ -19713,3 +19713,344 @@ async function _saveBuilder({ publish }) {
   if (typeof closeModal === "function") closeModal("modal-form-builder");
   loadFormsList();
 }
+
+
+// ───────────────────────────────────────────────────────────────────────
+// Documents (e-signature) · slice 2 — templates + envelopes + audit view.
+// Driver-side signing flow lives in app/, and PDF sealing (PKCS#7 + RFC
+// 3161) lives in a dedicated signing service — both ship in later slices.
+// ───────────────────────────────────────────────────────────────────────
+
+let _docsSub = "templates";  // "templates" | "envelopes"
+
+const _docsStatusStyle = {
+  sent:     "background:var(--accent-soft);color:var(--accent-text,var(--accent))",
+  viewed:   "background:var(--amber-soft);color:var(--amber-dark)",
+  signed:   "background:var(--green-soft);color:var(--green)",
+  declined: "background:rgba(225,29,72,.10);color:var(--red,#E11D48)",
+  voided:   "background:var(--canvas);color:var(--text-subtle)",
+  expired:  "background:var(--canvas);color:var(--text-subtle)",
+};
+function _docsStatusPill(s) {
+  const style = _docsStatusStyle[s] || _docsStatusStyle.sent;
+  return `<span class="tag" style="${style};text-transform:capitalize">${escapeHtml(s)}</span>`;
+}
+
+async function loadDocumentsView(sub) {
+  _docsSub = sub || _docsSub || "templates";
+  $$("#docs-subnav .subnav-item").forEach((b) => {
+    b.classList.toggle("active", b.getAttribute("data-docs-sub") === _docsSub);
+  });
+  const tT = document.getElementById("docs-templates-tab");
+  const tE = document.getElementById("docs-envelopes-tab");
+  if (tT) tT.style.display = _docsSub === "templates" ? "" : "none";
+  if (tE) tE.style.display = _docsSub === "envelopes" ? "" : "none";
+  if (_docsSub === "templates") await _renderDocsTemplates();
+  else                          await _renderDocsEnvelopes();
+}
+
+async function _renderDocsTemplates() {
+  const list = document.getElementById("docs-templates-list");
+  if (!list) return;
+  list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const { data, error } = await sb.from("document_templates")
+    .select("id, title, description, source_path, source_hash, created_at")
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+  if (error) {
+    list.innerHTML = `<div class="docs-empty" style="color:var(--red)">Couldn't load templates: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!data || data.length === 0) {
+    list.innerHTML = `<div class="docs-empty">No templates yet. Click <strong>Upload PDF</strong> to add your first.</div>`;
+    return;
+  }
+  list.innerHTML = data.map((t) => `
+    <div class="docs-template-card" data-tid="${escapeHtml(t.id)}">
+      <div class="docs-template-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:var(--fs-md);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title)}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">sha256 ${escapeHtml(String(t.source_hash || "").slice(0,16))}… · ${new Date(t.created_at).toLocaleDateString()}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex:0 0 auto">
+        <button class="btn btn-sm btn-primary" data-rr-docs-send="${escapeHtml(t.id)}">Send</button>
+        <button class="btn btn-sm" data-rr-docs-archive="${escapeHtml(t.id)}" title="Archive">✕</button>
+      </div>
+    </div>`).join("");
+}
+
+async function _renderDocsEnvelopes() {
+  const list = document.getElementById("docs-envelopes-list");
+  if (!list) return;
+  list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const { data, error } = await sb.from("document_envelopes")
+    .select("id, recipient_name, recipient_email, status, sent_at, signed_at, voided_at, document_templates(title)")
+    .order("sent_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    list.innerHTML = `<div class="docs-empty" style="color:var(--red)">Couldn't load envelopes: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!data || data.length === 0) {
+    list.innerHTML = `<div class="docs-empty">No envelopes yet. Send a template from the <strong>Templates</strong> tab.</div>`;
+    return;
+  }
+  list.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="background:var(--canvas)">
+          <tr style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)">
+            <th style="text-align:left;padding:10px 14px">Recipient</th>
+            <th style="text-align:left;padding:10px 14px">Document</th>
+            <th style="text-align:left;padding:10px 14px">Status</th>
+            <th style="text-align:left;padding:10px 14px">Sent</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map((e) => `
+            <tr style="border-top:1px solid var(--border);font-size:var(--fs-sm)">
+              <td style="padding:10px 14px">
+                <div style="font-weight:600;color:var(--text)">${escapeHtml(e.recipient_name || "—")}</div>
+                <div style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(e.recipient_email || "")}</div>
+              </td>
+              <td style="padding:10px 14px;color:var(--text)">${escapeHtml(e.document_templates?.title || "—")}</td>
+              <td style="padding:10px 14px">${_docsStatusPill(e.status)}</td>
+              <td style="padding:10px 14px;color:var(--text-muted);white-space:nowrap">${new Date(e.sent_at).toLocaleString()}</td>
+              <td style="padding:10px 14px;text-align:right;white-space:nowrap">
+                <button class="btn btn-sm" data-rr-docs-audit="${escapeHtml(e.id)}">Audit</button>
+                ${["sent","viewed"].includes(e.status) ? `<button class="btn btn-sm" data-rr-docs-void="${escapeHtml(e.id)}" style="color:var(--red);margin-left:4px">Void</button>` : ""}
+              </td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ── Upload a PDF as a template ─────────────────────────────────────────
+async function _docsHandleFileChosen(file) {
+  if (!file) return;
+  if (file.type && file.type !== "application/pdf") {
+    toast("Please pick a PDF.", "warn"); return;
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    toast("PDF too large (max 25 MB).", "warn"); return;
+  }
+  const btn = document.getElementById("docs-upload-btn");
+  const origLabel = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+
+  // SHA-256 hash the bytes the user picked so the audit chain records
+  // what was uploaded — independent of any later edit.
+  const buf = await file.arrayBuffer();
+  const hashBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", buf));
+  const hash = Array.from(hashBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+  const objId = crypto.randomUUID();
+  const path = `${window.RR.dsp.id}/templates/${objId}.pdf`;
+  const { error: upErr } = await sb.storage.from("documents")
+    .upload(path, file, { contentType: file.type || "application/pdf", upsert: false });
+  if (upErr) {
+    if (btn) { btn.disabled = false; btn.innerHTML = origLabel; }
+    toast("Upload failed: " + upErr.message, "warn"); return;
+  }
+
+  const title = file.name.replace(/\.pdf$/i, "");
+  const { error } = await sb.rpc("documents_template_create", {
+    p_title:        title,
+    p_source_path:  path,
+    p_source_hash:  hash,
+    p_source_size:  file.size,
+    p_fields:       [],
+  });
+  if (btn) { btn.disabled = false; btn.innerHTML = origLabel; }
+  if (error) {
+    await sb.storage.from("documents").remove([path]).catch(() => {});
+    toast("Couldn't save template: " + error.message, "warn");
+    return;
+  }
+  toast("Template uploaded ✓", "success");
+  loadDocumentsView("templates");
+}
+
+// ── Send: pick a driver, fan out an envelope ───────────────────────────
+async function _docsOpenSend(templateId) {
+  const { data: drivers } = await sb.from("drivers")
+    .select("id, full_name, preferred_name, email")
+    .eq("dsp_id", window.RR.dsp.id)
+    .in("status", ["active","onboarding"])
+    .order("full_name");
+  const list = (drivers || []).filter((d) => d.email);
+
+  const m = document.createElement("div");
+  m.className = "modal-backdrop";
+  m.id = "docs-send-modal";
+  m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:600;font-size:var(--fs-lg)">Send for signature</div>
+        <button class="btn btn-sm" id="docs-send-close">Close</button>
+      </div>
+      <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Send to</span>
+          <select id="docs-send-driver" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font:inherit">
+            <option value="">Pick a driver…</option>
+            ${list.map((d) => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.preferred_name || d.full_name)} · ${escapeHtml(d.email)}</option>`).join("")}
+          </select>
+          ${list.length === 0 ? `<span style="font-size:var(--fs-xs);color:var(--red)">No active drivers with an email on file.</span>` : ""}
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Expires (optional)</span>
+          <input type="date" id="docs-send-expires" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font:inherit">
+        </label>
+      </div>
+      <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--canvas)">
+        <button class="btn" id="docs-send-cancel">Cancel</button>
+        <button class="btn btn-primary" id="docs-send-confirm">Send envelope</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  document.getElementById("docs-send-close").addEventListener("click", close);
+  document.getElementById("docs-send-cancel").addEventListener("click", close);
+  document.getElementById("docs-send-confirm").addEventListener("click", async () => {
+    const drvId = document.getElementById("docs-send-driver").value;
+    const expRaw = document.getElementById("docs-send-expires").value;
+    if (!drvId) { toast("Pick a driver", "warn"); return; }
+    const btn = document.getElementById("docs-send-confirm");
+    btn.disabled = true; btn.textContent = "Sending…";
+    const { error } = await sb.rpc("documents_envelope_create", {
+      p_template_id:         templateId,
+      p_recipient_driver_id: drvId,
+      p_expires_at:          expRaw ? new Date(expRaw).toISOString() : null,
+    });
+    if (error) {
+      btn.disabled = false; btn.textContent = "Send envelope";
+      toast("Couldn't send: " + error.message, "warn");
+      return;
+    }
+    close();
+    toast("Envelope sent ✓", "success");
+    loadDocumentsView("envelopes");
+  });
+}
+
+// ── Audit: render the immutable hash-chained event log ─────────────────
+async function _docsOpenAudit(envelopeId) {
+  const m = document.createElement("div");
+  m.className = "modal-backdrop";
+  m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-weight:600;font-size:var(--fs-lg)">Audit trail</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">envelope ${escapeHtml(envelopeId)}</div>
+        </div>
+        <button class="btn btn-sm" id="docs-audit-close">Close</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:16px 20px" id="docs-audit-body">
+        <div class="loader" style="margin:48px auto"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  document.getElementById("docs-audit-close").addEventListener("click", close);
+
+  const [{ data: events, error: evErr }, { data: verify, error: vErr }] = await Promise.all([
+    sb.from("document_events")
+      .select("id, kind, actor_kind, actor_email, actor_name, ip, user_agent, event_data, prev_event_hash, event_hash, created_at")
+      .eq("envelope_id", envelopeId)
+      .order("id"),
+    sb.rpc("verify_envelope_chain", { p_envelope_id: envelopeId }),
+  ]);
+  const body = document.getElementById("docs-audit-body");
+  if (!body) return;
+  if (evErr) { body.innerHTML = `<div style="color:var(--red)">${escapeHtml(evErr.message)}</div>`; return; }
+  const verifyMap = new Map((verify || []).map((v) => [v.id, v]));
+  const allOk = (verify || []).every((v) => v.ok);
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;margin-bottom:14px;background:${allOk ? "var(--green-soft)" : "rgba(225,29,72,.10)"};color:${allOk ? "var(--green)" : "var(--red)"};font-weight:600;font-size:var(--fs-sm)">
+      ${allOk
+        ? `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Hash chain verified — no tampering detected.`
+        : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Chain mismatch detected — review events.`}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${(events || []).map((e) => {
+        const v = verifyMap.get(e.id);
+        const ok = v ? v.ok : null;
+        return `
+          <div style="border:1px solid var(--border);border-left:3px solid ${ok === false ? "var(--red)" : "var(--accent)"};border-radius:10px;padding:10px 14px;background:var(--surface)">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+              <div style="font-weight:600;color:var(--text);text-transform:capitalize">${escapeHtml(e.kind.replace(/_/g, " "))}</div>
+              <div style="font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap">${new Date(e.created_at).toLocaleString()}</div>
+            </div>
+            <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px">
+              ${escapeHtml(e.actor_kind)}${e.actor_name ? " · " + escapeHtml(e.actor_name) : ""}${e.actor_email ? " &lt;" + escapeHtml(e.actor_email) + "&gt;" : ""}${e.ip ? " · " + escapeHtml(String(e.ip)) : ""}
+            </div>
+            <div style="font-size:10px;color:var(--text-subtle);margin-top:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all">
+              hash <span style="color:var(--text)">${escapeHtml(String(e.event_hash).slice(0, 32))}…</span>
+            </div>
+          </div>`;
+      }).join("")}
+    </div>`;
+}
+
+// ── Archive a template ─────────────────────────────────────────────────
+async function _docsArchiveTemplate(id) {
+  if (!confirm("Archive this template? Existing envelopes still work; you just won't be able to send new ones.")) return;
+  const { error } = await sb.from("document_templates").update({ archived_at: new Date().toISOString() }).eq("id", id);
+  if (error) { toast("Couldn't archive: " + error.message, "warn"); return; }
+  toast("Template archived", "warn");
+  loadDocumentsView("templates");
+}
+
+// ── Void an envelope ───────────────────────────────────────────────────
+async function _docsVoidEnvelope(id) {
+  const reason = prompt("Void this envelope? Reason (optional, kept on the audit trail):");
+  if (reason === null) return;
+  const { error } = await sb.rpc("documents_envelope_void", { p_envelope_id: id, p_reason: reason || null });
+  if (error) { toast("Couldn't void: " + error.message, "warn"); return; }
+  toast("Envelope voided", "warn");
+  loadDocumentsView("envelopes");
+}
+
+// ── Delegated click + upload wiring ────────────────────────────────────
+document.addEventListener("click", (e) => {
+  const sub = e.target.closest("[data-docs-sub]");
+  if (sub) { loadDocumentsView(sub.getAttribute("data-docs-sub")); return; }
+  if (e.target.closest("#docs-upload-btn")) {
+    document.getElementById("docs-file-input")?.click(); return;
+  }
+  const send = e.target.closest("[data-rr-docs-send]");
+  if (send) { _docsOpenSend(send.getAttribute("data-rr-docs-send")); return; }
+  const archive = e.target.closest("[data-rr-docs-archive]");
+  if (archive) { _docsArchiveTemplate(archive.getAttribute("data-rr-docs-archive")); return; }
+  const audit = e.target.closest("[data-rr-docs-audit]");
+  if (audit) { _docsOpenAudit(audit.getAttribute("data-rr-docs-audit")); return; }
+  const voidBtn = e.target.closest("[data-rr-docs-void]");
+  if (voidBtn) { _docsVoidEnvelope(voidBtn.getAttribute("data-rr-docs-void")); return; }
+});
+
+document.addEventListener("change", (e) => {
+  if (e.target?.id === "docs-file-input") {
+    const f = e.target.files?.[0];
+    e.target.value = "";  // reset so picking the same file again still fires
+    _docsHandleFileChosen(f);
+  }
+});
+
+// Hook into the dashboard's view router so Documents loads on nav.
+{
+  const _origGotoDocs = window.goto;
+  window.goto = function (view) {
+    if (typeof _origGotoDocs === "function") _origGotoDocs(view);
+    if (view === "documents") loadDocumentsView();
+  };
+}
