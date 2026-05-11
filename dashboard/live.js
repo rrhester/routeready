@@ -2592,6 +2592,7 @@ let _rosterRows = [];
 
 let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
 let _rosterI9 = new Map();          // driver_id -> i9_list row (status, first_day_of_employment, …)
+let _rosterProg = new Map();        // driver_id -> onboarding_progress row
 
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
@@ -3000,25 +3001,41 @@ function _appStatusCell(driverId) {
   return `<span class="dr-app-chip none" title="No app invite sent yet"><i class="dot"></i>Not invited</span>`;
 }
 
-// ── Onboarding readiness — one computed state per onboarding driver ───
-// Four operator-visible milestones (background check, drug test, Form
-// I-9 verified, training) folded into one state + a one-line next step,
-// so the roster reads "who's ready / who's blocked / where's the
-// bottleneck" at a glance instead of a wall of datetime cells.
-function _obReadiness(d, i9recOverride) {
-  const i9r = (i9recOverride !== undefined) ? i9recOverride : (_rosterI9 ? _rosterI9.get(d.id) : null);
-  const i9  = _i9Derived(i9r);
-  const i9cls = _i9Classify(i9r);
-  const today = new Date().toISOString().slice(0, 10);
+// ── Onboarding steps — the full ordered checklist for one driver ─────
+// Combines public.drivers (status, *_completed_at), public.i9_records
+// (Section 2 verified), and public.onboarding_progress (the recorded
+// "sent" / handbook / offer / scheduled timestamps) into one ordered
+// list. `isGate` marks the five steps that gate "ready to activate".
+function _onbSteps(d, prog, i9rec) {
+  prog = prog || {};
+  const i9 = _i9Derived(i9rec);
   const i9Done = i9.key === "verified" || i9.key === "verified_expiring" || i9.key === "sealing";
-  const milestones = [
-    { k: "bg",    label: "Background check",  done: !!d.background_check_completed_at },
-    { k: "drug",  label: "Drug test",         done: !!d.drug_test_completed_at },
-    { k: "i9",    label: "Form I-9 verified", done: i9Done },
-    { k: "train", label: "Training",          done: !!d.training_date && d.training_date <= today },
+  return [
+    { key: "welcome",    label: "Welcome email sent",            kind: "event",        progField: "welcome_email_sent_at",   at: prog.welcome_email_sent_at,    done: !!prog.welcome_email_sent_at },
+    { key: "bg_sent",    label: "Background-check instructions sent", kind: "event",    progField: "bg_instructions_sent_at", at: prog.bg_instructions_sent_at,  done: !!prog.bg_instructions_sent_at },
+    { key: "bg_clear",   label: "Background check cleared",       kind: "driver",       driverField: "background_check_completed_at", at: d.background_check_completed_at, done: !!d.background_check_completed_at, isGate: true },
+    { key: "drug_sent",  label: "Drug-testing information sent",  kind: "event",        progField: "drug_info_sent_at",       at: prog.drug_info_sent_at,        done: !!prog.drug_info_sent_at },
+    { key: "drug_clear", label: "Drug test cleared",             kind: "driver",       driverField: "drug_test_completed_at", at: d.drug_test_completed_at,      done: !!d.drug_test_completed_at, isGate: true },
+    { key: "handbook",   label: "Employment handbook",           kind: "sentcomplete", sentField: "handbook_sent_at", completedField: "handbook_completed_at", sentAt: prog.handbook_sent_at, completedAt: prog.handbook_completed_at, done: !!prog.handbook_completed_at, isGate: true },
+    { key: "i9",         label: "Form I-9",                      kind: "i9",           sentField: "i9_sent_at", sentAt: prog.i9_sent_at, completedAt: (i9rec && i9rec.section2_completed_at) || null, done: i9Done, i9: i9, isGate: true },
+    { key: "offer",      label: "Job offer",                     kind: "sentcomplete", sentField: "job_offer_sent_at", completedField: "job_offer_completed_at", sentAt: prog.job_offer_sent_at, completedAt: prog.job_offer_completed_at, done: !!prog.job_offer_completed_at, isGate: true },
+    { key: "active",     label: "Driver active",                 kind: "status",       done: d.status === "active" },
+    { key: "scheduled",  label: "Driver scheduled",              kind: "event",        progField: "scheduled_at",            at: prog.scheduled_at,             done: !!prog.scheduled_at },
   ];
-  const doneN = milestones.filter(m => m.done).length;
-  const totalN = milestones.length;
+}
+
+// One computed state per onboarding driver — derived from the five
+// gates above plus the I-9 deadline state. Drives the readiness pill,
+// the segment bar, the queue ordering, and the one-line next step.
+function _obReadiness(d, i9recOverride, progOverride) {
+  const i9r  = (i9recOverride !== undefined) ? i9recOverride  : (_rosterI9   ? _rosterI9.get(d.id)   : null);
+  const prog = (progOverride  !== undefined) ? progOverride   : (_rosterProg ? _rosterProg.get(d.id) : null);
+  const steps = _onbSteps(d, prog, i9r);
+  const gates = steps.filter(s => s.isGate);
+  const doneN = gates.filter(s => s.done).length;
+  const totalN = gates.length;
+  const isActive = d.status === "active";
+  const i9cls = _i9Classify(i9r);
 
   let block = null;          // hard blocker — urgent, sorts to the top
   if (i9cls.bucket === "s2_overdue") block = "Form I-9 Section 2 overdue";
@@ -3030,28 +3047,37 @@ function _obReadiness(d, i9recOverride) {
   }
 
   let key, label, tone;
-  if (doneN === totalN)       { key = "ready";       label = "Ready to activate"; tone = "green"; }
-  else if (block)             { key = "blocked";     label = "Blocked";           tone = "red"; }
-  else if (doneN === 0 && !soft) { key = "not_started"; label = "Not started";    tone = "slate"; }
-  else                        { key = "in_progress"; label = "In progress";       tone = soft ? "amber" : "slate"; }
+  if (isActive)                  { key = "active";      label = "Active";            tone = "green"; }
+  else if (doneN === totalN)     { key = "ready";       label = "Ready to activate"; tone = "green"; }
+  else if (block)                { key = "blocked";     label = "Blocked";           tone = "red"; }
+  else if (doneN === 0 && !soft) { key = "not_started"; label = "Not started";       tone = "slate"; }
+  else                           { key = "in_progress"; label = "In progress";       tone = soft ? "amber" : "slate"; }
 
   let next = "";
-  if (key === "ready") next = "All steps complete — activate when ready";
+  if (key === "active") next = "Active — onboarding complete";
+  else if (key === "ready") next = "All gates complete — activate when ready";
   else if (block) next = block;
   else if (soft) next = soft;
   else {
-    const pend = milestones.find(m => !m.done);
+    const pend = steps.find(s => !s.done && s.key !== "active");
     if (pend) {
-      if (pend.k === "i9") next = (i9.key === "no_record" || i9.key === "not_started") ? "Awaiting employee — Form I-9 Section 1"
-        : i9.key === "section1_in_progress" ? "Employee completing Form I-9 Section 1"
-        : i9.key === "section1_complete" ? "Complete Form I-9 Section 2"
-        : "Form I-9 in progress";
-      else if (pend.k === "train") next = d.training_scheduled_at ? `Training scheduled ${new Date(d.training_scheduled_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "Schedule training";
-      else next = `Record the ${pend.label.toLowerCase()}`;
+      if (pend.kind === "i9") {
+        const k = pend.i9.key;
+        next = (k === "no_record" || k === "not_started") ? "Form I-9 — awaiting the employee's Section 1"
+          : k === "section1_in_progress" ? "Employee is completing Form I-9 Section 1"
+          : k === "section1_complete" ? "Complete Form I-9 Section 2"
+          : "Form I-9 in progress";
+      } else if (pend.kind === "sentcomplete") {
+        next = pend.sentAt ? `${pend.label} — awaiting completion` : `Send the ${pend.label.toLowerCase()}`;
+      } else if (pend.kind === "driver") {
+        next = `Record the ${pend.label.toLowerCase()}`;
+      } else {
+        next = pend.label;
+      }
     }
   }
-  const weight = key === "blocked" ? 0 : key === "ready" ? 1 : (key === "in_progress" && tone === "amber") ? 2 : key === "in_progress" ? 3 : 4;
-  return { key, label, tone, doneN, totalN, milestones, next, weight };
+  const weight = key === "blocked" ? 0 : key === "ready" ? 1 : (key === "in_progress" && tone === "amber") ? 2 : key === "in_progress" ? 3 : key === "not_started" ? 4 : 5;
+  return { key, label, tone, doneN, totalN, steps, gates, next, weight };
 }
 function _obPill(label, tone) {
   const T = tone === "green" ? "background:#dcfce7;color:#166534"
@@ -3114,6 +3140,22 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// Onboarding step timestamps (welcome email / handbook / offer / scheduled …):
+// "Mark now" / "Undo" persist via onboarding_progress_set, then reload.
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-rr-ob-prog]");
+  if (!b || !b.closest("#rr-dd-drawer")) return;
+  e.preventDefault();
+  const driverId = _ddDriver?.driver?.id;
+  if (!driverId) return;
+  const field = b.getAttribute("data-rr-ob-prog");
+  const clear = b.getAttribute("data-rr-ob-act") === "clear";
+  const orig = b.textContent; b.disabled = true; b.textContent = "Saving…";
+  const { error } = await sb.rpc("onboarding_progress_set", { p_driver_id: driverId, p_field: field, p_value: clear ? null : new Date().toISOString() });
+  if (error) { b.disabled = false; b.textContent = orig; toast("Couldn't update: " + (error.message || "error"), "warn"); return; }
+  await loadDriverDrawer(driverId);
+});
+
 // ── Onboarding command center (dedicated sidebar page) ───────────────
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
@@ -3131,16 +3173,17 @@ async function loadOnboardingOps() {
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
 
-  const [{ data: drv, error }, i9Res] = await Promise.all([
+  const [{ data: drv, error }, i9Res, progRes] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier,
-               background_check_completed_at, drug_test_completed_at, training_scheduled_at, training_date,
+               background_check_completed_at, drug_test_completed_at,
                station:station_id (code)`)
       .eq("dsp_id", window.RR.dsp.id)
       .eq("status", "onboarding")
       .order("hire_date", { ascending: true })
       .limit(300),
     sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
+    sb.from("onboarding_progress").select("*").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
   ]);
   if (error) {
     body.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Couldn't load onboarding</h3><p>${escapeHtml(error.message || "")}</p></div>`;
@@ -3149,7 +3192,8 @@ async function loadOnboardingOps() {
   const rows = Array.isArray(drv) ? drv : [];
   const N = rows.length;
   const i9All = Array.isArray(i9Res?.data) ? i9Res.data : [];
-  _rosterI9 = new Map(i9All.map((r) => [r.driver_id, r]));   // so _obReadiness / _i9OnboardCell see fresh I-9 state
+  _rosterI9   = new Map(i9All.map((r) => [r.driver_id, r]));
+  _rosterProg = new Map((Array.isArray(progRes?.data) ? progRes.data : []).map((r) => [r.driver_id, r]));
   if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
   const enriched = rows.map(d => ({ d, ob: _obReadiness(d) }));
@@ -3159,25 +3203,30 @@ async function loadOnboardingOps() {
     const db = b.d.hire_date ? new Date(b.d.hire_date).getTime() : 0;
     return da - db;
   });
+  // Step-funnel counts, gate bottleneck.
   let ready = 0, blocked = 0;
-  const done = { bg: 0, drug: 0, i9: 0, train: 0 };
-  const stuck = { bg: 0, drug: 0, i9: 0, train: 0 };
+  const stepDone = {};   // step.key -> count completed
+  const gateStuck = {};  // gate step.key -> count not done
   for (const { ob } of enriched) {
     if (ob.key === "ready") ready++; else if (ob.key === "blocked") blocked++;
-    for (const m of ob.milestones) { if (m.done) done[m.k]++; else stuck[m.k]++; }
+    for (const s of ob.steps) { if (s.done) stepDone[s.key] = (stepDone[s.key] || 0) + 1; }
+    for (const g of ob.gates) { if (!g.done) gateStuck[g.key] = (gateStuck[g.key] || 0) + 1; }
   }
-  const slowLabels = { bg: "background checks", drug: "drug tests", i9: "Form I-9", train: "training" };
-  const slow = Object.entries(stuck).sort((a, b) => b[1] - a[1])[0];
-  const slowTxt = slow && slow[1] > 0 ? `${slowLabels[slow[0]]} (${slow[1]} pending)` : null;
+  const gateLabels = { bg_clear: "background checks", drug_clear: "drug tests", handbook: "handbooks", i9: "Form I-9", offer: "job offers" };
+  const slow = Object.entries(gateStuck).sort((a, b) => b[1] - a[1])[0];
+  const slowTxt = slow && slow[1] > 0 ? `${gateLabels[slow[0]] || slow[0]} (${slow[1]} pending)` : null;
 
-  // KPI strip — one tile per onboarding step, plus the ready count.
+  // KPI strip — one tile per onboarding step.
+  const c = (k) => `${stepDone[k] || 0} / ${N}`;
   const kpis = [
-    { label: "Documents",          value: "—",              sub: "set up in Documents → templates" },
-    { label: "Background check",    value: `${done.bg} / ${N}`,    sub: "cleared" },
-    { label: "Drug test",          value: `${done.drug} / ${N}`,  sub: "complete" },
-    { label: "Work authorization", value: `${done.i9} / ${N}`,    sub: "Form I-9 verified" },
-    { label: "Training",           value: `${done.train} / ${N}`, sub: "complete" },
-    { label: "Ready to activate",  value: `${ready}`,             sub: `of ${N} driver${N === 1 ? "" : "s"}`, tone: ready ? "color:var(--green)" : "" },
+    { label: "Welcome email",      value: c("welcome"),   sub: "sent" },
+    { label: "Background check",    value: c("bg_clear"),  sub: "cleared" },
+    { label: "Drug test",          value: c("drug_clear"),sub: "cleared" },
+    { label: "Handbook",           value: c("handbook"),  sub: "completed" },
+    { label: "Form I-9",           value: c("i9"),        sub: "verified" },
+    { label: "Job offer",          value: c("offer"),     sub: "completed" },
+    { label: "Ready to activate",  value: `${ready}`,     sub: `of ${N} driver${N === 1 ? "" : "s"}`, tone: ready ? "color:var(--green)" : "" },
+    { label: "Scheduled",          value: c("scheduled"), sub: "first shift assigned" },
   ];
   const kpiRow = `<div class="driver-stat-row" style="margin-bottom:8px">${kpis.map(k => `<div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone || ""}">${escapeHtml(k.value)}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("")}</div>`;
   const noteParts = [];
@@ -3188,8 +3237,8 @@ async function loadOnboardingOps() {
   const rowHtml = ({ d, ob }) => {
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
     const days = d.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000)) : null;
-    const segs = ob.milestones.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
-    const nextC = ob.key === "blocked" ? "var(--red)" : ob.tone === "amber" ? "var(--amber-dark)" : ob.key === "ready" ? "var(--green)" : "var(--text-subtle)";
+    const segs = ob.gates.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
+    const nextC = ob.key === "blocked" ? "var(--red)" : ob.tone === "amber" ? "var(--amber-dark)" : (ob.key === "ready" || ob.key === "active") ? "var(--green)" : "var(--text-subtle)";
     return `
       <div class="rr-i9-row" data-rr-onboardops-open="${escapeHtml(d.id)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:13px 16px;border-top:1px solid var(--border);cursor:pointer">
         <div class="avatar-sm ${tier}" style="flex:0 0 auto">${displayDriverInitials(d)}</div>
@@ -10181,6 +10230,11 @@ async function loadDriverDrawer(driverId) {
     const { data: i9 } = await sb.rpc("i9_get", { p_driver_id: driverId });
     _ddDriver.i9 = i9 || { record: null, events: [] };
   } catch { _ddDriver.i9 = { record: null, events: [] }; }
+  // Onboarding step progress (welcome email / handbook / offer / scheduled …).
+  try {
+    const { data: prog } = await sb.from("onboarding_progress").select("*").eq("driver_id", driverId).maybeSingle();
+    _ddDriver.prog = prog || null;
+  } catch { _ddDriver.prog = null; }
 
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
@@ -10447,15 +10501,24 @@ async function renderEmploymentTab(body, d) {
     </div>
 
     ${(() => {
-      const obD = _obReadiness(d, _ddDriver?.i9?.record);
-      const segs = obD.milestones.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
-      const nextC = obD.key === "blocked" ? "var(--red)" : obD.tone === "amber" ? "var(--amber-dark)" : obD.key === "ready" ? "var(--green)" : "var(--text-subtle)";
-      const setBtn = d.id ? (field, kind) => `<button type="button" class="btn btn-sm" data-rr-ob-setnow="${field}" data-rr-ob-kind="${kind}" style="margin-left:8px;flex:0 0 auto">Mark now</button>` : () => "";
-      const fieldRow = (label, field, kind, val) => `<div class="dd-row"><label>${escapeHtml(label)}</label><div style="display:flex;align-items:center;min-width:0">${kind === "date" ? `<input type="date" data-rr-dd-field="${field}" value="${val}"/>` : `<input type="datetime-local" data-rr-dd-field="${field}" value="${val}"/>`}${setBtn(field, kind)}</div></div>`;
-      const readyBanner = (obD.key === "ready" && d.id && d.status !== "active") ? `
+      const prog = _ddDriver?.prog || {};
+      const i9rec = _ddDriver?.i9?.record || null;
+      const i9d  = _i9Derived(i9rec);
+      const obD  = _obReadiness(d, i9rec, _ddDriver?.prog || null);
+      const can  = !!d.id;
+      const fmtDT = (x) => x ? new Date(x).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+      const segs = obD.gates.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
+      const nextC = obD.key === "blocked" ? "var(--red)" : obD.tone === "amber" ? "var(--amber-dark)" : (obD.key === "ready" || obD.key === "active") ? "var(--green)" : "var(--text-subtle)";
+      const ddRow = (label, html) => `<div class="dd-row" style="grid-template-columns:190px 1fr;align-items:start"><label>${escapeHtml(label)}</label><div style="font-size:var(--fs-sm);min-width:0;line-height:1.6">${html}</div></div>`;
+      const progAct = (field, val) => !can ? "" : (val
+        ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-ob-prog="${field}" data-rr-ob-act="clear" style="margin-left:8px">Undo</button>`
+        : `<button type="button" class="btn btn-sm" data-rr-ob-prog="${field}" data-rr-ob-act="set" style="margin-left:8px">Mark now</button>`);
+      const valLine = (val, doneTxt, todoTxt) => `<span style="${val ? "color:var(--text)" : "color:var(--text-subtle)"}">${escapeHtml(val ? doneTxt : todoTxt)}</span>`;
+      const dtInput = (field, raw) => `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><input type="datetime-local" data-rr-dd-field="${field}" value="${v((raw || '').slice(0,16))}" style="max-width:208px"/>${can ? `<button type="button" class="btn btn-sm" data-rr-ob-setnow="${field}" data-rr-ob-kind="datetime">Mark now</button>` : ""}</div>`;
+      const readyBanner = (obD.key === "ready" && can && d.status !== "active") ? `
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 14px;margin-bottom:12px">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <div style="flex:1;min-width:150px;font-size:var(--fs-sm);color:#166534;line-height:1.4">All four onboarding steps are complete — this driver is ready to drive.</div>
+        <div style="flex:1;min-width:150px;font-size:var(--fs-sm);color:#166534;line-height:1.4">All ${obD.totalN} onboarding gates are complete — this driver is ready to drive.</div>
         <button type="button" class="btn btn-sm btn-primary" data-rr-ob-activate style="flex:0 0 auto">Activate driver</button>
       </div>` : "";
       return `
@@ -10463,18 +10526,24 @@ async function renderEmploymentTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Onboarding</div>
-          <div class="dd-section-sub">Three milestones recorded here, plus the Form I-9 below — four steps to activation.</div>
+          <div class="dd-section-sub">Every step from welcome email through activation — what's been sent, what's completed, and the five gates that decide when this driver can be made active.</div>
         </div>
         <span class="dd-badge dsp">DSP only</span>
       </div>
       ${readyBanner}
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">${_obPill(obD.label, obD.tone)}<span style="font-size:var(--fs-sm);color:var(--text-subtle)">${obD.doneN} of ${obD.totalN} steps complete</span></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">${_obPill(obD.label, obD.tone)}<span style="font-size:var(--fs-sm);color:var(--text-subtle)">${obD.doneN} of ${obD.totalN} gates complete</span></div>
       <div style="display:flex;gap:4px;margin-bottom:${obD.next ? "6px" : "14px"}">${segs}</div>
       ${obD.next ? `<div style="font-size:var(--fs-xs);color:${nextC};margin-bottom:14px">${escapeHtml(obD.next)}</div>` : ""}
-      ${fieldRow("Background check", "background_check_completed_at", "datetime", v((_ddVal("background_check_completed_at", d.background_check_completed_at) || '').slice(0, 16)))}
-      ${fieldRow("Drug test", "drug_test_completed_at", "datetime", v((_ddVal("drug_test_completed_at", d.drug_test_completed_at) || '').slice(0, 16)))}
-      ${fieldRow("Training scheduled", "training_scheduled_at", "datetime", v((_ddVal("training_scheduled_at", d.training_scheduled_at) || '').slice(0, 16)))}
-      ${fieldRow("Training date", "training_date", "date", v(_ddVal("training_date", d.training_date)))}
+      ${ddRow("Welcome email", `${valLine(prog.welcome_email_sent_at, "Sent " + fmtDT(prog.welcome_email_sent_at), "Not sent yet")}${progAct("welcome_email_sent_at", prog.welcome_email_sent_at)}`)}
+      ${ddRow("Background-check instructions", `${valLine(prog.bg_instructions_sent_at, "Sent " + fmtDT(prog.bg_instructions_sent_at), "Not sent yet")}${progAct("bg_instructions_sent_at", prog.bg_instructions_sent_at)}`)}
+      ${ddRow("Background check cleared", dtInput("background_check_completed_at", _ddVal("background_check_completed_at", d.background_check_completed_at)))}
+      ${ddRow("Drug-testing information", `${valLine(prog.drug_info_sent_at, "Sent " + fmtDT(prog.drug_info_sent_at), "Not sent yet")}${progAct("drug_info_sent_at", prog.drug_info_sent_at)}`)}
+      ${ddRow("Drug test cleared", dtInput("drug_test_completed_at", _ddVal("drug_test_completed_at", d.drug_test_completed_at)))}
+      ${ddRow("Employment handbook", `<div>${valLine(prog.handbook_sent_at, "Sent " + fmtDT(prog.handbook_sent_at), "Not sent yet")}${progAct("handbook_sent_at", prog.handbook_sent_at)}</div><div style="margin-top:4px">${valLine(prog.handbook_completed_at, "Completed " + fmtDT(prog.handbook_completed_at), "Not completed")}${progAct("handbook_completed_at", prog.handbook_completed_at)}</div>`)}
+      ${ddRow("Form I-9", `<div>${valLine(prog.i9_sent_at, "Sent to the employee " + fmtDT(prog.i9_sent_at), "Not sent yet")}${progAct("i9_sent_at", prog.i9_sent_at)}</div><div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${_i9StatusPill(i9d)}<span style="color:var(--text-subtle);font-size:var(--fs-xs)">manage in the Form I-9 panel below</span></div>`)}
+      ${ddRow("Job offer", `<div>${valLine(prog.job_offer_sent_at, "Sent " + fmtDT(prog.job_offer_sent_at), "Not sent yet")}${progAct("job_offer_sent_at", prog.job_offer_sent_at)}</div><div style="margin-top:4px">${valLine(prog.job_offer_completed_at, "Signed " + fmtDT(prog.job_offer_completed_at), "Not signed")}${progAct("job_offer_completed_at", prog.job_offer_completed_at)}</div>`)}
+      ${ddRow("Driver active", d.status === "active" ? `<span style="color:var(--green);font-weight:600">Yes — onboarding complete</span>` : `<span style="color:var(--text-subtle)">No — finish the gates above${obD.key === "ready" ? ", then use the Activate button above" : ""}</span>`)}
+      ${ddRow("Driver scheduled", `${valLine(prog.scheduled_at, "First shift assigned " + fmtDT(prog.scheduled_at), "Not scheduled yet")}${progAct("scheduled_at", prog.scheduled_at)}`)}
     </div>
 
     ${_i9PanelHtml(_ddDriver?.i9, d)}`;
