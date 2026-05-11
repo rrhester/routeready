@@ -5,12 +5,30 @@ Cloudflare Worker that seals a signed envelope:
 1. Stamps the driver's signature image (or typed name) onto the source PDF at the field positions captured in `document_envelopes.fields_snapshot` (or the bottom-right of the last page if the template has no fields).
 2. Appends a **Certificate of Completion** page listing every audit-trail event for the envelope, with the document SHA-256 hashes and the per-event hash-chain values.
 3. **Cryptographic seal (Phase 1)** — computes SHA-256 of the sealed PDF bytes and signs that digest with an ECDSA P-256 key (`RR_SIGNING_PRIVATE_JWK` Worker secret). The signature + digest + key fingerprint + timestamps are written as a JSON sidecar at `<dsp_id>/seal/<envelope_id>.json`, and a `pdf_signed` event lands on the audit chain. The sealed PDF bytes stay byte-identical to what you'd hand to a court — the proof lives next to it, not embedded inside (embedding the signature would change the bytes and invalidate the signature you just made). If `RR_SIGNING_PRIVATE_JWK` is unset, this step is skipped gracefully.
-4. Uploads the sealed PDF, the standalone Certificate of Completion, and (if sealed) the JSON sidecar to the `documents` bucket.
-5. Writes the storage paths back to the envelope and appends `pdf_sealed` (+ `pdf_signed` when sealed) events to the audit chain.
+4. **RFC 3161 trusted timestamp (Phase 2)** — builds a `TimeStampReq` for the sealed PDF's SHA-256 and POSTs it to a Time Stamping Authority (`RR_TSA_URL`, default `https://freetsa.org/tsr`). The TSA's `TimeStampToken` (a PKCS#7 attesting "this hash existed at or before time T", signed by the TSA — not by us) is stored in the same sidecar as `tst_b64`, along with `tsa_url` and a best-effort parse of the token's `genTime`. If the TSA is unreachable, the seal still ships without a timestamp.
+5. Uploads the sealed PDF, the standalone Certificate of Completion, and (if sealed) the JSON sidecar to the `documents` bucket.
+6. Writes the storage paths back to the envelope and appends `pdf_sealed` (+ `pdf_signed` when sealed) events to the audit chain.
 
-The public key that validates a seal is served at **`GET /public-key`** on the Worker (returns the ECDSA P-256 public JWK). A verifier downloads the sealed PDF + its sidecar, re-hashes the PDF, confirms the hash matches `pdf_sha256`, then verifies `signature_b64` against that hash with the public key.
+The public key that validates a seal is served at **`GET /public-key`** on the Worker (returns the ECDSA P-256 public JWK). A verifier downloads the sealed PDF + its sidecar, re-hashes the PDF, confirms the hash matches `pdf_sha256`, verifies `signature_b64` against that hash with the public key, and (if present) verifies `tst_b64` with any RFC 3161 verifier.
 
-RFC 3161 TSA timestamping (Phase 2) will stamp a `tst_b64` from FreeTSA-or-similar into the same sidecar — same shape, just anchors "when" to an independent authority rather than the chain's `created_at` timestamps.
+### Sidecar JSON shape (`<dsp>/seal/<envelope>.json`)
+
+```jsonc
+{
+  "version": "rr-seal-v1",
+  "envelope_id": "…",
+  "pdf_sha256": "<hex>",                  // SHA-256 of the sealed PDF bytes
+  "signature_alg": "ECDSA-P256-SHA256",
+  "signature_b64": "<base64 raw r||s>",   // ECDSA signature over pdf_sha256
+  "key_id": "rr-seal-2026",
+  "key_fingerprint": "<first 32 hex of SHA-256(SPKI)>",
+  "public_jwk": { "kty": "EC", "crv": "P-256", "x": "…", "y": "…" },
+  "signed_at": "2026-…Z",                 // our clock — informational
+  "tsa_url": "https://freetsa.org/tsr",   // present only if Phase 2 succeeded
+  "tsa_gen_time": "2026-…Z",              // the TSA's attested time
+  "tst_b64": "<base64 RFC 3161 TimeStampResp>"
+}
+```
 
 Triggered by a Postgres trigger on `document_envelopes` UPDATE when `status` transitions to `signed` (see `supabase/migrations/0155_documents_sealing_trigger.sql`).
 
@@ -37,6 +55,7 @@ Done entirely from a browser.
    - `SEALING_SECRET` — generate any random string (a 32-byte hex is fine); **keep it open** — you need the same value on the DB side in the next step.
    - `RR_SIGNING_PRIVATE_JWK` *(optional but recommended)* — the ECDSA P-256 signing key as JWK JSON. Generate it once (see [Generating the signing key](#generating-the-signing-key) below) and paste the whole JSON object. Omit it and sealing still works, just without the cryptographic sidecar.
    - `RR_SIGNING_KEY_ID` *(optional)* — a human-readable label for the active key (e.g. `rr-seal-2026`), written into every seal so you know which public key validates which sidecar after a rotation.
+   - `RR_TSA_URL` *(optional)* — RFC 3161 Time Stamping Authority endpoint. Defaults to FreeTSA (`https://freetsa.org/tsr`), which is free and needs no account. Point it at a commercial TSA (DigiCert, Sectigo, etc.) if you want an SLA. If the TSA is down, sealing still works — the sidecar just won't have a `tst_b64`.
 5. **Supabase Postgres settings** — Supabase → SQL Editor:
    ```sql
    alter database postgres set "app.sealing_service_url"
@@ -114,6 +133,14 @@ curl https://rr-document-sealing.<account>.workers.dev/public-key > pub.jwk
 # 3. Verify sidecar.signature_b64 (raw r||s, 64 bytes) over the SHA-256
 #    digest with that public key. Easiest with a 3-line node script using
 #    crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'}, key, sig, digest).
+
+# 4. (If the sidecar has tst_b64) verify the RFC 3161 timestamp:
+#    base64-decode tst_b64 into tst.tsr, then:
+openssl ts -reply -in tst.tsr -text          # inspect: hash, genTime, TSA
+openssl ts -verify -data signed.pdf -in tst.tsr -CAfile <tsa-ca-bundle>.pem
+#    → confirms the token covers exactly this PDF and was issued by the
+#      TSA at the stated time. (Grab FreeTSA's CA bundle from
+#      https://freetsa.org/files/cacert.pem if you're using the default.)
 ```
 
 A `verify` page on the dashboard (slice 5) will do all of this in the browser.
@@ -145,10 +172,15 @@ SUPABASE_SERVICE_ROLE_KEY=…
 SEALING_SECRET=…
 ```
 
-## What slice 4b adds
+## Slice 4b — what shipped vs. what's deferred
 
-- `ESIGN_SIGNING_KEY_PEM` + `ESIGN_SIGNING_CERT_PEM` Worker secrets (PKCS#8 + PEM cert; self-signed for v1, AATL-issued later).
-- `ESIGN_TSA_URL` for RFC 3161 (default `https://freetsa.org/tsr`).
-- PKCS#7 detached signature embedded in the PDF's `/Sig` dictionary with a real `ByteRange`.
-- Timestamp token from the TSA embedded as an unsigned attribute on the PKCS#7.
-- (Optional) long-term validation: CRL/OCSP responses embedded so the signature stays verifiable after the cert expires.
+**Shipped (Phase 1 + Phase 2):**
+- `RR_SIGNING_PRIVATE_JWK` (+ optional `RR_SIGNING_KEY_ID`) — ECDSA P-256 seal over the sealed PDF's SHA-256, written to the sidecar.
+- `RR_TSA_URL` (default `https://freetsa.org/tsr`) — RFC 3161 `TimeStampToken` on the same digest, stored in the sidecar as `tst_b64`.
+- `GET /public-key` serves the public JWK for independent verification.
+- The Certificate of Completion + the `pdf_signed` audit event carry the seal + timestamp metadata.
+
+**Deferred (only needed if a counterparty demands the Adobe Acrobat "✓ Signed" badge):**
+- A PAdES signature embedded in the PDF's `/Sig` dictionary with a real `ByteRange` (placeholder-splice). Requires a PKCS#7/CMS `SignedData` build — `@signpdf/signpdf` or hand-rolled.
+- A document-signing certificate from an Adobe-AATL CA (GlobalSign / DigiCert / Sectigo / Entrust, ~$300–900/yr, identity-verified) so Acrobat shows the green ribbon rather than a yellow "signer identity unknown" triangle. Until then we deliberately embed *no* signature object in the PDF — a clean PDF + COC + sidecar beats a yellow-triangle warning.
+- The TSA token embedded as an unsigned attribute on that PKCS#7, plus optional long-term validation (CRL/OCSP responses embedded so the signature stays verifiable after the cert expires).

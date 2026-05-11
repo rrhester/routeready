@@ -34,8 +34,17 @@
 // previous (uncryptographic) behavior — the sealed PDF + COC still
 // upload, just without the sidecar.
 //
-// RFC 3161 TSA timestamping is a planned Phase 2: same shape but
-// stamps `tst_b64` into the sidecar from FreeTSA or similar.
+// Slice 4b Phase 2 — RFC 3161 trusted timestamp:
+//   • After signing, the Worker builds an ASN.1 TimeStampReq for the
+//     sealed PDF's SHA-256 and POSTs it to a Time Stamping Authority
+//     (RR_TSA_URL, default FreeTSA). The TSA returns a TimeStampResp
+//     whose embedded TimeStampToken (a PKCS#7 SignedData) attests
+//     "this exact hash existed at or before time T" — signed by the
+//     TSA, not by us. We store the response bytes verbatim in the
+//     sidecar as `tst_b64`, plus the TSA URL and a best-effort parse
+//     of the token's genTime for display.
+//   • If the TSA is unreachable or returns an error, the seal still
+//     ships — `tst_b64` is just omitted (degrades like the rest).
 //
 // Inputs (POST JSON body): { envelope_id: string }
 // Auth: Authorization: Bearer <SEALING_SECRET>
@@ -62,6 +71,9 @@ interface Env {
   // every seal — useful when you rotate keys and need to know which
   // public key validates which seal.
   RR_SIGNING_KEY_ID?: string;
+  // RFC 3161 Time Stamping Authority endpoint. Defaults to FreeTSA's
+  // public service. Set to a commercial TSA if you want an SLA.
+  RR_TSA_URL?: string;
 }
 
 interface AuditEvent {
@@ -202,9 +214,14 @@ async function sealEnvelope(envelopeId: string, env: Env) {
   await appendCertificate(pdf, env_, tpl, events, helv, helvBold, sealStub, null);
   const sealedBytes = await pdf.save();
 
-  // 5. Cryptographic seal (Phase 1): ECDSA P-256 signature over the
-  // sealed PDF's SHA-256. Null if no key is configured.
-  const sealInfo = keyMeta ? await signBytes(keyMeta, env_.id, sealedBytes) : null;
+  // 5. Cryptographic seal: ECDSA P-256 signature over the sealed PDF's
+  // SHA-256 (Phase 1) + an RFC 3161 trusted timestamp on the same
+  // digest (Phase 2). Both null if not configured / unreachable.
+  let sealInfo = keyMeta ? await signBytes(keyMeta, env_.id, sealedBytes) : null;
+  if (sealInfo) {
+    const ts = await maybeTimestamp(env, sealedBytes);
+    if (ts) sealInfo = { ...sealInfo, ...ts };
+  }
   const sidecarBytes = sealInfo
     ? new TextEncoder().encode(JSON.stringify(sealInfo, null, 2))
     : null;
@@ -292,6 +309,9 @@ async function sealEnvelope(envelopeId: string, env: Env) {
         key_id:           sealInfo.key_id,
         key_fingerprint:  sealInfo.key_fingerprint,
         signed_at:        sealInfo.signed_at,
+        tsa_url:          sealInfo.tsa_url ?? null,
+        tsa_gen_time:     sealInfo.tsa_gen_time ?? null,
+        has_tst:          !!sealInfo.tst_b64,
       },
     }).catch((err) => {
       console.error("pdf_signed audit log failed", err);
@@ -331,6 +351,18 @@ interface SealInfo {
   key_fingerprint: string;
   public_jwk:      JsonWebKey;
   signed_at:       string;
+  // RFC 3161 trusted timestamp on `pdf_sha256` — present only when a
+  // TSA was reachable. `tst_b64` is the raw TimeStampResp; verify with
+  // `openssl ts -reply -in tst.tsr -text` or any RFC 3161 verifier.
+  tsa_url?:        string;
+  tsa_gen_time?:   string;   // best-effort parse of the token's genTime
+  tst_b64?:        string;
+}
+
+interface TimestampInfo {
+  tsa_url:       string;
+  tsa_gen_time?: string;
+  tst_b64:       string;
 }
 
 interface SealKeyMeta {
@@ -419,6 +451,131 @@ function bytesToBase64(b: Uint8Array): string {
   let s = "";
   for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
   return btoa(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RFC 3161 — trusted timestamp on the sealed PDF's SHA-256.
+// ─────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_TSA_URL = "https://freetsa.org/tsr";
+
+async function maybeTimestamp(env: Env, sealedBytes: Uint8Array): Promise<TimestampInfo | null> {
+  const tsaUrl = env.RR_TSA_URL || DEFAULT_TSA_URL;
+  try {
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", sealedBytes));
+    const reqDer = buildTimeStampReq(digest);
+    const resp = await fetch(tsaUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/timestamp-query",
+        "Accept":       "application/timestamp-reply",
+      },
+      body: reqDer,
+    });
+    if (!resp.ok) {
+      console.error("TSA request failed", resp.status, await resp.text().catch(() => ""));
+      return null;
+    }
+    const respDer = new Uint8Array(await resp.arrayBuffer());
+    // TimeStampResp ::= SEQUENCE { status PKIStatusInfo, timeStampToken TimeStampToken OPTIONAL }
+    // status 0 = granted, 1 = grantedWithMods. Anything else = rejection.
+    const status = readTsaStatus(respDer);
+    if (status !== 0 && status !== 1) {
+      console.error("TSA rejected the request, status", status);
+      return null;
+    }
+    return {
+      tsa_url:      tsaUrl,
+      tsa_gen_time: extractGenTime(respDer) ?? undefined,
+      tst_b64:      bytesToBase64(respDer),
+    };
+  } catch (err) {
+    console.error("timestamp step failed; shipping seal without a TST", err);
+    return null;
+  }
+}
+
+// Minimal DER builders for the one structure we need:
+//   TimeStampReq ::= SEQUENCE {
+//     version        INTEGER { v1(1) },
+//     messageImprint SEQUENCE { hashAlgorithm AlgorithmIdentifier, hashedMessage OCTET STRING },
+//     certReq        BOOLEAN }     -- we ask for the TSA cert to be returned
+function derLen(n: number): number[] {
+  if (n < 0x80) return [n];
+  const bytes: number[] = [];
+  let v = n;
+  while (v > 0) { bytes.unshift(v & 0xff); v >>= 8; }
+  return [0x80 | bytes.length, ...bytes];
+}
+function derTLV(tag: number, value: number[]): number[] {
+  return [tag, ...derLen(value.length), ...value];
+}
+function buildTimeStampReq(sha256Digest: Uint8Array): Uint8Array {
+  // AlgorithmIdentifier for SHA-256: SEQUENCE { OID 2.16.840.1.101.3.4.2.1, NULL }
+  const sha256Oid = [0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01];
+  const algId = derTLV(0x30, [...sha256Oid, 0x05, 0x00]);
+  const hashedMessage = derTLV(0x04, Array.from(sha256Digest));
+  const messageImprint = derTLV(0x30, [...algId, ...hashedMessage]);
+  const version = derTLV(0x02, [0x01]);          // INTEGER 1
+  const certReq = derTLV(0x01, [0xff]);          // BOOLEAN TRUE
+  const req = derTLV(0x30, [...version, ...messageImprint, ...certReq]);
+  return new Uint8Array(req);
+}
+
+// Read the integer in TimeStampResp.status.PKIStatusInfo.status (the
+// first INTEGER inside the first inner SEQUENCE). Returns -1 on parse
+// surprise so callers treat it as a rejection.
+function readTsaStatus(der: Uint8Array): number {
+  try {
+    let p = 0;
+    if (der[p++] !== 0x30) return -1;             // outer SEQUENCE
+    p += skipLen(der, p);                         // skip outer length
+    if (der[p++] !== 0x30) return -1;             // PKIStatusInfo SEQUENCE
+    const statusInfoLen = readLen(der, p); p += skipLen(der, p);
+    void statusInfoLen;
+    if (der[p++] !== 0x02) return -1;             // INTEGER (status)
+    const n = readLen(der, p); p += skipLen(der, p);
+    let v = 0;
+    for (let i = 0; i < n; i++) v = (v << 8) | der[p + i];
+    return v;
+  } catch { return -1; }
+}
+
+// Best-effort: walk the DER linearly and return the first GeneralizedTime
+// (tag 0x18) as an ISO string. In a TimeStampToken the TSTInfo (which
+// contains genTime) precedes the signer certificates in the SignedData
+// structure, so the first GeneralizedTime we hit is the timestamp's
+// genTime. Returns null on any surprise.
+function extractGenTime(der: Uint8Array): string | null {
+  try {
+    for (let i = 0; i + 2 < der.length; i++) {
+      if (der[i] !== 0x18) continue;              // GeneralizedTime
+      const len = der[i + 1];
+      if (len < 13 || len > 32 || i + 2 + len > der.length) continue;
+      const s = new TextDecoder().decode(der.subarray(i + 2, i + 2 + len));
+      // GeneralizedTime: YYYYMMDDHHMMSS[.fff]Z
+      const m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d+)?Z$/);
+      if (!m) continue;
+      const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${m[7] ? m[7] : ""}Z`;
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) continue;
+      return d.toISOString();
+    }
+    return null;
+  } catch { return null; }
+}
+
+function readLen(der: Uint8Array, p: number): number {
+  const first = der[p];
+  if (first < 0x80) return first;
+  const n = first & 0x7f;
+  let v = 0;
+  for (let i = 1; i <= n; i++) v = (v << 8) | der[p + i];
+  return v;
+}
+function skipLen(der: Uint8Array, p: number): number {
+  const first = der[p];
+  return first < 0x80 ? 1 : 1 + (first & 0x7f);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -597,15 +754,24 @@ async function appendCertificate(
       for (const chunk of wrapText(sealFull.signature_b64, 86)) {
         writeLine("  " + chunk, { size: 7, color: rgb(0.50, 0.55, 0.65) });
       }
+      if (sealFull.tst_b64) {
+        cursorY -= 4;
+        writeLine("RFC 3161 TRUSTED TIMESTAMP", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
+        writeLine("Authority:   " + (sealFull.tsa_url || "(unspecified)"), { size: 9, color: rgb(0.34, 0.40, 0.50) });
+        if (sealFull.tsa_gen_time) {
+          writeLine("Attested time: " + sealFull.tsa_gen_time + "  (by the TSA, not by RouteReady)", { size: 9, color: rgb(0.04, 0.40, 0.34) });
+        }
+        writeLine("The TimeStampToken (base64) is in " + sealStub.seal_path + " as tst_b64; verify with: openssl ts -reply -in tst.tsr -text", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+      }
     } else {
-      writeLine("The PDF SHA-256, signature, and public key live next to the sealed PDF at " + sealStub.seal_path + ".", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+      writeLine("The PDF SHA-256, signature, public key, and (if any) RFC 3161 timestamp live next to the sealed PDF at " + sealStub.seal_path + ".", { size: 8, color: rgb(0.34, 0.40, 0.50) });
     }
     writeLine("Public key is also served at GET /public-key on the sealing service.", { size: 8, color: rgb(0.34, 0.40, 0.50) });
   }
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.2", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.3", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 

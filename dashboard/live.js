@@ -20233,6 +20233,8 @@ async function _docsOpenAudit(envelopeId) {
   const sealKeyFp = signedEvt?.event_data?.key_fingerprint || null;
   const sealAlg   = signedEvt?.event_data?.signature_alg   || null;
   const sealDigest = signedEvt?.event_data?.pdf_sha256     || null;
+  const sealTsa     = signedEvt?.event_data?.tsa_url       || null;
+  const sealTsaTime = signedEvt?.event_data?.tsa_gen_time  || null;
   body.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;margin-bottom:14px;background:${allOk ? "var(--green-soft)" : "rgba(225,29,72,.10)"};color:${allOk ? "var(--green)" : "var(--red)"};font-weight:600;font-size:var(--fs-sm)">
       ${allOk
@@ -20254,6 +20256,7 @@ async function _docsOpenAudit(envelopeId) {
         ${sealAlg    ? `<div>algorithm · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(String(sealAlg))}</span></div>` : ""}
         ${sealDigest ? `<div>pdf sha-256 · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all">${escapeHtml(String(sealDigest))}</span></div>` : ""}
         ${sealKeyFp  ? `<div>key fingerprint · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(String(sealKeyFp))}</span></div>` : ""}
+        ${sealTsaTime ? `<div>rfc 3161 timestamp · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(String(sealTsaTime))}</span>${sealTsa ? ` <span style="opacity:.7">via ${escapeHtml(String(sealTsa))}</span>` : ""}</div>` : (sealTsa ? `<div>rfc 3161 timestamp · <span style="opacity:.7">token attached (${escapeHtml(String(sealTsa))})</span></div>` : "")}
       </div>` : ""}
     <div style="display:flex;flex-direction:column;gap:10px">
       ${(events || []).map((e) => {
