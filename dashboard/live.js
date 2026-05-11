@@ -10162,11 +10162,11 @@ async function openDriverDrawer(driverId, opts) {
       .dd-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px;white-space:nowrap}
       .dd-badge.driver{background:var(--green-soft);color:var(--green)}
       .dd-badge.dsp{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
-      .dd-row{display:grid;grid-template-columns:180px 1fr;gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}
+      .dd-row{display:grid;grid-template-columns:160px 1fr;gap:14px;align-items:center;padding:11px 0;border-top:1px solid var(--border)}
       .dd-row:first-of-type{border-top:0}
       .dd-row label{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
       .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font:inherit;font-size:var(--fs-md);color:var(--text)}
-      .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent)}
+      .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
       .dd-foot{padding:14px 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);position:sticky;bottom:0}
       .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
       .dd-list-row:first-of-type{border-top:0}
@@ -10186,7 +10186,10 @@ async function openDriverDrawer(driverId, opts) {
             <div class="sub" id="rr-dd-sub"></div>
           </div>
         </div>
-        <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+          <button type="button" id="rr-dd-report-btn" data-rr-dd-report title="Open employment report" aria-label="Employment report" style="display:none;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--text-muted);line-height:0;transition:color .12s,border-color .12s,background .12s" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text-subtle)'" onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border)'"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button>
+          <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        </div>
       </div>
       <div class="dd-tabs">
         <button type="button" class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
@@ -10205,7 +10208,12 @@ async function openDriverDrawer(driverId, opts) {
   document.body.appendChild(drawer);
 
   drawer.addEventListener("click", (e) => {
-    if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) drawer.remove();
+    if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) { drawer.remove(); return; }
+    if (e.target.closest("[data-rr-dd-report]")) {
+      e.preventDefault(); e.stopPropagation();
+      const id = _ddDriver && _ddDriver.driver && _ddDriver.driver.id;
+      if (id && typeof _openEmploymentReport === "function") _openEmploymentReport(id);
+    }
   });
 
   _ddTab = initialTab;
@@ -10239,6 +10247,8 @@ async function loadDriverDrawer(driverId) {
   if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
   _ddDriver = data;
   if (typeof getDriverStationsCached === "function") getDriverStationsCached();   // warm the station-name cache for the Overview tab
+  const reportBtn = document.getElementById("rr-dd-report-btn");
+  if (reportBtn) reportBtn.style.display = "inline-flex";
 
   // E-signature envelopes sent to this driver — same rows the Documents
   // page shows, surfaced here so a completed signature lands on the
