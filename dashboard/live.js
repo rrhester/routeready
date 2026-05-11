@@ -10807,6 +10807,7 @@ const _I9_S2_ATTEST_BASE =
 const _I9_S2_ATTEST_REMOTE =
   " I further attest that I examined the documentation remotely in accordance with the DHS-authorized alternative procedure, and that the employer is enrolled in and in good standing with E-Verify.";
 async function openI9Section2Modal(driverId) {
+  _i9DashStylesOnce();
   const rec = _ddDriver?.i9?.record || null;
   const s2 = rec && rec.section2 && typeof rec.section2 === "object" ? rec.section2 : {};
   const exam = s2.exam_method || "in_person";
@@ -10814,50 +10815,44 @@ async function openI9Section2Modal(driverId) {
   const docs = Array.isArray(s2.documents) ? s2.documents : [];
   const due = rec ? _i9Section2DueState(rec) : null;
   const fmtD = (x) => x ? new Date(x + "T00:00:00Z").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+  const step = (n, title, sub, inner) => `
+    <div class="i9-step">
+      <div class="i9-step-head"><div class="i9-step-num">${n}</div><div><div class="i9-step-title">${escapeHtml(title)}</div>${sub ? `<div class="i9-step-sub">${sub}</div>` : ""}</div></div>
+      ${inner}
+    </div>`;
 
   const body = `
-    <div style="display:flex;flex-direction:column;gap:16px">
-      ${due ? `<div style="border:1px solid;border-radius:8px;padding:8px 12px;font-size:var(--fs-sm);${due.overdue ? "background:#fee2e2;border-color:#fecaca;color:#991b1b" : due.days<=1 ? "background:#fef3c7;border-color:#fde68a;color:#92400e" : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay below.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${due ? `<div style="border:1px solid;border-radius:8px;padding:8px 12px;font-size:var(--fs-sm);${due.overdue ? "background:#fee2e2;border-color:#fecaca;color:#991b1b" : due.days<=1 ? "background:#fef3c7;border-color:#fde68a;color:#92400e" : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
 
-      <div>
-        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">How were the documents examined?</div>
-        <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
-        <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-exam" value="remote_alternative" ${exam==="remote_alternative"?"checked":""} style="margin-top:3px"> <span>DHS-authorized alternative procedure (remote). <span style="color:var(--text-subtle)">Available only to employers enrolled in E-Verify and in good standing — keep copies of the documents and conduct a live video interaction.</span></span></label>
-      </div>
+      ${step(1, "Examine the documents", "How did you review the employee's original documents?", `
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="remote_alternative" ${exam==="remote_alternative"?"checked":""} style="margin-top:3px"> <span>DHS-authorized alternative procedure (remote). <span style="color:var(--text-subtle)">Only for employers enrolled in E-Verify and in good standing — keep copies and conduct a live video interaction.</span></span></label>`)}
 
-      <div>
-        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">Which documents did the employee present?</div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-list" value="A" ${list==="A"?"checked":""}> One document from <strong>List A</strong> (establishes identity and work authorization)</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-list" value="BC" ${list==="BC"?"checked":""}> One document from <strong>List B</strong> (identity) and one from <strong>List C</strong> (work authorization)</label>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">The employee decides which acceptable document(s) to present. You may not require specific documents.</div>
-      </div>
+      ${step(2, "Record the documents presented", "The employee chooses which acceptable document(s) to present — you may not require or reject specific ones.", `
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:3px 0;cursor:pointer"><input type="radio" name="i9-list" value="A" ${list==="A"?"checked":""}> One document from <strong>List A</strong> (identity + work authorization)</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:3px 0;cursor:pointer"><input type="radio" name="i9-list" value="BC" ${list==="BC"?"checked":""}> One from <strong>List B</strong> (identity) and one from <strong>List C</strong> (work authorization)</label>
+        </div>
+        <div id="i9-doc-rows" style="display:flex;flex-direction:column;gap:10px"></div>
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Additional information (reverification, extensions, delay reason, etc.)</span><textarea id="i9-s2-addl" rows="2" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);resize:vertical">${escapeHtml(s2.additional_info || "")}</textarea></label>
+        <div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:4px">Document copies (optional — required for the remote alternative procedure):</div>
+          <input type="file" id="i9-s2-files" multiple accept="image/*,application/pdf" style="font:inherit;font-size:var(--fs-sm)">
+          ${Array.isArray(rec?.section2_document_paths)&&rec.section2_document_paths.length?`<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">${rec.section2_document_paths.length} file(s) already on file — new uploads add to them.</div>`:""}
+        </div>`)}
 
-      <div id="i9-doc-rows" style="display:flex;flex-direction:column;gap:10px"></div>
+      ${step(3, "Attest", "Under penalty of perjury.", `
+        <label style="display:flex;flex-direction:column;gap:3px;max-width:320px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Your title</span><input type="text" id="i9-s2-title" placeholder="e.g. Owner / Operations Manager" value="${escapeHtml(rec?.section2_completed_by_title || "")}" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:var(--fs-sm);line-height:1.55"><input type="checkbox" id="i9-s2-attest" style="margin-top:3px"> <span id="i9-s2-attest-text">${escapeHtml(_I9_S2_ATTEST_BASE)}</span></label>`)}
 
-      <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Additional information (reverification, extensions, delay reason, etc.)</span><textarea id="i9-s2-addl" rows="2" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);resize:vertical">${escapeHtml(s2.additional_info || "")}</textarea></label>
-
-      <div>
-        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">Document copies (optional)</div>
-        <input type="file" id="i9-s2-files" multiple accept="image/*,application/pdf" style="font:inherit;font-size:var(--fs-sm)">
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">If you keep copies (required for the remote alternative procedure), attach them here. Stored privately on this driver's record.</div>
-        ${Array.isArray(rec?.section2_document_paths)&&rec.section2_document_paths.length?`<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">${rec.section2_document_paths.length} file(s) already on file — uploading new files adds to them.</div>`:""}
-      </div>
-
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <label style="display:flex;flex-direction:column;gap:3px;flex:1 1 220px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Your title</span><input type="text" id="i9-s2-title" placeholder="e.g. Owner / Operations Manager" value="${escapeHtml(rec?.section2_completed_by_title || "")}" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>
-      </div>
-
-      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:var(--fs-sm);line-height:1.55"><input type="checkbox" id="i9-s2-attest" style="margin-top:3px"> <span id="i9-s2-attest-text">${escapeHtml(_I9_S2_ATTEST_BASE)}</span></label>
-
-      <div>
-        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">Your signature</div>
+      ${step(4, "Sign", "Your electronic signature is recorded with your name and a timestamp.", `
         <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <canvas id="i9-s2-canvas" style="display:block;width:100%;height:160px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
           <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
           <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
         </div>
-        <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);width:100%">
-      </div>
+        <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);width:100%">`)}
     </div>`;
   const foot = `<button type="button" class="btn" data-rr-i9-close>Cancel</button><button type="button" class="btn btn-primary" id="i9-s2-submit">Complete &amp; attest Section 2</button>`;
   const m = _i9ModalShell("Complete Section 2", "Employer Review and Attestation · Form I-9", body, foot);
@@ -11340,12 +11335,36 @@ function _i9StatusChip(arg) {
 // Generic pill (used for queue section headers etc.).
 const _i9Chip = (label, tone) => `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:10px;white-space:nowrap;${tone}">${escapeHtml(label)}</span>`;
 
+// One-time inline styles shared by the I-9 dashboard surfaces: skeleton
+// pulse, queue-row hover, and the Section-2 step cards.
+function _i9DashStylesOnce() {
+  if (document.getElementById("rr-i9-dash-styles")) return;
+  const st = document.createElement("style");
+  st.id = "rr-i9-dash-styles";
+  st.textContent =
+    "@keyframes i9-pulse{0%,100%{opacity:.5}50%{opacity:.85}}" +
+    ".i9-skel{background:var(--border);border-radius:8px;animation:i9-pulse 1.3s ease-in-out infinite}" +
+    ".rr-i9-row{transition:background .12s ease}" +
+    ".rr-i9-row:hover{background:var(--canvas)}" +
+    ".i9-step{border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}" +
+    ".i9-step-head{display:flex;align-items:flex-start;gap:10px}" +
+    ".i9-step-num{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}" +
+    ".i9-step-title{font-size:var(--fs-sm);font-weight:700;color:var(--text)}" +
+    ".i9-step-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.45}";
+  document.head.appendChild(st);
+}
+function _i9QueueSkeleton() {
+  const row = `<div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border)"><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="i9-skel" style="height:14px;width:42%"></div><div class="i9-skel" style="height:11px;width:64%"></div></div><div class="i9-skel" style="height:28px;width:56px"></div></div>`;
+  return `<div><div class="i9-skel" style="height:13px;width:28%;margin-bottom:8px"></div>${row}${row}${row}${row}</div>`;
+}
+
 async function loadDriverWorkAuthView() {
+  _i9DashStylesOnce();
   const queueEl = document.getElementById("rr-i9-queue");
   const kpiEl   = document.getElementById("rr-i9-kpis");
   const statusEl = document.getElementById("rr-i9-list-status");
   if (!queueEl) return;
-  queueEl.innerHTML = `<div class="rr-loading">Loading</div>`;
+  queueEl.innerHTML = _i9QueueSkeleton();
   const { data, error } = await sb.rpc("i9_list");
   if (error) { queueEl.innerHTML = `<div class="dr-empty"><h3>Couldn't load</h3><p>${escapeHtml(error.message || "")}</p></div>`; return; }
   const rows = Array.isArray(data) ? data : [];
@@ -11408,7 +11427,7 @@ async function loadDriverWorkAuthView() {
       : (cls.bucket === "s2_due" || cls.bucket === "reverification" || (cls.bucket === "s2_needed" && cls.note)) ? "var(--amber-dark)"
       : "transparent";
     return `
-      <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0 10px 12px;border-top:1px solid var(--border);border-left:3px solid ${tier};cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
+      <div class="rr-i9-row" style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0 10px 12px;border-top:1px solid var(--border);border-left:3px solid ${tier};cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
         <div style="min-width:0">
           <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.driver_name || "—")} ${_i9StatusChip(cls.d || r)}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">· onboarding</span>` : ""}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${line}${r.hire_date ? ` · hired ${new Date(r.hire_date).toLocaleDateString()}` : ""}</div>
@@ -11428,7 +11447,7 @@ async function loadDriverWorkAuthView() {
         <div style="display:flex;flex-direction:column">${list.map(rowHtml).join("")}</div>
       </div>`;
   }).join("");
-  queueEl.innerHTML = sections || `<div class="dr-empty"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>Nothing on the queue</h3><p>Every employee's Form I-9 is in order.</p></div>`;
+  queueEl.innerHTML = sections || `<div class="dr-empty"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>Form I-9 queue is clear</h3><p>Every employee's I-9 is complete or on track — nothing needs your attention right now.</p></div>`;
 
   // Refresh the subnav badge with the overdue count.
   _i9SetOverdueBadge(overdueCount);
@@ -21847,7 +21866,9 @@ function _i9DocsCardHtml(r) {
 async function _renderDocsI9() {
   const list = document.getElementById("docs-i9-list");
   if (!list) return;
-  list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  _i9DashStylesOnce();
+  const skelCard = `<div style="display:flex;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--border)"><div class="i9-skel" style="width:40px;height:40px;border-radius:9px;flex:0 0 auto"></div><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="i9-skel" style="height:14px;width:46%"></div><div class="i9-skel" style="height:11px;width:70%"></div></div><div class="i9-skel" style="height:28px;width:90px"></div></div>`;
+  list.innerHTML = `<div class="i9-skel" style="height:16px;width:34%;margin-bottom:12px"></div>${skelCard}${skelCard}${skelCard}`;
   const { data, error } = await sb.from("i9_records")
     .select("id, driver_id, status, first_day_of_employment, section1_completed_at, section1_completed_via, section2_completed_at, section2_completed_by_name, needs_correction_note, pdf_path, pdf_certificate_path, pdf_seal_path, pdf_sealed_at, updated_at, drivers(full_name, preferred_name)")
     .order("updated_at", { ascending: false })
