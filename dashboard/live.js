@@ -645,9 +645,15 @@ async function _initApplicantNotes(slot, applicantId) {
 }
 
 
+let _emailThreadChannel = null;
+function _closeEmailThreadChannel() {
+  if (_emailThreadChannel) { try { sb.removeChannel(_emailThreadChannel); } catch {} _emailThreadChannel = null; }
+}
+
 async function openEmailThreadModal(applicantId, fullName, toEmail) {
   let m = document.getElementById("rr-email-thread-modal");
   if (m) m.remove();
+  _closeEmailThreadChannel();
   m = document.createElement("div");
   m.id = "rr-email-thread-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
@@ -672,8 +678,18 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
     </div>`;
   document.body.appendChild(m);
 
+  // Live-refresh the thread when a new email_messages row lands for this
+  // applicant (e.g. an inbound reply arriving via webhook-email-inbound),
+  // so the operator doesn't have to re-open the modal.
+  _emailThreadChannel = sb.channel("rr-email-thread-" + applicantId)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "email_messages", filter: "applicant_id=eq." + applicantId },
+        () => { if (document.getElementById("rr-email-thread-modal")) _renderEmailThread(applicantId); })
+    .subscribe();
+
   m.addEventListener("click", async (e) => {
     if (e.target === m || e.target.closest("[data-rr-email-close]")) {
+      _closeEmailThreadChannel();
       m.remove(); return;
     }
     if (e.target.closest("#rr-email-reply-send")) {
