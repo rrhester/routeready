@@ -3240,7 +3240,9 @@ function _obMxStylesOnce() {
     ".ob-bld-chk{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer}" +
     ".ob-bld-chk input{accent-color:var(--accent)}" +
     ".ob-bld-toggle{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);cursor:pointer;flex:0 0 auto;padding-top:4px}" +
-    ".ob-bld-toggle input{accent-color:var(--accent);width:16px;height:16px}";
+    ".ob-bld-toggle input{accent-color:var(--accent);width:16px;height:16px}" +
+    ".ob-needcard{transition:transform .1s,box-shadow .12s}" +
+    ".ob-needcard:hover{transform:translateY(-1px)}";
   document.head.appendChild(s);
 }
 
@@ -3383,6 +3385,7 @@ const _OB_DEFAULT_BLUEPRINT = [
   { key: "scheduled",      type: "schedule",        title: "Driver scheduled",               enabled: true,  blocking: false, required: false, owner: "dsp" },
 ];
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
+let _obMatrixFilter = null;   // null | "risk" | "due" | "review" | "ready" — "Needs you" rail filter on the matrix
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
 
 // ── Onboarding Builder (Onboarding → Builder tab) ─────────────────────
@@ -3574,12 +3577,39 @@ async function loadOnboardingOps(opts) {
     { label: "Scheduled",          value: c("scheduled"), sub: "first shift assigned" },
   ];
   const kpiRow = `<div class="driver-stat-row" style="margin-bottom:8px">${kpis.map(k => `<div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone || ""}">${escapeHtml(k.value)}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("")}</div>`;
-  const noteParts = [];
-  if (atRisk)         noteParts.push(`<strong style="color:var(--red)">${atRisk} at risk</strong>`);
-  if (dueSoon)        noteParts.push(`<strong style="color:var(--amber-dark)">${dueSoon} due soon</strong>`);
-  if (awaitingReview) noteParts.push(`<strong style="color:#075985">${awaitingReview} awaiting your review</strong>`);
-  if (slowTxt)        noteParts.push(`biggest bottleneck: ${escapeHtml(slowTxt)}`);
-  const noteLine = noteParts.length ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-4)">${noteParts.join('<span style="color:var(--text-subtle)"> · </span>')}</div>` : `<div style="margin-bottom:var(--s-4)"></div>`;
+  const bottleneckLine = slowTxt
+    ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-4)">Biggest bottleneck: ${escapeHtml(slowTxt)}</div>`
+    : `<div style="margin-bottom:var(--s-4)"></div>`;
+
+  // ── "Needs you" rail — the actionable layer at the top of the page.
+  // Each card filters the matrix below to just those drivers; click
+  // again (or "Show all") to clear.
+  const FILT = {
+    risk:   { label: "At compliance risk",  count: atRisk,         match: ob => ob.key === "compliance_risk" || ob.key === "needs_correction", T: { bg: "#fef2f2", bd: "#fecaca", fg: "#991b1b", num: "#dc2626" } },
+    due:    { label: "Form I-9 due soon",   count: dueSoon,        match: ob => ob.key === "due_soon",                                          T: { bg: "#fffbeb", bd: "#fde68a", fg: "#92400e", num: "#d97706" } },
+    review: { label: "Awaiting your review",count: awaitingReview, match: ob => ob.key === "awaiting_review",                                    T: { bg: "#f0f9ff", bd: "#bae6fd", fg: "#075985", num: "#0284c7" } },
+    ready:  { label: "Ready to activate",   count: ready,          match: ob => ob.key === "ready",                                             T: { bg: "#f0fdf4", bd: "#bbf7d0", fg: "#166534", num: "#16a34a" } },
+  };
+  if (_obMatrixFilter && (!FILT[_obMatrixFilter] || FILT[_obMatrixFilter].count === 0)) _obMatrixFilter = null;
+  const actionable = atRisk + dueSoon + awaitingReview + ready;
+  const bandCards = Object.entries(FILT).filter(([, v]) => v.count > 0).map(([k, v]) => {
+    const active = _obMatrixFilter === k;
+    return `<button type="button" class="ob-needcard${active ? " active" : ""}" data-rr-ob-filter="${k}" title="Show only these drivers" style="border:1px solid ${active ? v.T.num : v.T.bd};background:${v.T.bg};border-radius:11px;padding:10px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:11px;${active ? `box-shadow:0 0 0 3px ${v.T.bg}` : ""}">
+      <span style="font-size:20px;font-weight:800;color:${v.T.num};font-variant-numeric:tabular-nums;line-height:1">${v.count}</span>
+      <span style="font-size:var(--fs-sm);font-weight:600;color:${v.T.fg};line-height:1.25">${escapeHtml(v.label)}</span>
+    </button>`;
+  }).join("");
+  const needsYouBand = N === 0 ? "" : (actionable
+    ? `<div style="margin-bottom:var(--s-3)">
+         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+           <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)">Needs you</div>
+           ${_obMatrixFilter ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-ob-filter="">← Show all ${N}</button>` : ""}
+         </div>
+         <div style="display:flex;gap:10px;flex-wrap:wrap">${bandCards}</div>
+       </div>`
+    : `<div style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 14px;margin-bottom:var(--s-3)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><polyline points="20 6 9 17 4 12"/></svg>Onboarding is on track — nothing needs your attention right now.</div>`);
+  const filtered = (_obMatrixFilter && FILT[_obMatrixFilter]) ? enriched.filter(({ ob }) => FILT[_obMatrixFilter].match(ob)) : enriched;
+  const filterLabel = _obMatrixFilter && FILT[_obMatrixFilter] ? FILT[_obMatrixFilter].label : null;
 
   _obMxStylesOnce();
 
@@ -3625,13 +3655,15 @@ async function loadOnboardingOps(opts) {
   };
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
+  const colspanAll = 2 + stepCols.length + 2;
   body.innerHTML = `
+    ${needsYouBand}
     ${kpiRow}
-    ${noteLine}
+    ${bottleneckLine}
     <div class="ob-mx-wrap">
       <div class="ob-mx-head">
-        <div class="ob-mx-title">Onboarding drivers</div>
-        <span class="ob-mx-sub">Steps configured in the <strong>Builder</strong> tab · click any dot to mark / unmark · click a name for the full record</span>
+        <div class="ob-mx-title">${filterLabel ? escapeHtml(filterLabel) : "Onboarding drivers"}</div>
+        <span class="ob-mx-sub">${filterLabel ? `${filtered.length} of ${N} driver${N === 1 ? "" : "s"} · <button type="button" class="btn btn-sm btn-ghost" data-rr-ob-filter="" style="padding:1px 6px">show all</button>` : `Steps configured in the <strong>Builder</strong> tab · click any dot to mark / unmark · click a name for the full record`}</span>
       </div>
       ${enriched.length ? `<div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
@@ -3643,10 +3675,18 @@ async function loadOnboardingOps(opts) {
             <th>Send</th>
           </tr>
         </thead>
-        <tbody>${enriched.map(matrixRow).join("")}</tbody>
+        <tbody>${filtered.length ? filtered.map(matrixRow).join("") : `<tr><td colspan="${colspanAll}" style="padding:18px 16px;color:var(--text-subtle);font-size:var(--fs-sm)">No drivers in this view.</td></tr>`}</tbody>
       </table></div>` : `<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`}
     </div>`;
 
+  body.querySelectorAll("[data-rr-ob-filter]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      const k = el.getAttribute("data-rr-ob-filter") || "";
+      _obMatrixFilter = (k && k !== _obMatrixFilter) ? k : null;
+      loadOnboardingOps({ keepTab: true });
+    });
+  });
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
