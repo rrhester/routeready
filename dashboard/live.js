@@ -670,7 +670,7 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
         <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading thread…</div>
       </div>
       <div style="border-top:1px solid var(--border);padding:14px 22px;background:var(--surface)">
-        <textarea id="rr-email-reply-body" placeholder="Type your reply…" style="width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        <textarea id="rr-email-reply-body" placeholder="Type your reply…  (Enter to send · Shift+Enter for a new line)" style="width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;resize:vertical;box-sizing:border-box"></textarea>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
           <button class="btn btn-primary" id="rr-email-reply-send">Send reply</button>
         </div>
@@ -686,6 +686,14 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
         { event: "*", schema: "public", table: "email_messages", filter: "applicant_id=eq." + applicantId },
         () => { if (document.getElementById("rr-email-thread-modal")) _renderEmailThread(applicantId); })
     .subscribe();
+
+  // Enter sends; Shift+Enter inserts a newline.
+  m.addEventListener("keydown", (e) => {
+    if (e.target?.id === "rr-email-reply-body" && e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      document.getElementById("rr-email-reply-send")?.click();
+    }
+  });
 
   m.addEventListener("click", async (e) => {
     if (e.target === m || e.target.closest("[data-rr-email-close]")) {
