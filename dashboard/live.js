@@ -9863,6 +9863,17 @@ async function loadDriverDrawer(driverId) {
   if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
   _ddDriver = data;
 
+  // E-signature envelopes sent to this driver — same rows the Documents
+  // page shows, surfaced here so a completed signature lands on the
+  // driver's record automatically (and stays on the Documents page).
+  try {
+    const { data: envs } = await sb.from("document_envelopes")
+      .select("id, status, sent_at, viewed_at, signed_at, declined_at, voided_at, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, document_templates(title)")
+      .eq("recipient_driver_id", driverId)
+      .order("sent_at", { ascending: false });
+    _ddDriver.envelopes = envs || [];
+  } catch { _ddDriver.envelopes = []; }
+
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
   if (!titleEl) return;
@@ -9913,7 +9924,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "attendance")   renderAttendanceTab(body, _ddDriver.driver);
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver, _ddDriver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
-  if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents);
+  if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents, _ddDriver.envelopes);
   setDriverDrawerFoot();
 }
 
@@ -12059,7 +12070,46 @@ function renderCoachingTab(coachings, driver) {
     <div>${list || `<div class="rr-empty-inline">No coachings logged yet.</div>`}</div>`;
 }
 
-function renderDocumentsTab(docs) {
+function _envChipInline(s) {
+  const lc = (typeof _docsLifecycle === "function") ? _docsLifecycle(s) : { label: s, blurb: "" };
+  const colors = {
+    sent:     ["var(--accent-text)", "var(--accent-soft)"],
+    viewed:   ["var(--amber-dark)",  "var(--amber-soft)"],
+    signed:   ["var(--green)",       "var(--green-soft)"],
+    declined: ["var(--red)",         "var(--red-soft)"],
+    voided:   ["var(--text-subtle)", "var(--canvas)"],
+    expired:  ["var(--text-subtle)", "var(--canvas)"],
+  };
+  const [fg, bg] = colors[s] || colors.sent;
+  return `<span title="${escapeHtml(lc.blurb || "")}" style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:650;padding:2px 9px;border-radius:999px;background:${bg};color:${fg}">${escapeHtml(lc.label)}</span>`;
+}
+
+function renderDocumentsTab(docs, envelopes) {
+  // ── Signed documents (e-signature envelopes) ──
+  const envs = envelopes || [];
+  const envRows = envs.map(e => {
+    const title = e.document_templates?.title || "Document";
+    const when = e.signed_at ? `Signed ${new Date(e.signed_at).toLocaleDateString()}`
+               : e.declined_at ? `Declined ${new Date(e.declined_at).toLocaleDateString()}`
+               : e.voided_at ? `Voided ${new Date(e.voided_at).toLocaleDateString()}`
+               : e.viewed_at ? `Opened ${new Date(e.viewed_at).toLocaleDateString()}`
+               : e.sent_at ? `Sent ${new Date(e.sent_at).toLocaleDateString()}` : "";
+    const acts = [];
+    if (e.signed_pdf_path)      acts.push(`<button class="btn btn-sm" data-rr-docs-download-sealed="${escapeHtml(e.id)}">Signed PDF</button>`);
+    if (e.certificate_pdf_path) acts.push(`<button class="btn btn-sm" data-rr-docs-download-cert="${escapeHtml(e.id)}">Certificate</button>`);
+    acts.push(`<button class="btn btn-sm" data-rr-docs-audit="${escapeHtml(e.id)}">Chain of custody</button>`);
+    return `
+      <div class="dd-list-row">
+        <div>
+          <div class="dd-list-title">${escapeHtml(title)}</div>
+          <div class="dd-list-sub" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${_envChipInline(e.status)}<span>${escapeHtml(when)}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${acts.join("")}</div>
+      </div>`;
+  }).join("");
+  const signedCount = envs.filter(e => e.status === "signed").length;
+
+  // ── Personnel file (uploaded HR documents) ──
   const list = (docs || []).map(x => `
     <div class="dd-list-row">
       <div>
@@ -12068,15 +12118,34 @@ function renderDocumentsTab(docs) {
       </div>
       <div><button class="btn btn-sm" data-rr-doc-open="${escapeHtml(x.file_path)}">Open</button></div>
     </div>`).join("");
+
   return `
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:var(--fs-md)">
-        ${["drivers_license","mvr","dot_medical","background_check","social_security","i9","w4","direct_deposit","vehicle_registration","insurance","other"].map(k => `<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}
-      </select>
-      <input type="file" id="rr-doc-file" />
-      <button class="btn btn-primary" data-rr-doc-upload>Upload</button>
+    <div class="dd-section" style="margin-bottom:22px">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Signed documents</div>
+          <div class="dd-section-sub">E-signature envelopes sent to this driver. ${signedCount > 0 ? `${signedCount} signed &amp; sealed.` : "Send one from Documents → Templates."} Records stay on the Documents page too.</div>
+        </div>
+      </div>
+      <div>${envRows || `<div class="rr-empty-inline">No e-signature documents for this driver yet.</div>`}</div>
     </div>
-    <div>${list || `<div class="rr-empty-inline">No documents on file.</div>`}</div>`;
+
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Personnel file</div>
+          <div class="dd-section-sub">Licenses, MVR, DOT medical, I-9/W-4, and other HR files you upload here.</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:var(--fs-md)">
+          ${["drivers_license","mvr","dot_medical","background_check","social_security","i9","w4","direct_deposit","vehicle_registration","insurance","other"].map(k => `<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}
+        </select>
+        <input type="file" id="rr-doc-file" />
+        <button class="btn btn-primary" data-rr-doc-upload>Upload</button>
+      </div>
+      <div>${list || `<div class="rr-empty-inline">No personnel-file documents on file.</div>`}</div>
+    </div>`;
 }
 
 // Title-case name fields when the operator leaves the input. Marked via
