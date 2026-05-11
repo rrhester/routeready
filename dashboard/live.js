@@ -17168,7 +17168,13 @@ async function renderScheduleWeek() {
     const finalPill = window._rrWeekFinalized
       ? `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live</span>`
       : "";
-    pageSub.innerHTML = `Week of ${wkRange} · ${drivers.length} active driver${drivers.length === 1 ? "" : "s"}${finalPill}`;
+    // Staffing at-a-glance: drivers · scheduled hours · open shifts.
+    const hrsW = Math.round(Array.from(hoursPerDriver.values()).reduce((s, n) => s + (n || 0), 0));
+    let openN = 0; for (const list of openShiftsByDate.values()) openN += (list?.length || 0);
+    const openBit = openN > 0
+      ? ` · <span style="color:var(--amber-dark);font-weight:600">${openN} open ${openN === 1 ? "shift" : "shifts"}</span>`
+      : "";
+    pageSub.innerHTML = `Week of ${wkRange} · ${drivers.length} active driver${drivers.length === 1 ? "" : "s"} · ${hrsW.toLocaleString()}h scheduled${openBit}${finalPill}`;
   }
 
   // Finalized banner — full-width strip above the toolbar that drivers
@@ -18503,22 +18509,40 @@ async function loadOpenShifts() {
   if (error) { sub.innerHTML = `<div style="padding:24px;color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
 
   if (!rows || rows.length === 0) {
-    sub.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)"><strong style="color:var(--text-muted);display:block;margin-bottom:4px">No open shifts</strong>Add shifts from the Week view, or leave the driver picker blank when adding to create one.</div>`;
+    sub.innerHTML = `
+      <div style="background:var(--surface);border:1px dashed var(--border-strong);border-radius:14px;padding:52px 28px;text-align:center;box-shadow:var(--shadow-sm)">
+        <div style="width:46px;height:46px;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:var(--green);background:var(--green-soft);border:1px solid rgba(5,150,105,.16)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h3 style="margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text)">No open shifts</h3>
+        <p style="margin:0 auto;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55">Every scheduled route has a driver. Add shifts from the Week view (leave the driver picker blank to create an open shift), or run Smart Fill to auto-staff against demand.</p>
+      </div>`;
     return;
   }
+  // Group by date so the operator scans day-by-day.
+  const byDate = new Map();
+  for (const r of rows) { if (!byDate.has(r.date)) byDate.set(r.date, []); byDate.get(r.date).push(r); }
+  const stationChip = (code) => `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted)">${escapeHtml(code || "—")}</span>`;
   sub.innerHTML = `
-    <h3 style="margin:0 0 var(--s-3);font-size:var(--fs-lg);font-weight:600">Open shifts (${rows.length})</h3>
-    <div class="card card-flush">
-      <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;padding:8px 14px;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
-        <div>Date</div><div>Station</div><div>Route</div><div></div>
-      </div>
-      ${rows.map(r => `
-        <div style="display:grid;grid-template-columns:130px 90px 1fr 100px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)">
-          <div style="font-size:var(--fs-md);font-weight:600">${new Date(r.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div>
-          <div style="font-size:var(--fs-md)">${escapeHtml(r.station?.code || "—")}</div>
-          <div style="font-size:var(--fs-md);font-family:'SF Mono',Menlo,monospace;color:var(--text-muted)">${escapeHtml(r.route_code || "—")}</div>
-          <div><button class="btn btn-sm btn-primary" data-rr-shift-id="${r.id}">Assign</button></div>
-        </div>`).join("")}
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px">
+      <h2 style="margin:0;font-size:13px;font-weight:700;color:var(--text)">Open shifts</h2>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle)"><b style="color:var(--amber-dark)">${rows.length}</b> route${rows.length === 1 ? "" : "s"} need a driver · across ${byDate.size} day${byDate.size === 1 ? "" : "s"}</div>
+    </div>
+    <div class="table-wrap" style="box-shadow:var(--shadow-sm)">
+      <table class="table table-clickable">
+        <thead><tr><th style="width:24%">Day</th><th style="width:14%">Station</th><th style="width:40%">Route</th><th style="width:22%;text-align:right"></th></tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const d = new Date(r.date + "T12:00:00");
+            const days = Math.round((d.getTime() - Date.now()) / 86400000);
+            const rel = days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days}d`;
+            return `<tr>
+              <td>${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${rel}</div></td>
+              <td>${stationChip(r.station?.code)}</td>
+              <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(r.route_code || "—")}</td>
+              <td style="text-align:right"><button class="btn btn-sm btn-primary" data-rr-shift-id="${r.id}">Assign driver</button></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
     </div>`;
 }
 

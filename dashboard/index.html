@@ -8473,8 +8473,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .pool-driver.maxed{ opacity:.6; }
           #view-schedule .pool-driver-hours{ font-variant-numeric:tabular-nums; }
 
-          /* Calendar loading skeleton (painted before renderScheduleWeek). */
-          #view-schedule .cal-skel{ }
+          /* Calendar loading skeleton (painted before renderScheduleWeek).
+             NOTE: every shimmer host MUST be position:relative + overflow
+             :hidden so the absolutely-positioned ::after can't escape and
+             slide across the viewport. */
           #view-schedule .cal-skel .cal-skel-row{
             display:grid;grid-template-columns:200px repeat(7,1fr);border-bottom:1px solid var(--border);
           }
@@ -8483,12 +8485,17 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .cal-skel .av{ width:32px;height:32px;border-radius:50%;background:var(--canvas);position:relative;overflow:hidden;flex:0 0 auto; }
           #view-schedule .cal-skel .bar{ height:12px;border-radius:5px;background:var(--canvas);position:relative;overflow:hidden; }
-          #view-schedule .cal-skel .cell{ border-right:1px solid var(--border);padding:10px 8px;min-height:64px; }
+          #view-schedule .cal-skel .cell{
+            border-right:1px solid var(--border);padding:10px 8px;min-height:64px;
+            position:relative;overflow:hidden;
+          }
+          #view-schedule .cal-skel .cell::before{
+            content:"";position:absolute;inset:10px 8px;border-radius:6px;background:var(--canvas);
+          }
           #view-schedule .cal-skel .av::after, #view-schedule .cal-skel .bar::after, #view-schedule .cal-skel .cell::after{
             content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
             transform:translateX(-100%);animation:drShimmer 1.25s ease-in-out infinite;
           }
-          #view-schedule .cal-skel .cell::after{ inset:10px 8px;border-radius:6px;background:linear-gradient(180deg,var(--canvas),var(--canvas)); }
         </style>
 
           <!-- Schedule toolbar rail. Week tabs (left) and per-week
