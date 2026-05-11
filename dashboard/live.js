@@ -16350,6 +16350,20 @@ async function loadScheduleView() {
   try { bindSchedWeekNav(); } catch (e) { console.warn("schedule · navBind:", e); }
 }
 
+// Calendar loading skeleton — appended to .cal-wrap (after the head
+// row) so the grid feels instant while renderScheduleWeek's queries
+// are in flight. renderScheduleWeek clears it (it strips every child
+// that isn't .head) before painting real rows.
+function _calSkeletonHtml(n = 8) {
+  const w = () => 38 + Math.round(Math.random() * 36);
+  const cells = Array.from({ length: 7 }, () => `<div class="cell"></div>`).join("");
+  const row = `<div class="cal-skel-row">
+    <div class="cal-skel-label"><div class="av"></div><div style="flex:1"><div class="bar" style="width:${w()}%"></div><div class="bar" style="width:${30 + Math.round(Math.random()*20)}%;margin-top:7px;height:9px"></div></div></div>
+    ${cells}
+  </div>`;
+  return `<div class="cal-skel">${Array.from({ length: n }, () => row).join("")}</div>`;
+}
+
 function _clearScheduleMockup() {
   // Neutralize the mockup OKAMI day-shifts injector — it runs 50ms after
   // view switch and stamps 'ø XX shifts' onto every cell head, undoing
@@ -16366,6 +16380,8 @@ function _clearScheduleMockup() {
     });
     // Strip any leftover .day-shifts spans on heads.
     wrap.querySelectorAll(".cal-cell-head .day-shifts").forEach(el => el.remove());
+    // Show a skeleton until renderScheduleWeek paints the real grid.
+    wrap.insertAdjacentHTML("beforeend", _calSkeletonHtml());
   }
   const aside = sub.querySelector("aside.driver-pool");
   if (aside) {
