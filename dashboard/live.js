@@ -10437,28 +10437,62 @@ function _i9Derived(rec) {
 }
 function _i9DerivedLabel(rec) { return _i9Derived(rec).label; }
 
-function _i9PanelHtml(i9, d) {
+function _i9PanelHtml(i9, drv) {
   const rec = i9 && i9.record ? i9.record : null;
   const st  = rec ? (rec.status || "not_started") : "not_started";
   const der = _i9Derived(rec);
   const s1 = rec && rec.section1 && typeof rec.section1 === "object" ? rec.section1 : {};
   const s2 = rec && rec.section2 && typeof rec.section2 === "object" ? rec.section2 : {};
-  const fmtD = (x) => x ? new Date(x).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+  const fmtD = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
   const fmtTs = (x) => x ? new Date(x).toLocaleString() : "—";
+  const events = i9 && Array.isArray(i9.events) ? i9.events : [];
+  const dueState = (rec && st !== "verified") ? _i9Section2DueState(rec) : null;
 
-  // 3-business-day Section-2 clock banner.
-  let clock = "";
-  if (rec && st !== "verified") {
-    const due = _i9Section2DueState(rec);
-    if (due) {
-      const tone = due.overdue ? "background:#fee2e2;border-color:#fecaca;color:#991b1b"
-                 : due.days <= 1 ? "background:#fef3c7;border-color:#fde68a;color:#92400e"
-                 : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af";
-      const msg = due.overdue ? `Section 2 was due ${fmtD(due.deadline)} — ${Math.abs(due.days)} business day${Math.abs(due.days) === 1 ? "" : "s"} overdue.`
-                : due.dueToday ? `Section 2 is due today (${fmtD(due.deadline)}).`
-                : `Section 2 is due by ${fmtD(due.deadline)} — ${due.days} business day${due.days === 1 ? "" : "s"} left.`;
-      clock = `<div style="border:1px solid;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm);${tone}">${escapeHtml(msg)}</div>`;
-    }
+  // ── 4-stage workflow progress ──
+  const stages = [
+    { label: "First day", done: !!(rec && rec.first_day_of_employment) },
+    { label: "Section 1", done: !!(rec && rec.section1_completed_at) },
+    { label: "Section 2", done: !!(rec && rec.section2_completed_at) },
+    { label: "Sealed",    done: !!(rec && rec.pdf_path) },
+  ];
+  const activeIdx = stages.findIndex((s) => !s.done);
+  const attnColor = der.attention === "overdue" ? "#dc2626"
+    : (der.attention === "due_soon" || der.attention === "blocked") ? "#d97706" : null;
+  const progressBar = `
+    <div style="margin:14px 0 0">
+      <div style="display:flex;gap:4px">${stages.map((s, i) => {
+        const bg = s.done ? "#16a34a" : (i === activeIdx && attnColor) ? attnColor : (i === activeIdx) ? "#cbd5e1" : "#e2e8f0";
+        return `<div style="flex:1;height:5px;border-radius:999px;background:${bg}"></div>`;
+      }).join("")}</div>
+      <div style="display:flex;gap:4px;margin-top:5px">${stages.map((s, i) => {
+        const c = s.done ? "var(--green)" : (i === activeIdx) ? "var(--text)" : "var(--text-subtle)";
+        const w = (s.done || i === activeIdx) ? "600" : "400";
+        return `<div style="flex:1;font-size:10px;letter-spacing:.02em;text-align:center;color:${c};font-weight:${w}">${escapeHtml(s.label)}</div>`;
+      }).join("")}</div>
+    </div>`;
+
+  // ── single next-action + one-line status ──
+  let cta = null, oneLiner = "";
+  if (!rec) {
+    oneLiner = "No Form I-9 started yet. Set the first day of employment to start the 3-business-day clock; the employee completes Section 1 in the RouteReady app.";
+    cta = { label: "Set first day", attr: "data-rr-i9-firstday", primary: true };
+  } else if (st === "needs_correction") {
+    oneLiner = rec.needs_correction_note ? `Reopened for correction: ${rec.needs_correction_note}` : "Reopened for correction — waiting on the employee to revise and re-sign Section 1.";
+    cta = { label: "Record Section 1", attr: "data-rr-i9-section1", primary: false };
+  } else if (st === "not_started") {
+    if (!rec.first_day_of_employment) { oneLiner = "Set the first day of employment so the Section 2 deadline can be tracked. The employee completes Section 1 in the RouteReady app."; cta = { label: "Set first day", attr: "data-rr-i9-firstday", primary: true }; }
+    else if (s1.last_name || s1.first_name || s1.addr_street) { oneLiner = "The employee has started Section 1 in the app but hasn't signed it yet."; cta = { label: "Record Section 1", attr: "data-rr-i9-section1", primary: false }; }
+    else { oneLiner = "Waiting on the employee to complete and sign Section 1 in the RouteReady app — or record it here on their behalf."; cta = { label: "Record Section 1", attr: "data-rr-i9-section1", primary: false }; }
+  } else if (st === "section1_complete") {
+    if (!rec.first_day_of_employment) { oneLiner = "Section 1 is signed. Set the first day of employment, then complete Section 2 (your document review)."; cta = { label: "Set first day", attr: "data-rr-i9-firstday", primary: true }; }
+    else if (dueState && dueState.overdue) { oneLiner = `Section 2 was due ${fmtD(dueState.deadline)} — ${Math.abs(dueState.days)} business day${Math.abs(dueState.days) === 1 ? "" : "s"} overdue. Examine the employee's documents and attest as soon as possible.`; cta = { label: "Complete Section 2", attr: "data-rr-i9-section2", primary: true }; }
+    else if (dueState && dueState.dueToday) { oneLiner = `Section 2 is due today (${fmtD(dueState.deadline)}). Examine the employee's documents and attest.`; cta = { label: "Complete Section 2", attr: "data-rr-i9-section2", primary: true }; }
+    else if (dueState) { oneLiner = `Section 1 is signed. Section 2 (your document review) is due by ${fmtD(dueState.deadline)} — ${dueState.days} business day${dueState.days === 1 ? "" : "s"} left.`; cta = { label: "Complete Section 2", attr: "data-rr-i9-section2", primary: true }; }
+    else { oneLiner = "Section 1 is signed. Complete Section 2 — examine the employee's documents and attest."; cta = { label: "Complete Section 2", attr: "data-rr-i9-section2", primary: true }; }
+  } else if (st === "verified") {
+    if (!rec.pdf_path) { oneLiner = "Section 2 is complete. The sealed Form I-9 PDF is generating — it usually appears within a minute."; cta = { label: "Generate it now", attr: "data-rr-i9-seal-now", primary: false }; }
+    else if (der.key === "verified_expiring") { const dl = der.daysLeft; oneLiner = der.reverDate ? `Verified. The employee's work authorization ${dl != null && dl < 0 ? "expired" : "expires"} ${fmtD(der.reverDate)}${dl != null && dl >= 0 ? ` — ${dl} day${dl === 1 ? "" : "s"} away` : ""}. Plan reverification (Supplement B).` : "Verified — work authorization expiring soon. Plan reverification (Supplement B)."; cta = { label: "View Form I-9", attr: 'data-rr-i9-pdf="form"', primary: false }; }
+    else { oneLiner = `Verified${rec.section2_completed_at ? " " + fmtD(rec.section2_completed_at) : ""}${rec.section2_completed_by_name ? " by " + rec.section2_completed_by_name : ""}. The sealed Form I-9 is on file.`; cta = { label: "View Form I-9", attr: 'data-rr-i9-pdf="form"', primary: false }; }
   }
 
   // Section 1 summary.
@@ -10520,35 +10554,44 @@ function _i9PanelHtml(i9, d) {
     sealHtml = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Generated once Section 2 is complete (status Verified).</div>`;
   }
 
-  const ret = _i9RetentionUntil(rec, d);
-  const events = i9 && Array.isArray(i9.events) ? i9.events : [];
+  const ret = _i9RetentionUntil(rec, drv);
+  const detailsOpen = !(rec && st === "verified" && rec.pdf_path);
+  const sumStyle = "cursor:pointer;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);padding:4px 0";
 
   return `
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Work authorization · Form I-9</div>
-          <div class="dd-section-sub">Employment Eligibility Verification. Section 1 is the employee's; Section 2 (your document review) is due within 3 business days of the first day of work.</div>
+          <div class="dd-section-sub">Employment Eligibility Verification — Section 1 is the employee's; Section 2 is the employer's document review.</div>
         </div>
         ${_i9StatusPill(der)}
       </div>
-      ${clock}
-      ${rec && rec.needs_correction_note ? `<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm);color:#991b1b"><strong>Correction requested:</strong> ${escapeHtml(rec.needs_correction_note)}</div>` : ""}
-      <div class="dd-row" style="grid-template-columns:160px 1fr"><label>First day of employment</label><div style="font-size:var(--fs-sm);color:var(--text)">${rec && rec.first_day_of_employment ? escapeHtml(fmtD(rec.first_day_of_employment)) : '<span style="color:var(--text-subtle)">Not set — set this so the 3-business-day clock can run.</span>'}</div></div>
-      <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 1 — employee</label><div>${s1Html}</div></div>
-      <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 2 — employer</label><div>${s2Html}</div></div>
-      <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Sealed document</label><div>${sealHtml}</div></div>
-      <div class="dd-row" style="grid-template-columns:1fr"><div style="display:flex;gap:8px;flex-wrap:wrap">${actions.join("")}</div></div>
+      ${progressBar}
+      <div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-top:12px">
+        <div style="flex:1 1 260px;min-width:0;font-size:var(--fs-sm);color:var(--text);line-height:1.5">${escapeHtml(oneLiner)}</div>
+        ${cta ? `<button type="button" class="btn btn-sm ${cta.primary ? "btn-primary" : ""}" ${cta.attr}>${escapeHtml(cta.label)}</button>` : ""}
+      </div>
+
+      <details ${detailsOpen ? "open" : ""} style="margin-top:14px">
+        <summary style="${sumStyle}">Details</summary>
+        <div style="margin-top:6px">
+          <div class="dd-row" style="grid-template-columns:160px 1fr"><label>First day of employment</label><div style="font-size:var(--fs-sm);color:var(--text)">${rec && rec.first_day_of_employment ? escapeHtml(fmtD(rec.first_day_of_employment)) : '<span style="color:var(--text-subtle)">Not set</span>'}</div></div>
+          <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 1 — employee</label><div>${s1Html}</div></div>
+          <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 2 — employer</label><div>${s2Html}</div></div>
+          <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Sealed document</label><div>${sealHtml}</div></div>
+          <div class="dd-row" style="grid-template-columns:1fr"><div style="display:flex;gap:8px;flex-wrap:wrap">${actions.join("")}</div></div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.45">Not legal advice. ${ret ? `Retain this form until at least <strong>${escapeHtml(new Date(ret.date + "T12:00:00").toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}))}</strong> — 3 years after the date employment began, or 1 year after employment ends if later. ` : "Retain completed forms 3 years after hire, or 1 year after employment ends — whichever is later. "}The employee chooses which acceptable document(s) to present; do not specify or reject valid documents.</div>
+        </div>
+      </details>
+
       ${events.length ? `
-      <div class="dd-row" style="grid-template-columns:1fr">
-        <details style="font-size:var(--fs-sm)">
-          <summary style="cursor:pointer;color:var(--text-subtle);font-weight:600">I-9 history · ${events.length} event${events.length === 1 ? "" : "s"}</summary>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
-            ${events.slice().reverse().map(ev => `<div style="display:flex;gap:8px;color:var(--text-subtle)"><span style="white-space:nowrap">${escapeHtml(new Date(ev.created_at).toLocaleString())}</span><span style="color:var(--text)">${escapeHtml(_i9EventLabel(ev))}</span></div>`).join("")}
-          </div>
-        </details>
-      </div>` : ""}
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.45">Not legal advice. ${ret ? `Retain this form until at least <strong>${escapeHtml(new Date(ret.date + "T12:00:00").toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}))}</strong> — 3 years after the date employment began, or 1 year after employment ends if later. ` : "Retain completed forms 3 years after hire, or 1 year after employment ends — whichever is later. "}Anti-discrimination rules apply: the employee chooses which acceptable document(s) to present; do not specify or reject valid documents.</div>
+      <details style="margin-top:8px">
+        <summary style="${sumStyle}">Activity · ${events.length} event${events.length === 1 ? "" : "s"}</summary>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+          ${events.slice().reverse().map(ev => `<div style="display:flex;gap:10px;font-size:var(--fs-xs);line-height:1.4"><span style="white-space:nowrap;color:var(--text-subtle);flex:0 0 auto">${escapeHtml(new Date(ev.created_at).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}</span><span style="color:var(--text)">${escapeHtml(_i9EventLabel(ev))}</span></div>`).join("")}
+        </div>
+      </details>` : ""}
     </div>`;
 }
 
