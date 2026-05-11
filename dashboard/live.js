@@ -9881,6 +9881,11 @@ async function loadDriverDrawer(driverId) {
       .limit(50);
     _ddDriver.empReports = reps || [];
   } catch { _ddDriver.empReports = []; }
+  // Form I-9 record + audit trail (employment-eligibility verification).
+  try {
+    const { data: i9 } = await sb.rpc("i9_get", { p_driver_id: driverId });
+    _ddDriver.i9 = i9 || { record: null, events: [] };
+  } catch { _ddDriver.i9 = { record: null, events: [] }; }
 
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
@@ -10160,6 +10165,8 @@ async function renderEmploymentTab(body, d) {
       <div class="dd-row"><label>Training date</label><input type="date" data-rr-dd-field="training_date" value="${v(_ddVal("training_date", d.training_date))}"/></div>
     </div>
 
+    ${_i9PanelHtml(_ddDriver?.i9, d)}
+
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
@@ -10214,6 +10221,572 @@ function _empSavedReportsList(reps) {
       ${rows}
     </div>`;
 }
+
+// ════════════════════════════════════════════════════════════════════
+// Form I-9 · Employment Eligibility Verification
+// The employee completes Section 1 (in the driver app or recorded here);
+// the employer reviews identity / work-authorization documents and
+// completes Section 2 — within 3 business days of the first day of work.
+// NOT legal advice — the official Form I-9 (USCIS edition 08/01/23) and
+// its instructions govern. The official-PDF render lands in a later
+// slice; this captures the data + attestations + an audit trail.
+// ════════════════════════════════════════════════════════════════════
+
+const _I9_STATUS = {
+  not_started:       { label: "Not started",        css: "background:#f1f5f9;color:#475569" },
+  section1_complete: { label: "Section 1 complete", css: "background:#fef9c3;color:#854d0e" },
+  verified:          { label: "Verified",           css: "background:#dcfce7;color:#166534" },
+  needs_correction:  { label: "Needs correction",   css: "background:#fee2e2;color:#991b1b" },
+};
+const _I9_CITIZEN_LABELS = {
+  citizen:    "U.S. citizen",
+  national:   "Noncitizen national of the U.S.",
+  lpr:        "Lawful permanent resident",
+  authorized: "Noncitizen authorized to work",
+};
+const _I9_DOC_OPTIONS = {
+  A: ["U.S. Passport or U.S. Passport Card",
+      "Permanent Resident Card (Form I-551)",
+      "Foreign passport with temporary I-551 stamp or MRIV",
+      "Employment Authorization Document with photo (Form I-766)",
+      "Foreign passport with Form I-94 (certain nonimmigrants)",
+      "FSM or RMI passport with Form I-94"],
+  B: ["Driver's license or state ID card with photo",
+      "Government-issued ID card with photo",
+      "School ID card with photo",
+      "Voter registration card",
+      "U.S. Military card or draft record",
+      "Military dependent's ID card",
+      "U.S. Coast Guard Merchant Mariner Card",
+      "Native American tribal document",
+      "School record or report card (under 18)"],
+  C: ["Unrestricted Social Security card",
+      "Certified copy of birth certificate (U.S.)",
+      "Consular Report of Birth Abroad (FS-240 / FS-545 / DS-1350)",
+      "Native American tribal document",
+      "U.S. Citizen ID Card (Form I-197)",
+      "ID Card for Use of Resident Citizen (Form I-179)",
+      "Employment authorization document issued by DHS"],
+};
+
+// US federal holidays (observed) for the years we need the 3-business-day
+// I-9 clock to cover. New Year's, MLK, Washington, Memorial, Juneteenth,
+// Independence, Labor, Columbus, Veterans, Thanksgiving, Christmas —
+// with the Sat→Fri / Sun→Mon observance shift applied.
+function _i9FedHolidays(year) {
+  const nth = (m, weekday, n) => { // n-th `weekday` of month m (0-based weekday: 0=Sun)
+    const d = new Date(Date.UTC(year, m, 1));
+    let count = 0;
+    while (true) { if (d.getUTCDay() === weekday) { count++; if (count === n) break; } d.setUTCDate(d.getUTCDate() + 1); }
+    return d;
+  };
+  const last = (m, weekday) => {
+    const d = new Date(Date.UTC(year, m + 1, 0));
+    while (d.getUTCDay() !== weekday) d.setUTCDate(d.getUTCDate() - 1);
+    return d;
+  };
+  const fixed = [[0,1],[5,19],[6,4],[10,11],[11,25]].map(([m,day]) => new Date(Date.UTC(year, m, day)));
+  const float = [nth(0,1,3), nth(1,1,3), last(4,1), nth(8,1,1), nth(9,1,2), nth(10,4,4)];
+  const all = [...fixed, ...float];
+  const out = new Set();
+  for (const d of all) {
+    const dow = d.getUTCDay();
+    if (dow === 6) d.setUTCDate(d.getUTCDate() - 1);     // Sat → observed Fri
+    else if (dow === 0) d.setUTCDate(d.getUTCDate() + 1); // Sun → observed Mon
+    out.add(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+let _i9HolidayCache = {};
+function _i9IsBusinessDay(d) {
+  const dow = d.getUTCDay();
+  if (dow === 0 || dow === 6) return false;
+  const y = d.getUTCFullYear();
+  if (!_i9HolidayCache[y]) _i9HolidayCache[y] = _i9FedHolidays(y);
+  return !_i9HolidayCache[y].has(d.toISOString().slice(0, 10));
+}
+// The Section-2 deadline: the employee's first day counts as business
+// day 1 if it is a business day; the document review must be done by the
+// 3rd business day. (If the first day is not a business day, the count
+// starts from the next business day.) Returns an ISO date string.
+function _i9Section2Deadline(firstDayIso) {
+  if (!firstDayIso) return null;
+  let d = new Date(firstDayIso + "T00:00:00Z");
+  let count = 0;
+  // Advance to the first business day on/after the start.
+  while (!_i9IsBusinessDay(d)) d.setUTCDate(d.getUTCDate() + 1);
+  count = 1;
+  while (count < 3) { d.setUTCDate(d.getUTCDate() + 1); if (_i9IsBusinessDay(d)) count++; }
+  return d.toISOString().slice(0, 10);
+}
+function _i9Section2DueState(rec) {
+  if (!rec || !rec.first_day_of_employment) return null;
+  const deadline = _i9Section2Deadline(rec.first_day_of_employment);
+  if (!deadline) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const msDay = 86400000;
+  const days = Math.round((new Date(deadline + "T00:00:00Z") - new Date(today + "T00:00:00Z")) / msDay);
+  return { deadline, days, overdue: days < 0, dueToday: days === 0 };
+}
+
+function _i9PanelHtml(i9, d) {
+  const rec = i9 && i9.record ? i9.record : null;
+  const st  = rec ? (rec.status || "not_started") : "not_started";
+  const meta = _I9_STATUS[st] || _I9_STATUS.not_started;
+  const s1 = rec && rec.section1 && typeof rec.section1 === "object" ? rec.section1 : {};
+  const s2 = rec && rec.section2 && typeof rec.section2 === "object" ? rec.section2 : {};
+  const fmtD = (x) => x ? new Date(x).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+  const fmtTs = (x) => x ? new Date(x).toLocaleString() : "—";
+
+  // 3-business-day Section-2 clock banner.
+  let clock = "";
+  if (rec && st !== "verified") {
+    const due = _i9Section2DueState(rec);
+    if (due) {
+      const tone = due.overdue ? "background:#fee2e2;border-color:#fecaca;color:#991b1b"
+                 : due.days <= 1 ? "background:#fef3c7;border-color:#fde68a;color:#92400e"
+                 : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af";
+      const msg = due.overdue ? `Section 2 was due ${fmtD(due.deadline)} — ${Math.abs(due.days)} business day${Math.abs(due.days) === 1 ? "" : "s"} overdue.`
+                : due.dueToday ? `Section 2 is due today (${fmtD(due.deadline)}).`
+                : `Section 2 is due by ${fmtD(due.deadline)} — ${due.days} business day${due.days === 1 ? "" : "s"} left.`;
+      clock = `<div style="border:1px solid;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm);${tone}">${escapeHtml(msg)}</div>`;
+    }
+  }
+
+  // Section 1 summary.
+  let s1Html;
+  if (rec && rec.section1_completed_at) {
+    const name = [s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ").trim() || "—";
+    s1Html = `
+      <div style="font-size:var(--fs-sm);color:var(--text);line-height:1.6">
+        <div><strong>${escapeHtml(name)}</strong> — ${escapeHtml(_I9_CITIZEN_LABELS[s1.citizen_status] || s1.citizen_status || "—")}</div>
+        <div style="color:var(--text-subtle)">Completed ${escapeHtml(fmtTs(rec.section1_completed_at))} · ${rec.section1_completed_via === "driver_app" ? "by the employee in the app" : "recorded by the employer"}</div>
+      </div>`;
+  } else {
+    s1Html = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Not yet completed. The employee can fill this out in the RouteReady app, or you can record it here.</div>`;
+  }
+
+  // Section 2 summary.
+  let s2Html;
+  if (rec && rec.section2_completed_at) {
+    const docs = Array.isArray(s2.documents) ? s2.documents : [];
+    s2Html = `
+      <div style="font-size:var(--fs-sm);color:var(--text);line-height:1.6">
+        <div>${escapeHtml(s2.list_used === "A" ? "List A document" : "List B + List C documents")} · ${escapeHtml(s2.exam_method === "remote_alternative" ? "DHS alternative remote procedure" : "physical in-person examination")}</div>
+        ${docs.map(x => `<div style="color:var(--text-subtle)">• ${escapeHtml(x.title || "—")}${x.number ? " — #" + escapeHtml(x.number) : ""}${x.expires_on ? " — exp. " + escapeHtml(fmtD(x.expires_on)) : ""}</div>`).join("")}
+        <div style="color:var(--text-subtle)">Verified ${escapeHtml(fmtTs(rec.section2_completed_at))}${rec.section2_completed_by_name ? " by " + escapeHtml(rec.section2_completed_by_name) : ""}${rec.section2_completed_by_title ? " (" + escapeHtml(rec.section2_completed_by_title) + ")" : ""}</div>
+        ${Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length ? `<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">${rec.section2_document_paths.map((p,i)=>`<button type="button" class="btn btn-sm" data-rr-i9-doc-open="${escapeHtml(p)}">Document ${i+1}</button>`).join("")}</div>` : ""}
+      </div>`;
+  } else {
+    s2Html = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Not yet completed.</div>`;
+  }
+
+  const canDoS2 = rec && (st === "section1_complete" || (st === "needs_correction" && rec.section1_completed_at));
+  const actions = [];
+  actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-firstday>${rec && rec.first_day_of_employment ? "Change first day" : "Set first day"}</button>`);
+  if (!rec || st === "not_started" || st === "needs_correction") {
+    actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-section1>${rec && rec.section1_completed_at ? "Edit Section 1" : "Record Section 1"}</button>`);
+  }
+  if (canDoS2) actions.push(`<button type="button" class="btn btn-sm btn-primary" data-rr-i9-section2>${rec && rec.section2_completed_at ? "Update Section 2" : "Complete Section 2"}</button>`);
+  if (rec && st === "verified") actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-reopen>Reopen for correction</button>`);
+
+  const events = i9 && Array.isArray(i9.events) ? i9.events : [];
+
+  return `
+    <div class="dd-section">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Work authorization · Form I-9</div>
+          <div class="dd-section-sub">Employment Eligibility Verification. Section 1 is the employee's; Section 2 (your document review) is due within 3 business days of the first day of work.</div>
+        </div>
+        <span class="dd-badge" style="${meta.css}">${escapeHtml(meta.label)}</span>
+      </div>
+      ${clock}
+      ${rec && rec.needs_correction_note ? `<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm);color:#991b1b"><strong>Correction requested:</strong> ${escapeHtml(rec.needs_correction_note)}</div>` : ""}
+      <div class="dd-row" style="grid-template-columns:160px 1fr"><label>First day of employment</label><div style="font-size:var(--fs-sm);color:var(--text)">${rec && rec.first_day_of_employment ? escapeHtml(fmtD(rec.first_day_of_employment)) : '<span style="color:var(--text-subtle)">Not set — set this so the 3-business-day clock can run.</span>'}</div></div>
+      <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 1 — employee</label><div>${s1Html}</div></div>
+      <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 2 — employer</label><div>${s2Html}</div></div>
+      <div class="dd-row" style="grid-template-columns:1fr"><div style="display:flex;gap:8px;flex-wrap:wrap">${actions.join("")}</div></div>
+      ${events.length ? `
+      <div class="dd-row" style="grid-template-columns:1fr">
+        <details style="font-size:var(--fs-sm)">
+          <summary style="cursor:pointer;color:var(--text-subtle);font-weight:600">I-9 history · ${events.length} event${events.length === 1 ? "" : "s"}</summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+            ${events.slice().reverse().map(ev => `<div style="display:flex;gap:8px;color:var(--text-subtle)"><span style="white-space:nowrap">${escapeHtml(new Date(ev.created_at).toLocaleString())}</span><span style="color:var(--text)">${escapeHtml(_i9EventLabel(ev))}</span></div>`).join("")}
+          </div>
+        </details>
+      </div>` : ""}
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.45">Not legal advice. Retain completed forms per the federal rule (3 years after hire, or 1 year after employment ends — whichever is later). Anti-discrimination rules apply: the employee chooses which acceptable document(s) to present; do not specify or reject valid documents.</div>
+    </div>`;
+}
+
+function _i9EventLabel(ev) {
+  const who = ev.actor_kind === "driver" ? "Employee" : ev.actor_kind === "system" ? "System" : (ev.actor_name || "Dispatcher");
+  const m = {
+    created: "I-9 record created",
+    first_day_set: "First day of employment set",
+    section1_saved: "Section 1 draft saved",
+    section1_consent: "Section 1 e-sign consent accepted",
+    section1_completed: "Section 1 completed & signed",
+    section2_completed: "Section 2 completed & attested",
+    reopened: "Reopened for correction",
+  };
+  let txt = m[ev.kind] || ev.kind;
+  if (ev.kind === "reopened" && ev.event_data && ev.event_data.reason) txt += ` — "${ev.event_data.reason}"`;
+  return `${who}: ${txt}`;
+}
+
+// ── shared signature-pad helper for the I-9 modals ─────────────────────
+function _i9PadInit(canvasId, clearId, hintId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return { hasInk: () => false, dataUrl: () => "" };
+  const ctx = canvas.getContext("2d");
+  const hint = document.getElementById(hintId);
+  function fit() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.round(rect.width  * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0f172a";
+  }
+  fit();
+  let drawing = false, lx = 0, ly = 0, ink = false;
+  const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  canvas.addEventListener("pointerdown", (e) => { canvas.setPointerCapture(e.pointerId); drawing = true; const p = pos(e); lx = p.x; ly = p.y; e.preventDefault(); ink = true; if (hint) hint.style.display = "none"; });
+  canvas.addEventListener("pointermove", (e) => { if (!drawing) return; const p = pos(e); ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(p.x, p.y); ctx.stroke(); lx = p.x; ly = p.y; });
+  const end = () => { drawing = false; };
+  canvas.addEventListener("pointerup", end); canvas.addEventListener("pointercancel", end); canvas.addEventListener("pointerleave", end);
+  document.getElementById(clearId)?.addEventListener("click", () => { ctx.clearRect(0, 0, canvas.width, canvas.height); fit(); ink = false; if (hint) hint.style.display = ""; });
+  return { hasInk: () => ink, dataUrl: () => canvas.toDataURL("image/png") };
+}
+
+function _i9ModalShell(title, sub, bodyHtml, footHtml) {
+  document.getElementById("rr-i9-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-i9-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">${escapeHtml(title)}</div>${sub ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(sub)}</div>` : ""}</div>
+        <button type="button" class="btn btn-sm" data-rr-i9-close>Close</button>
+      </div>
+      <div style="padding:20px 22px;overflow:auto;flex:1">${bodyHtml}</div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">${footHtml}</div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-rr-i9-close]")) m.remove(); });
+  return m;
+}
+
+// ── Section 1, recorded by the employer on the employee's behalf ───────
+const _I9_EMPLOYER_S1_ATTEST =
+  "I attest that the information above was provided by the employee and entered on the employee's behalf, and that the employee will be given the opportunity to review and sign Section 1.";
+async function openI9Section1Modal(driverId) {
+  const i9 = _ddDriver?.i9?.record || null;
+  const d = _ddDriver?.driver || {};
+  const s1 = i9 && i9.section1 && typeof i9.section1 === "object" ? i9.section1 : {};
+  const g = (k, fb = "") => escapeHtml(s1[k] != null && s1[k] !== "" ? String(s1[k]) : fb);
+  const cs = s1.citizen_status || "";
+  const fld = (id, label, opts = {}) => `<label style="display:flex;flex-direction:column;gap:3px;${opts.flex ? `flex:${opts.flex};` : ""}min-width:0"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(label)}${opts.req ? ' *' : ''}</span><input type="${opts.type || 'text'}" id="${id}" ${opts.attrs || ''} value="${opts.value || ''}" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>`;
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Enter Section 1 exactly as the employee provided it. The employee should review and sign Section 1 — ideally in the RouteReady app. Recording it here is a bridge for employees who can't use the app.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${fld("i9e-last", "Last name", { req: true, flex: "1 1 140px", value: g("last_name", d.last_name || "") })}
+        ${fld("i9e-first", "First name", { req: true, flex: "1 1 140px", value: g("first_name", d.first_name || "") })}
+        ${fld("i9e-mi", "M.I.", { flex: "0 1 70px", attrs: 'maxlength="3"', value: g("middle_initial") })}
+      </div>
+      ${fld("i9e-other", "Other last names used", { value: g("other_last_names") })}
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${fld("i9e-street", "Street address", { req: true, flex: "1 1 220px", value: g("addr_street") })}
+        ${fld("i9e-apt", "Apt.", { flex: "0 1 80px", value: g("addr_apt") })}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${fld("i9e-city", "City", { req: true, flex: "1 1 160px", value: g("addr_city") })}
+        ${fld("i9e-state", "State", { req: true, flex: "0 1 80px", attrs: 'maxlength="2"', value: g("addr_state") })}
+        ${fld("i9e-zip", "ZIP", { req: true, flex: "0 1 110px", value: g("addr_zip") })}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${fld("i9e-dob", "Date of birth", { req: true, type: "date", flex: "1 1 150px", value: g("dob", d.birthday || "") })}
+        ${fld("i9e-ssn", "SSN (optional unless E-Verify)", { flex: "1 1 150px", value: g("ssn") })}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${fld("i9e-email", "Email", { type: "email", flex: "1 1 180px", value: g("email", d.email || "") })}
+        ${fld("i9e-phone", "Phone", { type: "tel", flex: "1 1 150px", value: g("phone", d.phone || "") })}
+      </div>
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">Citizenship / immigration status *</div>
+        ${[["citizen","A citizen of the United States"],["national","A noncitizen national of the United States"],["lpr","A lawful permanent resident"],["authorized","A noncitizen authorized to work"]].map(([v,l],i)=>`<label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9e-cs" value="${v}" ${cs===v?"checked":""}> ${i+1}. ${escapeHtml(l)}</label>`).join("")}
+        <div id="i9e-lpr" style="display:${cs==="lpr"?"block":"none"};margin-top:6px">${fld("i9e-lprnum","USCIS / A-Number",{req:true,value:g("lpr_uscis_number")})}</div>
+        <div id="i9e-auth" style="display:${cs==="authorized"?"flex":"none"};flex-direction:column;gap:8px;margin-top:6px">
+          ${fld("i9e-authexp","Work auth. expires (or N/A)",{value:g("auth_expires")})}
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Document number type:</div>
+          ${[["uscis","USCIS / A-Number"],["i94","Form I-94 Admission #"],["passport","Foreign passport #"]].map(([v,l])=>`<label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="i9e-authkind" value="${v}" ${(s1.auth_doc_kind||"uscis")===v?"checked":""}> ${escapeHtml(l)}</label>`).join("")}
+          ${fld("i9e-authnum","Document number",{req:true,value:g("auth_doc_number")})}
+          <div id="i9e-authcountry" style="display:${s1.auth_doc_kind==="passport"?"block":"none"}">${fld("i9e-authcountrytxt","Country of issuance",{req:true,value:g("auth_passport_country")})}</div>
+        </div>
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:var(--fs-sm);line-height:1.5"><input type="checkbox" id="i9e-attest" style="margin-top:3px"> ${escapeHtml(_I9_EMPLOYER_S1_ATTEST)}</label>
+    </div>`;
+  const foot = `<button type="button" class="btn" data-rr-i9-close>Cancel</button><button type="button" class="btn btn-primary" id="i9e-save">Save Section 1</button>`;
+  const m = _i9ModalShell("Record Section 1", "Employee Information and Attestation · Form I-9", body, foot);
+  const sync = () => {
+    const v = m.querySelector('input[name="i9e-cs"]:checked')?.value || "";
+    m.querySelector("#i9e-lpr").style.display = v === "lpr" ? "block" : "none";
+    m.querySelector("#i9e-auth").style.display = v === "authorized" ? "flex" : "none";
+  };
+  m.querySelectorAll('input[name="i9e-cs"]').forEach(r => r.addEventListener("change", sync));
+  m.querySelectorAll('input[name="i9e-authkind"]').forEach(r => r.addEventListener("change", () => {
+    m.querySelector("#i9e-authcountry").style.display = (m.querySelector('input[name="i9e-authkind"]:checked')?.value === "passport") ? "block" : "none";
+  }));
+  m.querySelector("#i9e-save").addEventListener("click", async () => {
+    const val = (id) => (m.querySelector("#" + id)?.value || "").trim();
+    const csv = m.querySelector('input[name="i9e-cs"]:checked')?.value || "";
+    const authKind = m.querySelector('input[name="i9e-authkind"]:checked')?.value || "uscis";
+    if (!val("i9e-last") || !val("i9e-first") || !val("i9e-street") || !val("i9e-city") || !val("i9e-state") || !val("i9e-zip") || !val("i9e-dob")) { toast("Fill in the required name, address, and date of birth.", "warn"); return; }
+    if (!["citizen","national","lpr","authorized"].includes(csv)) { toast("Select the citizenship / immigration status.", "warn"); return; }
+    if (csv === "lpr" && !val("i9e-lprnum")) { toast("Enter the USCIS / A-Number.", "warn"); return; }
+    if (csv === "authorized" && !val("i9e-authnum")) { toast("Enter the work-authorization document number.", "warn"); return; }
+    if (!m.querySelector("#i9e-attest")?.checked) { toast("Confirm the attestation to save.", "warn"); return; }
+    const section1 = {
+      last_name: val("i9e-last"), first_name: val("i9e-first"), middle_initial: val("i9e-mi"), other_last_names: val("i9e-other"),
+      addr_street: val("i9e-street"), addr_apt: val("i9e-apt"), addr_city: val("i9e-city"), addr_state: val("i9e-state").toUpperCase(), addr_zip: val("i9e-zip"),
+      dob: val("i9e-dob"), ssn: val("i9e-ssn"), email: val("i9e-email"), phone: val("i9e-phone"),
+      citizen_status: csv,
+      lpr_uscis_number: csv === "lpr" ? val("i9e-lprnum") : "",
+      auth_expires: csv === "authorized" ? val("i9e-authexp") : "",
+      auth_doc_kind: csv === "authorized" ? authKind : "",
+      auth_doc_number: csv === "authorized" ? val("i9e-authnum") : "",
+      auth_passport_country: csv === "authorized" && authKind === "passport" ? val("i9e-authcountrytxt") : "",
+      recorded_by_employer: true,
+    };
+    const btn = m.querySelector("#i9e-save"); btn.disabled = true; btn.textContent = "Saving…";
+    const { error } = await sb.rpc("i9_save_section1", { p_driver_id: driverId, p_section1: section1, p_complete: true, p_signature: null, p_consent_version: "i9-s1-employer-bridge-v1", p_consent_text: _I9_EMPLOYER_S1_ATTEST });
+    if (error) { btn.disabled = false; btn.textContent = "Save Section 1"; toast("Couldn't save: " + error.message, "warn"); return; }
+    m.remove();
+    toast("Section 1 recorded ✓", "success");
+    await loadDriverDrawer(driverId);
+  });
+}
+
+// ── Section 2, the employer's document review + attestation ────────────
+function _i9DocRowHtml(idx, listLetter, existing) {
+  const ex = existing || {};
+  const opts = _I9_DOC_OPTIONS[listLetter] || [];
+  const sel = ex.title && opts.includes(ex.title) ? ex.title : (ex.title ? "__other__" : "");
+  return `
+    <div class="i9-doc-row" data-i9-doc="${idx}" data-i9-list="${listLetter}" style="border:1px solid var(--border);border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)">List ${listLetter} document</div>
+      <select data-i9-f="title" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
+        <option value="">— Select a document —</option>
+        ${opts.map(o => `<option value="${escapeHtml(o)}" ${sel === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
+        <option value="__other__" ${sel === "__other__" ? "selected" : ""}>Other (type below)</option>
+      </select>
+      <input type="text" data-i9-f="title_other" placeholder="Document title" value="${sel === "__other__" ? escapeHtml(ex.title) : ""}" style="display:${sel === "__other__" ? "block" : "none"};padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" data-i9-f="issuing_authority" placeholder="Issuing authority" value="${escapeHtml(ex.issuing_authority || "")}" style="flex:1 1 160px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
+        <input type="text" data-i9-f="number" placeholder="Document number" value="${escapeHtml(ex.number || "")}" style="flex:1 1 160px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
+        <label style="display:flex;flex-direction:column;gap:2px;flex:0 1 150px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Expiration (if any)</span><input type="date" data-i9-f="expires_on" value="${escapeHtml(ex.expires_on || "")}" style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>
+      </div>
+    </div>`;
+}
+const _I9_S2_ATTEST_BASE =
+  "I attest, under penalty of perjury, that (1) I have examined the documentation presented by the above-named employee, (2) the above-listed documentation appears to be genuine and to relate to the employee named, and (3) to the best of my knowledge, the employee is authorized to work in the United States.";
+const _I9_S2_ATTEST_REMOTE =
+  " I further attest that I examined the documentation remotely in accordance with the DHS-authorized alternative procedure, and that the employer is enrolled in and in good standing with E-Verify.";
+async function openI9Section2Modal(driverId) {
+  const rec = _ddDriver?.i9?.record || null;
+  const s2 = rec && rec.section2 && typeof rec.section2 === "object" ? rec.section2 : {};
+  const exam = s2.exam_method || "in_person";
+  const list = s2.list_used || "A";
+  const docs = Array.isArray(s2.documents) ? s2.documents : [];
+  const due = rec ? _i9Section2DueState(rec) : null;
+  const fmtD = (x) => x ? new Date(x + "T00:00:00Z").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:16px">
+      ${due ? `<div style="border:1px solid;border-radius:8px;padding:8px 12px;font-size:var(--fs-sm);${due.overdue ? "background:#fee2e2;border-color:#fecaca;color:#991b1b" : due.days<=1 ? "background:#fef3c7;border-color:#fde68a;color:#92400e" : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay below.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">How were the documents examined?</div>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-exam" value="remote_alternative" ${exam==="remote_alternative"?"checked":""} style="margin-top:3px"> <span>DHS-authorized alternative procedure (remote). <span style="color:var(--text-subtle)">Available only to employers enrolled in E-Verify and in good standing — keep copies of the documents and conduct a live video interaction.</span></span></label>
+      </div>
+
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">Which documents did the employee present?</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-list" value="A" ${list==="A"?"checked":""}> One document from <strong>List A</strong> (establishes identity and work authorization)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:4px 0;cursor:pointer"><input type="radio" name="i9-list" value="BC" ${list==="BC"?"checked":""}> One document from <strong>List B</strong> (identity) and one from <strong>List C</strong> (work authorization)</label>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">The employee decides which acceptable document(s) to present. You may not require specific documents.</div>
+      </div>
+
+      <div id="i9-doc-rows" style="display:flex;flex-direction:column;gap:10px"></div>
+
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Additional information (reverification, extensions, delay reason, etc.)</span><textarea id="i9-s2-addl" rows="2" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);resize:vertical">${escapeHtml(s2.additional_info || "")}</textarea></label>
+
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">Document copies (optional)</div>
+        <input type="file" id="i9-s2-files" multiple accept="image/*,application/pdf" style="font:inherit;font-size:var(--fs-sm)">
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">If you keep copies (required for the remote alternative procedure), attach them here. Stored privately on this driver's record.</div>
+        ${Array.isArray(rec?.section2_document_paths)&&rec.section2_document_paths.length?`<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">${rec.section2_document_paths.length} file(s) already on file — uploading new files adds to them.</div>`:""}
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <label style="display:flex;flex-direction:column;gap:3px;flex:1 1 220px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Your title</span><input type="text" id="i9-s2-title" placeholder="e.g. Owner / Operations Manager" value="${escapeHtml(rec?.section2_completed_by_title || "")}" style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>
+      </div>
+
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:var(--fs-sm);line-height:1.55"><input type="checkbox" id="i9-s2-attest" style="margin-top:3px"> <span id="i9-s2-attest-text">${escapeHtml(_I9_S2_ATTEST_BASE)}</span></label>
+
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:6px">Your signature</div>
+        <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <canvas id="i9-s2-canvas" style="display:block;width:100%;height:160px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
+          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
+          <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
+        </div>
+        <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);width:100%">
+      </div>
+    </div>`;
+  const foot = `<button type="button" class="btn" data-rr-i9-close>Cancel</button><button type="button" class="btn btn-primary" id="i9-s2-submit">Complete &amp; attest Section 2</button>`;
+  const m = _i9ModalShell("Complete Section 2", "Employer Review and Attestation · Form I-9", body, foot);
+
+  const rowsBox = m.querySelector("#i9-doc-rows");
+  const renderRows = () => {
+    const listChoice = m.querySelector('input[name="i9-list"]:checked')?.value || "A";
+    if (listChoice === "A") {
+      rowsBox.innerHTML = _i9DocRowHtml(0, "A", docs[0] && (!docs[0].list || docs[0].list === "A") ? docs[0] : null);
+    } else {
+      const b = docs.find(x => x.list === "B") || docs[0];
+      const c = docs.find(x => x.list === "C") || docs[1];
+      rowsBox.innerHTML = _i9DocRowHtml(0, "B", b) + _i9DocRowHtml(1, "C", c);
+    }
+    rowsBox.querySelectorAll('[data-i9-f="title"]').forEach(sel => sel.addEventListener("change", () => {
+      const other = sel.parentElement.querySelector('[data-i9-f="title_other"]');
+      if (other) other.style.display = sel.value === "__other__" ? "block" : "none";
+    }));
+  };
+  renderRows();
+  m.querySelectorAll('input[name="i9-list"]').forEach(r => r.addEventListener("change", renderRows));
+
+  const attestText = m.querySelector("#i9-s2-attest-text");
+  const syncAttest = () => {
+    const remote = m.querySelector('input[name="i9-exam"]:checked')?.value === "remote_alternative";
+    attestText.textContent = _I9_S2_ATTEST_BASE + (remote ? _I9_S2_ATTEST_REMOTE : "");
+  };
+  m.querySelectorAll('input[name="i9-exam"]').forEach(r => r.addEventListener("change", syncAttest));
+  syncAttest();
+
+  const pad = _i9PadInit("i9-s2-canvas", "i9-s2-clear", "i9-s2-hint");
+
+  m.querySelector("#i9-s2-submit").addEventListener("click", async () => {
+    const examMethod = m.querySelector('input[name="i9-exam"]:checked')?.value || "in_person";
+    const listChoice = m.querySelector('input[name="i9-list"]:checked')?.value || "A";
+    const collected = [];
+    for (const row of rowsBox.querySelectorAll(".i9-doc-row")) {
+      const listLetter = row.getAttribute("data-i9-list");
+      const f = (name) => (row.querySelector(`[data-i9-f="${name}"]`)?.value || "").trim();
+      let title = f("title");
+      if (title === "__other__") title = f("title_other");
+      if (!title) { toast(`Select or enter the List ${listLetter} document title.`, "warn"); return; }
+      collected.push({ list: listLetter, title, issuing_authority: f("issuing_authority"), number: f("number"), expires_on: f("expires_on") || null });
+    }
+    if (listChoice === "A" && collected.length !== 1) { toast("List A requires exactly one document.", "warn"); return; }
+    if (listChoice === "BC" && collected.length !== 2) { toast("List B + List C requires two documents.", "warn"); return; }
+    if (!m.querySelector("#i9-s2-attest")?.checked) { toast("Confirm the attestation to complete Section 2.", "warn"); return; }
+    const typed = (m.querySelector("#i9-s2-typed").value || "").trim();
+    let sigMethod = null, sigData = null;
+    if (pad.hasInk()) { sigMethod = "drawn"; sigData = pad.dataUrl(); }
+    else if (typed.length >= 2) { sigMethod = "typed"; sigData = typed; }
+    else { toast("Draw or type your signature to attest.", "warn"); return; }
+
+    const btn = m.querySelector("#i9-s2-submit"); btn.disabled = true; btn.textContent = "Uploading…";
+    // Upload any document copies to the private driver-documents bucket.
+    const newPaths = [];
+    const files = Array.from(m.querySelector("#i9-s2-files")?.files || []);
+    for (const file of files) {
+      const safe = (file.name || "doc").replace(/[^\w.\-]+/g, "_");
+      const path = `${window.RR.dsp.id}/${driverId}/i9-${Date.now()}-${safe}`;
+      const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (upErr) { btn.disabled = false; btn.textContent = "Complete & attest Section 2"; toast("Upload failed: " + upErr.message, "warn"); return; }
+      newPaths.push(path);
+    }
+    const existingPaths = Array.isArray(rec?.section2_document_paths) ? rec.section2_document_paths : [];
+    const remote = examMethod === "remote_alternative";
+    btn.textContent = "Saving…";
+    const { error } = await sb.rpc("i9_complete_section2", {
+      p_driver_id: driverId,
+      p_section2: { exam_method: examMethod, list_used: listChoice === "A" ? "A" : "BC", documents: collected, additional_info: (m.querySelector("#i9-s2-addl").value || "").trim() },
+      p_document_paths: [...existingPaths, ...newPaths],
+      p_signature: { method: sigMethod, data: sigData },
+      p_signer_title: (m.querySelector("#i9-s2-title").value || "").trim() || null,
+      p_consent_version: remote ? "i9-s2-v1-remote" : "i9-s2-v1-inperson",
+      p_consent_text: _I9_S2_ATTEST_BASE + (remote ? _I9_S2_ATTEST_REMOTE : ""),
+    });
+    if (error) {
+      btn.disabled = false; btn.textContent = "Complete & attest Section 2";
+      // Roll back any freshly-uploaded files so we don't orphan them.
+      if (newPaths.length) sb.storage.from("driver-documents").remove(newPaths).catch(() => {});
+      toast("Couldn't complete Section 2: " + error.message, "warn");
+      return;
+    }
+    m.remove();
+    toast("Section 2 completed — Form I-9 verified ✓", "success");
+    await loadDriverDrawer(driverId);
+  });
+}
+
+// ── I-9 button delegation (driver-record drawer) ───────────────────────
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-dd-drawer")) return;
+  const driverId = _ddDriver?.driver?.id;
+  if (e.target.closest("[data-rr-i9-firstday]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!driverId) { toast("Save the driver first.", "warn"); return; }
+    const cur = _ddDriver?.i9?.record?.first_day_of_employment || _ddDriver?.driver?.hire_date || "";
+    const v = prompt("First day of employment (YYYY-MM-DD) — this anchors the 3-business-day Section 2 deadline:", cur);
+    if (v === null) return;
+    const iso = (v || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { toast("Enter the date as YYYY-MM-DD.", "warn"); return; }
+    const { error } = await sb.rpc("i9_set_first_day", { p_driver_id: driverId, p_date: iso });
+    if (error) { toast("Couldn't set the date: " + error.message, "warn"); return; }
+    toast("First day of employment set", "success");
+    await loadDriverDrawer(driverId);
+    return;
+  }
+  if (e.target.closest("[data-rr-i9-section1]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!driverId) { toast("Save the driver first.", "warn"); return; }
+    openI9Section1Modal(driverId); return;
+  }
+  if (e.target.closest("[data-rr-i9-section2]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!driverId) { toast("Save the driver first.", "warn"); return; }
+    openI9Section2Modal(driverId); return;
+  }
+  if (e.target.closest("[data-rr-i9-reopen]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!driverId) return;
+    const reason = prompt("Reopen this I-9 for correction. What needs to change? (the employee sees this in the app):");
+    if (reason === null) return;
+    if (!reason.trim()) { toast("Enter a reason.", "warn"); return; }
+    const { error } = await sb.rpc("i9_reopen", { p_driver_id: driverId, p_reason: reason.trim() });
+    if (error) { toast("Couldn't reopen: " + error.message, "warn"); return; }
+    toast("I-9 reopened for correction", "warn");
+    await loadDriverDrawer(driverId);
+    return;
+  }
+  const docOpen = e.target.closest("[data-rr-i9-doc-open]");
+  if (docOpen) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const path = docOpen.getAttribute("data-rr-i9-doc-open");
+    const { data: signed } = await sb.storage.from("driver-documents").createSignedUrl(path, 60 * 60);
+    if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+    else toast("Couldn't open that file.", "warn");
+    return;
+  }
+});
 
 // ════════════════════════════════════════════════════════════════════
 // Employment Documentation Report
