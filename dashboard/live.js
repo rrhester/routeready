@@ -2595,7 +2595,7 @@ async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
   // Paint skeleton rows immediately so the page feels instant.
-  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 9 : 8);
+  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 10 : 9);
 
   const [{ data: rows, error }, { data: appStatus }] = await Promise.all([
     sb.from("drivers")
@@ -2774,8 +2774,9 @@ function renderDriverTable(rows, error) {
   // columns; Active drops the Status column (everyone's "Active" in
   // this stage by definition) and turns the sortable columns into
   // clickable headers (data-rr-roster-sort).
+  const cbHeader = `<th class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" id="rr-roster-cb-all" aria-label="Select all drivers"></th>`;
   if (_driverStage === "onboarding") {
-    thead.innerHTML = `
+    thead.innerHTML = cbHeader + `
       <th>Driver</th>
       <th>Days since hire</th>
       <th>Background check</th>
@@ -2786,8 +2787,7 @@ function renderDriverTable(rows, error) {
       <th>App</th>
       <th></th>`;
   } else {
-    const colCount = 8;
-    thead.innerHTML = `
+    thead.innerHTML = cbHeader + `
       <th data-rr-roster-sort="name"   style="cursor:pointer;user-select:none">Driver${caret("name")}</th>
       <th>Station</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
@@ -2796,15 +2796,15 @@ function renderDriverTable(rows, error) {
       <th>Last coached</th>
       <th>App</th>
       <th></th>`;
-    thead.dataset.rrColCount = String(colCount);
+    thead.dataset.rrColCount = "9";
   }
 
-  const colspan = _driverStage === "onboarding" ? 9 : 8;
+  const colspan = _driverStage === "onboarding" ? 10 : 9;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
       error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
     })}</td></tr>`;
-    _updateRosterHint(0, 0);
+    _updateRosterHint(0, 0); _rosterBulkRefresh();
     return;
   }
 
@@ -2825,13 +2825,13 @@ function renderDriverTable(rows, error) {
       ? { title: "No one on leave", body: "Drivers marked on leave appear here." }
       : { title: "No drivers in this stage", body: "Nothing to show here right now." };
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty(cfg)}</td></tr>`;
-    _updateRosterHint(0, stageTotal);
+    _updateRosterHint(0, stageTotal); _rosterBulkRefresh();
     return;
   }
 
   const renderer = _driverStage === "onboarding" ? renderOnboardingRow : renderDriverRow;
   tbody.innerHTML = visible.map(renderer).join("");
-  _updateRosterHint(visible.length, stageTotal);
+  _updateRosterHint(visible.length, stageTotal); _rosterBulkRefresh();
 }
 
 function _rosterEmpty({ icon, title, body, error }) {
@@ -2853,8 +2853,10 @@ function _drSkelList(n = 6) {
 }
 
 function _rosterSkeleton(colspan, n = 6) {
-  const cells = Array.from({ length: colspan - 2 }, () => `<td><div class="dr-skel-cell" style="width:${50 + Math.round(Math.random()*40)}%"></div></td>`).join("");
+  // Layout: [checkbox][driver][...mid...][trailing] = colspan cells.
+  const cells = Array.from({ length: Math.max(0, colspan - 3) }, () => `<td><div class="dr-skel-cell" style="width:${50 + Math.round(Math.random()*40)}%"></div></td>`).join("");
   const row = `<tr style="pointer-events:none">
+    <td class="dr-cb"></td>
     <td><div class="cell-driver"><div class="dr-skel-avatar"></div><div style="flex:1"><div class="dr-skel-cell" style="width:55%"></div><div class="dr-skel-cell" style="width:38%;margin-top:6px;height:10px"></div></div></div></td>
     ${cells}
     <td></td>
@@ -2875,6 +2877,91 @@ function _updateRosterHint(shown, total) {
 function pillCheck(when) {
   if (when) return `<span class="tag" style="background:var(--green-soft);color:var(--green)">Done · ${new Date(when).toLocaleDateString()}</span>`;
   return `<span class="tag" style="background:var(--canvas);color:var(--text-subtle)">Pending</span>`;
+}
+
+// ── Roster bulk-select: Send message + Export CSV ──────────────────────
+let _rosterBulkWired = false;
+function _rosterBulkPicks() {
+  return Array.from(document.querySelectorAll('#rr-roster-table-wrap input.dr-cb-in[data-rr-roster-pick]:checked'))
+    .map((c) => c.getAttribute("data-rr-roster-pick"));
+}
+function _rosterBulkRefresh() {
+  if (!_rosterBulkWired) _wireRosterBulk();
+  const bar = document.getElementById("rr-roster-bulkbar");
+  if (!bar) return;
+  const picks = _rosterBulkPicks();
+  const all   = document.querySelectorAll('#rr-roster-table-wrap input.dr-cb-in[data-rr-roster-pick]');
+  const allCb = document.getElementById("rr-roster-cb-all");
+  if (picks.length === 0) { bar.hidden = true; if (allCb) { allCb.checked = false; allCb.indeterminate = false; } return; }
+  bar.hidden = false;
+  const cnt = document.getElementById("rr-roster-bulk-count");
+  if (cnt) cnt.textContent = picks.length === 1 ? "1 driver selected" : `${picks.length} drivers selected`;
+  if (allCb) { allCb.checked = picks.length === all.length; allCb.indeterminate = picks.length > 0 && picks.length < all.length; }
+}
+function _wireRosterBulk() {
+  if (_rosterBulkWired) return;
+  _rosterBulkWired = true;
+  const tw = document.getElementById("rr-roster-table-wrap");
+  // Delegate checkbox changes on the persistent table wrapper.
+  tw?.addEventListener("change", (e) => {
+    if (e.target?.id === "rr-roster-cb-all") {
+      const on = e.target.checked;
+      tw.querySelectorAll('input.dr-cb-in[data-rr-roster-pick]').forEach((c) => { c.checked = on; });
+      _rosterBulkRefresh();
+      return;
+    }
+    if (e.target?.matches?.('input.dr-cb-in[data-rr-roster-pick]')) _rosterBulkRefresh();
+  });
+  document.getElementById("rr-roster-bulk-clear")?.addEventListener("click", () => {
+    document.querySelectorAll('#rr-roster-table-wrap input.dr-cb-in[data-rr-roster-pick]').forEach((c) => { c.checked = false; });
+    _rosterBulkRefresh();
+  });
+  document.getElementById("rr-roster-bulk-export")?.addEventListener("click", () => {
+    const picks = new Set(_rosterBulkPicks());
+    const rows = (picks.size ? _rosterRows.filter((r) => picks.has(r.id)) : visibleDriversForStage(_rosterRows, _driverStage));
+    const cols = ["Name","Preferred name","Email","Phone","Station","Status","Hire date","Tenure (days)","Score","On the app","App invited","Last active (UTC)","Driver ID"];
+    const cell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
+    const lines = [cols.join(",")];
+    for (const r of rows) {
+      const app = _rosterAppStatus.get(r.id) || {};
+      const days = r.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(r.hire_date).getTime()) / 86400000)) : "";
+      lines.push([
+        r.full_name || "", r.preferred_name || "", r.email || "", r.phone || "",
+        r.station?.code || "", r.status || "",
+        r.hire_date ? new Date(r.hire_date).toISOString().slice(0,10) : "",
+        days, (r.score ?? ""),
+        app.signed_in_at ? "yes" : "no", app.invited ? "yes" : "no",
+        app.last_seen_at ? new Date(app.last_seen_at).toISOString() : "",
+        r.id,
+      ].map(cell).join(","));
+    }
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `drivers-${_driverStage}-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(`Exported ${rows.length} ${rows.length === 1 ? "driver" : "drivers"} ✓`, "success");
+  });
+  document.getElementById("rr-roster-bulk-msg")?.addEventListener("click", async () => {
+    const picks = _rosterBulkPicks();
+    if (picks.length === 0) { toast("Select at least one driver", "warn"); return; }
+    const msg = prompt(`Send a message to ${picks.length} ${picks.length === 1 ? "driver" : "drivers"} (delivered in their RouteReady app):`);
+    if (msg === null) return;
+    const body = msg.trim();
+    if (!body) { toast("Message can't be empty", "warn"); return; }
+    const btn = document.getElementById("rr-roster-bulk-msg");
+    btn.disabled = true;
+    let ok = 0, fail = 0;
+    for (let i = 0; i < picks.length; i++) {
+      btn.textContent = `Sending ${i + 1}/${picks.length}…`;
+      const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: picks[i], p_body: body });
+      if (error) fail++; else ok++;
+    }
+    btn.disabled = false; btn.textContent = "Send message";
+    if (fail === 0) toast(`Message sent to ${ok} ${ok === 1 ? "driver" : "drivers"} ✓`, "success");
+    else toast(`Sent to ${ok}, ${fail} failed.`, "warn");
+  });
 }
 
 // Driver-app presence chip for the roster: On the app / Invited / Not invited.
@@ -2904,6 +2991,7 @@ function renderOnboardingRow(d) {
     : '<span style="color:var(--text-subtle)">—</span>';
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
+      <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
@@ -2931,6 +3019,7 @@ function renderDriverRow(d) {
   const dim = '<span style="color:var(--text-subtle)">—</span>';
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
+      <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>

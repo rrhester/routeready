@@ -7463,6 +7463,19 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-drivers .card-flush > .dr-panel-head .t{ font-size:13px;font-weight:700;color:var(--text);letter-spacing:.01em; }
           #view-drivers .card-flush > .dr-panel-head .s{ font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5; }
+
+          /* Bulk-action bar + select column on the roster (mirrors the
+             Documents records table). */
+          #view-drivers .dr-bulkbar{
+            display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:9px 14px;
+            border-radius:9px;background:var(--accent-soft);border:1px solid rgba(15,108,189,.20);
+            font-size:12px;color:var(--accent-text);box-shadow:var(--shadow-sm);
+          }
+          #view-drivers .dr-bulkbar[hidden]{ display:none; }
+          #view-drivers .dr-bulkbar .cnt{ font-weight:700; }
+          #view-drivers .dr-bulkbar .spacer{ flex:1; }
+          #view-drivers .table td.dr-cb, #view-drivers .table th.dr-cb{ width:34px;padding-left:16px;padding-right:0;text-align:center; }
+          #view-drivers .table input.dr-cb-in{ width:15px;height:15px;accent-color:var(--accent);cursor:pointer;vertical-align:middle; }
         </style>
 
         <div class="dr-roster-bar">
@@ -7485,10 +7498,19 @@ body.rr-cmdk-open{ overflow:hidden }
           <span class="dr-bar-hint" id="rr-roster-bar-hint">Click a column to sort</span>
         </div>
 
-        <div class="table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
+        <div class="dr-bulkbar" id="rr-roster-bulkbar" hidden>
+          <span class="cnt" id="rr-roster-bulk-count">0 selected</span>
+          <span class="spacer"></span>
+          <button class="btn btn-sm btn-ghost" id="rr-roster-bulk-msg">Send message</button>
+          <button class="btn btn-sm btn-ghost" id="rr-roster-bulk-export">Export CSV</button>
+          <button class="btn btn-sm btn-ghost" id="rr-roster-bulk-clear">Clear</button>
+        </div>
+
+        <div class="table-wrap" id="rr-roster-table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
           <table class="table table-clickable">
             <thead>
               <tr>
+                <th class="dr-cb" data-rr-no-drawer></th>
                 <th>Driver</th>
                 <th>Station</th>
                 <th>Tenure</th>
@@ -7499,7 +7521,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </tr>
             </thead>
             <tbody id="drivers-tbody">
-              <tr><td colspan="7" style="padding:0"></td></tr>
+              <tr><td colspan="8" style="padding:0"></td></tr>
             </tbody>
           </table>
         </div>
