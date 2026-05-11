@@ -19740,6 +19740,15 @@ function _docsStatusChip(s) {
   const lc = _docsLifecycle(s);
   return `<span class="docs-chip ${lc.cls}" title="${escapeHtml(lc.blurb)}"><i class="dot"></i>${escapeHtml(lc.label)}</span>`;
 }
+// Tiny sent → opened → signed progress rail.
+function _docsRail(s) {
+  let on = 1, cls = "";
+  if (s === "viewed") on = 2;
+  else if (s === "signed") { on = 3; cls = "is-signed"; }
+  else if (s === "declined" || s === "voided" || s === "expired") { on = 1; cls = "is-dead"; }
+  const seg = (i) => `<span class="${i <= on ? "on" : ""}"></span>`;
+  return `<div class="docs-rail ${cls}" title="Sent → Opened → Signed">${seg(1)}${seg(2)}${seg(3)}</div>`;
+}
 // Back-compat shim in case anything else references it.
 function _docsStatusPill(s) { return _docsStatusChip(s); }
 
@@ -19893,7 +19902,7 @@ async function _renderDocsEnvelopes() {
           </div>
           ${_docsTrustBadges(e)}
         </td>
-        <td>${_docsStatusChip(e.status)}</td>
+        <td>${_docsStatusChip(e.status)}${_docsRail(e.status)}</td>
         <td>${_docsTimeCell(e.sent_at)}</td>
         <td>
           <div class="docs-row-actions">
@@ -20173,52 +20182,66 @@ async function _docsOpenFieldEditor(templateId) {
 
 // ── Send: pick a driver, fan out an envelope ───────────────────────────
 async function _docsOpenSend(templateId) {
-  const { data: drivers } = await sb.from("drivers")
-    .select("id, full_name, preferred_name, email")
-    .eq("dsp_id", window.RR.dsp.id)
-    .in("status", ["active","onboarding"])
-    .order("full_name");
+  const [{ data: drivers }, { data: tpl }] = await Promise.all([
+    sb.from("drivers")
+      .select("id, full_name, preferred_name, email")
+      .eq("dsp_id", window.RR.dsp.id)
+      .in("status", ["active","onboarding"])
+      .order("full_name"),
+    sb.from("document_templates").select("title").eq("id", templateId).single(),
+  ]);
   const list = (drivers || []).filter((d) => d.email);
+  const docTitle = tpl?.title || "this document";
 
   const m = document.createElement("div");
-  m.className = "modal-backdrop";
+  m.className = "docs-coc-backdrop";
   m.id = "docs-send-modal";
-  m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <div style="font-weight:600;font-size:var(--fs-lg)">Send for signature</div>
-        <button class="btn btn-sm" id="docs-send-close">Close</button>
-      </div>
-      <div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px">
-          <input id="docs-send-filter" type="search" placeholder="Filter drivers…" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
-          <button class="btn btn-sm" id="docs-send-selectall">Select all</button>
+    <div class="docs-coc" style="max-width:540px">
+      <div class="docs-coc-head">
+        <div class="row1">
+          <div>
+            <div class="ttl">Send for signature</div>
+            <div class="sub">${escapeHtml(docTitle)}</div>
+          </div>
+          <button class="btn btn-sm btn-ghost" id="docs-send-close">Close</button>
         </div>
-        ${list.length === 0
-          ? `<div style="font-size:var(--fs-sm);color:var(--red)">No active drivers with an email on file.</div>`
-          : ""}
       </div>
-      <div id="docs-send-driver-list" style="flex:1;overflow-y:auto;padding:6px 12px">
-        ${list.map((d) => `
-          <label class="docs-send-row" data-name="${escapeHtml((d.preferred_name || d.full_name || "").toLowerCase())} ${escapeHtml((d.email || "").toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer">
-            <input type="checkbox" value="${escapeHtml(d.id)}" style="width:16px;height:16px;accent-color:var(--accent)">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${escapeHtml(d.preferred_name || d.full_name)}</div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(d.email)}</div>
-            </div>
-          </label>`).join("")}
+      <div class="docs-send-intro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 9.5" stroke-width="1.6"/></svg>
+        <div>Each recipient receives a personal, time-stamped link and their own tamper-evident signature record. Identity, consent, and completion are captured on an append-only audit trail; the signed PDF is sealed automatically.</div>
       </div>
-      <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px;background:var(--canvas)">
+      <div class="docs-send-toolbar">
+        <input id="docs-send-filter" type="search" placeholder="Filter by name or email…">
+        <button class="btn btn-sm btn-ghost" id="docs-send-selectall">Select all</button>
+      </div>
+      ${list.length === 0
+        ? `<div style="padding:24px 22px;font-size:12.5px;color:var(--red)">No active drivers with an email on file. Add an email to a driver's profile first.</div>`
+        : `<div id="docs-send-driver-list" class="docs-send-list">
+            ${list.map((d) => `
+              <label class="docs-send-row" data-name="${escapeHtml((d.preferred_name || d.full_name || "").toLowerCase())} ${escapeHtml((d.email || "").toLowerCase())}">
+                <input type="checkbox" value="${escapeHtml(d.id)}">
+                <span class="docs-avatar">${escapeHtml(_docsInitials(d.preferred_name || d.full_name))}</span>
+                <span style="flex:1;min-width:0">
+                  <span class="nm">${escapeHtml(d.preferred_name || d.full_name)}</span><br><span class="em">${escapeHtml(d.email)}</span>
+                </span>
+              </label>`).join("")}
+          </div>`}
+      <div class="docs-send-foot">
         <label style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);min-width:64px">Expires</span>
-          <input type="date" id="docs-send-expires" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--surface)">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);min-width:84px">Expires (opt.)</span>
+          <input type="date" id="docs-send-expires" style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:12.5px;background:var(--surface);color:var(--text)">
         </label>
+        <div class="docs-send-assure">
+          <i></i>Email link delivered to each recipient <span style="opacity:.5">·</span>
+          <i></i>Independent audit-tracked record per signer <span style="opacity:.5">·</span>
+          <i></i>Sealed &amp; timestamped on completion
+        </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div id="docs-send-count" style="font-size:var(--fs-xs);color:var(--text-subtle)">0 selected</div>
+          <div id="docs-send-count" style="font-size:11.5px;color:var(--text-subtle);font-weight:600">0 selected</div>
           <div style="display:flex;gap:8px">
-            <button class="btn" id="docs-send-cancel">Cancel</button>
-            <button class="btn btn-primary" id="docs-send-confirm">Send envelopes</button>
+            <button class="btn btn-ghost" id="docs-send-cancel">Cancel</button>
+            <button class="btn btn-primary" id="docs-send-confirm" disabled>Send for signature</button>
           </div>
         </div>
       </div>
@@ -20228,14 +20251,19 @@ async function _docsOpenSend(templateId) {
   m.addEventListener("click", (e) => { if (e.target === m) close(); });
   document.getElementById("docs-send-close").addEventListener("click", close);
   document.getElementById("docs-send-cancel").addEventListener("click", close);
+  document.addEventListener("keydown", function esc(e){ if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); } });
 
   const listEl = document.getElementById("docs-send-driver-list");
   const countEl = document.getElementById("docs-send-count");
+  const confirmBtn = document.getElementById("docs-send-confirm");
+  if (!listEl) return;
   const checkedIds = () => Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map((x) => x.value);
   const visibleRows = () => Array.from(listEl.querySelectorAll(".docs-send-row")).filter((r) => r.style.display !== "none");
   const refreshCount = () => {
     const n = checkedIds().length;
-    countEl.textContent = `${n} selected`;
+    countEl.textContent = n === 1 ? "1 recipient selected" : `${n} recipients selected`;
+    confirmBtn.disabled = n === 0;
+    confirmBtn.textContent = n > 1 ? `Send to ${n} recipients` : "Send for signature";
   };
   listEl.addEventListener("change", refreshCount);
 
@@ -20253,19 +20281,15 @@ async function _docsOpenSend(templateId) {
     refreshCount();
   });
 
-  document.getElementById("docs-send-confirm").addEventListener("click", async () => {
+  confirmBtn.addEventListener("click", async () => {
     const ids = checkedIds();
     const expRaw = document.getElementById("docs-send-expires").value;
-    if (ids.length === 0) { toast("Pick at least one driver", "warn"); return; }
-    const btn = document.getElementById("docs-send-confirm");
-    btn.disabled = true; btn.textContent = `Sending 1/${ids.length}…`;
-    // Sequential so one bad email doesn't kill the rest, and so we
-    // can report per-driver outcomes. The dispatcher sends a handful
-    // of these at a time — no need for parallelism.
+    if (ids.length === 0) { toast("Select at least one recipient", "warn"); return; }
+    confirmBtn.disabled = true; confirmBtn.textContent = `Sending 1/${ids.length}…`;
     let sent = 0, failed = 0;
     const errors = [];
     for (let i = 0; i < ids.length; i++) {
-      btn.textContent = `Sending ${i + 1}/${ids.length}…`;
+      confirmBtn.textContent = `Sending ${i + 1}/${ids.length}…`;
       const { error } = await sb.rpc("documents_envelope_create", {
         p_template_id:         templateId,
         p_recipient_driver_id: ids[i],
@@ -20276,9 +20300,9 @@ async function _docsOpenSend(templateId) {
     }
     close();
     if (failed === 0) {
-      toast(`Sent ${sent} envelope${sent === 1 ? "" : "s"} ✓`, "success");
+      toast(`Sent ${sent} signature ${sent === 1 ? "record" : "records"} ✓`, "success");
     } else {
-      toast(`Sent ${sent}, ${failed} failed: ${errors[0] || ""}`, "warn");
+      toast(`Sent ${sent}, ${failed} failed — ${errors[0] || "see logs"}`, "warn");
     }
     loadDocumentsView("envelopes");
   });

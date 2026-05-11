@@ -10653,6 +10653,39 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-top:18px;padding-top:14px;border-top:1px solid var(--border);
             font-size:10.5px;color:var(--text-subtle);line-height:1.6;
           }
+
+          /* Completion rail — sent → opened → signed, shown under the chip */
+          .docs-rail{ display:flex;gap:3px;margin-top:7px;width:96px; }
+          .docs-rail span{ height:3px;flex:1;border-radius:2px;background:var(--border); }
+          .docs-rail span.on{ background:var(--accent); }
+          .docs-rail.is-signed span.on{ background:var(--green); }
+          .docs-rail.is-dead span.on{ background:var(--text-subtle); }
+
+          /* Send-for-signature dialog */
+          .docs-send-intro{
+            display:flex;gap:11px;padding:13px 22px;border-bottom:1px solid var(--border);
+            background:linear-gradient(180deg, var(--surface) 0%, var(--canvas) 240%);
+            font-size:11.5px;color:var(--text-muted);line-height:1.55;
+          }
+          .docs-send-intro svg{ width:18px;height:18px;color:var(--accent);flex:0 0 auto;margin-top:1px; }
+          .docs-send-toolbar{ display:flex;align-items:center;gap:8px;padding:12px 22px;border-bottom:1px solid var(--border); }
+          .docs-send-toolbar input[type=search]{
+            flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:12.5px;background:var(--canvas);color:var(--text);
+          }
+          .docs-send-list{ flex:1;overflow-y:auto;padding:6px 14px; }
+          .docs-send-row{
+            display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background .1s ease;
+          }
+          .docs-send-row:hover{ background:var(--canvas); }
+          .docs-send-row input[type=checkbox]{ width:16px;height:16px;accent-color:var(--accent);flex:0 0 auto; }
+          .docs-send-row .nm{ font-size:12.5px;font-weight:600;color:var(--text);line-height:1.3; }
+          .docs-send-row .em{ font-size:11px;color:var(--text-subtle);line-height:1.3; }
+          .docs-send-foot{
+            padding:13px 22px;border-top:1px solid var(--border);background:var(--canvas);
+            display:flex;flex-direction:column;gap:11px;
+          }
+          .docs-send-assure{ font-size:10.5px;color:var(--text-subtle);line-height:1.55;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+          .docs-send-assure i{ width:5px;height:5px;border-radius:50%;background:var(--green);flex:0 0 auto; }
         </style>
 
         <div id="docs-templates-tab">
