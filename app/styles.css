@@ -971,6 +971,9 @@ select.field{
   opacity:.85;
   line-height:1.2;
 }
+.chat-read-receipt svg{ width:11px;height:11px;margin-right:3px;vertical-align:-1px }
+.chat-read-receipt.read{ color:var(--accent);opacity:1 }
+.chat-read-receipt.sent{ color:var(--text-subtle) }
 /* Typing pill — sits just above the composer when dispatch is typing.
    Subtle bounce on the dots. */
 .chat-typing{
