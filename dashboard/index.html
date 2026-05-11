@@ -8430,6 +8430,67 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- WEEK VIEW SUB-VIEW -->
         <div class="sched-subview active" id="sched-sub-week">
 
+        <style>
+          /* ── Schedule · week view refinements (scoped) ──────────────
+             Refinement only — the calendar already uses the platform's
+             surface/spacing vocabulary. This adds a touch more depth,
+             calmer hovers, and a clearer coverage strip so staffing
+             gaps catch the eye. */
+          #view-schedule .sched-toolbar-rail{ box-shadow:var(--shadow-sm); }
+          #view-schedule .cal-wrap{ box-shadow:var(--shadow-sm); }
+
+          /* Shift chip — slightly softer radius, gentler hover lift. */
+          #view-schedule .shift-chip{ border-radius:8px; }
+          #view-schedule .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
+            box-shadow:0 2px 5px rgba(15,23,42,.07);
+          }
+          /* Open-shift chip reads as an invitation to fill, not an error. */
+          #view-schedule .shift-chip.open{
+            background:var(--accent-soft);border:1.5px dashed rgba(15,108,189,.35);color:var(--accent-text);
+          }
+          #view-schedule .shift-chip.open:hover{ border-style:solid;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
+
+          /* Coverage strip — read it as a staffing bar. Each cell gets a
+             2px state-colored top border; gaps get a slightly stronger
+             tint so the eye lands there first. */
+          #view-schedule .coverage-strip{ border-top:1px solid var(--border); }
+          #view-schedule .coverage-cell{ position:relative;font-weight:600;font-variant-numeric:tabular-nums; }
+          #view-schedule .coverage-cell::before{
+            content:"";position:absolute;left:0;right:0;top:0;height:2px;background:transparent;
+          }
+          #view-schedule .coverage-cell:first-child{ color:var(--text);text-transform:uppercase;font-size:10px;letter-spacing:.07em; }
+          #view-schedule .coverage-cell:first-child::before{ display:none; }
+          #view-schedule .coverage-cell.full{ color:var(--green);background:var(--green-soft); }
+          #view-schedule .coverage-cell.full::before{ background:var(--green); }
+          #view-schedule .coverage-cell.partial{ color:var(--amber-dark);background:var(--amber-soft); }
+          #view-schedule .coverage-cell.partial::before{ background:var(--amber); }
+          #view-schedule .coverage-cell.gap{ color:var(--red);background:rgba(225,29,72,.12);font-weight:700; }
+          #view-schedule .coverage-cell.gap::before{ background:var(--red); }
+
+          /* Driver pool — cards with a calm hover; "maxed" reads spent. */
+          #view-schedule .pool-driver{ transition:background .12s ease, border-color .12s ease; }
+          #view-schedule .pool-driver:hover:not(.maxed):not(.off){ background:var(--canvas); }
+          #view-schedule .pool-driver.maxed{ opacity:.6; }
+          #view-schedule .pool-driver-hours{ font-variant-numeric:tabular-nums; }
+
+          /* Calendar loading skeleton (painted before renderScheduleWeek). */
+          #view-schedule .cal-skel{ }
+          #view-schedule .cal-skel .cal-skel-row{
+            display:grid;grid-template-columns:200px repeat(7,1fr);border-bottom:1px solid var(--border);
+          }
+          #view-schedule .cal-skel .cal-skel-label{
+            padding:14px 16px;display:flex;align-items:center;gap:10px;border-right:1px solid var(--border);
+          }
+          #view-schedule .cal-skel .av{ width:32px;height:32px;border-radius:50%;background:var(--canvas);position:relative;overflow:hidden;flex:0 0 auto; }
+          #view-schedule .cal-skel .bar{ height:12px;border-radius:5px;background:var(--canvas);position:relative;overflow:hidden; }
+          #view-schedule .cal-skel .cell{ border-right:1px solid var(--border);padding:10px 8px;min-height:64px; }
+          #view-schedule .cal-skel .av::after, #view-schedule .cal-skel .bar::after, #view-schedule .cal-skel .cell::after{
+            content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
+            transform:translateX(-100%);animation:drShimmer 1.25s ease-in-out infinite;
+          }
+          #view-schedule .cal-skel .cell::after{ inset:10px 8px;border-radius:6px;background:linear-gradient(180deg,var(--canvas),var(--canvas)); }
+        </style>
+
           <!-- Schedule toolbar rail. Week tabs (left) and per-week
                tool buttons (right) sit on a single surface so the
                operator sees one piece of furniture, not two
