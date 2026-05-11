@@ -10392,6 +10392,27 @@ function _i9PanelHtml(i9, d) {
   if (rec && rec.section1_completed_at) actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-print>View / print Form I-9</button>`);
   if (rec && st === "verified") actions.push(`<button type="button" class="btn btn-sm" data-rr-i9-reopen>Reopen for correction</button>`);
 
+  // Sealed PDF — the real Form I-9 document, run through the same
+  // ECDSA-P256 + RFC-3161 + Certificate-of-Completion pipeline as the
+  // e-signature documents (migration 0174 / the sealing worker).
+  let sealHtml;
+  if (rec && rec.pdf_path) {
+    sealHtml = `<div style="font-size:var(--fs-sm);color:var(--text);line-height:1.6">
+      <span class="dd-badge" style="background:#dcfce7;color:#166534;font-size:var(--fs-xs)">Sealed PDF</span>${rec.pdf_sealed_at ? `<span style="color:var(--text-subtle);margin-left:6px">${escapeHtml(new Date(rec.pdf_sealed_at).toLocaleString())}</span>` : ""}
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn btn-sm" data-rr-i9-pdf="form">Open Form I-9 (PDF)</button>
+        <button type="button" class="btn btn-sm" data-rr-i9-pdf="cert">Certificate of Completion</button>
+        <button type="button" class="btn btn-sm" data-rr-i9-audit>Chain of custody</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-rr-i9-seal-now>Re-seal</button>
+      </div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Cryptographically sealed (ECDSA P-256) + RFC 3161 trusted timestamp + audit certificate. Also appears on the Documents page under "Form I-9".</div>
+    </div>`;
+  } else if (rec && st === "verified") {
+    sealHtml = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">The sealed PDF generates automatically when Section 2 is completed. If it hasn't appeared yet, <button type="button" class="btn btn-sm" data-rr-i9-seal-now>Generate it now</button>.</div>`;
+  } else {
+    sealHtml = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Generated once Section 2 is complete (status Verified).</div>`;
+  }
+
   const ret = _i9RetentionUntil(rec, d);
   const events = i9 && Array.isArray(i9.events) ? i9.events : [];
 
@@ -10409,6 +10430,7 @@ function _i9PanelHtml(i9, d) {
       <div class="dd-row" style="grid-template-columns:160px 1fr"><label>First day of employment</label><div style="font-size:var(--fs-sm);color:var(--text)">${rec && rec.first_day_of_employment ? escapeHtml(fmtD(rec.first_day_of_employment)) : '<span style="color:var(--text-subtle)">Not set — set this so the 3-business-day clock can run.</span>'}</div></div>
       <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 1 — employee</label><div>${s1Html}</div></div>
       <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 2 — employer</label><div>${s2Html}</div></div>
+      <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Sealed document</label><div>${sealHtml}</div></div>
       <div class="dd-row" style="grid-template-columns:1fr"><div style="display:flex;gap:8px;flex-wrap:wrap">${actions.join("")}</div></div>
       ${events.length ? `
       <div class="dd-row" style="grid-template-columns:1fr">
@@ -10785,6 +10807,35 @@ document.addEventListener("click", async (e) => {
     if (!driverId) return;
     openI9FormPrint(driverId); return;
   }
+  const pdfBtn = e.target.closest("[data-rr-i9-pdf]");
+  if (pdfBtn) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const which = pdfBtn.getAttribute("data-rr-i9-pdf");
+    const rec = _ddDriver?.i9?.record;
+    const path = which === "cert" ? rec?.pdf_certificate_path : rec?.pdf_path;
+    if (!path) { toast("That file isn't available yet.", "warn"); return; }
+    const { data: signed } = await sb.storage.from("documents").createSignedUrl(path, 60 * 30);
+    if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+    else toast("Couldn't open the PDF.", "warn");
+    return;
+  }
+  if (e.target.closest("[data-rr-i9-audit]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (driverId) _i9OpenChainModal(driverId);
+    return;
+  }
+  if (e.target.closest("[data-rr-i9-seal-now]")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!driverId) return;
+    const { error } = await sb.rpc("i9_seal_now", { p_driver_id: driverId });
+    if (error) {
+      toast(/not_configured/.test(error.message || "") ? "Document sealing isn't configured for this environment." : "Couldn't start sealing: " + error.message, "warn");
+      return;
+    }
+    toast("Sealing the Form I-9 — this takes a few seconds…", "ok");
+    setTimeout(() => { if (document.getElementById("rr-dd-drawer") && _ddDriver?.driver?.id === driverId) loadDriverDrawer(driverId); }, 5000);
+    return;
+  }
   const docOpen = e.target.closest("[data-rr-i9-doc-open]");
   if (docOpen) {
     e.preventDefault(); e.stopImmediatePropagation();
@@ -10964,6 +11015,75 @@ async function openI9FormPrint(driverId) {
   m.querySelector("#i9f-close").addEventListener("click", () => m.remove());
   m.querySelector("#i9f-print").addEventListener("click", () => window.print());
   document.addEventListener("keydown", function esc(ev) { if (ev.key === "Escape") { m.remove(); document.removeEventListener("keydown", esc); } });
+}
+
+// Chain-of-custody modal for a sealed Form I-9 — reads the seal sidecar
+// JSON (the canonical proof: PDF SHA-256, ECDSA signature, public key,
+// RFC 3161 timestamp token) and the I-9 audit trail. Mirrors the
+// e-signature documents' chain-of-custody view.
+async function _i9OpenChainModal(driverId) {
+  let rec = (_ddDriver && _ddDriver.i9 && _ddDriver.i9.record && _ddDriver.driver && _ddDriver.driver.id === driverId) ? _ddDriver.i9.record : null;
+  let events = (_ddDriver && _ddDriver.i9 && Array.isArray(_ddDriver.i9.events) && _ddDriver.driver && _ddDriver.driver.id === driverId) ? _ddDriver.i9.events : null;
+  if (!rec || !events) {
+    const { data, error } = await sb.rpc("i9_get", { p_driver_id: driverId });
+    if (error || !data || !data.record) { toast("No Form I-9 on file.", "warn"); return; }
+    rec = data.record; events = data.events || [];
+  }
+  // Seal sidecar (canonical), with the pdf_sealed event as a fallback.
+  let seal = null;
+  if (rec.pdf_seal_path) {
+    try {
+      const { data: su } = await sb.storage.from("documents").createSignedUrl(rec.pdf_seal_path, 300);
+      if (su?.signedUrl) seal = await fetch(su.signedUrl).then(r => r.json()).catch(() => null);
+    } catch {}
+  }
+  if (!seal) {
+    const ev = (events || []).filter(e => e.kind === "pdf_sealed").pop();
+    if (ev && ev.event_data) seal = { pdf_sha256: ev.event_data.pdf_sha256, signature_b64: ev.event_data.signature_b64, key_fingerprint: ev.event_data.key_fingerprint, tsa_url: ev.event_data.tsa_url, tsa_gen_time: ev.event_data.tsa_gen_time };
+  }
+  const s1 = rec.section1 && typeof rec.section1 === "object" ? rec.section1 : {};
+  const empName = [s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || (_ddDriver?.driver ? displayDriverName(_ddDriver.driver) : "Employee");
+  const dspName = window.RR?.dsp?.name || "Employer";
+  const fmtTs = (x) => x ? new Date(x).toLocaleString() : "—";
+  const mono = (s) => `<code style="font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all">${escapeHtml(s || "—")}</code>`;
+  const hasTs = !!(seal && (seal.tsa_gen_time || seal.tst_b64 || seal.tsa_url));
+  const sealBlock = !rec.pdf_path ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No sealed PDF yet — complete Section 2, or use "Re-seal" on the driver record.</div>` : `
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--fs-sm)">
+      <div><span style="color:var(--text-subtle)">Sealed at</span><br>${escapeHtml(fmtTs(rec.pdf_sealed_at))}</div>
+      <div><span style="color:var(--text-subtle)">PDF SHA-256</span><br>${mono(seal?.pdf_sha256)}</div>
+      <div><span style="color:var(--text-subtle)">ECDSA P-256 signature (base64)</span><br>${mono(seal?.signature_b64 ? String(seal.signature_b64).slice(0,88) + (String(seal.signature_b64).length>88?"…":"") : null)}</div>
+      <div><span style="color:var(--text-subtle)">Signing key fingerprint</span><br>${mono(seal?.key_fingerprint)}</div>
+      <div><span style="color:var(--text-subtle)">RFC 3161 trusted timestamp</span><br>${hasTs ? `${escapeHtml(seal.tsa_url || "(authority unspecified)")}${seal.tsa_gen_time ? " — attested time " + escapeHtml(new Date(seal.tsa_gen_time).toLocaleString()) + " (by the TSA, not by RouteReady)" : ""}` : `<span style="color:var(--amber-dark)">Timestamp unavailable</span>`}</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">The full proof (digest, signature, public key, timestamp token) lives next to the sealed PDF at <code>${escapeHtml(rec.pdf_seal_path || "—")}</code>. The public key is served at <code>/public-key</code> on the sealing service.</div>
+    </div>`;
+  document.getElementById("rr-i9-chain-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-i9-chain-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Form I-9 — chain of custody</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(empName)} · ${escapeHtml(dspName)} · ${escapeHtml((_I9_STATUS[rec.status] || { label: rec.status }).label)}</div></div>
+        <button type="button" class="btn btn-sm" data-rr-i9-chain-close>Close</button>
+      </div>
+      <div style="padding:20px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:18px">
+        <div>${rec.pdf_path ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-sm btn-primary" data-rr-i9-chain-pdf="form">Open Form I-9 (PDF)</button><button type="button" class="btn btn-sm" data-rr-i9-chain-pdf="cert">Certificate of Completion</button></div>` : ""}</div>
+        <div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:8px">Cryptographic seal</div>${sealBlock}</div>
+        <div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:8px">Audit trail · ${(events||[]).length} event${(events||[]).length===1?"":"s"}</div>
+          <div style="display:flex;flex-direction:column;gap:6px">${(events||[]).map(ev => `<div style="display:flex;gap:10px;font-size:var(--fs-sm)"><span style="color:var(--text-subtle);white-space:nowrap">${escapeHtml(new Date(ev.created_at).toLocaleString())}</span><span style="color:var(--text)">${escapeHtml(_i9EventLabel(ev))}</span></div>`).join("")}</div>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">This is RouteReady's electronic record of the Form I-9. The sealed PDF's bytes are byte-identical to what's stored; the seal + timestamp prove it hasn't been altered since ${rec.pdf_sealed_at ? new Date(rec.pdf_sealed_at).toLocaleString() : "sealing"}. Not legal advice — the official Form I-9 (USCIS edition 08/01/23) and its instructions govern.</div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-rr-i9-chain-close]")) m.remove(); });
+  m.querySelectorAll("[data-rr-i9-chain-pdf]").forEach(b => b.addEventListener("click", async () => {
+    const which = b.getAttribute("data-rr-i9-chain-pdf");
+    const path = which === "cert" ? rec.pdf_certificate_path : rec.pdf_path;
+    if (!path) return;
+    const { data: su } = await sb.storage.from("documents").createSignedUrl(path, 60 * 30);
+    if (su?.signedUrl) window.open(su.signedUrl, "_blank");
+  }));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -21436,11 +21556,84 @@ async function loadDocumentsView(sub) {
   });
   const tT = document.getElementById("docs-templates-tab");
   const tE = document.getElementById("docs-envelopes-tab");
+  const tI = document.getElementById("docs-i9-tab");
   if (tT) tT.style.display = _docsSub === "templates" ? "" : "none";
   if (tE) tE.style.display = _docsSub === "envelopes" ? "" : "none";
-  if (_docsSub === "templates") await _renderDocsTemplates();
-  else                          await _renderDocsEnvelopes();
+  if (tI) tI.style.display = _docsSub === "i9" ? "" : "none";
+  if (_docsSub === "templates")      await _renderDocsTemplates();
+  else if (_docsSub === "i9")        await _renderDocsI9();
+  else                               await _renderDocsEnvelopes();
 }
+
+// ── Documents · Form I-9 tab ───────────────────────────────────────────
+// The sealed Form I-9 documents (and any in-progress ones), surfaced
+// alongside the e-signature records — same trust treatment.
+async function _renderDocsI9() {
+  const list = document.getElementById("docs-i9-list");
+  if (!list) return;
+  list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const { data, error } = await sb.from("i9_records")
+    .select("id, driver_id, status, first_day_of_employment, section1_completed_at, section1_completed_via, section2_completed_at, section2_completed_by_name, needs_correction_note, pdf_path, pdf_certificate_path, pdf_seal_path, pdf_sealed_at, updated_at, drivers(full_name, preferred_name)")
+    .order("updated_at", { ascending: false })
+    .limit(300);
+  if (error) { list.innerHTML = _docsEmptyState({ error: true, title: "Couldn't load Form I-9 records", body: escapeHtml(error.message) }); return; }
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) {
+    list.innerHTML = _docsEmptyState({
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>',
+      title: "No Form I-9 records yet",
+      body: "When a driver completes Section 1 in the app (or you record it), an I-9 record opens here. Completing Section 2 generates a real, cryptographically sealed Form I-9 PDF — same trust treatment as your signature records.",
+    });
+    return;
+  }
+  const nVerified = rows.filter(r => r.status === "verified").length;
+  const nSealed   = rows.filter(r => r.pdf_path).length;
+  const nPending  = rows.filter(r => r.status !== "verified").length;
+  const dName = (r) => escapeHtml((r.drivers && (r.drivers.preferred_name || r.drivers.full_name)) || "—");
+  const fmtD = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const sealedBadge = (r) => r.pdf_path
+    ? `<span class="docs-mono-chip" style="background:var(--green-soft);color:var(--green)"><span class="lbl">Sealed</span>${escapeHtml(r.pdf_sealed_at ? new Date(r.pdf_sealed_at).toLocaleDateString() : "yes")}</span>`
+    : r.status === "verified" ? `<span class="docs-mono-chip" style="background:var(--amber-soft);color:var(--amber-dark)"><span class="lbl">PDF</span>generating…</span>` : "";
+  list.innerHTML = `
+    <div class="docs-section-bar">
+      <h2>Form I-9 · Employment Eligibility Verification</h2>
+      <div class="docs-counts"><span><b>${rows.length}</b> on file</span><span><b>${nVerified}</b> verified</span><span><b>${nSealed}</b> sealed PDF</span>${nPending ? `<span><b>${nPending}</b> in progress</span>` : ""}</div>
+    </div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:-4px 0 12px;line-height:1.5">A verified Form I-9 is rendered into a real PDF, given a Certificate of Completion, cryptographically sealed (ECDSA P-256), and stamped with an RFC 3161 trusted timestamp — the same security envelope as the signature records. Open a record to manage Section 1 / Section 2. Not legal advice.</div>
+    ${rows.map(r => `
+      <div class="docs-template-card" data-rr-docs-i9="${escapeHtml(r.driver_id)}" data-i9-pdf="${escapeHtml(r.pdf_path || "")}" data-i9-cert="${escapeHtml(r.pdf_certificate_path || "")}">
+        <div class="docs-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
+        <div style="flex:1;min-width:0">
+          <div class="docs-card-title">${dName(r)} — Form I-9</div>
+          <div class="docs-meta-row">
+            <span>${_i9StatusChip(r.status)}</span>
+            ${sealedBadge(r)}
+            <span class="docs-meta-dim">${r.section2_completed_at ? "Verified " + escapeHtml(fmtD(r.section2_completed_at)) + (r.section2_completed_by_name ? " by " + escapeHtml(r.section2_completed_by_name) : "") : r.section1_completed_at ? "Section 1 done " + escapeHtml(fmtD(r.section1_completed_at)) : "Not started"}${r.first_day_of_employment ? " · first day " + escapeHtml(fmtD(r.first_day_of_employment)) : ""}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;flex:0 0 auto;align-items:center">
+          ${r.pdf_path ? `<button class="btn btn-sm btn-primary" data-rr-docs-i9-act="form">Open form</button><button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="cert">Certificate</button>` : ""}
+          <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="chain">Chain of custody</button>
+          <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="record">Open record</button>
+        </div>
+      </div>`).join("")}`;
+}
+
+document.addEventListener("click", async (e) => {
+  const card = e.target.closest("[data-rr-docs-i9]");
+  if (!card || !e.target.closest("#docs-i9-list")) return;
+  const driverId = card.getAttribute("data-rr-docs-i9");
+  const actBtn = e.target.closest("[data-rr-docs-i9-act]");
+  const act = actBtn ? actBtn.getAttribute("data-rr-docs-i9-act") : "chain";
+  e.preventDefault();
+  if (act === "record") { openDriverDrawer(driverId, { tab: "employment" }); return; }
+  if (act === "chain")  { _i9OpenChainModal(driverId); return; }
+  const path = act === "cert" ? card.getAttribute("data-i9-cert") : card.getAttribute("data-i9-pdf");
+  if (!path) { toast("That file isn't available yet.", "warn"); return; }
+  const { data: su } = await sb.storage.from("documents").createSignedUrl(path, 60 * 30);
+  if (su?.signedUrl) window.open(su.signedUrl, "_blank");
+  else toast("Couldn't open the PDF.", "warn");
+});
 
 function _docsEmptyState({ icon, title, body, error }) {
   const ic = icon || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
