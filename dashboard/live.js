@@ -3034,55 +3034,72 @@ function _obReadiness(d, i9recOverride, progOverride) {
   const gates = steps.filter(s => s.isGate);
   const doneN = gates.filter(s => s.done).length;
   const totalN = gates.length;
+  const pct = totalN ? Math.round((doneN / totalN) * 100) : 0;
   const isActive = d.status === "active";
   const i9cls = _i9Classify(i9r);
+  const i9d   = _i9Derived(i9r);
 
-  let block = null;          // hard blocker — urgent, sorts to the top
-  if (i9cls.bucket === "s2_overdue") block = "Form I-9 Section 2 overdue";
-  else if (i9cls.bucket === "needs_correction") block = "Form I-9 correction unresolved";
-  let soft = null;           // approaching / needs nudging — amber
-  if (!block) {
-    if (i9cls.bucket === "s2_due") soft = "Form I-9 Section 2 due soon";
-    else if (i9cls.bucket === "s2_needed" && i9cls.note) soft = "Set the Form I-9 first day to start the clock";
+  // Driver-level status — calm, but more nuanced than ready / blocked.
+  let key, label, tone;
+  if (isActive)                                        { key = "active";           label = "Active";               tone = "green"; }
+  else if (doneN === totalN)                           { key = "ready";            label = "Ready to activate";    tone = "green"; }
+  else if (i9cls.bucket === "needs_correction")        { key = "needs_correction"; label = "Needs correction";     tone = "red"; }
+  else if (i9cls.bucket === "s2_overdue")              { key = "compliance_risk";  label = "Compliance risk";      tone = "red"; }
+  else if (i9d.key === "verified_expiring" && i9d.daysLeft != null && i9d.daysLeft < 0) { key = "compliance_risk"; label = "Work auth expired"; tone = "red"; }
+  else if (i9cls.bucket === "s2_due")                  { key = "due_soon";         label = "Due soon";             tone = "amber"; }
+  else if (i9cls.bucket === "s2_needed" && i9cls.note) { key = "due_soon";         label = "Set the first day";    tone = "amber"; }
+  else if (i9d.key === "section1_complete")            { key = "awaiting_review";  label = "Awaiting your review"; tone = "blue"; }
+  else if (doneN === 0)                                { key = "not_started";      label = "Not started";          tone = "slate"; }
+  else {
+    const pendGate = gates.find(g => !g.done);
+    const driverActs = pendGate && (
+      pendGate.kind === "sentcomplete" ||
+      (pendGate.kind === "i9" && ["no_record", "not_started", "section1_in_progress"].includes(i9d.key))
+    );
+    if (driverActs) { key = "waiting_on_driver"; label = "Waiting on the driver"; tone = "blue"; }
+    else            { key = "in_progress";       label = "In progress";           tone = "slate"; }
   }
 
-  let key, label, tone;
-  if (isActive)                  { key = "active";      label = "Active";            tone = "green"; }
-  else if (doneN === totalN)     { key = "ready";       label = "Ready to activate"; tone = "green"; }
-  else if (block)                { key = "blocked";     label = "Blocked";           tone = "red"; }
-  else if (doneN === 0 && !soft) { key = "not_started"; label = "Not started";       tone = "slate"; }
-  else                           { key = "in_progress"; label = "In progress";       tone = soft ? "amber" : "slate"; }
-
+  // One-line next step.
   let next = "";
   if (key === "active") next = "Active — onboarding complete";
   else if (key === "ready") next = "All gates complete — activate when ready";
-  else if (block) next = block;
-  else if (soft) next = soft;
+  else if (key === "needs_correction") next = "Form I-9 correction unresolved — awaiting the employee";
+  else if (key === "compliance_risk" && i9cls.bucket === "s2_overdue") next = "Form I-9 Section 2 overdue — complete it now";
+  else if (key === "compliance_risk") next = "Work authorization expired — reverification required";
+  else if (key === "due_soon" && i9cls.bucket === "s2_due") next = "Form I-9 Section 2 due soon";
+  else if (key === "due_soon") next = "Set the Form I-9 first day to start the clock";
+  else if (key === "awaiting_review") next = "Complete Form I-9 Section 2";
   else {
-    const pend = steps.find(s => !s.done && s.key !== "active");
+    const pend = steps.find(s => !s.done && s.key !== "active" && s.isGate) || steps.find(s => !s.done && s.key !== "active");
     if (pend) {
       if (pend.kind === "i9") {
-        const k = pend.i9.key;
+        const k = i9d.key;
         next = (k === "no_record" || k === "not_started") ? "Form I-9 — awaiting the employee's Section 1"
           : k === "section1_in_progress" ? "Employee is completing Form I-9 Section 1"
-          : k === "section1_complete" ? "Complete Form I-9 Section 2"
           : "Form I-9 in progress";
-      } else if (pend.kind === "sentcomplete") {
-        next = pend.sentAt ? `${pend.label} — awaiting completion` : `Send the ${pend.label.toLowerCase()}`;
-      } else if (pend.kind === "driver") {
-        next = `Record the ${pend.label.toLowerCase()}`;
-      } else {
-        next = pend.label;
-      }
+      } else if (pend.kind === "sentcomplete") next = pend.sentAt ? `${pend.label} — awaiting completion` : `Send the ${pend.label.toLowerCase()}`;
+      else if (pend.kind === "driver") next = `Record the ${pend.label.toLowerCase()}`;
+      else next = pend.label;
     }
   }
-  const weight = key === "blocked" ? 0 : key === "ready" ? 1 : (key === "in_progress" && tone === "amber") ? 2 : key === "in_progress" ? 3 : key === "not_started" ? 4 : 5;
-  return { key, label, tone, doneN, totalN, steps, gates, next, weight };
+
+  // Sort weight — risks first, then quick wins (ready / due soon), then
+  // waiting states, then in-progress, not-started, and finally active.
+  const weight = (key === "compliance_risk" || key === "needs_correction") ? 0
+    : key === "ready"            ? 1
+    : key === "due_soon"         ? 2
+    : key === "awaiting_review"  ? 3
+    : key === "waiting_on_driver"? 4
+    : key === "in_progress"      ? 5
+    : key === "not_started"      ? 6 : 7;
+  return { key, label, tone, doneN, totalN, pct, steps, gates, next, weight };
 }
 function _obPill(label, tone) {
   const T = tone === "green" ? "background:#dcfce7;color:#166534"
-    : tone === "red" ? "background:#fee2e2;color:#991b1b"
+    : tone === "red"   ? "background:#fee2e2;color:#991b1b"
     : tone === "amber" ? "background:#fef3c7;color:#92400e"
+    : tone === "blue"  ? "background:#e0f2fe;color:#075985"
     : "background:#f1f5f9;color:#475569";
   return `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
 }
@@ -3520,12 +3537,15 @@ async function loadOnboardingOps(opts) {
     const db = b.d.hire_date ? new Date(b.d.hire_date).getTime() : 0;
     return da - db;
   });
-  // Step-funnel counts, gate bottleneck.
-  let ready = 0, blocked = 0;
+  // Step-funnel counts, gate bottleneck, status mix.
+  let ready = 0, atRisk = 0, dueSoon = 0, awaitingReview = 0;
   const stepDone = {};   // step.key -> count completed
   const gateStuck = {};  // gate step.key -> count not done
   for (const { ob } of enriched) {
-    if (ob.key === "ready") ready++; else if (ob.key === "blocked") blocked++;
+    if (ob.key === "ready") ready++;
+    else if (ob.key === "compliance_risk" || ob.key === "needs_correction") atRisk++;
+    else if (ob.key === "due_soon") dueSoon++;
+    else if (ob.key === "awaiting_review") awaitingReview++;
     for (const s of ob.steps) { if (s.done) stepDone[s.key] = (stepDone[s.key] || 0) + 1; }
     for (const g of ob.gates) { if (!g.done) gateStuck[g.key] = (gateStuck[g.key] || 0) + 1; }
   }
@@ -3555,8 +3575,10 @@ async function loadOnboardingOps(opts) {
   ];
   const kpiRow = `<div class="driver-stat-row" style="margin-bottom:8px">${kpis.map(k => `<div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone || ""}">${escapeHtml(k.value)}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("")}</div>`;
   const noteParts = [];
-  if (blocked) noteParts.push(`<strong style="color:var(--red)">${blocked} blocked</strong>`);
-  if (slowTxt) noteParts.push(`biggest bottleneck: ${escapeHtml(slowTxt)}`);
+  if (atRisk)         noteParts.push(`<strong style="color:var(--red)">${atRisk} at risk</strong>`);
+  if (dueSoon)        noteParts.push(`<strong style="color:var(--amber-dark)">${dueSoon} due soon</strong>`);
+  if (awaitingReview) noteParts.push(`<strong style="color:#075985">${awaitingReview} awaiting your review</strong>`);
+  if (slowTxt)        noteParts.push(`biggest bottleneck: ${escapeHtml(slowTxt)}`);
   const noteLine = noteParts.length ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-4)">${noteParts.join('<span style="color:var(--text-subtle)"> · </span>')}</div>` : `<div style="margin-bottom:var(--s-4)"></div>`;
 
   _obMxStylesOnce();
@@ -3595,7 +3617,7 @@ async function loadOnboardingOps(opts) {
             </div>
           </div>
         </td>
-        <td class="ob-mx-statuscell">${_obPill(ob.label, ob.tone)}</td>
+        <td class="ob-mx-statuscell"><span style="display:inline-flex;align-items:center;gap:7px">${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums" title="${ob.doneN} of ${ob.totalN} gates complete">${ob.pct}%</span></span></td>
         ${cells}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "empty"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
@@ -11181,7 +11203,7 @@ async function renderEmploymentTab(body, d) {
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
             ${_obPill(ob.label, ob.tone)}
-            <span style="font-size:var(--fs-sm);color:var(--text-subtle)">${ob.doneN} of ${ob.totalN} gates</span>
+            <span style="font-size:var(--fs-sm);color:var(--text-subtle)">${ob.doneN} of ${ob.totalN} gates · ${ob.pct}%</span>
             ${ob.next ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(ob.next)}</span>` : ""}
           </div>
           ${d.id ? `<button type="button" class="btn btn-sm btn-primary" onclick="goto('onboarding-ops')" style="flex:0 0 auto">Open onboarding dashboard →</button>` : ""}
