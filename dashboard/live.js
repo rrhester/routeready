@@ -3156,6 +3156,17 @@ document.addEventListener("click", async (e) => {
   await loadDriverDrawer(driverId);
 });
 
+// Driver-record Activity tab — filter chips swap _ddActivityFilter and
+// re-render the tab in place.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-dd-actfilt]");
+  if (!b || !b.closest("#rr-dd-drawer")) return;
+  e.preventDefault();
+  _ddActivityFilter = b.getAttribute("data-rr-dd-actfilt") || "all";
+  if (_ddTab !== "activity") _ddTab = "activity";
+  renderDriverDrawerTab();
+});
+
 // ── Onboarding command center (dedicated sidebar page) ───────────────
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
@@ -9831,6 +9842,7 @@ let _ddTab = "profile";
 // values typed into Profile would be lost when the operator clicked
 // Employment.  Save merges _ddPending with the currently visible inputs.
 let _ddPending = {};
+let _ddActivityFilter = "all";   // driver-record Activity tab filter chip
 
 // Coaching-only drawer. Opens from the global Coaching feed when an
 // operator clicks a driver row. Shows just that driver's coaching
@@ -10118,8 +10130,9 @@ async function openDriverDrawer(driverId, opts) {
       .dd-head{padding:20px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
-      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:9px;margin:16px 28px 0}
-      .dd-tab{flex:1;min-width:0;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 10px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:9px;margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
+      .dd-tabs::-webkit-scrollbar{display:none}
+      .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 14px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
       .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
@@ -10130,6 +10143,9 @@ async function openDriverDrawer(driverId, opts) {
       .dd-hchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.01em;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.5}
       .dd-hchip-on{color:var(--green);border-color:rgba(22,163,74,.28);background:#f0fdf4}
       .dd-hchip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+      .dd-actfilt{appearance:none;background:transparent;border:1px solid var(--border);font:inherit;font-size:11px;font-weight:600;color:var(--text-muted);padding:4px 10px;border-radius:999px;cursor:pointer;letter-spacing:.01em;transition:background .12s,color .12s,border-color .12s}
+      .dd-actfilt:hover{color:var(--text);border-color:var(--text-subtle)}
+      .dd-actfilt.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
       /* The per-section "Driver self-serve" / "DSP only" badges have been
          consolidated into a single line under the tab strip (#rr-dd-tab-note).
          Hide the inline copies wherever they still appear in section headers. */
@@ -10180,6 +10196,7 @@ async function openDriverDrawer(driverId, opts) {
         <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="activity">Activity</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
@@ -10334,6 +10351,7 @@ function renderDriverDrawerTab() {
   }
   const body = document.getElementById("rr-dd-body");
   if (_ddTab === "overview")     renderOverviewTab(body, _ddDriver);
+  if (_ddTab === "activity")     renderActivityTab(body, _ddDriver);
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
   if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
@@ -10349,7 +10367,7 @@ function setDriverDrawerFoot() {
   if (!foot) return;
   if (_ddTab === "profile" || _ddTab === "employment" || _ddTab === "license") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`;
-  } else if (_ddTab === "overview") {
+  } else if (_ddTab === "overview" || _ddTab === "activity") {
     foot.innerHTML = `<button class="btn" data-rr-dd-close>Close</button>`;
   } else if (_ddTab === "availability") {
     foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
@@ -10453,6 +10471,96 @@ function _ddVal(name, fallback) {
 // Identity / contact / emergency contact.  Carries the green "Driver
 // self-serve" badge so operators know these fields will be writeable
 // from the driver app.
+// Activity — the full, day-grouped chronology for one driver. Pulls
+// from coachings, document envelopes, Form I-9 audit events, recorded
+// onboarding-step timestamps, and employment reports. Filter chips
+// narrow it down without leaving the tab.
+function _ddActivityEvents(dd) {
+  const d = (dd && dd.driver) || {};
+  const events = [];
+  if (d.hire_date) events.push({ at: d.hire_date + "T00:00:00", title: "Hired", dot: "#0284c7", filter: "onb" });
+  const prog = (dd && dd.prog) || {};
+  const progPairs = [
+    ["welcome_email_sent_at",   "Welcome email sent"],
+    ["bg_instructions_sent_at", "Background-check instructions sent"],
+    ["drug_info_sent_at",       "Drug-testing information sent"],
+    ["handbook_sent_at",        "Employment handbook sent"],
+    ["handbook_completed_at",   "Employment handbook completed"],
+    ["i9_sent_at",              "Form I-9 sent to the employee"],
+    ["job_offer_sent_at",       "Job offer sent"],
+    ["job_offer_completed_at",  "Job offer signed"],
+    ["scheduled_at",            "Driver scheduled"],
+  ];
+  for (const [k, label] of progPairs) if (prog[k]) events.push({ at: prog[k], title: label, dot: "#0284c7", filter: "onb" });
+  if (d.background_check_completed_at) events.push({ at: d.background_check_completed_at, title: "Background check cleared", dot: "#16a34a", filter: "onb" });
+  if (d.drug_test_completed_at)        events.push({ at: d.drug_test_completed_at,        title: "Drug test cleared",        dot: "#16a34a", filter: "onb" });
+  for (const c of ((dd && dd.coachings) || [])) {
+    if (!c.occurred_at) continue;
+    events.push({ at: c.occurred_at, title: `Coaching${c.category ? " · " + escapeHtml(c.category) : ""}`, detail: c.note ? String(c.note).slice(0, 160) : null, dot: "#d97706", filter: "coach" });
+  }
+  for (const e of ((dd && dd.envelopes) || [])) {
+    const t = (e.document_templates && e.document_templates.title) || "Document";
+    if (e.sent_at)     events.push({ at: e.sent_at,     title: `Sent for signature: ${t}`, dot: "#94a3b8", filter: "doc" });
+    if (e.viewed_at)   events.push({ at: e.viewed_at,   title: `Viewed: ${t}`,             dot: "#94a3b8", filter: "doc" });
+    if (e.signed_at)   events.push({ at: e.signed_at,   title: `Signed: ${t}`,             dot: "#16a34a", filter: "doc" });
+    if (e.declined_at) events.push({ at: e.declined_at, title: `Declined: ${t}`,           dot: "#dc2626", filter: "doc" });
+    if (e.voided_at)   events.push({ at: e.voided_at,   title: `Voided: ${t}`,             dot: "#dc2626", filter: "doc" });
+  }
+  for (const x of ((dd && dd.i9 && dd.i9.events) || [])) {
+    if (!x.created_at) continue;
+    const meta = (typeof _i9EventMeta === "function") ? _i9EventMeta(x) : { dot: "#94a3b8", title: String(x.kind || "I-9"), by: "", detail: null };
+    const subParts = [meta.by, meta.detail].filter(Boolean);
+    events.push({ at: x.created_at, title: `Form I-9 · ${meta.title}`, detail: subParts.length ? subParts.join(" · ") : null, dot: meta.dot, filter: "onb" });
+  }
+  for (const r of ((dd && dd.empReports) || [])) {
+    if (!r.generated_at) continue;
+    events.push({ at: r.generated_at, title: "Employment report generated", detail: r.generated_by_name ? "by " + r.generated_by_name : null, dot: "#475569", filter: "report" });
+  }
+  events.sort((a, b) => new Date(b.at) - new Date(a.at));
+  return events;
+}
+
+function renderActivityTab(body, dd) {
+  const events = _ddActivityEvents(dd);
+  const f = _ddActivityFilter || "all";
+  const filtered = f === "all" ? events : events.filter(e => e.filter === f);
+  const counts = events.reduce((acc, e) => { acc[e.filter] = (acc[e.filter] || 0) + 1; return acc; }, {});
+  const chip = (k, label) => `<button type="button" class="dd-actfilt ${f === k ? "active" : ""}" data-rr-dd-actfilt="${k}">${escapeHtml(label)}${k === "all" ? ` · ${events.length}` : counts[k] ? ` · ${counts[k]}` : ""}</button>`;
+  const dayKey = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  const timeOf = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+  let html = "", lastDay = null;
+  if (filtered.length === 0) {
+    html = `<div style="font-size:var(--fs-sm);color:var(--text-subtle);padding:14px 0;line-height:1.5">${escapeHtml(f === "all" ? "No activity recorded yet — coachings, signed documents, Form I-9 events, and onboarding steps appear here as they happen." : "Nothing in this category yet.")}</div>`;
+  } else {
+    filtered.forEach((e, i) => {
+      const dk = dayKey(e.at);
+      if (dk !== lastDay) { html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);margin:${i ? "16px" : "2px"} 0 8px">${escapeHtml(dk)}</div>`; lastDay = dk; }
+      const nextDk = (i + 1 < filtered.length) ? dayKey(filtered[i + 1].at) : null;
+      const isLastInDay = nextDk !== dk;
+      html += `
+        <div style="position:relative;padding:0 0 ${isLastInDay ? "0" : "14px"} 20px;margin-left:6px;border-left:1.5px solid var(--border)">
+          <div style="position:absolute;left:-6px;top:1px;width:11px;height:11px;border-radius:50%;background:${e.dot};box-shadow:0 0 0 3px var(--surface)"></div>
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
+            <span style="font-size:var(--fs-sm);color:var(--text);font-weight:600">${escapeHtml(e.title)}</span>
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;flex:0 0 auto">${escapeHtml(timeOf(e.at))}</span>
+          </div>
+          ${e.detail ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;line-height:1.45">${escapeHtml(e.detail)}</div>` : ""}
+        </div>`;
+    });
+  }
+
+  body.innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+      ${chip("all", "All")}
+      ${chip("onb", "Onboarding & I-9")}
+      ${chip("doc", "Documents")}
+      ${chip("coach", "Coachings")}
+      ${chip("report", "Reports")}
+    </div>
+    <div>${html}</div>`;
+}
+
 // Overview — the landing tab. A calm, scan-first snapshot: status &
 // readiness, what needs attention, the key facts, recent activity. The
 // detail (and editing) lives in the other tabs; this is the "I trust
@@ -10549,7 +10657,7 @@ function renderOverviewTab(body, dd) {
     </div>
 
     ${recent.length ? `<div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div></div>
+      <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div><button type="button" class="btn btn-sm btn-ghost" data-rr-dd-tab="activity" style="margin-left:auto">View all →</button></div>
       <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
     </div>` : ""}`;
 }
