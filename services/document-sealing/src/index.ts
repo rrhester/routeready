@@ -503,7 +503,7 @@ const DEFAULT_TSA_URLS = [
 // string describing why it didn't (so callers can surface it).
 async function tryOneTsa(tsaUrl: string, reqDer: Uint8Array): Promise<{ info?: TimestampInfo; error?: string }> {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 12_000);
+  const t = setTimeout(() => ctrl.abort(), 6_000);
   try {
     const resp = await fetch(tsaUrl, {
       method: "POST",
@@ -556,10 +556,12 @@ async function maybeTimestamp(env: Env, sealedBytes: Uint8Array): Promise<{ info
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", sealedBytes));
     const reqDer = buildTimeStampReq(digest);
     const errs: string[] = [];
+    // Try each endpoint once (6s timeout each). No per-endpoint retry —
+    // the seal is on the critical path and the diagnostic shows these
+    // TSAs respond in well under a second when they're up; a retry+sleep
+    // wasn't worth adding seconds to the seal's wall-clock.
     for (const url of urls) {
-      // One retry per endpoint — TSAs flake transiently.
-      let r = await tryOneTsa(url, reqDer);
-      if (!r.info) { await new Promise((res) => setTimeout(res, 800)); r = await tryOneTsa(url, reqDer); }
+      const r = await tryOneTsa(url, reqDer);
       if (r.info) return { info: r.info };
       if (r.error) errs.push(r.error);
     }
@@ -937,7 +939,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.9", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.10", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
