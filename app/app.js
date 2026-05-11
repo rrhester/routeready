@@ -3523,7 +3523,21 @@ async function renderDocumentSign() {
     body: { token: session.token, signing_token: signingToken },
   });
   if (error) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Couldn't open document: ${escapeHtml(error.message || "unknown")}.</div>`;
+    // sb.functions.invoke surfaces only a generic "non-2xx" string on
+    // failure; the real reason ('unauthorized', 'envelope_not_found',
+    // etc.) lives on the underlying Response inside error.context.
+    // Pull it out so the driver sees something actionable.
+    let detail = error.message || "unknown";
+    try {
+      if (error.context && typeof error.context.json === "function") {
+        const body = await error.context.json();
+        if (body?.error) detail = String(body.error);
+      } else if (error.context && typeof error.context.text === "function") {
+        const txt = await error.context.text();
+        if (txt) detail = txt;
+      }
+    } catch { /* fall back to the generic message */ }
+    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Couldn't open document: ${escapeHtml(detail)}.</div>`;
     return;
   }
   const env = fetched?.envelope;
