@@ -3242,7 +3242,13 @@ function _obMxStylesOnce() {
     ".ob-bld-toggle{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);cursor:pointer;flex:0 0 auto;padding-top:4px}" +
     ".ob-bld-toggle input{accent-color:var(--accent);width:16px;height:16px}" +
     ".ob-needcard{transition:transform .1s,box-shadow .12s}" +
-    ".ob-needcard:hover{transform:translateY(-1px)}";
+    ".ob-needcard:hover{transform:translateY(-1px)}" +
+    ".ob-bld-attach{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text);background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:3px 9px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+    ".ob-bld-tier{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:999px}" +
+    ".ob-bld-tier.secure{background:#dcfce7;color:#166534}" +
+    ".ob-bld-tier.info{background:#f1f5f9;color:#475569}" +
+    ".ob-bld-text{font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);width:100%;resize:vertical}" +
+    ".ob-bld-text:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}";
   document.head.appendChild(s);
 }
 
@@ -3392,22 +3398,50 @@ function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length 
 const _OB_TYPE_LABELS = { welcome: "Welcome", task: "Task", background_check: "Background check", drug_test: "Drug test", document: "Document", i9: "Form I-9", schedule: "Schedule", video: "Video", acknowledgement: "Acknowledgement" };
 let _obBuilderSteps = null;   // working copy of the blueprint while editing
 let _obBuilderDirty = false;
+let _obTemplates = [];        // [{id, title, kind}] — for the "attach document" picker
 
 async function loadOnboardingBuilder() {
   const root = document.getElementById("obsub-builder");
   if (!root) return;
   root.innerHTML = `<div class="rr-loading">Loading</div>`;
-  const { data, error } = await sb.rpc("onboarding_blueprint_get");
+  const [{ data, error }, tplRes] = await Promise.all([
+    sb.rpc("onboarding_blueprint_get"),
+    sb.from("document_templates").select("id, title, kind").is("archived_at", null).order("title", { ascending: true }).then((r) => r, () => ({ data: [] })),
+  ]);
   if (error) { root.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red)">!</div><h3>Couldn't load the blueprint</h3><p>${escapeHtml(error.message || "")}</p></div>`; return; }
+  _obTemplates = Array.isArray(tplRes?.data) ? tplRes.data : [];
   _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT).map(s => ({ ...s }));
   _obBuilderDirty = false;
   _obRenderBuilder();
 }
 
+function _obTplTitle(id) { const t = _obTemplates.find(x => x.id === id); return t ? t.title : null; }
+
 function _obRenderBuilder() {
   const root = document.getElementById("obsub-builder");
   if (!root) return;
   const steps = _obBuilderSteps || [];
+  const attachRow = (s, i) => {
+    if (s.type === "document") {
+      const title = _obTplTitle(s.document_template_id);
+      const tpl = _obTemplates.find(x => x.id === s.document_template_id);
+      return `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${s.document_template_id
+          ? `<span class="ob-bld-attach"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${escapeHtml(title || "(missing document)")}${tpl ? `<span class="ob-bld-tier ${tpl.kind === "informational" ? "info" : "secure"}">${tpl.kind === "informational" ? "Informational" : "Secure"}</span>` : ""}</span>
+             <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-attach="${i}">Change</button>
+             <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-detach="${i}">Remove</button>`
+          : `<button type="button" class="btn btn-sm" data-rr-bld-attach="${i}">Attach a document…</button><span style="font-size:var(--fs-xs);color:var(--text-subtle)">from your Documents library</span>`}
+      </div>`;
+    }
+    if (s.type === "video") {
+      return `<div style="margin-top:8px"><label style="display:flex;flex-direction:column;gap:3px;max-width:420px"><span style="font-size:var(--fs-xs);color:var(--text-muted)">Video URL</span><input type="url" class="ob-bld-text" data-rr-bld-video="${i}" value="${escapeHtml(s.video_url || "")}" placeholder="https://…"></label></div>`;
+    }
+    if (s.type === "acknowledgement") {
+      return `<div style="margin-top:8px"><label style="display:flex;flex-direction:column;gap:3px;max-width:520px"><span style="font-size:var(--fs-xs);color:var(--text-muted)">Acknowledgement text the driver confirms</span><textarea class="ob-bld-text" data-rr-bld-ack="${i}" rows="2" placeholder="e.g. I have read and agree to the safe-driving policy.">${escapeHtml(s.ack_text || "")}</textarea></label></div>`;
+    }
+    return "";
+  };
+  const custom = (s) => typeof s.key === "string" && s.key.startsWith("custom_");
   const card = (s, i) => `
     <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
       <div class="ob-bld-reorder">
@@ -3419,11 +3453,14 @@ function _obRenderBuilder() {
           <input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60">
           <span class="ob-bld-typechip">${escapeHtml(_OB_TYPE_LABELS[s.type] || s.type || "Step")}</span>
           <span class="ob-bld-typechip ${s.owner === "driver" ? "owner-driver" : "owner-dsp"}">${s.owner === "driver" ? "Driver completes" : "DSP records"}</span>
-          ${_OB_STEP_FIELDS[s.key] ? "" : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Per-driver tracking lands soon</span>`}
+          ${custom(s) ? `<span class="ob-bld-typechip" style="background:#ede9fe;color:#5b21b6">Custom</span>` : ""}
+          ${_OB_STEP_FIELDS[s.key] || custom(s) ? "" : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Per-driver tracking lands soon</span>`}
         </div>
+        ${attachRow(s, i)}
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px">
           <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-blocking="${i}" ${s.blocking ? "checked" : ""}> Blocks activation</label>
           <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-required="${i}" ${s.required ? "checked" : ""}> Required</label>
+          ${custom(s) ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-bld-remove="${i}" style="color:var(--red)">Remove step</button>` : ""}
         </div>
       </div>
       <label class="ob-bld-toggle"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span>${s.enabled ? "On" : "Off"}</span></label>
@@ -3431,9 +3468,10 @@ function _obRenderBuilder() {
   root.innerHTML = `
     <div style="margin-bottom:var(--s-3)">
       <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
-      <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 0;max-width:660px;line-height:1.55">The steps every new hire moves through. RouteReady runs the engine — syncing tasks to the driver app, delivering attached documents, tracking signatures &amp; acknowledgements, updating statuses. You customise within guardrails: which steps are on, their order, names, and whether each blocks activation. Changes apply to new and in-progress drivers; the Onboarding matrix shows the steps you enable here.</p>
+      <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 0;max-width:660px;line-height:1.55">The steps every new hire moves through. RouteReady runs the engine — syncing tasks to the driver app, delivering attached documents, tracking signatures &amp; acknowledgements, updating statuses. You customise within guardrails: which steps are on, their order, names, whether each blocks activation, and which document / video / acknowledgement to attach. Changes apply to new and in-progress drivers; the Onboarding matrix shows the steps you enable here.</p>
     </div>
     <div class="ob-bld-list">${steps.map(card).join("")}</div>
+    <div style="margin-top:10px"><button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button></div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:var(--s-3)">
       ${_obBuilderDirty ? `<span style="font-size:var(--fs-xs);color:var(--amber-dark)">Unsaved changes</span>` : ""}
       <button type="button" class="btn btn-sm" data-rr-bld-reset>Reset to defaults</button>
@@ -3441,12 +3479,77 @@ function _obRenderBuilder() {
     </div>`;
 }
 
+// "Attach a document" picker for a document-type step.
+function _obAttachDocPicker(stepIndex) {
+  if (!_obBuilderSteps || !_obBuilderSteps[stepIndex]) return;
+  document.getElementById("rr-ob-tplpick")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-ob-tplpick";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
+  const rows = _obTemplates.length ? _obTemplates.map(t => `
+    <button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" style="text-align:left;border:1px solid var(--border);border-radius:9px;padding:11px 13px;cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:10px">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="${t.kind === "informational" ? "var(--text-muted)" : "#15803d"}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span style="flex:1;min-width:0;font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title)}</span>
+      <span class="ob-bld-tier ${t.kind === "informational" ? "info" : "secure"}">${t.kind === "informational" ? "Informational" : "Secure"}</span>
+    </button>`).join("") : `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">No documents yet. Upload one in the <strong>Documents</strong> tab, then come back here to attach it.</div>`;
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Attach a document</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">It'll be delivered to the driver when they reach “${escapeHtml(_obBuilderSteps[stepIndex].title || "this step")}”.</div></div>
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto">${rows}</div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-tpl-close>Cancel</button></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-tpl-close]")) { m.remove(); return; }
+    const r = e.target.closest(".rr-tplrow");
+    if (r) { const id = r.getAttribute("data-tpl"); _obBuilderSteps[stepIndex].document_template_id = id; _obBuilderDirty = true; m.remove(); _obRenderBuilder(); }
+  });
+}
+
+// "Add a step" picker — only the approved custom step types.
+const _OB_ADD_TYPES = [
+  { type: "document",        owner: "driver", title: "New document", label: "Document to sign or acknowledge", blurb: "Attach a PDF from your Documents library; the driver opens it and signs or acknowledges." },
+  { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement", blurb: "A short statement the driver confirms (no PDF) — e.g. a policy or expectation." },
+  { type: "video",          owner: "driver", title: "New video", label: "Watch a video", blurb: "Link a training or orientation video the driver watches and confirms." },
+  { type: "task",           owner: "dsp",    title: "New task", label: "Task you record", blurb: "Something the DSP completes and marks off — e.g. an internal check or handoff." },
+];
+function _obAddStepPicker() {
+  if (!_obBuilderSteps) return;
+  document.getElementById("rr-ob-addstep")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-ob-addstep";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:10px">
+        ${_OB_ADD_TYPES.map(t => `<button type="button" class="rr-addtype" data-type="${t.type}" style="text-align:left;border:1.5px solid var(--border);border-radius:11px;padding:13px 15px;cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
+      </div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-add-close>Cancel</button></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-add-close]")) { m.remove(); return; }
+    const b = e.target.closest(".rr-addtype");
+    if (!b) return;
+    const t = _OB_ADD_TYPES.find(x => x.type === b.getAttribute("data-type"));
+    if (!t) return;
+    _obBuilderSteps.push({ key: "custom_" + Math.random().toString(36).slice(2, 9), type: t.type, title: t.title, enabled: true, blocking: false, required: false, owner: t.owner, document_template_id: null, video_url: null, ack_text: null });
+    _obBuilderDirty = true; m.remove(); _obRenderBuilder();
+  });
+}
+
 // Builder events — delegated; mutate _obBuilderSteps + mark dirty.
 document.addEventListener("input", (e) => {
-  const t = e.target.closest("#obsub-builder [data-rr-bld-title]");
-  if (!t || !_obBuilderSteps) return;
-  const i = +t.getAttribute("data-rr-bld-title");
-  if (_obBuilderSteps[i]) { _obBuilderSteps[i].title = t.value; _obBuilderDirty = true; document.querySelector("[data-rr-bld-save]")?.removeAttribute("disabled"); }
+  if (!_obBuilderSteps || !e.target.closest("#obsub-builder")) return;
+  const set = (attr, prop) => {
+    const el = e.target.closest(`[${attr}]`);
+    if (!el) return false;
+    const i = +el.getAttribute(attr);
+    if (_obBuilderSteps[i]) { _obBuilderSteps[i][prop] = el.value; _obBuilderDirty = true; document.querySelector("[data-rr-bld-save]")?.removeAttribute("disabled"); }
+    return true;
+  };
+  set("data-rr-bld-title", "title") || set("data-rr-bld-video", "video_url") || set("data-rr-bld-ack", "ack_text");
 });
 document.addEventListener("change", (e) => {
   if (!e.target.closest("#obsub-builder") || !_obBuilderSteps) return;
@@ -3476,6 +3579,13 @@ document.addEventListener("click", async (e) => {
     _obBuilderSteps = _OB_DEFAULT_BLUEPRINT.map(s => ({ ...s }));
     _obBuilderDirty = true; _obRenderBuilder(); return;
   }
+  const attach = e.target.closest("[data-rr-bld-attach]");
+  if (attach) { e.preventDefault(); _obAttachDocPicker(+attach.getAttribute("data-rr-bld-attach")); return; }
+  const detach = e.target.closest("[data-rr-bld-detach]");
+  if (detach && _obBuilderSteps) { e.preventDefault(); const i = +detach.getAttribute("data-rr-bld-detach"); if (_obBuilderSteps[i]) { _obBuilderSteps[i].document_template_id = null; _obBuilderDirty = true; _obRenderBuilder(); } return; }
+  if (e.target.closest("[data-rr-bld-add]")) { e.preventDefault(); _obAddStepPicker(); return; }
+  const rm = e.target.closest("[data-rr-bld-remove]");
+  if (rm && _obBuilderSteps) { e.preventDefault(); const i = +rm.getAttribute("data-rr-bld-remove"); if (_obBuilderSteps[i]) { _obBuilderSteps.splice(i, 1); _obBuilderDirty = true; _obRenderBuilder(); } return; }
   const save = e.target.closest("[data-rr-bld-save]");
   if (save && _obBuilderSteps) {
     e.preventDefault();
