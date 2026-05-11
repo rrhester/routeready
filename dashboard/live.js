@@ -21240,6 +21240,7 @@ async function _docsOpenAudit(envelopeId) {
   const sealDigest  = signedEvt?.event_data?.pdf_sha256      || null;
   const sealTsa     = signedEvt?.event_data?.tsa_url         || null;
   const sealTsaTime = signedEvt?.event_data?.tsa_gen_time    || null;
+  const sealTsaErr  = signedEvt?.event_data?.tsa_error       || null;
   const sealedAt    = signedEvt?.event_data?.signed_at       || null;
 
   // Verdict banner up top.
@@ -21294,6 +21295,7 @@ async function _docsOpenAudit(envelopeId) {
       ${sealKeyFp   ? secRow("Key fingerprint", String(sealKeyFp)) : ""}
       ${sealedAt    ? secRow("Sealed at",     new Date(sealedAt).toISOString()) : ""}
       ${sealTsaTime ? secRow("Timestamp (TSA)", String(sealTsaTime) + (sealTsa ? "  ·  " + String(sealTsa) : "")) : (sealTsa ? secRow("Timestamp", "token attached  ·  " + String(sealTsa)) : "")}
+      ${(!sealTsa && !sealTsaTime && sealTsaErr) ? `<div style="font-size:11px;color:var(--amber-dark);margin-top:4px;line-height:1.5"><strong>Timestamp unavailable</strong> — ${escapeHtml(String(sealTsaErr))}. The seal is still valid; only the third-party time anchor is missing. Use “Re-seal · retry timestamp” once the TSA is reachable, or set <code>RR_TSA_URL</code> on the sealing worker.</div>` : ""}
       ${(!sealAlg && !hasSeal) ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">The cryptographic seal is applied by the sealing service after signing. If it isn't present on a signed record, check the service configuration.</div>` : ""}
     </div>`;
 
