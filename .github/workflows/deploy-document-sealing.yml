@@ -1,0 +1,49 @@
+name: Deploy document-sealing Worker
+
+# Auto-deploys the rr-document-sealing Cloudflare Worker (which seals
+# signed envelopes — stamps the signature image, appends a Certificate
+# of Completion, uploads the result, and logs `pdf_sealed`) whenever
+# anything under services/document-sealing/ changes on main. Mirrors the
+# pattern of deploy-migrations.yml so RouteReady never needs a local
+# dev machine to ship a deploy.
+#
+# Required GitHub Actions secrets:
+#   CLOUDFLARE_API_TOKEN   — Cloudflare → My Profile → API Tokens →
+#                            "Edit Cloudflare Workers" template, scoped
+#                            to your account. Used by wrangler to deploy.
+#   CLOUDFLARE_ACCOUNT_ID  — top-right of any Cloudflare dashboard page.
+#
+# Worker runtime secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+# SEALING_SECRET) are set ONCE in the Cloudflare dashboard
+# (Workers & Pages → rr-document-sealing → Settings → Variables →
+# Secrets) and persist across deploys — they aren't touched by CI.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/document-sealing/**'
+      - '.github/workflows/deploy-document-sealing.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/document-sealing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Deploy with Wrangler
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
