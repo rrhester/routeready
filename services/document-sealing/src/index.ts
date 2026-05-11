@@ -462,11 +462,12 @@ function bytesToBase64(b: Uint8Array): string {
 
 const DEFAULT_TSA_URL = "https://freetsa.org/tsr";
 
-async function maybeTimestamp(env: Env, sealedBytes: Uint8Array): Promise<TimestampInfo | null> {
-  const tsaUrl = env.RR_TSA_URL || DEFAULT_TSA_URL;
+// Try one TSA endpoint once: returns the parsed result or null on any
+// failure (network error, timeout, non-200, or a rejection status).
+async function tryOneTsa(tsaUrl: string, reqDer: Uint8Array): Promise<TimestampInfo | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12_000);
   try {
-    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", sealedBytes));
-    const reqDer = buildTimeStampReq(digest);
     const resp = await fetch(tsaUrl, {
       method: "POST",
       headers: {
@@ -474,17 +475,18 @@ async function maybeTimestamp(env: Env, sealedBytes: Uint8Array): Promise<Timest
         "Accept":       "application/timestamp-reply",
       },
       body: reqDer,
+      signal: ctrl.signal,
     });
     if (!resp.ok) {
-      console.error("TSA request failed", resp.status, await resp.text().catch(() => ""));
+      console.error("TSA non-200", tsaUrl, resp.status, await resp.text().catch(() => ""));
       return null;
     }
     const respDer = new Uint8Array(await resp.arrayBuffer());
-    // TimeStampResp ::= SEQUENCE { status PKIStatusInfo, timeStampToken TimeStampToken OPTIONAL }
-    // status 0 = granted, 1 = grantedWithMods. Anything else = rejection.
+    // TimeStampResp ::= SEQUENCE { status PKIStatusInfo, timeStampToken OPTIONAL }
+    // status 0 = granted, 1 = grantedWithMods.
     const status = readTsaStatus(respDer);
     if (status !== 0 && status !== 1) {
-      console.error("TSA rejected the request, status", status);
+      console.error("TSA rejected", tsaUrl, "status", status);
       return null;
     }
     return {
@@ -492,6 +494,31 @@ async function maybeTimestamp(env: Env, sealedBytes: Uint8Array): Promise<Timest
       tsa_gen_time: extractGenTime(respDer) ?? undefined,
       tst_b64:      bytesToBase64(respDer),
     };
+  } catch (err) {
+    console.error("TSA request failed", tsaUrl, String((err as Error)?.message || err));
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function maybeTimestamp(env: Env, sealedBytes: Uint8Array): Promise<TimestampInfo | null> {
+  // RR_TSA_URL may be a comma-separated list of endpoints; we try each
+  // in order. The default (FreeTSA) is a free volunteer service and is
+  // sometimes slow or down — set RR_TSA_URL to a paid/reliable TSA, or
+  // a list with fallbacks, for a stronger guarantee.
+  const urls = (env.RR_TSA_URL || DEFAULT_TSA_URL).split(",").map((s) => s.trim()).filter(Boolean);
+  try {
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", sealedBytes));
+    const reqDer = buildTimeStampReq(digest);
+    for (const url of urls) {
+      // One retry per endpoint — TSAs flake transiently.
+      let r = await tryOneTsa(url, reqDer);
+      if (!r) { await new Promise((res) => setTimeout(res, 800)); r = await tryOneTsa(url, reqDer); }
+      if (r) return r;
+    }
+    console.error("all TSA endpoints failed; shipping seal without a TST", urls.join(", "));
+    return null;
   } catch (err) {
     console.error("timestamp step failed; shipping seal without a TST", err);
     return null;
@@ -862,7 +889,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.6", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.7", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
