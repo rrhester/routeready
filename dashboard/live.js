@@ -3205,7 +3205,25 @@ function _obMxStylesOnce() {
     ".ob-mxdot.readonly:hover{transform:none}" +
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
     ".ob-mx-action{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:7px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color .12s,border-color .12s,background .12s;line-height:0}" +
-    ".ob-mx-action:hover{color:var(--text);border-color:var(--text-subtle);background:var(--surface)}";
+    ".ob-mx-action:hover{color:var(--text);border-color:var(--text-subtle);background:var(--surface)}" +
+    /* — Onboarding builder — */
+    ".ob-bld-list{display:flex;flex-direction:column;gap:8px}" +
+    ".ob-bld-card{display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 14px;transition:opacity .12s,border-color .12s}" +
+    ".ob-bld-card.disabled{opacity:.55}" +
+    ".ob-bld-reorder{display:flex;flex-direction:column;gap:2px;flex:0 0 auto;padding-top:2px}" +
+    ".ob-bld-mv{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:5px;width:22px;height:18px;font-size:9px;line-height:0;color:var(--text-muted);cursor:pointer}" +
+    ".ob-bld-mv:hover:not([disabled]){color:var(--text);border-color:var(--text-subtle)}" +
+    ".ob-bld-mv[disabled]{opacity:.35;cursor:default}" +
+    ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;min-width:180px;max-width:320px;flex:1}" +
+    ".ob-bld-title:hover{border-color:var(--border)}" +
+    ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--canvas)}" +
+    ".ob-bld-typechip{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--canvas);color:var(--text-muted);white-space:nowrap}" +
+    ".ob-bld-typechip.owner-driver{background:#dcfce7;color:#166534}" +
+    ".ob-bld-typechip.owner-dsp{background:#f1f5f9;color:#475569}" +
+    ".ob-bld-chk{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer}" +
+    ".ob-bld-chk input{accent-color:var(--accent)}" +
+    ".ob-bld-toggle{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);cursor:pointer;flex:0 0 auto;padding-top:4px}" +
+    ".ob-bld-toggle input{accent-color:var(--accent);width:16px;height:16px}";
   document.head.appendChild(s);
 }
 
@@ -3309,23 +3327,169 @@ document.addEventListener("click", (e) => {
 // ── Onboarding command center (dedicated sidebar page) ───────────────
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
-  const ov = document.getElementById("obsub-overview");
-  const wa = document.getElementById("obsub-workauth");
-  if (ov) ov.style.display = which === "workauth" ? "none" : "";
-  if (wa) wa.style.display = which === "workauth" ? "" : "none";
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
+  show("obsub-overview", which === "overview");
+  show("obsub-workauth", which === "workauth");
+  show("obsub-builder",  which === "builder");
+  if (which === "builder") loadOnboardingBuilder();
 };
 
-async function loadOnboardingOps() {
+// ── Step → underlying per-driver field(s). Maps a blueprint step `key`
+// to the column that records its completion (until the
+// driver_onboarding_state cutover). Unknown keys have no mapping yet
+// and don't render in the matrix. `head` is the short matrix column
+// header; the blueprint's `title` is shown as the cell tooltip prefix.
+const _OB_STEP_FIELDS = {
+  welcome_email:   { kind: "prog", done: "welcome_email_sent_at",        doneLabel: "Sent",      head: "Welcome" },
+  bg_instructions: { kind: "prog", done: "bg_instructions_sent_at",      doneLabel: "Sent",      head: "BG instr" },
+  bg_check:        { kind: "drv",  done: "background_check_completed_at", doneLabel: "Cleared",   head: "BG clear" },
+  drug_info:       { kind: "prog", done: "drug_info_sent_at",            doneLabel: "Sent",      head: "Drug info" },
+  drug_test:       { kind: "drv",  done: "drug_test_completed_at",       doneLabel: "Cleared",   head: "Drug clear" },
+  handbook:        { kind: "prog", done: "handbook_completed_at",        doneLabel: "Completed", head: "Handbook" },
+  job_offer:       { kind: "prog", done: "job_offer_completed_at",       doneLabel: "Signed",    head: "Job offer" },
+  i9:              { kind: "i9",   done: null, readonly: true,           doneLabel: "Verified",  head: "Form I-9", todoLabel: "Manage in Work authorization" },
+  training:        { kind: "drv",  done: "training_date",                doneLabel: "Complete",  head: "Training" },
+  scheduled:       { kind: "prog", done: "scheduled_at",                 doneLabel: "Scheduled", head: "Scheduled" },
+};
+// The canonical default blueprint — used until the DSP's row is seeded
+// (mirrors private.onboarding_blueprint_default in migration 0178).
+const _OB_DEFAULT_BLUEPRINT = [
+  { key: "welcome_email",  type: "welcome",         title: "Welcome email",                 enabled: true,  blocking: false, required: false, owner: "dsp" },
+  { key: "bg_instructions",type: "task",            title: "Background-check instructions",  enabled: true,  blocking: false, required: false, owner: "dsp" },
+  { key: "bg_check",       type: "background_check",title: "Background check cleared",       enabled: true,  blocking: true,  required: true,  owner: "dsp" },
+  { key: "drug_info",      type: "task",            title: "Drug-testing information",       enabled: true,  blocking: false, required: false, owner: "dsp" },
+  { key: "drug_test",      type: "drug_test",       title: "Drug test cleared",              enabled: true,  blocking: true,  required: true,  owner: "dsp" },
+  { key: "handbook",       type: "document",        title: "Employment handbook",            enabled: true,  blocking: true,  required: true,  owner: "driver" },
+  { key: "i9",             type: "i9",              title: "Form I-9",                       enabled: true,  blocking: true,  required: true,  owner: "driver" },
+  { key: "job_offer",      type: "document",        title: "Job offer",                      enabled: true,  blocking: true,  required: true,  owner: "driver" },
+  { key: "training",       type: "task",            title: "Training",                       enabled: false, blocking: false, required: false, owner: "dsp" },
+  { key: "scheduled",      type: "schedule",        title: "Driver scheduled",               enabled: true,  blocking: false, required: false, owner: "dsp" },
+];
+let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
+function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
+
+// ── Onboarding Builder (Onboarding → Builder tab) ─────────────────────
+const _OB_TYPE_LABELS = { welcome: "Welcome", task: "Task", background_check: "Background check", drug_test: "Drug test", document: "Document", i9: "Form I-9", schedule: "Schedule", video: "Video", acknowledgement: "Acknowledgement" };
+let _obBuilderSteps = null;   // working copy of the blueprint while editing
+let _obBuilderDirty = false;
+
+async function loadOnboardingBuilder() {
+  const root = document.getElementById("obsub-builder");
+  if (!root) return;
+  root.innerHTML = `<div class="rr-loading">Loading</div>`;
+  const { data, error } = await sb.rpc("onboarding_blueprint_get");
+  if (error) { root.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red)">!</div><h3>Couldn't load the blueprint</h3><p>${escapeHtml(error.message || "")}</p></div>`; return; }
+  _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT).map(s => ({ ...s }));
+  _obBuilderDirty = false;
+  _obRenderBuilder();
+}
+
+function _obRenderBuilder() {
+  const root = document.getElementById("obsub-builder");
+  if (!root) return;
+  const steps = _obBuilderSteps || [];
+  const card = (s, i) => `
+    <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
+      <div class="ob-bld-reorder">
+        <button type="button" class="ob-bld-mv" data-rr-bld-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move up">▲</button>
+        <button type="button" class="ob-bld-mv" data-rr-bld-down="${i}" ${i === steps.length - 1 ? "disabled" : ""} aria-label="Move down">▼</button>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60">
+          <span class="ob-bld-typechip">${escapeHtml(_OB_TYPE_LABELS[s.type] || s.type || "Step")}</span>
+          <span class="ob-bld-typechip ${s.owner === "driver" ? "owner-driver" : "owner-dsp"}">${s.owner === "driver" ? "Driver completes" : "DSP records"}</span>
+          ${_OB_STEP_FIELDS[s.key] ? "" : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Per-driver tracking lands soon</span>`}
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px">
+          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-blocking="${i}" ${s.blocking ? "checked" : ""}> Blocks activation</label>
+          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-required="${i}" ${s.required ? "checked" : ""}> Required</label>
+        </div>
+      </div>
+      <label class="ob-bld-toggle"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span>${s.enabled ? "On" : "Off"}</span></label>
+    </div>`;
+  root.innerHTML = `
+    <div style="margin-bottom:var(--s-3)">
+      <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
+      <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 0;max-width:660px;line-height:1.55">The steps every new hire moves through. RouteReady runs the engine — syncing tasks to the driver app, delivering attached documents, tracking signatures &amp; acknowledgements, updating statuses. You customise within guardrails: which steps are on, their order, names, and whether each blocks activation. Changes apply to new and in-progress drivers; the Onboarding matrix shows the steps you enable here.</p>
+    </div>
+    <div class="ob-bld-list">${steps.map(card).join("")}</div>
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:var(--s-3)">
+      ${_obBuilderDirty ? `<span style="font-size:var(--fs-xs);color:var(--amber-dark)">Unsaved changes</span>` : ""}
+      <button type="button" class="btn btn-sm" data-rr-bld-reset>Reset to defaults</button>
+      <button type="button" class="btn btn-sm btn-primary" data-rr-bld-save${_obBuilderDirty ? "" : " disabled"}>Save blueprint</button>
+    </div>`;
+}
+
+// Builder events — delegated; mutate _obBuilderSteps + mark dirty.
+document.addEventListener("input", (e) => {
+  const t = e.target.closest("#obsub-builder [data-rr-bld-title]");
+  if (!t || !_obBuilderSteps) return;
+  const i = +t.getAttribute("data-rr-bld-title");
+  if (_obBuilderSteps[i]) { _obBuilderSteps[i].title = t.value; _obBuilderDirty = true; document.querySelector("[data-rr-bld-save]")?.removeAttribute("disabled"); }
+});
+document.addEventListener("change", (e) => {
+  if (!e.target.closest("#obsub-builder") || !_obBuilderSteps) return;
+  let i, key;
+  const eb = e.target.closest("[data-rr-bld-enabled]"); if (eb) { i = +eb.getAttribute("data-rr-bld-enabled"); key = "enabled"; }
+  const bb = e.target.closest("[data-rr-bld-blocking]"); if (bb) { i = +bb.getAttribute("data-rr-bld-blocking"); key = "blocking"; }
+  const rb = e.target.closest("[data-rr-bld-required]"); if (rb) { i = +rb.getAttribute("data-rr-bld-required"); key = "required"; }
+  if (key === undefined || i === undefined || !_obBuilderSteps[i]) return;
+  _obBuilderSteps[i][key] = !!e.target.checked;
+  _obBuilderDirty = true;
+  _obRenderBuilder();
+});
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#obsub-builder")) return;
+  const up = e.target.closest("[data-rr-bld-up]");
+  const dn = e.target.closest("[data-rr-bld-down]");
+  if ((up || dn) && _obBuilderSteps) {
+    e.preventDefault();
+    const i = +(up || dn).getAttribute(up ? "data-rr-bld-up" : "data-rr-bld-down");
+    const j = up ? i - 1 : i + 1;
+    if (j < 0 || j >= _obBuilderSteps.length) return;
+    const tmp = _obBuilderSteps[i]; _obBuilderSteps[i] = _obBuilderSteps[j]; _obBuilderSteps[j] = tmp;
+    _obBuilderDirty = true; _obRenderBuilder(); return;
+  }
+  if (e.target.closest("[data-rr-bld-reset]")) {
+    e.preventDefault();
+    _obBuilderSteps = _OB_DEFAULT_BLUEPRINT.map(s => ({ ...s }));
+    _obBuilderDirty = true; _obRenderBuilder(); return;
+  }
+  const save = e.target.closest("[data-rr-bld-save]");
+  if (save && _obBuilderSteps) {
+    e.preventDefault();
+    if (save.disabled) return;
+    save.disabled = true; const orig = save.textContent; save.textContent = "Saving…";
+    const clean = _obBuilderSteps.map(s => ({
+      key: s.key, type: s.type, title: (s.title || "").trim() || _OB_TYPE_LABELS[s.type] || "Step",
+      enabled: !!s.enabled, blocking: !!s.blocking, required: !!s.required, owner: s.owner === "driver" ? "driver" : "dsp",
+      document_template_id: s.document_template_id || null, video_url: s.video_url || null, ack_text: s.ack_text || null,
+    }));
+    const { data, error } = await sb.rpc("onboarding_blueprint_set", { p_steps: clean });
+    if (error) { save.disabled = false; save.textContent = orig; toast("Couldn't save: " + (error.message || ""), "warn"); return; }
+    _obBlueprint = Array.isArray(data) ? data : clean;
+    _obBuilderSteps = _obBlueprint.map(s => ({ ...s }));
+    _obBuilderDirty = false;
+    toast("Onboarding blueprint saved ✓", "success");
+    _obRenderBuilder();
+    // Refresh the matrix in the background so its columns reflect the
+    // new blueprint — without switching the operator off the Builder tab.
+    if (document.getElementById("obsub-overview")) loadOnboardingOps({ keepTab: true });
+  }
+});
+
+async function loadOnboardingOps(opts) {
   const body  = document.getElementById("obsub-overview");
   const subEl = document.getElementById("rr-onboardops-sub");
   if (!body) return;
-  if (typeof obSub === "function") obSub("overview");
+  if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
 
-  const [{ data: drv, error }, i9Res, progRes, envRes] = await Promise.all([
+  const [{ data: drv, error }, i9Res, progRes, envRes, bpRes] = await Promise.all([
     sb.from("drivers")
-      .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier,
+      .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, training_date,
                background_check_completed_at, drug_test_completed_at,
                station:station_id (code)`)
       .eq("dsp_id", window.RR.dsp.id)
@@ -3335,7 +3499,9 @@ async function loadOnboardingOps() {
     sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
     sb.from("onboarding_progress").select("*").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
     sb.from("document_envelopes").select("recipient_driver_id, status, signed_at, sent_at").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
+    sb.rpc("onboarding_blueprint_get").then((r) => r, () => ({ data: null })),
   ]);
+  _obBlueprint = (bpRes && Array.isArray(bpRes.data) && bpRes.data.length) ? bpRes.data : null;
   if (error) {
     body.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Couldn't load onboarding</h3><p>${escapeHtml(error.message || "")}</p></div>`;
     return;
@@ -3395,18 +3561,16 @@ async function loadOnboardingOps() {
 
   _obMxStylesOnce();
 
-  // One cell of the step matrix: a single green/empty dot per step.
-  // Click toggles via the appropriate path (RPC for onboarding_progress,
-  // direct update for drivers fields, status flip for "active"). Read-only
-  // for "I-9 verified" — that one moves through Section 2 in the Work
-  // Authorization tab. `title` carries the captured date for hover.
+  // Columns = the enabled blueprint steps that have an underlying field
+  // mapping (configured in the Builder tab), then a fixed "Active" + a
+  // "Send documents" action column.
+  const stepCols = _obSteps().filter(s => s && s.enabled && _OB_STEP_FIELDS[s.key]).map(s => ({ ...s, map: _OB_STEP_FIELDS[s.key] }));
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
-  const dot = (driverId, kind, field, val, opts) => {
+  const dotCell = (driverId, kind, field, val, opts) => {
     const ro = opts && opts.readonly;
     const done = !!val;
-    const cls = `ob-mxdot${done ? " done" : ""}${ro ? " readonly" : ""}`;
-    const title = done ? (opts && opts.doneLabel ? opts.doneLabel + " " : "Done ") + (fmtCellDate(val) || "") : (opts && opts.todoLabel) || "Not yet";
-    return `<button type="button" class="${cls}" data-rr-ob-mxdot data-driver-id="${escapeHtml(driverId)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${done ? "done" : "empty"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${ro ? " disabled" : ""}></button>`;
+    const title = done ? ((opts && opts.doneLabel ? opts.doneLabel + " " : "Done ") + (fmtCellDate(val) || "")) : ((opts && opts.todoLabel) || "Not yet");
+    return `<td><button type="button" class="ob-mxdot${done ? " done" : ""}${ro ? " readonly" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(driverId)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${done ? "done" : "empty"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${ro ? " disabled" : ""}></button></td>`;
   };
 
   const matrixRow = ({ d, ob }) => {
@@ -3418,6 +3582,8 @@ async function loadOnboardingOps() {
     const stationCode = (_driverStationsCache || []).find(s => s.id === d.station_id)?.code;
     const days = d.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000)) : null;
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
+    const valFor = (m) => m.kind === "drv" ? d[m.done] : m.kind === "i9" ? (i9verified ? (i9CompletedAt || true) : null) : prog[m.done];
+    const cells = stepCols.map(s => dotCell(d.id, s.map.kind, s.map.done, valFor(s.map), { readonly: !!s.map.readonly, doneLabel: s.map.doneLabel, todoLabel: s.map.todoLabel || `${s.title} — not yet` })).join("");
     return `
       <tr data-driver-id="${escapeHtml(d.id)}">
         <td class="ob-mx-namecell">
@@ -3430,48 +3596,27 @@ async function loadOnboardingOps() {
           </div>
         </td>
         <td class="ob-mx-statuscell">${_obPill(ob.label, ob.tone)}</td>
-        <td>${dot(d.id, "prog", "welcome_email_sent_at",   prog.welcome_email_sent_at,   { doneLabel: "Sent" })}</td>
-        <td>${dot(d.id, "prog", "bg_instructions_sent_at", prog.bg_instructions_sent_at, { doneLabel: "Sent" })}</td>
-        <td>${dot(d.id, "drv",  "background_check_completed_at", d.background_check_completed_at, { doneLabel: "Cleared" })}</td>
-        <td>${dot(d.id, "prog", "drug_info_sent_at",       prog.drug_info_sent_at,       { doneLabel: "Sent" })}</td>
-        <td>${dot(d.id, "drv",  "drug_test_completed_at",  d.drug_test_completed_at,    { doneLabel: "Cleared" })}</td>
-        <td>${dot(d.id, "prog", "handbook_sent_at",        prog.handbook_sent_at,        { doneLabel: "Sent" })}</td>
-        <td>${dot(d.id, "prog", "handbook_completed_at",   prog.handbook_completed_at,   { doneLabel: "Completed" })}</td>
-        <td>${dot(d.id, "prog", "i9_sent_at",              prog.i9_sent_at,              { doneLabel: "Sent" })}</td>
-        <td>${dot(d.id, "i9",   null, i9verified ? (i9CompletedAt || true) : null,      { readonly: true, doneLabel: "Verified", todoLabel: "Manage in Work authorization tab" })}</td>
-        <td>${dot(d.id, "prog", "job_offer_sent_at",       prog.job_offer_sent_at,       { doneLabel: "Sent" })}</td>
-        <td>${dot(d.id, "prog", "job_offer_completed_at",  prog.job_offer_completed_at,  { doneLabel: "Signed" })}</td>
-        <td>${dot(d.id, "prog", "scheduled_at",            prog.scheduled_at,            { doneLabel: "Scheduled" })}</td>
-        <td>${dot(d.id, "status", null, d.status === "active",                          { doneLabel: "Active", todoLabel: "Not active yet" })}</td>
+        ${cells}
+        <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "empty"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
       </tr>`;
   };
 
+  const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
   body.innerHTML = `
     ${kpiRow}
     ${noteLine}
     <div class="ob-mx-wrap">
       <div class="ob-mx-head">
         <div class="ob-mx-title">Onboarding drivers</div>
-        <span class="ob-mx-sub">Click any dot to mark / unmark. Click a name to open the full detail.</span>
+        <span class="ob-mx-sub">Steps configured in the <strong>Builder</strong> tab · click any dot to mark / unmark · click a name for the full record</span>
       </div>
       ${enriched.length ? `<div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
             <th class="ob-mx-statuscol">Status</th>
-            <th>Welcome</th>
-            <th>BG instr</th>
-            <th>BG clear</th>
-            <th>Drug info</th>
-            <th>Drug clear</th>
-            <th>HB sent</th>
-            <th>HB done</th>
-            <th>I-9 sent</th>
-            <th>I-9 verif</th>
-            <th>Offer sent</th>
-            <th>Offer signed</th>
-            <th>Scheduled</th>
+            ${stepHeaders}
             <th>Active</th>
             <th>Send</th>
           </tr>
