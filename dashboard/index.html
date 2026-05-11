@@ -10372,7 +10372,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></div>
             <div>
               <h1 class="page-title">Documents</h1>
-              <p class="page-sub">Send PDFs to drivers for legally-binding e-signature. Every envelope has an immutable, hash-chained audit trail.</p>
+              <p class="page-sub">Send PDFs to drivers for legally-binding e-signature. Every envelope is sealed, hash-chained, and independently verifiable.</p>
             </div>
           </div>
           <div class="page-actions">
@@ -10383,32 +10383,276 @@ body.rr-cmdk-open{ overflow:hidden }
             <input type="file" id="docs-file-input" accept="application/pdf" hidden>
           </div>
         </div>
+
+        <!-- System-integrity strip: quiet, factual, always-on assurances.
+             No banners, no marketing — just the load-bearing facts. -->
+        <div class="docs-trust-strip" aria-hidden="false">
+          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>Audit chain active</span>
+          <span class="docs-trust-sep">·</span>
+          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>Tamper-evident records</span>
+          <span class="docs-trust-sep">·</span>
+          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>ESIGN / UETA compliant</span>
+          <span class="docs-trust-sep">·</span>
+          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>RFC 3161 timestamped</span>
+          <span class="docs-trust-sep">·</span>
+          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>Cryptographically sealed</span>
+        </div>
+
         <div class="subnav" id="docs-subnav">
           <button class="subnav-item active" data-docs-sub="templates">Templates</button>
-          <button class="subnav-item" data-docs-sub="envelopes">Envelopes</button>
+          <button class="subnav-item" data-docs-sub="envelopes">Signature records</button>
         </div>
 
         <style>
-          .docs-list{display:flex;flex-direction:column;gap:8px}
-          .docs-template-card{
-            display:flex;align-items:center;gap:14px;
-            background:var(--surface);border:1px solid var(--border);border-radius:12px;
-            padding:14px 16px;
-            transition:box-shadow .12s ease, border-color .12s ease;
+          /* ── Documents · enterprise design system (scoped) ───────────── */
+          #view-documents{ --docs-radius:14px; --docs-radius-sm:9px; }
+          #view-documents .page-sub{ max-width:none; }
+
+          /* System-integrity strip */
+          .docs-trust-strip{
+            display:flex;flex-wrap:wrap;align-items:center;gap:8px 4px;
+            margin:14px 0 18px;padding:9px 14px;
+            background:linear-gradient(180deg, var(--surface) 0%, var(--canvas) 140%);
+            border:1px solid var(--border);border-radius:var(--docs-radius-sm);
+            box-shadow:var(--shadow-sm);
+            font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--text-muted);
           }
-          .docs-template-card:hover{ box-shadow:var(--shadow-sm);border-color:var(--border-strong, var(--border)) }
-          .docs-template-icon{
-            width:38px;height:46px;flex:0 0 auto;
-            background:var(--accent-soft);color:var(--accent);
-            border-radius:6px;
+          .docs-trust-item{ display:inline-flex;align-items:center;gap:6px;white-space:nowrap; }
+          .docs-trust-sep{ color:var(--text-subtle);opacity:.6; }
+          .docs-trust-dot{
+            width:6px;height:6px;border-radius:50%;flex:0 0 auto;
+            background:var(--green);box-shadow:0 0 0 3px var(--green-soft);
+          }
+
+          /* Section heading band above lists */
+          .docs-section-bar{
+            display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+            margin:2px 0 12px;
+          }
+          .docs-section-bar h2{
+            margin:0;font-size:13px;font-weight:700;letter-spacing:.01em;color:var(--text);
+          }
+          .docs-section-bar .docs-counts{
+            font-size:11px;font-weight:600;color:var(--text-subtle);
+            display:flex;gap:14px;flex-wrap:wrap;
+          }
+          .docs-section-bar .docs-counts b{ color:var(--text-muted);font-weight:700; }
+
+          /* Generic list container */
+          .docs-list{display:flex;flex-direction:column;gap:8px}
+
+          /* Template cards */
+          .docs-template-card{
+            display:flex;align-items:center;gap:16px;
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--docs-radius);
+            padding:16px 18px;box-shadow:var(--shadow-sm);
+            transition:box-shadow .14s ease, border-color .14s ease, transform .14s ease;
+          }
+          .docs-template-card:hover{
+            box-shadow:var(--shadow-md);border-color:var(--border-strong);
+          }
+          .docs-doc-tile{
+            position:relative;width:40px;height:50px;flex:0 0 auto;border-radius:6px;
+            background:linear-gradient(160deg,#fff 0%, var(--canvas) 100%);
+            border:1px solid var(--border-strong);
+            display:flex;align-items:center;justify-content:center;color:var(--accent);
+            box-shadow:var(--shadow-sm);
+          }
+          .docs-doc-tile::after{ /* dog-ear */
+            content:"";position:absolute;top:0;right:0;width:10px;height:10px;
+            background:var(--canvas);border-left:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);
+            border-bottom-left-radius:3px;
+          }
+          .docs-doc-tile svg{width:18px;height:18px}
+          .docs-card-title{
+            font-weight:650;font-size:13.5px;color:var(--text);
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+          }
+          .docs-meta-row{ display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:6px; }
+          .docs-mono-chip{
+            display:inline-flex;align-items:center;gap:5px;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
+            color:var(--text-muted);background:var(--canvas);
+            border:1px solid var(--border);border-radius:5px;padding:2px 7px;
+          }
+          .docs-mono-chip .lbl{
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+            font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            color:var(--text-subtle);
+          }
+          .docs-meta-dim{ font-size:11px;color:var(--text-subtle); }
+
+          /* Status chips (lifecycle) */
+          .docs-chip{
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:11px;font-weight:650;letter-spacing:.01em;
+            border-radius:999px;padding:3px 10px 3px 8px;line-height:1.4;
+            border:1px solid transparent;white-space:nowrap;
+          }
+          .docs-chip .dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto; }
+          .docs-chip.is-pending{ background:var(--accent-soft);color:var(--accent-text);border-color:rgba(15,108,189,.18); }
+          .docs-chip.is-pending .dot{ background:var(--accent); animation:docsPulse 2.4s ease-in-out infinite; }
+          .docs-chip.is-viewed{ background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.18); }
+          .docs-chip.is-viewed .dot{ background:var(--amber); }
+          .docs-chip.is-signed{ background:var(--green-soft);color:var(--green);border-color:rgba(5,150,105,.20); }
+          .docs-chip.is-signed .dot{ background:var(--green); }
+          .docs-chip.is-declined{ background:var(--red-soft);color:var(--red);border-color:rgba(225,29,72,.18); }
+          .docs-chip.is-declined .dot{ background:var(--red); }
+          .docs-chip.is-neutral{ background:var(--canvas);color:var(--text-muted);border-color:var(--border); }
+          .docs-chip.is-neutral .dot{ background:var(--text-subtle); }
+          @keyframes docsPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(15,108,189,.35); } 50%{ box-shadow:0 0 0 4px rgba(15,108,189,0); } }
+
+          /* Trust badges (small, restrained — used on completed records) */
+          .docs-badge{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+            color:var(--text-muted);background:var(--canvas);
+            border:1px solid var(--border);border-radius:5px;padding:2px 7px;
+          }
+          .docs-badge svg{ width:11px;height:11px;color:var(--green); }
+          .docs-badge.dim svg{ color:var(--text-subtle); }
+
+          /* Records table */
+          .docs-table-wrap{
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--docs-radius);
+            box-shadow:var(--shadow-sm);overflow:hidden;
+          }
+          .docs-table{ width:100%;border-collapse:collapse; }
+          .docs-table thead th{
+            text-align:left;padding:11px 16px;background:var(--canvas);
+            font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
+            border-bottom:1px solid var(--border);
+          }
+          .docs-table tbody tr{
+            border-top:1px solid var(--border);transition:background .12s ease;
+          }
+          .docs-table tbody tr:first-child{ border-top:none; }
+          .docs-table tbody tr:hover{ background:var(--canvas); }
+          .docs-table td{ padding:13px 16px;font-size:12.5px;color:var(--text);vertical-align:middle; }
+          .docs-recipient{ display:flex;align-items:center;gap:11px; }
+          .docs-avatar{
+            width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+            display:flex;align-items:center;justify-content:center;
+            font-size:11px;font-weight:700;color:var(--accent-text);
+            background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);
+          }
+          .docs-recipient .nm{ font-weight:650;color:var(--text);line-height:1.3; }
+          .docs-recipient .em{ font-size:11px;color:var(--text-subtle);line-height:1.3; }
+          .docs-doc-cell{ display:flex;align-items:center;gap:9px;color:var(--text); }
+          .docs-doc-cell svg{ width:14px;height:14px;color:var(--text-subtle);flex:0 0 auto; }
+          .docs-ts{ color:var(--text-muted);white-space:nowrap;font-variant-numeric:tabular-nums; }
+          .docs-ts .rel{ display:block;font-size:10.5px;color:var(--text-subtle); }
+          .docs-row-actions{ display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap; }
+
+          /* Quiet ghost button used inside records */
+          #view-documents .btn-ghost{
+            background:transparent;border:1px solid var(--border);color:var(--text-muted);
+            font-weight:600;
+          }
+          #view-documents .btn-ghost:hover{ background:var(--canvas);border-color:var(--border-strong);color:var(--text); }
+
+          /* Empty / error states */
+          .docs-empty{
+            background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--docs-radius);
+            padding:54px 28px;text-align:center;box-shadow:var(--shadow-sm);
+          }
+          .docs-empty .ic{
+            width:46px;height:46px;border-radius:12px;margin:0 auto 14px;
+            display:flex;align-items:center;justify-content:center;color:var(--accent);
+            background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
+          }
+          .docs-empty .ic svg{ width:22px;height:22px; }
+          .docs-empty h3{ margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text); }
+          .docs-empty p{ margin:0 auto;max-width:380px;font-size:12.5px;color:var(--text-subtle);line-height:1.55; }
+          .docs-empty.is-error{ border-color:rgba(225,29,72,.30); }
+          .docs-empty.is-error .ic{ background:var(--red-soft);color:var(--red);border-color:rgba(225,29,72,.20); }
+
+          /* ── Chain-of-custody / audit modal ─────────────────────────── */
+          .docs-coc-backdrop{
+            display:flex;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:24px;
+            background:rgba(11,18,32,.46);backdrop-filter:blur(2px);
+          }
+          .docs-coc{
+            background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;
+            width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;
+            box-shadow:0 24px 60px rgba(11,18,32,.28), 0 2px 8px rgba(11,18,32,.12);
+          }
+          .docs-coc-head{
+            padding:18px 22px 16px;border-bottom:1px solid var(--border);
+            background:linear-gradient(180deg, var(--surface) 0%, var(--canvas) 220%);
+          }
+          .docs-coc-head .row1{ display:flex;align-items:flex-start;justify-content:space-between;gap:14px; }
+          .docs-coc-head .ttl{ font-size:16px;font-weight:700;color:var(--text);line-height:1.25; }
+          .docs-coc-head .sub{ font-size:11.5px;color:var(--text-subtle);margin-top:3px; }
+          .docs-coc-head .sub code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+          .docs-coc-verdict{
+            display:flex;align-items:center;gap:10px;margin-top:14px;padding:11px 14px;border-radius:10px;
+            font-size:12.5px;font-weight:650;
+          }
+          .docs-coc-verdict.ok{ background:var(--green-soft);color:var(--green);border:1px solid rgba(5,150,105,.20); }
+          .docs-coc-verdict.bad{ background:var(--red-soft);color:var(--red);border:1px solid rgba(225,29,72,.22); }
+          .docs-coc-verdict svg{ width:18px;height:18px;flex:0 0 auto; }
+          .docs-coc-verdict .vsub{ font-weight:500;color:inherit;opacity:.78;font-size:11px;display:block;margin-top:1px; }
+          .docs-coc-body{ flex:1;overflow-y:auto;padding:18px 22px 22px; }
+
+          .docs-coc-sectionlabel{
+            font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);
+            margin:18px 0 10px;display:flex;align-items:center;gap:8px;
+          }
+          .docs-coc-sectionlabel:first-child{ margin-top:0; }
+          .docs-coc-sectionlabel::after{ content:"";flex:1;height:1px;background:var(--border); }
+
+          /* Records (download) panel */
+          .docs-records{ display:flex;gap:8px;flex-wrap:wrap; }
+
+          /* Security record card */
+          .docs-secrec{
+            background:linear-gradient(165deg, var(--surface) 0%, var(--canvas) 130%);
+            border:1px solid var(--border-strong);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow-sm);
+          }
+          .docs-secrec-checks{ display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px; }
+          .docs-secrec-check{
+            display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:8px;
+            font-size:11.5px;font-weight:650;background:var(--green-soft);color:var(--green);border:1px solid rgba(5,150,105,.20);
+          }
+          .docs-secrec-check svg{ width:13px;height:13px; }
+          .docs-secrec-check.pending{ background:var(--canvas);color:var(--text-subtle);border-color:var(--border); }
+          .docs-secrec-row{ display:flex;gap:10px;font-size:11.5px;padding:3px 0; }
+          .docs-secrec-row .k{ flex:0 0 122px;color:var(--text-subtle);font-weight:600; }
+          .docs-secrec-row .v{
+            color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;
+          }
+
+          /* Timeline */
+          .docs-timeline{ position:relative;margin:0;padding:0 0 0 4px;list-style:none; }
+          .docs-tl-item{ position:relative;padding:0 0 16px 26px; }
+          .docs-tl-item:last-child{ padding-bottom:0; }
+          .docs-tl-item::before{ /* connector */
+            content:"";position:absolute;left:7px;top:16px;bottom:0;width:1.5px;background:var(--border);
+          }
+          .docs-tl-item:last-child::before{ display:none; }
+          .docs-tl-node{
+            position:absolute;left:0;top:1px;width:16px;height:16px;border-radius:50%;
+            background:var(--surface);border:2px solid var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
             display:flex;align-items:center;justify-content:center;
           }
-          .docs-template-icon svg{width:20px;height:20px}
-          .docs-empty{
-            background:var(--surface);border:1px dashed var(--border);border-radius:12px;
-            padding:48px 24px;text-align:center;color:var(--text-subtle);
+          .docs-tl-node.signed{ border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft); }
+          .docs-tl-node.declined{ border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft); }
+          .docs-tl-node.system{ border-color:var(--text-subtle);box-shadow:0 0 0 3px var(--canvas); }
+          .docs-tl-node.bad{ background:var(--red);border-color:var(--red); }
+          .docs-tl-node svg{ width:8px;height:8px;color:var(--accent); }
+          .docs-tl-head{ display:flex;align-items:baseline;gap:8px;flex-wrap:wrap; }
+          .docs-tl-kind{ font-size:12.5px;font-weight:650;color:var(--text); }
+          .docs-tl-time{ font-size:10.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums; }
+          .docs-tl-meta{ font-size:11px;color:var(--text-subtle);margin-top:3px; }
+          .docs-tl-hash{
+            margin-top:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--text-subtle);
+            background:var(--canvas);border:1px solid var(--border);border-radius:5px;padding:2px 7px;display:inline-block;word-break:break-all;
           }
-          .docs-tag-row{display:inline-flex;gap:8px;align-items:center}
+          .docs-coc-foot{
+            margin-top:18px;padding-top:14px;border-top:1px solid var(--border);
+            font-size:10.5px;color:var(--text-subtle);line-height:1.6;
+          }
         </style>
 
         <div id="docs-templates-tab">
