@@ -595,9 +595,17 @@ async function stampSignature(
     ? envelope.fields_snapshot
     : null;
 
+  // The signing date stamped into any `date` fields — the actual date
+  // the driver completed the signature (from envelope.signed_at), never
+  // a user-entered value. Falls back to today if signed_at is somehow
+  // missing.
+  const signedDate = envelope.signed_at ? new Date(envelope.signed_at) : new Date();
+  const dateStr = `${String(signedDate.getUTCMonth() + 1).padStart(2, "0")}/${String(signedDate.getUTCDate()).padStart(2, "0")}/${signedDate.getUTCFullYear()}`;
+
   if (fields) {
     for (const f of fields) {
-      if ((f.kind || "signature") !== "signature") continue;
+      const kind = f.kind || "signature";
+      if (kind !== "signature" && kind !== "date") continue;
       const pageIdx = Math.max(0, Math.min(pages.length - 1, (f.page ?? 1) - 1));
       const page = pages[pageIdx];
       const { width: pw, height: ph } = page.getSize();
@@ -607,7 +615,11 @@ async function stampSignature(
       const w = (f.w ?? 0.3) * pw;
       const h = (f.h ?? 0.08) * ph;
       const y = ph - ((f.y ?? 0.85) * ph) - h;
-      await drawSignatureBox(pdf, page, x, y, w, h, method, payload, typedName, bold);
+      if (kind === "date") {
+        drawDateBox(page, x, y, w, h, dateStr, bold);
+      } else {
+        await drawSignatureBox(pdf, page, x, y, w, h, method, payload, typedName, bold);
+      }
     }
   } else {
     // Default placement: bottom-right of the last page.
@@ -661,6 +673,32 @@ async function drawSignatureBox(
   }
 
   // Thin underline under the signature.
+  page.drawLine({
+    start: { x, y: y - 2 }, end: { x: x + w, y: y - 2 },
+    thickness: 0.6, color: rgb(0.55, 0.60, 0.70),
+  });
+}
+
+// A `date` field is auto-filled with the actual signing date (from
+// envelope.signed_at) — never a value the signer typed. Drawn centered
+// in its box, MM/DD/YYYY, with a thin underline like the signature box.
+function drawDateBox(
+  page: PDFPage,
+  x: number, y: number, w: number, h: number,
+  dateStr: string,
+  bold: PDFFont,
+) {
+  page.drawText("Date", {
+    x, y: y + h + 4, size: 8, font: bold, color: rgb(0.18, 0.22, 0.30),
+  });
+  // Size the text to the box; cap so it doesn't get huge in a tall box.
+  const size = Math.min(h * 0.62, 16);
+  const textW = bold.widthOfTextAtSize(dateStr, size);
+  page.drawText(dateStr, {
+    x: x + Math.max(2, (w - textW) / 2),
+    y: y + (h - size) / 2 + 2,
+    size, font: bold, color: rgb(0.06, 0.10, 0.18),
+  });
   page.drawLine({
     start: { x, y: y - 2 }, end: { x: x + w, y: y - 2 },
     thickness: 0.6, color: rgb(0.55, 0.60, 0.70),
@@ -771,7 +809,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.3", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.4", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
