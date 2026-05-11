@@ -175,12 +175,12 @@ export default {
       return json({ error: "unauthorized" }, 401);
     }
 
-    const body = (await req.json().catch(() => ({}))) as { envelope_id?: string };
+    const body = (await req.json().catch(() => ({}))) as { envelope_id?: string; force?: boolean };
     const envelopeId = body?.envelope_id;
     if (!envelopeId) return json({ error: "missing_envelope_id" }, 400);
 
     try {
-      const result = await sealEnvelope(envelopeId, env);
+      const result = await sealEnvelope(envelopeId, env, body?.force === true);
       return json(result, 200);
     } catch (err) {
       console.error("sealEnvelope failed:", err);
@@ -193,13 +193,17 @@ export default {
 // Sealing pipeline
 // ─────────────────────────────────────────────────────────────────────────
 
-async function sealEnvelope(envelopeId: string, env: Env) {
+async function sealEnvelope(envelopeId: string, env: Env, force = false) {
   // 1. Envelope + template.
   const envelope = await sb<Envelope>(env, `document_envelopes?id=eq.${envelopeId}&select=*`);
   if (!envelope[0]) throw new Error("envelope_not_found");
   const env_ = envelope[0];
   if (env_.status !== "signed") return { skipped: "not_signed", status: env_.status };
-  if (env_.signed_pdf_path)      return { skipped: "already_sealed", path: env_.signed_pdf_path };
+  // Already sealed → skip, unless this is an explicit re-seal (force).
+  // We don't null the paths here on force; the new artifacts overwrite
+  // the old ones on success (x-upsert), so a failed re-seal leaves the
+  // existing seal intact.
+  if (env_.signed_pdf_path && !force) return { skipped: "already_sealed", path: env_.signed_pdf_path };
 
   const tplArr = await sb<Template>(env, `document_templates?id=eq.${env_.template_id}&select=*`);
   if (!tplArr[0]) throw new Error("template_not_found");
@@ -939,7 +943,7 @@ async function appendCertificate(
 
   // Footer.
   cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.10", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.11", { size: 8, color: rgb(0.50, 0.55, 0.65) });
   writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
 }
 
