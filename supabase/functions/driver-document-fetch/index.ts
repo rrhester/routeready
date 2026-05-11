@@ -18,25 +18,30 @@ interface FetchPayload {
   signing_token?: string;
 }
 
+const px = (s: string | undefined | null) => (s ? s.slice(0, 8) : "(none)");
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
   const payload = (await req.json().catch(() => ({}))) as FetchPayload;
   if (!payload?.token || !payload?.signing_token) {
+    console.log("missing token", { hasToken: !!payload?.token, hasSig: !!payload?.signing_token });
     return badRequest("missing_token", 400);
   }
 
-  // Capture caller metadata for the audit chain. The Supabase edge
-  // gateway preserves x-forwarded-for for the client IP; user-agent
-  // is the standard browser header.
   const ip = (req.headers.get("x-forwarded-for") || "")
     .split(",")[0]
     .trim() || null;
   const ua = req.headers.get("user-agent") || null;
 
+  console.log("invoke", {
+    token: px(payload.token),
+    signing_token: px(payload.signing_token),
+    ip, ua_len: ua?.length ?? 0,
+  });
+
   const supa = serviceClient();
 
-  // Validate session + envelope ownership; flip to viewed on first open.
   const { data: viewResult, error: viewErr } = await supa.rpc(
     "driver_envelope_view",
     {
@@ -47,26 +52,46 @@ Deno.serve(async (req) => {
     },
   );
   if (viewErr) {
-    // driver_validate_token raises 'unauthorized' / 'revoked' / 'inactive'
-    // on a bad token; envelope_not_found surfaces as 'envelope_not_found'.
-    const msg = String(viewErr.message || "");
-    if (/unauthorized|revoked|inactive/i.test(msg)) return badRequest("unauthorized", 401);
-    if (/envelope_not_found/i.test(msg))            return badRequest("envelope_not_found", 404);
-    return badRequest(msg || "view_failed", 400);
+    // Log the FULL error so we can see Postgres code / details / hint
+    // alongside the message — Supabase JS sometimes hides the useful
+    // bits in those fields rather than .message.
+    console.error("driver_envelope_view error", {
+      code:    (viewErr as { code?: string }).code,
+      message: viewErr.message,
+      details: (viewErr as { details?: string }).details,
+      hint:    (viewErr as { hint?: string }).hint,
+    });
+    // Echo the full PostgREST error fields back so the driver sees
+    // something actionable, not a vague "unauthorized".
+    return jsonResponse(
+      {
+        error:   viewErr.message || "view_failed",
+        code:    (viewErr as { code?: string }).code   ?? null,
+        details: (viewErr as { details?: string }).details ?? null,
+        hint:    (viewErr as { hint?: string }).hint   ?? null,
+      },
+      { status: 400 },
+    );
   }
 
   const envelope = (viewResult as Record<string, unknown>)?.envelope as Record<string, unknown> | undefined;
   const template = (viewResult as Record<string, unknown>)?.template as Record<string, unknown> | undefined;
-  if (!envelope || !template) return badRequest("invalid_view_result", 500);
+  if (!envelope || !template) {
+    console.error("invalid_view_result", { viewResult });
+    return badRequest("invalid_view_result", 500);
+  }
 
   const sourcePath = template.source_path as string;
+  console.log("creating signed url", { sourcePath });
   const { data: urlData, error: urlErr } = await supa.storage
     .from("documents")
-    .createSignedUrl(sourcePath, 60 * 60);  // 1 hour
+    .createSignedUrl(sourcePath, 60 * 60);
   if (urlErr || !urlData?.signedUrl) {
+    console.error("signed url failed", { message: urlErr?.message });
     return badRequest("signed_url_failed: " + (urlErr?.message ?? "unknown"), 500);
   }
 
+  console.log("ok", { envelope_id: envelope.id });
   return jsonResponse({
     envelope,
     template,
