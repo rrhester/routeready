@@ -2799,19 +2799,17 @@ function pillCheck(when) {
 }
 
 // Driver-app onboarding badge for the roster: "On the app" / "Invited" /
-// "Not invited", plus a 📲 if they've installed the PWA + enabled push.
+// "Not invited".
 function _appStatusCell(driverId) {
   const s = _rosterAppStatus.get(driverId);
   if (!s) return `<span style="color:var(--text-subtle)">—</span>`;
-  const push = s.has_push
-    ? ` <span title="Installed the app · notifications on" style="font-size:11px">📲</span>` : "";
   if (s.signed_in_at) {
     const seenTitle = `Signed in ${new Date(s.signed_in_at).toLocaleString()}`
       + (s.last_seen_at ? ` · last active ${new Date(s.last_seen_at).toLocaleString()}` : "");
     const seenShort = s.last_seen_at ? ` <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(_relTimeShort(s.last_seen_at))}</span>` : "";
-    return `<span class="tag" style="background:var(--green-soft);color:var(--green)" title="${escapeHtml(seenTitle)}">On the app</span>${seenShort}${push}`;
+    return `<span class="tag" style="background:var(--green-soft);color:var(--green)" title="${escapeHtml(seenTitle)}">On the app</span>${seenShort}`;
   }
-  if (s.invited) return `<span class="tag" style="background:var(--amber-soft);color:var(--amber-dark)" title="Invite sent — hasn't signed in yet">Invited</span>${push}`;
+  if (s.invited) return `<span class="tag" style="background:var(--amber-soft);color:var(--amber-dark)" title="Invite sent — hasn't signed in yet">Invited</span>`;
   return `<span class="tag" style="background:var(--canvas);color:var(--text-subtle)">Not invited</span>`;
 }
 
