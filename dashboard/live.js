@@ -2593,6 +2593,7 @@ let _rosterRows = [];
 let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
 let _rosterI9 = new Map();          // driver_id -> i9_list row (status, first_day_of_employment, …)
 let _rosterProg = new Map();        // driver_id -> onboarding_progress row
+let _rosterState = new Map();        // driver_id -> driver_onboarding_state.steps  ({ step_key: { status, at } })
 
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
@@ -3024,13 +3025,64 @@ function _onbSteps(d, prog, i9rec) {
   ];
 }
 
+// ── Blueprint ↔ underlying-field bridge ───────────────────────────────
+// _onbSteps owns the canonical underlying fields; the DSP's blueprint
+// (migration 0178) owns which steps are enabled, their order, names, and
+// whether each blocks activation. Custom steps the DSP added live in
+// public.driver_onboarding_state (migration 0179) — a step_key → {status,at} map.
+const _OB_FIXED_TO_BP = {            // _onbSteps key → blueprint key (null = synthetic, always kept)
+  welcome: "welcome_email", bg_sent: "bg_instructions", bg_clear: "bg_check",
+  drug_sent: "drug_info", drug_clear: "drug_test", handbook: "handbook",
+  i9: "i9", offer: "job_offer", scheduled: "scheduled", active: null,
+};
+const _OB_CANON_KEYS = new Set(["welcome_email","bg_instructions","bg_check","drug_info","drug_test","handbook","i9","job_offer","training","scheduled"]);
+const _OB_STATE_LABELS = { not_started: "Not started", in_progress: "In progress", sent: "Sent", awaiting_review: "Awaiting review", complete: "Complete", declined: "Declined" };
+
+// _onbSteps, narrowed to the DSP's configured blueprint: canonical steps
+// the DSP disabled drop out, the blueprint's `blocking` flag overrides
+// `isGate`, an enabled "Training" step is inserted, and custom steps
+// (status read from driver_onboarding_state) are appended.
+function _onbStepsResolved(d, prog, i9rec, stateOverride) {
+  const state = (stateOverride !== undefined) ? (stateOverride || {})
+    : ((_rosterState && _rosterState.get(d.id)) || {});
+  const bp = (typeof _obSteps === "function") ? _obSteps() : null;
+  const base = _onbSteps(d, prog, i9rec);
+  if (!Array.isArray(bp) || !bp.length) return base;     // no blueprint loaded — fixed list
+  const en = {};                                          // blueprint key → step (enabled only)
+  for (const s of bp) if (s && s.enabled && s.key) en[s.key] = s;
+  const out = base.filter(s => {
+    const bk = _OB_FIXED_TO_BP[s.key];
+    return bk == null ? true : !!en[bk];                  // synthetic ("active") always; canonical only if enabled
+  }).map(s => {
+    const bk = _OB_FIXED_TO_BP[s.key];
+    return (bk && en[bk]) ? { ...s, isGate: !!en[bk].blocking, label: en[bk].title || s.label } : s;
+  });
+  if (en.training && !out.some(s => s.key === "training")) {
+    const at = d.training_date || null;
+    const tStep = { key: "training", label: en.training.title || "Training", kind: "driver", driverField: "training_date", at, done: !!at, isGate: !!en.training.blocking };
+    const i = out.findIndex(s => s.key === "active");
+    if (i >= 0) out.splice(i, 0, tStep); else out.push(tStep);
+  }
+  for (const s of bp) {
+    if (!s || !s.enabled || !s.key || _OB_CANON_KEYS.has(s.key)) continue;
+    const entry = state[s.key] || null;
+    const status = (entry && entry.status) || "not_started";
+    out.push({
+      key: s.key, label: s.title || "Step", kind: "state", stateStatus: status, stepType: s.type || "task",
+      at: (entry && entry.at) || null, done: status === "complete", isGate: !!s.blocking,
+      owner: s.owner === "driver" ? "driver" : "dsp",
+    });
+  }
+  return out;
+}
+
 // One computed state per onboarding driver — derived from the five
 // gates above plus the I-9 deadline state. Drives the readiness pill,
 // the segment bar, the queue ordering, and the one-line next step.
-function _obReadiness(d, i9recOverride, progOverride) {
+function _obReadiness(d, i9recOverride, progOverride, stateOverride) {
   const i9r  = (i9recOverride !== undefined) ? i9recOverride  : (_rosterI9   ? _rosterI9.get(d.id)   : null);
   const prog = (progOverride  !== undefined) ? progOverride   : (_rosterProg ? _rosterProg.get(d.id) : null);
-  const steps = _onbSteps(d, prog, i9r);
+  const steps = _onbStepsResolved(d, prog, i9r, stateOverride);
   const gates = steps.filter(s => s.isGate);
   const doneN = gates.filter(s => s.done).length;
   const totalN = gates.length;
@@ -3038,22 +3090,25 @@ function _obReadiness(d, i9recOverride, progOverride) {
   const isActive = d.status === "active";
   const i9cls = _i9Classify(i9r);
   const i9d   = _i9Derived(i9r);
+  const hasI9 = steps.some(s => s.key === "i9");          // false if the DSP disabled the I-9 step
 
   // Driver-level status — calm, but more nuanced than ready / blocked.
   let key, label, tone;
   if (isActive)                                        { key = "active";           label = "Active";               tone = "green"; }
   else if (doneN === totalN)                           { key = "ready";            label = "Ready to activate";    tone = "green"; }
-  else if (i9cls.bucket === "needs_correction")        { key = "needs_correction"; label = "Needs correction";     tone = "red"; }
-  else if (i9cls.bucket === "s2_overdue")              { key = "compliance_risk";  label = "Compliance risk";      tone = "red"; }
-  else if (i9d.key === "verified_expiring" && i9d.daysLeft != null && i9d.daysLeft < 0) { key = "compliance_risk"; label = "Work auth expired"; tone = "red"; }
-  else if (i9cls.bucket === "s2_due")                  { key = "due_soon";         label = "Due soon";             tone = "amber"; }
-  else if (i9cls.bucket === "s2_needed" && i9cls.note) { key = "due_soon";         label = "Set the first day";    tone = "amber"; }
-  else if (i9d.key === "section1_complete")            { key = "awaiting_review";  label = "Awaiting your review"; tone = "blue"; }
+  else if (hasI9 && i9cls.bucket === "needs_correction")        { key = "needs_correction"; label = "Needs correction";     tone = "red"; }
+  else if (hasI9 && i9cls.bucket === "s2_overdue")              { key = "compliance_risk";  label = "Compliance risk";      tone = "red"; }
+  else if (hasI9 && i9d.key === "verified_expiring" && i9d.daysLeft != null && i9d.daysLeft < 0) { key = "compliance_risk"; label = "Work auth expired"; tone = "red"; }
+  else if (hasI9 && i9cls.bucket === "s2_due")                  { key = "due_soon";         label = "Due soon";             tone = "amber"; }
+  else if (hasI9 && i9cls.bucket === "s2_needed" && i9cls.note) { key = "due_soon";         label = "Set the first day";    tone = "amber"; }
+  else if (hasI9 && i9d.key === "section1_complete")            { key = "awaiting_review";  label = "Awaiting your review"; tone = "blue"; }
+  else if (steps.some(s => s.kind === "state" && s.stateStatus === "awaiting_review")) { key = "awaiting_review"; label = "Awaiting your review"; tone = "blue"; }
   else if (doneN === 0)                                { key = "not_started";      label = "Not started";          tone = "slate"; }
   else {
     const pendGate = gates.find(g => !g.done);
     const driverActs = pendGate && (
       pendGate.kind === "sentcomplete" ||
+      (pendGate.kind === "state" && pendGate.owner === "driver") ||
       (pendGate.kind === "i9" && ["no_record", "not_started", "section1_in_progress"].includes(i9d.key))
     );
     if (driverActs) { key = "waiting_on_driver"; label = "Waiting on the driver"; tone = "blue"; }
@@ -3069,7 +3124,10 @@ function _obReadiness(d, i9recOverride, progOverride) {
   else if (key === "compliance_risk") next = "Work authorization expired — reverification required";
   else if (key === "due_soon" && i9cls.bucket === "s2_due") next = "Form I-9 Section 2 due soon";
   else if (key === "due_soon") next = "Set the Form I-9 first day to start the clock";
-  else if (key === "awaiting_review") next = "Complete Form I-9 Section 2";
+  else if (key === "awaiting_review") {
+    if (hasI9 && i9d.key === "section1_complete") next = "Complete Form I-9 Section 2";
+    else { const s = steps.find(x => x.kind === "state" && x.stateStatus === "awaiting_review"); next = s ? `Review the submission: ${s.label}` : "Review the pending submission"; }
+  }
   else {
     const pend = steps.find(s => !s.done && s.key !== "active" && s.isGate) || steps.find(s => !s.done && s.key !== "active");
     if (pend) {
@@ -3080,6 +3138,7 @@ function _obReadiness(d, i9recOverride, progOverride) {
           : "Form I-9 in progress";
       } else if (pend.kind === "sentcomplete") next = pend.sentAt ? `${pend.label} — awaiting completion` : `Send the ${pend.label.toLowerCase()}`;
       else if (pend.kind === "driver") next = `Record the ${pend.label.toLowerCase()}`;
+      else if (pend.kind === "state") next = pend.stateStatus === "sent" ? `${pend.label} — awaiting the driver` : pend.owner === "driver" ? `Driver to complete: ${pend.label}` : pend.label;
       else next = pend.label;
     }
   }
@@ -3185,6 +3244,8 @@ document.addEventListener("click", async (e) => {
     ({ error: err } = await sb.rpc("onboarding_progress_set", { p_driver_id: id, p_field: field, p_value: nextStamp }));
   } else if (kind === "drv") {
     ({ error: err } = await sb.from("drivers").update({ [field]: nextStamp }).eq("id", id));
+  } else if (kind === "state") {
+    ({ error: err } = await sb.rpc("driver_onboarding_step_set", { p_driver_id: id, p_step_key: field, p_status: state === "done" ? "not_started" : "complete" }));
   } else if (kind === "status") {
     const nextStatus = state === "done" ? "onboarding" : "active";
     ({ error: err } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id));
@@ -3393,6 +3454,28 @@ const _OB_DEFAULT_BLUEPRINT = [
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
 let _obMatrixFilter = null;   // null | "risk" | "due" | "review" | "ready" — "Needs you" rail filter on the matrix
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
+const _obShortHead = (t) => { t = String(t || "Step").trim(); return t.length > 13 ? t.slice(0, 12) + "…" : t; };
+// Matrix-column descriptor for one enabled blueprint step: a canonical
+// underlying-field mapping (_OB_STEP_FIELDS) if it has one, else a
+// state-backed column (driver_onboarding_state, migration 0179).
+function _obStepColumn(s) {
+  const m = _OB_STEP_FIELDS[s.key];
+  if (m) return { ...s, map: m };
+  return { ...s, map: { kind: "state", done: s.key, doneLabel: "Done", head: _obShortHead(s.title), todoLabel: `${s.title || "Step"} — not yet` } };
+}
+// KPI tile: blueprint key → { fixed: the _onbStepsResolved key it tallies under, verb: the tile's sub-label }
+const _OB_KPI_VERB = {
+  welcome_email:   { fixed: "welcome",    verb: "sent" },
+  bg_instructions: { fixed: "bg_sent",    verb: "sent" },
+  bg_check:        { fixed: "bg_clear",   verb: "cleared" },
+  drug_info:       { fixed: "drug_sent",  verb: "sent" },
+  drug_test:       { fixed: "drug_clear", verb: "cleared" },
+  handbook:        { fixed: "handbook",   verb: "completed" },
+  i9:              { fixed: "i9",         verb: "verified" },
+  job_offer:       { fixed: "offer",      verb: "completed" },
+  training:        { fixed: "training",   verb: "complete" },
+  scheduled:       { fixed: "scheduled",  verb: "first shift assigned" },
+};
 
 // ── Onboarding Builder (Onboarding → Builder tab) ─────────────────────
 const _OB_TYPE_LABELS = { welcome: "Welcome", task: "Task", background_check: "Background check", drug_test: "Drug test", document: "Document", i9: "Form I-9", schedule: "Schedule", video: "Video", acknowledgement: "Acknowledgement" };
@@ -3617,7 +3700,7 @@ async function loadOnboardingOps(opts) {
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
 
-  const [{ data: drv, error }, i9Res, progRes, envRes, bpRes] = await Promise.all([
+  const [{ data: drv, error }, i9Res, progRes, envRes, bpRes, stateRes] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, training_date,
                background_check_completed_at, drug_test_completed_at,
@@ -3630,6 +3713,7 @@ async function loadOnboardingOps(opts) {
     sb.from("onboarding_progress").select("*").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
     sb.from("document_envelopes").select("recipient_driver_id, status, signed_at, sent_at").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
     sb.rpc("onboarding_blueprint_get").then((r) => r, () => ({ data: null })),
+    sb.from("driver_onboarding_state").select("driver_id, steps").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
   ]);
   _obBlueprint = (bpRes && Array.isArray(bpRes.data) && bpRes.data.length) ? bpRes.data : null;
   if (error) {
@@ -3641,6 +3725,7 @@ async function loadOnboardingOps(opts) {
   const i9All = Array.isArray(i9Res?.data) ? i9Res.data : [];
   _rosterI9   = new Map(i9All.map((r) => [r.driver_id, r]));
   _rosterProg = new Map((Array.isArray(progRes?.data) ? progRes.data : []).map((r) => [r.driver_id, r]));
+  _rosterState = new Map((Array.isArray(stateRes?.data) ? stateRes.data : []).map((r) => [r.driver_id, (r && r.steps) || {}]));
   if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
   const enriched = rows.map(d => ({ d, ob: _obReadiness(d) }));
@@ -3654,17 +3739,17 @@ async function loadOnboardingOps(opts) {
   let ready = 0, atRisk = 0, dueSoon = 0, awaitingReview = 0;
   const stepDone = {};   // step.key -> count completed
   const gateStuck = {};  // gate step.key -> count not done
+  const gateLabelMap = { bg_clear: "background checks", drug_clear: "drug tests", handbook: "handbooks", i9: "Form I-9", offer: "job offers", training: "training" };
   for (const { ob } of enriched) {
     if (ob.key === "ready") ready++;
     else if (ob.key === "compliance_risk" || ob.key === "needs_correction") atRisk++;
     else if (ob.key === "due_soon") dueSoon++;
     else if (ob.key === "awaiting_review") awaitingReview++;
     for (const s of ob.steps) { if (s.done) stepDone[s.key] = (stepDone[s.key] || 0) + 1; }
-    for (const g of ob.gates) { if (!g.done) gateStuck[g.key] = (gateStuck[g.key] || 0) + 1; }
+    for (const g of ob.gates) { if (!g.done) gateStuck[g.key] = (gateStuck[g.key] || 0) + 1; if (!gateLabelMap[g.key]) gateLabelMap[g.key] = (g.label || g.key).toLowerCase(); }
   }
-  const gateLabels = { bg_clear: "background checks", drug_clear: "drug tests", handbook: "handbooks", i9: "Form I-9", offer: "job offers" };
   const slow = Object.entries(gateStuck).sort((a, b) => b[1] - a[1])[0];
-  const slowTxt = slow && slow[1] > 0 ? `${gateLabels[slow[0]] || slow[0]} (${slow[1]} pending)` : null;
+  const slowTxt = slow && slow[1] > 0 ? `${gateLabelMap[slow[0]] || slow[0]} (${slow[1]} pending)` : null;
   // E-signature envelopes sent to the onboarding cohort. The Documents
   // KPI tile shows "signed / sent" so the metric is live as soon as any
   // template has been sent — without the doc-assignment feature.
@@ -3673,19 +3758,19 @@ async function loadOnboardingOps(opts) {
   let envSent = 0, envSigned = 0;
   for (const e of envAll) { if (!onbIds.has(e.recipient_driver_id)) continue; envSent++; if (e.signed_at) envSigned++; }
 
-  // KPI strip — one tile per onboarding step.
+  // KPI strip — one tile per enabled blueprint step (in order), then the
+  // Documents envelope tally and "Ready to activate".
   const c = (k) => `${stepDone[k] || 0} / ${N}`;
-  const kpis = [
-    { label: "Welcome email",      value: c("welcome"),   sub: "sent" },
-    { label: "Documents",          value: envSent ? `${envSigned} / ${envSent}` : "—", sub: envSent ? "signed of sent" : "build templates in Documents" },
-    { label: "Background check",    value: c("bg_clear"),  sub: "cleared" },
-    { label: "Drug test",          value: c("drug_clear"),sub: "cleared" },
-    { label: "Handbook",           value: c("handbook"),  sub: "completed" },
-    { label: "Form I-9",           value: c("i9"),        sub: "verified" },
-    { label: "Job offer",          value: c("offer"),     sub: "completed" },
-    { label: "Ready to activate",  value: `${ready}`,     sub: `of ${N} driver${N === 1 ? "" : "s"}`, tone: ready ? "color:var(--green)" : "" },
-    { label: "Scheduled",          value: c("scheduled"), sub: "first shift assigned" },
-  ];
+  const kpis = [];
+  for (const s of _obSteps()) {
+    if (!s || !s.enabled || !s.key) continue;
+    const v = _OB_KPI_VERB[s.key];
+    const tallyKey = v ? v.fixed : s.key;          // canonical → its _onbStepsResolved key; custom → its own key
+    const verb = v ? v.verb : (s.owner === "driver" ? "completed" : "done");
+    kpis.push({ label: s.title || s.key, value: c(tallyKey), sub: verb });
+  }
+  kpis.push({ label: "Documents",         value: envSent ? `${envSigned} / ${envSent}` : "—", sub: envSent ? "signed of sent" : "build templates in Documents" });
+  kpis.push({ label: "Ready to activate", value: `${ready}`, sub: `of ${N} driver${N === 1 ? "" : "s"}`, tone: ready ? "color:var(--green)" : "" });
   const kpiRow = `<div class="driver-stat-row" style="margin-bottom:8px">${kpis.map(k => `<div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone || ""}">${escapeHtml(k.value)}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("")}</div>`;
   const bottleneckLine = slowTxt
     ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-4)">Biggest bottleneck: ${escapeHtml(slowTxt)}</div>`
@@ -3723,10 +3808,10 @@ async function loadOnboardingOps(opts) {
 
   _obMxStylesOnce();
 
-  // Columns = the enabled blueprint steps that have an underlying field
-  // mapping (configured in the Builder tab), then a fixed "Active" + a
-  // "Send documents" action column.
-  const stepCols = _obSteps().filter(s => s && s.enabled && _OB_STEP_FIELDS[s.key]).map(s => ({ ...s, map: _OB_STEP_FIELDS[s.key] }));
+  // Columns = the enabled blueprint steps (canonical ones use their
+  // underlying field; custom ones use driver_onboarding_state), then a
+  // fixed "Active" + a "Send documents" action column.
+  const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   const dotCell = (driverId, kind, field, val, opts) => {
     const ro = opts && opts.readonly;
@@ -3744,8 +3829,21 @@ async function loadOnboardingOps(opts) {
     const stationCode = (_driverStationsCache || []).find(s => s.id === d.station_id)?.code;
     const days = d.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000)) : null;
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
-    const valFor = (m) => m.kind === "drv" ? d[m.done] : m.kind === "i9" ? (i9verified ? (i9CompletedAt || true) : null) : prog[m.done];
-    const cells = stepCols.map(s => dotCell(d.id, s.map.kind, s.map.done, valFor(s.map), { readonly: !!s.map.readonly, doneLabel: s.map.doneLabel, todoLabel: s.map.todoLabel || `${s.title} — not yet` })).join("");
+    const stState = (_rosterState && _rosterState.get(d.id)) || {};
+    const cells = stepCols.map(s => {
+      const m = s.map;
+      if (m.kind === "state") {
+        const entry = stState[m.done];
+        const status = entry && entry.status;
+        const val = status === "complete" ? (entry.at || true) : null;
+        const todo = (status && status !== "complete" && status !== "not_started")
+          ? `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`
+          : `${s.title || "Step"} — not yet`;
+        return dotCell(d.id, "state", m.done, val, { doneLabel: m.doneLabel, todoLabel: todo });
+      }
+      const val = m.kind === "drv" ? d[m.done] : m.kind === "i9" ? (i9verified ? (i9CompletedAt || true) : null) : prog[m.done];
+      return dotCell(d.id, m.kind, m.done, val, { readonly: !!m.readonly, doneLabel: m.doneLabel, todoLabel: m.todoLabel || `${s.title} — not yet` });
+    }).join("");
     return `
       <tr data-driver-id="${escapeHtml(d.id)}">
         <td class="ob-mx-namecell">
@@ -10833,6 +10931,15 @@ async function loadDriverDrawer(driverId) {
     const { data: prog } = await sb.from("onboarding_progress").select("*").eq("driver_id", driverId).maybeSingle();
     _ddDriver.prog = prog || null;
   } catch { _ddDriver.prog = null; }
+  // Per-driver state for the blueprint's custom steps + the DSP's blueprint
+  // (so the onboarding summary reflects what the Builder configured).
+  try {
+    const { data: st } = await sb.from("driver_onboarding_state").select("steps").eq("driver_id", driverId).maybeSingle();
+    _ddDriver.onbState = (st && st.steps) || {};
+  } catch { _ddDriver.onbState = {}; }
+  if (!Array.isArray(_obBlueprint) || !_obBlueprint.length) {
+    try { const { data: bp } = await sb.rpc("onboarding_blueprint_get"); if (Array.isArray(bp) && bp.length) _obBlueprint = bp; } catch {}
+  }
 
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
@@ -11147,7 +11254,7 @@ function renderOverviewTab(body, dd) {
     return mo < 24 ? `${mo} mo` : `${(days / 365.25).toFixed(1)} yr`;
   })() : null;
   const onboarding = d.status === "onboarding";
-  const ob = onboarding ? _obReadiness(d, dd && dd.i9 ? dd.i9.record : null, (dd && dd.prog) || null) : null;
+  const ob = onboarding ? _obReadiness(d, dd && dd.i9 ? dd.i9.record : null, (dd && dd.prog) || null, (dd && dd.onbState) || {}) : null;
   const i9d = _i9Derived(dd && dd.i9 ? dd.i9.record : null);
   const app = _rosterAppStatus ? _rosterAppStatus.get(d.id) : null;
 
@@ -11340,7 +11447,7 @@ async function renderEmploymentTab(body, d) {
       // per-driver detail panel — keeps the driver record focused on the
       // employment record itself.
       const i9rec = _ddDriver?.i9?.record || null;
-      const ob = _obReadiness(d, i9rec, _ddDriver?.prog || null);
+      const ob = _obReadiness(d, i9rec, _ddDriver?.prog || null, _ddDriver?.onbState || {});
       return `
     <div class="dd-section">
       <div class="dd-section-head">
