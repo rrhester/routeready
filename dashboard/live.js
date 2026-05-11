@@ -947,6 +947,7 @@ window.goto = function (view) {
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
   if (view === "drivers")   { loadDriversRoster(); refreshI9Badge(); }
+  if (view === "onboarding-ops") loadOnboardingOps();
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); }
   if (view === "messages")  loadDriverChatInbox();
@@ -2626,6 +2627,7 @@ async function loadDriversRoster() {
   _rosterRows = rows ?? [];
   refreshDriverStatRow(_rosterRows);
   _populateRosterStationFilter(_rosterRows);
+  if (typeof _obSetNavBadge === "function") _obSetNavBadge(_rosterRows);
   renderDriverTable(_rosterRows, error);
 
   // Page sub-line: live count of active drivers + distinct active stations.
@@ -3112,6 +3114,116 @@ document.addEventListener("click", (e) => {
     document.querySelector("#rr-dd-drawer [data-rr-dd-save]")?.click();
   }
 });
+
+// ── Onboarding command center (dedicated sidebar page) ───────────────
+function _obSetNavBadge(rows) {
+  const el = document.getElementById("rr-onboard-nav-badge");
+  if (!el) return;
+  const onb = (rows || []).filter(d => (d.status || "") === "onboarding");
+  if (!onb.length) { el.style.display = "none"; return; }
+  let blocked = 0;
+  for (const d of onb) if (_obReadiness(d).key === "blocked") blocked++;
+  el.textContent = blocked > 0 ? `${blocked}` : String(onb.length);
+  el.style.background = blocked > 0 ? "var(--red)" : "var(--amber)";
+  el.style.display = "inline-block";
+}
+
+async function loadOnboardingOps() {
+  const body  = document.getElementById("rr-onboardops-body");
+  const subEl = document.getElementById("rr-onboardops-sub");
+  if (!body) return;
+  _i9DashStylesOnce();
+  body.innerHTML = _i9QueueSkeleton();
+
+  const [{ data: drv, error }, i9Res] = await Promise.all([
+    sb.from("drivers")
+      .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier,
+               background_check_completed_at, drug_test_completed_at, training_scheduled_at, training_date,
+               station:station_id (code)`)
+      .eq("dsp_id", window.RR.dsp.id)
+      .eq("status", "onboarding")
+      .order("hire_date", { ascending: true })
+      .limit(300),
+    sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
+  ]);
+  if (error) {
+    body.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Couldn't load onboarding</h3><p>${escapeHtml(error.message || "")}</p></div>`;
+    return;
+  }
+  const rows = Array.isArray(drv) ? drv : [];
+  const i9All = Array.isArray(i9Res?.data) ? i9Res.data : [];
+  _rosterI9 = new Map(i9All.map((r) => [r.driver_id, r]));   // so _obReadiness / _i9OnboardCell see fresh I-9 state
+  _obSetNavBadge(rows);
+  if (subEl) subEl.textContent = rows.length ? `${rows.length} driver${rows.length === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
+
+  const enriched = rows.map(d => ({ d, ob: _obReadiness(d) }));
+  enriched.sort((a, b) => {
+    if (a.ob.weight !== b.ob.weight) return a.ob.weight - b.ob.weight;
+    const da = a.d.hire_date ? new Date(a.d.hire_date).getTime() : 0;
+    const db = b.d.hire_date ? new Date(b.d.hire_date).getTime() : 0;
+    return da - db;
+  });
+  let ready = 0, blocked = 0;
+  const stuck = { bg: 0, drug: 0, i9: 0, train: 0 };
+  for (const { ob } of enriched) {
+    if (ob.key === "ready") ready++; else if (ob.key === "blocked") blocked++;
+    for (const m of ob.milestones) if (!m.done) stuck[m.k]++;
+  }
+  const slowLabels = { bg: "background checks", drug: "drug tests", i9: "Form I-9", train: "training" };
+  const slow = Object.entries(stuck).sort((a, b) => b[1] - a[1])[0];
+  const slowTxt = slow && slow[1] > 0 ? `${slowLabels[slow[0]]} (${slow[1]} pending)` : null;
+
+  const i9rows = i9All.filter(r => rows.some(d => d.id === r.driver_id));
+  const i9t = _i9TallyFromRows(i9rows);
+
+  const rowHtml = ({ d, ob }) => {
+    const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
+    const days = d.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000)) : null;
+    const segs = ob.milestones.map(m => `<div title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${m.done ? "#16a34a" : "var(--border)"}"></div>`).join("");
+    const nextC = ob.key === "blocked" ? "var(--red)" : ob.tone === "amber" ? "var(--amber-dark)" : ob.key === "ready" ? "var(--green)" : "var(--text-subtle)";
+    return `
+      <div class="rr-i9-row" data-rr-onboardops-open="${escapeHtml(d.id)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:13px 16px;border-top:1px solid var(--border);cursor:pointer">
+        <div class="avatar-sm ${tier}" style="flex:0 0 auto">${displayDriverInitials(d)}</div>
+        <div style="min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(displayDriverName(d))}</span>${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${ob.doneN}/${ob.totalN}</span>${d.station && d.station.code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(d.station.code)}</span>` : ""}${days != null ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">· ${days}d</span>` : ""}</div>
+          <div style="display:flex;gap:4px;margin-top:6px;max-width:240px">${segs}</div>
+          ${ob.next ? `<div style="font-size:var(--fs-xs);color:${nextC};margin-top:5px">${escapeHtml(ob.next)}</div>` : ""}
+        </div>
+        <button type="button" class="btn btn-sm ${ob.key === "ready" ? "btn-primary" : ""}" style="flex:0 0 auto;pointer-events:none">${ob.key === "ready" ? "Activate" : "Open"}</button>
+      </div>`;
+  };
+
+  const summaryParts = [`<strong>${rows.length}</strong> onboarding`];
+  if (ready)   summaryParts.push(`<strong style="color:var(--green)">${ready}</strong> ready to activate`);
+  if (blocked) summaryParts.push(`<strong style="color:var(--red)">${blocked}</strong> blocked`);
+  const i9Urgent = i9t.s2_overdue || i9t.needs_correction;
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:var(--fs-sm);margin-bottom:var(--s-4)">
+      <span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap">${summaryParts.join('<span style="color:var(--text-subtle)">·</span>')}</span>
+      ${slowTxt ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs);margin-left:auto">Biggest bottleneck: ${escapeHtml(slowTxt)}</span>` : ""}
+    </div>
+    ${i9t.attention ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid ${i9Urgent ? "#fecaca" : "#fde68a"};border-radius:10px;background:${i9Urgent ? "#fef2f2" : "#fffbeb"};font-size:var(--fs-sm);margin-bottom:var(--s-4)">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${i9Urgent ? "#991b1b" : "#92400e"}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <div style="flex:1;min-width:180px;color:${i9Urgent ? "#991b1b" : "#92400e"}"><strong>${i9t.attention}</strong> Form I-9 ${i9t.attention === 1 ? "item needs" : "items need"} attention${i9t.s2_overdue ? ` — ${i9t.s2_overdue} overdue` : ""}.</div>
+      <button type="button" class="btn btn-sm" onclick="goto('drivers');setTimeout(function(){if(window.drSub)drSub('workauth')},40)" style="flex:0 0 auto">Open the I-9 queue</button>
+    </div>` : ""}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Onboarding drivers</div>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">sorted by what needs you</span>
+      </div>
+      ${enriched.length ? enriched.map(rowHtml).join("") : `<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`}
+    </div>`;
+
+  body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      const id = el.getAttribute("data-rr-onboardops-open");
+      if (id) openDriverDrawer(id, { tab: "employment" });
+    });
+  });
+}
 
 function renderOnboardingRow(d) {
   const initials = displayDriverInitials(d);
