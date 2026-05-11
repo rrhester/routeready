@@ -21234,7 +21234,11 @@ async function _docsOpenAudit(envelopeId) {
   const status    = envRow?.status || "sent";
   const lc        = _docsLifecycle(status);
 
-  const signedEvt = (events || []).find((e) => e.kind === "pdf_signed");
+  // Use the *latest* pdf_signed event — after a re-seal there can be
+  // several, and the most recent one reflects the current seal (incl.
+  // whether a timestamp landed).
+  const _signedEvts = (events || []).filter((e) => e.kind === "pdf_signed");
+  const signedEvt = _signedEvts.length ? _signedEvts[_signedEvts.length - 1] : null;
   const sealKeyFp   = signedEvt?.event_data?.key_fingerprint || null;
   const sealAlg     = signedEvt?.event_data?.signature_alg   || null;
   const sealDigest  = signedEvt?.event_data?.pdf_sha256      || null;
