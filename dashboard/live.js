@@ -24346,7 +24346,7 @@ function _wsRenderVehicles(root) {
   root.innerHTML = `
     <div class="ws-head">
       <div style="min-width:0">
-        <div class="ws-crumb"><a data-rr-ws-back>Workflows</a><span class="sep">/</span></div>
+        <div class="ws-crumb"><a data-rr-ws-back title="Back to all workflows"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Workflows</a><span class="sep">/</span></div>
         <div class="ws-board-name" style="margin-top:2px"><span class="nm">Van assignments</span></div>
         <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:66ch">Set the primary driver for each van, and a backup who picks it up when the primary isn't scheduled. The resolved van shows on each driver's schedule; an out-of-service van isn't handed to anyone. (The driver-app surface and a per-day override come next.)</p>
       </div>
@@ -24425,7 +24425,7 @@ function _wsRenderBoard(root) {
   root.innerHTML = `
     <div class="ws-head">
       <div style="min-width:0">
-        <div class="ws-crumb"><a data-rr-ws-back>Workflows</a><span class="sep">/</span></div>
+        <div class="ws-crumb"><a data-rr-ws-back title="Back to all workflows"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Workflows</a><span class="sep">/</span></div>
         <div class="ws-board-name" style="margin-top:2px">
           <span class="nm">${escapeHtml(b.name || "Untitled board")}</span>
           <button type="button" class="ws-icon-btn" data-rr-ws-settings title="Board settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
