@@ -532,6 +532,17 @@ async function renderSchedule() {
     const todayShifts    = shifts.filter((s) => s.iso === todayIso);
     const upcomingShifts = shifts.filter((s) => s.iso > todayIso);
 
+    // Which van you're on, by date — from the dispatch van-assignment
+    // chains, resolved against the schedule (primary when scheduled and
+    // in service; the backup picks it up when the primary isn't).
+    const vanByIso = new Map();
+    try {
+      const vRes = await sb.rpc("driver_vehicle_days", { p_token: session.token });
+      for (const r of (Array.isArray(vRes?.data) ? vRes.data : [])) {
+        if (r && r.date && r.vehicle) vanByIso.set(r.date, r.vehicle);
+      }
+    } catch (e) { /* no van data — schedule renders without it */ }
+
     if (shifts.length === 0) {
       // Always show *something* so the page is never blank — explain
       // what would land here and what to do if the driver expects
@@ -549,11 +560,11 @@ async function renderSchedule() {
     main.innerHTML = `
       ${todayShifts.length ? `
         <div class="section-title">Today</div>
-        ${todayShifts.map((s) => shiftCardHtml(s, true)).join("")}
+        ${todayShifts.map((s) => shiftCardHtml(s, true, vanByIso.get(s.iso))).join("")}
       ` : ""}
       ${upcomingShifts.length ? `
         <div class="section-title">Upcoming</div>
-        ${upcomingShifts.map((s) => shiftCardHtml(s, false)).join("")}
+        ${upcomingShifts.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso))).join("")}
       ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}`;
   } catch (err) {
     // A thrown error inside renderSchedule used to kill the whole
@@ -567,7 +578,7 @@ async function renderSchedule() {
 // chevron (cards aren't tappable yet) and no "Scheduled" tag (every
 // non-completed shift is scheduled — redundant). Only badges that
 // carry information appear: Completed, service type, EX cushion.
-function shiftCardHtml(s, isToday) {
+function shiftCardHtml(s, isToday, vanName) {
   const dow = s.date.toLocaleDateString(undefined, { weekday: "short" });
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
@@ -607,6 +618,7 @@ function shiftCardHtml(s, isToday) {
           ${waveTag}
         </div>
         <div class="meta-station">${escapeHtml(s.station)}</div>
+        ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">🚐 ${escapeHtml(vanName)}</div>` : ""}
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
       </div>
     </div>`;
