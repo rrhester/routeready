@@ -20688,7 +20688,7 @@ async function _schedDecorateVans() {
     tag.className = "cal-van-tag";
     tag.title = "Assigned van";
     tag.style.cssText = "margin-top:3px;font-size:9px;font-weight:700;letter-spacing:.03em;color:var(--accent-text);background:var(--accent-soft);border-radius:3px;padding:1px 5px;text-align:center;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
-    tag.textContent = "🚐 " + van;
+    tag.textContent = "Vehicle " + van;
     c.appendChild(tag);
   }
 }
