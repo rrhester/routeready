@@ -20637,7 +20637,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       </div>`;
     })()}
   `;
-  try { await _schedDecorateVans(); } catch (e) { console.warn("schedule · vanDecorate:", e); }
+  Promise.resolve().then(_schedDecorateVans).catch(e => console.warn("schedule · vanDecorate:", e));
 }
 
 // Decorate the just-rendered schedule week with each driver's resolved
