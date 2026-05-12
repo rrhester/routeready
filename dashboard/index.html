@@ -10641,7 +10641,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></div>
             <div>
               <h1 class="page-title">Documents</h1>
-              <p class="page-sub">Send PDFs to drivers for legally-binding e-signature. Every envelope is sealed, hash-chained, and independently verifiable.</p>
+              <p class="page-sub">Store and reuse your operational PDFs — onboarding packets, policies, training guides — and send any of them to drivers as a sealed, legally-binding e-signature envelope.</p>
             </div>
           </div>
           <div class="page-actions">
@@ -10653,18 +10653,15 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- System-integrity strip: quiet, factual, always-on assurances.
-             No banners, no marketing — just the load-bearing facts. -->
-        <div class="docs-trust-strip" aria-hidden="false">
-          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>Audit chain active</span>
+        <!-- System-integrity line — quiet, factual, always-on.  Signature
+             envelopes carry an audit chain and an RFC-3161 timestamp; the
+             sealed PDF is tamper-evident and independently verifiable. -->
+        <div class="docs-trust-strip">
+          <span class="docs-trust-item"><i class="docs-trust-dot"></i>ESIGN / UETA compliant</span>
           <span class="docs-trust-sep">·</span>
-          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>Tamper-evident records</span>
+          <span class="docs-trust-item"><i class="docs-trust-dot"></i>RFC 3161 timestamped</span>
           <span class="docs-trust-sep">·</span>
-          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>ESIGN / UETA compliant</span>
-          <span class="docs-trust-sep">·</span>
-          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>RFC 3161 timestamped</span>
-          <span class="docs-trust-sep">·</span>
-          <span class="docs-trust-item"><i class="docs-trust-dot ok"></i>Cryptographically sealed</span>
+          <span class="docs-trust-item"><i class="docs-trust-dot"></i>Tamper-evident &amp; independently verifiable</span>
         </div>
 
         <div class="subnav" id="docs-subnav">
@@ -10675,23 +10672,20 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <style>
           /* ── Documents · enterprise design system (scoped) ───────────── */
-          #view-documents{ --docs-radius:14px; --docs-radius-sm:9px; }
+          #view-documents{ --docs-radius:var(--r-xl); --docs-radius-sm:var(--r-lg); }
           #view-documents .page-sub{ max-width:none; }
 
-          /* System-integrity strip */
+          /* System-integrity line — a quiet band of facts, not a banner. */
           .docs-trust-strip{
-            display:flex;flex-wrap:wrap;align-items:center;gap:8px 4px;
-            margin:14px 0 18px;padding:9px 14px;
-            background:linear-gradient(180deg, var(--surface) 0%, var(--canvas) 140%);
-            border:1px solid var(--border);border-radius:var(--docs-radius-sm);
-            box-shadow:var(--shadow-sm);
+            display:flex;flex-wrap:wrap;align-items:center;gap:6px 5px;
+            margin:14px 0 18px;padding:9px 2px;
+            border-top:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);
             font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--text-muted);
           }
           .docs-trust-item{ display:inline-flex;align-items:center;gap:6px;white-space:nowrap; }
-          .docs-trust-sep{ color:var(--text-subtle);opacity:.6; }
+          .docs-trust-sep{ color:var(--text-subtle);opacity:.5; }
           .docs-trust-dot{
-            width:6px;height:6px;border-radius:50%;flex:0 0 auto;
-            background:var(--green);box-shadow:0 0 0 3px var(--green-soft);
+            width:5px;height:5px;border-radius:50%;flex:0 0 auto;background:var(--green);
           }
 
           /* Section heading band above lists */
@@ -10711,22 +10705,21 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Generic list container */
           .docs-list{display:flex;flex-direction:column;gap:8px}
 
-          /* Template cards */
+          /* Template / library cards */
           .docs-template-card{
             display:flex;align-items:center;gap:16px;
             background:var(--surface);border:1px solid var(--border);border-radius:var(--docs-radius);
-            padding:16px 18px;box-shadow:var(--shadow-sm);
-            transition:box-shadow .14s ease, border-color .14s ease, transform .14s ease;
+            padding:16px 18px;
+            transition:box-shadow .14s ease, border-color .14s ease;
           }
           .docs-template-card:hover{
-            box-shadow:var(--shadow-md);border-color:var(--border-strong);
+            border-color:var(--border-strong);box-shadow:var(--shadow-sm);
           }
           .docs-doc-tile{
             position:relative;width:40px;height:50px;flex:0 0 auto;border-radius:6px;
-            background:linear-gradient(160deg,#fff 0%, var(--canvas) 100%);
+            background:linear-gradient(160deg, var(--surface) 0%, var(--canvas) 100%);
             border:1px solid var(--border-strong);
             display:flex;align-items:center;justify-content:center;color:var(--accent);
-            box-shadow:var(--shadow-sm);
           }
           .docs-doc-tile::after{ /* dog-ear */
             content:"";position:absolute;top:0;right:0;width:10px;height:10px;
@@ -10734,16 +10727,17 @@ body.rr-cmdk-open{ overflow:hidden }
             border-bottom-left-radius:3px;
           }
           .docs-doc-tile svg{width:18px;height:18px}
-          /* Document tier — secure (compliance) vs informational. */
-          .docs-doc-tile.tile-secure{color:#15803d;border-color:rgba(22,163,74,.30);background:linear-gradient(160deg,#f0fdf4 0%,#fff 100%)}
+          /* Document tier — secure (signature) reads green; informational
+             (library) stays neutral.  The colour is the trust cue. */
+          .docs-doc-tile.tile-secure{color:var(--green-dark);border-color:rgba(5,150,105,.28);background:linear-gradient(160deg, var(--green-soft) 0%, var(--surface) 100%)}
           .docs-doc-tile.tile-info{color:var(--text-muted)}
           .docs-template-card.is-info{background:var(--canvas)}
-          .docs-tier{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap}
+          .docs-tier{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
           .docs-tier svg{flex:0 0 auto}
-          .docs-tier.secure{background:#dcfce7;color:#166534}
-          .docs-tier.info{background:#f1f5f9;color:#475569}
+          .docs-tier.secure{background:var(--green-soft);color:var(--green-dark)}
+          .docs-tier.info{background:var(--canvas);color:var(--text-muted)}
           .docs-card-title{
-            font-weight:650;font-size:13.5px;color:var(--text);
+            font-weight:600;font-size:var(--fs-md);color:var(--text);
             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
           }
           .docs-meta-row{ display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:6px; }
@@ -10760,16 +10754,16 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .docs-meta-dim{ font-size:11px;color:var(--text-subtle); }
 
-          /* Status chips (lifecycle) */
+          /* Status chips (lifecycle) — colour carries the state; no motion. */
           .docs-chip{
             display:inline-flex;align-items:center;gap:6px;
-            font-size:11px;font-weight:650;letter-spacing:.01em;
+            font-size:11px;font-weight:600;letter-spacing:.01em;
             border-radius:999px;padding:3px 10px 3px 8px;line-height:1.4;
             border:1px solid transparent;white-space:nowrap;
           }
           .docs-chip .dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto; }
           .docs-chip.is-pending{ background:var(--accent-soft);color:var(--accent-text);border-color:rgba(15,108,189,.18); }
-          .docs-chip.is-pending .dot{ background:var(--accent); animation:docsPulse 2.4s ease-in-out infinite; }
+          .docs-chip.is-pending .dot{ background:var(--accent); }
           .docs-chip.is-viewed{ background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.18); }
           .docs-chip.is-viewed .dot{ background:var(--amber); }
           .docs-chip.is-signed{ background:var(--green-soft);color:var(--green);border-color:rgba(5,150,105,.20); }
@@ -10778,7 +10772,6 @@ body.rr-cmdk-open{ overflow:hidden }
           .docs-chip.is-declined .dot{ background:var(--red); }
           .docs-chip.is-neutral{ background:var(--canvas);color:var(--text-muted);border-color:var(--border); }
           .docs-chip.is-neutral .dot{ background:var(--text-subtle); }
-          @keyframes docsPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(15,108,189,.35); } 50%{ box-shadow:0 0 0 4px rgba(15,108,189,0); } }
 
           /* Trust badges (small, restrained — used on completed records) */
           .docs-badge{
@@ -10793,7 +10786,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Records table */
           .docs-table-wrap{
             background:var(--surface);border:1px solid var(--border);border-radius:var(--docs-radius);
-            box-shadow:var(--shadow-sm);overflow:hidden;
+            overflow:hidden;
           }
           .docs-table{ width:100%;border-collapse:collapse; }
           .docs-table thead th{
@@ -10806,7 +10799,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .docs-table tbody tr:first-child{ border-top:none; }
           .docs-table tbody tr:hover{ background:var(--canvas); }
-          .docs-table td{ padding:13px 16px;font-size:12.5px;color:var(--text);vertical-align:middle; }
+          .docs-table td{ padding:13px 16px;font-size:var(--fs-md);color:var(--text);vertical-align:middle; }
           .docs-recipient{ display:flex;align-items:center;gap:11px; }
           .docs-avatar{
             width:30px;height:30px;border-radius:50%;flex:0 0 auto;
@@ -10832,16 +10825,16 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Empty / error states */
           .docs-empty{
             background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--docs-radius);
-            padding:54px 28px;text-align:center;box-shadow:var(--shadow-sm);
+            padding:54px 28px;text-align:center;
           }
           .docs-empty .ic{
-            width:46px;height:46px;border-radius:12px;margin:0 auto 14px;
+            width:46px;height:46px;border-radius:var(--r-xl);margin:0 auto 14px;
             display:flex;align-items:center;justify-content:center;color:var(--accent);
             background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
           }
           .docs-empty .ic svg{ width:22px;height:22px; }
-          .docs-empty h3{ margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text); }
-          .docs-empty p{ margin:0 auto;max-width:380px;font-size:12.5px;color:var(--text-subtle);line-height:1.55; }
+          .docs-empty h3{ margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text); }
+          .docs-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55; }
           .docs-empty.is-error{ border-color:rgba(225,29,72,.30); }
           .docs-empty.is-error .ic{ background:var(--red-soft);color:var(--red);border-color:rgba(225,29,72,.20); }
 
