@@ -24262,6 +24262,7 @@ function _wsRenderBoard(root) {
     </div>
     <div class="ws-toolbar">
       <div class="ws-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search rows…" data-rr-ws-search value="${escapeHtml(_wsSearch)}"></div>
+      <button type="button" class="btn btn-sm" data-rr-ws-import title="Paste rows copied from Excel or Google Sheets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="14" y2="15"/></svg> Paste rows</button>
       <button type="button" class="btn btn-sm btn-primary" data-rr-ws-addrow><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add row</button>
     </div>
     <div class="ws-grid-wrap">
@@ -24463,6 +24464,112 @@ async function _wsDuplicateRow(rowId) {
   const i = rows.findIndex(r => r.id === rowId);
   if (i < 0) return;
   await _wsInsertRow(i + 1, Object.assign({}, rows[i].data || {}));
+}
+
+// ── Paste rows from a spreadsheet (Excel / Google Sheets → TSV) ──────────
+function _wsParseTable(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+  while (lines.length && lines[lines.length - 1] === "") lines.pop();
+  return lines.map(ln => ln.split("\t"));
+}
+
+function _wsCoerceImport(col, str) {
+  const t = (col && col.type) || "text";
+  const v = String(str == null ? "" : str).trim();
+  if (!v) return "";
+  if (t === "checkbox") return /^(true|t|yes|y|1|x|✓|✔|done|complete|completed)$/i.test(v) ? "true" : "";
+  if (t === "number")   { const n = v.replace(/[^0-9.\-]/g, ""); return (n === "" || n === "-" || n === ".") ? "" : n; }
+  if (t === "date")     { const d = new Date(v); return isNaN(d.getTime()) ? "" : (d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0")); }
+  if (t === "tags")     return v.split(/[,;]+/).map(s => s.trim()).filter(Boolean).join(", ");
+  if (t === "link")     return /^[a-z][a-z0-9+.\-]*:/i.test(v) ? v : "https://" + v;
+  if (t === "priority") { const m = v.toLowerCase(); return m[0] === "h" ? "High" : m[0] === "m" ? "Medium" : m[0] === "l" ? "Low" : ""; }
+  if (t === "status")   { const opts = Array.isArray(col.options) ? col.options : []; const hit = opts.find(o => String(o).trim().toLowerCase() === v.toLowerCase()); return hit != null ? String(hit) : ""; }
+  if (t === "driver")   { const lv = v.toLowerCase(); const d = _wsDrivers.find(x => x.name.toLowerCase() === lv) || _wsDrivers.find(x => x.name.toLowerCase().startsWith(lv)); return d ? d.id : ""; }
+  return v; // text, note
+}
+
+function _wsOpenImport(prefill) {
+  const b = _wsBoard && _wsBoard.board; if (!b) return;
+  const cols = Array.isArray(b.columns) ? b.columns : [];
+  if (!cols.length) { toast("Add a column first.", "warn"); return; }
+  document.getElementById("rr-ws-import-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-ws-import-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(11,18,32,.46);z-index:10018;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:42px 16px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 84px)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div>
+          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add rows from a spreadsheet</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5">Copy a block of cells in Excel or Google Sheets, then paste it below. Each line becomes a new row at the bottom of the board; columns are filled left-to-right.</div>
+        </div>
+        <button type="button" class="btn btn-sm" data-imp-close>Close</button>
+      </div>
+      <div style="padding:18px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:13px">
+        <textarea data-imp-text class="form-input form-input-block" rows="6" placeholder="Paste here…" style="resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-sm);line-height:1.5"></textarea>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer"><input type="checkbox" data-imp-header style="margin:0"> The first line is a header row — skip it</label>
+        <div data-imp-preview style="font-size:var(--fs-sm);color:var(--text-subtle)"></div>
+      </div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;align-items:center">
+        <button type="button" class="btn btn-sm" data-imp-close>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-imp-go disabled>Add rows</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const ta   = m.querySelector("[data-imp-text]");
+  const hdr  = m.querySelector("[data-imp-header]");
+  const prev = m.querySelector("[data-imp-preview]");
+  const go   = m.querySelector("[data-imp-go]");
+  ta.value = String(prefill || "");
+  let parsed = [];
+  const refresh = () => {
+    let rows = _wsParseTable(ta.value);
+    if (hdr.checked && rows.length) rows = rows.slice(1);
+    rows = rows.filter(r => r.some(c => String(c).trim() !== ""));
+    parsed = rows;
+    if (!rows.length) { prev.textContent = "Nothing to import yet — paste your copied cells above."; go.disabled = true; return; }
+    const maxCols  = rows.reduce((a, r) => Math.max(a, r.length), 0);
+    const usedCols = Math.min(maxCols, cols.length);
+    const extra    = maxCols > cols.length ? ` · ${maxCols - cols.length} extra column${maxCols - cols.length === 1 ? "" : "s"} ignored` : "";
+    const sample   = rows.slice(0, 4);
+    prev.innerHTML = `
+      <div style="margin-bottom:8px;color:var(--text-muted)"><strong>${rows.length}</strong> row${rows.length === 1 ? "" : "s"} → first <strong>${usedCols}</strong> column${usedCols === 1 ? "" : "s"}${extra}</div>
+      <div style="overflow:auto;border:1px solid var(--border);border-radius:8px;max-height:210px">
+        <table style="border-collapse:collapse;font-size:var(--fs-xs);width:100%">
+          <thead><tr>${cols.slice(0, usedCols).map(c => `<th style="text-align:left;padding:5px 9px;background:var(--canvas);border-bottom:1px solid var(--border);white-space:nowrap;font-weight:700;color:var(--text-subtle)">${escapeHtml(c.name || c.id || "")}</th>`).join("")}</tr></thead>
+          <tbody>${sample.map(r => `<tr>${cols.slice(0, usedCols).map((c, j) => { const cv = _wsCoerceImport(c, r[j]); const disp = (c.type === "driver" && cv) ? ((_wsDriverById(cv) || {}).name || cv) : cv; return `<td style="padding:5px 9px;border-bottom:1px solid var(--border);white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;color:var(--text)">${escapeHtml(disp || "—")}</td>`; }).join("")}</tr>`).join("")}${rows.length > sample.length ? `<tr><td colspan="${Math.max(1, usedCols)}" style="padding:5px 9px;color:var(--text-subtle)">…and ${rows.length - sample.length} more row${rows.length - sample.length === 1 ? "" : "s"}</td></tr>` : ""}</tbody>
+        </table>
+      </div>`;
+    go.disabled = false;
+  };
+  ta.addEventListener("input", refresh);
+  hdr.addEventListener("change", refresh);
+  refresh();
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-imp-close]")) { m.remove(); return; }
+    if (e.target.closest("[data-imp-go]")) { _wsRunImport(m, parsed, cols); return; }
+  });
+  setTimeout(() => { try { ta.focus(); } catch (e) {} }, 30);
+}
+
+async function _wsRunImport(m, rows, cols) {
+  if (!rows || !rows.length) { m.remove(); return; }
+  const bid = _wsBoardId;
+  const usedCols = Math.min(rows.reduce((a, r) => Math.max(a, r.length), 0), cols.length);
+  const go = m.querySelector("[data-imp-go]");
+  let ok = 0, fail = 0;
+  for (let i = 0; i < rows.length; i++) {
+    if (go) { go.disabled = true; go.textContent = `Adding ${i + 1} / ${rows.length}…`; }
+    const data = {};
+    for (let j = 0; j < usedCols; j++) { const cv = _wsCoerceImport(cols[j], rows[i][j]); if (cv) data[cols[j].id] = cv; }
+    const { data: up, error } = await sb.rpc("assignment_row_upsert", { p_board_id: bid, p_row_id: null, p_data: data, p_position: null });
+    if (error || !up) fail++; else ok++;
+  }
+  m.remove();
+  _wsSearch = "";
+  if (_wsBoardId === bid) { await loadWorkspacesView(); }
+  if (fail) toast(`Added ${ok} row${ok === 1 ? "" : "s"} · ${fail} couldn't be added`, "warn");
+  else if (ok) toast(`Added ${ok} row${ok === 1 ? "" : "s"} from your spreadsheet`, "success");
 }
 
 async function _wsDeleteRow(rowId) {
@@ -24744,6 +24851,7 @@ function _wsBindRoot(root) {
     if (e.target.closest("[data-rr-ws-rename]"))  { _wsRenameBoard(); return; }
     if (e.target.closest("[data-rr-ws-archive]")) { _wsArchiveBoard(); return; }
     if (e.target.closest("[data-rr-ws-addcol]"))  { _wsAddColumn(); return; }
+    if (e.target.closest("[data-rr-ws-import]"))  { _wsOpenImport(""); return; }
     if (e.target.closest("[data-rr-ws-resize]"))  { return; }
     const colcfg = e.target.closest("[data-rr-ws-colcfg]"); if (colcfg) { e.stopPropagation(); _wsOpenColumnSettings(colcfg.getAttribute("data-rr-ws-colcfg")); return; }
     const del = e.target.closest("[data-rr-ws-delrow]"); if (del) { e.stopPropagation(); _wsDeleteRow(del.getAttribute("data-rr-ws-delrow")); return; }
@@ -24819,6 +24927,22 @@ function _wsBindRoot(root) {
   window.addEventListener("scroll", _wsHideCtx, true);
   window.addEventListener("resize", _wsHideCtx);
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") _wsHideCtx(); });
+  // Ctrl/Cmd+V anywhere on an open board (not in an input / cell editor) with
+  // tab- or newline-structured clipboard data → open the spreadsheet importer.
+  document.addEventListener("paste", (e) => {
+    const view = document.getElementById("view-workspaces");
+    if (!view || !view.classList.contains("active")) return;
+    if (!_wsBoard || !_wsBoard.board) return;
+    if (document.getElementById("rr-ws-import-modal")) return;
+    if (_wsEditing) return;
+    const ae = document.activeElement;
+    if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+    const cd = e.clipboardData || window.clipboardData;
+    const txt = cd ? cd.getData("text/plain") : "";
+    if (!txt || (txt.indexOf("\t") < 0 && txt.indexOf("\n") < 0)) return;
+    e.preventDefault();
+    _wsOpenImport(txt);
+  });
 }
 
 const _WS_CTX_IC = {
