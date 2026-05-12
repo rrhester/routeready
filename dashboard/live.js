@@ -9295,10 +9295,21 @@ async function loadInterviewDay() {
   for (const e of events ?? []) datesSet.add(localDate(e.starts_at));
   _ivDatesWithBookings = [...datesSet].sort();
 
+  // A closed-out interview day still has its cal_events on file, so it
+  // keeps turning up as a "date with bookings". Don't *default* to one —
+  // the operator can still navigate back to it, but on a fresh load we
+  // should land on the soonest day that's still open (or today, empty).
+  const { data: closedDays } = await sb.from("interview_days")
+    .select("date")
+    .eq("dsp_id", window.RR.dsp.id)
+    .not("closed_at", "is", null);
+  const closedSet = new Set((closedDays ?? []).map(d => d.date));
+  const openDatesWithBookings = _ivDatesWithBookings.filter(d => !closedSet.has(d));
+
   const today = localDate(new Date());
   if (!_ivDate) {
-    if (_ivDatesWithBookings.includes(today)) _ivDate = today;
-    else _ivDate = _ivDatesWithBookings[0] || today;
+    if (openDatesWithBookings.includes(today)) _ivDate = today;
+    else _ivDate = openDatesWithBookings[0] || today;
   }
 
   const { data: day, error: openErr } = await sb.rpc("open_interview_day", { p_date: _ivDate });
