@@ -2566,7 +2566,7 @@ select.form-input{
 }
 .cal-cell:last-child{border-right:none}
 .cal-cell:hover{background:var(--canvas)}
-.cal-cell.today{background:#FAFBFC;box-shadow:inset 2px 0 0 var(--accent-soft), inset -2px 0 0 var(--accent-soft)}
+.cal-cell.today{background:#FAFBFC;box-shadow:inset 2px 0 0 var(--accent-soft)}
 .cal-cell.today:hover{background:#F1F5F9}
 /* Subtle whole-row highlight on hover so the operator can scan a
    driver's week left-to-right without losing their place. */
@@ -2589,15 +2589,17 @@ select.form-input{
 }
 .shift-chip-route{font-weight:600;color:var(--accent-text);font-variant-numeric:tabular-nums}
 .shift-chip-time{color:var(--text-muted);font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
-.shift-chip.swap{background:#FEF3C7;border-color:#FCD34D;border-style:dashed}
+/* Swap pending / planned time-off both read amber — "expected, note it",
+   not red.  Swap stays dashed (in flux); time-off is a settled absence. */
+.shift-chip.swap{background:var(--amber-soft);border-color:var(--amber);border-style:dashed}
 .shift-chip.swap .shift-chip-route{color:var(--amber-dark)}
 .shift-chip.off{
   background:transparent;border-color:transparent;color:var(--text-subtle);
   text-align:center;justify-content:center;align-items:center;
-  font-size:11px;font-weight:500;font-style:italic;letter-spacing:.02em;
+  font-size:var(--fs-xs);font-weight:500;font-style:italic;letter-spacing:.02em;
 }
-.shift-chip.timeoff{background:#FEE2E2;border-color:#FCA5A5;text-align:center;justify-content:center;align-items:center;font-weight:600}
-.shift-chip.timeoff .shift-chip-route{color:var(--red-dark)}
+.shift-chip.timeoff{background:var(--amber-soft);border-color:var(--amber);text-align:center;justify-content:center;align-items:center;font-weight:600}
+.shift-chip.timeoff .shift-chip-route{color:var(--amber-dark)}
 .shift-chip.open{
   background:transparent;border:1.5px dashed var(--border-strong);color:var(--text-subtle);
   text-align:center;justify-content:center;align-items:center;font-weight:600;font-size:11px;
@@ -2866,10 +2868,10 @@ select.form-input{
 /* Conflict marker on calendar cells */
 .cal-cell{position:relative}
 .conflict-marker{
-  position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:50%;
+  position:absolute;top:5px;right:5px;width:15px;height:15px;border-radius:50%;
   background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;
   font-size:10px;font-weight:700;cursor:help;z-index:2;
-  box-shadow:0 0 0 2px var(--surface), 0 1px 3px rgba(15,23,42,.18);
+  box-shadow:0 0 0 2px var(--surface);
   letter-spacing:0;
 }
 .conflict-marker.error{background:var(--red)}
@@ -8494,24 +8496,28 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="sched-subview active" id="sched-sub-week">
 
         <style>
-          /* ── Schedule · week view refinements (scoped) ──────────────
-             Refinement only — the calendar already uses the platform's
-             surface/spacing vocabulary. This adds a touch more depth,
-             calmer hovers, and a clearer coverage strip so staffing
-             gaps catch the eye. */
-          #view-schedule .sched-toolbar-rail{ box-shadow:var(--shadow-sm); }
-          #view-schedule .cal-wrap{ box-shadow:var(--shadow-sm); }
-
-          /* Shift chip — slightly softer radius, gentler hover lift. */
-          #view-schedule .shift-chip{ border-radius:8px; }
-          #view-schedule .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
-            box-shadow:0 2px 5px rgba(15,23,42,.07);
+          /* ── Schedule · week view (scoped) ─────────────────────────
+             View-specific tuning over the platform's grid vocabulary —
+             a fully-pinned grid frame, the open-shift chip, the coverage
+             strip's staffing edge, the driver-pool states, the loading
+             skeleton. Containment is left to borders; no extra shadows. */
+          /* Pin the "Driver" corner cell so it holds when the grid
+             scrolls right — the head row is already sticky-top and the
+             row labels are sticky-left, so this completes the frame. */
+          #view-schedule .cal-grid.head .cal-cell-head:first-child{
+            position:sticky;left:0;z-index:3;background:var(--canvas);
           }
+
           /* Open-shift chip reads as an invitation to fill, not an error. */
           #view-schedule .shift-chip.open{
-            background:var(--accent-soft);border:1.5px dashed rgba(15,108,189,.35);color:var(--accent-text);
+            background:var(--accent-soft);border:1.5px dashed var(--accent-border);color:var(--accent-text);
           }
           #view-schedule .shift-chip.open:hover{ border-style:solid;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
+
+          /* "Finalize" is the consequential action on this page — a quiet
+             primary among the ghost tools, never a loud button. */
+          #view-schedule #schedule-cta{ background:var(--accent-soft);color:var(--accent-text);font-weight:600; }
+          #view-schedule #schedule-cta:hover{ background:var(--accent-soft-strong);color:var(--accent-text); }
 
           /* Coverage strip — read it as a staffing bar. Each cell gets a
              2px state-colored top border; gaps get a slightly stronger
