@@ -213,6 +213,7 @@ const routes = {
   "/schedule":          { render: renderSchedule,        tab: "/schedule" },
   "/tasks":             { render: renderTasksHub,        tab: "/tasks" },
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
+  "/tasks/onboarding/step": { render: renderOnboardingStep, tab: "/tasks", back: "/tasks/onboarding", title: "Onboarding step" },
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
   "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
@@ -255,6 +256,7 @@ function render() {
   // before the operator's marked them active.
   if (session.status === "onboarding") {
     const allowed = (path) => path === "/tasks/onboarding"
+      || path === "/tasks/onboarding/step"
       || path === "/tasks/i9"
       || path === "/settings"
       || path.startsWith("/settings/");
@@ -2303,11 +2305,12 @@ async function renderOnboarding() {
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
-  const [profRes, i9Res] = await Promise.all([
+  const [profRes, i9Res, custRes] = await Promise.all([
     sb.rpc("driver_get_profile", { p_token: session.token }),
     // PostgrestBuilder is a bare thenable (no .catch) — two-arg .then so
     // a missing/erroring RPC can't blow up the onboarding screen.
     sb.rpc("driver_i9_get",      { p_token: session.token }).then((r) => r, () => ({ data: null })),
+    sb.rpc("driver_onboarding_steps", { p_token: session.token }).then((r) => r, () => ({ data: [] })),
   ]);
   const { data: prof, error } = profRes;
   if (error) {
@@ -2344,6 +2347,24 @@ async function renderOnboarding() {
       subTodo: i9NeedsFix ? "Your employer asked for a correction — please update and re-sign"
                           : "Confirm your work eligibility — required before your first day" },
   ];
+  // Custom steps the DSP added in the Onboarding Builder — videos to
+  // watch, acknowledgements to confirm. The driver completes each from a
+  // dedicated step screen (/tasks/onboarding/step) that writes through
+  // to driver_onboarding_state.
+  for (const cs of (Array.isArray(custRes?.data) ? custRes.data : [])) {
+    if (!cs || !cs.key) continue;
+    const isVid = cs.type === "video";
+    mySteps.push({
+      key: "cust:" + cs.key,
+      title: cs.title || (isVid ? "Watch a video" : "Acknowledgement"),
+      done: cs.status === "complete",
+      action: "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key),
+      cta: isVid ? "Watch & confirm" : "Review & confirm",
+      subDone: isVid ? "Watched" : "Acknowledged",
+      subTodo: isVid ? "Watch the video, then confirm you've finished"
+        : (cs.ack_text ? (cs.ack_text.length > 100 ? cs.ack_text.slice(0, 99) + "…" : cs.ack_text) : "Review and confirm"),
+    });
+  }
   // Steps the DSP records.
   const teamSteps = [
     { key: "bg", title: "Background check", done: bgDone, subDone: "Cleared", subTodo: "Your team runs this" },
@@ -2441,6 +2462,67 @@ async function renderOnboarding() {
 
   main.querySelectorAll("[data-onboard-go]").forEach(el => {
     el.addEventListener("click", () => navigate(el.dataset.onboardGo));
+  });
+}
+
+// ── One custom onboarding step (video / acknowledgement) ────────────
+// Reached from the onboarding hub. Shows the video link or the
+// acknowledgement text, with a confirm button that calls
+// driver_onboarding_step_ack and bounces back to the hub.
+async function renderOnboardingStep() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+  const key = routeQuery().get("key");
+  if (!key) { navigate("/tasks/onboarding"); return; }
+
+  const { data, error } = await sb.rpc("driver_onboarding_steps", { p_token: session.token });
+  if (error) {
+    if (/unauthorized|revoked|inactive/i.test(error.message || "")) { writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return; }
+    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load this step.<br><small>${escapeHtml(error.message)}</small></div>`;
+    return;
+  }
+  const step = (Array.isArray(data) ? data : []).find(s => s && s.key === key);
+  if (!step) { navigate("/tasks/onboarding"); return; }
+
+  setHeader(step.title || "Onboarding step", "");
+  const isVid = step.type === "video";
+  const done  = step.status === "complete";
+  const doneOn = step.at ? new Date(step.at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+
+  const bodyHtml = isVid
+    ? (step.video_url
+        ? `<div class="ob-next-sub">Watch the video, then confirm you've finished.</div>
+           <a class="btn ob-next-cta" href="${escapeHtml(step.video_url)}" target="_blank" rel="noopener">Open the video ↗</a>`
+        : `<div class="ob-next-sub">Your team hasn't added the video link yet — check back soon.</div>`)
+    : `<div class="ob-next-sub" style="white-space:pre-wrap">${escapeHtml(step.ack_text || "Please confirm you've reviewed this.")}</div>`;
+
+  const footHtml = done
+    ? `<div class="ob-next-sub" style="display:flex;align-items:center;gap:7px;color:#15803d;font-weight:600;margin-top:13px">${_OB_CHECK}<span>Done${doneOn ? " · " + doneOn : ""}</span></div>`
+    : `<button class="btn btn-primary ob-next-cta" type="button" id="ob-step-confirm"${(isVid && !step.video_url) ? " disabled" : ""}>${isVid ? "I've watched it" : "I acknowledge"}</button>`;
+
+  main.innerHTML = `
+    <div class="ob">
+      <div class="ob-next ${done ? "idle" : ""}">
+        <div class="ob-next-eyebrow">${isVid ? "Video to watch" : "Acknowledgement"}</div>
+        <div class="ob-next-title">${escapeHtml(step.title || (isVid ? "Watch a video" : "Acknowledgement"))}</div>
+        ${bodyHtml}
+        ${footHtml}
+      </div>
+      <div class="ob-foot">Your dispatcher activates your account once every step is complete.</div>
+    </div>`;
+
+  const btn = document.getElementById("ob-step-confirm");
+  if (btn) btn.addEventListener("click", async () => {
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = "Saving…";
+    const { error: e2 } = await sb.rpc("driver_onboarding_step_ack", { p_token: session.token, p_step_key: key });
+    if (e2) {
+      if (/unauthorized|revoked|inactive/i.test(e2.message || "")) { writeSession(null); render(); return; }
+      btn.disabled = false; btn.textContent = orig; toast("Couldn't save — " + (e2.message || "try again"), "warn"); return;
+    }
+    toast("Done — nice work ✓", "success");
+    navigate("/tasks/onboarding");
   });
 }
 
