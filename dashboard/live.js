@@ -21990,10 +21990,17 @@ window.goto = function (view) {
     // FRONT.  Without the [data-sub] guard, Plan ↗ becomes "firstSub"
     // and we auto-click it — bouncing the operator off Schedule and
     // back into OKAMI a frame after they navigate to Schedule.
-    const firstSub = activeView.querySelector(
-      ".subnav .subnav-item[data-sub], .subnav .subnav-item[data-pipesub], " +
-      ".subnav-item[data-sub], .subnav-item[data-pipesub]"
-    );
+    // Find the view's primary sub-tab. Skip any subnav-item whose
+    // onclick is a goto(...) — those navigate to a whole other view
+    // (e.g. the Workspaces icon's Forms / Workflows / Checklists tabs,
+    // Schedule's "Plan ↗"), so auto-clicking one would bounce the
+    // operator straight back out of the view they just opened.
+    let firstSub = null;
+    for (const btn of activeView.querySelectorAll(".subnav-item[data-sub], .subnav-item[data-pipesub]")) {
+      if (/\bgoto\s*\(/.test(btn.getAttribute("onclick") || "")) continue;
+      firstSub = btn;
+      break;
+    }
     if (firstSub && !firstSub.classList.contains("active")) firstSub.click();
 
     // Settings has its own pane navigation (settings-nav-item /
