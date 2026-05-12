@@ -24254,6 +24254,7 @@ function _wsRenderBoard(root) {
         <div class="ws-crumb"><a data-rr-ws-back>Workspaces</a><span class="sep">/</span></div>
         <div class="ws-board-name" style="margin-top:2px">
           <span class="nm">${escapeHtml(b.name || "Untitled board")}</span>
+          <button type="button" class="ws-icon-btn" data-rr-ws-settings title="Board settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
           <button type="button" class="ws-icon-btn" data-rr-ws-rename title="Rename board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
           <button type="button" class="ws-icon-btn" data-rr-ws-archive title="Archive board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>
         </div>
@@ -24452,6 +24453,86 @@ async function _wsArchiveBoard() {
   loadWorkspacesView();
 }
 
+// ── Board settings — edits the per-board `config` (migration 0183) ────
+function _wsOpenSettings() {
+  const b = _wsBoard && _wsBoard.board;
+  if (!b) return;
+  const cfg = (b.config && typeof b.config === "object") ? b.config : {};
+  const g = (k, d) => (cfg[k] != null ? cfg[k] : d);
+  const cols = Array.isArray(b.columns) ? b.columns : [];
+  const statusCol = cols.find(c => c && c.role === "status") || cols.find(c => c && c.type === "status");
+  const statusOpts = (statusCol && Array.isArray(statusCol.options)) ? statusCol.options : [];
+  document.getElementById("rr-ws-settings-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-ws-settings-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(11,18,32,.46);z-index:10010;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:48px 16px";
+  const sel = (name, val, opts) => `<select data-cfg="${name}" class="form-input form-input-block">${opts.map(o => `<option value="${escapeHtml(o[0])}"${o[0] === String(val) ? " selected" : ""}>${escapeHtml(o[1])}</option>`).join("")}</select>`;
+  const lbl = (txt) => `<div style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:5px">${escapeHtml(txt)}</div>`;
+  const head = (txt) => `<div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:11px">${escapeHtml(txt)}</div>`;
+  const check = (name, on, txt) => `<label style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--text);cursor:pointer"><input type="checkbox" data-cfg="${name}"${on ? " checked" : ""} style="accent-color:var(--accent);width:15px;height:15px"> ${escapeHtml(txt)}</label>`;
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:520px;width:100%;box-shadow:var(--shadow-lg);max-height:calc(100vh - 96px);display:flex;flex-direction:column">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Board settings</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">How rows assigned to a driver behave in their app — applies to every row on <strong>${escapeHtml(b.name || "this board")}</strong>.</div></div>
+        <button type="button" class="btn btn-sm" data-rr-ws-settings-close>Close</button>
+      </div>
+      <div style="padding:20px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:20px">
+        <div>
+          ${head("Driver experience")}
+          <div style="display:flex;flex-direction:column;gap:11px">
+            ${check("notify_on_assign", g("notify_on_assign", true) !== false, "Notify the driver when a row is assigned to them")}
+            <div>${lbl("Driver sees")}${sel("driver_sees", g("driver_sees", "own"), [["own", "Just the rows assigned to them"], ["board", "The whole board (read-only)"]])}</div>
+          </div>
+        </div>
+        <div>
+          ${head("Completion")}
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div>${lbl("Driver's completion button")}<input type="text" data-cfg="completion_label" class="form-input form-input-block" maxlength="32" value="${escapeHtml(String(g("completion_label", "Mark done")))}" placeholder="Mark done"></div>
+            ${statusOpts.length ? `<div>${lbl("Status it flips to on completion")}${sel("completion_status", g("completion_status", ""), [["", "The status column's last option"]].concat(statusOpts.map(o => [String(o), String(o)])))}</div>` : ""}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div>${lbl("Photo on completion")}${sel("require_photo", g("require_photo", "optional"), [["off", "Off"], ["optional", "Optional"], ["required", "Required"]])}</div>
+              <div>${lbl("Note on completion")}${sel("require_note", g("require_note", "off"), [["off", "Off"], ["optional", "Optional"], ["required", "Required"]])}</div>
+            </div>
+          </div>
+        </div>
+        <details style="border-top:1px solid var(--border-subtle);padding-top:15px">
+          <summary style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);cursor:pointer">Advanced</summary>
+          <div style="margin-top:13px;display:flex;flex-direction:column;gap:10px">
+            ${check("allow_driver_undo", g("allow_driver_undo", true) !== false, "Let the driver undo a completion within 24 hours")}
+            ${check("driver_can_edit", g("driver_can_edit", false) === true, "Let the driver edit their rows' cells in the app")}
+            ${check("notify_on_due_soon", g("notify_on_due_soon", false) === true, "Notify the driver when one of their rows is due soon")}
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5;margin-top:2px">Whole-board view, in-app cell editing, undo, and due-soon reminders ship in upcoming updates — the settings are saved now.</div>
+          </div>
+        </details>
+      </div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" class="btn btn-sm" data-rr-ws-settings-close>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-ws-settings-save>Save settings</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-ws-settings-close]")) { m.remove(); return; }
+    if (e.target.closest("[data-rr-ws-settings-save]")) _wsSaveSettings(m);
+  });
+}
+
+async function _wsSaveSettings(m) {
+  const cfg = {};
+  m.querySelectorAll("[data-cfg]").forEach(el => {
+    const k = el.getAttribute("data-cfg");
+    if (el.type === "checkbox") cfg[k] = el.checked;
+    else { const v = String(el.value || "").trim(); if (v) cfg[k] = v; }
+  });
+  const saveBtn = m.querySelector("[data-rr-ws-settings-save]");
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+  const { data: nb, error } = await sb.rpc("assignment_board_set_config", { p_board_id: _wsBoardId, p_config: cfg });
+  if (error) { if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save settings"; } toast("Couldn't save: " + (error.message || "try again"), "warn"); return; }
+  if (_wsBoard && _wsBoard.board) _wsBoard.board.config = (nb && nb.config) || cfg;
+  m.remove();
+  toast("Board settings saved ✓", "success");
+}
+
 async function _wsAddColumn() {
   if (!_wsBoard || !_wsBoard.board) return;
   const name = (prompt("New column name") || "").trim();
@@ -24485,6 +24566,7 @@ function _wsBindRoot(root) {
     if (e.target.closest("[data-rr-ws-back]"))   { _wsBoardId = null; loadWorkspacesView(); return; }
     const tpl = e.target.closest("[data-rr-ws-tpl]"); if (tpl) { _wsCreateBoard(tpl.getAttribute("data-rr-ws-tpl")); return; }
     if (e.target.closest("[data-rr-ws-blank]"))  { _wsCreateBoard(null); return; }
+    if (e.target.closest("[data-rr-ws-settings]")) { _wsOpenSettings(); return; }
     if (e.target.closest("[data-rr-ws-rename]"))  { _wsRenameBoard(); return; }
     if (e.target.closest("[data-rr-ws-archive]")) { _wsArchiveBoard(); return; }
     if (e.target.closest("[data-rr-ws-addcol]"))  { _wsAddColumn(); return; }
