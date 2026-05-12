@@ -24269,7 +24269,7 @@ function _wsRenderBoard(root) {
         <table class="ws-grid">
           <thead><tr>
             <th class="ws-num">#</th>
-            ${cols.map(c => `<th${c.width ? ` style="min-width:${Math.max(80, c.width | 0)}px"` : ""}><span class="ws-colname" data-rr-ws-rencol="${escapeHtml(c.id)}" title="Rename column">${escapeHtml(c.name || c.id || "")}</span></th>`).join("")}
+            ${cols.map(c => `<th${c.width ? ` style="min-width:${Math.max(80, c.width | 0)}px"` : ""}><span class="ws-colname" data-rr-ws-colcfg="${escapeHtml(c.id)}" title="Column settings">${escapeHtml(c.name || c.id || "")}</span></th>`).join("")}
             <th class="ws-addcol" data-rr-ws-addcol title="Add a column">+</th>
             <th class="ws-act"></th>
           </tr></thead>
@@ -24545,16 +24545,83 @@ async function _wsAddColumn() {
   const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
 }
 
-async function _wsRenameColumn(colId) {
-  if (!_wsBoard || !_wsBoard.board) return;
-  const cols = Array.isArray(_wsBoard.board.columns) ? _wsBoard.board.columns.map(c => Object.assign({}, c)) : [];
+// ── Column settings — name / type / options / role / delete ──────────
+const _WS_COL_TYPES = [["text", "Text"], ["status", "Status (pill)"], ["driver", "Person (driver)"], ["date", "Date"], ["number", "Number"], ["note", "Note (long text)"], ["tag", "Tag"], ["attachment", "Attachment"]];
+const _WS_COL_ROLES = [["", "None"], ["assignee", "Assigned-to — links a row to a driver"], ["status", "Status — flips when the driver completes"], ["due", "Due date"]];
+
+function _wsOpenColumnSettings(colId) {
+  const b = _wsBoard && _wsBoard.board; if (!b) return;
+  const col = (Array.isArray(b.columns) ? b.columns : []).find(c => c.id === colId);
+  if (!col) return;
+  const origType = col.type || "text";
+  document.getElementById("rr-ws-col-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-ws-col-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(11,18,32,.46);z-index:10012;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:48px 16px";
+  const lbl = (t) => `<div style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:5px">${escapeHtml(t)}</div>`;
+  const sel = (name, val, opts) => `<select data-col="${name}" class="form-input form-input-block">${opts.map(o => `<option value="${escapeHtml(o[0])}"${o[0] === String(val == null ? "" : val) ? " selected" : ""}>${escapeHtml(o[1])}</option>`).join("")}</select>`;
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:440px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Column · ${escapeHtml(col.name || col.id)}</div>
+        <button type="button" class="btn btn-sm" data-rr-ws-col-close>Close</button>
+      </div>
+      <div style="padding:20px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:14px">
+        <div>${lbl("Name")}<input type="text" data-col="name" class="form-input form-input-block" maxlength="40" value="${escapeHtml(col.name || "")}"></div>
+        <div>${lbl("Type")}${sel("type", origType, _WS_COL_TYPES)}</div>
+        <div data-col-opts-wrap${origType === "status" ? "" : " hidden"}>${lbl("Options — one per line; the last one is the 'done' value")}<textarea data-col="options" class="form-input form-input-block" rows="4" style="resize:vertical">${escapeHtml((Array.isArray(col.options) ? col.options : []).join("\n"))}</textarea></div>
+        <div>${lbl("Role")}${sel("role", col.role || "", _WS_COL_ROLES)}<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:5px;line-height:1.5">Roles drive the driver loop — only one column can hold each. <strong>Assigned-to</strong> is the column whose value links a row to a driver; <strong>Status</strong> is the cell that flips when they complete it; <strong>Due</strong> feeds the due-date display.</div></div>
+        <div data-col-type-warn hidden style="font-size:var(--fs-xs);color:var(--amber-dark);background:var(--amber-soft);border-radius:var(--r-md);padding:8px 11px;line-height:1.5">Changing the type keeps the cells you've already entered — values that don't fit the new type just show as plain text until re-entered. Nothing's lost.</div>
+      </div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <button type="button" class="btn btn-sm" data-rr-ws-col-del style="color:var(--red)">Delete column</button>
+        <div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-rr-ws-col-close>Cancel</button><button type="button" class="btn btn-sm btn-primary" data-rr-ws-col-save>Save</button></div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.querySelector('[data-col="type"]').addEventListener("change", (e) => {
+    m.querySelector("[data-col-opts-wrap]").hidden = (e.target.value !== "status");
+    m.querySelector("[data-col-type-warn]").hidden = (e.target.value === origType);
+  });
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-ws-col-close]")) { m.remove(); return; }
+    if (e.target.closest("[data-rr-ws-col-save]")) { _wsSaveColumn(m, colId); return; }
+    if (e.target.closest("[data-rr-ws-col-del]")) {
+      if (!confirm("Delete this column? Its values are removed from every row on the board. This can't be undone.")) return;
+      _wsDeleteColumn(colId, m);
+    }
+  });
+}
+
+async function _wsSaveColumn(m, colId) {
+  const b = _wsBoard && _wsBoard.board; if (!b) return;
+  const cols = (Array.isArray(b.columns) ? b.columns : []).map(c => Object.assign({}, c));
   const col = cols.find(c => c.id === colId); if (!col) return;
-  const name = (prompt("Column name", col.name || "") || "").trim();
-  if (!name || name === col.name) return;
+  const name = String(m.querySelector('[data-col="name"]').value || "").trim();
+  if (!name) { toast("Give the column a name.", "warn"); return; }
+  const type = String(m.querySelector('[data-col="type"]').value || "text");
+  const role = String(m.querySelector('[data-col="role"]').value || "");
   col.name = name;
+  col.type = type;
+  if (role) col.role = role; else delete col.role;
+  if (type === "status") col.options = String(m.querySelector('[data-col="options"]').value || "").split("\n").map(s => s.trim()).filter(Boolean);
+  else delete col.options;
+  if (role) cols.forEach(c => { if (c.id !== colId && c.role === role) delete c.role; });   // role is unique
+  const saveBtn = m.querySelector("[data-rr-ws-col-save]"); if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
   const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_columns: cols });
-  if (error) { toast("Couldn't rename the column: " + (error.message || "try again"), "warn"); return; }
+  if (error) { if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save"; } toast("Couldn't save: " + (error.message || "try again"), "warn"); return; }
   _wsBoard.board.columns = (nb && nb.columns) || cols;
+  m.remove();
+  const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
+}
+
+async function _wsDeleteColumn(colId, m) {
+  const b = _wsBoard && _wsBoard.board; if (!b) return;
+  const cols = (Array.isArray(b.columns) ? b.columns : []).filter(c => c.id !== colId);
+  const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_columns: cols });
+  if (error) { toast("Couldn't delete the column: " + (error.message || "try again"), "warn"); return; }
+  _wsBoard.board.columns = (nb && nb.columns) || cols;
+  if (m) m.remove();
   const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
 }
 
@@ -24570,7 +24637,7 @@ function _wsBindRoot(root) {
     if (e.target.closest("[data-rr-ws-rename]"))  { _wsRenameBoard(); return; }
     if (e.target.closest("[data-rr-ws-archive]")) { _wsArchiveBoard(); return; }
     if (e.target.closest("[data-rr-ws-addcol]"))  { _wsAddColumn(); return; }
-    const rencol = e.target.closest("[data-rr-ws-rencol]"); if (rencol) { e.stopPropagation(); _wsRenameColumn(rencol.getAttribute("data-rr-ws-rencol")); return; }
+    const colcfg = e.target.closest("[data-rr-ws-colcfg]"); if (colcfg) { e.stopPropagation(); _wsOpenColumnSettings(colcfg.getAttribute("data-rr-ws-colcfg")); return; }
     const del = e.target.closest("[data-rr-ws-delrow]"); if (del) { e.stopPropagation(); _wsDeleteRow(del.getAttribute("data-rr-ws-delrow")); return; }
     if (e.target.closest("[data-rr-ws-addrow]")) { _wsAddRow(); return; }
     const cell = e.target.closest("[data-rr-ws-cell]"); if (cell && !e.target.closest(".ws-edit")) { _wsBeginEdit(cell); return; }
