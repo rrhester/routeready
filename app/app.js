@@ -2270,7 +2270,7 @@ async function renderSettingsLicense() {
 // step", the driver's own steps as a clean checklist, and a calm,
 // separate "your team is handling" section so the driver always knows
 // what's theirs to do and never wonders what happens next.
-const _OB_CHECK = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#15803d" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const _OB_CHECK = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const _OB_CHEVRON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
 
 function _obProgressRing(done, total) {
@@ -2279,7 +2279,7 @@ function _obProgressRing(done, total) {
   const allDone = total > 0 && done === total;
   return `<svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
     <circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--canvas)" stroke-width="5"/>
-    <circle cx="29" cy="29" r="${r}" fill="none" stroke="${allDone ? "#16a34a" : "var(--accent)"}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - frac)).toFixed(1)}" transform="rotate(-90 29 29)" style="transition:stroke-dashoffset .4s ease"/>
+    <circle cx="29" cy="29" r="${r}" fill="none" stroke="${allDone ? "var(--green)" : "var(--accent)"}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - frac)).toFixed(1)}" transform="rotate(-90 29 29)" style="transition:stroke-dashoffset .4s ease"/>
   </svg>`;
 }
 
@@ -2393,23 +2393,16 @@ async function renderOnboarding() {
     : allMyDone ? `Your part is done. Your team is finishing ${teamPhrase} — nothing else needs you right now.`
     : `${doneCount} of ${total} steps complete. Knock out the next one and you'll be ${total - doneCount === 1 ? "finished" : "almost there"}.`;
 
-  // Next-step / status card.
+  // Next-step card — the single highlighted action.  When the driver
+  // has nothing left to do, the hero copy already says so, so no card.
   let nextCard = "";
   if (nextMy) {
-    const cls = nextMy.attention ? "action" : "";
     nextCard = `
-      <div class="ob-next ${cls}">
+      <div class="ob-next ${nextMy.attention ? "action" : ""}">
         <div class="ob-next-eyebrow">${nextMy.attention ? "Action needed" : "Your next step"}</div>
         <div class="ob-next-title">${escapeHtml(nextMy.title)}</div>
         <div class="ob-next-sub">${escapeHtml(nextMy.subTodo)}</div>
         <button class="btn btn-primary ob-next-cta" type="button" data-onboard-go="${nextMy.action}">${escapeHtml(nextMy.cta)}</button>
-      </div>`;
-  } else if (!allDone) {
-    nextCard = `
-      <div class="ob-next idle">
-        <div class="ob-next-eyebrow">You're ahead of schedule</div>
-        <div class="ob-next-title">Nothing for you to do right now</div>
-        <div class="ob-next-sub">Your team is wrapping up ${escapeHtml(teamPhrase)}. We'll let you know if anything needs you.</div>
       </div>`;
   }
 
@@ -2438,7 +2431,7 @@ async function renderOnboarding() {
   main.innerHTML = `
     <div class="ob">
       <div class="ob-hero ${allDone ? "done" : ""}">
-        <div class="ob-ring">${_obProgressRing(doneCount, total)}<div class="ob-ring-num" ${allDone ? 'style="color:#15803d"' : ""}>${doneCount}/${total}</div></div>
+        <div class="ob-ring">${_obProgressRing(doneCount, total)}<div class="ob-ring-num" ${allDone ? 'style="color:var(--green)"' : ""}>${doneCount}/${total}</div></div>
         <div style="min-width:0">
           <div class="ob-hero-title">${heroTitle}</div>
           <div class="ob-hero-sub">${heroSub}</div>
@@ -2447,14 +2440,14 @@ async function renderOnboarding() {
 
       ${nextCard}
 
-      <div>
+      <div class="ob-group">
         <div class="ob-sec">Your steps</div>
-        <div class="ob-list" style="margin-top:6px">${mySteps.map(myItemHtml).join("")}</div>
+        <div class="ob-list">${mySteps.map(myItemHtml).join("")}</div>
       </div>
 
-      <div>
+      <div class="ob-group">
         <div class="ob-sec">Your team is handling</div>
-        <div class="ob-list" style="margin-top:6px">${teamSteps.map(teamItemHtml).join("")}</div>
+        <div class="ob-list">${teamSteps.map(teamItemHtml).join("")}</div>
       </div>
 
       <div class="ob-foot">Your dispatcher activates your account once every step is complete.</div>
@@ -2499,7 +2492,7 @@ async function renderOnboardingStep() {
     : `<div class="ob-next-sub" style="white-space:pre-wrap">${escapeHtml(step.ack_text || "Please confirm you've reviewed this.")}</div>`;
 
   const footHtml = done
-    ? `<div class="ob-next-sub" style="display:flex;align-items:center;gap:7px;color:#15803d;font-weight:600;margin-top:13px">${_OB_CHECK}<span>Done${doneOn ? " · " + doneOn : ""}</span></div>`
+    ? `<div class="ob-next-sub" style="display:flex;align-items:center;gap:7px;color:var(--green);font-weight:600;margin-top:13px">${_OB_CHECK}<span>Done${doneOn ? " · " + doneOn : ""}</span></div>`
     : `<button class="btn btn-primary ob-next-cta" type="button" id="ob-step-confirm"${(isVid && !step.video_url) ? " disabled" : ""}>${isVid ? "I've watched it" : "I acknowledge"}</button>`;
 
   main.innerHTML = `

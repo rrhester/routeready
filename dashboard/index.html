@@ -1071,9 +1071,15 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   flex-shrink:0;
   transition:background var(--t-smooth), border-color var(--t-smooth), color var(--t-smooth);
 }
+.rr-onb-progress-dot svg{width:13px;height:13px}
+.rr-onb-progress-check{display:none}
+/* Rail centres on the 24px dots — sits clear of the labels stacked below. */
 .rr-onb-progress-rail{flex:1;height:2px;background:var(--border-strong);border-radius:1px;
+  align-self:flex-start;margin-top:11px;
   transition:background var(--t-smooth)}
 .rr-onb-progress-step.done .rr-onb-progress-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.rr-onb-progress-step.done .rr-onb-progress-num{display:none}
+.rr-onb-progress-step.done .rr-onb-progress-check{display:block}
 .rr-onb-progress-step.done + .rr-onb-progress-rail{background:var(--accent)}
 .rr-onb-progress-step.current .rr-onb-progress-dot{border-color:var(--accent);color:var(--accent);background:var(--surface);box-shadow:0 0 0 4px var(--accent-soft)}
 .rr-onb-progress-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
@@ -1090,6 +1096,9 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   padding:var(--s-8);
   display:flex;flex-direction:column;gap:var(--s-5);
 }
+/* Step header — eyebrow / title / sub kept as one tight group so the
+   card's section gap doesn't blow the heading apart. */
+.rr-onb-step-head{display:flex;flex-direction:column;gap:8px}
 .rr-onb-step-eyebrow{font-size:var(--fs-xs);font-weight:600;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
 .rr-onb-step-title{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.015em;line-height:1.15;margin:0}
 .rr-onb-step-sub{font-size:var(--fs-base);color:var(--text-muted);margin:0;max-width:56ch;line-height:1.5}
@@ -1098,7 +1107,9 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-onb-field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
 @media (max-width:600px){.rr-onb-field-row{grid-template-columns:1fr}}
 .rr-onb-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px}
+.rr-onb-optional{font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)}
 .rr-onb-field-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.4}
+.rr-onb-field-help a{color:var(--accent-text);text-decoration:none;font-weight:600}
 
 .rr-onb-card-foot{
   display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);
@@ -6280,20 +6291,21 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- Progress indicator · 3 dots + 2 rails -->
+        <!-- Progress indicator · 3 dots + 2 rails.  Completed steps swap
+             their ordinal for a check; the JS toggles .done / .current. -->
         <div class="rr-onb-progress" aria-label="Onboarding progress">
           <div class="rr-onb-progress-step current" data-rr-onb-step="company">
-            <div class="rr-onb-progress-dot">1</div>
+            <div class="rr-onb-progress-dot"><span class="rr-onb-progress-num">1</span><svg class="rr-onb-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
             <span class="rr-onb-progress-label">Company</span>
           </div>
-          <div class="rr-onb-progress-rail" data-rr-onb-rail="company-contact"></div>
+          <div class="rr-onb-progress-rail"></div>
           <div class="rr-onb-progress-step" data-rr-onb-step="contact">
-            <div class="rr-onb-progress-dot">2</div>
+            <div class="rr-onb-progress-dot"><span class="rr-onb-progress-num">2</span><svg class="rr-onb-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
             <span class="rr-onb-progress-label">Contact</span>
           </div>
-          <div class="rr-onb-progress-rail" data-rr-onb-rail="contact-billing"></div>
+          <div class="rr-onb-progress-rail"></div>
           <div class="rr-onb-progress-step" data-rr-onb-step="billing">
-            <div class="rr-onb-progress-dot">3</div>
+            <div class="rr-onb-progress-dot"><span class="rr-onb-progress-num">3</span><svg class="rr-onb-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
             <span class="rr-onb-progress-label">Billing</span>
           </div>
         </div>
@@ -6304,9 +6316,11 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- STEP 1 · COMPANY -->
         <form class="rr-onb-card" id="rr-onb-form-company" data-rr-onb-card="company" autocomplete="off" novalidate>
-          <p class="rr-onb-step-eyebrow">Step 1 of 3</p>
-          <h1 class="rr-onb-step-title">Tell us about your company</h1>
-          <p class="rr-onb-step-sub">Confirm your DSP details so we can set up the right defaults — billing emails, time zone for schedules, and the contact info that appears on driver-facing communications.</p>
+          <div class="rr-onb-step-head">
+            <p class="rr-onb-step-eyebrow">Step 1 of 3</p>
+            <h1 class="rr-onb-step-title">Tell us about your company</h1>
+            <p class="rr-onb-step-sub">Confirm your DSP details so we can set up the right defaults — billing emails, time zone for schedules, and the contact info that appears on driver-facing communications.</p>
+          </div>
 
           <div class="rr-onb-fields">
             <div class="rr-onb-field-row">
@@ -6315,7 +6329,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <input class="form-input" id="rr-onb-name" name="name" type="text" required maxlength="80" />
               </div>
               <div>
-                <label class="rr-onb-field-label" for="rr-onb-dba">Doing business as <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                <label class="rr-onb-field-label" for="rr-onb-dba">Doing business as <span class="rr-onb-optional">(optional)</span></label>
                 <input class="form-input" id="rr-onb-dba" name="dba" type="text" maxlength="80" />
               </div>
             </div>
@@ -6363,9 +6377,11 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- STEP 2 · CONTACT -->
         <form class="rr-onb-card" id="rr-onb-form-contact" data-rr-onb-card="contact" autocomplete="off" novalidate style="display:none">
-          <p class="rr-onb-step-eyebrow">Step 2 of 3</p>
-          <h1 class="rr-onb-step-title">Primary contact</h1>
-          <p class="rr-onb-step-sub">Who should the RouteReady team reach for account questions, billing follow-ups, and service-impacting incidents?</p>
+          <div class="rr-onb-step-head">
+            <p class="rr-onb-step-eyebrow">Step 2 of 3</p>
+            <h1 class="rr-onb-step-title">Primary contact</h1>
+            <p class="rr-onb-step-sub">Who should the RouteReady team reach for account questions, billing follow-ups, and service-impacting incidents?</p>
+          </div>
 
           <div class="rr-onb-fields">
             <div class="rr-onb-field-row">
@@ -6381,7 +6397,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
             <div class="rr-onb-field-row">
               <div>
-                <label class="rr-onb-field-label" for="rr-onb-emerg-name">Emergency contact name <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                <label class="rr-onb-field-label" for="rr-onb-emerg-name">Emergency contact name <span class="rr-onb-optional">(optional)</span></label>
                 <input class="form-input" id="rr-onb-emerg-name" name="emergency_contact_name" type="text" maxlength="80" />
               </div>
               <div>
@@ -6405,20 +6421,22 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- STEP 3 · BILLING -->
         <form class="rr-onb-card" id="rr-onb-form-billing" data-rr-onb-card="billing" autocomplete="off" novalidate style="display:none">
-          <p class="rr-onb-step-eyebrow">Step 3 of 3</p>
-          <h1 class="rr-onb-step-title">Activate your workspace</h1>
-          <p class="rr-onb-step-sub">Confirm your subscription plan and billing contact.  You can pause anytime during your trial.</p>
+          <div class="rr-onb-step-head">
+            <p class="rr-onb-step-eyebrow">Step 3 of 3</p>
+            <h1 class="rr-onb-step-title">Activate your workspace</h1>
+            <p class="rr-onb-step-sub">Confirm your subscription plan and billing contact. You can pause anytime during your trial.</p>
+          </div>
 
           <div class="rr-onb-billing-disclaimer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>Placeholder billing details for your trial.  We'll connect real billing before your first charge.</span>
+            <span>Placeholder billing details for your trial. We'll connect real billing before your first charge.</span>
           </div>
 
           <div class="rr-onb-fields">
             <div>
               <label class="rr-onb-field-label">Subscription plan</label>
               <span class="rr-onb-plan-readonly" id="rr-onb-plan-readonly">Starter</span>
-              <p class="rr-onb-field-help">Set by your RouteReady account manager. <a href="mailto:support@gorouteready.com" style="color:var(--accent-text);text-decoration:none">Contact us</a> to upgrade.</p>
+              <p class="rr-onb-field-help">Set by your RouteReady account manager. <a href="mailto:support@gorouteready.com">Contact us</a> to upgrade.</p>
             </div>
 
             <div class="rr-onb-field-row">
@@ -6483,7 +6501,7 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="rr-firstrun-banner-text">
               <div class="rr-firstrun-banner-title">Welcome to RouteReady<span id="rr-firstrun-name-suffix"></span>.</div>
-              <div class="rr-firstrun-banner-sub">Your workspace is live.  A few quick wins below — most teams finish them in 20 minutes.</div>
+              <div class="rr-firstrun-banner-sub">Your workspace is live. Four quick steps below get you up and running — about 20 minutes.</div>
             </div>
             <button class="rr-firstrun-dismiss" id="rr-firstrun-dismiss" type="button" aria-label="Dismiss welcome message">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -6494,7 +6512,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="rr-firstrun-card">
             <div class="rr-firstrun-card-head">
               <h3 class="section-title">Get RouteReady running</h3>
-              <p class="section-sub">Each step opens the right page so you can finish in under 30 minutes.</p>
+              <p class="section-sub">Each step opens the right page — finish them in any order.</p>
             </div>
             <div class="rr-firstrun-tiles">
               <button type="button" class="rr-firstrun-tile" onclick="goto('drivers')">
@@ -7325,7 +7343,7 @@ body.rr-cmdk-open{ overflow:hidden }
         </div>
 
         <div class="subnav">
-          <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')">Onboarding</button>
+          <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')">Overview</button>
           <button class="subnav-item" data-obsub="workauth" onclick="obSub('workauth')">Work authorization</button>
           <button class="subnav-item" data-obsub="builder" onclick="obSub('builder')">Builder</button>
         </div>
@@ -7333,14 +7351,6 @@ body.rr-cmdk-open{ overflow:hidden }
         <div id="obsub-overview"><div class="rr-loading">Loading</div></div>
 
         <div id="obsub-workauth" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--s-3);flex-wrap:wrap;gap:8px">
-            <div>
-              <h3 class="di-section-title" style="margin:0">Form I-9 · work authorization</h3>
-              <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 0 0;max-width:600px;line-height:1.5">Section 1 is the employee's (they complete it in the RouteReady app); Section 2 — your review of their identity / work-authorization documents — is due within 3 business days of their first day of work. Open a driver to record Section 1 or complete Section 2. Not legal advice.</p>
-            </div>
-            <span id="rr-i9-list-status" style="font-size:var(--fs-xs);color:var(--text-subtle)">—</span>
-          </div>
-          <div id="rr-i9-kpis" class="driver-stat-row" style="margin-bottom:var(--s-4)"></div>
           <div id="rr-i9-queue"><div class="rr-loading">Loading</div></div>
         </div>
 
