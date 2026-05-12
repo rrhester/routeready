@@ -24218,8 +24218,7 @@ function _wsRenderPicker(root) {
   root.innerHTML = `
     <div class="ws-head">
       <div>
-        <div class="ws-board-name">Workflows</div>
-        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:64ch">Operational boards — track devices, equipment, recovery actions and follow-ups, and assign any row to a driver so it links to their profile and shows up in their app.</p>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0;line-height:1.45;max-width:64ch">Operational boards — track devices, equipment, recovery actions and follow-ups, and assign any row to a driver so it links to their profile and shows up in their app.</p>
       </div>
     </div>
     ${active.length ? `
