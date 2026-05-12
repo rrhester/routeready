@@ -24117,6 +24117,7 @@ let _wsBoardId   = null;   // open board id (null → picker)
 let _wsBoard     = null;   // { board, rows }
 let _wsDrivers   = [];     // [{id, name, initials}]
 let _wsTemplates = [];     // [{key,name,icon,columns}]
+let _wsVehicles  = [];     // [{id,name,kind,status,notes,archived_at,drivers:[{driver_id,name,rank}]}] — van-assignments editor
 let _wsSearch    = "";
 let _wsEditing   = null;   // {rowId, colId} currently in edit mode
 let _wsBound     = false;  // delegated listeners attached to #rr-ws-root once
@@ -24189,6 +24190,15 @@ async function loadWorkspacesView() {
   });
   _wsTemplates = Array.isArray(tRes?.data) ? tRes.data : [];
 
+  if (_wsBoardId === "__vehicles__") {
+    const vRes = await sb.rpc("vehicles_list").then(r => r, e => ({ error: e }));
+    if (vRes && vRes.error) { root.innerHTML = _wsErrHtml("Couldn't load van assignments", (vRes.error.message || String(vRes.error))); _wsBindRoot(root); return; }
+    _wsVehicles = Array.isArray(vRes?.data) ? vRes.data.filter(v => !v.archived_at) : [];
+    _wsRenderVehicles(root);
+    _wsBindRoot(root);
+    return;
+  }
+
   if (_wsBoardId && _wsBoards.some(b => b.id === _wsBoardId)) {
     const gRes = await sb.rpc("assignment_board_get", { p_board_id: _wsBoardId });
     if (gRes.error || !gRes.data) { _wsBoardId = null; root.innerHTML = _wsErrHtml("Couldn't open that board", (gRes.error && gRes.error.message) || ""); _wsBindRoot(root); return; }
@@ -24228,6 +24238,15 @@ function _wsRenderPicker(root) {
         <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0;line-height:1.45;max-width:64ch">Operational boards — track devices, equipment, recovery actions and follow-ups, and assign any row to a driver so it links to their profile and shows up in their app.</p>
       </div>
     </div>
+    <div style="margin-bottom:var(--s-6)">
+      <div class="ws-section-h">Standing tools</div>
+      <div class="ws-boards">
+        <button type="button" class="ws-board-card" data-rr-ws-vehicles>
+          <span class="ws-board-ic">${_wsIconSvg("vehicle")}</span>
+          <span style="min-width:0"><span class="nm">Van assignments</span><span class="mt">Primary &amp; backup driver for each van</span></span>
+        </button>
+      </div>
+    </div>
     ${active.length ? `
       <div style="margin-bottom:var(--s-6)">
         <div class="ws-section-h">Your boards</div>
@@ -24248,6 +24267,101 @@ function _wsRenderPicker(root) {
         </button>
       </div>
     </div>`;
+}
+
+// ── Van assignments — a "standing tool" board: vehicles + primary/backup chains ──
+const _WS_VEH_STATUSES = [["active", "Active"], ["spare", "Spare"], ["out_of_service", "Out of service"], ["retired", "Retired"]];
+function _wsVehById(id) { return _wsVehicles.find(v => v.id === id); }
+function _wsDrvName(id) { const d = _wsDrivers.find(x => x.id === id); return d ? d.name : ""; }
+
+function _wsRenderVehicles(root) {
+  const drvOpt = (selId) => `<option value="">— none —</option>` + _wsDrivers.map(d => `<option value="${escapeHtml(d.id)}"${d.id === selId ? " selected" : ""}>${escapeHtml(d.name)}</option>`).join("");
+  const statOpt = (cur) => _WS_VEH_STATUSES.map(([v, l]) => `<option value="${v}"${v === cur ? " selected" : ""}>${escapeHtml(l)}</option>`).join("");
+  const rowHtml = (v) => {
+    const primary = (v.drivers || []).find(d => d.rank === 0);
+    const backup  = (v.drivers || []).find(d => d.rank === 1);
+    return `<tr data-veh-id="${escapeHtml(v.id)}">
+      <td><input class="form-input ws-veh-input" data-veh-field="name" value="${escapeHtml(v.name || "")}" maxlength="40" placeholder="Van #"></td>
+      <td><select class="form-input ws-veh-select" data-veh-field="status">${statOpt(v.status || "active")}</select></td>
+      <td><select class="form-input ws-veh-select" data-veh-role="primary">${drvOpt(primary && primary.driver_id)}</select></td>
+      <td><select class="form-input ws-veh-select" data-veh-role="backup">${drvOpt(backup && backup.driver_id)}</select></td>
+      <td><input class="form-input ws-veh-input" data-veh-field="notes" value="${escapeHtml(v.notes || "")}" maxlength="200" placeholder="—"></td>
+      <td class="ws-veh-act"><button type="button" class="ws-veh-x" data-rr-veh-archive title="Remove this van"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+    </tr>`;
+  };
+  root.innerHTML = `
+    <div class="ws-head">
+      <div style="min-width:0">
+        <div class="ws-crumb"><a data-rr-ws-back>Workflows</a><span class="sep">/</span></div>
+        <div class="ws-board-name" style="margin-top:2px"><span class="nm">Van assignments</span></div>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:66ch">Set the primary driver for each van, and a backup who picks it up when the primary is out. (Showing the van on the driver's schedule, and the auto-fallback when the primary is off, come in the next slice.)</p>
+      </div>
+    </div>
+    <div class="ws-grid-wrap" style="overflow-x:auto">
+      <table class="ws-veh-table">
+        <thead><tr>
+          <th style="min-width:120px">Van</th>
+          <th style="min-width:128px">Status</th>
+          <th style="min-width:168px">Primary driver</th>
+          <th style="min-width:168px">Backup</th>
+          <th style="min-width:200px">Notes</th>
+          <th class="ws-veh-act"></th>
+        </tr></thead>
+        <tbody>${_wsVehicles.length ? _wsVehicles.map(rowHtml).join("") : `<tr><td colspan="6" style="padding:22px 16px;color:var(--text-subtle);font-size:var(--fs-sm);text-align:center">No vans yet — add your first one below.</td></tr>`}</tbody>
+      </table>
+      <button type="button" class="ws-addrow" data-rr-veh-add><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
+    </div>`;
+}
+
+async function _wsVehAdd() {
+  const name = (prompt("New van name (e.g. 4271)") || "").trim();
+  if (!name) return;
+  const { error } = await sb.rpc("vehicle_upsert", { p_name: name });
+  if (error) { toast("Couldn't add the van: " + (error.message || "try again"), "warn"); return; }
+  loadWorkspacesView();
+}
+
+async function _wsVehArchive(id) {
+  const v = _wsVehById(id); if (!v) return;
+  if (!confirm(`Remove "${v.name || "this van"}" from the list? Its driver assignments are cleared.`)) return;
+  const { error } = await sb.rpc("vehicle_archive", { p_id: id });
+  if (error) { toast("Couldn't remove it: " + (error.message || "try again"), "warn"); return; }
+  loadWorkspacesView();
+}
+
+async function _wsVehFieldChange(id, field, el) {
+  const v = _wsVehById(id); if (!v) return;
+  if (field === "name") {
+    const nm = String(el.value || "").trim();
+    if (!nm) { toast("Van name can't be empty.", "warn"); el.value = v.name || ""; return; }
+    if (nm === (v.name || "")) return;
+  }
+  if (field === "notes" && String(el.value || "").trim() === (v.notes || "")) return;
+  if (field === "status" && el.value === (v.status || "active")) return;
+  const { data: up, error } = await sb.rpc("vehicle_upsert", {
+    p_id: id,
+    p_name:   field === "name"   ? String(el.value).trim()        : v.name,
+    p_kind:   v.kind || "van",
+    p_status: field === "status" ? el.value                       : (v.status || "active"),
+    p_notes:  field === "notes"  ? String(el.value || "").trim()  : (v.notes || null),
+  });
+  if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); return; }
+  Object.assign(v, { name: up.name, kind: up.kind, status: up.status, notes: up.notes });
+}
+
+async function _wsVehChainChange(id, rowEl) {
+  const v = _wsVehById(id); if (!v) return;
+  const primary = (rowEl.querySelector('[data-veh-role="primary"]') || { value: "" }).value || "";
+  const backup  = (rowEl.querySelector('[data-veh-role="backup"]')  || { value: "" }).value || "";
+  if (primary && backup && primary === backup) {
+    toast("The primary and the backup can't be the same driver.", "warn");
+    _wsRenderVehicles(document.getElementById("rr-ws-root"));
+    return;
+  }
+  const ids = [primary, backup].filter(Boolean);
+  const { error } = await sb.rpc("vehicle_assignment_set", { p_vehicle_id: id, p_driver_ids: ids });
+  if (error) { toast("Couldn't save the assignment: " + (error.message || "try again"), "warn"); _wsRenderVehicles(document.getElementById("rr-ws-root")); return; }
+  v.drivers = ids.map((did, i) => ({ driver_id: did, rank: i, name: _wsDrvName(did) }));
 }
 
 function _wsRenderBoard(root) {
@@ -24775,6 +24889,9 @@ function _wsBindRoot(root) {
   root.addEventListener("click", (e) => {
     const open = e.target.closest("[data-rr-ws-open]"); if (open) { _wsBoardId = open.getAttribute("data-rr-ws-open"); loadWorkspacesView(); return; }
     if (e.target.closest("[data-rr-ws-back]"))   { _wsBoardId = null; loadWorkspacesView(); return; }
+    if (e.target.closest("[data-rr-ws-vehicles]")) { _wsBoardId = "__vehicles__"; loadWorkspacesView(); return; }
+    if (e.target.closest("[data-rr-veh-add]"))     { _wsVehAdd(); return; }
+    const vehX = e.target.closest("[data-rr-veh-archive]"); if (vehX) { const tr = vehX.closest("[data-veh-id]"); if (tr) _wsVehArchive(tr.getAttribute("data-veh-id")); return; }
     const tpl = e.target.closest("[data-rr-ws-tpl]"); if (tpl) { _wsCreateBoard(tpl.getAttribute("data-rr-ws-tpl")); return; }
     if (e.target.closest("[data-rr-ws-blank]"))  { _wsCreateBoard(null); return; }
     if (e.target.closest("[data-rr-ws-settings]")) { _wsOpenSettings(); return; }
@@ -24790,6 +24907,12 @@ function _wsBindRoot(root) {
   });
   root.addEventListener("input", (e) => {
     if (e.target.matches("[data-rr-ws-search]")) { _wsSearch = e.target.value || ""; _wsRerenderRows(); }
+  });
+  root.addEventListener("change", (e) => {
+    const f = e.target.closest("[data-veh-field]");
+    if (f) { const tr = f.closest("[data-veh-id]"); if (tr) _wsVehFieldChange(tr.getAttribute("data-veh-id"), f.getAttribute("data-veh-field"), f); return; }
+    const r = e.target.closest("[data-veh-role]");
+    if (r) { const tr = r.closest("[data-veh-id]"); if (tr) _wsVehChainChange(tr.getAttribute("data-veh-id"), tr); return; }
   });
   // Ctrl/Cmd+V anywhere on an open board (not in an input / cell editor) with
   // tab- or newline-structured clipboard data → open the spreadsheet importer.
