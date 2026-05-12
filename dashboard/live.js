@@ -3700,6 +3700,11 @@ async function loadOnboardingOps(opts) {
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
 
+  // Auto-create any missing e-signature envelopes for the blueprint's
+  // attached document steps before we read the cohort — idempotent and
+  // best-effort, so a hiccup here can't block the page.
+  await sb.rpc("onboarding_doc_envelopes_ensure", {}).then((r) => r, () => null);
+
   const [{ data: drv, error }, i9Res, progRes, envRes, bpRes, stateRes] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, training_date,
@@ -10902,6 +10907,10 @@ async function loadDriverDrawer(driverId) {
   if (typeof getDriverStationsCached === "function") getDriverStationsCached();   // warm the station-name cache for the Overview tab
   const reportBtn = document.getElementById("rr-dd-report-btn");
   if (reportBtn) reportBtn.style.display = "inline-flex";
+
+  // Make sure any document steps the blueprint attaches have an envelope
+  // for this driver (best-effort) before we list them below.
+  await sb.rpc("onboarding_doc_envelopes_ensure", { p_driver_id: driverId }).then((r) => r, () => null);
 
   // E-signature envelopes sent to this driver — same rows the Documents
   // page shows, surfaced here so a completed signature lands on the
