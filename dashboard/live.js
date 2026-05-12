@@ -3259,13 +3259,11 @@ function _obMxStylesOnce() {
   const s = document.createElement("style");
   s.id = "rr-ob-mx-styles";
   s.textContent =
-    ".ob-mx-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}" +
-    ".ob-mx-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)}" +
-    ".ob-mx-title{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}" +
-    ".ob-mx-sub{font-size:var(--fs-xs);color:var(--text-subtle)}" +
+    /* ── Onboarding matrix — the page itself ─────────────────── */
+    ".ob-mx-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}" +
     ".ob-mx-scroll{overflow-x:auto}" +
     ".ob-matrix{width:100%;min-width:1080px;border-collapse:collapse;font-size:var(--fs-sm)}" +
-    ".ob-matrix th{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:11px 6px;text-align:center;white-space:nowrap;background:var(--surface);border-bottom:1px solid var(--border)}" +
+    ".ob-matrix th{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:12px 6px;text-align:center;white-space:nowrap;background:var(--surface);border-bottom:1px solid var(--border)}" +
     ".ob-matrix th.ob-mx-namecol{text-align:left;padding-left:16px;position:sticky;left:0;background:var(--surface);z-index:2}" +
     ".ob-matrix th.ob-mx-statuscol{text-align:left}" +
     ".ob-matrix td{padding:11px 6px;border-top:1px solid var(--border);text-align:center;vertical-align:middle}" +
@@ -3276,57 +3274,60 @@ function _obMxStylesOnce() {
     ".ob-mx-name{font-size:var(--fs-md);font-weight:600;color:var(--text);cursor:pointer}" +
     ".ob-mx-name:hover{text-decoration:underline}" +
     ".ob-mx-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.3}" +
-    ".ob-mxdot{appearance:none;background:transparent;border:1.5px solid var(--border);width:14px;height:14px;border-radius:50%;cursor:pointer;padding:0;transition:background .12s,border-color .12s,transform .1s}" +
+    ".ob-mxdot{appearance:none;background:transparent;border:1.5px solid var(--border-strong);width:14px;height:14px;border-radius:50%;cursor:pointer;padding:0;transition:background .12s,border-color .12s,transform .1s}" +
     ".ob-mxdot:hover{transform:scale(1.18)}" +
     ".ob-mxdot.done{background:#16a34a;border-color:#16a34a}" +
     ".ob-mxdot.readonly{cursor:default;opacity:.7}" +
     ".ob-mxdot.readonly:hover{transform:none}" +
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
-    ".ob-mx-action{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:7px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color .12s,border-color .12s,background .12s;line-height:0}" +
-    ".ob-mx-action:hover{color:var(--text);border-color:var(--text-subtle);background:var(--surface)}" +
-    /* — Onboarding builder — */
+    ".ob-mx-action{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color .12s,border-color .12s,background .12s;line-height:0}" +
+    ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--surface)}" +
+    /* ── Onboarding builder ──────────────────────────────────── */
     ".ob-bld-list{display:flex;flex-direction:column;gap:8px}" +
-    ".ob-bld-card{display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 14px;transition:opacity .12s,border-color .12s}" +
-    ".ob-bld-card.disabled{opacity:.55}" +
-    ".ob-bld-reorder{display:flex;flex-direction:column;gap:2px;flex:0 0 auto;padding-top:2px}" +
-    ".ob-bld-mv{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-sm);width:24px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color .12s,border-color .12s,background .12s}" +
+    ".ob-bld-card{display:flex;align-items:flex-start;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:14px 16px;transition:opacity .12s,border-color .12s}" +
+    ".ob-bld-card:hover{border-color:var(--border-strong)}" +
+    ".ob-bld-card.disabled{opacity:.6}" +
+    ".ob-bld-reorder{display:flex;flex-direction:column;gap:3px;flex:0 0 auto}" +
+    ".ob-bld-mv{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-sm);width:22px;height:18px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;transition:color .12s,border-color .12s,background .12s}" +
     ".ob-bld-mv:hover:not([disabled]){color:var(--text);border-color:var(--text-subtle);background:var(--surface)}" +
     ".ob-bld-mv[disabled]{opacity:.3;cursor:default}" +
-    ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;min-width:180px;max-width:320px;flex:1}" +
-    ".ob-bld-title:hover{border-color:var(--border)}" +
-    ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--canvas)}" +
-    ".ob-bld-typechip{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--canvas);color:var(--text-muted);white-space:nowrap}" +
-    ".ob-bld-typechip.owner-driver{background:#dcfce7;color:#166534}" +
-    ".ob-bld-typechip.owner-dsp{background:#f1f5f9;color:#475569}" +
-    ".ob-bld-typechip.custom{background:#ede9fe;color:#5b21b6}" +
-    ".ob-bld-chk{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer}" +
-    ".ob-bld-chk input{accent-color:var(--accent)}" +
-    ".ob-bld-toggle{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);cursor:pointer;flex:0 0 auto;padding-top:4px}" +
-    ".ob-bld-toggle input{accent-color:var(--accent);width:16px;height:16px}" +
-    /* — "Needs attention" rail — */
-    ".ob-needs{margin-bottom:var(--s-3)}" +
-    ".ob-needs-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;min-height:24px}" +
-    ".ob-needs-eyebrow{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)}" +
-    ".ob-needs-cards{display:flex;gap:10px;flex-wrap:wrap}" +
-    ".ob-needcard{display:inline-flex;align-items:center;gap:11px;text-align:left;font:inherit;background:var(--surface);border:1px solid var(--border);border-left-width:3px;border-radius:10px;padding:9px 14px 9px 12px;cursor:pointer;transition:transform .1s,box-shadow .12s,border-color .12s}" +
-    ".ob-needcard:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}" +
-    ".ob-needcard:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}" +
-    ".ob-needcard__n{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" +
-    ".ob-needcard__l{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.2}" +
-    ".ob-needcard--risk{border-left-color:var(--red)}.ob-needcard--risk .ob-needcard__n{color:var(--red)}.ob-needcard--risk.active{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}" +
-    ".ob-needcard--due{border-left-color:var(--amber)}.ob-needcard--due .ob-needcard__n{color:var(--amber-dark)}.ob-needcard--due.active{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}" +
-    ".ob-needcard--review{border-left-color:var(--sky)}.ob-needcard--review .ob-needcard__n{color:var(--sky)}.ob-needcard--review.active{border-color:var(--sky);box-shadow:0 0 0 3px var(--accent-soft)}" +
-    ".ob-needcard--ready{border-left-color:var(--green)}.ob-needcard--ready .ob-needcard__n{color:var(--green)}.ob-needcard--ready.active{border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}" +
-    ".ob-allclear{display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--green-dark);background:var(--green-soft);border:1px solid rgba(5,150,105,.18);border-radius:10px;padding:11px 14px;margin-bottom:var(--s-3)}" +
-    ".ob-allclear svg{flex:0 0 auto}" +
-    ".ob-context{font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-4);line-height:1.5}" +
-    ".ob-context strong{color:var(--text-muted);font-weight:600}" +
-    ".ob-bld-attach{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text);background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:3px 9px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+    ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:4px 8px;margin-left:-8px;min-width:180px;max-width:340px;flex:1;transition:border-color .12s,background .12s,box-shadow .12s}" +
+    ".ob-bld-title:hover{border-color:var(--border-strong)}" +
+    ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}" +
+    ".ob-bld-typechip{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--canvas);color:var(--text-muted);white-space:nowrap}" +
+    ".ob-bld-typechip.owner-driver{background:var(--green-soft);color:var(--green-dark)}" +
+    ".ob-bld-typechip.owner-dsp{background:var(--canvas);color:var(--text-muted)}" +
+    ".ob-bld-typechip.custom{background:rgba(124,58,237,.10);color:#5B21B6}" +
+    /* master enable — pill switch */
+    ".ob-bld-switch{display:inline-flex;align-items:center;gap:9px;flex:0 0 auto;cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);user-select:none}" +
+    ".ob-bld-switch input{position:absolute;width:1px;height:1px;opacity:0;margin:-1px;clip:rect(0 0 0 0);overflow:hidden}" +
+    ".ob-bld-track{position:relative;width:34px;height:20px;border-radius:999px;background:var(--border-strong);transition:background .15s ease;flex:0 0 auto}" +
+    ".ob-bld-track::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:var(--shadow-sm);transition:transform .16s cubic-bezier(.4,0,.2,1)}" +
+    ".ob-bld-switch input:checked + .ob-bld-track{background:var(--accent)}" +
+    ".ob-bld-switch input:checked + .ob-bld-track::after{transform:translateX(14px)}" +
+    ".ob-bld-switch input:focus-visible + .ob-bld-track{box-shadow:0 0 0 3px var(--accent-soft)}" +
+    ".ob-bld-switch-label{min-width:18px;text-align:left}" +
+    /* step properties — checkboxes */
+    ".ob-bld-chk{display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);cursor:pointer;user-select:none}" +
+    ".ob-bld-chk input{position:absolute;width:1px;height:1px;opacity:0;margin:-1px;clip:rect(0 0 0 0);overflow:hidden}" +
+    ".ob-bld-box{position:relative;width:16px;height:16px;border-radius:5px;border:1.5px solid var(--border-strong);background:var(--surface);flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;color:#fff;transition:background .12s,border-color .12s}" +
+    ".ob-bld-box svg{width:10px;height:10px;opacity:0;transition:opacity .1s ease}" +
+    ".ob-bld-chk:hover .ob-bld-box{border-color:var(--text-subtle)}" +
+    ".ob-bld-chk input:checked + .ob-bld-box{background:var(--accent);border-color:var(--accent)}" +
+    ".ob-bld-chk input:checked + .ob-bld-box svg{opacity:1}" +
+    ".ob-bld-chk input:focus-visible + .ob-bld-box{box-shadow:0 0 0 3px var(--accent-soft)}" +
+    ".ob-bld-rm{appearance:none;background:transparent;border:0;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);cursor:pointer;padding:0;transition:color .12s}" +
+    ".ob-bld-rm:hover{color:var(--red)}" +
+    /* attach / video / acknowledgement config */
+    ".ob-bld-row{margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
+    ".ob-bld-flabel{display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);margin-bottom:4px}" +
+    ".ob-bld-hint{font-size:var(--fs-xs);color:var(--text-subtle)}" +
+    ".ob-bld-attach{display:inline-flex;align-items:center;gap:7px;font-size:var(--fs-sm);color:var(--text);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:4px 10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
     ".ob-bld-tier{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:999px}" +
-    ".ob-bld-tier.secure{background:#dcfce7;color:#166534}" +
-    ".ob-bld-tier.info{background:#f1f5f9;color:#475569}" +
-    ".ob-bld-text{font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);width:100%;resize:vertical}" +
-    ".ob-bld-text:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}";
+    ".ob-bld-tier.secure{background:var(--green-soft);color:var(--green-dark)}" +
+    ".ob-bld-tier.info{background:var(--canvas);color:var(--text-muted)}" +
+    ".ob-bld-text{font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 11px;color:var(--text);width:100%;resize:vertical;transition:border-color .12s,background .12s,box-shadow .12s}" +
+    ".ob-bld-text:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}";
   document.head.appendChild(s);
 }
 
@@ -3469,7 +3470,6 @@ const _OB_DEFAULT_BLUEPRINT = [
   { key: "scheduled",      type: "schedule",        title: "Driver scheduled",               enabled: true,  blocking: false, required: false, owner: "dsp" },
 ];
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
-let _obMatrixFilter = null;   // null | "risk" | "due" | "review" | "ready" — "Needs attention" rail filter on the matrix
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
 const _obShortHead = (t) => { t = String(t || "Step").trim(); return t.length > 13 ? t.slice(0, 12) + "…" : t; };
 // Matrix-column descriptor for one enabled blueprint step: a canonical
@@ -3489,6 +3489,7 @@ let _obTemplates = [];        // [{id, title, kind}] — for the "attach documen
 async function loadOnboardingBuilder() {
   const root = document.getElementById("obsub-builder");
   if (!root) return;
+  _obMxStylesOnce();
   root.innerHTML = `<div class="rr-loading">Loading</div>`;
   const [{ data, error }, tplRes] = await Promise.all([
     sb.rpc("onboarding_blueprint_get"),
@@ -3503,6 +3504,10 @@ async function loadOnboardingBuilder() {
 
 function _obTplTitle(id) { const t = _obTemplates.find(x => x.id === id); return t ? t.title : null; }
 
+const _OB_BLD_CHEVRON_UP   = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
+const _OB_BLD_CHEVRON_DOWN = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+const _OB_BLD_TICK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+
 function _obRenderBuilder() {
   const root = document.getElementById("obsub-builder");
   if (!root) return;
@@ -3511,19 +3516,19 @@ function _obRenderBuilder() {
     if (s.type === "document") {
       const title = _obTplTitle(s.document_template_id);
       const tpl = _obTemplates.find(x => x.id === s.document_template_id);
-      return `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      return `<div class="ob-bld-row">
         ${s.document_template_id
           ? `<span class="ob-bld-attach"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${escapeHtml(title || "(missing document)")}${tpl ? `<span class="ob-bld-tier ${tpl.kind === "informational" ? "info" : "secure"}">${tpl.kind === "informational" ? "Informational" : "Secure"}</span>` : ""}</span>
              <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-attach="${i}">Change</button>
              <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-detach="${i}">Remove</button>`
-          : `<button type="button" class="btn btn-sm" data-rr-bld-attach="${i}">Attach a document…</button><span style="font-size:var(--fs-xs);color:var(--text-subtle)">from your Documents library</span>`}
+          : `<button type="button" class="btn btn-sm" data-rr-bld-attach="${i}">Attach a document…</button><span class="ob-bld-hint">from your Documents library</span>`}
       </div>`;
     }
     if (s.type === "video") {
-      return `<div style="margin-top:8px"><label style="display:flex;flex-direction:column;gap:3px;max-width:420px"><span style="font-size:var(--fs-xs);color:var(--text-muted)">Video URL</span><input type="url" class="ob-bld-text" data-rr-bld-video="${i}" value="${escapeHtml(s.video_url || "")}" placeholder="https://…"></label></div>`;
+      return `<div class="ob-bld-row" style="display:block"><label style="display:block;max-width:420px"><span class="ob-bld-flabel">Video URL</span><input type="url" class="ob-bld-text" data-rr-bld-video="${i}" value="${escapeHtml(s.video_url || "")}" placeholder="https://…"></label></div>`;
     }
     if (s.type === "acknowledgement") {
-      return `<div style="margin-top:8px"><label style="display:flex;flex-direction:column;gap:3px;max-width:520px"><span style="font-size:var(--fs-xs);color:var(--text-muted)">Acknowledgement text the driver confirms</span><textarea class="ob-bld-text" data-rr-bld-ack="${i}" rows="2" placeholder="e.g. I have read and agree to the safe-driving policy.">${escapeHtml(s.ack_text || "")}</textarea></label></div>`;
+      return `<div class="ob-bld-row" style="display:block"><label style="display:block;max-width:520px"><span class="ob-bld-flabel">Acknowledgement text the driver confirms</span><textarea class="ob-bld-text" data-rr-bld-ack="${i}" rows="2" placeholder="e.g. I have read and agree to the safe-driving policy.">${escapeHtml(s.ack_text || "")}</textarea></label></div>`;
     }
     return "";
   };
@@ -3531,8 +3536,8 @@ function _obRenderBuilder() {
   const card = (s, i) => `
     <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
       <div class="ob-bld-reorder">
-        <button type="button" class="ob-bld-mv" data-rr-bld-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move step up"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
-        <button type="button" class="ob-bld-mv" data-rr-bld-down="${i}" ${i === steps.length - 1 ? "disabled" : ""} aria-label="Move step down"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <button type="button" class="ob-bld-mv" data-rr-bld-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move step up">${_OB_BLD_CHEVRON_UP}</button>
+        <button type="button" class="ob-bld-mv" data-rr-bld-down="${i}" ${i === steps.length - 1 ? "disabled" : ""} aria-label="Move step down">${_OB_BLD_CHEVRON_DOWN}</button>
       </div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -3540,21 +3545,20 @@ function _obRenderBuilder() {
           <span class="ob-bld-typechip">${escapeHtml(_OB_TYPE_LABELS[s.type] || s.type || "Step")}</span>
           <span class="ob-bld-typechip ${s.owner === "driver" ? "owner-driver" : "owner-dsp"}">${s.owner === "driver" ? "Driver completes" : "DSP records"}</span>
           ${custom(s) ? `<span class="ob-bld-typechip custom">Custom</span>` : ""}
-          ${_OB_STEP_FIELDS[s.key] || custom(s) ? "" : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Per-driver tracking lands soon</span>`}
         </div>
         ${attachRow(s, i)}
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px">
-          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-blocking="${i}" ${s.blocking ? "checked" : ""}> Blocks activation</label>
-          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-required="${i}" ${s.required ? "checked" : ""}> Required</label>
-          ${custom(s) ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-bld-remove="${i}" style="color:var(--red)">Remove step</button>` : ""}
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:12px">
+          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-blocking="${i}" ${s.blocking ? "checked" : ""}><span class="ob-bld-box">${_OB_BLD_TICK}</span>Blocks activation</label>
+          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-required="${i}" ${s.required ? "checked" : ""}><span class="ob-bld-box">${_OB_BLD_TICK}</span>Required</label>
+          ${custom(s) ? `<button type="button" class="ob-bld-rm" data-rr-bld-remove="${i}">Remove step</button>` : ""}
         </div>
       </div>
-      <label class="ob-bld-toggle"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span>${s.enabled ? "On" : "Off"}</span></label>
+      <label class="ob-bld-switch" title="${s.enabled ? "Step is on — turn off to leave it out for new hires" : "Step is off — turn on to include it"}"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span class="ob-bld-track"></span><span class="ob-bld-switch-label">${s.enabled ? "On" : "Off"}</span></label>
     </div>`;
   root.innerHTML = `
     <div style="margin-bottom:var(--s-4)">
       <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
-      <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:3px 0 0;max-width:620px;line-height:1.55">The steps every new hire moves through. RouteReady delivers each one to the driver app and tracks completion, signatures, and acknowledgements automatically — you decide which steps are on, their order and names, which block activation, and what document, video, or acknowledgement each delivers. Changes apply to new and in-progress drivers and set the columns shown on the Overview tab.</p>
+      <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through — turn them on or off, reorder, rename, and choose what each delivers. Changes apply to new and in-progress drivers.</p>
     </div>
     <div class="ob-bld-list">${steps.map(card).join("")}</div>
     <div style="margin-top:12px"><button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button></div>
@@ -3708,7 +3712,7 @@ async function loadOnboardingOps(opts) {
   // best-effort, so a hiccup here can't block the page.
   await sb.rpc("onboarding_doc_envelopes_ensure", {}).then((r) => r, () => null);
 
-  const [{ data: drv, error }, i9Res, progRes, envRes, bpRes, stateRes] = await Promise.all([
+  const [{ data: drv, error }, i9Res, progRes, bpRes, stateRes] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, training_date,
                background_check_completed_at, drug_test_completed_at,
@@ -3719,7 +3723,6 @@ async function loadOnboardingOps(opts) {
       .limit(300),
     sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
     sb.from("onboarding_progress").select("*").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
-    sb.from("document_envelopes").select("recipient_driver_id, status, signed_at, sent_at").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
     sb.rpc("onboarding_blueprint_get").then((r) => r, () => ({ data: null })),
     sb.from("driver_onboarding_state").select("driver_id, steps").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
   ]);
@@ -3736,6 +3739,10 @@ async function loadOnboardingOps(opts) {
   _rosterState = new Map((Array.isArray(stateRes?.data) ? stateRes.data : []).map((r) => [r.driver_id, (r && r.steps) || {}]));
   if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
+  // The matrix is the page.  Sorted urgency-first — compliance risks
+  // rise to the top, then ready-to-activate, then due-soon, etc. — so
+  // the colour-coded status pills carry the at-a-glance read with no
+  // separate KPI strip needed.
   const enriched = rows.map(d => ({ d, ob: _obReadiness(d) }));
   enriched.sort((a, b) => {
     if (a.ob.weight !== b.ob.weight) return a.ob.weight - b.ob.weight;
@@ -3743,63 +3750,6 @@ async function loadOnboardingOps(opts) {
     const db = b.d.hire_date ? new Date(b.d.hire_date).getTime() : 0;
     return da - db;
   });
-  // Status mix + the gate most drivers are stuck behind (the bottleneck).
-  let ready = 0, atRisk = 0, dueSoon = 0, awaitingReview = 0;
-  const gateStuck = {};  // gate step.key -> count not done
-  const gateLabelMap = { bg_clear: "background checks", drug_clear: "drug tests", handbook: "handbooks", i9: "Form I-9", offer: "job offers", training: "training" };
-  for (const { ob } of enriched) {
-    if (ob.key === "ready") ready++;
-    else if (ob.key === "compliance_risk" || ob.key === "needs_correction") atRisk++;
-    else if (ob.key === "due_soon") dueSoon++;
-    else if (ob.key === "awaiting_review") awaitingReview++;
-    for (const g of ob.gates) { if (!g.done) gateStuck[g.key] = (gateStuck[g.key] || 0) + 1; if (!gateLabelMap[g.key]) gateLabelMap[g.key] = (g.label || g.key).toLowerCase(); }
-  }
-  const slow = Object.entries(gateStuck).sort((a, b) => b[1] - a[1])[0];
-  const slowTxt = slow && slow[1] >= 2 ? `${gateLabelMap[slow[0]] || slow[0]} (${slow[1]} pending)` : null;
-  // E-signature envelopes sent to the onboarding cohort — surfaced as a
-  // "signed of sent" line so the metric is live as soon as any template
-  // has been sent.
-  const envAll = Array.isArray(envRes?.data) ? envRes.data : [];
-  const onbIds = new Set(rows.map(r => r.id));
-  let envSent = 0, envSigned = 0;
-  for (const e of envAll) { if (!onbIds.has(e.recipient_driver_id)) continue; envSent++; if (e.signed_at) envSigned++; }
-
-  // ── "Needs attention" rail — the actionable layer at the top of the
-  // page.  Each card filters the matrix below to just those drivers;
-  // click it again (or "Show all") to clear.
-  const FILT = {
-    risk:   { label: "At compliance risk",   count: atRisk,         match: ob => ob.key === "compliance_risk" || ob.key === "needs_correction" },
-    due:    { label: "Form I-9 due soon",    count: dueSoon,        match: ob => ob.key === "due_soon" },
-    review: { label: "Awaiting your review", count: awaitingReview, match: ob => ob.key === "awaiting_review" },
-    ready:  { label: "Ready to activate",    count: ready,          match: ob => ob.key === "ready" },
-  };
-  if (_obMatrixFilter && (!FILT[_obMatrixFilter] || FILT[_obMatrixFilter].count === 0)) _obMatrixFilter = null;
-  const actionable = atRisk + dueSoon + awaitingReview + ready;
-  const bandCards = Object.entries(FILT).filter(([, v]) => v.count > 0).map(([k, v]) => {
-    const active = _obMatrixFilter === k;
-    return `<button type="button" class="ob-needcard ob-needcard--${k}${active ? " active" : ""}" data-rr-ob-filter="${k}" aria-pressed="${active ? "true" : "false"}" title="Show only these drivers">
-      <span class="ob-needcard__n">${v.count}</span><span class="ob-needcard__l">${escapeHtml(v.label)}</span>
-    </button>`;
-  }).join("");
-  const needsBand = N === 0 ? "" : (actionable
-    ? `<div class="ob-needs">
-         <div class="ob-needs-head">
-           <span class="ob-needs-eyebrow">Needs attention</span>
-           ${_obMatrixFilter ? `<button type="button" class="btn btn-sm btn-ghost" data-rr-ob-filter="">Show all ${N}</button>` : ""}
-         </div>
-         <div class="ob-needs-cards">${bandCards}</div>
-       </div>`
-    : `<div class="ob-allclear"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Onboarding is on track — nothing needs your attention right now.</div>`);
-
-  // Calm one-liner under the rail — documents progress and the gate most
-  // drivers are stuck behind.  Omitted entirely when neither applies.
-  const ctxParts = [];
-  if (envSent) ctxParts.push(`<strong>${envSigned}</strong> of <strong>${envSent}</strong> document${envSent === 1 ? "" : "s"} signed`);
-  if (slowTxt) ctxParts.push(`bottleneck: ${escapeHtml(slowTxt)}`);
-  const contextLine = (N && ctxParts.length) ? `<div class="ob-context">${ctxParts.join(" · ")}</div>` : "";
-
-  const filtered = (_obMatrixFilter && FILT[_obMatrixFilter]) ? enriched.filter(({ ob }) => FILT[_obMatrixFilter].match(ob)) : enriched;
-  const filterLabel = _obMatrixFilter && FILT[_obMatrixFilter] ? FILT[_obMatrixFilter].label : null;
 
   _obMxStylesOnce();
 
@@ -3858,16 +3808,8 @@ async function loadOnboardingOps(opts) {
   };
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
-  const colspanAll = 2 + stepCols.length + 2;
-  body.innerHTML = `
-    ${needsBand}
-    ${contextLine}
-    <div class="ob-mx-wrap">
-      <div class="ob-mx-head">
-        <div class="ob-mx-title">${filterLabel ? escapeHtml(filterLabel) : "Onboarding drivers"}</div>
-        <span class="ob-mx-sub">${!enriched.length ? "" : filterLabel ? `Showing ${filtered.length} of ${N} driver${N === 1 ? "" : "s"}` : `Click a dot to mark a step · click a name to open the record`}</span>
-      </div>
-      ${enriched.length ? `<div class="ob-mx-scroll"><table class="ob-matrix">
+  body.innerHTML = enriched.length
+    ? `<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
@@ -3877,18 +3819,10 @@ async function loadOnboardingOps(opts) {
             <th>Send</th>
           </tr>
         </thead>
-        <tbody>${filtered.length ? filtered.map(matrixRow).join("") : `<tr><td colspan="${colspanAll}" style="padding:18px 16px;color:var(--text-subtle);font-size:var(--fs-sm)">No drivers in this view.</td></tr>`}</tbody>
-      </table></div>` : `<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`}
-    </div>`;
+        <tbody>${enriched.map(matrixRow).join("")}</tbody>
+      </table></div></div>`
+    : `<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`;
 
-  body.querySelectorAll("[data-rr-ob-filter]").forEach(el => {
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      const k = el.getAttribute("data-rr-ob-filter") || "";
-      _obMatrixFilter = (k && k !== _obMatrixFilter) ? k : null;
-      loadOnboardingOps({ keepTab: true });
-    });
-  });
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
@@ -12603,8 +12537,6 @@ function _i9QueueSkeleton() {
 async function loadDriverWorkAuthView() {
   _i9DashStylesOnce();
   const queueEl = document.getElementById("rr-i9-queue");
-  const kpiEl   = document.getElementById("rr-i9-kpis");
-  const statusEl = document.getElementById("rr-i9-list-status");
   if (!queueEl) return;
   queueEl.innerHTML = _i9QueueSkeleton();
   const { data, error } = await sb.rpc("i9_list");
@@ -12619,39 +12551,15 @@ async function loadDriverWorkAuthView() {
     grouped[cls.bucket].push(r);
     if (cls.bucket === "s2_overdue") overdueCount++;
   }
-  // KPI strip — the six most actionable counts.
-  const kpis = [
-    { label: "Section 2 overdue", n: grouped.s2_overdue.length,        sub: "past 3 business days", tone: grouped.s2_overdue.length ? "color:var(--red)" : "" },
-    { label: "Due soon",          n: grouped.s2_due.length,            sub: "within 3 business days", tone: grouped.s2_due.length ? "color:var(--amber-dark)" : "" },
-    { label: "Needs correction",  n: grouped.needs_correction.length,  sub: "employer reopened", tone: grouped.needs_correction.length ? "color:var(--red)" : "" },
-    { label: "Awaiting employee", n: grouped.awaiting_employee.length, sub: "Section 1 not done", tone: "" },
-    { label: "Reverification",    n: grouped.reverification.length,    sub: "auth expiring ≤30d", tone: grouped.reverification.length ? "color:var(--amber-dark)" : "" },
-    { label: "Verified",          n: grouped.verified.length,          sub: `of ${rows.length} employees`, tone: "color:var(--green)" },
-  ];
-  if (kpiEl) kpiEl.innerHTML = kpis.map(k => `
-    <div class="stat-mini"><div class="stat-mini-label">${escapeHtml(k.label)}</div><div class="stat-mini-value" style="${k.tone}">${k.n}</div><div class="stat-mini-sub">${escapeHtml(k.sub)}</div></div>`).join("");
-
-  // Compliance posture — calm one-liner + the roster attention strip.
+  // Tally drives the roster attention strip elsewhere; the queue below
+  // groups every employee under a labelled bucket, so it speaks for
+  // itself without a header or KPI row.
   const tally = {
     s2_overdue: grouped.s2_overdue.length, s2_due: grouped.s2_due.length,
     needs_correction: grouped.needs_correction.length, reverification: grouped.reverification.length,
     blocked: grouped.s2_needed.filter(r => r._cls && r._cls.note).length, total: rows.length,
   };
   tally.attention = tally.s2_overdue + tally.s2_due + tally.needs_correction + tally.reverification + tally.blocked;
-  if (statusEl) {
-    if (!rows.length) statusEl.textContent = "No employees yet.";
-    else if (!tally.attention) statusEl.innerHTML = `<span style="color:var(--green);font-weight:600">✓ Work authorization in order</span> · ${rows.length} employee${rows.length === 1 ? "" : "s"}`;
-    else {
-      const parts = [];
-      if (tally.s2_overdue) parts.push(`${tally.s2_overdue} overdue`);
-      if (tally.needs_correction) parts.push(`${tally.needs_correction} need correction`);
-      if (tally.s2_due) parts.push(`${tally.s2_due} due soon`);
-      if (tally.reverification) parts.push(`${tally.reverification} reverification`);
-      if (tally.blocked) parts.push(`${tally.blocked} missing first day`);
-      const c = (tally.s2_overdue || tally.needs_correction) ? "var(--red)" : "var(--amber-dark)";
-      statusEl.innerHTML = `<strong style="color:${c}">${tally.attention}</strong> need attention <span style="color:var(--text-subtle)">· ${parts.join(" · ")}</span>`;
-    }
-  }
   _i9SetRosterBanner(tally);
 
   const fmtD = (x) => x ? new Date(x + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
