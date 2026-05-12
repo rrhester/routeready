@@ -20637,60 +20637,6 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       </div>`;
     })()}
   `;
-  Promise.resolve().then(_schedDecorateVans).catch(e => console.warn("schedule · vanDecorate:", e));
-}
-
-// Decorate the just-rendered schedule week with each driver's resolved
-// van.  Standing chains come from vehicles_list(); "scheduled today" is
-// read straight off the grid we just painted (a cell with a real shift
-// chip = that driver works that day).  Resolution, per day: the van goes
-// to its primary if the primary is scheduled and isn't already holding a
-// van; else to the backup under the same rule; else the van is free that
-// day (not surfaced yet).  Out-of-service / spare vans don't participate.
-async function _schedDecorateVans() {
-  const wrap = document.querySelector("#sched-sub-week .cal-wrap");
-  if (!wrap) return;
-  wrap.querySelectorAll(".cal-van-tag").forEach(el => el.remove());
-  const vRes = await sb.rpc("vehicles_list").then(r => r, () => ({ data: [] }));
-  const vehicles = (Array.isArray(vRes?.data) ? vRes.data : [])
-    .filter(v => v && v.status === "active" && !v.archived_at && Array.isArray(v.drivers) && v.drivers.length);
-  if (!vehicles.length) return;
-  const cells = Array.from(wrap.querySelectorAll(".cal-cell[data-rr-cell-driver][data-rr-cell-date]"));
-  if (!cells.length) return;
-  const isScheduled = (c) => !!c.querySelector(".shift-chip:not(.off):not(.timeoff)");
-  const scheduled = new Set();
-  for (const c of cells) {
-    if (isScheduled(c)) scheduled.add(c.getAttribute("data-rr-cell-driver") + "|" + c.getAttribute("data-rr-cell-date"));
-  }
-  const dates = Array.from(new Set(cells.map(c => c.getAttribute("data-rr-cell-date"))));
-  const vanForCell = new Map();   // "driverId|date" -> van name
-  for (const date of dates) {
-    const heldDrivers = new Set();
-    const assignedVans = new Set();
-    for (const v of vehicles) {                                  // pass 1 — primaries
-      const p = v.drivers.find(d => d.rank === 0);
-      if (p && scheduled.has(p.driver_id + "|" + date) && !heldDrivers.has(p.driver_id)) {
-        vanForCell.set(p.driver_id + "|" + date, v.name); heldDrivers.add(p.driver_id); assignedVans.add(v.id);
-      }
-    }
-    for (const v of vehicles) {                                  // pass 2 — backups for free vans
-      if (assignedVans.has(v.id)) continue;
-      const b = v.drivers.find(d => d.rank === 1);
-      if (b && scheduled.has(b.driver_id + "|" + date) && !heldDrivers.has(b.driver_id)) {
-        vanForCell.set(b.driver_id + "|" + date, v.name); heldDrivers.add(b.driver_id); assignedVans.add(v.id);
-      }
-    }
-  }
-  for (const c of cells) {
-    const van = vanForCell.get(c.getAttribute("data-rr-cell-driver") + "|" + c.getAttribute("data-rr-cell-date"));
-    if (!van || !isScheduled(c)) continue;
-    const tag = document.createElement("div");
-    tag.className = "cal-van-tag";
-    tag.title = "Assigned van";
-    tag.style.cssText = "margin-top:3px;font-size:9px;font-weight:700;letter-spacing:.03em;color:var(--accent-text);background:var(--accent-soft);border-radius:3px;padding:1px 5px;text-align:center;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
-    tag.textContent = "Vehicle " + van;
-    c.appendChild(tag);
-  }
 }
 
 let _schedNavBound = false;
