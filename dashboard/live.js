@@ -24170,7 +24170,7 @@ async function loadWorkspacesView() {
   try {
     [bRes, dRes, tRes] = await Promise.all([
       sb.rpc("assignment_boards_list"),
-      sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", window.RR.dsp.id).order("full_name", { ascending: true }).limit(500),
+      sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", window.RR.dsp.id).eq("status", "active").order("full_name", { ascending: true }).limit(500),
       sb.rpc("assignment_board_templates").then(r => r, () => ({ data: [] })),
     ]);
   } catch (e) { root.innerHTML = _wsErrHtml("Couldn't load workspaces", String((e && e.message) || e)); _wsBindRoot(root); return; }
