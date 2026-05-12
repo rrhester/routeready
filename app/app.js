@@ -618,7 +618,7 @@ function shiftCardHtml(s, isToday, vanName) {
           ${waveTag}
         </div>
         <div class="meta-station">${escapeHtml(s.station)}</div>
-        ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">🚐 ${escapeHtml(vanName)}</div>` : ""}
+        ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}</div>` : ""}
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
       </div>
     </div>`;
