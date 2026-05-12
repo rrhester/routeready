@@ -9,16 +9,13 @@
      offset, transition curves) live alongside them. */
 
   /* ── Surfaces (same as the dashboard's --canvas / --surface) ── */
-  --bg: #FAFBFC;
-  --bg-grad:
-    radial-gradient(ellipse 1500px 1000px at 80% -12%, rgba(255,255,255,.55) 0%, transparent 60%),
-    radial-gradient(ellipse 1200px 850px at 6% 88%,  rgba(15,108,189,.02)  0%, transparent 55%),
-    linear-gradient(180deg, #FBFCFE 0%, #F6F9FC 100%);
+  --bg: #FFFFFF;
+  --bg-grad: none;
   --surface: #FFFFFF;
-  --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FCFDFE 100%);
-  --surface-hover: #F5F8FC;
-  --surface-pressed: #EDF2F8;
-  --canvas: #FAFBFC;
+  --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FCFCFC 100%);
+  --surface-hover: #F5F6F8;
+  --surface-pressed: #EDEEF1;
+  --canvas: #FFFFFF;
   --border: rgba(15,23,42,.10);
   --border-strong: rgba(15,23,42,.13);
   --border-subtle: rgba(15,23,42,.05);
