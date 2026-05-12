@@ -24151,6 +24151,15 @@ function _wsIsOverdue(s) {
   return !isNaN(dt.getTime()) && dt.getTime() < Date.now();
 }
 function _wsTplColLabel(cols) { return (Array.isArray(cols) ? cols : []).map(c => c && c.name).filter(Boolean).join(" · "); }
+function _wsBlankColumns() {
+  return [
+    { id: "item",     name: "Item",        type: "text",   width: 240 },
+    { id: "status",   name: "Status",      type: "status", width: 150, options: ["Open", "In progress", "Done"], role: "status" },
+    { id: "assignee", name: "Assigned to", type: "driver", width: 170, role: "assignee" },
+    { id: "due",      name: "Due",         type: "date",   width: 120, role: "due" },
+    { id: "note",     name: "Note",        type: "note",   width: 280 },
+  ];
+}
 
 async function loadWorkspacesView() {
   const root = document.getElementById("rr-ws-root");
@@ -24261,7 +24270,7 @@ function _wsRenderBoard(root) {
         <table class="ws-grid">
           <thead><tr>
             <th class="ws-num">#</th>
-            ${cols.map(c => { const w = Math.max(80, (c.width | 0) || 200); return `<th data-rr-ws-col-th="${escapeHtml(c.id)}" style="min-width:${w}px;width:${w}px"><span class="ws-colname" data-rr-ws-colcfg="${escapeHtml(c.id)}" title="Column settings — right-click for more">${escapeHtml(c.name || c.id || "")}</span><span class="ws-colresize" data-rr-ws-resize="${escapeHtml(c.id)}" title="Drag to resize"></span></th>`; }).join("")}
+            ${cols.map(c => `<th${c.width ? ` style="min-width:${Math.max(80, c.width | 0)}px"` : ""}><span class="ws-colname" data-rr-ws-colcfg="${escapeHtml(c.id)}" title="Column settings">${escapeHtml(c.name || c.id || "")}</span></th>`).join("")}
             <th class="ws-addcol" data-rr-ws-addcol title="Add a column">+</th>
             <th class="ws-act"></th>
           </tr></thead>
@@ -24291,7 +24300,7 @@ function _wsRowsHtml(cols) {
 }
 
 function _wsRowHtml(r, num, cols) {
-  const cells = cols.map(c => `<td data-rr-ws-cell data-col-id="${escapeHtml(c.id)}">${_wsCellInner(c, r)}</td>`).join("");
+  const cells = cols.map(c => `<td data-rr-ws-cell data-row-id="${escapeHtml(r.id)}" data-col-id="${escapeHtml(c.id)}" data-col-type="${escapeHtml(c.type || "text")}">${_wsCellInner(c, r)}</td>`).join("");
   return `<tr data-ws-row="${escapeHtml(r.id)}">
     <td class="ws-num">${num}</td>
     ${cells}
@@ -24340,7 +24349,7 @@ function _wsCellInner(col, r) {
     if (!val) return `<span class="ws-date dim">—</span>`;
     return `<span class="ws-date${_wsIsOverdue(val) ? " overdue" : ""}">${escapeHtml(_wsFmtDate(val))}</span>`;
   }
-  if (!val) return "";
+  if (!val) return `<span class="ws-cell dim">—</span>`;
   return `<span class="ws-cell">${escapeHtml(val)}</span>`;
 }
 
@@ -24360,15 +24369,13 @@ function _wsRerenderRows() {
 
 function _wsBeginEdit(td) {
   if (_wsEditing) return;
-  const tr = td.closest("tr[data-ws-row]");
-  const rowId = tr && tr.getAttribute("data-ws-row");
+  const rowId = td.getAttribute("data-row-id");
   const colId = td.getAttribute("data-col-id");
-  if (!rowId || !colId) return;
+  const type  = td.getAttribute("data-col-type") || "text";
+  if (!rowId || !colId || type === "attachment") return;
   const r = (_wsBoard.rows || []).find(x => x.id === rowId);
   if (!r) return;
   const col = (_wsBoard.board.columns || []).find(c => c.id === colId) || {};
-  const type = (col.type || "text");
-  if (type === "attachment") return;
   const cur = (r.data && r.data[colId] != null) ? String(r.data[colId]) : "";
   if (type === "checkbox") { _wsSaveCell(rowId, colId, cur === "true" ? "" : "true"); return; }
   _wsEditing = { rowId, colId };
@@ -24405,7 +24412,7 @@ function _wsBeginEdit(td) {
       else if (type === "link" && newVal && !/^[a-z][a-z0-9+.-]*:/i.test(newVal)) newVal = "https://" + newVal;
     }
     if (commit && newVal !== cur) _wsSaveCell(rowId, colId, newVal);
-    else _wsRepaintCell(rowId, colId);
+    else _wsRerenderRows();
   };
   editor.addEventListener("blur", () => finish(true));
   editor.addEventListener("keydown", (e) => {
@@ -24415,62 +24422,34 @@ function _wsBeginEdit(td) {
   if (editor.tagName === "SELECT") editor.addEventListener("change", () => finish(true));
 }
 
-function _wsCellEl(rowId, colId) {
-  const esc = (s) => String(s).replace(/["\\]/g, "\\$&");
-  return document.querySelector(`#rr-ws-tbody tr[data-ws-row="${esc(rowId)}"] td[data-col-id="${esc(colId)}"]`);
-}
-function _wsRepaintCell(rowId, colId) {
-  const r = (_wsBoard.rows || []).find(x => x.id === rowId);
-  const col = (_wsBoard.board.columns || []).find(c => c.id === colId);
-  const td = _wsCellEl(rowId, colId);
-  if (r && col && td) td.innerHTML = _wsCellInner(col, r);
-}
 async function _wsSaveCell(rowId, colId, newVal) {
   const r = (_wsBoard.rows || []).find(x => x.id === rowId);
   if (!r) { _wsRerenderRows(); return; }
   const data = Object.assign({}, r.data || {});
-  if (newVal === "" || newVal == null) delete data[colId]; else data[colId] = newVal;
+  data[colId] = newVal;
   const { data: up, error } = await sb.rpc("assignment_row_upsert", { p_board_id: _wsBoardId, p_row_id: rowId, p_data: data, p_position: (r.position != null ? r.position : null) });
-  if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); _wsRepaintCell(rowId, colId); return; }
+  if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); _wsRerenderRows(); return; }
   Object.assign(r, { data: up.data || {}, assigned_driver_id: up.assigned_driver_id, status: up.status, due_date: up.due_date, updated_at: up.updated_at });
-  _wsRepaintCell(rowId, colId);
-  // A role column (assignee / status / due) also feeds the row's derived fields,
-  // which can surface in other cells — repaint those too.
-  const col = (_wsBoard.board.columns || []).find(c => c.id === colId) || {};
-  if (col.role) (_wsBoard.board.columns || []).forEach(c => { if (c.role && c.id !== colId) _wsRepaintCell(rowId, c.id); });
+  _wsRerenderRows();
 }
 
-function _wsRowFromUpsert(up) {
-  return { id: up.id, data: up.data || {}, position: up.position, assigned_driver_id: up.assigned_driver_id, status: up.status, due_date: up.due_date, completed_at: up.completed_at, completion_note: up.completion_note, completion_photo_path: up.completion_photo_path, updated_at: up.updated_at };
-}
-
-// Insert a fresh row so it lands at `atIndex` (0-based). null/undefined → append.
-async function _wsInsertRow(atIndex, seedData) {
+async function _wsAddRow() {
   if (!_wsBoardId) return;
-  const { data: up, error } = await sb.rpc("assignment_row_upsert", { p_board_id: _wsBoardId, p_row_id: null, p_data: seedData || {}, p_position: null });
+  const { data: up, error } = await sb.rpc("assignment_row_upsert", { p_board_id: _wsBoardId, p_row_id: null, p_data: {}, p_position: null });
   if (error || !up) { toast("Couldn't add a row: " + ((error && error.message) || "try again"), "warn"); return; }
-  const rows = (_wsBoard.rows = _wsBoard.rows || []);
-  const row = _wsRowFromUpsert(up);
-  if (atIndex == null || atIndex >= rows.length) { rows.push(row); }
-  else {
-    rows.splice(Math.max(0, atIndex), 0, row);
-    const { error: rerr } = await sb.rpc("assignment_rows_reorder", { p_board_id: _wsBoardId, p_row_ids: rows.map(r => r.id) });
-    if (rerr) toast("Row added — couldn't reorder: " + (rerr.message || "try again"), "warn");
-    else rows.forEach((r, i) => { r.position = i; });
-  }
+  (_wsBoard.rows = _wsBoard.rows || []).push({ id: up.id, data: up.data || {}, position: up.position, assigned_driver_id: up.assigned_driver_id, status: up.status, due_date: up.due_date, completed_at: up.completed_at, updated_at: up.updated_at });
   _wsSearch = "";
   const inp = document.querySelector("#view-workspaces [data-rr-ws-search]");
   if (inp) inp.value = "";
   _wsRerenderRows();
 }
 
-function _wsAddRow() { _wsInsertRow(null); }
-
-async function _wsDuplicateRow(rowId) {
-  const rows = (_wsBoard && _wsBoard.rows) || [];
-  const i = rows.findIndex(r => r.id === rowId);
-  if (i < 0) return;
-  await _wsInsertRow(i + 1, Object.assign({}, rows[i].data || {}));
+async function _wsDeleteRow(rowId) {
+  if (!confirm("Delete this row? This can't be undone.")) return;
+  const { error } = await sb.rpc("assignment_row_delete", { p_row_id: rowId });
+  if (error) { toast("Couldn't delete: " + (error.message || "try again"), "warn"); return; }
+  _wsBoard.rows = (_wsBoard.rows || []).filter(r => r.id !== rowId);
+  _wsRerenderRows();
 }
 
 // ── Paste rows from a spreadsheet (Excel / Google Sheets → TSV) ──────────
@@ -24579,21 +24558,14 @@ async function _wsRunImport(m, rows, cols) {
   else if (ok) toast(`Added ${ok} row${ok === 1 ? "" : "s"} from your spreadsheet`, "success");
 }
 
-async function _wsDeleteRow(rowId) {
-  if (!confirm("Delete this row? This can't be undone.")) return;
-  const { error } = await sb.rpc("assignment_row_delete", { p_row_id: rowId });
-  if (error) { toast("Couldn't delete: " + (error.message || "try again"), "warn"); return; }
-  _wsBoard.rows = (_wsBoard.rows || []).filter(r => r.id !== rowId);
-  _wsRerenderRows();
-}
-
 async function _wsCreateBoard(templateKey) {
   const tpl = templateKey ? _wsTemplates.find(t => t.key === templateKey) : null;
-  const name = (prompt("Name this board", tpl ? (tpl.name || "New board") : "Untitled spreadsheet") || "").trim();
+  const name = (prompt("Name this board", tpl ? (tpl.name || "New board") : "New board") || "").trim();
   if (!name) return;
-  let nb, error;
-  if (templateKey) ({ data: nb, error } = await sb.rpc("assignment_board_create", { p_name: name, p_template_key: templateKey }));
-  else             ({ data: nb, error } = await sb.rpc("assignment_board_create_blank", { p_name: name, p_n_cols: 100, p_n_rows: 100 }));
+  const args = { p_name: name };
+  if (templateKey) args.p_template_key = templateKey;
+  else { args.p_icon = "generic"; args.p_columns = _wsBlankColumns(); }
+  const { data: nb, error } = await sb.rpc("assignment_board_create", args);
   if (error || !nb) { toast("Couldn't create the board: " + ((error && error.message) || "try again"), "warn"); return; }
   _wsBoardId = nb.id;
   loadWorkspacesView();
@@ -24699,45 +24671,16 @@ async function _wsSaveSettings(m) {
   toast("Board settings saved ✓", "success");
 }
 
-// Insert a new text column at `atIndex`. null/undefined → append at the end.
-async function _wsInsertColumn(atIndex) {
+async function _wsAddColumn() {
   if (!_wsBoard || !_wsBoard.board) return;
   const name = (prompt("New column name") || "").trim();
   if (!name) return;
   const cols = Array.isArray(_wsBoard.board.columns) ? _wsBoard.board.columns.slice() : [];
-  const col = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, type: "text", width: 200 };
-  if (atIndex == null || atIndex >= cols.length) cols.push(col);
-  else cols.splice(Math.max(0, atIndex), 0, col);
+  cols.push({ id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, type: "text", width: 200 });
   const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_columns: cols });
   if (error) { toast("Couldn't add the column: " + (error.message || "try again"), "warn"); return; }
   _wsBoard.board.columns = (nb && nb.columns) || cols;
   const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
-}
-
-function _wsAddColumn() { _wsInsertColumn(null); }
-
-async function _wsQuickRenameColumn(colId) {
-  const b = _wsBoard && _wsBoard.board; if (!b) return;
-  const cols = (Array.isArray(b.columns) ? b.columns : []).map(c => Object.assign({}, c));
-  const col = cols.find(c => c.id === colId); if (!col) return;
-  const name = (prompt("Rename column", col.name || "") || "").trim();
-  if (!name || name === col.name) return;
-  col.name = name.slice(0, 40);
-  const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_columns: cols });
-  if (error) { toast("Couldn't rename: " + (error.message || "try again"), "warn"); return; }
-  _wsBoard.board.columns = (nb && nb.columns) || cols;
-  const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
-}
-
-async function _wsSaveColWidth(colId, w) {
-  const b = _wsBoard && _wsBoard.board; if (!b) return;
-  w = Math.max(80, Math.min(900, Math.round(w)));
-  const cols = (Array.isArray(b.columns) ? b.columns : []).map(c => Object.assign({}, c));
-  const col = cols.find(c => c.id === colId); if (!col || col.width === w) return;
-  col.width = w;
-  const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_columns: cols });
-  if (error) { toast("Couldn't save column width: " + (error.message || "try again"), "warn"); return; }
-  _wsBoard.board.columns = (nb && nb.columns) || cols;
 }
 
 // ── Column settings — name / type / options / role / delete ──────────
@@ -24820,35 +24763,10 @@ async function _wsDeleteColumn(colId, m) {
   const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
 }
 
-// ── Right-click context menu (Excel-style insert / delete row & column) ──
-let _wsCtxEl = null;
-function _wsHideCtx() { if (_wsCtxEl) { _wsCtxEl.remove(); _wsCtxEl = null; } }
-function _wsShowCtx(px, py, items) {
-  _wsHideCtx();
-  const host = document.getElementById("rr-ws-root"); if (!host) return;
-  const acts = items.filter(it => !it.sep);
-  const m = document.createElement("div");
-  m.className = "ws-ctx";
-  m.innerHTML = items.map((it) => it.sep
-    ? `<div class="ws-ctx-sep"></div>`
-    : `<button type="button"${it.danger ? ' class="danger"' : ""}>${it.icon || ""}<span>${escapeHtml(it.label)}</span></button>`).join("");
-  m.style.left = "0px"; m.style.top = "0px"; m.style.visibility = "hidden";
-  host.appendChild(m);
-  const rect = m.getBoundingClientRect();
-  m.style.left = Math.max(6, Math.min(px, window.innerWidth  - rect.width  - 6)) + "px";
-  m.style.top  = Math.max(6, Math.min(py, window.innerHeight - rect.height - 6)) + "px";
-  m.style.visibility = "";
-  _wsCtxEl = m;
-  Array.from(m.querySelectorAll("button")).forEach((btn, i) => {
-    btn.addEventListener("click", () => { _wsHideCtx(); const it = acts[i]; try { it && it.run && it.run(); } catch (e) {} });
-  });
-}
-
 function _wsBindRoot(root) {
   if (_wsBound || !root) return;
   _wsBound = true;
   root.addEventListener("click", (e) => {
-    if (_wsCtxEl && !e.target.closest(".ws-ctx")) _wsHideCtx();
     const open = e.target.closest("[data-rr-ws-open]"); if (open) { _wsBoardId = open.getAttribute("data-rr-ws-open"); loadWorkspacesView(); return; }
     if (e.target.closest("[data-rr-ws-back]"))   { _wsBoardId = null; loadWorkspacesView(); return; }
     const tpl = e.target.closest("[data-rr-ws-tpl]"); if (tpl) { _wsCreateBoard(tpl.getAttribute("data-rr-ws-tpl")); return; }
@@ -24858,86 +24776,15 @@ function _wsBindRoot(root) {
     if (e.target.closest("[data-rr-ws-archive]")) { _wsArchiveBoard(); return; }
     if (e.target.closest("[data-rr-ws-addcol]"))  { _wsAddColumn(); return; }
     if (e.target.closest("[data-rr-ws-import]"))  { _wsOpenImport(""); return; }
-    if (e.target.closest("[data-rr-ws-resize]"))  { return; }
     const colcfg = e.target.closest("[data-rr-ws-colcfg]"); if (colcfg) { e.stopPropagation(); _wsOpenColumnSettings(colcfg.getAttribute("data-rr-ws-colcfg")); return; }
     const del = e.target.closest("[data-rr-ws-delrow]"); if (del) { e.stopPropagation(); _wsDeleteRow(del.getAttribute("data-rr-ws-delrow")); return; }
     if (e.target.closest("[data-rr-ws-addrow]")) { _wsAddRow(); return; }
     if (e.target.closest("[data-rr-ws-cell] a")) return;
     const cell = e.target.closest("[data-rr-ws-cell]"); if (cell && !e.target.closest(".ws-edit")) { _wsBeginEdit(cell); return; }
   });
-  let _wsSearchTimer = null;
   root.addEventListener("input", (e) => {
-    if (e.target.matches("[data-rr-ws-search]")) {
-      _wsSearch = e.target.value || "";
-      clearTimeout(_wsSearchTimer);
-      _wsSearchTimer = setTimeout(_wsRerenderRows, 140);
-    }
+    if (e.target.matches("[data-rr-ws-search]")) { _wsSearch = e.target.value || ""; _wsRerenderRows(); }
   });
-  // Right-click → insert/delete menu for the row or column under the cursor.
-  root.addEventListener("contextmenu", (e) => {
-    if (!_wsBoard || !_wsBoard.board) return;
-    const colTh = e.target.closest("[data-rr-ws-col-th]");
-    if (colTh) {
-      const colId = colTh.getAttribute("data-rr-ws-col-th");
-      const cols = Array.isArray(_wsBoard.board.columns) ? _wsBoard.board.columns : [];
-      const i = cols.findIndex(c => c.id === colId); if (i < 0) return;
-      e.preventDefault();
-      _wsShowCtx(e.clientX, e.clientY, [
-        { label: "Insert column left",  icon: _WS_CTX_IC.colL, run: () => _wsInsertColumn(i) },
-        { label: "Insert column right", icon: _WS_CTX_IC.colR, run: () => _wsInsertColumn(i + 1) },
-        { sep: true },
-        { label: "Rename column",   icon: _WS_CTX_IC.pencil, run: () => _wsQuickRenameColumn(colId) },
-        { label: "Column settings…", icon: _WS_CTX_IC.gear,  run: () => _wsOpenColumnSettings(colId) },
-        { sep: true },
-        { label: "Delete column", danger: true, icon: _WS_CTX_IC.trash, run: () => { if (confirm("Delete this column? Its values are removed from every row on the board. This can't be undone.")) _wsDeleteColumn(colId); } },
-      ]);
-      return;
-    }
-    const tr = e.target.closest("tr[data-ws-row]");
-    if (tr && tr.closest("#rr-ws-tbody")) {
-      const rowId = tr.getAttribute("data-ws-row");
-      const rows = (_wsBoard.rows || []);
-      const i = rows.findIndex(r => r.id === rowId); if (i < 0) return;
-      e.preventDefault();
-      _wsShowCtx(e.clientX, e.clientY, [
-        { label: "Insert row above", icon: _WS_CTX_IC.rowU, run: () => _wsInsertRow(i) },
-        { label: "Insert row below", icon: _WS_CTX_IC.rowD, run: () => _wsInsertRow(i + 1) },
-        { label: "Duplicate row",    icon: _WS_CTX_IC.copy, run: () => _wsDuplicateRow(rowId) },
-        { sep: true },
-        { label: "Delete row", danger: true, icon: _WS_CTX_IC.trash, run: () => _wsDeleteRow(rowId) },
-      ]);
-      return;
-    }
-  });
-  // Drag a column's right edge to resize it (Excel-style).
-  root.addEventListener("mousedown", (e) => {
-    const handle = e.target.closest("[data-rr-ws-resize]");
-    if (!handle || e.button !== 0) return;
-    e.preventDefault();
-    _wsHideCtx();
-    const colId = handle.getAttribute("data-rr-ws-resize");
-    const th = handle.closest("th"); if (!th) return;
-    const startX = e.clientX;
-    const startW = th.getBoundingClientRect().width;
-    handle.classList.add("dragging");
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    const apply = (ev) => { const w = Math.max(80, Math.min(900, Math.round(startW + (ev.clientX - startX)))); th.style.minWidth = w + "px"; th.style.width = w + "px"; return w; };
-    const onMove = (ev) => { apply(ev); };
-    const onUp = (ev) => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      handle.classList.remove("dragging");
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      _wsSaveColWidth(colId, apply(ev));
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  });
-  window.addEventListener("scroll", _wsHideCtx, true);
-  window.addEventListener("resize", _wsHideCtx);
-  window.addEventListener("keydown", (e) => { if (e.key === "Escape") _wsHideCtx(); });
   // Ctrl/Cmd+V anywhere on an open board (not in an input / cell editor) with
   // tab- or newline-structured clipboard data → open the spreadsheet importer.
   document.addEventListener("paste", (e) => {
@@ -24955,14 +24802,3 @@ function _wsBindRoot(root) {
     _wsOpenImport(txt);
   });
 }
-
-const _WS_CTX_IC = {
-  rowU:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
-  rowD:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>',
-  colL:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
-  colR:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
-  copy:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  pencil:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
-  gear:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.36.62.55 1.32.6 2.06"/></svg>',
-  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
-};
