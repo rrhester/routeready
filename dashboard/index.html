@@ -6219,6 +6219,10 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="20" x2="3" y2="10"/><line x1="9" y1="20" x2="9" y2="4"/><line x1="15" y1="20" x2="15" y2="13"/><line x1="21" y1="20" x2="21" y2="8"/><polyline points="9 4 13 9 17 6"/></svg></span>
         Staffing outlook
       </button>
+      <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+        Workspaces
+      </button>
       <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         Messages
@@ -10276,6 +10280,104 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         WORKSPACES — operational assignment boards (migration 0182).
+         Populated by loadWorkspacesView() in live.js.  A board has a
+         freeform column schema; rows are operational items; assigning a
+         row to a driver links the driver profile, surfaces the task in
+         the driver app, and logs the accountability trail.
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-workspaces">
+      <div class="page">
+        <style>
+          /* ── Workspaces · operational boards (scoped) ─────────────── */
+          #view-workspaces .ws-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:var(--s-4);flex-wrap:wrap}
+          #view-workspaces .ws-crumb{display:flex;align-items:center;gap:8px;font-size:var(--fs-base);color:var(--text-subtle);min-width:0}
+          #view-workspaces .ws-crumb a{color:var(--text-subtle);text-decoration:none;cursor:pointer;flex:0 0 auto}
+          #view-workspaces .ws-crumb a:hover{color:var(--text)}
+          #view-workspaces .ws-crumb .sep{color:var(--border-strong);flex:0 0 auto}
+          #view-workspaces .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.15;min-width:0}
+          #view-workspaces .ws-board-name .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          #view-workspaces .ws-icon-btn{appearance:none;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--text-subtle);cursor:pointer;padding:5px;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s}
+          #view-workspaces .ws-icon-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
+          #view-workspaces .ws-icon-btn svg{width:15px;height:15px}
+          #view-workspaces .ws-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:var(--s-3);flex-wrap:wrap}
+          #view-workspaces .ws-search{display:flex;align-items:center;gap:8px;flex:1;min-width:200px;max-width:340px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:7px 11px;transition:border-color .12s,box-shadow .12s}
+          #view-workspaces .ws-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-workspaces .ws-search svg{width:14px;height:14px;color:var(--text-subtle);flex:0 0 auto}
+          #view-workspaces .ws-search input{flex:1;border:0;background:transparent;outline:none;font:inherit;font-size:var(--fs-sm);color:var(--text)}
+          #view-workspaces .ws-search input::placeholder{color:var(--text-subtle)}
+          #view-workspaces .ws-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}
+          #view-workspaces .ws-grid-scroll{overflow-x:auto}
+          #view-workspaces .ws-grid{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
+          #view-workspaces .ws-grid th{text-align:left;padding:11px 12px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--border);white-space:nowrap}
+          #view-workspaces .ws-grid th .ws-colname{cursor:pointer;border-radius:4px;padding:1px 4px;margin:-1px -4px}
+          #view-workspaces .ws-grid th .ws-colname:hover{background:var(--surface-hover);color:var(--text-muted)}
+          #view-workspaces .ws-grid th.ws-num,#view-workspaces .ws-grid td.ws-num{width:38px;text-align:right;color:var(--text-subtle);font-variant-numeric:tabular-nums;padding-left:14px}
+          #view-workspaces .ws-grid th.ws-act,#view-workspaces .ws-grid td.ws-act{width:34px;padding-left:4px;padding-right:10px}
+          #view-workspaces .ws-grid th.ws-addcol{width:44px;text-align:center;cursor:pointer}
+          #view-workspaces .ws-grid th.ws-addcol:hover{color:var(--accent-text)}
+          #view-workspaces .ws-grid td{padding:8px 12px;border-top:1px solid var(--border);color:var(--text);vertical-align:middle}
+          #view-workspaces .ws-grid tbody tr:first-child td{border-top:none}
+          #view-workspaces .ws-grid tbody tr:hover td{background:var(--canvas)}
+          #view-workspaces .ws-cell{cursor:text;display:inline-block;min-width:24px;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .1s;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+          #view-workspaces .ws-cell:hover{background:var(--surface-hover)}
+          #view-workspaces .ws-cell.dim{color:var(--text-subtle)}
+          #view-workspaces .ws-edit{width:100%;font:inherit;font-size:var(--fs-md);border:1px solid var(--accent);border-radius:6px;padding:3px 6px;background:var(--surface);color:var(--text);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-workspaces textarea.ws-edit{resize:vertical;min-height:54px}
+          #view-workspaces .ws-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;border-radius:999px;padding:3px 9px 3px 8px;white-space:nowrap;cursor:pointer}
+          #view-workspaces .ws-pill .dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+          #view-workspaces .ws-pill.t-green{background:var(--green-soft);color:var(--green)}#view-workspaces .ws-pill.t-green .dot{background:var(--green)}
+          #view-workspaces .ws-pill.t-amber{background:var(--amber-soft);color:var(--amber-dark)}#view-workspaces .ws-pill.t-amber .dot{background:var(--amber)}
+          #view-workspaces .ws-pill.t-red{background:var(--red-soft);color:var(--red)}#view-workspaces .ws-pill.t-red .dot{background:var(--red)}
+          #view-workspaces .ws-pill.t-blue{background:var(--accent-soft);color:var(--accent-text)}#view-workspaces .ws-pill.t-blue .dot{background:var(--accent)}
+          #view-workspaces .ws-pill.t-neutral{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}#view-workspaces .ws-pill.t-neutral .dot{background:var(--text-subtle)}
+          #view-workspaces .ws-pill.empty{background:transparent;border:1px dashed var(--border-strong);color:var(--text-subtle)}#view-workspaces .ws-pill.empty .dot{display:none}
+          #view-workspaces .ws-driver{display:inline-flex;align-items:center;gap:8px;cursor:pointer;max-width:100%}
+          #view-workspaces .ws-driver .av{width:24px;height:24px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent-text);background:var(--accent-soft)}
+          #view-workspaces .ws-driver .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          #view-workspaces .ws-driver.empty{color:var(--text-subtle)}#view-workspaces .ws-driver.empty .av{background:var(--canvas);color:var(--text-subtle)}
+          #view-workspaces .ws-date{cursor:pointer;font-variant-numeric:tabular-nums;white-space:nowrap;border-radius:6px;padding:3px 6px;margin:-3px -6px}
+          #view-workspaces .ws-date:hover{background:var(--surface-hover)}
+          #view-workspaces .ws-date.dim{color:var(--text-subtle)}
+          #view-workspaces .ws-date.overdue{color:var(--red);font-weight:600}
+          #view-workspaces .ws-rowact{appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;border-radius:6px;display:inline-flex;opacity:0;transition:opacity .1s,color .1s,background .1s}
+          #view-workspaces .ws-grid tbody tr:hover .ws-rowact{opacity:1}
+          #view-workspaces .ws-rowact:hover{background:var(--surface-hover);color:var(--red)}
+          #view-workspaces .ws-rowact svg{width:14px;height:14px}
+          #view-workspaces .ws-addrow{display:flex;align-items:center;gap:8px;width:100%;padding:11px 14px;border:0;border-top:1px solid var(--border);background:transparent;color:var(--text-subtle);font:inherit;font-size:var(--fs-md);font-weight:500;cursor:pointer;transition:background .1s,color .1s;text-align:left}
+          #view-workspaces .ws-addrow:hover{background:var(--canvas);color:var(--accent-text)}
+          #view-workspaces .ws-addrow svg{width:14px;height:14px;flex:0 0 auto}
+          #view-workspaces .ws-foot{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px;padding:0 4px}
+          #view-workspaces .ws-section-h{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:0 0 10px}
+          #view-workspaces .ws-boards{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:12px}
+          #view-workspaces .ws-board-card{display:flex;align-items:flex-start;gap:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;cursor:pointer;text-align:left;font:inherit;width:100%;transition:border-color .12s,box-shadow .12s}
+          #view-workspaces .ws-board-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+          #view-workspaces .ws-board-ic{width:34px;height:34px;border-radius:var(--r-md);flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;background:var(--brand-grad);box-shadow:var(--shadow-xs)}
+          #view-workspaces .ws-board-ic svg{width:17px;height:17px}
+          #view-workspaces .ws-board-card .nm{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          #view-workspaces .ws-board-card .mt{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px}
+          #view-workspaces .ws-board-card.archived{opacity:.6}
+          #view-workspaces .ws-board-card.new{border-style:dashed;color:var(--text-subtle);align-items:center;justify-content:center;text-align:center;font-weight:600;gap:9px}
+          #view-workspaces .ws-board-card.new:hover{border-color:var(--accent);color:var(--accent-text);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-workspaces .ws-board-card.new svg{width:15px;height:15px}
+          #view-workspaces .ws-tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:10px}
+          #view-workspaces .ws-tpl-card{text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 15px;cursor:pointer;font:inherit;width:100%;transition:border-color .12s,box-shadow .12s}
+          #view-workspaces .ws-tpl-card:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-workspaces .ws-tpl-card .nm{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+          #view-workspaces .ws-tpl-card .cols{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.5}
+          #view-workspaces .ws-empty{background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-xl);padding:44px 28px;text-align:center}
+          #view-workspaces .ws-empty .ic{width:46px;height:46px;border-radius:var(--r-xl);margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border)}
+          #view-workspaces .ws-empty .ic svg{width:22px;height:22px}
+          #view-workspaces .ws-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+          #view-workspaces .ws-empty p{margin:0 auto 16px;max-width:420px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55}
+          #view-workspaces .ws-empty.is-error .ic{background:var(--red-soft);color:var(--red);border-color:rgba(225,29,72,.2)}
+          #view-workspaces .ws-empty .hint{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px}
+        </style>
+        <div id="rr-ws-root"><div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading workspaces</div></div>
       </div>
     </div>
 
@@ -14970,6 +15072,7 @@ John,Smith,555-0101,john@example.com</code>
       outlook: 'Staffing outlook',
       okami: 'OKAMI',
       messages: 'Messages',
+      workspaces: 'Workspaces',
       forms: 'Workflows',
       checklists: 'Workflows',
       documents: 'Documents',
@@ -14988,6 +15091,7 @@ John,Smith,555-0101,john@example.com</code>
       schedule: 'Week of May 1–7 · 5 pending approvals',
       okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
+      workspaces: 'Operational boards · assign to drivers, track to done',
       forms: '12 forms · 47 submissions this week',
       checklists: '14 checklists · 4 due now',
       finances: '$14,420 recovered YTD · 3 invoices pending review',

@@ -951,6 +951,7 @@ window.goto = function (view) {
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); }
   if (view === "messages")  loadDriverChatInbox();
+  if (view === "workspaces") loadWorkspacesView();
   if (view === "forms")     loadFormsList();
   if (view === "admin")     loadPlatformAdmin();
   if (view === "outlook")   loadStaffingOutlook();
@@ -24094,4 +24095,405 @@ document.addEventListener("change", (e) => {
     if (typeof _origGotoDocs === "function") _origGotoDocs(view);
     if (view === "documents") loadDocumentsView();
   };
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  WORKSPACES — operational assignment boards (migration 0182, RPCs
+//  assignment_*).  Operator-side board view: a board has a freeform
+//  column schema; rows are operational items (devices, batteries,
+//  recovery actions, …); assigning a row to a driver links the driver
+//  profile and (next slice) surfaces it in the driver app + logs the
+//  accountability trail.  Renders into #rr-ws-root.
+// ════════════════════════════════════════════════════════════════════
+let _wsBoards    = [];     // [{id,name,icon,columns,row_count,open_count,archived_at,updated_at}]
+let _wsBoardId   = null;   // open board id (null → picker)
+let _wsBoard     = null;   // { board, rows }
+let _wsDrivers   = [];     // [{id, name, initials}]
+let _wsTemplates = [];     // [{key,name,icon,columns}]
+let _wsSearch    = "";
+let _wsEditing   = null;   // {rowId, colId} currently in edit mode
+let _wsBound     = false;  // delegated listeners attached to #rr-ws-root once
+
+const _WS_ICON = {
+  devices:   '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
+  equipment: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  recovery:  '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+  vehicle:   '<path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 13.06V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
+  safety:    '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  compliance:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  generic:   '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+};
+const _wsIconSvg = (key) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${_WS_ICON[key] || _WS_ICON.generic}</svg>`;
+
+function _wsStatusTone(v) {
+  const s = String(v || "").toLowerCase();
+  if (!s) return "neutral";
+  if (/overdue|\blost\b|missing|damaged|written off/.test(s)) return "red";
+  if (/returned|resolved|recovered|located|complete|closed|\bdone\b|\bactive\b|in use|no fault|waived/.test(s)) return "green";
+  if (/maintenance|repair/.test(s)) return "blue";
+  if (/need|progress|searching|scheduled|pending|reviewing|reported/.test(s)) return "amber";
+  return "neutral";
+}
+function _wsInitials(name) {
+  const p = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return (((p[0] || "")[0] || "") + (p.length > 1 ? ((p[p.length - 1] || "")[0] || "") : "")).toUpperCase() || "?";
+}
+function _wsDriverById(id) { return _wsDrivers.find(d => d.id === id) || null; }
+function _wsFmtDate(s) {
+  if (!s) return "";
+  const dt = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(s)) ? s + "T00:00:00" : s);
+  if (isNaN(dt.getTime())) return String(s);
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function _wsIsOverdue(s) {
+  if (!s) return false;
+  const dt = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(s)) ? s + "T23:59:59" : s);
+  return !isNaN(dt.getTime()) && dt.getTime() < Date.now();
+}
+function _wsTplColLabel(cols) { return (Array.isArray(cols) ? cols : []).map(c => c && c.name).filter(Boolean).join(" · "); }
+function _wsBlankColumns() {
+  return [
+    { id: "item",     name: "Item",        type: "text",   width: 240 },
+    { id: "status",   name: "Status",      type: "status", width: 150, options: ["Open", "In progress", "Done"], role: "status" },
+    { id: "assignee", name: "Assigned to", type: "driver", width: 170, role: "assignee" },
+    { id: "due",      name: "Due",         type: "date",   width: 120, role: "due" },
+    { id: "note",     name: "Note",        type: "note",   width: 280 },
+  ];
+}
+
+async function loadWorkspacesView() {
+  const root = document.getElementById("rr-ws-root");
+  if (!root) return;
+  _wsEditing = null;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading workspaces</div>`;
+  let bRes, dRes, tRes;
+  try {
+    [bRes, dRes, tRes] = await Promise.all([
+      sb.rpc("assignment_boards_list"),
+      sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", window.RR.dsp.id).order("full_name", { ascending: true }).limit(500),
+      sb.rpc("assignment_board_templates").then(r => r, () => ({ data: [] })),
+    ]);
+  } catch (e) { root.innerHTML = _wsErrHtml("Couldn't load workspaces", String((e && e.message) || e)); _wsBindRoot(root); return; }
+  if (bRes && bRes.error) { root.innerHTML = _wsErrHtml("Couldn't load workspaces", bRes.error.message || ""); _wsBindRoot(root); return; }
+  _wsBoards = Array.isArray(bRes?.data) ? bRes.data : [];
+  _wsDrivers = (Array.isArray(dRes?.data) ? dRes.data : []).map(d => {
+    const nm = (d.preferred_name && d.preferred_name.trim()) || (d.full_name && d.full_name.trim()) || "—";
+    return { id: d.id, name: nm, initials: _wsInitials(nm) };
+  });
+  _wsTemplates = Array.isArray(tRes?.data) ? tRes.data : [];
+
+  if (_wsBoardId && _wsBoards.some(b => b.id === _wsBoardId)) {
+    const gRes = await sb.rpc("assignment_board_get", { p_board_id: _wsBoardId });
+    if (gRes.error || !gRes.data) { _wsBoardId = null; root.innerHTML = _wsErrHtml("Couldn't open that board", (gRes.error && gRes.error.message) || ""); _wsBindRoot(root); return; }
+    _wsBoard = gRes.data;
+    _wsRenderBoard(root);
+  } else {
+    _wsBoardId = null; _wsBoard = null;
+    _wsRenderPicker(root);
+  }
+  _wsBindRoot(root);
+}
+
+function _wsErrHtml(title, sub) {
+  const deploying = /does not exist|schema cache|PGRST\d|\b404\b|not found in the schema/i.test(String(sub || ""));
+  return `<div class="ws-empty is-error">
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+    <h3>${escapeHtml(title)}</h3>
+    <p>${escapeHtml(sub || "")}</p>
+    ${deploying ? `<div class="hint">If Workspaces just shipped, the database migration may still be deploying — give it a minute and reload.</div>` : ""}
+  </div>`;
+}
+
+function _wsRenderPicker(root) {
+  const active = _wsBoards.filter(b => !b.archived_at);
+  const tpls = _wsTemplates;
+  const tplCard = (t) => `<button type="button" class="ws-tpl-card" data-rr-ws-tpl="${escapeHtml(t.key || "")}">
+    <div class="nm">${escapeHtml(t.name || t.key || "Template")}</div>
+    <div class="cols">${escapeHtml(_wsTplColLabel(t.columns))}</div>
+  </button>`;
+  const boardCard = (b) => `<button type="button" class="ws-board-card" data-rr-ws-open="${escapeHtml(b.id)}">
+    <span class="ws-board-ic">${_wsIconSvg(b.icon)}</span>
+    <span style="min-width:0"><span class="nm">${escapeHtml(b.name || "Untitled board")}</span><span class="mt">${b.row_count || 0} item${(b.row_count || 0) === 1 ? "" : "s"}${(b.open_count != null) ? ` · ${b.open_count} open` : ""}</span></span>
+  </button>`;
+  root.innerHTML = `
+    <div class="ws-head">
+      <div>
+        <div class="ws-board-name">Workspaces</div>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:64ch">Operational boards — track devices, equipment, recovery actions and follow-ups, and assign any row to a driver so it links to their profile and shows up in their app.</p>
+      </div>
+    </div>
+    ${active.length ? `
+      <div style="margin-bottom:var(--s-6)">
+        <div class="ws-section-h">Your boards</div>
+        <div class="ws-boards">${active.map(boardCard).join("")}</div>
+      </div>` : `
+      <div class="ws-empty" style="margin-bottom:var(--s-5)">
+        <div class="ic">${_wsIconSvg("generic")}</div>
+        <h3>No boards yet</h3>
+        <p>Start from a template — or a blank board — and add your operational items. Assign a row to a driver and it links straight to their profile.</p>
+      </div>`}
+    <div>
+      <div class="ws-section-h">${active.length ? "New board" : "Start with a template"}</div>
+      <div class="ws-tpls">
+        ${tpls.map(tplCard).join("")}
+        <button type="button" class="ws-tpl-card" data-rr-ws-blank style="border-style:dashed">
+          <div class="nm">Blank board</div>
+          <div class="cols">Item · Status · Assigned to · Due · Note</div>
+        </button>
+      </div>
+    </div>`;
+}
+
+function _wsRenderBoard(root) {
+  const b = _wsBoard && _wsBoard.board;
+  if (!b) { _wsRenderPicker(root); return; }
+  const cols = Array.isArray(b.columns) ? b.columns : [];
+  root.innerHTML = `
+    <div class="ws-head">
+      <div style="min-width:0">
+        <div class="ws-crumb"><a data-rr-ws-back>Workspaces</a><span class="sep">/</span></div>
+        <div class="ws-board-name" style="margin-top:2px">
+          <span class="nm">${escapeHtml(b.name || "Untitled board")}</span>
+          <button type="button" class="ws-icon-btn" data-rr-ws-rename title="Rename board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+          <button type="button" class="ws-icon-btn" data-rr-ws-archive title="Archive board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="ws-toolbar">
+      <div class="ws-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search rows…" data-rr-ws-search value="${escapeHtml(_wsSearch)}"></div>
+      <button type="button" class="btn btn-sm btn-primary" data-rr-ws-addrow><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add row</button>
+    </div>
+    <div class="ws-grid-wrap">
+      <div class="ws-grid-scroll">
+        <table class="ws-grid">
+          <thead><tr>
+            <th class="ws-num">#</th>
+            ${cols.map(c => `<th${c.width ? ` style="min-width:${Math.max(80, c.width | 0)}px"` : ""}><span class="ws-colname" data-rr-ws-rencol="${escapeHtml(c.id)}" title="Rename column">${escapeHtml(c.name || c.id || "")}</span></th>`).join("")}
+            <th class="ws-addcol" data-rr-ws-addcol title="Add a column">+</th>
+            <th class="ws-act"></th>
+          </tr></thead>
+          <tbody id="rr-ws-tbody">${_wsRowsHtml(cols)}</tbody>
+        </table>
+      </div>
+      <button type="button" class="ws-addrow" data-rr-ws-addrow><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add row</button>
+    </div>
+    <div class="ws-foot" id="rr-ws-foot"></div>`;
+  _wsUpdateFoot();
+}
+
+function _wsRowsHtml(cols) {
+  const rows = (_wsBoard && Array.isArray(_wsBoard.rows)) ? _wsBoard.rows : [];
+  const q = _wsSearch.trim().toLowerCase();
+  const matches = (r) => {
+    if (!q) return true;
+    if (cols.some(c => String((r.data && r.data[c.id]) != null ? r.data[c.id] : "").toLowerCase().includes(q))) return true;
+    const d = _wsDriverById(r.assigned_driver_id);
+    return !!(d && d.name.toLowerCase().includes(q));
+  };
+  const shown = rows.filter(matches);
+  if (!shown.length) {
+    return `<tr><td colspan="${cols.length + 3}" style="padding:22px 16px;color:var(--text-subtle);font-size:var(--fs-sm);text-align:center">${q ? "No rows match your search." : "No rows yet — add the first item."}</td></tr>`;
+  }
+  return shown.map((r) => _wsRowHtml(r, rows.indexOf(r) + 1, cols)).join("");
+}
+
+function _wsRowHtml(r, num, cols) {
+  const cells = cols.map(c => `<td data-rr-ws-cell data-row-id="${escapeHtml(r.id)}" data-col-id="${escapeHtml(c.id)}" data-col-type="${escapeHtml(c.type || "text")}">${_wsCellInner(c, r)}</td>`).join("");
+  return `<tr data-ws-row="${escapeHtml(r.id)}">
+    <td class="ws-num">${num}</td>
+    ${cells}
+    <td class="ws-addcol"></td>
+    <td class="ws-act"><button type="button" class="ws-rowact" data-rr-ws-delrow="${escapeHtml(r.id)}" title="Delete row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
+  </tr>`;
+}
+
+function _wsCellInner(col, r) {
+  const t = col.type || "text";
+  const raw = (r.data && r.data[col.id]);
+  const val = (raw == null) ? "" : String(raw);
+  if (t === "status") {
+    if (!val) return `<span class="ws-pill empty"><span class="dot"></span>—</span>`;
+    return `<span class="ws-pill t-${_wsStatusTone(val)}"><span class="dot"></span>${escapeHtml(val)}</span>`;
+  }
+  if (t === "driver") {
+    const d = _wsDriverById(r.assigned_driver_id) || (val ? _wsDriverById(val) : null);
+    if (!d) return `<span class="ws-driver empty"><span class="av">?</span><span class="nm">Unassigned</span></span>`;
+    return `<span class="ws-driver"><span class="av">${escapeHtml(d.initials)}</span><span class="nm">${escapeHtml(d.name)}</span></span>`;
+  }
+  if (t === "date") {
+    if (!val) return `<span class="ws-date dim">—</span>`;
+    return `<span class="ws-date${_wsIsOverdue(val) ? " overdue" : ""}">${escapeHtml(_wsFmtDate(val))}</span>`;
+  }
+  if (!val) return `<span class="ws-cell dim">—</span>`;
+  return `<span class="ws-cell">${escapeHtml(val)}</span>`;
+}
+
+function _wsUpdateFoot() {
+  const el = document.getElementById("rr-ws-foot");
+  if (!el) return;
+  const n = (_wsBoard && Array.isArray(_wsBoard.rows)) ? _wsBoard.rows.length : 0;
+  el.textContent = `${n} row${n === 1 ? "" : "s"}`;
+}
+
+function _wsRerenderRows() {
+  const tbody = document.getElementById("rr-ws-tbody");
+  if (!tbody || !_wsBoard) return;
+  tbody.innerHTML = _wsRowsHtml(Array.isArray(_wsBoard.board.columns) ? _wsBoard.board.columns : []);
+  _wsUpdateFoot();
+}
+
+function _wsBeginEdit(td) {
+  if (_wsEditing) return;
+  const rowId = td.getAttribute("data-row-id");
+  const colId = td.getAttribute("data-col-id");
+  const type  = td.getAttribute("data-col-type") || "text";
+  if (!rowId || !colId || type === "tag" || type === "attachment") return;
+  const r = (_wsBoard.rows || []).find(x => x.id === rowId);
+  if (!r) return;
+  const col = (_wsBoard.board.columns || []).find(c => c.id === colId) || {};
+  const cur = (r.data && r.data[colId] != null) ? String(r.data[colId]) : "";
+  _wsEditing = { rowId, colId };
+  let editor;
+  if (type === "status") {
+    editor = document.createElement("select"); editor.className = "ws-edit";
+    const opts = Array.isArray(col.options) ? col.options : [];
+    editor.innerHTML = `<option value="">—</option>` + opts.map(o => `<option value="${escapeHtml(String(o))}"${String(o) === cur ? " selected" : ""}>${escapeHtml(String(o))}</option>`).join("");
+  } else if (type === "driver") {
+    editor = document.createElement("select"); editor.className = "ws-edit";
+    editor.innerHTML = `<option value="">— Unassigned —</option>` + _wsDrivers.map(d => `<option value="${escapeHtml(d.id)}"${d.id === cur ? " selected" : ""}>${escapeHtml(d.name)}</option>`).join("");
+  } else if (type === "date") {
+    editor = document.createElement("input"); editor.type = "date"; editor.className = "ws-edit";
+    editor.value = /^\d{4}-\d{2}-\d{2}/.test(cur) ? cur.slice(0, 10) : "";
+  } else if (type === "note") {
+    editor = document.createElement("textarea"); editor.className = "ws-edit"; editor.value = cur;
+  } else {
+    editor = document.createElement("input"); editor.type = "text"; editor.className = "ws-edit"; editor.value = cur;
+  }
+  td.innerHTML = "";
+  td.appendChild(editor);
+  editor.focus();
+  try { if (editor.select) editor.select(); } catch (e) {}
+  let done = false;
+  const finish = (commit) => {
+    if (done) return; done = true;
+    _wsEditing = null;
+    const newVal = commit ? String(editor.value || "") : cur;
+    if (commit && newVal !== cur) _wsSaveCell(rowId, colId, newVal);
+    else _wsRerenderRows();
+  };
+  editor.addEventListener("blur", () => finish(true));
+  editor.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    else if (e.key === "Enter" && type !== "note") { e.preventDefault(); finish(true); }
+  });
+  if (editor.tagName === "SELECT") editor.addEventListener("change", () => finish(true));
+}
+
+async function _wsSaveCell(rowId, colId, newVal) {
+  const r = (_wsBoard.rows || []).find(x => x.id === rowId);
+  if (!r) { _wsRerenderRows(); return; }
+  const data = Object.assign({}, r.data || {});
+  data[colId] = newVal;
+  const { data: up, error } = await sb.rpc("assignment_row_upsert", { p_board_id: _wsBoardId, p_row_id: rowId, p_data: data, p_position: (r.position != null ? r.position : null) });
+  if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); _wsRerenderRows(); return; }
+  Object.assign(r, { data: up.data || {}, assigned_driver_id: up.assigned_driver_id, status: up.status, due_date: up.due_date, updated_at: up.updated_at });
+  _wsRerenderRows();
+}
+
+async function _wsAddRow() {
+  if (!_wsBoardId) return;
+  const { data: up, error } = await sb.rpc("assignment_row_upsert", { p_board_id: _wsBoardId, p_row_id: null, p_data: {}, p_position: null });
+  if (error || !up) { toast("Couldn't add a row: " + ((error && error.message) || "try again"), "warn"); return; }
+  (_wsBoard.rows = _wsBoard.rows || []).push({ id: up.id, data: up.data || {}, position: up.position, assigned_driver_id: up.assigned_driver_id, status: up.status, due_date: up.due_date, completed_at: up.completed_at, updated_at: up.updated_at });
+  _wsSearch = "";
+  const inp = document.querySelector("#view-workspaces [data-rr-ws-search]");
+  if (inp) inp.value = "";
+  _wsRerenderRows();
+}
+
+async function _wsDeleteRow(rowId) {
+  if (!confirm("Delete this row? This can't be undone.")) return;
+  const { error } = await sb.rpc("assignment_row_delete", { p_row_id: rowId });
+  if (error) { toast("Couldn't delete: " + (error.message || "try again"), "warn"); return; }
+  _wsBoard.rows = (_wsBoard.rows || []).filter(r => r.id !== rowId);
+  _wsRerenderRows();
+}
+
+async function _wsCreateBoard(templateKey) {
+  const tpl = templateKey ? _wsTemplates.find(t => t.key === templateKey) : null;
+  const name = (prompt("Name this board", tpl ? (tpl.name || "New board") : "New board") || "").trim();
+  if (!name) return;
+  const args = { p_name: name };
+  if (templateKey) args.p_template_key = templateKey;
+  else { args.p_icon = "generic"; args.p_columns = _wsBlankColumns(); }
+  const { data: nb, error } = await sb.rpc("assignment_board_create", args);
+  if (error || !nb) { toast("Couldn't create the board: " + ((error && error.message) || "try again"), "warn"); return; }
+  _wsBoardId = nb.id;
+  loadWorkspacesView();
+}
+
+async function _wsRenameBoard() {
+  if (!_wsBoard || !_wsBoard.board) return;
+  const cur = _wsBoard.board.name || "";
+  const name = (prompt("Board name", cur) || "").trim();
+  if (!name || name === cur) return;
+  const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_name: name });
+  if (error) { toast("Couldn't rename: " + (error.message || "try again"), "warn"); return; }
+  _wsBoard.board.name = (nb && nb.name) || name;
+  const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
+}
+
+async function _wsArchiveBoard() {
+  if (!_wsBoardId) return;
+  if (!confirm("Archive this board? It'll be hidden from the list; its rows and history are kept.")) return;
+  const { error } = await sb.rpc("assignment_board_archive", { p_board_id: _wsBoardId, p_archived: true });
+  if (error) { toast("Couldn't archive: " + (error.message || "try again"), "warn"); return; }
+  _wsBoardId = null;
+  loadWorkspacesView();
+}
+
+async function _wsAddColumn() {
+  if (!_wsBoard || !_wsBoard.board) return;
+  const name = (prompt("New column name") || "").trim();
+  if (!name) return;
+  const cols = Array.isArray(_wsBoard.board.columns) ? _wsBoard.board.columns.slice() : [];
+  cols.push({ id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, type: "text", width: 200 });
+  const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_columns: cols });
+  if (error) { toast("Couldn't add the column: " + (error.message || "try again"), "warn"); return; }
+  _wsBoard.board.columns = (nb && nb.columns) || cols;
+  const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
+}
+
+async function _wsRenameColumn(colId) {
+  if (!_wsBoard || !_wsBoard.board) return;
+  const cols = Array.isArray(_wsBoard.board.columns) ? _wsBoard.board.columns.map(c => Object.assign({}, c)) : [];
+  const col = cols.find(c => c.id === colId); if (!col) return;
+  const name = (prompt("Column name", col.name || "") || "").trim();
+  if (!name || name === col.name) return;
+  col.name = name;
+  const { data: nb, error } = await sb.rpc("assignment_board_update", { p_board_id: _wsBoardId, p_columns: cols });
+  if (error) { toast("Couldn't rename the column: " + (error.message || "try again"), "warn"); return; }
+  _wsBoard.board.columns = (nb && nb.columns) || cols;
+  const root = document.getElementById("rr-ws-root"); if (root) _wsRenderBoard(root);
+}
+
+function _wsBindRoot(root) {
+  if (_wsBound || !root) return;
+  _wsBound = true;
+  root.addEventListener("click", (e) => {
+    const open = e.target.closest("[data-rr-ws-open]"); if (open) { _wsBoardId = open.getAttribute("data-rr-ws-open"); loadWorkspacesView(); return; }
+    if (e.target.closest("[data-rr-ws-back]"))   { _wsBoardId = null; loadWorkspacesView(); return; }
+    const tpl = e.target.closest("[data-rr-ws-tpl]"); if (tpl) { _wsCreateBoard(tpl.getAttribute("data-rr-ws-tpl")); return; }
+    if (e.target.closest("[data-rr-ws-blank]"))  { _wsCreateBoard(null); return; }
+    if (e.target.closest("[data-rr-ws-rename]"))  { _wsRenameBoard(); return; }
+    if (e.target.closest("[data-rr-ws-archive]")) { _wsArchiveBoard(); return; }
+    if (e.target.closest("[data-rr-ws-addcol]"))  { _wsAddColumn(); return; }
+    const rencol = e.target.closest("[data-rr-ws-rencol]"); if (rencol) { e.stopPropagation(); _wsRenameColumn(rencol.getAttribute("data-rr-ws-rencol")); return; }
+    const del = e.target.closest("[data-rr-ws-delrow]"); if (del) { e.stopPropagation(); _wsDeleteRow(del.getAttribute("data-rr-ws-delrow")); return; }
+    if (e.target.closest("[data-rr-ws-addrow]")) { _wsAddRow(); return; }
+    const cell = e.target.closest("[data-rr-ws-cell]"); if (cell && !e.target.closest(".ws-edit")) { _wsBeginEdit(cell); return; }
+  });
+  root.addEventListener("input", (e) => {
+    if (e.target.matches("[data-rr-ws-search]")) { _wsSearch = e.target.value || ""; _wsRerenderRows(); }
+  });
 }
