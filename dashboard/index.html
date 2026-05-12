@@ -6228,11 +6228,6 @@ body.rr-cmdk-open{ overflow:hidden }
         Messages
         <span class="nav-badge">7</span>
       </button>
-      <button class="nav-item" data-view="forms" data-c="forms" onclick="goto('forms')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        Workflows
-        <span class="nav-badge" style="background:var(--amber)">4</span>
-      </button>
       <button class="nav-item" data-view="documents" data-c="forms" onclick="goto('documents')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
         Documents
@@ -6545,11 +6540,11 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
                 <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
-              <button type="button" class="rr-firstrun-tile" onclick="goto('forms')">
+              <button type="button" class="rr-firstrun-tile" onclick="goto('workspaces')">
                 <span class="rr-firstrun-tile-num">4</span>
                 <div class="rr-firstrun-tile-text">
                   <div class="rr-firstrun-tile-title">Set up your first workflow</div>
-                  <div class="rr-firstrun-tile-sub">Coaching, attendance reviews, custom forms.</div>
+                  <div class="rr-firstrun-tile-sub">Operational boards, checklists, custom forms.</div>
                 </div>
                 <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
@@ -10386,6 +10381,11 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-workspaces .ws-empty.is-error .ic{background:var(--red-soft);color:var(--red);border-color:rgba(225,29,72,.2)}
           #view-workspaces .ws-empty .hint{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px}
         </style>
+        <div class="subnav" data-rr-tabbar="workspaces">
+          <button class="subnav-item" data-sub="forms" onclick="goto('forms')">Forms</button>
+          <button class="subnav-item active" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
+          <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
+        </div>
         <div id="rr-ws-root"><div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading workspaces</div></div>
       </div>
     </div>
@@ -10399,8 +10399,8 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="page-header-l">
             <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
             <div>
-              <h1 class="page-title">Workflows</h1>
-              <p class="page-sub" id="rr-forms-page-sub">Forms and checklists your drivers fill out</p>
+              <h1 class="page-title">Forms</h1>
+              <p class="page-sub" id="rr-forms-page-sub">Forms your drivers fill out</p>
             </div>
           </div>
           <div class="page-actions">
@@ -10411,9 +10411,10 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <div class="subnav" data-rr-tabbar="forms">
+        <div class="subnav" data-rr-tabbar="workspaces">
           <button class="subnav-item active" data-sub="forms">Forms</button>
-          <button class="subnav-item" onclick="goto('checklists')">Checklists</button>
+          <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
+          <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
         </div>
 
         <div class="forms-shell">
@@ -10449,9 +10450,12 @@ body.rr-cmdk-open{ overflow:hidden }
     <div class="view" id="view-checklists">
       <div class="page">
         <div class="page-header">
-          <div>
-            <h1 class="page-title">Workflows</h1>
-            <p class="page-sub">Recurring task lists for opening, closing, vehicle prep, onboarding · 14 active · 4 due now</p>
+          <div class="page-header-l">
+            <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <div>
+              <h1 class="page-title">Checklists</h1>
+              <p class="page-sub">Recurring task lists for opening, closing, vehicle prep, onboarding · 14 active · 4 due now</p>
+            </div>
           </div>
           <div class="page-actions">
             <button class="btn btn-primary" onclick="openModal('modal-checklist-builder')">
@@ -10463,6 +10467,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <div class="subnav" data-rr-tabbar="checklists">
           <button class="subnav-item" data-sub="forms" onclick="goto('forms')">Forms</button>
+          <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
           <button class="subnav-item active" data-sub="my" onclick="checklistSub('my')">Checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
           <button class="subnav-item" data-sub="status" onclick="checklistSub('status')">Today's status <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
           <button class="subnav-item" data-sub="templates" onclick="checklistSub('templates')">Templates <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">9</span></button>
@@ -15067,7 +15072,9 @@ John,Smith,555-0101,john@example.com</code>
     var target = document.getElementById('view-' + view);
     if (target) target.classList.add('active');
     document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
-    var navBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
+    // Forms / Checklists live under the Workspaces sidebar icon now.
+    var navView = (view === 'forms' || view === 'checklists') ? 'workspaces' : view;
+    var navBtn = document.querySelector('.nav-item[data-view="' + navView + '"]');
     if (navBtn) navBtn.classList.add('active');
     var titles = {
       dashboard: 'Dashboard',
@@ -15082,8 +15089,8 @@ John,Smith,555-0101,john@example.com</code>
       okami: 'OKAMI',
       messages: 'Messages',
       workspaces: 'Workspaces',
-      forms: 'Workflows',
-      checklists: 'Workflows',
+      forms: 'Workspaces',
+      checklists: 'Workspaces',
       documents: 'Documents',
       finances: 'Finances',
       build: 'Build Your Own Tool',
