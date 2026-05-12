@@ -24316,6 +24316,29 @@ function _wsCellInner(col, r) {
     if (!val) return `<span class="ws-pill empty"><span class="dot"></span>—</span>`;
     return `<span class="ws-pill t-${_wsStatusTone(val)}"><span class="dot"></span>${escapeHtml(val)}</span>`;
   }
+  if (t === "priority") {
+    if (!val) return `<span class="ws-pill empty"><span class="dot"></span>—</span>`;
+    return `<span class="ws-pill t-${val === "High" ? "red" : val === "Medium" ? "amber" : "neutral"}"><span class="dot"></span>${escapeHtml(val)}</span>`;
+  }
+  if (t === "checkbox") {
+    const on = (val === "true");
+    return `<span class="ws-checkbox${on ? " on" : ""}" title="${on ? "Done — click to clear" : "Click to mark"}">${on ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ""}</span>`;
+  }
+  if (t === "tags") {
+    const tags = val.split(",").map(s => s.trim()).filter(Boolean);
+    if (!tags.length) return `<span class="ws-cell dim">—</span>`;
+    return `<span class="ws-tags">${tags.map(tg => `<span class="ws-tag-chip">${escapeHtml(tg)}</span>`).join("")}</span>`;
+  }
+  if (t === "link") {
+    if (!val) return `<span class="ws-cell dim">—</span>`;
+    const href = /^[a-z][a-z0-9+.-]*:/i.test(val) ? val : "https://" + val;
+    const disp = val.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    return `<a class="ws-extlink" href="${escapeHtml(href)}" target="_blank" rel="noopener" title="${escapeHtml(href)}"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a><span class="ws-cell ws-link-text">${escapeHtml(disp.length > 38 ? disp.slice(0, 37) + "…" : disp)}</span>`;
+  }
+  if (t === "phone") {
+    if (!val) return `<span class="ws-cell dim">—</span>`;
+    return `<a class="ws-extlink" href="tel:${escapeHtml(val.replace(/[^0-9+]/g, ""))}" title="Call ${escapeHtml(val)}"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a><span class="ws-cell ws-link-text">${escapeHtml(val)}</span>`;
+  }
   if (t === "driver") {
     const d = _wsDriverById(r.assigned_driver_id) || (val ? _wsDriverById(val) : null);
     if (!d) return `<span class="ws-driver empty"><span class="av">?</span><span class="nm">Unassigned</span></span>`;
@@ -24348,17 +24371,21 @@ function _wsBeginEdit(td) {
   const rowId = td.getAttribute("data-row-id");
   const colId = td.getAttribute("data-col-id");
   const type  = td.getAttribute("data-col-type") || "text";
-  if (!rowId || !colId || type === "tag" || type === "attachment") return;
+  if (!rowId || !colId || type === "attachment") return;
   const r = (_wsBoard.rows || []).find(x => x.id === rowId);
   if (!r) return;
   const col = (_wsBoard.board.columns || []).find(c => c.id === colId) || {};
   const cur = (r.data && r.data[colId] != null) ? String(r.data[colId]) : "";
+  if (type === "checkbox") { _wsSaveCell(rowId, colId, cur === "true" ? "" : "true"); return; }
   _wsEditing = { rowId, colId };
   let editor;
   if (type === "status") {
     editor = document.createElement("select"); editor.className = "ws-edit";
     const opts = Array.isArray(col.options) ? col.options : [];
     editor.innerHTML = `<option value="">—</option>` + opts.map(o => `<option value="${escapeHtml(String(o))}"${String(o) === cur ? " selected" : ""}>${escapeHtml(String(o))}</option>`).join("");
+  } else if (type === "priority") {
+    editor = document.createElement("select"); editor.className = "ws-edit";
+    editor.innerHTML = ["", "High", "Medium", "Low"].map(o => `<option value="${o}"${o === cur ? " selected" : ""}>${o || "—"}</option>`).join("");
   } else if (type === "driver") {
     editor = document.createElement("select"); editor.className = "ws-edit";
     editor.innerHTML = `<option value="">— Unassigned —</option>` + _wsDrivers.map(d => `<option value="${escapeHtml(d.id)}"${d.id === cur ? " selected" : ""}>${escapeHtml(d.name)}</option>`).join("");
@@ -24378,7 +24405,11 @@ function _wsBeginEdit(td) {
   const finish = (commit) => {
     if (done) return; done = true;
     _wsEditing = null;
-    const newVal = commit ? String(editor.value || "") : cur;
+    let newVal = commit ? String(editor.value || "") : cur;
+    if (commit) {
+      if (type === "tags") newVal = newVal.split(",").map(s => s.trim()).filter(Boolean).join(", ");
+      else if (type === "link" && newVal && !/^[a-z][a-z0-9+.-]*:/i.test(newVal)) newVal = "https://" + newVal;
+    }
     if (commit && newVal !== cur) _wsSaveCell(rowId, colId, newVal);
     else _wsRerenderRows();
   };
@@ -24546,7 +24577,7 @@ async function _wsAddColumn() {
 }
 
 // ── Column settings — name / type / options / role / delete ──────────
-const _WS_COL_TYPES = [["text", "Text"], ["status", "Status (pill)"], ["driver", "Person (driver)"], ["date", "Date"], ["number", "Number"], ["note", "Note (long text)"], ["tag", "Tag"], ["attachment", "Attachment"]];
+const _WS_COL_TYPES = [["text", "Text"], ["status", "Status (pill)"], ["priority", "Priority"], ["driver", "Person (driver)"], ["date", "Date"], ["number", "Number"], ["checkbox", "Checkbox"], ["tags", "Tags"], ["link", "Link"], ["phone", "Phone"], ["note", "Note (long text)"]];
 const _WS_COL_ROLES = [["", "None"], ["assignee", "Assigned-to — links a row to a driver"], ["status", "Status — flips when the driver completes"], ["due", "Due date"]];
 
 function _wsOpenColumnSettings(colId) {
@@ -24640,6 +24671,7 @@ function _wsBindRoot(root) {
     const colcfg = e.target.closest("[data-rr-ws-colcfg]"); if (colcfg) { e.stopPropagation(); _wsOpenColumnSettings(colcfg.getAttribute("data-rr-ws-colcfg")); return; }
     const del = e.target.closest("[data-rr-ws-delrow]"); if (del) { e.stopPropagation(); _wsDeleteRow(del.getAttribute("data-rr-ws-delrow")); return; }
     if (e.target.closest("[data-rr-ws-addrow]")) { _wsAddRow(); return; }
+    if (e.target.closest("[data-rr-ws-cell] a")) return;
     const cell = e.target.closest("[data-rr-ws-cell]"); if (cell && !e.target.closest(".ws-edit")) { _wsBeginEdit(cell); return; }
   });
   root.addEventListener("input", (e) => {
