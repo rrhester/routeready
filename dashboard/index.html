@@ -25,7 +25,10 @@
    ───────────────────────────────────────────────────────────── */
 :root{
   /* ── Surfaces — crisp white workspace, dark sidebar chrome ──── */
-  --canvas:#FFFFFF;
+  /* --canvas is the *recessed-fill* tone (table headers, chips,
+     ghost buttons) — a faint neutral grey that reads inside the
+     white cards. The page itself is plain white (body uses --surface). */
+  --canvas:#F5F5F5;
   --canvas-grad:none;
   --surface:#FFFFFF;
   --surface-elevated:#FFFFFF;
@@ -153,7 +156,7 @@ body{
   font-size:var(--fs-base);
   line-height:1.5;
   color:var(--text);
-  background-color:var(--canvas);
+  background-color:var(--surface);
   background-image:var(--canvas-grad);
   background-attachment:fixed;
   -webkit-font-smoothing:antialiased;
