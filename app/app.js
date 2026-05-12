@@ -643,7 +643,7 @@ function renderTasksHub() {
   // icon) — they're things the driver checks/sets infrequently, not
   // daily tasks.  The Tasks hub is for onboarding steps + assigned forms.
   const baseCards = [];
-  main.innerHTML = `<div id="rr-tasks-onboarding-slot"></div>${baseCards.map(taskCardHtml).join("")}<div id="rr-tasks-forms-slot"></div><div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Nothing to do right now — you're all set.</div>`;
+  main.innerHTML = `<div id="rr-tasks-onboarding-slot"></div><div id="rr-tasks-assignments-slot"></div>${baseCards.map(taskCardHtml).join("")}<div id="rr-tasks-forms-slot"></div><div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Nothing to do right now — you're all set.</div>`;
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
@@ -662,6 +662,21 @@ function renderTasksHub() {
     });
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
     document.getElementById("rr-tasks-empty")?.remove();
+  }).catch(() => {});
+
+  // Operational assignments — rows assigned to this driver on the DSP's
+  // Workspaces boards.  Incomplete ones surface as cards with a
+  // completion action (label / photo / note rules come from the board's
+  // config — migration 0183).  driver_assignments_list returns [] when
+  // there are none or the migration's still deploying.
+  sb.rpc("driver_assignments_list", { p_token: session.token }).then(({ data, error }) => {
+    if (error) return;
+    const open = (Array.isArray(data) ? data : []).filter(a => a && !a.completed_at);
+    const slot = document.getElementById("rr-tasks-assignments-slot");
+    if (!slot || !open.length) return;
+    document.getElementById("rr-tasks-empty")?.remove();
+    slot.innerHTML = `<div class="wt-sec">Assignments<span class="wt-sec-n">${open.length}</span></div>` + open.map(_wtCardHtml).join("");
+    _wtBindSlot(slot);
   }).catch(() => {});
 
   // Coaching feed — single card that opens the unified /tasks/coaching
@@ -4415,4 +4430,123 @@ async function renderI9Section1() {
     if (navigator.vibrate) { try { navigator.vibrate([10, 40, 10]); } catch {} }
     _i9RenderCompletion(main, { ...rec, status: "section1_complete", section1_completed_at: new Date().toISOString() }, session);
   });
+}
+
+// ── Operational assignments — driver "My Tasks" cards (migration 0183) ─
+// driver_assignments_list / driver_assignment_acknowledge.  A row
+// assigned to this driver shows as a card with a completion action; the
+// button label and whether a photo / note is asked for or required come
+// from the board's config.  Photos go to the driver-documents bucket
+// (same as the licence-photo flow), then the path is handed to the ack
+// RPC, which enforces the requirement, flips the row's status, and logs
+// `completed` to the board's audit trail.
+let _wtData  = {};   // rowId → assignment object
+let _wtPhoto = {};   // rowId → uploaded storage path (this session)
+
+function _wtCfg(a) { return (a && a.config && typeof a.config === "object") ? a.config : {}; }
+function _wtFmtDue(s) {
+  if (!s) return "";
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(s)) ? s + "T00:00:00" : s);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function _wtOverdue(s) {
+  if (!s) return false;
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(s)) ? s + "T23:59:59" : s);
+  return !isNaN(d.getTime()) && d.getTime() < Date.now();
+}
+function _wtCardHtml(a) {
+  _wtData[a.row_id] = a;
+  const cfg = _wtCfg(a);
+  const dueTxt = _wtFmtDue(a.due_date);
+  const sub = [escapeHtml(String(a.board_name || "")), dueTxt ? `due ${escapeHtml(dueTxt)}` : ""].filter(Boolean).join(" · ");
+  const label = escapeHtml(String(cfg.completion_label || "Mark done"));
+  return `<div class="wt-card" data-wt-row="${escapeHtml(a.row_id)}">
+    <div class="wt-card-main">
+      <div class="wt-card-title${_wtOverdue(a.due_date) ? " overdue" : ""}">${escapeHtml(String(a.item_label || a.board_name || "Task"))}</div>
+      <div class="wt-card-sub">${sub}${a.status ? `${sub ? " · " : ""}<span class="wt-status">${escapeHtml(String(a.status))}</span>` : ""}</div>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm wt-cta" data-wt-go>${label}</button>
+    <div class="wt-form" hidden></div>
+  </div>`;
+}
+function _wtBindSlot(slot) {
+  if (slot.dataset.rrWtBound) return; slot.dataset.rrWtBound = "1";
+  slot.addEventListener("click", (e) => {
+    const card = e.target.closest(".wt-card"); if (!card) return;
+    if (e.target.closest("[data-wt-go]"))     { _wtOpenComplete(card); return; }
+    if (e.target.closest("[data-wt-submit]")) { _wtSubmit(card, {}); return; }
+    if (e.target.closest("[data-wt-cancel]")) { _wtCloseComplete(card); return; }
+  });
+  slot.addEventListener("change", (e) => {
+    const fi = e.target.closest("[data-wt-photo-input]");
+    if (fi && fi.files && fi.files[0]) _wtUploadPhoto(fi.closest(".wt-card"), fi.files[0]);
+  });
+}
+function _wtOpenComplete(card) {
+  const a = _wtData[card.getAttribute("data-wt-row")]; if (!a) return;
+  const cfg = _wtCfg(a);
+  const wantPhoto = cfg.require_photo === "required" || cfg.require_photo === "optional";
+  const wantNote  = cfg.require_note  === "required" || cfg.require_note  === "optional";
+  if (!wantPhoto && !wantNote) { _wtSubmit(card, { photoPath: null, note: null }); return; }
+  const needPhoto = cfg.require_photo === "required";
+  const needNote  = cfg.require_note  === "required";
+  const label = escapeHtml(String(cfg.completion_label || "Mark done"));
+  const cta = card.querySelector("[data-wt-go]"); if (cta) cta.style.display = "none";
+  const form = card.querySelector(".wt-form");
+  form.innerHTML = `
+    ${wantPhoto ? `<label class="wt-photo"><input type="file" accept="image/*" capture="environment" data-wt-photo-input style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"><span class="wt-photo-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>${needPhoto ? "Photo required" : "Add a photo"}</span><span class="wt-photo-state"></span></label>` : ""}
+    ${wantNote ? `<textarea class="field wt-note" data-wt-note rows="2" placeholder="${needNote ? "Add a note (required)" : "Add a note (optional)"}"></textarea>` : ""}
+    <div class="wt-form-actions"><button type="button" class="btn btn-sm" data-wt-cancel>Cancel</button><button type="button" class="btn btn-sm btn-primary" data-wt-submit>${label}</button></div>`;
+  form.hidden = false;
+}
+function _wtCloseComplete(card) {
+  delete _wtPhoto[card.getAttribute("data-wt-row")];
+  const form = card.querySelector(".wt-form"); if (form) { form.innerHTML = ""; form.hidden = true; }
+  const cta = card.querySelector("[data-wt-go]"); if (cta) cta.style.display = "";
+}
+async function _wtUploadPhoto(card, file) {
+  const session = readSession(); if (!session?.token) return;
+  const rowId = card.getAttribute("data-wt-row");
+  const stateEl = card.querySelector(".wt-photo-state");
+  if (stateEl) stateEl.textContent = "Uploading…";
+  const dspId = session.dsp_id || "x", drvId = session.driver_id || "x";
+  const ext = ((file.name || "").split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6) || "jpg";
+  const path = `${dspId}/${drvId}/assignment-${rowId}-${Date.now()}.${ext}`;
+  const { error } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type || "image/jpeg", upsert: true });
+  if (error) { delete _wtPhoto[rowId]; if (stateEl) stateEl.textContent = "Couldn't upload — tap to retry"; return; }
+  _wtPhoto[rowId] = path;
+  if (stateEl) stateEl.textContent = "✓ Photo attached";
+}
+async function _wtSubmit(card, opts) {
+  opts = opts || {};
+  const session = readSession(); if (!session?.token) { writeSession(null); render(); return; }
+  const rowId = card.getAttribute("data-wt-row");
+  const a = _wtData[rowId]; if (!a) return;
+  const cfg = _wtCfg(a);
+  const noteEl = card.querySelector("[data-wt-note]");
+  const note = (opts.note !== undefined) ? opts.note : (noteEl ? String(noteEl.value || "").trim() : "");
+  const photoPath = (opts.photoPath !== undefined) ? opts.photoPath : (_wtPhoto[rowId] || null);
+  if (cfg.require_note === "required" && !note) { toast("A note is required to complete this.", "warn"); if (noteEl) noteEl.focus(); return; }
+  if (cfg.require_photo === "required" && !photoPath) { toast("A photo is required to complete this.", "warn"); return; }
+  const submitBtn = card.querySelector("[data-wt-submit]");
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
+  const { error } = await sb.rpc("driver_assignment_acknowledge", { p_token: session.token, p_row_id: rowId, p_photo_path: photoPath || null, p_note: note || null });
+  if (error) {
+    if (/unauthorized|revoked|inactive/i.test(error.message || "")) { writeSession(null); render(); return; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = String(cfg.completion_label || "Mark done"); }
+    toast("Couldn't complete: " + (error.message || "try again"), "warn"); return;
+  }
+  if (navigator.vibrate) { try { navigator.vibrate(15); } catch {} }
+  toast("Done — nice work ✓", "success");
+  delete _wtPhoto[rowId]; delete _wtData[rowId];
+  card.classList.add("wt-done");
+  card.innerHTML = `<div class="wt-card-main"><div class="wt-card-title done">${escapeHtml(String(a.item_label || "Task"))}</div><div class="wt-card-sub">Completed</div></div><span class="wt-check"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
+  setTimeout(() => { card.remove(); _wtRefreshSec(); }, 1500);
+}
+function _wtRefreshSec() {
+  const slot = document.getElementById("rr-tasks-assignments-slot");
+  if (!slot) return;
+  const n = slot.querySelectorAll(".wt-card:not(.wt-done)").length;
+  if (n <= 0) { slot.innerHTML = ""; return; }
+  const nEl = slot.querySelector(".wt-sec-n"); if (nEl) nEl.textContent = String(n);
 }
