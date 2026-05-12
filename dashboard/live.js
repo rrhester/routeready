@@ -17158,6 +17158,18 @@ if (document.readyState === "loading") {
 //      Realtime drops (websocket disconnect).
 
 function refreshActiveView() {
+  // Don't pull the ground out from under an active task — if a modal /
+  // drawer / overlay is open, or the operator is typing or picking in a
+  // field, or a workspace cell is mid-edit, hold off until next tick.
+  if (document.querySelector(
+    ".modal-backdrop.open, .rr-drawer-backdrop.open, .coach-backdrop.open, " +
+    ".rr-okami-backdrop.open, .rr-cmdk-backdrop.open, " +
+    "#rr-ws-col-modal, #rr-ws-settings-modal, #rr-ws-import-modal"
+  )) return;
+  const ae = document.activeElement;
+  if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+  if (typeof _wsEditing !== "undefined" && _wsEditing) return;
+
   const activeView = document.querySelector(".view.active")?.id || "";
   if (activeView === "view-pipeline") {
     const sub = document.querySelector("#view-pipeline .pipe-subview.active, #view-pipeline .pipe-subview[style*='display: \"\"']")?.id || "pipe-sub-funnel";
@@ -17171,7 +17183,22 @@ function refreshActiveView() {
     if (subActive === "dr-sub-licenses") loadDriverLicensesView();
     else if (subActive === "dr-sub-workauth") loadDriverWorkAuthView();
     else loadDriversRoster();
+  } else if (activeView === "view-onboarding-ops") {
+    if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true });
+  } else if (activeView === "view-dashboard") {
+    if (typeof loadTodayPlan === "function") loadTodayPlan();
+  } else if (activeView === "view-workspaces") {
+    if (typeof loadWorkspacesView === "function") loadWorkspacesView();
+  } else if (activeView === "view-outlook") {
+    if (typeof loadStaffingOutlook === "function") loadStaffingOutlook();
+  } else if (activeView === "view-checkin") {
+    if (typeof loadCheckinView === "function") loadCheckinView();
+  } else if (activeView === "view-admin") {
+    if (typeof loadPlatformAdmin === "function") loadPlatformAdmin();
   }
+  // view-schedule / view-okami refresh via their own focus hook below;
+  // view-messages has live chat; view-forms / view-fleet / view-checklists
+  // are edit surfaces or static, so they're intentionally left alone.
 }
 
 let _refreshDebounce = null;
