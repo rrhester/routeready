@@ -3289,9 +3289,9 @@ function _obMxStylesOnce() {
     ".ob-bld-card{display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 14px;transition:opacity .12s,border-color .12s}" +
     ".ob-bld-card.disabled{opacity:.55}" +
     ".ob-bld-reorder{display:flex;flex-direction:column;gap:2px;flex:0 0 auto;padding-top:2px}" +
-    ".ob-bld-mv{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:5px;width:22px;height:18px;font-size:9px;line-height:0;color:var(--text-muted);cursor:pointer}" +
-    ".ob-bld-mv:hover:not([disabled]){color:var(--text);border-color:var(--text-subtle)}" +
-    ".ob-bld-mv[disabled]{opacity:.35;cursor:default}" +
+    ".ob-bld-mv{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-sm);width:24px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color .12s,border-color .12s,background .12s}" +
+    ".ob-bld-mv:hover:not([disabled]){color:var(--text);border-color:var(--text-subtle);background:var(--surface)}" +
+    ".ob-bld-mv[disabled]{opacity:.3;cursor:default}" +
     ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;min-width:180px;max-width:320px;flex:1}" +
     ".ob-bld-title:hover{border-color:var(--border)}" +
     ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--canvas)}" +
@@ -3531,8 +3531,8 @@ function _obRenderBuilder() {
   const card = (s, i) => `
     <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
       <div class="ob-bld-reorder">
-        <button type="button" class="ob-bld-mv" data-rr-bld-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move up">▲</button>
-        <button type="button" class="ob-bld-mv" data-rr-bld-down="${i}" ${i === steps.length - 1 ? "disabled" : ""} aria-label="Move down">▼</button>
+        <button type="button" class="ob-bld-mv" data-rr-bld-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move step up"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+        <button type="button" class="ob-bld-mv" data-rr-bld-down="${i}" ${i === steps.length - 1 ? "disabled" : ""} aria-label="Move step down"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
       </div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -3795,7 +3795,7 @@ async function loadOnboardingOps(opts) {
   // drivers are stuck behind.  Omitted entirely when neither applies.
   const ctxParts = [];
   if (envSent) ctxParts.push(`<strong>${envSigned}</strong> of <strong>${envSent}</strong> document${envSent === 1 ? "" : "s"} signed`);
-  if (slowTxt) ctxParts.push(`biggest bottleneck — ${escapeHtml(slowTxt)}`);
+  if (slowTxt) ctxParts.push(`bottleneck: ${escapeHtml(slowTxt)}`);
   const contextLine = (N && ctxParts.length) ? `<div class="ob-context">${ctxParts.join(" · ")}</div>` : "";
 
   const filtered = (_obMatrixFilter && FILT[_obMatrixFilter]) ? enriched.filter(({ ob }) => FILT[_obMatrixFilter].match(ob)) : enriched;
