@@ -24151,15 +24151,6 @@ function _wsIsOverdue(s) {
   return !isNaN(dt.getTime()) && dt.getTime() < Date.now();
 }
 function _wsTplColLabel(cols) { return (Array.isArray(cols) ? cols : []).map(c => c && c.name).filter(Boolean).join(" · "); }
-function _wsBlankColumns() {
-  return [
-    { id: "item",     name: "Item",        type: "text",   width: 240 },
-    { id: "status",   name: "Status",      type: "status", width: 150, options: ["Open", "In progress", "Done"], role: "status" },
-    { id: "assignee", name: "Assigned to", type: "driver", width: 170, role: "assignee" },
-    { id: "due",      name: "Due",         type: "date",   width: 120, role: "due" },
-    { id: "note",     name: "Note",        type: "note",   width: 280 },
-  ];
-}
 
 async function loadWorkspacesView() {
   const root = document.getElementById("rr-ws-root");
@@ -24300,7 +24291,7 @@ function _wsRowsHtml(cols) {
 }
 
 function _wsRowHtml(r, num, cols) {
-  const cells = cols.map(c => `<td data-rr-ws-cell data-row-id="${escapeHtml(r.id)}" data-col-id="${escapeHtml(c.id)}" data-col-type="${escapeHtml(c.type || "text")}">${_wsCellInner(c, r)}</td>`).join("");
+  const cells = cols.map(c => `<td data-rr-ws-cell data-col-id="${escapeHtml(c.id)}">${_wsCellInner(c, r)}</td>`).join("");
   return `<tr data-ws-row="${escapeHtml(r.id)}">
     <td class="ws-num">${num}</td>
     ${cells}
@@ -24349,7 +24340,7 @@ function _wsCellInner(col, r) {
     if (!val) return `<span class="ws-date dim">—</span>`;
     return `<span class="ws-date${_wsIsOverdue(val) ? " overdue" : ""}">${escapeHtml(_wsFmtDate(val))}</span>`;
   }
-  if (!val) return `<span class="ws-cell dim">—</span>`;
+  if (!val) return "";
   return `<span class="ws-cell">${escapeHtml(val)}</span>`;
 }
 
@@ -24369,13 +24360,15 @@ function _wsRerenderRows() {
 
 function _wsBeginEdit(td) {
   if (_wsEditing) return;
-  const rowId = td.getAttribute("data-row-id");
+  const tr = td.closest("tr[data-ws-row]");
+  const rowId = tr && tr.getAttribute("data-ws-row");
   const colId = td.getAttribute("data-col-id");
-  const type  = td.getAttribute("data-col-type") || "text";
-  if (!rowId || !colId || type === "attachment") return;
+  if (!rowId || !colId) return;
   const r = (_wsBoard.rows || []).find(x => x.id === rowId);
   if (!r) return;
   const col = (_wsBoard.board.columns || []).find(c => c.id === colId) || {};
+  const type = (col.type || "text");
+  if (type === "attachment") return;
   const cur = (r.data && r.data[colId] != null) ? String(r.data[colId]) : "";
   if (type === "checkbox") { _wsSaveCell(rowId, colId, cur === "true" ? "" : "true"); return; }
   _wsEditing = { rowId, colId };
@@ -24412,7 +24405,7 @@ function _wsBeginEdit(td) {
       else if (type === "link" && newVal && !/^[a-z][a-z0-9+.-]*:/i.test(newVal)) newVal = "https://" + newVal;
     }
     if (commit && newVal !== cur) _wsSaveCell(rowId, colId, newVal);
-    else _wsRerenderRows();
+    else _wsRepaintCell(rowId, colId);
   };
   editor.addEventListener("blur", () => finish(true));
   editor.addEventListener("keydown", (e) => {
@@ -24422,15 +24415,29 @@ function _wsBeginEdit(td) {
   if (editor.tagName === "SELECT") editor.addEventListener("change", () => finish(true));
 }
 
+function _wsCellEl(rowId, colId) {
+  const esc = (s) => String(s).replace(/["\\]/g, "\\$&");
+  return document.querySelector(`#rr-ws-tbody tr[data-ws-row="${esc(rowId)}"] td[data-col-id="${esc(colId)}"]`);
+}
+function _wsRepaintCell(rowId, colId) {
+  const r = (_wsBoard.rows || []).find(x => x.id === rowId);
+  const col = (_wsBoard.board.columns || []).find(c => c.id === colId);
+  const td = _wsCellEl(rowId, colId);
+  if (r && col && td) td.innerHTML = _wsCellInner(col, r);
+}
 async function _wsSaveCell(rowId, colId, newVal) {
   const r = (_wsBoard.rows || []).find(x => x.id === rowId);
   if (!r) { _wsRerenderRows(); return; }
   const data = Object.assign({}, r.data || {});
-  data[colId] = newVal;
+  if (newVal === "" || newVal == null) delete data[colId]; else data[colId] = newVal;
   const { data: up, error } = await sb.rpc("assignment_row_upsert", { p_board_id: _wsBoardId, p_row_id: rowId, p_data: data, p_position: (r.position != null ? r.position : null) });
-  if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); _wsRerenderRows(); return; }
+  if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); _wsRepaintCell(rowId, colId); return; }
   Object.assign(r, { data: up.data || {}, assigned_driver_id: up.assigned_driver_id, status: up.status, due_date: up.due_date, updated_at: up.updated_at });
-  _wsRerenderRows();
+  _wsRepaintCell(rowId, colId);
+  // A role column (assignee / status / due) also feeds the row's derived fields,
+  // which can surface in other cells — repaint those too.
+  const col = (_wsBoard.board.columns || []).find(c => c.id === colId) || {};
+  if (col.role) (_wsBoard.board.columns || []).forEach(c => { if (c.role && c.id !== colId) _wsRepaintCell(rowId, c.id); });
 }
 
 function _wsRowFromUpsert(up) {
@@ -24582,12 +24589,11 @@ async function _wsDeleteRow(rowId) {
 
 async function _wsCreateBoard(templateKey) {
   const tpl = templateKey ? _wsTemplates.find(t => t.key === templateKey) : null;
-  const name = (prompt("Name this board", tpl ? (tpl.name || "New board") : "New board") || "").trim();
+  const name = (prompt("Name this board", tpl ? (tpl.name || "New board") : "Untitled spreadsheet") || "").trim();
   if (!name) return;
-  const args = { p_name: name };
-  if (templateKey) args.p_template_key = templateKey;
-  else { args.p_icon = "generic"; args.p_columns = _wsBlankColumns(); }
-  const { data: nb, error } = await sb.rpc("assignment_board_create", args);
+  let nb, error;
+  if (templateKey) ({ data: nb, error } = await sb.rpc("assignment_board_create", { p_name: name, p_template_key: templateKey }));
+  else             ({ data: nb, error } = await sb.rpc("assignment_board_create_blank", { p_name: name, p_n_cols: 100, p_n_rows: 100 }));
   if (error || !nb) { toast("Couldn't create the board: " + ((error && error.message) || "try again"), "warn"); return; }
   _wsBoardId = nb.id;
   loadWorkspacesView();
@@ -24859,8 +24865,13 @@ function _wsBindRoot(root) {
     if (e.target.closest("[data-rr-ws-cell] a")) return;
     const cell = e.target.closest("[data-rr-ws-cell]"); if (cell && !e.target.closest(".ws-edit")) { _wsBeginEdit(cell); return; }
   });
+  let _wsSearchTimer = null;
   root.addEventListener("input", (e) => {
-    if (e.target.matches("[data-rr-ws-search]")) { _wsSearch = e.target.value || ""; _wsRerenderRows(); }
+    if (e.target.matches("[data-rr-ws-search]")) {
+      _wsSearch = e.target.value || "";
+      clearTimeout(_wsSearchTimer);
+      _wsSearchTimer = setTimeout(_wsRerenderRows, 140);
+    }
   });
   // Right-click → insert/delete menu for the row or column under the cursor.
   root.addEventListener("contextmenu", (e) => {
