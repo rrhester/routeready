@@ -10290,10 +10290,11 @@ body.rr-cmdk-open{ overflow:hidden }
         <style>
           /* ── Workspaces · operational boards (scoped) ─────────────── */
           #view-workspaces .ws-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:var(--s-4);flex-wrap:wrap}
-          #view-workspaces .ws-crumb{display:flex;align-items:center;gap:8px;font-size:var(--fs-base);color:var(--text-subtle);min-width:0}
-          #view-workspaces .ws-crumb a{color:var(--text-subtle);text-decoration:none;cursor:pointer;flex:0 0 auto}
-          #view-workspaces .ws-crumb a:hover{color:var(--text)}
-          #view-workspaces .ws-crumb .sep{color:var(--border-strong);flex:0 0 auto}
+          #view-workspaces .ws-crumb{display:flex;align-items:center;gap:8px;font-size:var(--fs-base);color:var(--text-subtle);min-width:0;margin-bottom:2px}
+          #view-workspaces .ws-crumb a{display:inline-flex;align-items:center;gap:4px;color:var(--text-subtle);text-decoration:none;cursor:pointer;flex:0 0 auto;border-radius:6px;padding:3px 8px 3px 6px;margin-left:-6px;transition:background .12s,color .12s;font-weight:500}
+          #view-workspaces .ws-crumb a:hover{color:var(--accent-text);background:var(--accent-soft)}
+          #view-workspaces .ws-crumb a svg{flex:0 0 auto}
+          #view-workspaces .ws-crumb .sep{display:none}
           #view-workspaces .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.15;min-width:0}
           #view-workspaces .ws-board-name .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           #view-workspaces .ws-icon-btn{appearance:none;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--text-subtle);cursor:pointer;padding:5px;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s}
