@@ -25052,17 +25052,31 @@ async function openDriverAppPreview(driverId) {
   document.body.appendChild(m);
   _dappState = { driverId, tab: "schedule", data: null, mode: null, previewToken: null };
 
-  // Preferred path: mint a short-lived read-only preview token and embed the
-  // *actual* driver PWA in the phone frame, so it's literally what the driver
-  // sees. If that RPC isn't available (e.g. deployed before migration 0188)
-  // or fails, fall back to the dispatcher-side recreation below.
+  // Preferred path: embed the *actual* driver PWA in the phone frame, running
+  // as that driver, so it's literally what they see. We mint a real driver
+  // session the same way the app's login does — issue_driver_invite →
+  // redeem_driver_invite (both long-deployed; the cleaner driver_preview_token
+  // RPC is blocked by a PostgREST schema-cache issue on the live project). We
+  // skip any driver who has a *pending* invite so we never invalidate their
+  // login link, and we revoke the session on close (driver_signout).
   let pv = null;
   try {
-    const r = await sb.rpc("driver_preview_token", { p_driver_id: driverId });
-    if (!r.error && r.data && r.data.token) pv = r.data;
+    const { data: pending } = await sb.from("driver_invite_codes")
+      .select("code").eq("driver_id", driverId).is("consumed_at", null)
+      .gt("expires_at", new Date().toISOString()).limit(1);
+    const hasPendingInvite = Array.isArray(pending) && pending.length > 0;
+    if (!hasPendingInvite) {
+      const { data: code, error: e1 } = await sb.rpc("issue_driver_invite", { p_driver_id: driverId });
+      if (!e1 && code) {
+        const { data: sess, error: e2 } = await sb.rpc("redeem_driver_invite", { p_code: code, p_user_agent: "dispatcher-preview" });
+        if (!e2 && sess && sess.token) pv = sess;
+      }
+    }
   } catch (e) { pv = null; }
-  if (!_dappState || _dappState.driverId !== driverId) return;   // closed / switched while loading
-
+  if (!_dappState || _dappState.driverId !== driverId) {
+    if (pv && pv.token) { try { sb.rpc("driver_signout", { p_token: pv.token }).then(() => {}, () => {}); } catch (e) {} }
+    return;
+  }
   if (pv) {
     _dappState.mode = "iframe";
     _dappState.previewToken = pv.token;
@@ -25073,8 +25087,6 @@ async function openDriverAppPreview(driverId) {
     if (drv.name) qs.set("n", String(drv.name));
     if (dspName) qs.set("d", String(dspName));
     if (drv.id) qs.set("did", String(drv.id));
-    if (drv.status) qs.set("st", String(drv.status));
-    if (drv.status === "onboarding") qs.set("onb", "1");
     const body = document.getElementById("rr-dapp-body");
     if (body) {
       body.classList.add("dapp-body-iframe");
@@ -25085,7 +25097,9 @@ async function openDriverAppPreview(driverId) {
     return;
   }
 
-  // ── Fallback: dispatcher-side recreation ──
+  // Fallback: dispatcher-side recreation of the driver's app — built from
+  // their real data. Used when the embed can't get a session (e.g. the
+  // driver has a pending invite we won't disturb, or an RPC error).
   _dappState.mode = "recreation";
   const body = document.getElementById("rr-dapp-body");
   if (body) {
@@ -25147,7 +25161,7 @@ async function openDriverAppPreview(driverId) {
 
 function _dappClose() {
   const tok = _dappState && _dappState.previewToken;
-  if (tok) { try { sb.rpc("driver_preview_token_revoke", { p_token: tok }).then(() => {}, () => {}); } catch (e) {} }
+  if (tok) { try { sb.rpc("driver_signout", { p_token: tok }).then(() => {}, () => {}); } catch (e) {} }
   document.getElementById("rr-dapp-modal")?.remove();
   _dappState = null;
 }
