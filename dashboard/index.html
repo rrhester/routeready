@@ -9445,6 +9445,89 @@ body.rr-cmdk-open{ overflow:hidden }
 
           <div class="rules-grid">
 
+            <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
+              <summary class="rules-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
+                Always enforced · system floor
+                <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Locked</span>
+              </summary>
+              <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                These guardrails apply to every DSP and aren't configurable. They protect against data corruption, payroll mistakes, and compliance violations. Open this section any time you want to see exactly what the schedule engine is doing behind the scenes.
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">No double-booking</div>
+                    <div class="rule-help">A driver can't hold two shifts on the same date in <code>scheduled</code>, <code>completed</code>, or <code>late</code> status.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">No past-date assignments</div>
+                    <div class="rule-help">Cover and driver pickup only operate on shifts dated after today.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">Expired driver's license blocks scheduling</div>
+                    <div class="rule-help">Drivers whose DL expires on or before the shift date are skipped by Cover and pickup.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">Service-type certifications</div>
+                    <div class="rule-help">DOT-required service types need <code>dot_certified</code> drivers; XL-required service types need <code>xl_certified</code> drivers.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">Approved time-off blocks scheduling</div>
+                    <div class="rule-help">Cover, pickup, and swaps all skip drivers with an <code>approved</code> PTO request that overlaps the shift date.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">Inactive drivers excluded</div>
+                    <div class="rule-help">Only drivers with <code>status = active</code> appear in Cover or pickup eligibility.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">Every shift edit audited</div>
+                    <div class="rule-help">Driver, date, time, route, and status changes write an immutable row to <code>shift_changes</code> (visible in the Activity feed).</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">Cross-DSP isolation</div>
+                    <div class="rule-help">Row-level security scopes every schedule table to your DSP — no other tenant can read or write your data.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">Dispatcher-only writes</div>
+                    <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role. Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+                <div class="rule-row" style="padding:8px 0;border:0">
+                  <div>
+                    <div class="rule-label">One pending offer per shift</div>
+                    <div class="rule-help">Cover offers and swap requests can't pile up on the same shift — a unique constraint enforces single-pending.</div>
+                  </div>
+                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                </div>
+              </div>
+            </details>
+
             <details class="rules-section" data-rr-rules-section="attendance-windows" style="grid-column:1/-1">
               <summary class="rules-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
