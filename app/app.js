@@ -572,6 +572,7 @@ async function renderSchedule() {
 
   // Reset any leftover Cover-offer poller from a previous schedule view.
   _coverOfferTeardown();
+  _pickupListTeardown();
 
   try {
     const session = readSession();
@@ -636,8 +637,10 @@ async function renderSchedule() {
           <div style="color:var(--text-subtle);line-height:1.5;max-width:320px;margin:0 auto">
             Your dispatcher hasn't published a schedule yet for the next two weeks, or you haven't been assigned to any of the open shifts.  Check back tomorrow or message dispatch.
           </div>
-        </div>`;
+        </div>
+        <div id="rr-pickup-slot"></div>`;
       _coverOfferStart(session.token);
+      _pickupListStart(session.token);
       return;
     }
 
@@ -650,11 +653,14 @@ async function renderSchedule() {
       ${upcomingShifts.length ? `
         <div class="section-title">Upcoming</div>
         ${upcomingShifts.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso))).join("")}
-      ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}`;
+      ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}
+      <div id="rr-pickup-slot"></div>`;
 
     // Pinned Cover-offer card at the top — fetched separately so a
-    // failure here never blocks the schedule render.
+    // failure here never blocks the schedule render. Pickup section is
+    // also fetched in the background; both hide themselves when empty.
     _coverOfferStart(session.token);
+    _pickupListStart(session.token);
   } catch (err) {
     // A thrown error inside renderSchedule used to kill the whole
     // render and leave main empty.  Surface it instead.
@@ -734,6 +740,79 @@ async function _coverOfferRespond(offerId, accept, token) {
   toast(accept ? "Shift accepted" : "Passed", accept ? "success" : "warn");
   _coverOfferTeardown();
   // Re-render the schedule so any newly assigned shift appears.
+  renderSchedule();
+}
+
+
+// ── Open-shift pickup ────────────────────────────────────────────────
+// When the driver's DSP has enabled self-service pickup, eligible open
+// shifts surface as a list at the bottom of /schedule. One tap opens
+// a confirm; on confirm the shift atomically reassigns to the driver
+// (or returns a friendly error if someone else got there first).
+// Polled while /schedule is mounted; same cadence as Cover offers.
+let _pickupTimer = null;
+function _pickupListTeardown() {
+  if (_pickupTimer) { clearInterval(_pickupTimer); _pickupTimer = null; }
+}
+function _pickupListStart(token) {
+  _pickupListTeardown();
+  const pull = () => _pickupListRefresh(token);
+  pull();
+  _pickupTimer = setInterval(pull, 20000);
+}
+async function _pickupListRefresh(token) {
+  const slot = document.getElementById("rr-pickup-slot");
+  if (!slot) { _pickupListTeardown(); return; }
+  try {
+    const { data, error } = await sb.rpc("driver_open_shifts_list", { p_token: token });
+    if (error) return;
+    if (!data?.enabled) { slot.innerHTML = ""; return; }
+    const shifts = Array.isArray(data.shifts) ? data.shifts : [];
+    _pickupListPaint(slot, shifts, token);
+  } catch { /* network blip — try again on next tick */ }
+}
+function _pickupListPaint(slot, shifts, token) {
+  if (!shifts.length) { slot.innerHTML = ""; return; }
+  slot.innerHTML = `
+    <div class="section-title" style="margin-top:24px">Available shifts</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:-4px 0 10px">Open routes you're eligible for. First to claim wins.</div>
+    ${shifts.map((s) => {
+      const d = new Date(s.date + "T12:00:00");
+      const dateLbl = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+      const start = s.starts_at ? new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+      const end   = s.ends_at   ? new Date(s.ends_at).toLocaleTimeString(undefined,   { hour: "numeric", minute: "2-digit" }) : "";
+      const time  = start && end ? `${start} – ${end}` : start;
+      return `
+        <div class="rr-pickup-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px">
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:700;color:var(--text);font-size:var(--fs-md)">${escapeHtml(s.route_code || "Route")} · ${escapeHtml(dateLbl)}</div>
+            <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(time || "")}${s.station_code ? " · " + escapeHtml(s.station_code) : ""}${s.block_hours ? " · " + s.block_hours + "h" : ""}</div>
+          </div>
+          <button class="btn btn-primary" data-rr-pickup="${s.id}">Pick up</button>
+        </div>`;
+    }).join("")}`;
+  slot.querySelectorAll("[data-rr-pickup]").forEach((b) => {
+    b.addEventListener("click", () => _pickupConfirm(b.getAttribute("data-rr-pickup"), token, b));
+  });
+}
+async function _pickupConfirm(shiftId, token, btn) {
+  if (!confirm("Pick up this shift?")) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Claiming…"; }
+  const { data, error } = await sb.rpc("driver_open_shift_pickup", {
+    p_token: token, p_shift_id: shiftId,
+  });
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = "Pick up"; }
+    const msg = (error.message || "").includes("shift_already_taken")
+      ? "Someone got there first"
+      : (error.message || "Couldn't pick up");
+    toast(msg, "warn");
+    // Refresh the list — the taken shift will drop off automatically.
+    _pickupListRefresh(token);
+    return;
+  }
+  toast("Shift added to your schedule", "success");
+  _pickupListTeardown();
   renderSchedule();
 }
 

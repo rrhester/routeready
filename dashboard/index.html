@@ -9548,6 +9548,19 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
               </details>
 
+              <details class="rules-sub" data-rr-rules-sub="driver-pickup">
+                <summary>Driver self-service</summary>
+                <div class="rules-sub-body">
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Allow drivers to pick up open shifts</div>
+                      <div class="rule-help">When on, eligible drivers see open future shifts in their app and can claim them. Same hard-compliance gates as Cover.</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" id="rr-pickup-toggle" /><span class="toggle-slider"></span></label>
+                  </div>
+                </div>
+              </details>
+
               <details class="rules-sub" data-rr-rules-sub="license-cert">
                 <summary>License &amp; certification gating</summary>
                 <div class="rules-sub-body">
@@ -19493,7 +19506,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513ag-shift-history"></script>
+<script type="module" src="./live.js?v=20260513ah-driver-pickup"></script>
 
 </body>
 </html>
