@@ -2390,185 +2390,168 @@ function _obSkeleton() {
   </div>`;
 }
 
-async function renderOnboarding() {
+const _OB_LOCK  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+const _OB_CLOCK = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 7 12 12 15 14"/></svg>`;
+function _obFmtAt(iso) { if (!iso) return ""; const d = new Date(/T/.test(iso) ? iso : iso + "T12:00:00"); return isNaN(+d) ? "" : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }
+
+// Near-instant sync for the onboarding hub: while it's on screen, re-run
+// it every few seconds so a dashboard change (e.g. background check
+// cleared) flips the list with no action from the driver. The silent
+// re-render skips the skeleton and only repaints when something actually
+// changed, so there's no flicker. (refreshOnFocus already covers tab
+// away/back; this covers staring at the screen.)
+let _obPollTimer = null;
+let _obLastSig   = null;
+function _obSchedulePoll() {
+  clearTimeout(_obPollTimer);
+  _obPollTimer = setTimeout(() => {
+    if (currentRoute() !== "/tasks/onboarding") return;          // navigated away — let the poll die
+    if (!document.hidden) renderOnboarding({ silent: true });    // (re-arms itself at the end)
+    else _obSchedulePoll();                                      // hidden — try again later
+  }, 6000);
+}
+
+async function renderOnboarding(opts) {
+  const silent = !!(opts && opts.silent);
   const main = document.getElementById("main");
   if (typeof _i9InjectStyles === "function") _i9InjectStyles();   // shares the .i9-skel pulse
-  main.innerHTML = _obSkeleton();
+  if (!silent) { main.innerHTML = _obSkeleton(); _obLastSig = null; }
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
-  const [profRes, i9Res, custRes] = await Promise.all([
+  const [profRes, i9Res, stepsRes, availRes] = await Promise.all([
     sb.rpc("driver_get_profile", { p_token: session.token }),
     // PostgrestBuilder is a bare thenable (no .catch) — two-arg .then so
     // a missing/erroring RPC can't blow up the onboarding screen.
-    sb.rpc("driver_i9_get",      { p_token: session.token }).then((r) => r, () => ({ data: null })),
+    sb.rpc("driver_i9_get",           { p_token: session.token }).then((r) => r, () => ({ data: null })),
     sb.rpc("driver_onboarding_steps", { p_token: session.token }).then((r) => r, () => ({ data: [] })),
+    sb.rpc("driver_get_availability", { p_token: session.token }).then((r) => r, () => ({ data: null })),
   ]);
+  if (currentRoute() !== "/tasks/onboarding") return;             // navigated away while loading
   const { data: prof, error } = profRes;
   if (error) {
     if (/unauthorized|revoked|inactive/i.test(error.message || "")) {
       writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return;
     }
+    if (silent) { _obSchedulePoll(); return; }                   // transient — try again on the next poll
     main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load onboarding.<br><small>${escapeHtml(error.message)}</small></div>`;
     return;
   }
-  const i9 = i9Res?.data?.record || null;
 
-  const profileComplete = !!(prof.phone && prof.email && prof.emergency_contact_name && prof.emergency_contact_phone);
-  const licenseUploaded = !!prof.dl_image_path && !!prof.dl_number;
-  const bgDone          = !!prof.background_check_completed_at;
-  const dtDone          = !!prof.drug_test_completed_at;
-  const trainScheduled  = !!prof.training_scheduled_at;
-  const trainDone       = !!prof.training_date && prof.training_date <= new Date().toISOString().slice(0, 10);
-  const i9Status        = i9 ? (i9.status || "not_started") : "not_started";
-  const i9NeedsFix      = !!i9 && i9Status === "needs_correction";
-  const i9S1Done        = !!i9 && i9Status !== "not_started" && i9Status !== "needs_correction";
-  const fname           = prof.preferred_name ? escapeHtml(prof.preferred_name) : "";
+  const i9rec    = i9Res?.data?.record || null;
+  const av       = availRes?.data || null;
+  const availDone = !!(av && ((Array.isArray(av.days) && av.days.length > 0) || av.pending));
+  const fname    = prof.preferred_name ? escapeHtml(prof.preferred_name) : "";
 
-  // Steps the driver completes themselves.
-  const mySteps = [
-    { key: "profile", title: "Complete your profile", done: profileComplete, action: "/settings", cta: "Update profile",
-      subDone: "Phone, email, address & emergency contact on file",
-      subTodo: "Add your phone, email, address, and emergency contact" },
-    { key: "license", title: "Upload your driver's license", done: licenseUploaded, action: "/settings", cta: licenseUploaded ? "Replace image" : "Upload license",
-      subDone: "License number & photo on file",
-      subTodo: "Enter your license number and take a photo of the card" },
-    { key: "i9", title: "Form I-9 — Section 1", done: i9S1Done, action: "/tasks/i9", attention: i9NeedsFix,
-      cta: i9NeedsFix ? "Fix Section 1" : "Complete Form I-9",
-      subDone: "Signed — your employer verifies your documents next",
-      subTodo: i9NeedsFix ? "Your employer asked for a correction — please update and re-sign"
-                          : "Confirm your work eligibility — required before your first day" },
+  // The one ordered list every new hire works through, in this order:
+  // profile → license → availability → then the DSP's blueprint steps in
+  // dashboard order. The driver completes them in sequence — the step
+  // after the first incomplete one is locked.
+  const items = [
+    { key: "profile", title: "Update your profile", owner: "driver", done: !!(prof.phone && prof.email && prof.emergency_contact_name && prof.emergency_contact_phone),
+      action: "/settings", cta: "Update profile",
+      subDone: "Phone, email, address & emergency contact on file", subTodo: "Add your phone, email, address, and emergency contact" },
+    { key: "license", title: "Upload your driver's license", owner: "driver", done: !!(prof.dl_image_path && prof.dl_number),
+      action: "/settings", cta: (prof.dl_image_path && prof.dl_number) ? "Replace image" : "Upload license",
+      subDone: "License number & photo on file", subTodo: "Enter your license number and take a photo of the card" },
+    { key: "availability", title: "Set your availability", owner: "driver", done: availDone,
+      action: "/settings/availability", cta: "Set availability",
+      subDone: (av && av.pending) ? "Submitted — your team will review it" : "On file", subTodo: "Tell us which days you can work and your earliest start time" },
   ];
-  // Custom steps the DSP added in the Onboarding Builder — videos to
-  // watch, acknowledgements to confirm. The driver completes each from a
-  // dedicated step screen (/tasks/onboarding/step) that writes through
-  // to driver_onboarding_state.
-  for (const cs of (Array.isArray(custRes?.data) ? custRes.data : [])) {
+  for (const cs of (Array.isArray(stepsRes?.data) ? stepsRes.data : [])) {
     if (!cs || !cs.key) continue;
-    const isVid = cs.type === "video";
-    const isDoc = cs.type === "document";
-    const done  = cs.status === "complete";
-    let action, cta, subDone, subTodo, attention = false;
-    if (isDoc) {
+    const owner = cs.owner === "driver" ? "driver" : "dsp";
+    const st = cs.status || "not_started";
+    const it = { key: "bp:" + cs.key, title: cs.title || cs.key, owner, done: st === "complete", action: null, cta: null, attention: false, subDone: "Done", subTodo: "" };
+    if (cs.key === "i9") {
+      it.title = cs.title || "Form I-9";
+      if (st === "complete")            { it.done = true;  it.subDone = "Verified"; }
+      else if (st === "awaiting_review"){ it.done = false; it.owner = "dsp"; it.subTodo = "Section 1 signed — your employer is verifying your documents"; }
+      else if (st === "needs_correction"){ it.action = "/tasks/i9"; it.cta = "Fix Section 1"; it.attention = true; it.subTodo = "Your employer asked for a correction — please update and re-sign"; }
+      else                             { it.action = "/tasks/i9"; it.cta = "Complete Form I-9"; it.subTodo = "Confirm your work eligibility"; }
+    } else if (owner === "dsp") {
+      if (st === "complete") it.subDone = (cs.key === "bg_check" || cs.key === "drug_test") ? "Cleared" : "Done";
+      else if (cs.key === "training" && st === "scheduled" && cs.at) it.subTodo = `Scheduled for ${_obFmtAt(cs.at)}`;
+      else it.subTodo = "Your team is handling this";
+    } else if (cs.type === "document") {
       const isInfo = cs.doc_kind === "informational";
-      subDone = isInfo ? "Reviewed & acknowledged" : "Signed";
+      it.subDone = isInfo ? "Reviewed & acknowledged" : "Signed";
       if (cs.signing_token) {
-        action = "/tasks/documents/sign?st=" + encodeURIComponent(cs.signing_token);
-        if (cs.status === "declined") { cta = "Reopen"; attention = true; subTodo = "You declined this — reopen it to review and " + (isInfo ? "acknowledge it" : "sign it"); }
-        else if (cs.status === "viewed") { cta = isInfo ? "Acknowledge receipt" : "Sign now"; subTodo = isInfo ? "You've opened it — confirm you've reviewed the document" : "You've opened it — add your signature to finish"; }
-        else { cta = isInfo ? "Review & acknowledge" : "Review & sign"; subTodo = isInfo ? "Open the document, review it, and confirm you've received it" : "Open the document, review it, and sign"; }
-      } else {
-        // Envelope not generated yet (e.g. no email on file) — show it as
-        // waiting, with no action the driver can take from here.
-        action = null; cta = null;
-        subTodo = "Your team is preparing this document — check back soon";
-      }
-    } else if (isVid) {
-      action = "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key);
-      cta = "Watch & confirm"; subDone = "Watched"; subTodo = "Watch the video, then confirm you've finished";
+        it.action = "/tasks/documents/sign?st=" + encodeURIComponent(cs.signing_token);
+        if (st === "declined")    { it.cta = "Reopen"; it.attention = true; it.subTodo = "You declined this — reopen it to review and " + (isInfo ? "acknowledge it" : "sign it"); }
+        else if (st === "viewed") { it.cta = isInfo ? "Acknowledge receipt" : "Sign now"; it.subTodo = isInfo ? "You've opened it — confirm you've reviewed the document" : "You've opened it — add your signature to finish"; }
+        else                      { it.cta = isInfo ? "Review & acknowledge" : "Review & sign"; it.subTodo = isInfo ? "Open the document, review it, and confirm you've received it" : "Open the document, review it, and sign"; }
+      } else { it.subTodo = "Your team is preparing this document — check back soon"; }
+    } else if (cs.type === "video") {
+      it.action = "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key);
+      it.cta = "Watch & confirm"; it.subDone = "Watched"; it.subTodo = "Watch the video, then confirm you've finished";
     } else {
-      action = "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key);
-      cta = "Review & confirm"; subDone = "Acknowledged";
-      subTodo = cs.ack_text ? (cs.ack_text.length > 100 ? cs.ack_text.slice(0, 99) + "…" : cs.ack_text) : "Review and confirm";
+      it.action = "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key);
+      it.cta = "Review & confirm"; it.subDone = "Acknowledged";
+      it.subTodo = cs.ack_text ? (cs.ack_text.length > 110 ? cs.ack_text.slice(0, 109) + "…" : cs.ack_text) : "Review and confirm";
     }
-    mySteps.push({
-      key: "cust:" + cs.key,
-      title: cs.title || (isDoc ? "Document to review" : isVid ? "Watch a video" : "Acknowledgement"),
-      done, action, cta, subDone, subTodo, attention,
-    });
+    items.push(it);
   }
-  // Steps the DSP records.
-  const teamSteps = [
-    { key: "bg", title: "Background check", done: bgDone, subDone: "Cleared", subTodo: "Your team runs this" },
-    { key: "drug", title: "Drug test", done: dtDone, subDone: "Complete", subTodo: "Your team schedules this" },
-    { key: "training", title: "Training", done: trainDone,
-      subDone: prof.training_date ? `Completed ${new Date(prof.training_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "Complete",
-      subTodo: trainScheduled ? `Scheduled for ${new Date(prof.training_scheduled_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "Your team will schedule this" },
-  ];
-  const total = mySteps.length + teamSteps.length;
-  const doneCount = mySteps.filter(s => s.done).length + teamSteps.filter(s => s.done).length;
-  const allDone = doneCount === total;
-  const allMyDone = mySteps.every(s => s.done);
-  const pendingTeam = teamSteps.filter(s => !s.done);
-  const teamPhrase = pendingTeam.map(s => s.title.toLowerCase()).join(" and ") || "the last steps";
 
-  // The single highlighted "next step": a correction first, else the
-  // first thing the driver can still do. Steps with no action yet (e.g.
-  // a document still being prepared) can't be the highlighted next step.
-  const nextMy = mySteps.find(s => s.attention && !s.done && s.action) || mySteps.find(s => !s.done && s.action) || null;
+  const total      = items.length;
+  const doneCount  = items.filter(it => it.done).length;
+  const allDone    = doneCount === total;
+  const curIdx     = items.findIndex(it => !it.done);            // first incomplete; -1 if all done
+  const cur        = curIdx >= 0 ? items[curIdx] : null;
+  const curActionable = !!(cur && cur.owner === "driver" && cur.action);
+  const curWaiting    = !!(cur && !curActionable);
 
-  // Hero.
+  // Skip the repaint if nothing's changed (silent polls only).
+  const sig = items.map(it => `${it.key}:${it.done ? 1 : 0}:${it.action || ""}:${it.cta || ""}`).join("|") + `#${allDone ? 1 : 0}`;
+  if (silent && sig === _obLastSig) { _obSchedulePoll(); return; }
+  _obLastSig = sig;
+
   const heroTitle = allDone ? `You're all set${fname ? ", " + fname : ""}`
-    : doneCount === 0 ? `Welcome aboard${fname ? ", " + fname : ""}`
+    : curIdx === 0 ? `Welcome aboard${fname ? ", " + fname : ""}`
     : (total - doneCount) === 1 ? `One step to go${fname ? ", " + fname : ""}`
     : `You're making progress${fname ? ", " + fname : ""}`;
   const heroSub = allDone ? "Everything's done. Your dispatcher is activating your account now — you'll be notified the moment you're cleared to drive."
-    : allMyDone ? `Your part is done. Your team is finishing ${teamPhrase} — nothing else needs you right now.`
-    : `${doneCount} of ${total} steps complete. Knock out the next one and you'll be ${total - doneCount === 1 ? "finished" : "almost there"}.`;
+    : curWaiting ? `${doneCount} of ${total} steps complete. Your team is on “${escapeHtml(cur.title)}” — nothing needs you right now. We'll bump you the moment the next step opens.`
+    : `${doneCount} of ${total} steps complete. Next up: ${escapeHtml(cur.title)}.`;
 
-  // Next-step card — the single highlighted action.  When the driver
-  // has nothing left to do, the hero copy already says so, so no card.
-  let nextCard = "";
-  if (nextMy) {
-    nextCard = `
-      <div class="ob-next ${nextMy.attention ? "action" : ""}">
-        <div class="ob-next-eyebrow">${nextMy.attention ? "Action needed" : "Your next step"}</div>
-        <div class="ob-next-title">${escapeHtml(nextMy.title)}</div>
-        <div class="ob-next-sub">${escapeHtml(nextMy.subTodo)}</div>
-        <button class="btn btn-primary ob-next-cta" type="button" data-onboard-go="${nextMy.action}">${escapeHtml(nextMy.cta)}</button>
-      </div>`;
-  }
+  const nextCard = curActionable ? `
+      <div class="ob-next ${cur.attention ? "action" : ""}">
+        <div class="ob-next-eyebrow">${cur.attention ? "Action needed" : "Your next step"}</div>
+        <div class="ob-next-title">${escapeHtml(cur.title)}</div>
+        <div class="ob-next-sub">${escapeHtml(cur.subTodo || "")}</div>
+        <button class="btn btn-primary ob-next-cta" type="button" data-onboard-go="${escapeHtml(cur.action)}">${escapeHtml(cur.cta || "Open")}</button>
+      </div>` : "";
 
-  const myItemHtml = (s) => {
-    const state = s.done ? "done" : (nextMy && nextMy.key === s.key) ? "active" : "empty";
-    const rowCls = s.done ? "done" : (nextMy && nextMy.key === s.key && s.attention) ? "action" : (nextMy && nextMy.key === s.key) ? "active" : "";
-    return `
-      <div class="ob-item ${rowCls}">
-        ${_obDot(state)}
-        <div style="min-width:0">
-          <div class="ob-item-title">${escapeHtml(s.title)}</div>
-          <div class="ob-item-sub">${escapeHtml(s.done ? s.subDone : s.subTodo)}</div>
-        </div>
-        ${(s.done || !s.action) ? "" : `<button class="ob-go" type="button" data-onboard-go="${s.action}" aria-label="${escapeHtml(s.cta || "Open")}">${_OB_CHEVRON}</button>`}
-      </div>`;
+  const itemHtml = (it, i) => {
+    if (it.done) {
+      return `<div class="ob-item done">${_obDot("done")}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">${escapeHtml(it.subDone || "Done")}</div></div></div>`;
+    }
+    if (curIdx >= 0 && i > curIdx) {   // locked — comes after the current step
+      return `<div class="ob-item" style="opacity:.5"><span class="ob-dot empty"></span><div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">Unlocks once the steps above are done</div></div><span style="margin-left:auto;color:var(--text-subtle);flex:0 0 auto;display:inline-flex" aria-hidden="true">${_OB_LOCK}</span></div>`;
+    }
+    if (i === curIdx && curActionable) {
+      return `<div class="ob-item ${it.attention ? "action" : "active"}">${_obDot("active")}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">${escapeHtml(it.subTodo || "")}</div></div><button class="ob-go" type="button" data-onboard-go="${escapeHtml(it.action)}" aria-label="${escapeHtml(it.cta || "Open")}">${_OB_CHEVRON}</button></div>`;
+    }
+    // current step, but it's on the DSP / being prepared
+    return `<div class="ob-item active">${_obDot("active")}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">${escapeHtml(it.subTodo || "Your team is handling this")}</div></div><span style="margin-left:auto;color:var(--text-subtle);flex:0 0 auto;display:inline-flex" aria-hidden="true">${_OB_CLOCK}</span></div>`;
   };
-  const teamItemHtml = (s) => `
-      <div class="ob-item ${s.done ? "done" : ""}">
-        ${_obDot(s.done ? "done" : "empty")}
-        <div style="min-width:0">
-          <div class="ob-item-title">${escapeHtml(s.title)}</div>
-          <div class="ob-item-sub">${escapeHtml(s.done ? s.subDone : s.subTodo)}</div>
-        </div>
-      </div>`;
 
   main.innerHTML = `
     <div class="ob">
       <div class="ob-hero ${allDone ? "done" : ""}">
         <div class="ob-ring">${_obProgressRing(doneCount, total)}<div class="ob-ring-num" ${allDone ? 'style="color:var(--green)"' : ""}>${doneCount}/${total}</div></div>
-        <div style="min-width:0">
-          <div class="ob-hero-title">${heroTitle}</div>
-          <div class="ob-hero-sub">${heroSub}</div>
-        </div>
+        <div style="min-width:0"><div class="ob-hero-title">${heroTitle}</div><div class="ob-hero-sub">${heroSub}</div></div>
       </div>
-
       ${nextCard}
-
       <div class="ob-group">
-        <div class="ob-sec">Your steps</div>
-        <div class="ob-list">${mySteps.map(myItemHtml).join("")}</div>
+        <div class="ob-sec">Your onboarding</div>
+        <div class="ob-list">${items.map(itemHtml).join("")}</div>
       </div>
-
-      <div class="ob-group">
-        <div class="ob-sec">Your team is handling</div>
-        <div class="ob-list">${teamSteps.map(teamItemHtml).join("")}</div>
-      </div>
-
-      <div class="ob-foot">Your dispatcher activates your account once every step is complete.</div>
+      <div class="ob-foot">Steps unlock in order — finish the highlighted one to move on. Your dispatcher activates your account once everything's done.</div>
     </div>`;
 
-  main.querySelectorAll("[data-onboard-go]").forEach(el => {
-    el.addEventListener("click", () => navigate(el.dataset.onboardGo));
-  });
+  main.querySelectorAll("[data-onboard-go]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.onboardGo)));
+  _obSchedulePoll();
 }
 
 // ── One custom onboarding step (video / acknowledgement) ────────────
@@ -2592,12 +2575,15 @@ async function renderOnboardingStep() {
   const step = (Array.isArray(data) ? data : []).find(s => s && s.key === key);
   if (!step) { navigate("/tasks/onboarding"); return; }
 
-  // Document steps are handled by the document review/sign flow, not here.
+  // Document steps are handled by the document review/sign flow; anything
+  // that isn't a video or an acknowledgement (background check, Form I-9,
+  // …) belongs on the onboarding hub, not this confirm screen.
   if (step.type === "document") {
     if (step.signing_token) navigate("/tasks/documents/sign?st=" + encodeURIComponent(step.signing_token));
     else navigate("/tasks/onboarding");
     return;
   }
+  if (step.type !== "video" && step.type !== "acknowledgement") { navigate("/tasks/onboarding"); return; }
 
   setHeader(step.title || "Onboarding step", "");
   const isVid = step.type === "video";

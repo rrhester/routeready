@@ -3651,12 +3651,9 @@ function _obRenderBuilder() {
       <button type="button" class="ob-bld-trash" data-rr-bld-del="${i}" title="Delete this step" aria-label="Delete step${s.title ? " " + escapeHtml(s.title) : ""}">${_OB_BLD_TRASH}</button>
     </div>`;
   root.innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:var(--s-4)">
-      <div>
-        <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
-        <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through, in order — drag to reorder, rename, and choose what each delivers. Add a step to ask the driver for something; delete one to drop it. Every change saves on its own and reaches new and in-progress drivers.</p>
-      </div>
-      <div id="ob-bld-savestate" style="flex:0 0 auto;padding-top:3px;white-space:nowrap">${_obSaveStateHTML()}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:var(--s-4)">
+      <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
+      <div id="ob-bld-savestate" style="flex:0 0 auto;white-space:nowrap">${_obSaveStateHTML()}</div>
     </div>
     <div class="ob-bld-list">${steps.map(card).join("")}</div>
     <div style="margin-top:14px"><button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button></div>`;
