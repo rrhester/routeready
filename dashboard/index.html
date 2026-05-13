@@ -11757,9 +11757,9 @@ body.rr-cmdk-open{ overflow:hidden }
               <option value="active">Active (last 30 days)</option>
             </select>
           </div>
-          <div id="rr-supadm-shell" style="display:grid;grid-template-columns:320px 1fr;border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;background:var(--surface);min-height:520px">
-            <div id="rr-supadm-list" style="border-right:1px solid var(--border);overflow-y:auto;max-height:640px;display:flex;flex-direction:column"><div class="rr-loading" style="padding:24px">Loading conversations…</div></div>
-            <div id="rr-supadm-conv" style="display:flex;flex-direction:column;min-height:520px;background:var(--canvas)"><div style="margin:auto;color:var(--text-subtle);font-size:var(--fs-sm);padding:40px;text-align:center;max-width:380px"><div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:20px;margin-bottom:10px">R</div><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:4px">Pick a DSP to open their thread</div><div>Conversations are listed left-most by most-recent activity; unread DSP messages rise to the top with a badge.</div></div></div>
+          <div id="rr-supadm-shell" style="display:grid;grid-template-columns:320px 1fr;border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;background:var(--surface);height:640px">
+            <div id="rr-supadm-list" style="border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column"><div class="rr-loading" style="padding:24px">Loading conversations…</div></div>
+            <div id="rr-supadm-conv" style="position:relative;display:flex;flex-direction:column;background:var(--canvas)"><div style="margin:auto;color:var(--text-subtle);font-size:var(--fs-sm);padding:40px;text-align:center;max-width:380px"><div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:20px;margin-bottom:10px">R</div><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:4px">Pick a DSP to open their thread</div><div>Conversations are listed left-most by most-recent activity; unread DSP messages rise to the top with a badge.</div></div></div>
           </div>
         </div>
       </div>
@@ -19481,7 +19481,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513y-insights-pattern"></script>
+<script type="module" src="./live.js?v=20260513z-admin-chat-overlay"></script>
 
 </body>
 </html>
