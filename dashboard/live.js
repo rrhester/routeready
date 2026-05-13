@@ -4748,15 +4748,27 @@ document.addEventListener("click", (e) => {
 // as the Roster Insights. Each one hides/reveals its KPI strip.
 document.addEventListener("click", (e) => {
   const tog = e.target.closest("#rr-att-insights-toggle, #rr-avail-insights-toggle");
-  if (!tog) return;
-  e.preventDefault();
-  const boxId = tog.id === "rr-att-insights-toggle" ? "rr-att-insights" : "rr-avail-insights";
-  const box = document.getElementById(boxId);
-  if (!box) return;
-  const show = box.style.display === "none" || !box.style.display;
-  box.style.display = show ? "" : "none";
-  tog.setAttribute("aria-pressed", show ? "true" : "false");
-  tog.classList.toggle("is-on", show);
+  if (tog) {
+    e.preventDefault();
+    const boxId = tog.id === "rr-att-insights-toggle" ? "rr-att-insights" : "rr-avail-insights";
+    const box = document.getElementById(boxId);
+    if (!box) return;
+    const show = box.style.display === "none" || !box.style.display;
+    box.style.display = show ? "" : "none";
+    tog.setAttribute("aria-pressed", show ? "true" : "false");
+    tog.classList.toggle("is-on", show);
+    return;
+  }
+  // Attendance Event log text link — toggles between the Report pane
+  // and the Event log pane (the old "Report/Event log" tabstrip was
+  // removed).
+  const logTog = e.target.closest("#rr-att-log-toggle");
+  if (logTog) {
+    e.preventDefault();
+    const onLog = logTog.classList.toggle("is-on");
+    logTog.setAttribute("aria-pressed", onLog ? "true" : "false");
+    if (typeof window.attTab === "function") window.attTab(onLog ? "log" : "report");
+  }
 });
 
 
@@ -7538,7 +7550,13 @@ window.attTab = function (name) {
     }, 50);
     return;
   }
-  if (typeof _legacyAttTab === "function") _legacyAttTab(name);
+  // The Report / Event log tab strip was removed — pane switching is
+  // now driven by the small "Event log" text link above the table.
+  // Drive the pane visibility ourselves so we don't crash on the
+  // legacy attTab's querySelector against the now-absent buttons.
+  document.querySelectorAll('#dr-sub-attendance .att-pane').forEach((p) => p.classList.remove("active"));
+  const pane = document.getElementById("att-pane-" + name);
+  if (pane) pane.classList.add("active");
   if (name === "report")  loadAttendanceLive();
   if (name === "log")     loadAttendanceEventLog();
 };
@@ -8773,13 +8791,18 @@ window.drSub = function (sub) {
   if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
   // Insights strips collapse on every subview entry so the operator
-  // lands on the table-first view each time.
+  // lands on the table-first view each time. The Event log link also
+  // resets so re-entering Attendance always starts on the Report pane.
   ["rr-att-insights", "rr-avail-insights"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.style.display = "none";
   });
-  document.querySelectorAll("#rr-att-insights-toggle, #rr-avail-insights-toggle").forEach((t) => {
+  document.querySelectorAll("#rr-att-insights-toggle, #rr-avail-insights-toggle, #rr-att-log-toggle").forEach((t) => {
     t.setAttribute("aria-pressed", "false"); t.classList.remove("is-on");
   });
+  if (sub === "attendance") {
+    document.querySelectorAll('#dr-sub-attendance .att-pane').forEach((p) => p.classList.remove("active"));
+    document.getElementById("att-pane-report")?.classList.add("active");
+  }
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
   if (sub === "attendance")   { _rrApplyAttPolicyMode(); loadAttendanceLive(); _rrInitAttTabDnD(); }
