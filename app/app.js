@@ -570,6 +570,9 @@ async function renderSchedule() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader"></div>`;
 
+  // Reset any leftover Cover-offer poller from a previous schedule view.
+  _coverOfferTeardown();
+
   try {
     const session = readSession();
     if (!session?.token) { writeSession(null); render(); return; }
@@ -624,18 +627,22 @@ async function renderSchedule() {
     if (shifts.length === 0) {
       // Always show *something* so the page is never blank — explain
       // what would land here and what to do if the driver expects
-      // shifts that aren't showing up.
+      // shifts that aren't showing up. The Cover-offer card still
+      // mounts above so a pending offer is visible even on an empty week.
       main.innerHTML = `
+        <div id="rr-cover-offer-slot"></div>
         <div class="empty-state" style="padding:48px 20px;text-align:center">
           <div style="font-size:var(--fs-lg);font-weight:600;color:var(--text);margin-bottom:6px">No shifts scheduled</div>
           <div style="color:var(--text-subtle);line-height:1.5;max-width:320px;margin:0 auto">
             Your dispatcher hasn't published a schedule yet for the next two weeks, or you haven't been assigned to any of the open shifts.  Check back tomorrow or message dispatch.
           </div>
         </div>`;
+      _coverOfferStart(session.token);
       return;
     }
 
     main.innerHTML = `
+      <div id="rr-cover-offer-slot"></div>
       ${todayShifts.length ? `
         <div class="section-title">Today</div>
         ${todayShifts.map((s) => shiftCardHtml(s, true, vanByIso.get(s.iso))).join("")}
@@ -644,6 +651,10 @@ async function renderSchedule() {
         <div class="section-title">Upcoming</div>
         ${upcomingShifts.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso))).join("")}
       ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}`;
+
+    // Pinned Cover-offer card at the top — fetched separately so a
+    // failure here never blocks the schedule render.
+    _coverOfferStart(session.token);
   } catch (err) {
     // A thrown error inside renderSchedule used to kill the whole
     // render and leave main empty.  Surface it instead.
@@ -651,6 +662,81 @@ async function renderSchedule() {
     main.innerHTML = `<div class="empty-state" style="color:var(--red)">Schedule failed to render.<br><small>${escapeHtml(err?.message || String(err))}</small></div>`;
   }
 }
+
+// ── Cover-offer pinned card ──────────────────────────────────────────
+// When dispatch sends a "cover this shift" offer to this driver, it
+// surfaces as an Accept / Pass card pinned above the schedule list.
+// We poll driver_offer_list while the schedule view is active (drivers
+// don't have a Supabase auth.uid so postgres_changes won't deliver
+// shift_offers to them; a 15 s poll is plenty for this UX).
+let _coverOfferTimer = null;
+let _coverOfferKnown = null;   // last fetched offer (cached for re-paint)
+function _coverOfferTeardown() {
+  if (_coverOfferTimer) { clearInterval(_coverOfferTimer); _coverOfferTimer = null; }
+  _coverOfferKnown = null;
+}
+function _coverOfferStart(token) {
+  _coverOfferTeardown();
+  const pull = () => _coverOfferRefresh(token);
+  pull();
+  _coverOfferTimer = setInterval(pull, 15000);
+}
+async function _coverOfferRefresh(token) {
+  const slot = document.getElementById("rr-cover-offer-slot");
+  if (!slot) { _coverOfferTeardown(); return; }
+  try {
+    const { data, error } = await sb.rpc("driver_offer_list", { p_token: token });
+    if (error) return;   // soft fail; the schedule itself still renders
+    const offers = Array.isArray(data?.offers) ? data.offers : [];
+    const offer = offers[0] || null;   // one pending at a time
+    _coverOfferKnown = offer;
+    _coverOfferPaint(slot, offer, token);
+  } catch { /* network blip — try again on next tick */ }
+}
+function _coverOfferPaint(slot, offer, token) {
+  if (!offer) { slot.innerHTML = ""; return; }
+  const date = new Date(offer.date + "T12:00:00");
+  const dateLbl = date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const start = offer.starts_at ? new Date(offer.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+  const end   = offer.ends_at   ? new Date(offer.ends_at).toLocaleTimeString(undefined,   { hour: "numeric", minute: "2-digit" }) : "";
+  const time  = start && end ? `${start} – ${end}` : start;
+  const ms = Math.max(0, new Date(offer.expires_at).getTime() - Date.now());
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const timer = `${m}:${String(s).padStart(2, "0")}`;
+
+  slot.innerHTML = `
+    <div class="rr-cover-card" style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 4px 18px -8px rgba(15,108,189,.25)">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)">Dispatch offer</div>
+      <div style="margin-top:4px;font-size:18px;font-weight:700;color:var(--text)">Cover ${escapeHtml(offer.route_code || "a route")}</div>
+      <div style="margin-top:2px;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(dateLbl)}${time ? " · " + escapeHtml(time) : ""}${offer.station_code ? " · " + escapeHtml(offer.station_code) : ""}</div>
+      <div style="margin-top:10px;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">Respond within <strong id="rr-cover-offer-timer" style="color:var(--text)">${timer}</strong></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-primary" style="flex:1" data-rr-cover-accept="${offer.id}">Accept</button>
+        <button class="btn btn-ghost"   style="flex:1" data-rr-cover-pass="${offer.id}">Pass</button>
+      </div>
+    </div>`;
+
+  slot.querySelector("[data-rr-cover-accept]").addEventListener("click", (e) => _coverOfferRespond(e.currentTarget.getAttribute("data-rr-cover-accept"), true, token));
+  slot.querySelector("[data-rr-cover-pass]"  ).addEventListener("click", (e) => _coverOfferRespond(e.currentTarget.getAttribute("data-rr-cover-pass"),   false, token));
+}
+async function _coverOfferRespond(offerId, accept, token) {
+  const btns = document.querySelectorAll(".rr-cover-card button");
+  btns.forEach((b) => (b.disabled = true));
+  const { data, error } = await sb.rpc("driver_offer_respond", {
+    p_token: token, p_offer_id: offerId, p_accept: accept, p_reason: null,
+  });
+  if (error) {
+    btns.forEach((b) => (b.disabled = false));
+    toast(error.message || "Couldn't send response", "warn");
+    return;
+  }
+  toast(accept ? "Shift accepted" : "Passed", accept ? "success" : "warn");
+  _coverOfferTeardown();
+  // Re-render the schedule so any newly assigned shift appears.
+  renderSchedule();
+}
+
 
 // Shift card · date block on the left, time/station in the middle. No
 // chevron (cards aren't tappable yet) and no "Scheduled" tag (every
