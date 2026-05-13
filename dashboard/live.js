@@ -3880,7 +3880,7 @@ function renderOnboardingRow(d) {
       </td>
       <td>${_i9OnboardCell(d.id)}</td>
       <td>${_appStatusCell(d.id)}</td>
-      <td></td>
+      <td data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
     </tr>`;
 }
 
@@ -3931,7 +3931,7 @@ function renderDriverRow(d) {
       <td>${dim}</td>
       <td class="cell-time">${_lastCoachedCell(d.id)}</td>
       <td>${_appStatusCell(d.id)}</td>
-      <td></td>
+      <td data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
     </tr>`;
 }
 
@@ -24332,7 +24332,7 @@ function _wsRenderVehicles(root) {
       <div style="min-width:0">
         <div class="ws-crumb"><a data-rr-ws-back title="Back to all workflows"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Workflows</a><span class="sep">/</span></div>
         <div class="ws-board-name" style="margin-top:2px"><span class="nm">Van assignments</span></div>
-        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:66ch">Set the primary driver for each van, and a backup who picks it up when the primary isn't scheduled. The resolved van shows on each driver's schedule; an out-of-service van isn't handed to anyone. (The driver-app surface and a per-day override come next.)</p>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:66ch">Set the primary driver for each van, and a backup who picks it up when the primary isn't scheduled. The resolved van shows on each driver's app schedule; an out-of-service van isn't handed to anyone. (A per-day override comes next.)</p>
       </div>
     </div>
     <div class="ws-grid-wrap" style="overflow-x:auto">
@@ -24969,3 +24969,289 @@ function _wsBindRoot(root) {
     _wsOpenImport(txt);
   });
 }
+
+/* ───────────────────────── Driver-app preview (read-only snapshot) ─────────────────────────
+   A phone-shaped panel on the driver roster mirroring what the driver sees in their PWA —
+   Schedule / Tasks / Messages / Profile — built from that driver's actual data. Read-only:
+   no auth, no live iframe; a snapshot for troubleshooting.                                     */
+let _dappState = null;
+
+function _dappDriverName(d) {
+  if (!d) return "Driver";
+  return d.preferred_name || d.full_name
+    || [d.first_name, d.last_name].filter(Boolean).join(" ") || "Driver";
+}
+function _dappInitials(d) {
+  const parts = _dappDriverName(d).trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const a = parts[0][0] || "";
+  const b = parts.length > 1 ? (parts[parts.length - 1][0] || "") : "";
+  return (a + b).toUpperCase() || "?";
+}
+function _dappFmtDate(s) {
+  if (!s) return "";
+  const d = new Date(String(s) + (String(s).length === 10 ? "T00:00:00" : ""));
+  if (isNaN(d)) return String(s);
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function _dappDateParts(s) {
+  const d = new Date(String(s) + (String(s).length === 10 ? "T00:00:00" : ""));
+  if (isNaN(d)) return { dow: "", d: String(s), mo: "" };
+  return {
+    dow: d.toLocaleDateString(undefined, { weekday: "short" }),
+    d: d.toLocaleDateString(undefined, { day: "numeric" }),
+    mo: d.toLocaleDateString(undefined, { month: "short" }),
+  };
+}
+function _dappFmtTime(s) {
+  if (!s) return "";
+  const d = new Date(s);
+  if (isNaN(d)) return String(s);
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function _dappFmtClock(s) {
+  if (!s) return "";
+  const d = /^\d{1,2}:\d{2}/.test(String(s)) ? new Date("1970-01-01T" + s) : new Date(s);
+  if (isNaN(d)) return String(s);
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+function _dappTenure(hireDate) {
+  const d = new Date(String(hireDate) + (String(hireDate).length === 10 ? "T00:00:00" : ""));
+  if (isNaN(d)) return "";
+  const months = Math.max(0, Math.round((Date.now() - d.getTime()) / (30.44 * 24 * 3600 * 1000)));
+  if (months < 1) return "new";
+  if (months < 12) return `${months} mo`;
+  const y = Math.floor(months / 12), mo = months % 12;
+  return mo ? `${y}y ${mo}mo` : `${y}y`;
+}
+
+async function openDriverAppPreview(driverId) {
+  if (!driverId) return;
+  document.getElementById("rr-dapp-modal")?.remove();
+  const dsp = window.RR?.dsp?.id;
+
+  const m = document.createElement("div");
+  m.className = "dapp-modal";
+  m.id = "rr-dapp-modal";
+  m.innerHTML = `
+    <div class="dapp-phone" role="dialog" aria-label="Driver app preview">
+      <button type="button" class="dapp-close" data-dapp-close title="Close" aria-label="Close">&times;</button>
+      <div class="dapp-island"></div>
+      <div class="dapp-statusbar"><span>9:41</span><span>RouteReady · driver view</span></div>
+      <div class="dapp-topbar">
+        <div class="ttl" id="rr-dapp-ttl">Schedule</div>
+        <div class="who" id="rr-dapp-who">Loading…</div>
+      </div>
+      <div class="dapp-scroll" id="rr-dapp-scroll"><div class="dapp-empty">Loading…</div></div>
+      <div class="dapp-bottomnav">
+        <button type="button" class="dapp-tab" data-dapp-tab="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Schedule</span></button>
+        <button type="button" class="dapp-tab" data-dapp-tab="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Tasks</span></button>
+        <button type="button" class="dapp-tab" data-dapp-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Messages</span></button>
+        <button type="button" class="dapp-tab" data-dapp-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></button>
+      </div>
+    </div>`;
+  m.addEventListener("click", (e) => {
+    if (e.target.closest("[data-dapp-close]")) { _dappClose(); return; }
+    const tab = e.target.closest("[data-dapp-tab]");
+    if (tab) { if (_dappState) { _dappState.tab = tab.getAttribute("data-dapp-tab"); _dappRender(); } return; }
+    if (!e.target.closest(".dapp-phone")) { _dappClose(); return; }
+  });
+  document.body.appendChild(m);
+  _dappState = { driverId, tab: "schedule", data: null };
+  _dappRender();
+
+  const safe = (p, fb) => p.then(r => r, e => ({ error: e, data: (fb !== undefined ? fb : null) }));
+  const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString().slice(0, 10);
+  let res;
+  try {
+    res = await Promise.all([
+      safe(sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, station_id, training_date, background_check_completed_at, drug_test_completed_at, station:station_id (code)").eq("id", driverId).eq("dsp_id", dsp).maybeSingle()),
+      safe(sb.from("shifts").select("id, date, starts_at, ends_at, route_code, status, station:station_id (code)").eq("dsp_id", dsp).eq("driver_id", driverId).gte("date", since).order("date").order("starts_at").limit(60), []),
+      safe(sb.from("assignment_rows").select("id, board_id, data, status, due_date, completed_at, created_at").eq("dsp_id", dsp).eq("assigned_driver_id", driverId), []),
+      safe(sb.from("assignment_boards").select("id, name, icon, columns").eq("dsp_id", dsp), []),
+      safe(sb.from("driver_messages").select("id, sender_kind, body, created_at").eq("dsp_id", dsp).eq("driver_id", driverId).order("created_at", { ascending: false }).limit(40), []),
+    ]);
+  } catch (e) { res = null; }
+
+  if (!_dappState || _dappState.driverId !== driverId) return;   // closed / switched while loading
+
+  if (!res) {
+    const sc = document.getElementById("rr-dapp-scroll");
+    if (sc) sc.innerHTML = `<div class="dapp-empty">Couldn't load this driver's data.</div>`;
+    return;
+  }
+  const driver = res[0] && res[0].data ? res[0].data : null;
+  const shifts = Array.isArray(res[1] && res[1].data) ? res[1].data : [];
+  const rows   = Array.isArray(res[2] && res[2].data) ? res[2].data : [];
+  const boards = new Map((Array.isArray(res[3] && res[3].data) ? res[3].data : []).map(b => [b.id, b]));
+  const msgs   = (Array.isArray(res[4] && res[4].data) ? res[4].data : []).slice().reverse();
+
+  if (!driver) {
+    const sc = document.getElementById("rr-dapp-scroll");
+    if (sc) sc.innerHTML = `<div class="dapp-empty">This driver record couldn't be found.</div>`;
+    const who = document.getElementById("rr-dapp-who");
+    if (who) who.textContent = "Unknown driver";
+    return;
+  }
+  _dappState.data = { driver, shifts, rows, boards, msgs };
+  const who = document.getElementById("rr-dapp-who");
+  if (who) {
+    const stc = driver.station && driver.station.code ? driver.station.code : "";
+    who.textContent = `${_dappDriverName(driver)}${stc ? " · " + stc : ""}${driver.status === "onboarding" ? " · onboarding" : ""}`;
+  }
+  _dappRender();
+}
+
+function _dappClose() {
+  document.getElementById("rr-dapp-modal")?.remove();
+  _dappState = null;
+}
+
+function _dappRender() {
+  const st = _dappState;
+  if (!st) return;
+  const m = document.getElementById("rr-dapp-modal");
+  if (!m) return;
+  const tab = st.tab || "schedule";
+  m.querySelectorAll(".dapp-tab").forEach(b => b.classList.toggle("active", b.getAttribute("data-dapp-tab") === tab));
+  const titles = { schedule: "Schedule", tasks: "Tasks", chat: "Messages", profile: "Profile" };
+  const ttl = document.getElementById("rr-dapp-ttl");
+  if (ttl) ttl.textContent = titles[tab] || "RouteReady";
+  const sc = document.getElementById("rr-dapp-scroll");
+  if (!sc) return;
+  const data = st.data;
+  if (!data) { sc.innerHTML = `<div class="dapp-empty">Loading…</div>`; return; }
+  if (tab === "schedule") sc.innerHTML = _dappSchedule(data);
+  else if (tab === "tasks") sc.innerHTML = _dappTasks(data);
+  else if (tab === "chat") { sc.innerHTML = _dappChat(data); sc.scrollTop = sc.scrollHeight; }
+  else if (tab === "profile") sc.innerHTML = _dappProfile(data);
+}
+
+function _dappSchedule(data) {
+  const today = new Date().toISOString().slice(0, 10);
+  const list = (data.shifts || []).filter(s => !s.status || ["scheduled", "confirmed", "published", "completed"].includes(String(s.status).toLowerCase()));
+  if (!list.length) return `<div class="dapp-empty">No shifts on the schedule.</div>`;
+  const todayRows = list.filter(s => s.date === today);
+  const upcoming  = list.filter(s => s.date > today);
+  const recent    = list.filter(s => s.date < today).reverse();
+  const card = (s) => {
+    const p = _dappDateParts(s.date);
+    const done = String(s.status).toLowerCase() === "completed";
+    const t = [s.starts_at && _dappFmtClock(s.starts_at), s.ends_at && _dappFmtClock(s.ends_at)].filter(Boolean).join(" – ");
+    const stc = s.station && s.station.code ? s.station.code : "";
+    return `<div class="dapp-card">
+      <div class="dapp-date"><span class="dow">${escapeHtml(p.dow)}</span><span class="d">${escapeHtml(p.d)}</span><span class="mo">${escapeHtml(p.mo)}</span></div>
+      <div style="flex:1;min-width:0">
+        <div class="ttl">${escapeHtml(s.route_code || "Route TBD")}${done ? ` <span class="dapp-pill green">Completed</span>` : ""}</div>
+        <div class="meta">${[t, stc].filter(Boolean).map(escapeHtml).join(" · ") || "Time TBD"}</div>
+      </div>
+    </div>`;
+  };
+  let h = "";
+  if (todayRows.length) h += `<div class="dapp-sec">Today</div>` + todayRows.map(card).join("");
+  if (upcoming.length)  h += `<div class="dapp-sec">Upcoming</div>` + upcoming.map(card).join("");
+  if (recent.length)    h += `<div class="dapp-sec">Recent</div>` + recent.slice(0, 8).map(card).join("");
+  return h || `<div class="dapp-empty">No shifts on the schedule.</div>`;
+}
+
+function _dappTasks(data) {
+  const rows = (data.rows || []).slice();
+  const boards = data.boards;
+  if (!rows.length) {
+    const extra = data.driver.status === "onboarding"
+      ? `<br><span style="font-size:12px;color:var(--text-subtle)">Onboarding steps show on the Profile tab.</span>` : "";
+    return `<div class="dapp-empty">No tasks assigned.${extra}</div>`;
+  }
+  const labelOf = (r) => {
+    const b = boards.get(r.board_id);
+    const cols = (b && Array.isArray(b.columns)) ? b.columns : [];
+    const textCol = cols.find(c => c.type === "text" || c.type === "title" || !c.type) || cols[0];
+    if (textCol && r.data && r.data[textCol.id] != null && String(r.data[textCol.id]).trim()) return String(r.data[textCol.id]);
+    if (r.data) { for (const k of Object.keys(r.data)) { const v = r.data[k]; if (v != null && String(v).trim()) return String(v); } }
+    return "(untitled task)";
+  };
+  const isDone = (r) => ["done", "completed", "complete"].includes(String(r.status || "").toLowerCase()) || !!r.completed_at;
+  const pillFor = (r) => {
+    if (isDone(r)) return `<span class="dapp-pill green">Done</span>`;
+    const s = String(r.status || "").toLowerCase();
+    if (["blocked", "rejected", "issue"].includes(s)) return `<span class="dapp-pill red">${escapeHtml(r.status)}</span>`;
+    if (["in_progress", "in progress", "started", "doing"].includes(s)) return `<span class="dapp-pill blue">In progress</span>`;
+    if (["overdue", "late"].includes(s)) return `<span class="dapp-pill amber">${escapeHtml(r.status)}</span>`;
+    if (r.due_date && r.due_date < new Date().toISOString().slice(0, 10)) return `<span class="dapp-pill amber">Overdue</span>`;
+    return r.status ? `<span class="dapp-pill">${escapeHtml(r.status)}</span>` : `<span class="dapp-pill">To do</span>`;
+  };
+  rows.sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0));
+  const card = (r) => {
+    const b = boards.get(r.board_id);
+    const meta = [
+      b ? `${b.icon ? b.icon + " " : ""}${b.name}` : null,
+      r.due_date ? `due ${_dappFmtDate(r.due_date)}` : null,
+    ].filter(Boolean).join(" · ");
+    return `<div class="dapp-card">
+      <div style="flex:1;min-width:0">
+        <div class="ttl">${escapeHtml(labelOf(r))}</div>
+        ${meta ? `<div class="meta">${escapeHtml(meta)}</div>` : ""}
+      </div>
+      ${pillFor(r)}
+    </div>`;
+  };
+  return rows.map(card).join("");
+}
+
+function _dappChat(data) {
+  const msgs = data.msgs || [];
+  if (!msgs.length) return `<div class="dapp-empty">No messages yet.</div>`;
+  return msgs.map(mm => {
+    const mine = mm.sender_kind === "driver";
+    return `<div class="dapp-msg ${mine ? "us" : "them"}">${escapeHtml(mm.body || "")}<span class="dapp-msg-t ${mine ? "us" : ""}">${escapeHtml(_dappFmtTime(mm.created_at))}</span></div>`;
+  }).join("");
+}
+
+function _dappProfile(data) {
+  const d = data.driver;
+  const name = _dappDriverName(d);
+  const stc = d.station && d.station.code ? d.station.code : "";
+  const tenure = d.hire_date ? _dappTenure(d.hire_date) : "";
+  const statusPill = d.status === "active" ? `<span class="dapp-pill green">Active</span>`
+    : d.status === "onboarding" ? `<span class="dapp-pill blue">Onboarding</span>`
+    : d.status ? `<span class="dapp-pill">${escapeHtml(d.status)}</span>` : "";
+  let h = `<div class="dapp-card" style="align-items:center">
+    <div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;background:var(--accent);color:#fff;flex:none;font-size:15px">${escapeHtml(_dappInitials(d))}</div>
+    <div style="flex:1;min-width:0">
+      <div class="ttl" style="font-size:15px">${escapeHtml(name)} ${statusPill}</div>
+      <div class="meta">${[stc, tenure].filter(Boolean).map(escapeHtml).join(" · ") || "—"}</div>
+    </div>
+  </div>`;
+  h += `<div class="dapp-sec">Contact</div>`;
+  h += `<div class="dapp-card" style="flex-direction:column;align-items:stretch;gap:8px">`
+    + `<div class="dapp-row"><span class="k">Phone</span><span class="v">${d.phone ? escapeHtml(d.phone) : "—"}</span></div>`
+    + `<div class="dapp-row"><span class="k">Email</span><span class="v">${d.email ? escapeHtml(d.email) : "—"}</span></div>`
+    + `<div class="dapp-row"><span class="k">Hired</span><span class="v">${d.hire_date ? escapeHtml(_dappFmtDate(d.hire_date)) : "—"}</span></div>`
+    + `</div>`;
+  if (d.status === "onboarding") {
+    try {
+      const ob = _obReadiness(d);
+      const gates = ob.gates || ob.steps || [];
+      const pips = gates.map(g => `<span class="dapp-pip${g.done ? " done" : ""}"></span>`).join("");
+      h += `<div class="dapp-sec">Onboarding</div>`;
+      h += `<div class="dapp-card" style="flex-direction:column;align-items:stretch;gap:8px">`
+        + `<div class="dapp-row"><span class="k">Status</span><span class="v">${typeof _obPill === "function" ? _obPill(ob.label, ob.tone) : escapeHtml(ob.label)}</span></div>`
+        + `<div class="dapp-row"><span class="k">Steps</span><span class="v">${ob.doneN} / ${ob.totalN}</span></div>`
+        + (pips ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${pips}</div>` : "")
+        + (ob.next ? `<div class="meta" style="margin-top:2px">Next: ${escapeHtml(ob.next)}</div>` : "")
+        + `</div>`;
+    } catch (e) { /* onboarding readiness is best-effort */ }
+  }
+  return h;
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-driver-app]");
+  if (!b) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openDriverAppPreview(b.getAttribute("data-rr-driver-app"));
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("rr-dapp-modal")) { e.stopPropagation(); _dappClose(); }
+});
