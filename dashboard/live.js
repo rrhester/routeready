@@ -21954,6 +21954,18 @@ function bindSchedWeekNav() {
       return;
     }
 
+    // Click an OPEN shift chip in the week grid → inline driver
+    // recommendations via the Cover drawer (same ranked candidates +
+    // OT pricing the Open Shifts sub-tab uses). Saves the operator a
+    // sub-tab switch when they spot a gap in the grid.
+    const openChip = e.target.closest(".shift-chip.open[data-rr-shift-id]");
+    if (openChip) {
+      e.stopPropagation();
+      const id = openChip.dataset.rrShiftId;
+      if (id) openCoverShiftDrawer(id);
+      return;
+    }
+
     // Click empty driver-row cell → open add-shift modal pre-filled.
     const cell = e.target.closest('[data-rr-cell="driver-day"]');
     if (cell) {
@@ -22958,7 +22970,10 @@ async function _coverLoadCandidates() {
   });
   if (!_coverState) return;   // teardown happened
   if (error) {
-    body.innerHTML = `<div style="padding:18px;background:var(--red-soft);color:var(--red);border-radius:10px;font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load candidates")}</div>`;
+    const msg = (error.message || "").includes("cover_future_only")
+      ? "Cover is for the future schedule. Today's open shifts are absorbed by your built-in cushion — handle them from Today's Plan or the Week view directly."
+      : (error.message || "Couldn't load candidates");
+    body.innerHTML = `<div style="padding:18px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sm);line-height:1.55">${escapeHtml(msg)}</div>`;
     return;
   }
   const shift = data?.shift || {};
