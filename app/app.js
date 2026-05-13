@@ -298,6 +298,8 @@ function render() {
   if (session.status === "onboarding") {
     const allowed = (path) => path === "/tasks/onboarding"
       || path === "/tasks/onboarding/step"
+      || path === "/tasks/documents"
+      || path === "/tasks/documents/sign"
       || path === "/tasks/i9"
       || path === "/settings"
       || path.startsWith("/settings/");
@@ -319,8 +321,10 @@ function render() {
   let backTarget = r.back;
   if (isOnboarding) {
     if (path === "/tasks/onboarding") backTarget = null;
-    else if (path === "/settings")   backTarget = "/tasks/onboarding";
-    else if (path === "/tasks/i9")   backTarget = "/tasks/onboarding";
+    else if (path === "/settings")            backTarget = "/tasks/onboarding";
+    else if (path === "/tasks/i9")            backTarget = "/tasks/onboarding";
+    else if (path === "/tasks/documents")     backTarget = "/tasks/onboarding";
+    else if (path === "/tasks/documents/sign") backTarget = "/tasks/onboarding";
   }
   if (back) back.style.display = backTarget ? "inline-flex" : "none";
   if (back && backTarget) back.onclick = () => navigate(backTarget);
@@ -2442,15 +2446,35 @@ async function renderOnboarding() {
   for (const cs of (Array.isArray(custRes?.data) ? custRes.data : [])) {
     if (!cs || !cs.key) continue;
     const isVid = cs.type === "video";
+    const isDoc = cs.type === "document";
+    const done  = cs.status === "complete";
+    let action, cta, subDone, subTodo, attention = false;
+    if (isDoc) {
+      const isInfo = cs.doc_kind === "informational";
+      subDone = isInfo ? "Reviewed & acknowledged" : "Signed";
+      if (cs.signing_token) {
+        action = "/tasks/documents/sign?st=" + encodeURIComponent(cs.signing_token);
+        if (cs.status === "declined") { cta = "Reopen"; attention = true; subTodo = "You declined this — reopen it to review and " + (isInfo ? "acknowledge it" : "sign it"); }
+        else if (cs.status === "viewed") { cta = isInfo ? "Acknowledge receipt" : "Sign now"; subTodo = isInfo ? "You've opened it — confirm you've reviewed the document" : "You've opened it — add your signature to finish"; }
+        else { cta = isInfo ? "Review & acknowledge" : "Review & sign"; subTodo = isInfo ? "Open the document, review it, and confirm you've received it" : "Open the document, review it, and sign"; }
+      } else {
+        // Envelope not generated yet (e.g. no email on file) — show it as
+        // waiting, with no action the driver can take from here.
+        action = null; cta = null;
+        subTodo = "Your team is preparing this document — check back soon";
+      }
+    } else if (isVid) {
+      action = "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key);
+      cta = "Watch & confirm"; subDone = "Watched"; subTodo = "Watch the video, then confirm you've finished";
+    } else {
+      action = "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key);
+      cta = "Review & confirm"; subDone = "Acknowledged";
+      subTodo = cs.ack_text ? (cs.ack_text.length > 100 ? cs.ack_text.slice(0, 99) + "…" : cs.ack_text) : "Review and confirm";
+    }
     mySteps.push({
       key: "cust:" + cs.key,
-      title: cs.title || (isVid ? "Watch a video" : "Acknowledgement"),
-      done: cs.status === "complete",
-      action: "/tasks/onboarding/step?key=" + encodeURIComponent(cs.key),
-      cta: isVid ? "Watch & confirm" : "Review & confirm",
-      subDone: isVid ? "Watched" : "Acknowledged",
-      subTodo: isVid ? "Watch the video, then confirm you've finished"
-        : (cs.ack_text ? (cs.ack_text.length > 100 ? cs.ack_text.slice(0, 99) + "…" : cs.ack_text) : "Review and confirm"),
+      title: cs.title || (isDoc ? "Document to review" : isVid ? "Watch a video" : "Acknowledgement"),
+      done, action, cta, subDone, subTodo, attention,
     });
   }
   // Steps the DSP records.
@@ -2469,8 +2493,9 @@ async function renderOnboarding() {
   const teamPhrase = pendingTeam.map(s => s.title.toLowerCase()).join(" and ") || "the last steps";
 
   // The single highlighted "next step": a correction first, else the
-  // first thing the driver can still do.
-  const nextMy = mySteps.find(s => s.attention && !s.done) || mySteps.find(s => !s.done) || null;
+  // first thing the driver can still do. Steps with no action yet (e.g.
+  // a document still being prepared) can't be the highlighted next step.
+  const nextMy = mySteps.find(s => s.attention && !s.done && s.action) || mySteps.find(s => !s.done && s.action) || null;
 
   // Hero.
   const heroTitle = allDone ? `You're all set${fname ? ", " + fname : ""}`
@@ -2504,7 +2529,7 @@ async function renderOnboarding() {
           <div class="ob-item-title">${escapeHtml(s.title)}</div>
           <div class="ob-item-sub">${escapeHtml(s.done ? s.subDone : s.subTodo)}</div>
         </div>
-        ${s.done ? "" : `<button class="ob-go" type="button" data-onboard-go="${s.action}" aria-label="${escapeHtml(s.cta)}">${_OB_CHEVRON}</button>`}
+        ${(s.done || !s.action) ? "" : `<button class="ob-go" type="button" data-onboard-go="${s.action}" aria-label="${escapeHtml(s.cta || "Open")}">${_OB_CHEVRON}</button>`}
       </div>`;
   };
   const teamItemHtml = (s) => `
@@ -2566,6 +2591,13 @@ async function renderOnboardingStep() {
   }
   const step = (Array.isArray(data) ? data : []).find(s => s && s.key === key);
   if (!step) { navigate("/tasks/onboarding"); return; }
+
+  // Document steps are handled by the document review/sign flow, not here.
+  if (step.type === "document") {
+    if (step.signing_token) navigate("/tasks/documents/sign?st=" + encodeURIComponent(step.signing_token));
+    else navigate("/tasks/onboarding");
+    return;
+  }
 
   setHeader(step.title || "Onboarding step", "");
   const isVid = step.type === "video";
