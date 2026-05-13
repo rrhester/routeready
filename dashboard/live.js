@@ -3949,6 +3949,7 @@ async function loadOnboardingOps(opts) {
         ${cells}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "empty"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
+        <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
         <td><button type="button" class="dr-app-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       </tr>`;
   };
@@ -3963,6 +3964,7 @@ async function loadOnboardingOps(opts) {
             ${stepHeaders}
             <th>Active</th>
             <th>Send</th>
+            <th>Notes</th>
             <th>App</th>
           </tr>
         </thead>
@@ -3996,6 +3998,287 @@ async function loadOnboardingOps(opts) {
   // Fill the embedded Work-authorization (Form I-9) queue.
   loadDriverWorkAuthView();
 }
+
+// ─── Orientation dashboard · internal Notes drawer ────────────────────
+// A quiet right-side drawer for staff-only notes on a driver's
+// onboarding. No save button anywhere — every keystroke debounces and
+// writes through onboarding_note_save; the only feedback is a small
+// "Saving… / Updated just now / Saved" chip in the header. Notes are
+// never shown to the driver. Slides in over the matrix (the matrix
+// stays put underneath), backdrop fades, soft shadow on the panel.
+let _onbNotesDriver = null;       // driver id the drawer is currently bound to
+let _onbNotesName   = "";         // driver display name (for the header)
+let _onbNotesState  = "idle";     // "idle" | "saving" | "saved" | "error"
+let _onbNotesIdleTimer = null;
+const _onbNoteTimers = new Map(); // tmp/server id → debounce handle
+
+function _onbNotesStylesOnce() {
+  if (document.getElementById("rr-onb-notes-styles")) return;
+  const s = document.createElement("style");
+  s.id = "rr-onb-notes-styles";
+  s.textContent =
+    ".onb-notes-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.30);opacity:0;pointer-events:none;transition:opacity .26s ease;z-index:10010}" +
+    ".onb-notes-backdrop.open{opacity:1;pointer-events:auto}" +
+    ".onb-notes-drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,94vw);background:var(--surface);display:flex;flex-direction:column;z-index:10011;transform:translateX(102%);box-shadow:none;transition:transform .32s cubic-bezier(.32,.72,0,1),box-shadow .32s ease;will-change:transform}" +
+    ".onb-notes-drawer.open{transform:translateX(0);box-shadow:-22px 0 60px -20px rgba(15,23,42,.28)}" +
+    ".onb-notes-head{display:flex;align-items:flex-start;gap:10px;padding:16px 18px 14px;border-bottom:1px solid var(--border)}" +
+    ".onb-notes-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.01em}" +
+    ".onb-notes-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.35}" +
+    ".onb-notes-state{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);white-space:nowrap;min-height:18px;transition:color .2s ease}" +
+    ".onb-notes-state svg{width:12px;height:12px;flex:0 0 auto}" +
+    ".onb-notes-state.saving{color:var(--text-muted)}" +
+    ".onb-notes-state.err{color:var(--red)}" +
+    ".onb-notes-state .onb-notes-spin{width:11px;height:11px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:ob-bld-spin .6s linear infinite;flex:0 0 auto}" +
+    ".onb-notes-x{appearance:none;background:transparent;border:0;width:30px;height:30px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;flex:0 0 auto;margin:-4px -6px -4px 2px;transition:color .12s,background .12s}" +
+    ".onb-notes-x:hover{color:var(--text);background:var(--canvas)}" +
+    ".onb-notes-x svg{width:17px;height:17px}" +
+    ".onb-notes-body{flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}" +
+    ".onb-notes-empty{font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5;padding:8px 2px}" +
+    ".onb-note{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);padding:11px 12px 9px;transition:border-color .14s,background .14s,box-shadow .14s;position:relative}" +
+    ".onb-note:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
+    ".onb-note.confirming{border-color:rgba(225,29,72,.45);background:var(--red-soft)}" +
+    ".onb-note textarea{width:100%;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);color:var(--text);line-height:1.5;resize:none;outline:none;display:block;min-height:44px;overflow:hidden}" +
+    ".onb-note textarea::placeholder{color:var(--text-subtle)}" +
+    ".onb-note-meta{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:10px;color:var(--text-subtle);letter-spacing:.01em}" +
+    ".onb-note-del{appearance:none;background:transparent;border:0;width:24px;height:24px;border-radius:var(--r-sm);display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .14s ease,color .12s,background .12s}" +
+    ".onb-note:hover .onb-note-del,.onb-note:focus-within .onb-note-del{opacity:1}" +
+    ".onb-note-del:hover{color:var(--red);background:var(--red-soft)}" +
+    ".onb-note-del svg{width:13px;height:13px}" +
+    ".onb-note-confirm{display:flex;align-items:center;gap:10px;flex-wrap:wrap}" +
+    ".onb-note-confirm-txt{font-size:var(--fs-xs);color:var(--text);line-height:1.4}" +
+    ".onb-note-confirm .onb-note-confirm-actions{display:flex;gap:7px;margin-left:auto}" +
+    ".onb-notes-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex}" +
+    "@media (prefers-reduced-motion:reduce){.onb-notes-drawer,.onb-notes-backdrop{transition:none}}";
+  document.head.appendChild(s);
+}
+
+const _ONB_NOTE_TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
+const _ONB_NOTE_TICK  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+const _ONB_NOTE_XICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+function _onbNotesRelTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso), now = Date.now(), diff = now - d.getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24 && d.toDateString() === new Date().toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (hr < 48) return "yesterday";
+  if (hr < 24 * 7) return `${Math.floor(hr / 24)}d ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function _onbNoteMetaHTML(n) {
+  const edited = n && n.updated_at && n.created_at && (new Date(n.updated_at).getTime() - new Date(n.created_at).getTime() > 60000);
+  const when = _onbNotesRelTime((edited ? n.updated_at : n && n.created_at) || null);
+  const who = (n && n.author) ? escapeHtml(n.mine ? "You" : n.author) : "";
+  const full = n ? `Added ${new Date(n.created_at).toLocaleString()}${edited ? ` · edited ${new Date(n.updated_at).toLocaleString()}` : ""}${n.author ? ` · ${n.author}` : ""}` : "";
+  return `<span title="${escapeHtml(full)}">${who}${who && when ? " · " : ""}${escapeHtml((edited ? "edited " : "") + when)}</span>`;
+}
+function _onbNoteCardHTML(n, tmpId) {
+  const id = (n && n.id) || "";
+  return `<div class="onb-note" data-note-id="${escapeHtml(id)}"${tmpId ? ` data-tmp-id="${tmpId}"` : ""}>
+    <textarea data-onb-note-body rows="2" placeholder="Write a note… (saves on its own)" maxlength="4000">${escapeHtml((n && n.body) || "")}</textarea>
+    <div class="onb-note-meta">
+      <span data-onb-note-meta>${n ? _onbNoteMetaHTML(n) : '<span style="color:var(--text-subtle)">New note</span>'}</span>
+      <button type="button" class="onb-note-del" data-onb-note-del title="Delete note" aria-label="Delete note">${_ONB_NOTE_TRASH}</button>
+    </div>
+  </div>`;
+}
+function _onbNotesStateHTML() {
+  if (_onbNotesState === "saving") return `<span class="onb-notes-spin"></span>Saving…`;
+  if (_onbNotesState === "error")  return `${_ONB_NOTE_XICON}Couldn’t save — retrying`;
+  if (_onbNotesState === "saved")  return `${_ONB_NOTE_TICK}Updated just now`;
+  return ``;            // idle — say nothing
+}
+function _onbNotesSetState(st) {
+  _onbNotesState = st;
+  const el = document.getElementById("onb-notes-state");
+  if (el) { el.className = "onb-notes-state" + (st === "saving" ? " saving" : st === "error" ? " err" : ""); el.innerHTML = _onbNotesStateHTML(); }
+  clearTimeout(_onbNotesIdleTimer);
+  if (st === "saved") _onbNotesIdleTimer = setTimeout(() => { if (_onbNotesState === "saved") _onbNotesSetState("idle"); }, 3500);
+}
+
+function _onbNotesEnsureDOM() {
+  if (document.getElementById("rr-onb-notes-drawer")) return;
+  _onbNotesStylesOnce();
+  const bd = document.createElement("div");
+  bd.id = "rr-onb-notes-backdrop"; bd.className = "onb-notes-backdrop";
+  const dr = document.createElement("aside");
+  dr.id = "rr-onb-notes-drawer"; dr.className = "onb-notes-drawer"; dr.setAttribute("aria-hidden", "true"); dr.setAttribute("role", "dialog"); dr.setAttribute("aria-label", "Internal onboarding notes");
+  dr.innerHTML = `
+    <div class="onb-notes-head">
+      <div style="min-width:0">
+        <div class="onb-notes-title">Internal notes</div>
+        <div class="onb-notes-sub" id="onb-notes-sub">—</div>
+      </div>
+      <div class="onb-notes-state" id="onb-notes-state" aria-live="polite"></div>
+      <button type="button" class="onb-notes-x" data-onb-notes-close aria-label="Close notes">${_ONB_NOTE_XICON}</button>
+    </div>
+    <div class="onb-notes-body" id="onb-notes-list"></div>
+    <div class="onb-notes-foot"><button type="button" class="btn btn-sm" data-onb-notes-add>+ Add a note</button></div>`;
+  document.body.appendChild(bd);
+  document.body.appendChild(dr);
+}
+
+async function openOnbNotesDrawer(driverId, name) {
+  if (!driverId) return;
+  _onbNotesEnsureDOM();
+  _onbNotesDriver = driverId;
+  _onbNotesName = name || "this driver";
+  _onbNoteTimers.forEach(t => clearTimeout(t)); _onbNoteTimers.clear();
+  const bd = document.getElementById("rr-onb-notes-backdrop");
+  const dr = document.getElementById("rr-onb-notes-drawer");
+  const sub = document.getElementById("onb-notes-sub");
+  const listEl = document.getElementById("onb-notes-list");
+  if (!bd || !dr || !listEl) return;
+  if (sub) sub.textContent = `${_onbNotesName} · onboarding · not visible to the driver`;
+  listEl.innerHTML = `<div class="onb-notes-empty">Loading…</div>`;
+  _onbNotesSetState("idle");
+  dr.setAttribute("aria-hidden", "false");
+  // Slide in on the next frame so the transition actually runs.
+  requestAnimationFrame(() => { bd.classList.add("open"); dr.classList.add("open"); });
+
+  const { data, error } = await sb.rpc("onboarding_notes_list", { p_driver_id: driverId });
+  if (_onbNotesDriver !== driverId) return;   // a newer open() superseded this one
+  if (error) { listEl.innerHTML = `<div class="onb-notes-empty" style="color:var(--red)">Couldn't load notes: ${escapeHtml(error.message || "")}</div>`; return; }
+  const notes = Array.isArray(data) ? data : [];
+  _onbNotesRenderList(notes);
+}
+function _onbNotesRenderList(notes) {
+  const listEl = document.getElementById("onb-notes-list");
+  if (!listEl) return;
+  listEl.innerHTML = notes.length
+    ? notes.map(n => _onbNoteCardHTML(n)).join("")
+    : `<div class="onb-notes-empty">No notes yet. Add the first one — it saves the moment you start typing, and only your team can see it.</div>`;
+  listEl.querySelectorAll("textarea[data-onb-note-body]").forEach(_onbNoteAutogrow);
+}
+function closeOnbNotesDrawer() {
+  const bd = document.getElementById("rr-onb-notes-backdrop");
+  const dr = document.getElementById("rr-onb-notes-drawer");
+  if (!dr) return;
+  // Drop any blank, never-typed note cards before we close.
+  dr.querySelectorAll(".onb-note").forEach(card => {
+    const ta = card.querySelector("textarea[data-onb-note-body]");
+    if (ta && ta.value.trim() === "" && !card.getAttribute("data-note-id")) card.remove();
+  });
+  bd.classList.remove("open"); dr.classList.remove("open");
+  setTimeout(() => { if (!dr.classList.contains("open")) dr.setAttribute("aria-hidden", "true"); }, 340);
+  _onbNotesDriver = null;
+  _onbNoteTimers.forEach(t => clearTimeout(t)); _onbNoteTimers.clear();
+}
+
+function _onbNoteAutogrow(ta) { if (!ta) return; ta.style.height = "auto"; ta.style.height = Math.max(44, ta.scrollHeight) + "px"; }
+function _onbNoteKey(card) { return card.getAttribute("data-note-id") || card.getAttribute("data-tmp-id") || "?"; }
+
+// Debounced per-note autosave.  Inserts on first content for a brand-new
+// card (then hangs the returned id off it); updates in place after.
+function _onbNoteScheduleSave(card) {
+  if (!card) return;
+  const driverId = _onbNotesDriver;
+  if (!driverId) return;
+  const key = _onbNoteKey(card);
+  clearTimeout(_onbNoteTimers.get(key));
+  _onbNotesSetState("saving");
+  _onbNoteTimers.set(key, setTimeout(async () => {
+    const ta = card.querySelector("textarea[data-onb-note-body]");
+    if (!ta) return;
+    const body = ta.value;
+    const existingId = card.getAttribute("data-note-id") || null;
+    if (!existingId && body.trim() === "") { _onbNotesSetState("idle"); return; }   // nothing to persist yet
+    const { data, error } = await sb.rpc("onboarding_note_save", { p_driver_id: driverId, p_body: body, p_id: existingId });
+    if (_onbNotesDriver !== driverId) return;
+    if (error) { _onbNotesSetState("error"); _onbNoteTimers.set(key, setTimeout(() => _onbNoteScheduleSave(card), 2800)); return; }
+    if (data && data.id && !existingId) card.setAttribute("data-note-id", data.id);
+    const meta = card.querySelector("[data-onb-note-meta]");
+    if (meta && data) meta.innerHTML = _onbNoteMetaHTML(data);
+    _onbNotesSetState("saved");
+  }, 700));
+}
+
+// Trigger from the matrix → open the drawer.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-ob-notes]");
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  openOnbNotesDrawer(b.getAttribute("data-rr-ob-notes"), b.getAttribute("data-name") || "");
+});
+// Close: × button or backdrop click.
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-onb-notes-close]") || e.target.id === "rr-onb-notes-backdrop") { e.preventDefault(); closeOnbNotesDrawer(); }
+});
+// Escape closes when the drawer is open.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const dr = document.getElementById("rr-onb-notes-drawer");
+  if (dr && dr.classList.contains("open")) { e.preventDefault(); closeOnbNotesDrawer(); }
+});
+// Inside-drawer interactions: add, delete (with inline confirm), autosave.
+document.addEventListener("click", (e) => {
+  const dr = e.target.closest("#rr-onb-notes-drawer");
+  if (!dr) return;
+  if (e.target.closest("[data-onb-notes-add]")) {
+    e.preventDefault();
+    const listEl = document.getElementById("onb-notes-list");
+    if (!listEl) return;
+    const empty = listEl.querySelector(".onb-notes-empty"); if (empty) empty.remove();
+    const tmp = "t_" + Math.random().toString(36).slice(2, 9);
+    listEl.insertAdjacentHTML("beforeend", _onbNoteCardHTML(null, tmp));
+    const card = listEl.querySelector(`[data-tmp-id="${tmp}"]`);
+    const ta = card && card.querySelector("textarea[data-onb-note-body]");
+    if (ta) { _onbNoteAutogrow(ta); ta.focus(); }
+    return;
+  }
+  const delBtn = e.target.closest("[data-onb-note-del]");
+  if (delBtn) {
+    e.preventDefault();
+    const card = delBtn.closest(".onb-note");
+    if (!card) return;
+    card.dataset.prevHTML = card.innerHTML;
+    card.classList.add("confirming");
+    card.innerHTML = `<div class="onb-note-confirm"><div class="onb-note-confirm-txt">Delete this note?</div><div class="onb-note-confirm-actions"><button type="button" class="btn btn-sm" data-onb-note-delcancel>Keep it</button><button type="button" class="btn btn-sm btn-danger" data-onb-note-delok>Delete</button></div></div>`;
+    return;
+  }
+  if (e.target.closest("[data-onb-note-delcancel]")) {
+    e.preventDefault();
+    const card = e.target.closest(".onb-note");
+    if (card && card.dataset.prevHTML != null) { card.classList.remove("confirming"); card.innerHTML = card.dataset.prevHTML; delete card.dataset.prevHTML; _onbNoteAutogrow(card.querySelector("textarea[data-onb-note-body]")); }
+    return;
+  }
+  if (e.target.closest("[data-onb-note-delok]")) {
+    e.preventDefault();
+    const card = e.target.closest(".onb-note");
+    if (!card) return;
+    const id = card.getAttribute("data-note-id");
+    const listEl = document.getElementById("onb-notes-list");
+    card.remove();
+    if (id) sb.rpc("onboarding_note_delete", { p_id: id }).then(({ error }) => { if (error) toast("Couldn't delete note: " + (error.message || ""), "warn"); });
+    if (listEl && !listEl.querySelector(".onb-note")) listEl.innerHTML = `<div class="onb-notes-empty">No notes yet. Add the first one — it saves the moment you start typing, and only your team can see it.</div>`;
+    toast("Note deleted", "success");
+    return;
+  }
+});
+document.addEventListener("input", (e) => {
+  const card = e.target.closest("#rr-onb-notes-drawer .onb-note");
+  if (!card || !e.target.matches("textarea[data-onb-note-body]")) return;
+  _onbNoteAutogrow(e.target);
+  _onbNoteScheduleSave(card);
+});
+document.addEventListener("blur", (e) => {
+  const card = e.target.closest && e.target.closest("#rr-onb-notes-drawer .onb-note");
+  if (!card || !e.target.matches || !e.target.matches("textarea[data-onb-note-body]")) return;
+  // An emptied note shouldn't linger: drop the card, and the row if it
+  // had been persisted.
+  if (e.target.value.trim() === "") {
+    const key = _onbNoteKey(card); clearTimeout(_onbNoteTimers.get(key)); _onbNoteTimers.delete(key);
+    const id = card.getAttribute("data-note-id");
+    const listEl = document.getElementById("onb-notes-list");
+    card.remove();
+    if (id) sb.rpc("onboarding_note_delete", { p_id: id }).then(() => {}, () => {});
+    if (listEl && !listEl.querySelector(".onb-note")) listEl.innerHTML = `<div class="onb-notes-empty">No notes yet. Add the first one — it saves the moment you start typing, and only your team can see it.</div>`;
+    if (_onbNotesState === "saving") _onbNotesSetState("idle");
+  }
+}, true);   // capture — blur doesn't bubble
 
 function renderOnboardingRow(d) {
   const initials = displayDriverInitials(d);
