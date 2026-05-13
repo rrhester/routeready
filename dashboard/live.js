@@ -4744,6 +4744,21 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// Attendance + Availability Insights text links — same toggle pattern
+// as the Roster Insights. Each one hides/reveals its KPI strip.
+document.addEventListener("click", (e) => {
+  const tog = e.target.closest("#rr-att-insights-toggle, #rr-avail-insights-toggle");
+  if (!tog) return;
+  e.preventDefault();
+  const boxId = tog.id === "rr-att-insights-toggle" ? "rr-att-insights" : "rr-avail-insights";
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  const show = box.style.display === "none" || !box.style.display;
+  box.style.display = show ? "" : "none";
+  tog.setAttribute("aria-pressed", show ? "true" : "false");
+  tog.classList.toggle("is-on", show);
+});
+
 
 // ─── Drivers → Licenses tab ──────────────────────────────────────────────
 //
@@ -5016,29 +5031,12 @@ document.addEventListener("click", (e) => {
   _renderAttReportTbody();
 });
 
-// Repaint the policy snapshot banner above the table.  Reads from
-// _attReportRows directly so it always matches what's rendered.
+// The coaching-levels snapshot banner above the table was removed —
+// the same info lives on the per-row "Standing" column. Kept as a
+// no-op so existing callers don't throw.
 function _renderAttSnapshot() {
   const el = document.getElementById("rr-att-snapshot");
-  if (!el) return;
-  const rows = _attReportRows || [];
-  if (rows.length === 0) { el.style.display = "none"; return; }
-  const counts = { Termination: 0, Final: 0, Written: 0, Verbal: 0, Clear: 0 };
-  for (const r of rows) {
-    const k = r.coachingLabel === "Written · 1st 30" ? "Written"
-            : (r.coachingLabel === "Policy off" ? "Clear" : r.coachingLabel);
-    if (counts[k] != null) counts[k] += 1;
-  }
-  el.style.display = "block";
-  el.innerHTML = `
-    <div class="att-snapshot-row">
-      <span class="att-snapshot-title">${rows.length} drivers ·</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--red-dark)"></span>${counts.Termination} Termination</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--red)"></span>${counts.Final} Final</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--amber-dark)"></span>${counts.Written} Written</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--amber)"></span>${counts.Verbal} Verbal</span>
-      <span class="att-snapshot-pip"><span class="att-snapshot-pip-dot" style="background:var(--green-dark)"></span>${counts.Clear} Clear</span>
-    </div>`;
+  if (el) el.style.display = "none";
 }
 
 function _renderAttReportTbody() {
@@ -8774,6 +8772,14 @@ window.drSub = function (sub) {
   if (typeof _closeAvailKpiDetail === "function")   _closeAvailKpiDetail();
   if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
   if (typeof _legacyDrSub === "function") _legacyDrSub(sub);
+  // Insights strips collapse on every subview entry so the operator
+  // lands on the table-first view each time.
+  ["rr-att-insights", "rr-avail-insights"].forEach((id) => {
+    const el = document.getElementById(id); if (el) el.style.display = "none";
+  });
+  document.querySelectorAll("#rr-att-insights-toggle, #rr-avail-insights-toggle").forEach((t) => {
+    t.setAttribute("aria-pressed", "false"); t.classList.remove("is-on");
+  });
   if (sub === "licenses")     loadDriverLicensesView();
   if (sub === "roster")       loadDriversRoster();
   if (sub === "attendance")   { _rrApplyAttPolicyMode(); loadAttendanceLive(); _rrInitAttTabDnD(); }

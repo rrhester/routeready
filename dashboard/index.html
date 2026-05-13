@@ -7898,39 +7898,40 @@ body.rr-cmdk-open{ overflow:hidden }
           <!-- ─── REPORT PANE ─────────────────────────────────── -->
           <div class="att-pane active" id="att-pane-report">
 
-            <div class="di-grid" style="margin-bottom:var(--s-4)">
-              <div class="di-card di-card-clickable" data-rr-att-kpi="rate" role="button" tabindex="0" aria-label="Open attendance rate detail">
-                <div class="di-label">Avg attendance</div>
-                <div class="di-val ok" id="att-kpi-rate">—</div>
-                <div class="di-sub" id="att-kpi-rate-sub">Callouts + no-shows ÷ scheduled</div>
+            <!-- KPI insights · hidden by default, opened by the small
+                 Insights text link to the right of the table. Matches
+                 the Onboarding / Roster Insights pattern. -->
+            <div id="rr-att-insights" style="display:none;margin-bottom:var(--s-4)">
+              <div class="di-grid">
+                <div class="di-card di-card-clickable" data-rr-att-kpi="rate" role="button" tabindex="0" aria-label="Open attendance rate detail">
+                  <div class="di-label">Avg attendance</div>
+                  <div class="di-val ok" id="att-kpi-rate">—</div>
+                  <div class="di-sub" id="att-kpi-rate-sub">Callouts + no-shows ÷ scheduled</div>
+                </div>
+                <div class="di-card di-card-clickable" data-rr-att-kpi="vto" role="button" tabindex="0" aria-label="Open VTO detail">
+                  <div class="di-label">VTO</div>
+                  <div class="di-val" id="att-kpi-vto">—</div>
+                  <div class="di-sub" id="att-kpi-vto-sub">Voluntary time off ÷ scheduled</div>
+                </div>
+                <div class="di-card di-card-clickable" data-rr-att-kpi="excused" role="button" tabindex="0" aria-label="Open Excused detail">
+                  <div class="di-label">Excused</div>
+                  <div class="di-val" id="att-kpi-excused">—</div>
+                  <div class="di-sub" id="att-kpi-excused-sub">Absences forgiven by dispatch</div>
+                </div>
               </div>
-              <div class="di-card di-card-clickable" data-rr-att-kpi="vto" role="button" tabindex="0" aria-label="Open VTO detail">
-                <div class="di-label">VTO</div>
-                <div class="di-val" id="att-kpi-vto">—</div>
-                <div class="di-sub" id="att-kpi-vto-sub">Voluntary time off ÷ scheduled</div>
-              </div>
-              <div class="di-card di-card-clickable" data-rr-att-kpi="excused" role="button" tabindex="0" aria-label="Open Excused detail">
-                <div class="di-label">Excused</div>
-                <div class="di-val" id="att-kpi-excused">—</div>
-                <div class="di-sub" id="att-kpi-excused-sub">Absences forgiven by dispatch</div>
-              </div>
+              <!-- KPI detail panel · populated by _renderAttKpiDetail.  Toggled
+                   by clicking one of the three KPI cards above. -->
+              <div id="rr-att-kpi-detail" style="display:none;margin-top:var(--s-3)"></div>
             </div>
 
-            <!-- KPI detail panel · populated by _renderAttKpiDetail.  Toggled
-                 by clicking one of the three KPI cards above. -->
-            <div id="rr-att-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
-
-            <!-- Policy snapshot banner — populated by loadAttendanceLive -->
-            <div id="rr-att-snapshot" class="att-snapshot" style="display:none"></div>
-
             <!-- The pill-style filter row was retired (#823); the table
-                 itself handles sorting + segmentation now. The export
-                 action lives quietly to the right of the table. -->
+                 itself handles sorting + segmentation now. The Insights
+                 text link sits quietly above the table. -->
             <div id="rr-att-filters" role="tablist" hidden>
               <button type="button" class="att-filter-chip active" data-rr-att-filter="all" hidden>All drivers</button>
             </div>
             <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:var(--s-2)">
-              <button class="btn btn-sm btn-ghost btn-icon" onclick="attExportCsv()" title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+              <a href="#" role="button" class="rr-text-link" id="rr-att-insights-toggle" aria-pressed="false">Insights</a>
             </div>
 
             <div class="table-wrap">
@@ -7998,13 +7999,19 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- AVAILABILITY REQUESTS SUB-VIEW -->
         <div class="dr-subview" id="dr-sub-availability">
 
-          <!-- KPI strip (filled by _renderAvailabilityKpis) -->
-          <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)"></div>
+          <!-- KPI insights · hidden by default; toggled by the small
+               Insights text link above the request list. -->
+          <div id="rr-avail-insights" style="display:none;margin-bottom:var(--s-4)">
+            <div data-rr-avail-kpis style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3)"></div>
+            <!-- KPI drilldown panel — populated when an operator clicks
+                 one of the four cards above; closed by default + on
+                 navigation away from this subview. -->
+            <div id="rr-avail-kpi-detail" style="display:none;margin-top:var(--s-3)"></div>
+          </div>
 
-          <!-- KPI drilldown panel — populated when an operator clicks
-               one of the four cards above; closed by default + on
-               navigation away from this subview. -->
-          <div id="rr-avail-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:var(--s-2)">
+            <a href="#" role="button" class="rr-text-link" id="rr-avail-insights-toggle" aria-pressed="false">Insights</a>
+          </div>
 
           <div class="card card-flush">
             <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
@@ -19474,7 +19481,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513x-drivers-polish-v3"></script>
+<script type="module" src="./live.js?v=20260513y-insights-pattern"></script>
 
 </body>
 </html>
