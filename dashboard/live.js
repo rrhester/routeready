@@ -3296,8 +3296,10 @@ function _obMxStylesOnce() {
     ".ob-bld-card.dragging{opacity:.45;border-color:var(--accent);box-shadow:0 8px 24px -8px rgba(15,23,42,.22)}" +
     ".ob-bld-card.drop-before{box-shadow:inset 0 3px 0 0 var(--accent)}" +
     ".ob-bld-card.drop-after{box-shadow:inset 0 -3px 0 0 var(--accent)}" +
-    ".ob-bld-card--locked{background:var(--canvas);border-style:dashed}" +
-    ".ob-bld-card--locked:hover{border-color:var(--border)}" +
+    /* tiny, understated "Help" button + popup trigger */
+    ".rr-help-btn{appearance:none;background:transparent;border:0;font:inherit;font-size:11px;font-weight:500;color:var(--text-subtle);cursor:pointer;padding:2px 6px;border-radius:var(--r-sm);transition:color .12s,background .12s}" +
+    ".rr-help-btn:hover{color:var(--text-muted);background:var(--canvas);text-decoration:underline}" +
+    ".rr-help-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}" +
     ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:4px 8px;margin-left:-8px;min-width:180px;max-width:340px;flex:1;transition:border-color .12s,background .12s,box-shadow .12s}" +
     ".ob-bld-title:hover{border-color:var(--border-strong)}" +
     ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}" +
@@ -3641,21 +3643,11 @@ function _obRenderBuilder() {
       ${trashBtn(s, i)}
     </div>`;
   };
-  // The terminal "App Complete" card — fixed, can't be deleted or
-  // reordered, not stored in the saved blueprint. The dot on the
-  // onboarding overview flips to green automatically when the driver
-  // has finished every step above it.
-  const appCompleteCard = () => `
-    <div class="ob-bld-card ob-bld-card--locked" data-app-complete="1">
-      <div class="ob-bld-grip" aria-hidden="true" style="opacity:.25;cursor:default" tabindex="-1"><svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></svg></div>
-      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
-        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);padding:4px 0">App Complete</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4">Goes green automatically when the driver finishes every step above. Built-in — can't be edited or deleted.</div>
-      </div>
-    </div>`;
+  // The terminal "App Complete" card was removed at the user's request —
+  // every step's own dot already tells the DSP when the driver's done.
   root.innerHTML = `
-    <h3 class="di-section-title" style="margin:0 0 var(--s-4)">Onboarding builder</h3>
-    <div class="ob-bld-list">${steps.map(card).join("")}${appCompleteCard()}</div>
+    ${_helpBar("builder")}
+    <div class="ob-bld-list">${steps.map(card).join("")}</div>
     <div style="margin-top:14px"><button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button></div>`;
 }
 
@@ -3810,9 +3802,7 @@ document.addEventListener("dragover", (e) => {
   if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
   document.querySelectorAll("#obsub-builder .ob-bld-card.drop-before, #obsub-builder .ob-bld-card.drop-after").forEach(c => c.classList.remove("drop-before", "drop-after"));
   const card = e.target.closest("#obsub-builder .ob-bld-card");
-  // The locked terminal "App Complete" card is not a drop target — drops
-  // dropped over it just go to the end of the real list.
-  if (!card || card.classList.contains("dragging") || card.classList.contains("ob-bld-card--locked")) { _obDragOverIdx = null; return; }
+  if (!card || card.classList.contains("dragging")) { _obDragOverIdx = null; return; }
   const r = card.getBoundingClientRect();
   _obDragOverIdx = +card.getAttribute("data-i");
   _obDragBefore = (e.clientY - r.top) < r.height / 2;
@@ -3838,6 +3828,68 @@ document.addEventListener("drop", (e) => {
 document.addEventListener("dragend", () => {
   _obDragFrom = null; _obDragOverIdx = null; _obDragBefore = false;
   _obDragClearMarkers();
+});
+
+// ── Tiny, understated "Help" trigger + popup ──────────────────────────
+// Each onboarding sub-tab tucks a small word "Help" in its top-right
+// corner; clicking it opens a centered explainer with what the page is
+// for and how to use it. Trigger is delegated, so it works regardless
+// of which sub-tab's content is currently mounted.
+const _HELP_CONTENT = {
+  overview: { title: "How the onboarding overview works", body: `
+    <p>Each row is a driver currently in onboarding.</p>
+    <ul style="padding-left:18px;margin:8px 0">
+      <li><strong>Step dots</strong> across the row track every step in your onboarding blueprint. A dot turns <strong>green</strong> the moment the driver completes that step in the RouteReady app — you don't toggle it from here.</li>
+      <li><strong>Background check / Drug test / Training</strong> dots are the exception: those are recorded by you. Click the dot to mark complete.</li>
+      <li><strong>Action buttons</strong> on the right: Send a document, open Internal notes (staff-only), Message the driver, or preview their app view.</li>
+      <li><strong>Active dot</strong> is the activation toggle — click it once the driver has finished onboarding and you're ready to put them on shifts.</li>
+    </ul>
+    <p>Drivers added from the Hiring Pipeline land here automatically; once you flip them to Active they roll out to the main roster.</p>` },
+  workauth: { title: "How the Work authorization page works", body: `
+    <p>This page is your Form I-9 queue. Drivers appear here only while their I-9 isn't fully verified — once Section 2 is signed and the work authorization is on file, they drop off the page.</p>
+    <ul style="padding-left:18px;margin:8px 0">
+      <li>The <strong>red bar on the left</strong> flags every driver who isn't meeting the time requirement (Section 2 overdue, due soon, needs correction, expiring work auth, or a Section-2-needed row that's waiting on a first-day-of-employment date).</li>
+      <li>The line under each name spells out exactly what's outstanding and the deadline.</li>
+      <li>Hit <strong>Open</strong> to view or complete Section 2.</li>
+    </ul>` },
+  builder: { title: "How the onboarding builder works", body: `
+    <p>The blueprint here is the ordered list of steps every new hire works through in the RouteReady app. Each row is one step.</p>
+    <ul style="padding-left:18px;margin:8px 0">
+      <li><strong>Drag the grip</strong> on the left to reorder the steps — drivers see them in this order.</li>
+      <li><strong>Click the title</strong> to rename a step.</li>
+      <li><strong>Document steps</strong>: the document picker on the right lets you attach a PDF from your Documents workspace. Informational docs the driver opens & acknowledges; secure docs run the existing e-signature & compliance flow.</li>
+      <li><strong>+ Add a step</strong>: pick a Document, plain Acknowledgement, or a Video to watch & confirm.</li>
+      <li><strong>Trash icon</strong> on hover: remove a step. The three compliance gates (Background check, Drug test, Form I-9) are core — you can delete them if you want, but the gates they record are part of the I-9 / employment workflow.</li>
+    </ul>
+    <p>Every change saves automatically and reaches new and in-progress drivers.</p>` },
+};
+function _helpBar(key) {
+  return `<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:8px"><button type="button" class="rr-help-btn" data-rr-help="${escapeHtml(key)}" aria-label="How this page works">Help</button></div>`;
+}
+function _openHelpPopup(key) {
+  const c = _HELP_CONTENT[key]; if (!c) return;
+  document.getElementById("rr-help-popup")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-help-popup";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.30);z-index:10020;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:64px 16px";
+  m.innerHTML = `<div role="dialog" aria-label="${escapeHtml(c.title)}" style="background:var(--surface);border-radius:14px;max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <div style="flex:1;font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(c.title)}</div>
+      <button type="button" data-rr-help-close aria-label="Close" style="appearance:none;background:transparent;border:0;width:28px;height:28px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div style="padding:16px 22px 18px;font-size:var(--fs-sm);color:var(--text);line-height:1.55">${c.body}</div>
+  </div>`;
+  document.body.appendChild(m);
+  const close = () => { document.removeEventListener("keydown", onKey); m.remove(); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-rr-help-close]")) close(); });
+  document.addEventListener("keydown", onKey);
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-help]");
+  if (!b) return;
+  e.preventDefault();
+  _openHelpPopup(b.getAttribute("data-rr-help"));
 });
 
 async function loadOnboardingOps(opts) {
@@ -3954,10 +4006,6 @@ async function loadOnboardingOps(opts) {
       return { done, html: dotCell(d.id, "prog", m.done, done, val, { readonly: !!m.sent, labelDone, labelTodo }) };
     });
     const cells = builtCells.map(c => c.html).join("");
-    // Terminal "App Complete" dot — green automatically once every step
-    // in the row above is done. Read-only; the DSP doesn't toggle this.
-    const appCompleteDone = builtCells.length > 0 && builtCells.every(c => c.done);
-    const appCompleteCell = dotCell(d.id, "app_complete", "", appCompleteDone, null, { readonly: true, labelDone: "Driver finished everything in the app", labelTodo: "Waiting on the steps above" });
     return `
       <tr data-driver-id="${escapeHtml(d.id)}">
         <td class="ob-mx-namecell">
@@ -3970,7 +4018,6 @@ async function loadOnboardingOps(opts) {
           </div>
         </td>
         ${cells}
-        ${appCompleteCell}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
@@ -3981,12 +4028,11 @@ async function loadOnboardingOps(opts) {
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
   body.innerHTML = enriched.length
-    ? `<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
+    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
             ${stepHeaders}
-            <th title="Goes green automatically when the driver finishes every step above">App Complete</th>
             <th>Active</th>
             <th>Send</th>
             <th>Notes</th>
@@ -3996,7 +4042,7 @@ async function loadOnboardingOps(opts) {
         </thead>
         <tbody>${enriched.map(matrixRow).join("")}</tbody>
       </table></div></div>`
-    : `<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`;
+    : `${_helpBar("overview")}<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`;
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
@@ -13284,19 +13330,16 @@ async function loadDriverWorkAuthView() {
         <div><button type="button" class="btn btn-sm" data-rr-i9-open="${escapeHtml(r.driver_id)}">Open</button></div>
       </div>`;
   };
-  const sections = _I9_BUCKETS.map(b => {
-    const list = grouped[b.key];
-    if (!list.length) return "";
-    return `
-      <div style="margin-bottom:18px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          ${_i9Chip(b.label, b.tone)}
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${list.length}</span>
-        </div>
-        <div style="display:flex;flex-direction:column">${list.map(rowHtml).join("")}</div>
-      </div>`;
-  }).join("");
-  queueEl.innerHTML = sections || `<div class="dr-empty"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>Form I-9 queue is clear</h3><p>Every employee's I-9 is complete or on track — nothing needs your attention right now.</p></div>`;
+  // Verified drivers drop off the page entirely; the rest are listed in
+  // urgency order (overdue → due soon → needs correction → reverification
+  // → awaiting employee → s2_needed) with no section header pills. The
+  // red left bar + the descriptive line under each name are the warning.
+  const flatRows = _I9_BUCKETS
+    .filter(b => b.key !== "verified")
+    .flatMap(b => grouped[b.key] || [])
+    .map(rowHtml)
+    .join("");
+  queueEl.innerHTML = `${_helpBar("workauth")}${flatRows ? `<div style="display:flex;flex-direction:column">${flatRows}</div>` : `<div class="dr-empty"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>Form I-9 queue is clear</h3><p>Every employee's I-9 is verified or on track — nothing needs your attention right now.</p></div>`}`;
 
   // Refresh the subnav badge with the overdue count.
   _i9SetOverdueBadge(overdueCount);
