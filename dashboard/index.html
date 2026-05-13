@@ -9540,6 +9540,37 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
               </details>
 
+              <details class="rules-sub" data-rr-rules-sub="pay-ot">
+                <summary>Pay &amp; overtime</summary>
+                <div class="rules-sub-body" data-rr-pay-form>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Overtime threshold (hours per week)</div>
+                      <div class="rule-help">Weekly hours past this point count as overtime. Cover ranks candidates by how much OT they'd add.</div>
+                    </div>
+                    <input class="rule-input" id="rr-pay-ot-threshold" type="number" min="0" max="168" step="1" value="40" />
+                  </div>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Default overtime multiplier</div>
+                      <div class="rule-help">Applied to drivers without a per-driver override. 1.5&times; is the federal default.</div>
+                    </div>
+                    <input class="rule-input" id="rr-pay-ot-mult" type="number" min="1" max="5" step="0.05" value="1.5" />
+                  </div>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Default hourly rate ($)</div>
+                      <div class="rule-help">Fallback when a driver has no rate set on their Pay tab. Leave blank for no DSP-wide default.</div>
+                    </div>
+                    <input class="rule-input" id="rr-pay-default-rate" type="number" min="0" max="500" step="0.01" placeholder="—" />
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                    <button class="btn btn-primary btn-sm" id="rr-pay-save" type="button">Save</button>
+                    <span id="rr-pay-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
+                  </div>
+                </div>
+              </details>
+
               <details class="rules-sub" data-rr-rules-sub="driver-pickup">
                 <summary>Driver self-service</summary>
                 <div class="rules-sub-body">
