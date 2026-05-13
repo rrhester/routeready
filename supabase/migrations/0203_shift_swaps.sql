@@ -140,9 +140,14 @@ grant select on public.shift_swaps_audit   to authenticated;
 -- Returns the upcoming shifts the calling driver could swap their own
 -- shift for. One row per (other_driver, their_shift) in the next 21
 -- days. Empty if swap is disabled for the DSP.
+--
+-- NOTE: VOLATILE (not STABLE) — private.driver_validate_token bumps a
+-- last-seen timestamp, which is an UPDATE, and STABLE functions run
+-- in a read-only context that rejects the write. Same reasoning
+-- applies to the driver_swap_list / driver_offer_list family.
 create or replace function public.driver_swap_pool(p_token text)
 returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 declare
   v_drv     public.drivers;
   v_enabled boolean;
