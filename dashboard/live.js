@@ -25030,7 +25030,6 @@ function _dappTenure(hireDate) {
 async function openDriverAppPreview(driverId) {
   if (!driverId) return;
   document.getElementById("rr-dapp-modal")?.remove();
-  const dsp = window.RR?.dsp?.id;
 
   const m = document.createElement("div");
   m.className = "dapp-modal";
@@ -25039,29 +25038,71 @@ async function openDriverAppPreview(driverId) {
     <div class="dapp-phone" role="dialog" aria-label="Driver app preview">
       <button type="button" class="dapp-close" data-dapp-close title="Close" aria-label="Close">&times;</button>
       <div class="dapp-island"></div>
-      <div class="dapp-statusbar"><span>9:41</span><span>RouteReady · driver view</span></div>
-      <div class="dapp-topbar">
-        <div class="ttl" id="rr-dapp-ttl">Schedule</div>
-        <div class="who" id="rr-dapp-who">Loading…</div>
+      <div class="dapp-body" id="rr-dapp-body">
+        <div class="dapp-statusbar"><span>9:41</span><span>RouteReady · driver view</span></div>
+        <div class="dapp-empty" style="flex:1;display:flex;align-items:center;justify-content:center">Opening the driver's app…</div>
       </div>
+    </div>`;
+  m.addEventListener("click", (e) => {
+    if (e.target.closest("[data-dapp-close]")) { _dappClose(); return; }
+    const tab = e.target.closest("[data-dapp-tab]");
+    if (tab) { if (_dappState && _dappState.mode === "recreation") { _dappState.tab = tab.getAttribute("data-dapp-tab"); _dappRender(); } return; }
+    if (!e.target.closest(".dapp-phone")) { _dappClose(); return; }
+  });
+  document.body.appendChild(m);
+  _dappState = { driverId, tab: "schedule", data: null, mode: null, previewToken: null };
+
+  // Preferred path: mint a short-lived read-only preview token and embed the
+  // *actual* driver PWA in the phone frame, so it's literally what the driver
+  // sees. If that RPC isn't available (e.g. deployed before migration 0188)
+  // or fails, fall back to the dispatcher-side recreation below.
+  let pv = null;
+  try {
+    const r = await sb.rpc("driver_preview_token", { p_driver_id: driverId });
+    if (!r.error && r.data && r.data.token) pv = r.data;
+  } catch (e) { pv = null; }
+  if (!_dappState || _dappState.driverId !== driverId) return;   // closed / switched while loading
+
+  if (pv) {
+    _dappState.mode = "iframe";
+    _dappState.previewToken = pv.token;
+    const drv = pv.driver || {};
+    const dspName = (window.RR && window.RR.dsp && window.RR.dsp.name) ? window.RR.dsp.name : "";
+    const qs = new URLSearchParams();
+    qs.set("preview", pv.token);
+    if (drv.name) qs.set("n", String(drv.name));
+    if (dspName) qs.set("d", String(dspName));
+    if (drv.id) qs.set("did", String(drv.id));
+    if (drv.status) qs.set("st", String(drv.status));
+    if (drv.status === "onboarding") qs.set("onb", "1");
+    const body = document.getElementById("rr-dapp-body");
+    if (body) {
+      body.classList.add("dapp-body-iframe");
+      body.innerHTML = `
+        <div class="dapp-statusbar"><span>9:41</span><span class="dapp-rotag">Preview · read-only</span></div>
+        <iframe class="dapp-iframe" src="../app/index.html?${qs.toString()}" title="Driver app preview" referrerpolicy="no-referrer"></iframe>`;
+    }
+    return;
+  }
+
+  // ── Fallback: dispatcher-side recreation ──
+  _dappState.mode = "recreation";
+  const body = document.getElementById("rr-dapp-body");
+  if (body) {
+    body.innerHTML = `
+      <div class="dapp-statusbar"><span>9:41</span><span>RouteReady · driver view</span></div>
+      <div class="dapp-topbar"><div class="ttl" id="rr-dapp-ttl">Schedule</div><div class="who" id="rr-dapp-who">Loading…</div></div>
       <div class="dapp-scroll" id="rr-dapp-scroll"><div class="dapp-empty">Loading…</div></div>
       <div class="dapp-bottomnav">
         <button type="button" class="dapp-tab" data-dapp-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></button>
         <button type="button" class="dapp-tab" data-dapp-tab="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Schedule</span></button>
         <button type="button" class="dapp-tab" data-dapp-tab="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Tasks</span></button>
         <button type="button" class="dapp-tab" data-dapp-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span></button>
-      </div>
-    </div>`;
-  m.addEventListener("click", (e) => {
-    if (e.target.closest("[data-dapp-close]")) { _dappClose(); return; }
-    const tab = e.target.closest("[data-dapp-tab]");
-    if (tab) { if (_dappState) { _dappState.tab = tab.getAttribute("data-dapp-tab"); _dappRender(); } return; }
-    if (!e.target.closest(".dapp-phone")) { _dappClose(); return; }
-  });
-  document.body.appendChild(m);
-  _dappState = { driverId, tab: "schedule", data: null };
+      </div>`;
+  }
   _dappRender();
 
+  const dsp = window.RR && window.RR.dsp ? window.RR.dsp.id : null;
   const safe = (p, fb) => p.then(r => r, e => ({ error: e, data: (fb !== undefined ? fb : null) }));
   const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString().slice(0, 10);
   let res;
@@ -25075,7 +25116,7 @@ async function openDriverAppPreview(driverId) {
     ]);
   } catch (e) { res = null; }
 
-  if (!_dappState || _dappState.driverId !== driverId) return;   // closed / switched while loading
+  if (!_dappState || _dappState.driverId !== driverId || _dappState.mode !== "recreation") return;
 
   if (!res) {
     const sc = document.getElementById("rr-dapp-scroll");
@@ -25105,6 +25146,8 @@ async function openDriverAppPreview(driverId) {
 }
 
 function _dappClose() {
+  const tok = _dappState && _dappState.previewToken;
+  if (tok) { try { sb.rpc("driver_preview_token_revoke", { p_token: tok }).then(() => {}, () => {}); } catch (e) {} }
   document.getElementById("rr-dapp-modal")?.remove();
   _dappState = null;
 }
