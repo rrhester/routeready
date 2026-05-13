@@ -8224,6 +8224,9 @@ function _renderTpAttendance(data, error) {
 async function _renderTpDailyTool(flagged) {
   const toolEl = document.getElementById("rr-tp-tool");
   if (!toolEl) return;
+  // Make sure the risk-score cache is warm before we render; the
+  // paint pass below will pick it up via data-rr-risk-driver slots.
+  await _rrRiskLoad();
 
   const head = (n) => `
     <div class="card-section-head">
@@ -8334,7 +8337,10 @@ async function _renderTpDailyTool(flagged) {
            style="display:grid;grid-template-columns:36px minmax(160px,1fr) 130px 1fr auto;gap:14px;align-items:center;padding:12px 14px;border-top:1px solid var(--border)">
         <div class="avatar-sm" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(initials)}</div>
         <div style="min-width:0">
-          <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
+            <span data-rr-risk-driver="${escapeHtml(r.driver_id)}"></span>
+          </div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
         </div>
         <div>
@@ -8389,6 +8395,7 @@ async function _renderTpDailyTool(flagged) {
     <div style="padding:10px 14px;background:var(--canvas);border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-subtle)">
       ${escapeHtml(autoCoachNote)}
     </div>`;
+  _rrRiskPaint(toolEl);
 }
 
 // Approve / decline on the daily tool.  Approve hits the
@@ -22977,6 +22984,52 @@ document.addEventListener("click", async (e) => {
 // driver's phone. Day-of NCNS/callouts stay on the cushion path.
 let _coverState = null;   // { shiftId, offerId, expiresAt, timerId, channel }
 
+// ─── Attendance risk signal ───────────────────────────────────────────
+// Per-driver "high / moderate" no-show pill, derived from a 90-day
+// rolling window of shifts. Server-side via attendance_risk_all
+// (migration 0205); we cache the result for ~2 minutes and re-look-up
+// by driver_id wherever we surface the badge (Today's Plan,
+// Cover candidates, future surfaces).
+let _rrRiskCache = null;
+let _rrRiskFetchedAt = 0;
+async function _rrRiskLoad() {
+  // Cache TTL — risk scores change slowly; refreshing every page
+  // entry is wasteful when the operator's clicking around.
+  if (_rrRiskCache && (Date.now() - _rrRiskFetchedAt) < 120000) return _rrRiskCache;
+  const { data, error } = await sb.rpc("attendance_risk_all", { p_days_back: 90 });
+  if (error || !data) return _rrRiskCache || {};
+  _rrRiskCache = data.drivers || {};
+  _rrRiskFetchedAt = Date.now();
+  return _rrRiskCache;
+}
+function _rrRiskPill(driverId) {
+  if (!_rrRiskCache) return "";
+  const r = _rrRiskCache[driverId];
+  if (!r || (r.label !== "high" && r.label !== "moderate")) return "";
+  const tone = r.label === "high"
+    ? { fg: "var(--red)",        bg: "var(--red-soft)",   border: "rgba(225,29,72,.20)" }
+    : { fg: "var(--amber-dark)", bg: "var(--amber-soft)", border: "rgba(217,119,6,.20)" };
+  const label = r.label === "high" ? "High no-show risk" : "Watch list";
+  const title = `${r.incidents} incident${r.incidents === 1 ? "" : "s"} in last ${r.total} shifts (${r.rate_pct}%)`;
+  return `<span title="${escapeHtml(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${tone.bg};color:${tone.fg};border:1px solid ${tone.border};white-space:nowrap"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${escapeHtml(label)}</span>`;
+}
+// Paint risk pills into rendered surfaces that opt-in via
+// data-rr-risk-driver. Idempotent — only fills empty slots so re-runs
+// after a refresh don't double-stamp.
+function _rrRiskPaint(scope) {
+  const root = scope && scope.querySelectorAll ? scope : document;
+  root.querySelectorAll("[data-rr-risk-driver]").forEach((el) => {
+    if (el.dataset.rrRiskPainted) return;
+    const id = el.getAttribute("data-rr-risk-driver");
+    const pill = _rrRiskPill(id);
+    if (pill) {
+      el.innerHTML = pill;
+      el.dataset.rrRiskPainted = "1";
+    }
+  });
+}
+
+
 // ─── Schedule templates ───────────────────────────────────────────────
 // Save a recurring weekly pattern and paste it into future weeks.
 // Capture snapshots the currently-displayed week (window._rrWeekStart
@@ -23223,6 +23276,11 @@ async function _coverLoadCandidates() {
   body.querySelectorAll("[data-rr-cover-offer]").forEach((btn) => {
     btn.addEventListener("click", () => _coverSendOffer(btn.getAttribute("data-rr-cover-offer"), btn));
   });
+
+  // Warm the risk cache and decorate any high/moderate-risk candidates
+  // inline so the dispatcher sees the warning before they pick.
+  await _rrRiskLoad();
+  _rrRiskPaint(body);
 }
 
 function _coverCandidateRow(c) {
@@ -23234,7 +23292,10 @@ function _coverCandidateRow(c) {
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px">
       <div style="min-width:0;flex:1">
-        <div style="font-weight:700;color:var(--text);font-size:var(--fs-md)">${escapeHtml(c.driver_name || "Driver")}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-weight:700;color:var(--text);font-size:var(--fs-md)">${escapeHtml(c.driver_name || "Driver")}</div>
+          <span data-rr-risk-driver="${escapeHtml(c.driver_id)}"></span>
+        </div>
         <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">Scheduled this week: ${_coverFmtHours(c.current_week_hours)} → ${_coverFmtHours(c.projected_total_hours)}</div>
         ${otBadge}
       </div>
