@@ -25046,10 +25046,10 @@ async function openDriverAppPreview(driverId) {
       </div>
       <div class="dapp-scroll" id="rr-dapp-scroll"><div class="dapp-empty">Loading…</div></div>
       <div class="dapp-bottomnav">
+        <button type="button" class="dapp-tab" data-dapp-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></button>
         <button type="button" class="dapp-tab" data-dapp-tab="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Schedule</span></button>
         <button type="button" class="dapp-tab" data-dapp-tab="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Tasks</span></button>
-        <button type="button" class="dapp-tab" data-dapp-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Messages</span></button>
-        <button type="button" class="dapp-tab" data-dapp-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></button>
+        <button type="button" class="dapp-tab" data-dapp-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span></button>
       </div>
     </div>`;
   m.addEventListener("click", (e) => {
@@ -25114,19 +25114,133 @@ function _dappRender() {
   if (!st) return;
   const m = document.getElementById("rr-dapp-modal");
   if (!m) return;
-  const tab = st.tab || "schedule";
-  m.querySelectorAll(".dapp-tab").forEach(b => b.classList.toggle("active", b.getAttribute("data-dapp-tab") === tab));
-  const titles = { schedule: "Schedule", tasks: "Tasks", chat: "Messages", profile: "Profile" };
   const ttl = document.getElementById("rr-dapp-ttl");
-  if (ttl) ttl.textContent = titles[tab] || "RouteReady";
   const sc = document.getElementById("rr-dapp-scroll");
+  const nav = m.querySelector(".dapp-bottomnav");
   if (!sc) return;
   const data = st.data;
+
+  // Onboarding drivers see a locked "orientation" experience in the app —
+  // no bottom tabbar, just the onboarding hub. Mirror that here.
+  const isOnb = !!(data && data.driver && data.driver.status === "onboarding");
+  if (nav) nav.style.display = isOnb ? "none" : "";
+  if (isOnb) {
+    if (ttl) ttl.textContent = "Onboarding";
+    if (!data) { sc.innerHTML = `<div class="dapp-empty">Loading…</div>`; return; }
+    sc.innerHTML = _dappOnboarding(data);
+    sc.scrollTop = 0;
+    return;
+  }
+
+  const tab = st.tab || "schedule";
+  m.querySelectorAll(".dapp-tab").forEach(b => b.classList.toggle("active", b.getAttribute("data-dapp-tab") === tab));
+  const titles = { profile: "Profile", schedule: "Schedule", tasks: "Tasks", chat: "Chat" };
+  if (ttl) ttl.textContent = titles[tab] || "RouteReady";
   if (!data) { sc.innerHTML = `<div class="dapp-empty">Loading…</div>`; return; }
   if (tab === "schedule") sc.innerHTML = _dappSchedule(data);
   else if (tab === "tasks") sc.innerHTML = _dappTasks(data);
   else if (tab === "chat") { sc.innerHTML = _dappChat(data); sc.scrollTop = sc.scrollHeight; }
   else if (tab === "profile") sc.innerHTML = _dappProfile(data);
+}
+
+// Progress ring (matches app/styles.css renderOnboarding's _obProgressRing).
+function _dappObRing(done, total) {
+  const r = 21, c = 2 * Math.PI * r;
+  const frac = total ? done / total : 0;
+  const allDone = total > 0 && done === total;
+  return `<svg width="50" height="50" viewBox="0 0 50 50" aria-hidden="true">
+    <circle cx="25" cy="25" r="${r}" fill="none" stroke="var(--canvas)" stroke-width="5"/>
+    <circle cx="25" cy="25" r="${r}" fill="none" stroke="${allDone ? "var(--green)" : "var(--accent)"}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - frac)).toFixed(1)}" transform="rotate(-90 25 25)"/>
+  </svg>`;
+}
+
+// The driver app's onboarding hub, recreated from the dashboard's onboarding
+// model (_obReadiness). Faithful enough to troubleshoot what the driver sees
+// while they're locked into orientation.
+function _dappOnboarding(data) {
+  const d = data.driver;
+  let ob;
+  try { ob = _obReadiness(d); } catch (e) { ob = null; }
+  if (!ob) {
+    return `<div class="ob"><div class="dapp-empty">This driver is in onboarding, but their orientation steps couldn't be loaded.</div></div>`;
+  }
+  const fname = d.preferred_name || d.first_name || "";
+  const CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const CHEV = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+  // Split into the driver's own steps vs. the steps their team records.
+  // ("event" steps are internal system milestones; "status" is the finish line.)
+  const visible = (ob.steps || []).filter(s => s && s.kind !== "event" && s.kind !== "status");
+  const isDriverStep = (s) => s.kind === "sentcomplete" || s.kind === "i9" || (s.kind === "state" && s.owner === "driver");
+  const mySteps   = visible.filter(isDriverStep);
+  const teamSteps = visible.filter(s => !isDriverStep(s));
+  const total = mySteps.length + teamSteps.length;
+  const doneCount = visible.filter(s => s.done).length;
+  const allDone = total > 0 && doneCount === total;
+  const allMyDone = mySteps.length > 0 && mySteps.every(s => s.done);
+
+  const nextMy = mySteps.find(s => !s.done) || null;
+
+  const heroTitle = allDone ? `You're all set${fname ? ", " + escapeHtml(fname) : ""}`
+    : doneCount === 0 ? `Welcome aboard${fname ? ", " + escapeHtml(fname) : ""}`
+    : (total - doneCount) === 1 ? `One step to go${fname ? ", " + escapeHtml(fname) : ""}`
+    : `Making progress${fname ? ", " + escapeHtml(fname) : ""}`;
+  const teamPhrase = teamSteps.filter(s => !s.done).map(s => String(s.label || "").toLowerCase()).join(" and ") || "the last steps";
+  const heroSub = allDone
+    ? "Everything's done — the dispatcher activates the account now."
+    : allMyDone
+      ? `The driver's part is done. The team is finishing ${escapeHtml(teamPhrase)}.`
+      : `${doneCount} of ${total} steps complete.`;
+
+  const nextCardTitle = nextMy ? String(nextMy.label || "Your next step") : "";
+  const nextCardSub = nextMy ? (ob.next ? String(ob.next) : "Complete this to keep moving.") : "";
+  const nextCard = nextMy ? `
+    <div class="ob-next">
+      <div class="ob-next-eyebrow">The driver's next step</div>
+      <div class="ob-next-title">${escapeHtml(nextCardTitle)}</div>
+      <div class="ob-next-sub">${escapeHtml(nextCardSub)}</div>
+      <button class="ob-next-cta" type="button" disabled>${escapeHtml(_dappObCta(nextMy))}</button>
+    </div>` : "";
+
+  const dot = (state) => state === "done" ? `<span class="ob-dot done">${CHECK}</span>`
+    : state === "active" ? `<span class="ob-dot active"></span>` : `<span class="ob-dot empty"></span>`;
+  const myItem = (s) => {
+    const isNext = nextMy && nextMy === s;
+    const state = s.done ? "done" : isNext ? "active" : "empty";
+    const rowCls = s.done ? "done" : isNext ? "active" : "";
+    return `<div class="ob-item ${rowCls}">${dot(state)}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(String(s.label || "Step"))}</div><div class="ob-item-sub">${escapeHtml(_dappObStepSub(s))}</div></div>${s.done ? "" : `<span class="ob-chev">${CHEV}</span>`}</div>`;
+  };
+  const teamItem = (s) => `<div class="ob-item ${s.done ? "done" : ""}">${dot(s.done ? "done" : "empty")}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(String(s.label || "Step"))}</div><div class="ob-item-sub">${escapeHtml(_dappObStepSub(s))}</div></div></div>`;
+
+  return `<div class="ob">
+    <div class="ob-hero ${allDone ? "done" : ""}">
+      <div class="ob-ring">${_dappObRing(doneCount, total)}<div class="ob-ring-num"${allDone ? ' style="color:var(--green)"' : ""}>${doneCount}/${total || 0}</div></div>
+      <div style="min-width:0"><div class="ob-hero-title">${heroTitle}</div><div class="ob-hero-sub">${heroSub}</div></div>
+    </div>
+    ${nextCard}
+    ${mySteps.length ? `<div class="ob-group"><div class="ob-sec">Their steps</div><div class="ob-list">${mySteps.map(myItem).join("")}</div></div>` : ""}
+    ${teamSteps.length ? `<div class="ob-group"><div class="ob-sec">Team is handling</div><div class="ob-list">${teamSteps.map(teamItem).join("")}</div></div>` : ""}
+    <div class="ob-foot">The dispatcher activates the account once every step is complete.</div>
+  </div>`;
+}
+function _dappObCta(s) {
+  if (s.kind === "i9") return "Complete Form I-9";
+  if (s.kind === "sentcomplete") return s.sentAt ? "Complete it" : "Awaiting send";
+  if (s.kind === "state") return s.stepType === "video" ? "Watch & confirm" : "Review & confirm";
+  return "Open";
+}
+function _dappObStepSub(s) {
+  if (s.done) {
+    if (s.at) { const dt = new Date(String(s.at)); if (!isNaN(dt)) return "Done " + dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+    return "Done";
+  }
+  if (s.kind === "i9") return "Confirm work eligibility";
+  if (s.kind === "sentcomplete") return s.sentAt ? "Sent — awaiting completion" : "Not sent yet";
+  if (s.kind === "driver") return "The team records this";
+  if (s.kind === "state") return s.stateStatus && s.stateStatus !== "not_started"
+    ? (_OB_STATE_LABELS && _OB_STATE_LABELS[s.stateStatus] ? _OB_STATE_LABELS[s.stateStatus] : String(s.stateStatus))
+    : (s.owner === "driver" ? "Waiting on the driver" : "The team handles this");
+  return "Not yet";
 }
 
 function _dappSchedule(data) {
