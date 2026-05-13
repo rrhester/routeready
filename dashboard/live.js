@@ -3317,8 +3317,6 @@ function _obMxStylesOnce() {
     ".ob-bld-chk input:checked + .ob-bld-box{background:var(--accent);border-color:var(--accent)}" +
     ".ob-bld-chk input:checked + .ob-bld-box svg{opacity:1}" +
     ".ob-bld-chk input:focus-visible + .ob-bld-box{box-shadow:0 0 0 3px var(--accent-soft)}" +
-    ".ob-bld-rm{appearance:none;background:transparent;border:0;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);cursor:pointer;padding:0;transition:color .12s}" +
-    ".ob-bld-rm:hover{color:var(--red)}" +
     /* attach / video / acknowledgement config */
     ".ob-bld-row{margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
     ".ob-bld-flabel{display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);margin-bottom:4px}" +
@@ -3328,7 +3326,26 @@ function _obMxStylesOnce() {
     ".ob-bld-tier.secure{background:var(--green-soft);color:var(--green-dark)}" +
     ".ob-bld-tier.info{background:var(--canvas);color:var(--text-muted)}" +
     ".ob-bld-text{font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 11px;color:var(--text);width:100%;resize:vertical;transition:border-color .12s,background .12s,box-shadow .12s}" +
-    ".ob-bld-text:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}";
+    ".ob-bld-text:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}" +
+    /* hover-revealed trash + inline destructive confirm */
+    ".ob-bld-card{position:relative}" +
+    ".ob-bld-trash{appearance:none;background:transparent;border:0;width:30px;height:30px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;flex:0 0 auto;opacity:0;transform:translateX(2px);transition:opacity .16s ease,transform .16s ease,color .12s,background .12s}" +
+    ".ob-bld-trash svg{width:15px;height:15px}" +
+    ".ob-bld-card:hover .ob-bld-trash,.ob-bld-card:focus-within .ob-bld-trash{opacity:1;transform:none}" +
+    ".ob-bld-trash:hover{color:var(--red);background:var(--red-soft)}" +
+    ".ob-bld-trash:focus-visible{opacity:1;transform:none;outline:none;box-shadow:0 0 0 3px var(--accent-soft)}" +
+    ".ob-bld-card.confirming{border-color:rgba(225,29,72,.45);background:var(--red-soft);align-items:center}" +
+    ".ob-bld-confirm{display:flex;align-items:center;gap:14px;flex-wrap:wrap;width:100%}" +
+    ".ob-bld-confirm-txt{font-size:var(--fs-sm);color:var(--text);line-height:1.4}" +
+    ".ob-bld-confirm-txt strong{font-weight:700}" +
+    ".ob-bld-confirm-actions{display:flex;gap:8px;margin-left:auto}" +
+    /* autosave state — quiet, never a button */
+    ".ob-bld-savestate{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;color:var(--text-subtle);transition:color .2s ease}" +
+    ".ob-bld-savestate svg{width:13px;height:13px;flex:0 0 auto}" +
+    ".ob-bld-savestate.syncing{color:var(--text-muted)}" +
+    ".ob-bld-savestate.err{color:var(--red)}" +
+    ".ob-bld-spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:ob-bld-spin .6s linear infinite;flex:0 0 auto}" +
+    "@keyframes ob-bld-spin{to{transform:rotate(360deg)}}";
   document.head.appendChild(s);
 }
 
@@ -3348,10 +3365,11 @@ async function openOnboardingSendDocsModal(driverId) {
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:14px;max-width:560px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Send documents to ${escapeHtml(displayDriverName(drv))}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">The driver gets an email and a task in the RouteReady app for each template you pick.</div></div>
+        <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Send documents to ${escapeHtml(displayDriverName(drv))}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Each pick lands as a task in the driver's app. Secure documents run the signing &amp; compliance flow on their own; informational ones the driver just opens and acknowledges.</div></div>
         <button type="button" class="btn btn-sm" data-rr-osd-close>Close</button>
       </div>
-      <div style="padding:20px 22px;overflow:auto;flex:1" id="rr-osd-body"><div class="rr-loading">Loading templates</div></div>
+      <div style="padding:14px 22px 0"><input type="search" id="rr-osd-q" placeholder="Search documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;color:var(--text)"></div>
+      <div style="padding:14px 22px;overflow:auto;flex:1" id="rr-osd-body"><div class="rr-loading">Loading documents</div></div>
       <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
         <div id="rr-osd-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></div>
         <div style="display:flex;gap:8px">
@@ -3364,26 +3382,29 @@ async function openOnboardingSendDocsModal(driverId) {
   m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-rr-osd-close]")) m.remove(); });
 
   const { data: tpls, error } = await sb.from("document_templates")
-    .select("id, title, description")
+    .select("id, title, description, kind")
     .eq("dsp_id", window.RR.dsp.id)
     .is("archived_at", null)
     .order("title", { ascending: true });
   const body = m.querySelector("#rr-osd-body");
   if (!body) return;
-  if (error) { body.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">Couldn't load templates: ${escapeHtml(error.message || "")}</div>`; return; }
+  if (error) { body.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">Couldn't load documents: ${escapeHtml(error.message || "")}</div>`; return; }
   const list = Array.isArray(tpls) ? tpls : [];
   if (!list.length) {
-    body.innerHTML = `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">No document templates yet. Build one in <strong>Documents → Templates</strong> first, then come back here to send it.</div>`;
+    const q = m.querySelector("#rr-osd-q"); if (q) q.style.display = "none";
+    body.innerHTML = `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Nothing in your Documents workspace yet. Build one in <strong>Documents → Templates</strong>, then come back here to send it.</div>`;
     return;
   }
-  body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${list.map(t => `
-    <label style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:background .12s">
+  const tplTitleById = new Map(list.map(t => [t.id, t.title || "Untitled"]));
+  body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px" id="rr-osd-list">${list.map(t => {
+    const secure = t.kind !== "informational";
+    return `<label data-search="${escapeHtml(((t.title || "") + " " + (t.description || "")).toLowerCase())}" style="display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:border-color .12s,background .12s">
       <input type="checkbox" data-rr-osd-tpl="${escapeHtml(t.id)}" style="margin-top:3px;flex:0 0 auto">
-      <div style="min-width:0">
-        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(t.title || "Untitled")}</div>
-        ${t.description ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.4">${escapeHtml(t.description)}</div>` : ""}
-      </div>
-    </label>`).join("")}</div>`;
+      <span style="flex:1;min-width:0">
+        <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(t.title || "Untitled")}</span><span class="ob-bld-tier ${secure ? "secure" : "info"}">${secure ? "Secure" : "Informational"}</span></span>
+        <span style="display:block;font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.4">${t.description ? escapeHtml(t.description) : (secure ? "Routes through the signing &amp; compliance flow." : "Driver opens and acknowledges receipt — no signature.")}</span>
+      </span>
+    </label>`; }).join("")}</div><div id="rr-osd-empty" style="display:none;font-size:var(--fs-sm);color:var(--text-subtle);padding-top:6px">No documents match that search.</div>`;
 
   const sendBtn = m.querySelector("#rr-osd-send");
   const statusEl = m.querySelector("#rr-osd-status");
@@ -3393,20 +3414,47 @@ async function openOnboardingSendDocsModal(driverId) {
     sendBtn.disabled = n === 0;
     sendBtn.textContent = n > 0 ? `Send ${n} document${n === 1 ? "" : "s"}` : "Send";
   });
+  const qEl = m.querySelector("#rr-osd-q");
+  if (qEl) {
+    qEl.addEventListener("input", () => {
+      const v = qEl.value.trim().toLowerCase();
+      let shown = 0;
+      m.querySelectorAll("#rr-osd-list label").forEach(l => {
+        const hit = !v || (l.getAttribute("data-search") || "").includes(v);
+        l.style.display = hit ? "" : "none";
+        if (hit) shown++;
+      });
+      const empty = m.querySelector("#rr-osd-empty"); if (empty) empty.style.display = shown === 0 ? "block" : "none";
+    });
+    setTimeout(() => qEl.focus(), 30);
+  }
+
+  // A "welcome packet"-flavoured send (welcome email / handbook / new-hire
+  // packet) gets the warmer toast; everything else just confirms cleanly.
+  const _looksLikeWelcomePacket = (ids) => ids.length > 0 && ids.every(id => /welcome|packet|handbook|new[\s-]?hire/i.test(tplTitleById.get(id) || ""));
 
   sendBtn.addEventListener("click", async () => {
     const picks = checks().map(c => c.getAttribute("data-rr-osd-tpl"));
     if (!picks.length) return;
     sendBtn.disabled = true;
-    let ok = 0, fail = 0; let firstErr = null;
+    let ok = 0, fail = 0; let firstErr = null; const sentIds = [];
     for (let i = 0; i < picks.length; i++) {
-      statusEl.textContent = `Sending ${i + 1} of ${picks.length}…`;
+      statusEl.textContent = picks.length > 1 ? `Sending ${i + 1} of ${picks.length}…` : "Sending…";
       const { error: err } = await sb.rpc("documents_envelope_create", { p_template_id: picks[i], p_recipient_driver_id: drv.id });
-      if (err) { fail++; if (!firstErr) firstErr = err.message; } else ok++;
+      if (err) { fail++; if (!firstErr) firstErr = err.message; } else { ok++; sentIds.push(picks[i]); }
     }
     statusEl.textContent = "";
-    if (fail === 0) { toast(`Sent ${ok} document${ok === 1 ? "" : "s"} ✓`, "success"); m.remove(); await _refreshAfterOnboardingAction(drv.id); }
-    else { sendBtn.disabled = false; toast(`Sent ${ok}, ${fail} failed${firstErr ? ": " + firstErr : ""}`, "warn"); }
+    if (fail === 0) {
+      const msg = _looksLikeWelcomePacket(sentIds) ? "Welcome packet delivered"
+        : ok === 1 ? `“${tplTitleById.get(sentIds[0]) || "Document"}” sent`
+        : `${ok} documents sent`;
+      toast(msg, "success");
+      m.remove();
+      await _refreshAfterOnboardingAction(drv.id);
+    } else {
+      sendBtn.disabled = false;
+      toast(`Sent ${ok}, ${fail} failed${firstErr ? ": " + firstErr : ""}`, "warn");
+    }
   });
 }
 
@@ -3457,18 +3505,23 @@ const _OB_STEP_FIELDS = {
   scheduled:       { kind: "prog", done: "scheduled_at",                 doneLabel: "Scheduled", head: "Scheduled" },
 };
 // The canonical default blueprint — used until the DSP's row is seeded
-// (mirrors private.onboarding_blueprint_default in migration 0178).
+// (mirrors private.onboarding_blueprint_default in migration 0190).
+//
+// A new DSP starts with just the three compliance gates every hire has
+// to clear — Background check, Drug test, Form I-9.  The other canonical
+// steps stay in the catalogue (so a DSP can switch them back on) but ship
+// disabled, so the builder isn't a wall of boilerplate on day one.
 const _OB_DEFAULT_BLUEPRINT = [
-  { key: "welcome_email",  type: "welcome",         title: "Welcome email",                 enabled: true,  blocking: false, required: false, owner: "dsp" },
-  { key: "bg_instructions",type: "task",            title: "Background-check instructions",  enabled: true,  blocking: false, required: false, owner: "dsp" },
   { key: "bg_check",       type: "background_check",title: "Background check cleared",       enabled: true,  blocking: true,  required: true,  owner: "dsp" },
-  { key: "drug_info",      type: "task",            title: "Drug-testing information",       enabled: true,  blocking: false, required: false, owner: "dsp" },
   { key: "drug_test",      type: "drug_test",       title: "Drug test cleared",              enabled: true,  blocking: true,  required: true,  owner: "dsp" },
-  { key: "handbook",       type: "document",        title: "Employment handbook",            enabled: true,  blocking: true,  required: true,  owner: "driver" },
   { key: "i9",             type: "i9",              title: "Form I-9",                       enabled: true,  blocking: true,  required: true,  owner: "driver" },
-  { key: "job_offer",      type: "document",        title: "Job offer",                      enabled: true,  blocking: true,  required: true,  owner: "driver" },
+  { key: "welcome_email",  type: "welcome",         title: "Welcome email",                 enabled: false, blocking: false, required: false, owner: "dsp" },
+  { key: "bg_instructions",type: "task",            title: "Background-check instructions",  enabled: false, blocking: false, required: false, owner: "dsp" },
+  { key: "drug_info",      type: "task",            title: "Drug-testing information",       enabled: false, blocking: false, required: false, owner: "dsp" },
+  { key: "handbook",       type: "document",        title: "Employment handbook",            enabled: false, blocking: true,  required: true,  owner: "driver" },
+  { key: "job_offer",      type: "document",        title: "Job offer",                      enabled: false, blocking: true,  required: true,  owner: "driver" },
   { key: "training",       type: "task",            title: "Training",                       enabled: false, blocking: false, required: false, owner: "dsp" },
-  { key: "scheduled",      type: "schedule",        title: "Driver scheduled",               enabled: true,  blocking: false, required: false, owner: "dsp" },
+  { key: "scheduled",      type: "schedule",        title: "Driver scheduled",               enabled: false, blocking: false, required: false, owner: "dsp" },
 ];
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
@@ -3482,10 +3535,20 @@ function _obStepColumn(s) {
   return { ...s, map: { kind: "state", done: s.key, doneLabel: "Done", head: _obShortHead(s.title), todoLabel: `${s.title || "Step"} — not yet` } };
 }
 // ── Onboarding Builder (Onboarding → Builder tab) ─────────────────────
+//
+// There is no Save button.  Every edit — rename, reorder, toggle,
+// attach, add, delete — writes straight back through
+// onboarding_blueprint_set; the only feedback is a quiet save-state
+// chip ("Saved" / "Syncing…" / "Updated just now").  Typing into a
+// text field debounces; everything structural flushes immediately.
 const _OB_TYPE_LABELS = { welcome: "Welcome", task: "Task", background_check: "Background check", drug_test: "Drug test", document: "Document", i9: "Form I-9", schedule: "Schedule", video: "Video", acknowledgement: "Acknowledgement" };
 let _obBuilderSteps = null;   // working copy of the blueprint while editing
-let _obBuilderDirty = false;
 let _obTemplates = [];        // [{id, title, kind}] — for the "attach document" picker
+let _obConfirmDelete = null;  // index of the step showing its inline delete confirm, or null
+let _obSaveState = "saved";   // "saved" | "syncing" | "justsaved" | "error"
+let _obSaveTimer = null;      // debounce handle for text edits
+let _obSaveSeq = 0;           // monotonically increasing; guards out-of-order RPC replies
+let _obJustSavedTimer = null; // fades "Updated just now" back to "Saved"
 
 async function loadOnboardingBuilder() {
   const root = document.getElementById("obsub-builder");
@@ -3499,7 +3562,9 @@ async function loadOnboardingBuilder() {
   if (error) { root.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red)">!</div><h3>Couldn't load the blueprint</h3><p>${escapeHtml(error.message || "")}</p></div>`; return; }
   _obTemplates = Array.isArray(tplRes?.data) ? tplRes.data : [];
   _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT).map(s => ({ ...s }));
-  _obBuilderDirty = false;
+  _obConfirmDelete = null;
+  clearTimeout(_obSaveTimer); clearTimeout(_obJustSavedTimer);
+  _obSaveState = "saved";
   _obRenderBuilder();
 }
 
@@ -3507,7 +3572,54 @@ function _obTplTitle(id) { const t = _obTemplates.find(x => x.id === id); return
 
 const _OB_BLD_CHEVRON_UP   = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
 const _OB_BLD_CHEVRON_DOWN = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
-const _OB_BLD_TICK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+const _OB_BLD_TICK   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+const _OB_BLD_TICK2  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+const _OB_BLD_TRASH  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
+const _OB_BLD_WARN   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></svg>`;
+
+function _obSaveStateHTML() {
+  if (_obSaveState === "syncing")   return `<span class="ob-bld-savestate syncing" aria-live="polite"><span class="ob-bld-spin"></span>Syncing…</span>`;
+  if (_obSaveState === "justsaved") return `<span class="ob-bld-savestate ok" aria-live="polite">${_OB_BLD_TICK2}Updated just now</span>`;
+  if (_obSaveState === "error")     return `<span class="ob-bld-savestate err" aria-live="polite">${_OB_BLD_WARN}Couldn’t sync — will retry</span>`;
+  return `<span class="ob-bld-savestate ok" aria-live="polite">${_OB_BLD_TICK2}Saved</span>`;
+}
+function _obSetSaveState(s) {
+  _obSaveState = s;
+  const el = document.getElementById("ob-bld-savestate");
+  if (el) el.innerHTML = _obSaveStateHTML();
+  clearTimeout(_obJustSavedTimer);
+  if (s === "justsaved") _obJustSavedTimer = setTimeout(() => { if (_obSaveState === "justsaved") _obSetSaveState("saved"); }, 4500);
+}
+// Persist the working blueprint.  `immediate` flushes on the next tick
+// (structural changes); otherwise it debounces (text typing).
+function _obAutosave(opts) {
+  if (!_obBuilderSteps) return;
+  clearTimeout(_obSaveTimer);
+  _obSetSaveState("syncing");
+  _obSaveTimer = setTimeout(_obFlushSave, (opts && opts.immediate) ? 0 : 650);
+}
+async function _obFlushSave() {
+  if (!_obBuilderSteps) return;
+  const seq = ++_obSaveSeq;
+  const clean = _obBuilderSteps.map(s => ({
+    key: s.key, type: s.type, title: (s.title || "").trim() || _OB_TYPE_LABELS[s.type] || "Step",
+    enabled: !!s.enabled, blocking: !!s.blocking, required: !!s.required, owner: s.owner === "driver" ? "driver" : "dsp",
+    document_template_id: s.document_template_id || null, video_url: s.video_url || null, ack_text: s.ack_text || null,
+  }));
+  const { data, error } = await sb.rpc("onboarding_blueprint_set", { p_steps: clean });
+  if (seq !== _obSaveSeq) return;          // a newer edit already kicked off its own save
+  if (error) {
+    _obSetSaveState("error");
+    _obSaveTimer = setTimeout(() => { if (_obSaveSeq === seq) _obFlushSave(); }, 2800);
+    return;
+  }
+  _obBlueprint = Array.isArray(data) ? data : clean;
+  _obSetSaveState("justsaved");
+  // Keep the matrix's columns in sync without yanking the operator off
+  // the Builder tab.  Debounced saves already coalesce, so this fires
+  // at most once per burst of edits.
+  if (document.getElementById("obsub-overview")) loadOnboardingOps({ keepTab: true });
+}
 
 function _obRenderBuilder() {
   const root = document.getElementById("obsub-builder");
@@ -3522,7 +3634,7 @@ function _obRenderBuilder() {
           ? `<span class="ob-bld-attach"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${escapeHtml(title || "(missing document)")}${tpl ? `<span class="ob-bld-tier ${tpl.kind === "informational" ? "info" : "secure"}">${tpl.kind === "informational" ? "Informational" : "Secure"}</span>` : ""}</span>
              <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-attach="${i}">Change</button>
              <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-detach="${i}">Remove</button>`
-          : `<button type="button" class="btn btn-sm" data-rr-bld-attach="${i}">Attach a document…</button><span class="ob-bld-hint">from your Documents library</span>`}
+          : `<button type="button" class="btn btn-sm" data-rr-bld-attach="${i}">Attach a document…</button><span class="ob-bld-hint">pick from your Documents workspace</span>`}
       </div>`;
     }
     if (s.type === "video") {
@@ -3534,7 +3646,17 @@ function _obRenderBuilder() {
     return "";
   };
   const custom = (s) => typeof s.key === "string" && s.key.startsWith("custom_");
-  const card = (s, i) => `
+  const confirmCard = (s, i) => `
+    <div class="ob-bld-card confirming" data-i="${i}">
+      <div class="ob-bld-confirm">
+        <div class="ob-bld-confirm-txt">Delete <strong>${escapeHtml((s.title || "this step").trim() || "this step")}</strong>? It’ll be removed from onboarding for new and in-progress drivers.</div>
+        <div class="ob-bld-confirm-actions">
+          <button type="button" class="btn btn-sm" data-rr-bld-delcancel="${i}">Keep it</button>
+          <button type="button" class="btn btn-sm btn-danger" data-rr-bld-delok="${i}">Delete step</button>
+        </div>
+      </div>
+    </div>`;
+  const card = (s, i) => (_obConfirmDelete === i) ? confirmCard(s, i) : `
     <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
       <div class="ob-bld-reorder">
         <button type="button" class="ob-bld-mv" data-rr-bld-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move step up">${_OB_BLD_CHEVRON_UP}</button>
@@ -3551,49 +3673,78 @@ function _obRenderBuilder() {
         <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:12px">
           <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-blocking="${i}" ${s.blocking ? "checked" : ""}><span class="ob-bld-box">${_OB_BLD_TICK}</span>Blocks activation</label>
           <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-required="${i}" ${s.required ? "checked" : ""}><span class="ob-bld-box">${_OB_BLD_TICK}</span>Required</label>
-          ${custom(s) ? `<button type="button" class="ob-bld-rm" data-rr-bld-remove="${i}">Remove step</button>` : ""}
         </div>
       </div>
       <label class="ob-bld-switch" title="${s.enabled ? "Step is on — turn off to leave it out for new hires" : "Step is off — turn on to include it"}"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span class="ob-bld-track"></span><span class="ob-bld-switch-label">${s.enabled ? "On" : "Off"}</span></label>
+      <button type="button" class="ob-bld-trash" data-rr-bld-del="${i}" title="Delete this step" aria-label="Delete step${s.title ? " " + escapeHtml(s.title) : ""}">${_OB_BLD_TRASH}</button>
     </div>`;
   root.innerHTML = `
-    <div style="margin-bottom:var(--s-4)">
-      <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
-      <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through — turn them on or off, reorder, rename, and choose what each delivers. Changes apply to new and in-progress drivers.</p>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:var(--s-4)">
+      <div>
+        <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
+        <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through — turn them on or off, reorder, rename, and choose what each delivers. Every change saves on its own and reaches new and in-progress drivers.</p>
+      </div>
+      <div id="ob-bld-savestate" style="flex:0 0 auto;padding-top:3px;white-space:nowrap">${_obSaveStateHTML()}</div>
     </div>
     <div class="ob-bld-list">${steps.map(card).join("")}</div>
-    <div style="margin-top:12px"><button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button></div>
-    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px solid var(--border-subtle)">
-      ${_obBuilderDirty ? `<span style="font-size:var(--fs-xs);color:var(--amber-dark);margin-right:auto">Unsaved changes</span>` : ""}
-      <button type="button" class="btn btn-sm" data-rr-bld-reset>Reset to defaults</button>
-      <button type="button" class="btn btn-sm btn-primary" data-rr-bld-save${_obBuilderDirty ? "" : " disabled"}>Save blueprint</button>
+    <div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+      <button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-reset style="margin-left:auto;color:var(--text-subtle)">Reset to the default set</button>
     </div>`;
 }
 
-// "Attach a document" picker for a document-type step.
+// "Attach a document" picker for a document-type step — pick an
+// existing template from the Documents workspace (with search + type /
+// security indicators) or jump straight to building one.
+const _OB_DOC_ICON = (kind) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="${kind === "informational" ? "var(--text-muted)" : "#15803d"}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+function _obDocRowHTML(t) {
+  return `<button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" data-search="${escapeHtml((t.title || "").toLowerCase())}" style="text-align:left;border:1px solid var(--border);border-radius:9px;padding:11px 13px;cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:10px;transition:border-color .12s,background .12s">
+      ${_OB_DOC_ICON(t.kind)}
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title || "Untitled")}</span><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${t.kind === "informational" ? "Open & acknowledge — no signature" : "Secure — routes through the signing & compliance flow"}</span></span>
+      <span class="ob-bld-tier ${t.kind === "informational" ? "info" : "secure"}">${t.kind === "informational" ? "Informational" : "Secure"}</span>
+    </button>`;
+}
 function _obAttachDocPicker(stepIndex) {
   if (!_obBuilderSteps || !_obBuilderSteps[stepIndex]) return;
   document.getElementById("rr-ob-tplpick")?.remove();
   const m = document.createElement("div");
   m.id = "rr-ob-tplpick";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
-  const rows = _obTemplates.length ? _obTemplates.map(t => `
-    <button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" style="text-align:left;border:1px solid var(--border);border-radius:9px;padding:11px 13px;cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:10px">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="${t.kind === "informational" ? "var(--text-muted)" : "#15803d"}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <span style="flex:1;min-width:0;font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title)}</span>
-      <span class="ob-bld-tier ${t.kind === "informational" ? "info" : "secure"}">${t.kind === "informational" ? "Informational" : "Secure"}</span>
-    </button>`).join("") : `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">No documents yet. Upload one in the <strong>Documents</strong> tab, then come back here to attach it.</div>`;
+  const hasDocs = _obTemplates.length > 0;
+  const rows = hasDocs ? _obTemplates.map(_obDocRowHTML).join("")
+    : `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Nothing in your Documents workspace yet. Build one in <strong>Documents → Templates</strong>, then come back here to attach it.</div>`;
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Attach a document</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">It'll be delivered to the driver when they reach “${escapeHtml(_obBuilderSteps[stepIndex].title || "this step")}”.</div></div>
-      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto">${rows}</div>
-      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-tpl-close>Cancel</button></div>
+    <div style="background:var(--surface);border-radius:14px;max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Attach a document</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Delivered to the driver when they reach “${escapeHtml((_obBuilderSteps[stepIndex].title || "this step").trim() || "this step")}”. Secure documents run the signing &amp; compliance flow automatically.</div></div>
+      ${hasDocs ? `<div style="padding:14px 22px 0"><input type="search" id="rr-tplpick-q" placeholder="Search your documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;color:var(--text)"></div>` : ""}
+      <div id="rr-tplpick-list" style="padding:14px 22px 6px;display:flex;flex-direction:column;gap:8px;overflow:auto;flex:1">${rows}</div>
+      <div id="rr-tplpick-empty" style="display:none;padding:6px 22px 14px;font-size:var(--fs-sm);color:var(--text-subtle)">No documents match that search.</div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <button type="button" class="btn btn-sm btn-ghost" data-rr-tpl-build style="color:var(--text-subtle)">Build a new document…</button>
+        <button type="button" class="btn btn-sm" data-rr-tpl-close>Cancel</button>
+      </div>
     </div>`;
   document.body.appendChild(m);
+  const q = m.querySelector("#rr-tplpick-q");
+  if (q) {
+    q.addEventListener("input", () => {
+      const v = q.value.trim().toLowerCase();
+      let shown = 0;
+      m.querySelectorAll(".rr-tplrow").forEach(r => {
+        const hit = !v || (r.getAttribute("data-search") || "").includes(v);
+        r.style.display = hit ? "" : "none";
+        if (hit) shown++;
+      });
+      const empty = m.querySelector("#rr-tplpick-empty");
+      if (empty) empty.style.display = shown === 0 ? "block" : "none";
+    });
+    setTimeout(() => q.focus(), 30);
+  }
   m.addEventListener("click", (e) => {
     if (e.target === m || e.target.closest("[data-rr-tpl-close]")) { m.remove(); return; }
+    if (e.target.closest("[data-rr-tpl-build]")) { m.remove(); if (typeof goto === "function") goto("documents"); return; }
     const r = e.target.closest(".rr-tplrow");
-    if (r) { const id = r.getAttribute("data-tpl"); _obBuilderSteps[stepIndex].document_template_id = id; _obBuilderDirty = true; m.remove(); _obRenderBuilder(); }
+    if (r) { const id = r.getAttribute("data-tpl"); _obBuilderSteps[stepIndex].document_template_id = id; m.remove(); _obAutosave({ immediate: true }); _obRenderBuilder(); }
   });
 }
 
@@ -3626,18 +3777,19 @@ function _obAddStepPicker() {
     const t = _OB_ADD_TYPES.find(x => x.type === b.getAttribute("data-type"));
     if (!t) return;
     _obBuilderSteps.push({ key: "custom_" + Math.random().toString(36).slice(2, 9), type: t.type, title: t.title, enabled: true, blocking: false, required: false, owner: t.owner, document_template_id: null, video_url: null, ack_text: null });
-    _obBuilderDirty = true; m.remove(); _obRenderBuilder();
+    m.remove(); _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder();
   });
 }
 
-// Builder events — delegated; mutate _obBuilderSteps + mark dirty.
+// Builder events — delegated; every mutation writes _obBuilderSteps and
+// kicks off an autosave (debounced for typing, immediate for structure).
 document.addEventListener("input", (e) => {
   if (!_obBuilderSteps || !e.target.closest("#obsub-builder")) return;
   const set = (attr, prop) => {
     const el = e.target.closest(`[${attr}]`);
     if (!el) return false;
     const i = +el.getAttribute(attr);
-    if (_obBuilderSteps[i]) { _obBuilderSteps[i][prop] = el.value; _obBuilderDirty = true; document.querySelector("[data-rr-bld-save]")?.removeAttribute("disabled"); }
+    if (_obBuilderSteps[i]) { _obBuilderSteps[i][prop] = el.value; _obAutosave(); }
     return true;
   };
   set("data-rr-bld-title", "title") || set("data-rr-bld-video", "video_url") || set("data-rr-bld-ack", "ack_text");
@@ -3650,11 +3802,25 @@ document.addEventListener("change", (e) => {
   const rb = e.target.closest("[data-rr-bld-required]"); if (rb) { i = +rb.getAttribute("data-rr-bld-required"); key = "required"; }
   if (key === undefined || i === undefined || !_obBuilderSteps[i]) return;
   _obBuilderSteps[i][key] = !!e.target.checked;
-  _obBuilderDirty = true;
+  _obConfirmDelete = null;
+  _obAutosave({ immediate: true });
   _obRenderBuilder();
 });
-document.addEventListener("click", async (e) => {
+document.addEventListener("click", (e) => {
   if (!e.target.closest("#obsub-builder")) return;
+  // Delete: trash icon → inline confirm → remove the step.
+  const del = e.target.closest("[data-rr-bld-del]");
+  if (del && _obBuilderSteps) { e.preventDefault(); _obConfirmDelete = +del.getAttribute("data-rr-bld-del"); _obRenderBuilder(); return; }
+  const delCancel = e.target.closest("[data-rr-bld-delcancel]");
+  if (delCancel) { e.preventDefault(); _obConfirmDelete = null; _obRenderBuilder(); return; }
+  const delOk = e.target.closest("[data-rr-bld-delok]");
+  if (delOk && _obBuilderSteps) {
+    e.preventDefault();
+    const i = +delOk.getAttribute("data-rr-bld-delok");
+    if (_obBuilderSteps[i]) { _obBuilderSteps.splice(i, 1); _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder(); toast("Step removed", "success"); }
+    else { _obConfirmDelete = null; _obRenderBuilder(); }
+    return;
+  }
   const up = e.target.closest("[data-rr-bld-up]");
   const dn = e.target.closest("[data-rr-bld-down]");
   if ((up || dn) && _obBuilderSteps) {
@@ -3663,41 +3829,19 @@ document.addEventListener("click", async (e) => {
     const j = up ? i - 1 : i + 1;
     if (j < 0 || j >= _obBuilderSteps.length) return;
     const tmp = _obBuilderSteps[i]; _obBuilderSteps[i] = _obBuilderSteps[j]; _obBuilderSteps[j] = tmp;
-    _obBuilderDirty = true; _obRenderBuilder(); return;
+    _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder(); return;
   }
   if (e.target.closest("[data-rr-bld-reset]")) {
     e.preventDefault();
     _obBuilderSteps = _OB_DEFAULT_BLUEPRINT.map(s => ({ ...s }));
-    _obBuilderDirty = true; _obRenderBuilder(); return;
+    _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder();
+    toast("Reset to the default onboarding set", "success"); return;
   }
   const attach = e.target.closest("[data-rr-bld-attach]");
   if (attach) { e.preventDefault(); _obAttachDocPicker(+attach.getAttribute("data-rr-bld-attach")); return; }
   const detach = e.target.closest("[data-rr-bld-detach]");
-  if (detach && _obBuilderSteps) { e.preventDefault(); const i = +detach.getAttribute("data-rr-bld-detach"); if (_obBuilderSteps[i]) { _obBuilderSteps[i].document_template_id = null; _obBuilderDirty = true; _obRenderBuilder(); } return; }
+  if (detach && _obBuilderSteps) { e.preventDefault(); const i = +detach.getAttribute("data-rr-bld-detach"); if (_obBuilderSteps[i]) { _obBuilderSteps[i].document_template_id = null; _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder(); } return; }
   if (e.target.closest("[data-rr-bld-add]")) { e.preventDefault(); _obAddStepPicker(); return; }
-  const rm = e.target.closest("[data-rr-bld-remove]");
-  if (rm && _obBuilderSteps) { e.preventDefault(); const i = +rm.getAttribute("data-rr-bld-remove"); if (_obBuilderSteps[i]) { _obBuilderSteps.splice(i, 1); _obBuilderDirty = true; _obRenderBuilder(); } return; }
-  const save = e.target.closest("[data-rr-bld-save]");
-  if (save && _obBuilderSteps) {
-    e.preventDefault();
-    if (save.disabled) return;
-    save.disabled = true; const orig = save.textContent; save.textContent = "Saving…";
-    const clean = _obBuilderSteps.map(s => ({
-      key: s.key, type: s.type, title: (s.title || "").trim() || _OB_TYPE_LABELS[s.type] || "Step",
-      enabled: !!s.enabled, blocking: !!s.blocking, required: !!s.required, owner: s.owner === "driver" ? "driver" : "dsp",
-      document_template_id: s.document_template_id || null, video_url: s.video_url || null, ack_text: s.ack_text || null,
-    }));
-    const { data, error } = await sb.rpc("onboarding_blueprint_set", { p_steps: clean });
-    if (error) { save.disabled = false; save.textContent = orig; toast("Couldn't save: " + (error.message || ""), "warn"); return; }
-    _obBlueprint = Array.isArray(data) ? data : clean;
-    _obBuilderSteps = _obBlueprint.map(s => ({ ...s }));
-    _obBuilderDirty = false;
-    toast("Onboarding blueprint saved ✓", "success");
-    _obRenderBuilder();
-    // Refresh the matrix in the background so its columns reflect the
-    // new blueprint — without switching the operator off the Builder tab.
-    if (document.getElementById("obsub-overview")) loadOnboardingOps({ keepTab: true });
-  }
 });
 
 async function loadOnboardingOps(opts) {
