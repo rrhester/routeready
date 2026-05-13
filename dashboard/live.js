@@ -4843,7 +4843,7 @@ async function loadAttendanceLive() {
     }
   }
 
-  let totalScheduled = 0, totalIncidents = 0, totalVto = 0, totalExcused = 0, inAction = 0;
+  let totalScheduled = 0, totalIncidents = 0, totalRealIncidents = 0, totalVto = 0, totalExcused = 0, inAction = 0;
   const todayMs = Date.now();
   // Per-event point values from the block policy.  An event kind that
   // has no Event block (or 0 points) doesn't contribute to the
@@ -4887,6 +4887,10 @@ async function loadAttendanceLive() {
     }
     totalScheduled += a.scheduled;
     totalIncidents += occ;
+    // Real attendance incidents — actual callouts + no-shows that
+    // weren't excused. Stays in sync with the underlying data
+    // regardless of whether the policy assigns points to each.
+    totalRealIncidents += (a.callouts + a.noshows);
     totalVto       += a.vto;
     totalExcused   += a.excused;
     if (statusKind !== "ok") inAction += 1;
@@ -4897,8 +4901,11 @@ async function loadAttendanceLive() {
 
   _attReportRows = rows;
 
-  // KPIs.
-  const absenceRate = totalScheduled > 0 ? (totalIncidents / totalScheduled * 100) : 0;
+  // KPIs. Attendance rate counts every callout / no-show that wasn't
+  // excused — independent of whether the policy assigns points to each
+  // event. That keeps the KPI honest if a DSP turns callout points off
+  // for coaching but the absences themselves still happened.
+  const absenceRate = totalScheduled > 0 ? (totalRealIncidents / totalScheduled * 100) : 0;
   const presentPct  = Math.round(100 - absenceRate);
   const vtoPct      = totalScheduled > 0 ? Math.round(totalVto / totalScheduled * 100) : 0;
   const setKpi = (id, text, cls) => {
@@ -8403,6 +8410,11 @@ document.addEventListener("click", async (e) => {
     setTimeout(() => {
       row.remove();
       if (typeof _refreshTodayPlanData === "function") _refreshTodayPlanData();
+      // Approve / VTO updates shifts.status; bring the Attendance Report
+      // in sync immediately so points reconcile without a manual nav.
+      // (Excuse / deny doesn't change shift status, so the report is
+      // already consistent.)
+      if ((ap || vto) && typeof loadAttendanceLive === "function") loadAttendanceLive();
     }, 380);
   }, 600);
 });
