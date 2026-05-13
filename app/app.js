@@ -14,8 +14,44 @@ const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
 });
 window.RR_DRIVER = { sb, driver: null };
 
+// ── Preview mode ────────────────────────────────────────────────────
+// A dispatcher can open this app *inside the dashboard* (in a phone-shaped
+// frame) to see exactly what a given driver sees, for troubleshooting. The
+// dashboard mints a short-lived preview token (driver_preview_token RPC) and
+// loads us at ?preview=<token>. In that mode the session lives in memory
+// only (never persisted to localStorage), the service worker / push are not
+// touched, and every write RPC + storage upload is short-circuited so the
+// preview can look at everything but can't act as the driver.
+const PREVIEW_TOKEN = (() => { try { return new URLSearchParams(location.search).get("preview") || null; } catch { return null; } })();
+const PREVIEW = !!PREVIEW_TOKEN;
+let _previewSession = null;
+if (PREVIEW) {
+  const _rawRpc = sb.rpc.bind(sb);
+  const PREVIEW_BLOCKED_RPCS = new Set([
+    "driver_chat_send", "driver_chat_mark_read", "driver_ack_message", "driver_channel_post",
+    "driver_signout", "driver_update_profile", "driver_set_dl_image", "driver_clear_dl_image",
+    "driver_onboarding_step_ack", "driver_submit_form", "driver_ack_coaching",
+    "driver_checkin", "driver_checkout", "driver_undo_checkout", "driver_report_missed_day",
+    "driver_set_preferred_days", "driver_submit_availability",
+    "driver_envelope_decline", "driver_envelope_sign", "driver_i9_save_section1", "driver_i9_submit_section1",
+    "driver_assignment_acknowledge", "driver_push_register", "driver_push_unregister",
+  ]);
+  sb.rpc = (...a) => PREVIEW_BLOCKED_RPCS.has(a[0])
+    ? Promise.resolve({ data: null, error: { message: "preview_read_only", code: "PREVIEW" } })
+    : _rawRpc(...a);
+  const _rawStorageFrom = sb.storage.from.bind(sb.storage);
+  sb.storage.from = (bucket) => {
+    const api = _rawStorageFrom(bucket);
+    if (/^driver-/.test(String(bucket || ""))) {
+      api.upload = async () => ({ data: null, error: { message: "preview_read_only" } });
+      api.remove = async () => ({ data: null, error: { message: "preview_read_only" } });
+    }
+    return api;
+  };
+}
+
 // ── Service worker registration ─────────────────────────────────────
-if ("serviceWorker" in navigator) {
+if ("serviceWorker" in navigator && !PREVIEW) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js")
       .then((reg) => {
@@ -54,6 +90,7 @@ if (typeof window !== "undefined" && window.visualViewport) {
 // a payloadless push arrives. Permission is requested the first time
 // the user opens the Chat tab — that's the moment the value is obvious.
 async function syncSwSession(session) {
+  if (PREVIEW) return;
   if (!("serviceWorker" in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -93,6 +130,7 @@ function setAppBadge(n, source) {
 // focus, etc.) drop the badge to zero on the server side too — the
 // driver is clearly looking at the app, so unread should reset.
 async function clearBadgeOnFocus() {
+  if (PREVIEW) return;
   setAppBadge(0);
   const session = readSession();
   if (session?.token) {
@@ -118,6 +156,7 @@ function urlBase64ToUint8Array(b64url) {
 
 let _pushAttempted = false;
 async function ensurePushSubscription(session) {
+  if (PREVIEW) return;
   if (_pushAttempted) return;
   _pushAttempted = true;
   if (!("serviceWorker" in navigator)) return;
@@ -181,9 +220,11 @@ async function teardownPushSubscription(session) {
 // install the app and feel the layout.
 const SESSION_KEY = "rr.driver.session";
 function readSession() {
+  if (PREVIEW) return _previewSession;
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
 }
 function writeSession(s) {
+  if (PREVIEW) { _previewSession = s || null; return; }
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
   else localStorage.removeItem(SESSION_KEY);
 }
@@ -248,7 +289,7 @@ window.addEventListener("hashchange", render);
 // ── Render entrypoint ───────────────────────────────────────────────
 function render() {
   const session = readSession();
-  if (!session) { renderLogin(); return; }
+  if (!session) { (PREVIEW ? renderPreviewExpired : renderLogin)(); return; }
   // Onboarding lock — until dispatch flips status to 'active', the
   // driver should only see the Onboarding tasks + Settings. Any other
   // route (Schedule, Chat, Tasks hub, Profile hub, etc.) redirects to
@@ -424,6 +465,20 @@ function renderLogin(errorMsg) {
     toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
     navigate("/profile");
   });
+}
+
+// Shown instead of the login screen when a dispatcher's preview token has
+// expired (they auto-expire after a couple hours). There's nothing to do
+// from inside the frame — they reopen it from the roster.
+function renderPreviewExpired() {
+  document.getElementById("app").innerHTML = `
+    <div class="login-screen">
+      <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+      <div class="empty-state" style="max-width:280px;text-align:center;line-height:1.55">
+        This preview has expired.<br><br>
+        <span style="color:var(--text-subtle)">Close it and open the driver's app view again from the roster.</span>
+      </div>
+    </div>`;
 }
 
 // ── Shell (header + tabs) ───────────────────────────────────────────
@@ -916,6 +971,12 @@ async function renderChat() {
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
   if (_chatDisconnected) _showChatConnBanner("Reconnecting…", "warn");
+  if (PREVIEW) {
+    // Read-only preview: keep the thread, neutralise the composer.
+    _showChatConnBanner("Read-only preview", "");
+    document.getElementById("chat-form")?.querySelectorAll("button, textarea, input").forEach((el) => { el.disabled = true; });
+    const cf = document.getElementById("chat-form"); if (cf) cf.style.opacity = ".55";
+  }
 
   // Auto-grow textarea
   const ta = document.getElementById("chat-input");
@@ -3663,6 +3724,20 @@ function setHeader(title, sub) {
 }
 
 // ── Boot ────────────────────────────────────────────────────────────
+// In preview mode, seed the in-memory session from the URL so the first
+// render has a token (and the right onboarding state) before driver_me
+// fills in the rest. The token is validated server-side like any other.
+if (PREVIEW && !readSession()) {
+  let q; try { q = new URLSearchParams(location.search); } catch { q = new URLSearchParams(""); }
+  writeSession({
+    token:     PREVIEW_TOKEN,
+    preview:   true,
+    driver_id: q.get("did") || null,
+    name:      q.get("n") || "Driver",
+    dsp_name:  q.get("d") || "",
+    status:    q.get("onb") === "1" ? "onboarding" : (q.get("st") || null),
+  });
+}
 render();
 
 

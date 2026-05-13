@@ -2789,6 +2789,12 @@ select.form-input{
 .dapp-row .k{color:var(--text-subtle)}.dapp-row .v{font-weight:600;color:var(--text);text-align:right}
 .dapp-pip{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--border)}
 .dapp-pip.done{background:var(--green)}
+/* The phone body — fills the frame; holds either the embedded driver app
+   (iframe) or the dispatcher-side recreation fallback. */
+.dapp-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;background:var(--canvas)}
+.dapp-body-iframe{background:#fff}
+.dapp-iframe{flex:1;width:100%;border:0;display:block;background:#fff}
+.dapp-rotag{color:var(--accent-text);font-weight:700}
 /* Onboarding "orientation" hub inside the preview — mirrors the driver app's
    app/styles.css .ob-* so an onboarding driver's preview looks like their app. */
 .dapp-scroll .ob{display:flex;flex-direction:column;gap:14px;width:100%}
@@ -19381,7 +19387,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513c-app-preview-orientation"></script>
+<script type="module" src="./live.js?v=20260513d-app-preview-embed"></script>
 
 </body>
 </html>
