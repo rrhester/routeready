@@ -23573,9 +23573,54 @@ document.addEventListener("click", (e) => {
 const _origGotoForSched = window.goto;
 window.goto = function (view) {
   if (typeof _origGotoForSched === "function") _origGotoForSched(view);
-  if (view === "schedule") { loadScheduleView(); loadCoverageRadar(); }
+  if (view === "schedule") { loadScheduleView(); loadCoverageRadar(); _schedRealtimeStart(); }
+  else                     { _schedRealtimeStop(); }
   if (view === "okami")    loadOkamiView();
 };
+
+
+// ─── Schedule realtime sync ───────────────────────────────────────────
+// When two dispatchers are working in parallel, edits need to surface
+// within a second — not on next refresh. Subscribes to shifts +
+// shift_offers postgres_changes for the current DSP, debounces, and
+// triggers the same loaders the Schedule view uses on mount. Channel
+// tears down the moment the operator navigates away so we don't hold
+// realtime sockets open indefinitely.
+let _schedRealtimeChannel = null;
+let _schedRealtimeTimer   = null;
+function _schedRealtimeStart() {
+  if (_schedRealtimeChannel || typeof sb.channel !== "function") return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const tick = () => {
+    if (_schedRealtimeTimer) clearTimeout(_schedRealtimeTimer);
+    _schedRealtimeTimer = setTimeout(() => {
+      if (typeof loadCoverageRadar === "function") loadCoverageRadar();
+      // Open Shifts sub-tab is the most likely place an operator is
+      // staring at when another dispatcher acts; the week grid loader
+      // (loadScheduleView) is heavier and only re-paints when it's the
+      // visible sub-tab to avoid wasted work.
+      if (typeof loadOpenShifts === "function") loadOpenShifts();
+      const weekSub = document.getElementById("sched-sub-week");
+      if (weekSub?.classList.contains("active") && typeof loadScheduleView === "function") {
+        loadScheduleView();
+      }
+    }, 500);
+  };
+  _schedRealtimeChannel = sb.channel("rr-sched-" + dspId)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "shifts",        filter: `dsp_id=eq.${dspId}` }, tick)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "shift_offers",  filter: `dsp_id=eq.${dspId}` }, tick)
+    .subscribe();
+}
+function _schedRealtimeStop() {
+  if (_schedRealtimeTimer) { clearTimeout(_schedRealtimeTimer); _schedRealtimeTimer = null; }
+  if (_schedRealtimeChannel && typeof sb.removeChannel === "function") {
+    try { sb.removeChannel(_schedRealtimeChannel); } catch {}
+  }
+  _schedRealtimeChannel = null;
+}
 
 // Reset every view to its first sub-tab when the operator navigates
 // to it.  Without this the dashboard remembers the last sub-tab they
