@@ -3805,6 +3805,7 @@ async function loadOnboardingOps(opts) {
         ${cells}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "empty"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
+        <td><button type="button" class="dr-app-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       </tr>`;
   };
 
@@ -3818,6 +3819,7 @@ async function loadOnboardingOps(opts) {
             ${stepHeaders}
             <th>Active</th>
             <th>Send</th>
+            <th>App</th>
           </tr>
         </thead>
         <tbody>${enriched.map(matrixRow).join("")}</tbody>
