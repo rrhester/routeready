@@ -23731,6 +23731,41 @@ document.addEventListener("click", (e) => {
   if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="woc-limits"] > summary')) {
     setTimeout(_rrWocPaintForm, 0);
   }
+  if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="driver-pickup"] > summary')) {
+    setTimeout(_rrPickupPaintForm, 0);
+  }
+});
+
+
+// ─── Driver self-service pickup toggle ────────────────────────────────
+// Per-DSP boolean stored on dsps.metadata.scheduling.driver_pickup_enabled.
+// Defaults to off so existing deployments keep Cover-only flow until
+// the owner flips it on.
+let _rrPickupCache = null;
+async function _rrPickupLoad() {
+  const { data, error } = await sb.rpc("get_pickup_settings");
+  if (error || !data) return null;
+  _rrPickupCache = { driver_pickup_enabled: !!data.driver_pickup_enabled };
+  return _rrPickupCache;
+}
+async function _rrPickupPaintForm() {
+  if (!_rrPickupCache) await _rrPickupLoad();
+  const tog = document.getElementById("rr-pickup-toggle");
+  if (tog) tog.checked = !!_rrPickupCache?.driver_pickup_enabled;
+}
+document.addEventListener("change", async (e) => {
+  if (e.target.id !== "rr-pickup-toggle") return;
+  const next = !!e.target.checked;
+  e.target.disabled = true;
+  const { data, error } = await sb.rpc("set_pickup_settings", { p_enabled: next });
+  e.target.disabled = false;
+  if (error) {
+    e.target.checked = !next;   // rollback the UI
+    toast(error.message || "Couldn't save", "warn");
+    return;
+  }
+  _rrPickupCache = { driver_pickup_enabled: !!data?.driver_pickup_enabled };
+  toast(next ? "Driver pickup enabled" : "Driver pickup disabled", "success");
 });
 
 // Reset every view to its first sub-tab when the operator navigates
