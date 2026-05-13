@@ -22889,6 +22889,86 @@ document.addEventListener("click", (e) => {
 });
 
 
+// ─── Forecast tiles ───────────────────────────────────────────────────
+// At-a-glance projections for the current week: coverage rate, OT
+// risk count, and labor cost. Calm by default — operator toggles the
+// section open via the Forecast text link to the right of the radar.
+async function loadScheduleForecast() {
+  const host = document.getElementById("rr-sched-forecast");
+  if (!host || host.style.display === "none") return;   // hidden — skip
+  host.innerHTML = `<div class="rr-loading" style="padding:16px">Loading forecast</div>`;
+  const { data, error } = await sb.rpc("schedule_forecast", { p_week_start: null });
+  if (!host.isConnected) return;
+  if (error) {
+    host.innerHTML = `<div style="padding:14px 16px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;color:var(--text-subtle);font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load forecast")}</div>`;
+    return;
+  }
+  host.innerHTML = _renderForecastTiles(data || {});
+}
+
+function _renderForecastTiles(f) {
+  const cov = f.coverage || {};
+  const ot  = f.overtime || {};
+  const c   = f.cost || {};
+  const fmtMoney = (n) => (n == null) ? "—" : "$" + Math.round(Number(n)).toLocaleString();
+  const tileBase = "background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0";
+  const label = "font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)";
+  const value = "margin-top:4px;font-size:22px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums";
+  const sub   = "margin-top:3px;font-size:var(--fs-xs);color:var(--text-muted)";
+
+  const covPct  = cov.pct == null ? "—" : `${cov.pct}%`;
+  const covTone = cov.pct == null ? "var(--text-subtle)"
+                : cov.pct >= 95   ? "var(--green)"
+                : cov.pct >= 85   ? "var(--amber-dark)"
+                :                   "var(--red)";
+
+  const otCount = Number(ot.drivers_over || 0);
+  const otTone  = otCount === 0 ? "var(--green)"
+                : otCount < 3   ? "var(--amber-dark)"
+                :                 "var(--red)";
+
+  const haveRates = !!c.have_rates;
+  const costValue = haveRates ? fmtMoney(c.total_cost) : "—";
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--s-3)">
+      <div style="${tileBase}">
+        <div style="${label}">Projected coverage · this week</div>
+        <div style="${value};color:${covTone}">${escapeHtml(covPct)}</div>
+        <div style="${sub}">${cov.assigned_shifts || 0} of ${cov.total_shifts || 0} shifts assigned${(cov.open_shifts || 0) > 0 ? ` · ${cov.open_shifts} open` : ""}</div>
+      </div>
+      <div style="${tileBase}">
+        <div style="${label}">Overtime risk</div>
+        <div style="${value};color:${otTone}">${otCount}</div>
+        <div style="${sub}">${otCount === 1 ? "driver" : "drivers"} projected over ${ot.threshold_hours || 40}h${(ot.ot_hours || 0) > 0 ? ` · ${ot.ot_hours}h OT this week` : ""}</div>
+      </div>
+      <div style="${tileBase}">
+        <div style="${label}">Labor cost · this week</div>
+        <div style="${value}">${escapeHtml(costValue)}</div>
+        <div style="${sub}">${haveRates
+          ? `${c.reg_hours || 0}h regular · ${c.ot_hours || 0}h OT · ${fmtMoney(c.ot_premium)} premium`
+          : `Set hourly rates in the driver record or in Schedule → Rules to project labor cost.`}</div>
+      </div>
+    </div>`;
+}
+
+// Forecast toggle — same pattern as the Drivers / Attendance Insights
+// links. First click opens (loads the data, renders tiles); second
+// click hides.
+document.addEventListener("click", async (e) => {
+  const tog = e.target.closest("#rr-sched-forecast-toggle");
+  if (!tog) return;
+  e.preventDefault();
+  const box = document.getElementById("rr-sched-forecast");
+  if (!box) return;
+  const show = box.style.display === "none";
+  box.style.display = show ? "" : "none";
+  tog.setAttribute("aria-pressed", show ? "true" : "false");
+  tog.classList.toggle("is-on", show);
+  if (show) await loadScheduleForecast();
+});
+
+
 // ─── Cover this shift ─────────────────────────────────────────────────
 // Future-only cover-recovery: dispatcher opens an uncovered shift, sees
 // ranked candidates (hard compliance enforced server-side, OT priced
@@ -23636,8 +23716,19 @@ document.addEventListener("click", (e) => {
 const _origGotoForSched = window.goto;
 window.goto = function (view) {
   if (typeof _origGotoForSched === "function") _origGotoForSched(view);
-  if (view === "schedule") { _rrWocLoad(); loadScheduleView(); loadCoverageRadar(); _schedRealtimeStart(); }
-  else                     { _schedRealtimeStop(); }
+  if (view === "schedule") {
+    _rrWocLoad();
+    // Forecast section starts collapsed on every Schedule entry.
+    const fbox = document.getElementById("rr-sched-forecast");
+    if (fbox) fbox.style.display = "none";
+    const ftog = document.getElementById("rr-sched-forecast-toggle");
+    if (ftog) { ftog.setAttribute("aria-pressed", "false"); ftog.classList.remove("is-on"); }
+    loadScheduleView();
+    loadCoverageRadar();
+    _schedRealtimeStart();
+  } else {
+    _schedRealtimeStop();
+  }
   if (view === "okami")    loadOkamiView();
 };
 

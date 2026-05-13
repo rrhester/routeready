@@ -8651,6 +8651,15 @@ body.rr-cmdk-open{ overflow:hidden }
                 style="display:none;width:100%;text-align:left;appearance:none;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:12px 16px;margin-bottom:var(--s-3);cursor:pointer;transition:border-color .12s,background .12s"
                 aria-label="Open uncovered shifts"></button>
 
+        <!-- Forecast tiles · hidden by default behind an Insights-style
+             toggle. live.js renders projected coverage, OT risk, and
+             estimated labor cost for the current week from data that
+             already lives in shifts + drivers + dsps.metadata. -->
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:var(--s-2)">
+          <a href="#" role="button" class="rr-text-link" id="rr-sched-forecast-toggle" aria-pressed="false">Forecast</a>
+        </div>
+        <div id="rr-sched-forecast" style="display:none;margin-bottom:var(--s-3)"></div>
+
         <!-- Sub-nav -->
         <div class="subnav" data-rr-tabbar="schedule">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
@@ -19506,7 +19515,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513ai-grid-cover"></script>
+<script type="module" src="./live.js?v=20260513aj-forecast"></script>
 
 </body>
 </html>
