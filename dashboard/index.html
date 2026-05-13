@@ -7649,6 +7649,63 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Attendance · drop the at-rest decoration on the (now hidden)
              filter row so nothing reserves space for it. */
           #view-drivers #rr-att-filters[hidden]{display:none}
+
+          /* ─── Unified Drivers table system ────────────────────────────
+             Every .table inside #view-drivers (Roster, Licenses,
+             Attendance Report, Coaching feed) reads with the same
+             density, typography, hover, header treatment, and sticky
+             behaviour, so moving between sub-pages feels seamless.
+             ─────────────────────────────────────────────────────────── */
+          #view-drivers .table-wrap{
+            border:1px solid var(--border);border-radius:var(--r-lg);
+            background:var(--surface);background-image:none;
+            box-shadow:none;overflow:hidden;
+          }
+          #view-drivers .table thead th,
+          #view-drivers .table-compact thead th{
+            background:var(--surface);
+            position:sticky;top:0;z-index:1;
+            border-bottom:1px solid var(--border);
+            padding:11px var(--s-4);
+            font-size:10px;font-weight:700;letter-spacing:.05em;
+            text-transform:uppercase;color:var(--text-subtle);
+            white-space:nowrap;
+          }
+          #view-drivers .table tbody td,
+          #view-drivers .table-compact tbody td{
+            padding:11px var(--s-4);
+            font-size:var(--fs-sm);color:var(--text);
+            border-bottom:1px solid var(--border);
+            vertical-align:middle;
+          }
+          #view-drivers .table tbody tr:last-child td,
+          #view-drivers .table-compact tbody tr:last-child td{border-bottom:none}
+          #view-drivers .table tbody tr,
+          #view-drivers .table-compact tbody tr{transition:background var(--t-fast)}
+          #view-drivers .table tbody tr:hover,
+          #view-drivers .table-compact tbody tr:hover{background:var(--canvas)}
+          #view-drivers .table thead th[data-rr-sort],
+          #view-drivers .table thead th[data-rr-roster-sort],
+          #view-drivers .table thead th[data-rr-att-sort],
+          #view-drivers .table-compact thead th[data-rr-att-sort]{
+            cursor:pointer;user-select:none;
+          }
+          #view-drivers .table thead th[data-rr-sort]:hover,
+          #view-drivers .table thead th[data-rr-roster-sort]:hover,
+          #view-drivers .table thead th[data-rr-att-sort]:hover,
+          #view-drivers .table-compact thead th[data-rr-att-sort]:hover{color:var(--text)}
+
+          /* Tighten Coaching feed actions / hints to match the rest of
+             the workspace — quieter primary, less editorial copy. */
+          #view-drivers #rr-coach-cta{
+            background:var(--surface);color:var(--text);
+            border:1px solid var(--border);
+            box-shadow:none;
+          }
+          #view-drivers #rr-coach-cta:hover{
+            background:var(--canvas);border-color:var(--border-strong);
+          }
+          #view-drivers #dr-sub-coaching .rr-coach-hint{display:none}
         </style>
 
         <div class="dr-roster-bar">
@@ -7681,20 +7738,19 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <div class="table-wrap" id="rr-roster-table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
           <table class="table table-clickable">
-            <thead>
+            <thead id="rr-roster-thead">
               <tr>
                 <th class="dr-cb" data-rr-no-drawer></th>
                 <th>Driver</th>
                 <th>Station</th>
                 <th>Tenure</th>
                 <th>Score</th>
-                <th>Attendance · 30d</th>
                 <th>Last coached</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="drivers-tbody">
-              <tr><td colspan="8" style="padding:0"></td></tr>
+              <tr><td colspan="7" style="padding:0"></td></tr>
             </tbody>
           </table>
         </div>
@@ -7939,7 +7995,6 @@ body.rr-cmdk-open{ overflow:hidden }
               Coach a driver
             </button>
             <input id="rr-coach-search" type="text" class="form-input" placeholder="Search summary, notes, driver…" style="flex:1;min-width:200px;max-width:340px"/>
-            <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Click a column to sort</span>
           </div>
           <div id="rr-coach-feed" class="card card-flush">
             <div class="rr-loading">Loading</div>
@@ -19425,7 +19480,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513t-drivers-polish-1"></script>
+<script type="module" src="./live.js?v=20260513u-drivers-unified-table"></script>
 
 </body>
 </html>
