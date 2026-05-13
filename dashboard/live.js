@@ -22696,13 +22696,285 @@ async function loadOpenShifts() {
               <td>${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${rel}</div></td>
               <td>${stationChip(r.station?.code)}</td>
               <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(r.route_code || "—")}</td>
-              <td style="text-align:right"><button class="btn btn-sm btn-primary" data-rr-shift-id="${r.id}">Assign driver</button></td>
+              <td style="text-align:right">${
+                r.date > _todayIsoLocal()
+                  ? `<button class="btn btn-sm btn-primary" data-rr-cover-shift="${r.id}">Cover</button>`
+                  : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)" title="Day-of open shifts are absorbed by your built-in cushion">Day-of</span>`
+              }</td>
             </tr>`;
           }).join("")}
         </tbody>
       </table>
     </div>`;
 }
+
+
+// Local ISO date (YYYY-MM-DD) for "today" using the browser's clock so
+// the Open Shifts table can tell apart day-of vs future routes without a
+// round-trip. The shifts.date column stores plain dates.
+function _todayIsoLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+
+// ─── Cover this shift ─────────────────────────────────────────────────
+// Future-only cover-recovery: dispatcher opens an uncovered shift, sees
+// ranked candidates (hard compliance enforced server-side, OT priced
+// inline), picks one, and a time-boxed Accept/Pass offer lands on that
+// driver's phone. Day-of NCNS/callouts stay on the cushion path.
+let _coverState = null;   // { shiftId, offerId, expiresAt, timerId, channel }
+
+function _coverFmtMoney(n) {
+  if (n == null || isNaN(n)) return null;
+  return "$" + Math.round(Number(n)).toLocaleString();
+}
+function _coverFmtHours(n) {
+  if (n == null || isNaN(n)) return "—";
+  return (Math.round(Number(n) * 10) / 10).toFixed(1) + "h";
+}
+function _coverFmtDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function _coverFmtTime(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function openCoverShiftDrawer(shiftId) {
+  // Tear down any previous drawer instance first so timers + channels
+  // don't accumulate.
+  _coverTeardown();
+
+  const drawer = document.createElement("div");
+  drawer.id = "rr-cover-drawer";
+  drawer.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;display:flex;justify-content:flex-end";
+  drawer.innerHTML = `
+    <div style="width:min(640px,100vw);height:100%;background:var(--surface);box-shadow:-8px 0 32px -8px rgba(15,23,42,.18);display:flex;flex-direction:column" data-rr-cover-panel>
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:start;justify-content:space-between;gap:16px">
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)">Cover this shift</div>
+          <h2 id="rr-cover-title" style="margin:4px 0 0;font-size:18px;font-weight:700;color:var(--text)">Loading…</h2>
+          <div id="rr-cover-sub" style="margin-top:3px;font-size:var(--fs-sm);color:var(--text-muted)"></div>
+        </div>
+        <button type="button" id="rr-cover-close" aria-label="Close" style="appearance:none;background:transparent;border:0;cursor:pointer;color:var(--text-subtle);padding:6px;border-radius:8px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div id="rr-cover-body" style="flex:1;overflow-y:auto;padding:18px 22px">
+        <div class="rr-loading" style="padding:24px">Loading candidates</div>
+      </div>
+    </div>`;
+  document.body.appendChild(drawer);
+
+  drawer.addEventListener("click", (e) => {
+    if (e.target === drawer || e.target.closest("#rr-cover-close")) _coverTeardown();
+  });
+
+  _coverState = { shiftId, offerId: null, expiresAt: null, timerId: null, channel: null };
+  _coverLoadCandidates();
+  _coverSubscribe();
+}
+
+function _coverTeardown() {
+  if (!_coverState) {
+    document.getElementById("rr-cover-drawer")?.remove();
+    return;
+  }
+  if (_coverState.timerId) { clearInterval(_coverState.timerId); _coverState.timerId = null; }
+  if (_coverState.channel && typeof sb.removeChannel === "function") {
+    try { sb.removeChannel(_coverState.channel); } catch {}
+  }
+  _coverState = null;
+  document.getElementById("rr-cover-drawer")?.remove();
+}
+
+async function _coverLoadCandidates() {
+  if (!_coverState) return;
+  const body = document.getElementById("rr-cover-body");
+  if (!body) return;
+  body.innerHTML = `<div class="rr-loading" style="padding:24px">Loading candidates</div>`;
+  const { data, error } = await sb.rpc("cover_shift_candidates", {
+    p_shift_id: _coverState.shiftId, p_limit: 10,
+  });
+  if (!_coverState) return;   // teardown happened
+  if (error) {
+    body.innerHTML = `<div style="padding:18px;background:var(--red-soft);color:var(--red);border-radius:10px;font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load candidates")}</div>`;
+    return;
+  }
+  const shift = data?.shift || {};
+  const cands = Array.isArray(data?.candidates) ? data.candidates : [];
+
+  const title = document.getElementById("rr-cover-title");
+  const sub   = document.getElementById("rr-cover-sub");
+  if (title) title.textContent = `${shift.route_code || "Route"} · ${_coverFmtDate(shift.date)}`;
+  if (sub) {
+    const time = shift.starts_at ? `${_coverFmtTime(shift.starts_at)}${shift.ends_at ? ` – ${_coverFmtTime(shift.ends_at)}` : ""}` : "";
+    sub.textContent = [time, shift.block_hours ? `${shift.block_hours}h block` : ""].filter(Boolean).join(" · ");
+  }
+
+  if (cands.length === 0) {
+    body.innerHTML = `
+      <div style="padding:32px 24px;background:var(--canvas);border:1px dashed var(--border-strong);border-radius:12px;text-align:center">
+        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:6px">No eligible drivers</div>
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.55">Everyone is already booked, on time-off, over the weekly cap, missing a required cert, or has an expired license for this date.</div>
+      </div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:12px">All ${cands.length} ${cands.length === 1 ? "driver passes" : "drivers pass"} hard compliance. Pick one to send a 15-minute offer.</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${cands.map(_coverCandidateRow).join("")}
+    </div>`;
+
+  body.querySelectorAll("[data-rr-cover-offer]").forEach((btn) => {
+    btn.addEventListener("click", () => _coverSendOffer(btn.getAttribute("data-rr-cover-offer"), btn));
+  });
+}
+
+function _coverCandidateRow(c) {
+  const ot = Number(c.projected_ot_hours || 0);
+  const otCost = c.projected_ot_premium;
+  const otBadge = ot > 0
+    ? `<div style="margin-top:4px;font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600">+ ${_coverFmtHours(ot)} OT${otCost != null ? ` · ${_coverFmtMoney(otCost)} premium` : ""}</div>`
+    : `<div style="margin-top:4px;font-size:var(--fs-xs);color:var(--text-subtle)">Regular hours</div>`;
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+      <div style="min-width:0;flex:1">
+        <div style="font-weight:700;color:var(--text);font-size:var(--fs-md)">${escapeHtml(c.driver_name || "Driver")}</div>
+        <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">Scheduled this week: ${_coverFmtHours(c.current_week_hours)} → ${_coverFmtHours(c.projected_total_hours)}</div>
+        ${otBadge}
+      </div>
+      <button class="btn btn-sm btn-primary" data-rr-cover-offer="${c.driver_id}">Offer</button>
+    </div>`;
+}
+
+async function _coverSendOffer(driverId, btn) {
+  if (!_coverState) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  const { data, error } = await sb.rpc("cover_shift_offer", {
+    p_shift_id: _coverState.shiftId, p_driver_id: driverId, p_expires_minutes: 15,
+  });
+  if (!_coverState) return;
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = "Offer"; }
+    toast(error.message || "Couldn't send offer", "warn");
+    return;
+  }
+  _coverState.offerId   = data.id;
+  _coverState.expiresAt = new Date(data.expires_at).getTime();
+  _coverRenderWaiting(data, driverId);
+  _coverStartTimer();
+}
+
+function _coverRenderWaiting(offer, driverId) {
+  const body = document.getElementById("rr-cover-body");
+  if (!body) return;
+  const driverName = (body.querySelector(`[data-rr-cover-offer="${driverId}"]`)
+    ?.closest("div")?.parentElement?.querySelector("div div")?.textContent) || "the driver";
+  body.innerHTML = `
+    <div style="padding:18px 18px 14px;background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);border-radius:12px">
+      <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)">Offer sent</div>
+      <div style="margin-top:4px;font-size:var(--fs-md);font-weight:600;color:var(--text)">Waiting on ${escapeHtml(driverName)}</div>
+      <div style="margin-top:6px;font-size:var(--fs-sm);color:var(--text-muted)">They'll see an Accept / Pass card on their phone. If they pass or time runs out, you can pick another driver.</div>
+      <div id="rr-cover-timer" style="margin-top:12px;font-variant-numeric:tabular-nums;font-size:18px;font-weight:700;color:var(--text)">15:00</div>
+      <button id="rr-cover-cancel" class="btn btn-sm btn-ghost" style="margin-top:10px">Cancel offer</button>
+    </div>`;
+  body.querySelector("#rr-cover-cancel")?.addEventListener("click", _coverCancelOffer);
+}
+
+function _coverStartTimer() {
+  if (!_coverState) return;
+  if (_coverState.timerId) clearInterval(_coverState.timerId);
+  const paint = () => {
+    if (!_coverState) return;
+    const el = document.getElementById("rr-cover-timer");
+    if (!el) return;
+    const ms = Math.max(0, _coverState.expiresAt - Date.now());
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    el.textContent = `${m}:${String(s).padStart(2, "0")}`;
+    if (ms <= 0) {
+      clearInterval(_coverState.timerId);
+      _coverState.timerId = null;
+      // Drive the expired UI ourselves; the driver-side list will also
+      // flip the row to expired on next access. Either way we reload
+      // candidates so the dispatcher can advance.
+      _coverHandleOutcome("expired");
+    }
+  };
+  paint();
+  _coverState.timerId = setInterval(paint, 1000);
+}
+
+async function _coverCancelOffer() {
+  if (!_coverState?.offerId) return;
+  const { error } = await sb.rpc("cover_shift_cancel", { p_offer_id: _coverState.offerId });
+  if (error) { toast(error.message || "Couldn't cancel offer", "warn"); return; }
+  _coverHandleOutcome("cancelled");
+}
+
+function _coverSubscribe() {
+  if (!_coverState || typeof sb.channel !== "function") return;
+  _coverState.channel = sb.channel("rr-cover-shift-" + _coverState.shiftId)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "shift_offers", filter: `shift_id=eq.${_coverState.shiftId}` },
+        (payload) => {
+          const row = payload.new || payload.old;
+          if (!row || !_coverState) return;
+          if (_coverState.offerId && row.id === _coverState.offerId) {
+            if (row.status === "accepted") _coverHandleOutcome("accepted");
+            else if (row.status === "declined") _coverHandleOutcome("declined");
+            else if (row.status === "expired") _coverHandleOutcome("expired");
+          }
+        })
+    .subscribe();
+}
+
+function _coverHandleOutcome(outcome) {
+  if (!_coverState) return;
+  if (_coverState.timerId) { clearInterval(_coverState.timerId); _coverState.timerId = null; }
+  const body = document.getElementById("rr-cover-body");
+  if (!body) return;
+
+  if (outcome === "accepted") {
+    body.innerHTML = `
+      <div style="padding:28px 24px;background:var(--green-soft);border:1px solid rgba(5,150,105,.20);border-radius:12px;text-align:center">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:var(--green);color:#fff;margin-bottom:10px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);margin-bottom:4px">Shift covered</div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);max-width:380px;margin:0 auto;line-height:1.55">The schedule has been updated. The driver received a confirmation push with their route details.</div>
+        <button id="rr-cover-done" class="btn btn-primary btn-sm" style="margin-top:14px">Done</button>
+      </div>`;
+    body.querySelector("#rr-cover-done")?.addEventListener("click", () => {
+      _coverTeardown();
+      if (typeof loadOpenShifts === "function") loadOpenShifts();
+    });
+    return;
+  }
+
+  // declined / expired / cancelled → pick another candidate
+  const label = outcome === "declined" ? "Driver passed"
+              : outcome === "expired"  ? "Offer expired"
+              :                          "Offer cancelled";
+  body.innerHTML = `
+    <div style="padding:18px;background:var(--canvas);border:1px solid var(--border);border-radius:12px;margin-bottom:14px">
+      <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)">${escapeHtml(label)}</div>
+      <div style="margin-top:4px;font-size:var(--fs-sm);color:var(--text-muted)">Pick another driver below.</div>
+    </div>
+    <div id="rr-cover-relist" class="rr-loading" style="padding:24px">Refreshing candidates</div>`;
+  _coverState.offerId = null;
+  _coverState.expiresAt = null;
+  _coverLoadCandidates();
+}
+
+// Delegated open trigger from the Open Shifts table.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-rr-cover-shift]");
+  if (!btn) return;
+  e.preventDefault();
+  openCoverShiftDrawer(btn.getAttribute("data-rr-cover-shift"));
+});
 
 
 // ─── Staffing outlook ──────────────────────────────────────────────────
