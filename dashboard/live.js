@@ -3857,7 +3857,7 @@ async function loadOnboardingOps(opts) {
   // best-effort, so a hiccup here can't block the page.
   await sb.rpc("onboarding_doc_envelopes_ensure", {}).then((r) => r, () => null);
 
-  const [{ data: drv, error }, i9Res, progRes, bpRes, stateRes] = await Promise.all([
+  const [{ data: drv, error }, i9Res, progRes, bpRes, stateRes, chatRes] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, training_date,
                background_check_completed_at, drug_test_completed_at,
@@ -3870,7 +3870,10 @@ async function loadOnboardingOps(opts) {
     sb.from("onboarding_progress").select("*").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
     sb.rpc("onboarding_blueprint_get").then((r) => r, () => ({ data: null })),
     sb.from("driver_onboarding_state").select("driver_id, steps").eq("dsp_id", window.RR.dsp.id).then((r) => r, () => ({ data: [] })),
+    sb.rpc("dispatch_chat_threads").then((r) => r, () => ({ data: [] })),
   ]);
+  _onbUnreadByDriver = new Map((Array.isArray(chatRes?.data) ? chatRes.data : [])
+    .filter(t => t && t.driver_id && (t.unread || 0) > 0).map(t => [t.driver_id, t.unread]));
   _obBlueprint = (bpRes && Array.isArray(bpRes.data) && bpRes.data.length) ? bpRes.data : null;
   if (error) {
     body.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Couldn't load onboarding</h3><p>${escapeHtml(error.message || "")}</p></div>`;
@@ -3950,6 +3953,7 @@ async function loadOnboardingOps(opts) {
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "empty"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
+        <td><button type="button" class="ob-mx-action onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="onb-msg-dot" aria-hidden="true"></span></button></td>
         <td><button type="button" class="dr-app-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       </tr>`;
   };
@@ -3965,6 +3969,7 @@ async function loadOnboardingOps(opts) {
             <th>Active</th>
             <th>Send</th>
             <th>Notes</th>
+            <th>Msg</th>
             <th>App</th>
           </tr>
         </thead>
@@ -4123,6 +4128,9 @@ function _onbNotesEnsureDOM() {
 
 async function openOnbNotesDrawer(driverId, name) {
   if (!driverId) return;
+  // Only one right-side drawer open at a time.
+  const cd = document.getElementById("rr-onb-chat-drawer");
+  if (cd && cd.classList.contains("open") && typeof closeOnbChatDrawer === "function") closeOnbChatDrawer();
   _onbNotesEnsureDOM();
   _onbNotesDriver = driverId;
   _onbNotesName = name || "this driver";
@@ -4279,6 +4287,231 @@ document.addEventListener("blur", (e) => {
     if (_onbNotesState === "saving") _onbNotesSetState("idle");
   }
 }, true);   // capture — blur doesn't bubble
+
+// ─── Orientation dashboard · inline 1:1 messaging slide-in ────────────
+// A compact chat panel that pops in over the matrix when you tap the
+// message button on a driver's row, and pops back out when dismissed —
+// the onboarding matrix stays put underneath the whole time. Reuses the
+// existing dispatch ↔ driver chat (dispatch_chat_thread / _send /
+// _mark_read), so it's the very same conversation the driver sees in
+// their app and that staff see in the Messages view; nothing forks.
+// Refreshes on a light 7s poll while open (no realtime socket here);
+// opening a thread, and seeing a new driver message, both mark it read.
+let _onbUnreadByDriver = new Map();   // driver id → unread count (from dispatch_chat_threads, refreshed by loadOnboardingOps)
+let _onbChatDriver = null;
+let _onbChatName = "";
+let _onbChatPollTimer = null;
+let _onbChatSig = "";                  // signature of the last-rendered thread, to skip no-op re-renders
+let _onbChatSending = false;
+
+const _ONB_CHAT_QUICK = [
+  "Welcome aboard! Reply here any time you have a question.",
+  "Just checking in — how's onboarding going?",
+  "When you get a chance, could you finish that step in the app?",
+  "Heads up: your Form I-9 needs to be completed soon.",
+  "Thanks — got it. You're all set on that.",
+];
+const _ONB_CHAT_XICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+function _onbChatStylesOnce() {
+  if (document.getElementById("rr-onb-chat-styles")) return;
+  const s = document.createElement("style");
+  s.id = "rr-onb-chat-styles";
+  s.textContent =
+    ".onb-msg-btn{position:relative}" +
+    ".onb-msg-btn .onb-msg-dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--surface);opacity:0;transform:scale(.4);transition:opacity .15s ease,transform .15s ease}" +
+    ".onb-msg-btn.has-unread .onb-msg-dot{opacity:1;transform:none}" +
+    ".onb-msg-btn.has-unread{color:var(--accent-text)}" +
+    ".onb-chat-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.30);opacity:0;pointer-events:none;transition:opacity .26s ease;z-index:10012}" +
+    ".onb-chat-backdrop.open{opacity:1;pointer-events:auto}" +
+    ".onb-chat-drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,94vw);background:var(--surface);display:flex;flex-direction:column;z-index:10013;transform:translateX(102%);box-shadow:none;transition:transform .32s cubic-bezier(.32,.72,0,1),box-shadow .32s ease;will-change:transform}" +
+    ".onb-chat-drawer.open{transform:translateX(0);box-shadow:-22px 0 60px -20px rgba(15,23,42,.28)}" +
+    ".onb-chat-head{display:flex;align-items:flex-start;gap:10px;padding:16px 18px 14px;border-bottom:1px solid var(--border)}" +
+    ".onb-chat-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.01em}" +
+    ".onb-chat-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.35}" +
+    ".onb-chat-x{appearance:none;background:transparent;border:0;width:30px;height:30px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;flex:0 0 auto;margin:-4px -6px -4px auto;transition:color .12s,background .12s}" +
+    ".onb-chat-x:hover{color:var(--text);background:var(--canvas)}" +
+    ".onb-chat-x svg{width:17px;height:17px}" +
+    ".onb-chat-thread{flex:1;overflow:auto;padding:16px 18px;display:flex;flex-direction:column;gap:8px;background:var(--canvas)}" +
+    ".onb-chat-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);line-height:1.5;padding:20px}" +
+    ".onb-chat-row{display:flex;flex-direction:column;max-width:84%}" +
+    ".onb-chat-row.mine{align-self:flex-end;align-items:flex-end}" +
+    ".onb-chat-row.theirs{align-self:flex-start;align-items:flex-start}" +
+    ".onb-chat-bubble{padding:8px 12px;border-radius:14px;font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;box-shadow:var(--shadow-xs,0 1px 2px rgba(15,23,42,.04))}" +
+    ".onb-chat-row.mine .onb-chat-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:5px}" +
+    ".onb-chat-row.theirs .onb-chat-bubble{background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px}" +
+    ".onb-chat-time{font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px}" +
+    ".onb-chat-read{align-self:flex-end;font-size:10px;color:var(--text-subtle);margin-top:-3px;padding-right:4px}" +
+    ".onb-chat-day{align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin:6px 0}" +
+    ".onb-chat-quick{display:flex;gap:6px;overflow-x:auto;padding:9px 14px 0;flex-wrap:nowrap;scrollbar-width:none}" +
+    ".onb-chat-quick::-webkit-scrollbar{display:none}" +
+    ".onb-chat-quick button{flex:0 0 auto;appearance:none;background:var(--surface);border:1px solid var(--border);border-radius:999px;font:inherit;font-size:var(--fs-xs);color:var(--text-muted);padding:5px 11px;cursor:pointer;white-space:nowrap;transition:border-color .12s,color .12s,background .12s}" +
+    ".onb-chat-quick button:hover{border-color:var(--accent-border);color:var(--accent-text);background:var(--canvas)}" +
+    ".onb-chat-composer{display:flex;align-items:flex-end;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--border)}" +
+    ".onb-chat-composer textarea{flex:1;border:1px solid var(--border);background:var(--canvas);border-radius:var(--r-lg);font:inherit;font-size:var(--fs-sm);color:var(--text);line-height:1.45;padding:9px 12px;resize:none;outline:none;max-height:120px;overflow-y:auto;transition:border-color .12s,box-shadow .12s,background .12s}" +
+    ".onb-chat-composer textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}" +
+    "@media (prefers-reduced-motion:reduce){.onb-chat-drawer,.onb-chat-backdrop{transition:none}}";
+  document.head.appendChild(s);
+}
+
+function _onbChatGrow(ta) { if (!ta) return; ta.style.height = "auto"; ta.style.height = Math.min(120, Math.max(20, ta.scrollHeight)) + "px"; }
+
+function _onbChatEnsureDOM() {
+  if (document.getElementById("rr-onb-chat-drawer")) return;
+  _onbChatStylesOnce();
+  const bd = document.createElement("div");
+  bd.id = "rr-onb-chat-backdrop"; bd.className = "onb-chat-backdrop";
+  const dr = document.createElement("aside");
+  dr.id = "rr-onb-chat-drawer"; dr.className = "onb-chat-drawer"; dr.setAttribute("aria-hidden", "true"); dr.setAttribute("role", "dialog"); dr.setAttribute("aria-label", "Driver messages");
+  dr.innerHTML = `
+    <div class="onb-chat-head">
+      <div style="min-width:0">
+        <div class="onb-chat-title" id="onb-chat-title">Messages</div>
+        <div class="onb-chat-sub" id="onb-chat-sub">—</div>
+      </div>
+      <button type="button" class="onb-chat-x" data-onb-chat-close aria-label="Close messages">${_ONB_CHAT_XICON}</button>
+    </div>
+    <div class="onb-chat-thread" id="onb-chat-thread"></div>
+    <div class="onb-chat-quick" id="onb-chat-quick">${_ONB_CHAT_QUICK.map((q, i) => `<button type="button" data-onb-chat-quick="${i}" title="${escapeHtml(q)}">${escapeHtml(q.length > 34 ? q.slice(0, 32) + "…" : q)}</button>`).join("")}</div>
+    <form class="onb-chat-composer" id="onb-chat-form">
+      <textarea id="onb-chat-input" rows="1" placeholder="Message…" maxlength="2000"></textarea>
+      <button type="submit" class="btn btn-sm btn-primary" id="onb-chat-send">Send</button>
+    </form>`;
+  document.body.appendChild(bd);
+  document.body.appendChild(dr);
+  dr.querySelector("#onb-chat-form").addEventListener("submit", (e) => { e.preventDefault(); _onbChatSend(); });
+  const ta = dr.querySelector("#onb-chat-input");
+  ta.addEventListener("input", () => _onbChatGrow(ta));
+  ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); _onbChatSend(); } });
+}
+
+function _onbChatMarkRowRead(driverId) {
+  if (_onbUnreadByDriver) _onbUnreadByDriver.delete(driverId);
+  document.querySelectorAll(`.onb-msg-btn[data-rr-ob-msg="${driverId}"]`).forEach(b => { b.classList.remove("has-unread"); b.title = "Message this driver"; });
+}
+
+async function openOnbChatDrawer(driverId, name) {
+  if (!driverId) return;
+  const nd = document.getElementById("rr-onb-notes-drawer");
+  if (nd && nd.classList.contains("open") && typeof closeOnbNotesDrawer === "function") closeOnbNotesDrawer();
+  _onbChatEnsureDOM();
+  _onbChatDriver = driverId; _onbChatName = name || "this driver"; _onbChatSig = "";
+  const bd = document.getElementById("rr-onb-chat-backdrop");
+  const dr = document.getElementById("rr-onb-chat-drawer");
+  const titleEl = document.getElementById("onb-chat-title");
+  const sub = document.getElementById("onb-chat-sub");
+  const thread = document.getElementById("onb-chat-thread");
+  if (!bd || !dr || !thread) return;
+  if (titleEl) titleEl.textContent = _onbChatName;
+  if (sub) sub.textContent = "Onboarding · the same thread the driver sees in their app";
+  thread.innerHTML = `<div class="onb-chat-empty">Loading…</div>`;
+  dr.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => { bd.classList.add("open"); dr.classList.add("open"); });
+  setTimeout(() => { if (dr.classList.contains("open")) document.getElementById("onb-chat-input")?.focus(); }, 340);
+  await _onbChatRefresh(true);
+  if (_onbChatDriver !== driverId) return;
+  sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).then(() => {}, () => {});
+  _onbChatMarkRowRead(driverId);
+  clearInterval(_onbChatPollTimer);
+  _onbChatPollTimer = setInterval(() => {
+    if (!document.getElementById("rr-onb-chat-drawer")?.classList.contains("open") || _onbChatDriver !== driverId) { clearInterval(_onbChatPollTimer); _onbChatPollTimer = null; return; }
+    _onbChatRefresh(false);
+  }, 7000);
+}
+
+function closeOnbChatDrawer() {
+  const bd = document.getElementById("rr-onb-chat-backdrop");
+  const dr = document.getElementById("rr-onb-chat-drawer");
+  if (!dr) return;
+  bd.classList.remove("open"); dr.classList.remove("open");
+  setTimeout(() => { if (!dr.classList.contains("open")) dr.setAttribute("aria-hidden", "true"); }, 340);
+  _onbChatDriver = null;
+  clearInterval(_onbChatPollTimer); _onbChatPollTimer = null;
+}
+
+function _onbChatBubblesHTML(messages, peerReadAt) {
+  if (!messages.length) return `<div class="onb-chat-empty">No messages yet. Say hello — this goes straight to ${escapeHtml(_onbChatName)} in their RouteReady app.</div>`;
+  const peer = peerReadAt ? new Date(peerReadAt).getTime() : 0;
+  let lastMineIdx = -1;
+  messages.forEach((m, i) => { if (m.sender_kind === "dispatch") lastMineIdx = i; });
+  let out = ""; let lastDay = "";
+  messages.forEach((m, i) => {
+    const dt = m.created_at ? new Date(m.created_at) : null;
+    const day = dt ? dt.toDateString() : "";
+    if (day && day !== lastDay) {
+      lastDay = day;
+      const lbl = (day === new Date().toDateString()) ? "Today" : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+      out += `<div class="onb-chat-day">${escapeHtml(lbl)}</div>`;
+    }
+    const mine = m.sender_kind === "dispatch";
+    const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    const body = m.body ? escapeHtml(m.body) : (m.attachment_name ? "📎 " + escapeHtml(m.attachment_name) : "");
+    out += `<div class="onb-chat-row ${mine ? "mine" : "theirs"}"><div class="onb-chat-bubble">${body}</div><div class="onb-chat-time">${escapeHtml(time)}</div></div>`;
+    if (i === lastMineIdx && mine && peer && dt && peer >= dt.getTime()) out += `<div class="onb-chat-read">Read</div>`;
+  });
+  return out;
+}
+
+async function _onbChatRefresh(scrollToBottom) {
+  const driverId = _onbChatDriver;
+  if (!driverId) return;
+  const thread = document.getElementById("onb-chat-thread");
+  if (!thread) return;
+  const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
+  if (_onbChatDriver !== driverId) return;
+  if (error) { if (!thread.querySelector(".onb-chat-row")) thread.innerHTML = `<div class="onb-chat-empty" style="color:var(--red)">Couldn't load this conversation: ${escapeHtml(error.message || "")}</div>`; return; }
+  const msgs = Array.isArray(data && data.messages) ? data.messages : [];
+  const peerReadAt = (data && data.peer_last_read_at) || null;
+  const sig = msgs.map(m => m.id + ":" + (m.created_at || "")).join("|") + "#" + (peerReadAt || "");
+  if (sig === _onbChatSig && !scrollToBottom) return;
+  const hadDriverUnread = msgs.some(m => m.sender_kind === "driver" && m.is_unread);
+  _onbChatSig = sig;
+  const nearBottom = thread.scrollTop + thread.clientHeight >= thread.scrollHeight - 64;
+  thread.innerHTML = _onbChatBubblesHTML(msgs, peerReadAt);
+  if (scrollToBottom || nearBottom) thread.scrollTop = thread.scrollHeight;
+  if (hadDriverUnread) { sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).then(() => {}, () => {}); _onbChatMarkRowRead(driverId); }
+}
+
+async function _onbChatSend() {
+  const driverId = _onbChatDriver;
+  const ta = document.getElementById("onb-chat-input");
+  const btn = document.getElementById("onb-chat-send");
+  if (!driverId || !ta) return;
+  const body = (ta.value || "").trim();
+  if (!body || _onbChatSending) return;
+  _onbChatSending = true; if (btn) btn.disabled = true;
+  const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: driverId, p_body: body });
+  _onbChatSending = false; if (btn) btn.disabled = false;
+  if (error) { toast("Couldn't send: " + (error.message || ""), "warn"); return; }
+  if (_onbChatDriver !== driverId) return;
+  ta.value = ""; _onbChatGrow(ta); ta.focus();
+  _onbChatSig = "";
+  await _onbChatRefresh(true);
+}
+
+// Open from the matrix message button.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-ob-msg]");
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  openOnbChatDrawer(b.getAttribute("data-rr-ob-msg"), b.getAttribute("data-name") || "");
+});
+// Close (× / backdrop) and quick-reply chips.
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-onb-chat-close]") || e.target.id === "rr-onb-chat-backdrop") { e.preventDefault(); closeOnbChatDrawer(); return; }
+  const q = e.target.closest("[data-onb-chat-quick]");
+  if (q) {
+    e.preventDefault();
+    const txt = _ONB_CHAT_QUICK[+q.getAttribute("data-onb-chat-quick")];
+    const ta = document.getElementById("onb-chat-input");
+    if (ta && txt != null) { const cur = (ta.value || "").replace(/\s+$/, ""); ta.value = cur ? cur + " " + txt : txt; _onbChatGrow(ta); ta.focus(); }
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const dr = document.getElementById("rr-onb-chat-drawer");
+  if (dr && dr.classList.contains("open")) { e.preventDefault(); closeOnbChatDrawer(); }
+});
 
 function renderOnboardingRow(d) {
   const initials = displayDriverInitials(d);
