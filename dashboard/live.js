@@ -3313,15 +3313,6 @@ function _obMxStylesOnce() {
     ".ob-bld-switch input:checked + .ob-bld-track::after{transform:translateX(14px)}" +
     ".ob-bld-switch input:focus-visible + .ob-bld-track{box-shadow:0 0 0 3px var(--accent-soft)}" +
     ".ob-bld-switch-label{min-width:18px;text-align:left}" +
-    /* step properties — checkboxes */
-    ".ob-bld-chk{display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);cursor:pointer;user-select:none}" +
-    ".ob-bld-chk input{position:absolute;width:1px;height:1px;opacity:0;margin:-1px;clip:rect(0 0 0 0);overflow:hidden}" +
-    ".ob-bld-box{position:relative;width:16px;height:16px;border-radius:5px;border:1.5px solid var(--border-strong);background:var(--surface);flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;color:#fff;transition:background .12s,border-color .12s}" +
-    ".ob-bld-box svg{width:10px;height:10px;opacity:0;transition:opacity .1s ease}" +
-    ".ob-bld-chk:hover .ob-bld-box{border-color:var(--text-subtle)}" +
-    ".ob-bld-chk input:checked + .ob-bld-box{background:var(--accent);border-color:var(--accent)}" +
-    ".ob-bld-chk input:checked + .ob-bld-box svg{opacity:1}" +
-    ".ob-bld-chk input:focus-visible + .ob-bld-box{box-shadow:0 0 0 3px var(--accent-soft)}" +
     /* attach / video / acknowledgement config */
     ".ob-bld-row{margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
     ".ob-bld-flabel{display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);margin-bottom:4px}" +
@@ -3550,6 +3541,7 @@ const _OB_TYPE_LABELS = { welcome: "Welcome", task: "Task", background_check: "B
 let _obBuilderSteps = null;   // working copy of the blueprint while editing
 let _obTemplates = [];        // [{id, title, kind}] — for the "attach document" picker
 let _obConfirmDelete = null;  // index of the step showing its inline delete confirm, or null
+let _obConfirmReset = false;  // true while the "reset to defaults" confirm strip is showing
 let _obSaveState = "saved";   // "saved" | "syncing" | "justsaved" | "error"
 let _obSaveTimer = null;      // debounce handle for text edits
 let _obSaveSeq = 0;           // monotonically increasing; guards out-of-order RPC replies
@@ -3568,6 +3560,7 @@ async function loadOnboardingBuilder() {
   _obTemplates = Array.isArray(tplRes?.data) ? tplRes.data : [];
   _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT).map(s => ({ ...s }));
   _obConfirmDelete = null;
+  _obConfirmReset = false;
   clearTimeout(_obSaveTimer); clearTimeout(_obJustSavedTimer);
   _obSaveState = "saved";
   _obRenderBuilder();
@@ -3575,9 +3568,6 @@ async function loadOnboardingBuilder() {
 
 function _obTplTitle(id) { const t = _obTemplates.find(x => x.id === id); return t ? t.title : null; }
 
-const _OB_BLD_CHEVRON_UP   = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
-const _OB_BLD_CHEVRON_DOWN = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
-const _OB_BLD_TICK   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
 const _OB_BLD_TICK2  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
 const _OB_BLD_TRASH  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
 const _OB_BLD_WARN   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></svg>`;
@@ -3680,14 +3670,16 @@ function _obRenderBuilder() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:var(--s-4)">
       <div>
         <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
-        <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through — turn them on or off, reorder, rename, and choose what each delivers. Every change saves on its own and reaches new and in-progress drivers.</p>
+        <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through — turn them on or off, drag to reorder, rename, and choose what each delivers. Every change saves on its own and reaches new and in-progress drivers.</p>
       </div>
       <div id="ob-bld-savestate" style="flex:0 0 auto;padding-top:3px;white-space:nowrap">${_obSaveStateHTML()}</div>
     </div>
     <div class="ob-bld-list">${steps.map(card).join("")}</div>
-    <div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+    <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button>
-      <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-reset style="margin-left:auto;color:var(--text-subtle)">Reset to the default set</button>
+      ${_obConfirmReset
+        ? `<span style="margin-left:auto;display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-size:var(--fs-xs);color:var(--text-muted)">Replace your blueprint with the default set? This can’t be undone.</span><button type="button" class="btn btn-sm" data-rr-bld-resetcancel>Keep mine</button><button type="button" class="btn btn-sm btn-danger" data-rr-bld-resetok>Reset to defaults</button></span>`
+        : `<button type="button" class="btn btn-sm btn-ghost" data-rr-bld-reset style="margin-left:auto;color:var(--text-subtle)">Reset to the default set</button>`}
     </div>`;
 }
 
@@ -3818,10 +3810,12 @@ document.addEventListener("click", (e) => {
     else { _obConfirmDelete = null; _obRenderBuilder(); }
     return;
   }
-  if (e.target.closest("[data-rr-bld-reset]")) {
+  if (e.target.closest("[data-rr-bld-reset]")) { e.preventDefault(); _obConfirmReset = true; _obConfirmDelete = null; _obRenderBuilder(); return; }
+  if (e.target.closest("[data-rr-bld-resetcancel]")) { e.preventDefault(); _obConfirmReset = false; _obRenderBuilder(); return; }
+  if (e.target.closest("[data-rr-bld-resetok]")) {
     e.preventDefault();
     _obBuilderSteps = _OB_DEFAULT_BLUEPRINT.map(s => ({ ...s }));
-    _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder();
+    _obConfirmReset = false; _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder();
     toast("Reset to the default onboarding set", "success"); return;
   }
   const attach = e.target.closest("[data-rr-bld-attach]");
@@ -4018,7 +4012,7 @@ async function loadOnboardingOps(opts) {
         </td>
         <td class="ob-mx-statuscell"><span style="display:inline-flex;align-items:center;gap:7px">${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums" title="${ob.doneN} of ${ob.totalN} gates complete">${ob.pct}%</span></span></td>
         ${cells}
-        <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "empty"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
+        <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
         <td><button type="button" class="ob-mx-action onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="onb-msg-dot" aria-hidden="true"></span></button></td>
@@ -4027,8 +4021,13 @@ async function loadOnboardingOps(opts) {
   };
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
+  const dotLegend = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:0 2px 12px;font-size:var(--fs-xs);color:var(--text-subtle)">
+    <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:50%;background:#eab308;border:1.5px solid #ca8a04;flex:0 0 auto"></i>With the driver</span>
+    <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:50%;background:#16a34a;border:1.5px solid #16a34a;flex:0 0 auto"></i>Driver completed</span>
+    <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:50%;background:transparent;border:1.5px solid var(--border-strong);flex:0 0 auto"></i>Your move</span>
+  </div>`;
   body.innerHTML = enriched.length
-    ? `<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
+    ? `${dotLegend}<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
