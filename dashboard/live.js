@@ -21160,7 +21160,7 @@ function _schedShiftChip(sh) {
     ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : '';
-  return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:pointer" title="Click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  return `<div class="shift-chip" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -21710,7 +21710,7 @@ async function renderScheduleWeek() {
           ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
           : "";
         const style = slot.is_cushion ? ' style="border-color:#FCD34D"' : "";
-        return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
+        return `<div class="${cls}" ${data}><div class="shift-chip open" draggable="true" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
       }
       const eff = window._rrEffectiveSettings || {};
       const blockH = eff.default_block_hours
@@ -23939,6 +23939,122 @@ window.goto = function (view) {
 // triggers the same loaders the Schedule view uses on mount. Channel
 // tears down the moment the operator navigates away so we don't hold
 // realtime sockets open indefinitely.
+// ─── Schedule grid drag-drop ──────────────────────────────────────────
+// Drag a shift chip onto any driver-day cell to move it. Same-cell
+// drop is a no-op. Drop on a cell that already has an assigned shift
+// is refused — operator must clear the destination first. Update is a
+// direct UPDATE on shifts (RLS permits it for dispatchers); the
+// shifts UPDATE trigger from #834 captures audit, and the realtime
+// channel propagates the change to other dispatchers' tabs.
+//
+// We avoid HTML5's getData('text/plain') because Safari and some
+// hosts strip custom MIME types; tracking the source in a module-
+// level handle is simpler and works everywhere.
+let _dragShift = null;   // { shiftId, fromDriver, fromDate, sourceEl }
+
+document.addEventListener("dragstart", (e) => {
+  const chip = e.target && e.target.closest && e.target.closest(".shift-chip[data-rr-shift-id]");
+  if (!chip) return;
+  const cell = chip.closest('[data-rr-cell="driver-day"]');
+  _dragShift = {
+    shiftId:    chip.dataset.rrShiftId,
+    fromDriver: cell?.dataset.rrCellDriver || null,
+    fromDate:   cell?.dataset.rrCellDate   || null,
+    sourceEl:   chip,
+  };
+  chip.style.opacity = "0.45";
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    // Some browsers require a payload to fire drop reliably.
+    try { e.dataTransfer.setData("text/plain", chip.dataset.rrShiftId); } catch {}
+  }
+});
+
+document.addEventListener("dragend", () => {
+  if (_dragShift?.sourceEl) _dragShift.sourceEl.style.opacity = "";
+  document.querySelectorAll('[data-rr-cell="driver-day"].rr-drag-over')
+    .forEach((c) => c.classList.remove("rr-drag-over"));
+  _dragShift = null;
+});
+
+document.addEventListener("dragover", (e) => {
+  if (!_dragShift) return;
+  const cell = e.target && e.target.closest && e.target.closest('[data-rr-cell="driver-day"]');
+  if (!cell) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  cell.classList.add("rr-drag-over");
+});
+
+document.addEventListener("dragleave", (e) => {
+  const cell = e.target && e.target.closest && e.target.closest('[data-rr-cell="driver-day"]');
+  if (cell) cell.classList.remove("rr-drag-over");
+});
+
+document.addEventListener("drop", async (e) => {
+  if (!_dragShift) return;
+  const cell = e.target && e.target.closest && e.target.closest('[data-rr-cell="driver-day"]');
+  if (!cell) { _dragShift = null; return; }
+  e.preventDefault();
+  cell.classList.remove("rr-drag-over");
+
+  const toDriver = cell.dataset.rrCellDriver || null;
+  const toDate   = cell.dataset.rrCellDate   || null;
+  const { shiftId, fromDriver, fromDate, sourceEl } = _dragShift;
+
+  // Same cell → nothing to do.
+  if (toDriver === fromDriver && toDate === fromDate) { _dragShift = null; return; }
+
+  // Refuse to drop on a cell that already has a real (non-off,
+  // non-timeoff) shift chip. Operators can clear the destination
+  // first.
+  const existing = cell.querySelector(".shift-chip:not(.off):not(.timeoff)");
+  if (existing && existing.dataset.rrShiftId !== shiftId) {
+    toast("That cell already has a shift — clear it first or swap manually.", "warn");
+    _dragShift = null;
+    return;
+  }
+  if (cell.querySelector(".shift-chip.timeoff")) {
+    toast("That driver is on time off for this day.", "warn");
+    _dragShift = null;
+    return;
+  }
+
+  // Confirm finalized-week edits the same way the modal does.
+  if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) {
+    _dragShift = null;
+    return;
+  }
+
+  // Optimistic UI: yank the chip out of the source and drop it into
+  // the destination so the operator sees instant feedback. The
+  // realtime callback will re-render and reconcile.
+  try {
+    if (sourceEl && sourceEl.parentElement) {
+      const dropZoneOffChip = cell.querySelector(".shift-chip.off");
+      if (dropZoneOffChip) dropZoneOffChip.remove();
+      cell.appendChild(sourceEl);
+      sourceEl.style.opacity = "";
+    }
+  } catch { /* render reconciles */ }
+
+  const patch = { updated_at: new Date().toISOString() };
+  if (toDriver !== fromDriver) patch.driver_id = toDriver;
+  if (toDate   !== fromDate)   patch.date      = toDate;
+
+  const { error } = await sb.from("shifts").update(patch).eq("id", shiftId);
+  if (error) {
+    toast("Couldn't move shift: " + (error.message || "unknown"), "warn");
+    if (typeof loadScheduleView === "function") loadScheduleView();
+  } else {
+    toast("Shift moved", "success");
+    // Realtime + radar refresh handles the visual reconciliation.
+    if (typeof loadCoverageRadar === "function") loadCoverageRadar();
+  }
+  _dragShift = null;
+});
+
+
 let _schedRealtimeChannel = null;
 let _schedRealtimeTimer   = null;
 function _schedRealtimeStart() {
