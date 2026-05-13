@@ -3278,7 +3278,6 @@ function _obMxStylesOnce() {
     ".ob-mxdot{appearance:none;background:transparent;border:1.5px solid var(--border-strong);width:14px;height:14px;border-radius:50%;cursor:pointer;padding:0;transition:background .12s,border-color .12s,transform .1s}" +
     ".ob-mxdot:hover{transform:scale(1.18)}" +
     ".ob-mxdot.done{background:#16a34a;border-color:#16a34a}" +
-    ".ob-mxdot.sent{background:#eab308;border-color:#ca8a04}" +
     ".ob-mxdot.readonly{cursor:default;opacity:.7}" +
     ".ob-mxdot.readonly:hover{transform:none}" +
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
@@ -3300,10 +3299,6 @@ function _obMxStylesOnce() {
     ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:4px 8px;margin-left:-8px;min-width:180px;max-width:340px;flex:1;transition:border-color .12s,background .12s,box-shadow .12s}" +
     ".ob-bld-title:hover{border-color:var(--border-strong)}" +
     ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}" +
-    ".ob-bld-typechip{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--canvas);color:var(--text-muted);white-space:nowrap}" +
-    ".ob-bld-typechip.owner-driver{background:var(--green-soft);color:var(--green-dark)}" +
-    ".ob-bld-typechip.owner-dsp{background:var(--canvas);color:var(--text-muted)}" +
-    ".ob-bld-typechip.custom{background:rgba(124,58,237,.10);color:#5B21B6}" +
     /* master enable — pill switch */
     ".ob-bld-switch{display:inline-flex;align-items:center;gap:9px;flex:0 0 auto;cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);user-select:none}" +
     ".ob-bld-switch input{position:absolute;width:1px;height:1px;opacity:0;margin:-1px;clip:rect(0 0 0 0);overflow:hidden}" +
@@ -3640,7 +3635,6 @@ function _obRenderBuilder() {
     }
     return "";
   };
-  const custom = (s) => typeof s.key === "string" && s.key.startsWith("custom_");
   const confirmCard = (s, i) => `
     <div class="ob-bld-card confirming" data-i="${i}">
       <div class="ob-bld-confirm">
@@ -3655,12 +3649,7 @@ function _obRenderBuilder() {
     <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
       <div class="ob-bld-grip" draggable="true" data-rr-bld-grip="${i}" title="Drag to reorder" aria-label="Drag to reorder this step" role="button"><svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></svg></div>
       <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60">
-          <span class="ob-bld-typechip">${escapeHtml(_OB_TYPE_LABELS[s.type] || s.type || "Step")}</span>
-          <span class="ob-bld-typechip ${s.owner === "driver" ? "owner-driver" : "owner-dsp"}">${s.owner === "driver" ? "Driver completes" : "DSP records"}</span>
-          ${custom(s) ? `<span class="ob-bld-typechip custom">Custom</span>` : ""}
-        </div>
+        <input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60" style="display:block;width:100%;max-width:none;margin-left:0">
         ${attachRow(s, i)}
       </div>
       <label class="ob-bld-switch" title="${s.enabled ? "Step is on — turn off to leave it out for new hires" : "Step is off — turn on to include it"}"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span class="ob-bld-track"></span><span class="ob-bld-switch-label">${s.enabled ? "On" : "Off"}</span></label>
@@ -3943,16 +3932,13 @@ async function loadOnboardingOps(opts) {
   // fixed "Active" + a "Send documents" action column.
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
-  // Tri-state dot: green = the driver finished it · yellow = it's with the
-  // driver (sent / awaiting them) · no colour = DSP action needed.
-  const dotCell = (driverId, kind, field, state3, val, opts) => {
+  // Onboarding dot: green once the step is complete, no fill otherwise.
+  // Every step in the overview is visible to the driver; hover for status.
+  const dotCell = (driverId, kind, field, done, val, opts) => {
     const ro = opts && opts.readonly;
-    const cls = state3 === "done" ? "done" : state3 === "sent" ? "sent" : "";
     const dv = fmtCellDate(val);
-    const title = state3 === "done" ? ((opts && opts.labelDone ? opts.labelDone : "Done") + (dv ? " " + dv : ""))
-      : state3 === "sent" ? ((opts && opts.labelSent) || "With the driver — waiting on them")
-      : ((opts && opts.labelTodo) || "Not yet");
-    return `<td><button type="button" class="ob-mxdot${cls ? " " + cls : ""}${ro ? " readonly" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(driverId)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${state3}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${ro ? " disabled" : ""}></button></td>`;
+    const title = done ? ((opts && opts.labelDone ? opts.labelDone : "Done") + (dv ? " " + dv : "")) : ((opts && opts.labelTodo) || "Not yet");
+    return `<td><button type="button" class="ob-mxdot${done ? " done" : ""}${ro ? " readonly" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(driverId)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${done ? "done" : "todo"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${ro ? " disabled" : ""}></button></td>`;
   };
 
   const matrixRow = ({ d, ob }) => {
@@ -3967,40 +3953,31 @@ async function loadOnboardingOps(opts) {
     const stState = (_rosterState && _rosterState.get(d.id)) || {};
     const cells = stepCols.map(s => {
       const m = s.map;
-      const owner = s.owner === "driver" ? "driver" : "dsp";
       const stepType = s.type || "";
-      let state3 = "todo", val = null;
-      let labelDone = m.doneLabel || "Done", labelSent = "", labelTodo = m.todoLabel || `${s.title} — not yet`;
+      let done = false, val = null;
+      let labelDone = m.doneLabel || "Done", labelTodo = m.todoLabel || `${s.title} — not yet`;
       if (m.kind === "state") {
         const entry = stState[m.done];
         const status = entry && entry.status;
-        if (status === "complete") { state3 = "done"; val = entry.at || true; }
-        else if (status && status !== "not_started") {
-          state3 = "sent";
-          labelSent = `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`;
-        } else if (owner === "driver" && stepType !== "document") {
-          state3 = "sent"; labelSent = `${s.title || "Step"} — waiting on the driver`;
-        } else {
-          state3 = "todo";
-          labelTodo = stepType === "document" ? `${s.title || "Step"} — not sent yet` : labelTodo;
-        }
-        return dotCell(d.id, "state", m.done, state3, val, { labelDone, labelSent, labelTodo });
+        if (status === "complete") { done = true; val = entry.at || true; }
+        else if (status && status !== "not_started") labelTodo = `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`;
+        else if (stepType === "document") labelTodo = `${s.title || "Step"} — not sent yet`;
+        return dotCell(d.id, "state", m.done, done, val, { labelDone, labelTodo });
       }
       if (m.kind === "i9") {
-        if (i9verified) { state3 = "done"; val = i9CompletedAt || true; }
-        else if (i9.key === "section1_complete") { state3 = "todo"; labelTodo = "Section 1 done — verify Section 2"; }
-        else if (["needs_correction", "section1_in_progress", "not_started", "no_record"].includes(i9.key)) { state3 = "sent"; labelSent = "Form I-9 — waiting on the driver"; }
-        else { state3 = "todo"; }
-        return dotCell(d.id, "i9", "", state3, val, { readonly: true, labelDone, labelSent, labelTodo });
+        if (i9verified) { done = true; val = i9CompletedAt || true; }
+        else if (i9.key === "section1_complete") labelTodo = "Section 1 done — verify Section 2";
+        else if (["needs_correction", "section1_in_progress", "not_started", "no_record"].includes(i9.key)) labelTodo = "Form I-9 — with the driver (Section 1)";
+        return dotCell(d.id, "i9", "", done, val, { readonly: true, labelDone, labelTodo });
       }
       if (m.kind === "drv") {
-        if (d[m.done]) { state3 = "done"; val = d[m.done]; }
-        return dotCell(d.id, "drv", m.done, state3, val, { labelDone, labelTodo });
+        if (d[m.done]) { done = true; val = d[m.done]; }
+        return dotCell(d.id, "drv", m.done, done, val, { labelDone, labelTodo });
       }
-      // prog: a "sent at" timestamp (handbook / job_offer) means it's with the driver.
-      if (prog[m.done]) { state3 = "done"; val = prog[m.done]; }
-      else if (m.sent && prog[m.sent]) { state3 = "sent"; labelSent = `Sent · ${fmtCellDate(prog[m.sent]) || ""}`; }
-      return dotCell(d.id, "prog", m.done, state3, val, { labelDone, labelSent, labelTodo });
+      // prog (handbook / job_offer / welcome email / scheduled / …)
+      if (prog[m.done]) { done = true; val = prog[m.done]; }
+      else if (m.sent && prog[m.sent]) labelTodo = `Sent · ${fmtCellDate(prog[m.sent]) || ""} — with the driver`;
+      return dotCell(d.id, "prog", m.done, done, val, { labelDone, labelTodo });
     }).join("");
     return `
       <tr data-driver-id="${escapeHtml(d.id)}">
@@ -4024,13 +4001,8 @@ async function loadOnboardingOps(opts) {
   };
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
-  const dotLegend = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:0 2px 12px;font-size:var(--fs-xs);color:var(--text-subtle)">
-    <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:50%;background:#eab308;border:1.5px solid #ca8a04;flex:0 0 auto"></i>With the driver</span>
-    <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:50%;background:#16a34a;border:1.5px solid #16a34a;flex:0 0 auto"></i>Driver completed</span>
-    <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:50%;background:transparent;border:1.5px solid var(--border-strong);flex:0 0 auto"></i>Your move</span>
-  </div>`;
   body.innerHTML = enriched.length
-    ? `${dotLegend}<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
+    ? `<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
