@@ -20153,8 +20153,9 @@ document.addEventListener("click", async (e) => {
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
-  if (sub === "insights") loadScheduleInsights();
-  if (sub === "rules")  { loadStationGeofences(); loadAttendanceWindows(); }
+  if (sub === "insights")  loadScheduleInsights();
+  if (sub === "rules")     { loadStationGeofences(); loadAttendanceWindows(); }
+  if (sub === "templates") loadScheduleTemplates();
 };
 
 async function loadAttendanceWindows() {
@@ -22975,6 +22976,143 @@ document.addEventListener("click", async (e) => {
 // inline), picks one, and a time-boxed Accept/Pass offer lands on that
 // driver's phone. Day-of NCNS/callouts stay on the cushion path.
 let _coverState = null;   // { shiftId, offerId, expiresAt, timerId, channel }
+
+// ─── Schedule templates ───────────────────────────────────────────────
+// Save a recurring weekly pattern and paste it into future weeks.
+// Capture snapshots the currently-displayed week (window._rrWeekStart
+// from the week view) into a named template; apply pastes a template
+// into any operator-picked target week.
+async function loadScheduleTemplates() {
+  const host = document.getElementById("rr-tpl-list");
+  if (!host) return;
+  host.innerHTML = `<div class="rr-loading" style="padding:24px">Loading templates</div>`;
+  const { data, error } = await sb.rpc("template_list");
+  if (error) {
+    host.innerHTML = `<div style="padding:18px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;color:var(--text-subtle);font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load")}</div>`;
+    return;
+  }
+  const rows = Array.isArray(data?.templates) ? data.templates : [];
+  if (rows.length === 0) {
+    host.innerHTML = `
+      <div style="grid-column:1/-1;padding:36px 24px;background:var(--canvas);border:1px dashed var(--border-strong);border-radius:14px;text-align:center">
+        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:6px">No templates yet</div>
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.55;max-width:420px;margin:0 auto">Build a week you're happy with in Week view, then click <strong>Save this week as template</strong> above to capture it. Templates are paste-able into any future week.</div>
+      </div>`;
+    return;
+  }
+  host.innerHTML = rows.map(_tplCard).join("");
+  host.querySelectorAll("[data-rr-tpl-apply]").forEach((b) => b.addEventListener("click", () => _tplOpenApply(b.getAttribute("data-rr-tpl-apply"), b.getAttribute("data-rr-tpl-name") || "Template")));
+  host.querySelectorAll("[data-rr-tpl-delete]").forEach((b) => b.addEventListener("click", () => _tplDelete(b.getAttribute("data-rr-tpl-delete"), b.getAttribute("data-rr-tpl-name") || "this template")));
+}
+
+function _tplCard(t) {
+  const updated = t.updated_at ? new Date(t.updated_at).toLocaleDateString() : "—";
+  return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);line-height:1.3">${escapeHtml(t.name || "Untitled")}</div>
+        ${t.description ? `<div style="margin-top:3px;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45">${escapeHtml(t.description)}</div>` : ""}
+      </div>
+      <div style="display:flex;gap:10px;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">
+        <span><strong style="color:var(--text)">${t.slot_count || 0}</strong> ${t.slot_count === 1 ? "slot" : "slots"}</span>
+        <span><strong style="color:var(--text)">${t.driver_count || 0}</strong> ${t.driver_count === 1 ? "driver" : "drivers"}</span>
+        <span style="margin-left:auto">Updated ${escapeHtml(updated)}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary btn-sm" style="flex:1" data-rr-tpl-apply="${escapeHtml(t.id)}" data-rr-tpl-name="${escapeHtml(t.name || "Template")}">Apply</button>
+        <button class="btn btn-ghost btn-sm" data-rr-tpl-delete="${escapeHtml(t.id)}" data-rr-tpl-name="${escapeHtml(t.name || "this template")}" style="color:var(--red)">Delete</button>
+      </div>
+    </div>`;
+}
+
+// "Save this week as template" — name + optional description, then RPC.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-tpl-capture-btn")) return;
+  const weekStart = window._rrWeekStart instanceof Date
+    ? window._rrWeekStart
+    : new Date();
+  const iso = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`;
+  const name = window.prompt(`Save the week starting ${weekStart.toLocaleDateString()} as a template.\n\nName:`);
+  if (!name) return;
+  const description = window.prompt("Optional description (or leave blank):") || null;
+  const { data, error } = await sb.rpc("template_capture", {
+    p_name: name, p_week_start: iso, p_description: description,
+  });
+  if (error) { toast(error.message || "Couldn't save template", "warn"); return; }
+  toast(`Template saved · ${data?.slot_count || 0} slots captured`, "success");
+  loadScheduleTemplates();
+});
+
+async function _tplOpenApply(templateId, name) {
+  const today = new Date();
+  // Default to next Monday at the start of the picker.
+  const dow  = today.getDay();
+  const offsetToNextMon = (dow === 0 ? 1 : (8 - dow)) % 7 || 7;
+  const nextMon = new Date(today);
+  nextMon.setDate(today.getDate() + offsetToNextMon);
+  const isoNextMon = `${nextMon.getFullYear()}-${String(nextMon.getMonth() + 1).padStart(2, "0")}-${String(nextMon.getDate()).padStart(2, "0")}`;
+
+  let m = document.getElementById("rr-tpl-apply-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-tpl-apply-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;width:100%;max-width:420px;overflow:hidden">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border)">
+        <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">Apply template</div>
+        <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(name)}</div>
+      </div>
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:14px">
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Target week starts</span>
+          <input type="date" id="rr-tpl-apply-week" value="${escapeHtml(isoNextMon)}" class="form-input" style="max-width:200px"/>
+        </label>
+        <label style="display:flex;align-items:start;gap:10px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.45">
+          <input type="checkbox" id="rr-tpl-apply-overwrite" style="margin-top:3px"/>
+          <span>Overwrite previously template-sourced shifts on this week. Manual edits are always preserved.</span>
+        </label>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:14px 22px;border-top:1px solid var(--border);background:var(--canvas)">
+        <button class="btn btn-sm" id="rr-tpl-apply-cancel" type="button">Cancel</button>
+        <button class="btn btn-sm btn-primary" id="rr-tpl-apply-go" type="button">Apply</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener("click", async (e) => {
+    if (e.target === m || e.target.closest("#rr-tpl-apply-cancel")) { close(); return; }
+    if (e.target.closest("#rr-tpl-apply-go")) {
+      const week  = document.getElementById("rr-tpl-apply-week")?.value;
+      const overw = !!document.getElementById("rr-tpl-apply-overwrite")?.checked;
+      if (!week) return;
+      const btn = document.getElementById("rr-tpl-apply-go");
+      if (btn) { btn.disabled = true; btn.textContent = "Applying…"; }
+      const { data, error } = await sb.rpc("template_apply", {
+        p_template_id: templateId, p_target_week: week, p_overwrite: overw,
+      });
+      if (error) { toast(error.message || "Couldn't apply", "warn"); if (btn) { btn.disabled = false; btn.textContent = "Apply"; } return; }
+      const ins = data?.inserted || 0;
+      const skp = data?.skipped  || 0;
+      const rep = data?.replaced || 0;
+      const parts = [`${ins} ${ins === 1 ? "shift" : "shifts"} added`];
+      if (rep > 0) parts.push(`${rep} replaced`);
+      if (skp > 0) parts.push(`${skp} skipped`);
+      toast(parts.join(" · "), "success");
+      close();
+      if (typeof loadCoverageRadar === "function") loadCoverageRadar();
+    }
+  });
+}
+
+async function _tplDelete(templateId, name) {
+  if (!confirm(`Delete ${name}?`)) return;
+  const { error } = await sb.rpc("template_delete", { p_template_id: templateId });
+  if (error) { toast(error.message || "Couldn't delete", "warn"); return; }
+  toast("Template deleted", "success");
+  loadScheduleTemplates();
+}
+
 
 function _coverFmtMoney(n) {
   if (n == null || isNaN(n)) return null;

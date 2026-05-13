@@ -8665,6 +8665,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
           <button class="subnav-item" data-sub="open" onclick="schedSub('open')" style="display:none">Open shifts <span id="rr-sched-open-badge" style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
           <button class="subnav-item" data-sub="smartfill" onclick="schedSub('smartfill')">Smart Fill</button>
+          <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
         </div>
 
@@ -9452,6 +9453,21 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
         </div>
+
+        <!-- TEMPLATES — saved weekly patterns the operator can paste forward. -->
+        <div class="sched-subview" id="sched-sub-templates" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:16px;margin-bottom:var(--s-4);flex-wrap:wrap">
+            <div>
+              <h2 style="margin:0;font-size:18px;font-weight:700;color:var(--text)">Templates</h2>
+              <p style="margin:4px 0 0;font-size:var(--fs-sm);color:var(--text-muted);max-width:560px;line-height:1.55">Save a week you're happy with as a template, then paste it into any future week. Skipped automatically when a date/driver pair already has a shift. Use <em>overwrite</em> only to re-paste over previously template-sourced shifts — your manual edits are preserved either way.</p>
+            </div>
+            <button class="btn btn-primary btn-sm" id="rr-tpl-capture-btn" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Save this week as template
+            </button>
+          </div>
+          <div id="rr-tpl-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s-3)"></div>
+        </div><!-- /sched-sub-templates -->
 
         <!-- RULES — compliance + schedule settings -->
         <div class="sched-subview" id="sched-sub-rules" style="display:none">
@@ -19522,7 +19538,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513ak-shift-swap"></script>
+<script type="module" src="./live.js?v=20260513al-templates"></script>
 
 </body>
 </html>
