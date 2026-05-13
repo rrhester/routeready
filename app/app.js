@@ -296,11 +296,15 @@ function render() {
   // /tasks/onboarding so we don't accidentally surface schedule data
   // before the operator's marked them active.
   if (session.status === "onboarding") {
+    // Chat stays unlocked during onboarding — drivers receive
+    // instructions / welcome messages from dispatch while they work
+    // through the sequential onboarding flow.
     const allowed = (path) => path === "/tasks/onboarding"
       || path === "/tasks/onboarding/step"
       || path === "/tasks/documents"
       || path === "/tasks/documents/sign"
       || path === "/tasks/i9"
+      || path === "/chat"
       || path === "/settings"
       || path.startsWith("/settings/");
     const path = currentRoute();
@@ -331,7 +335,12 @@ function render() {
   if (r.title) setHeader(r.title, "");
   r.render();
   document.querySelectorAll(".tab").forEach((t) => {
-    t.classList.toggle("active", t.dataset.route === r.tab);
+    // In onboarding the Onboarding tab points directly at
+    // /tasks/onboarding; in the normal tabbar the Tasks tab uses /tasks.
+    // Match either by exact data-route or by the route definition's
+    // declared `tab` so both shells highlight correctly.
+    const route = t.dataset.route;
+    t.classList.toggle("active", route === r.tab || route === currentRoute());
   });
   // Refresh the cached photo URL from the server in the background.
   // Cheap way to pick up a photo set on another device without forcing
@@ -501,26 +510,21 @@ function avatarHtml(session, sizeClass) {
 
 function renderShell(session) {
   const name = session?.name || "Driver";
-  // While the driver is in 'onboarding', hide the bottom tabbar so the
-  // only nav surface is the gear icon (Settings). This pairs with the
-  // route-redirect in render() and gives the operator a focused
-  // welcome experience until they're activated.
+  // While the driver is in 'onboarding', the bottom tabbar is pared
+  // down to Onboarding + Chat so they can receive instructions from
+  // dispatch while they work through the sequential onboarding flow.
   const isOnboarding = session?.status === "onboarding";
-  document.getElementById("app").innerHTML = `
-    <header class="app-head">
-      <button class="head-back" id="head-back" type="button" aria-label="Back" style="display:none">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  const onboardingTabs = `<nav class="tabbar" role="tablist">
+      <button class="tab" data-route="/tasks/onboarding" data-c="tasks" role="tab" aria-label="Onboarding">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        Onboarding
       </button>
-      <div style="flex:1;min-width:0">
-        <div class="title" id="head-title">${escapeHtml(session?.dsp_name || "Driver")}</div>
-        <div class="sub" id="head-sub"></div>
-      </div>
-      <button class="head-gear" id="head-gear" type="button" aria-label="Settings" title="Settings">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        Chat
       </button>
-    </header>
-    <main id="main"><div class="loader"></div></main>
-    ${isOnboarding ? "" : `<nav class="tabbar" role="tablist">
+    </nav>`;
+  const activeTabs = `<nav class="tabbar" role="tablist">
       <button class="tab" data-route="/profile" data-c="profile" role="tab" aria-label="Profile">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
         Profile
@@ -537,7 +541,22 @@ function renderShell(session) {
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         Chat
       </button>
-    </nav>`}`;
+    </nav>`;
+  document.getElementById("app").innerHTML = `
+    <header class="app-head">
+      <button class="head-back" id="head-back" type="button" aria-label="Back" style="display:none">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div style="flex:1;min-width:0">
+        <div class="title" id="head-title">${escapeHtml(session?.dsp_name || "Driver")}</div>
+        <div class="sub" id="head-sub"></div>
+      </div>
+      <button class="head-gear" id="head-gear" type="button" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </header>
+    <main id="main"><div class="loader"></div></main>
+    ${isOnboarding ? onboardingTabs : activeTabs}`;
 
   document.querySelectorAll(".tab").forEach((t) => {
     t.addEventListener("click", () => navigate(t.dataset.route));
