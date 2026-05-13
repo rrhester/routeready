@@ -2808,7 +2808,6 @@ function renderDriverTable(rows, error) {
       <th>Station</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score${caret("score")}</th>
-      <th>Attendance · 30d</th>
       <th>Last coached</th>
       <th>App</th>
       <th></th>`;
@@ -4659,7 +4658,6 @@ function renderDriverRow(d) {
       <td>${station === "—" ? dim : escapeHtml(station)}</td>
       <td>${tenure}</td>
       <td>${_scoreCell(d.score)}</td>
-      <td>${dim}</td>
       <td class="cell-time">${_lastCoachedCell(d.id)}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
@@ -8637,16 +8635,11 @@ async function loadTodayAttendance() {
 
 async function loadDriverLicensesView() {
   const body = document.getElementById("lic-renewals-body");
-  const status = document.getElementById("lic-panel-status");
   if (!body) return;
 
   // Wipe synchronously so any mockup-rendered rows can't flash through
   // while the live select is in flight.
   body.innerHTML = _drSkelList(7);
-  if (status) status.textContent = "—";
-  // Renewal-reminder configuration moved to Settings → License renewals
-  // and Schedule → Scheduling rules; this view just shows the renewal
-  // queue.  Hydrate happens when the operator opens those panes.
 
   const { data: rows, error } = await sb.from("drivers")
     .select("id, full_name, station:station_id (code), dl_number, dl_expires_on, status")
@@ -8665,26 +8658,10 @@ async function loadDriverLicensesView() {
       title: "No driver licenses on file",
       body: "Open a driver record → License tab to add a license number and expiration. Renewals within 30 days (or already expired) will surface here automatically.",
     });
-    if (status) status.textContent = "0 with licenses";
     return;
   }
 
-  const today = Date.now();
-  const dayMs = 86400000;
-  const expired   = rows.filter(r => new Date(r.dl_expires_on).getTime() < today).length;
-  const within30  = rows.filter(r => { const t = new Date(r.dl_expires_on).getTime(); return t >= today && t < today + 30*dayMs; }).length;
-  const within90  = rows.filter(r => { const t = new Date(r.dl_expires_on).getTime(); return t >= today + 30*dayMs && t < today + 90*dayMs; }).length;
-  if (status) status.textContent = `${expired} expired · ${within30} within 30 days · ${rows.length} total`;
-
   body.innerHTML = `
-    <div class="docs-section-bar" style="padding:0 18px">
-      <div class="docs-counts" style="font-size:var(--fs-xs);color:var(--text-subtle);display:flex;gap:14px;flex-wrap:wrap;padding:12px 0">
-        <span><b style="color:var(--text-muted)">${rows.length}</b> with licenses</span>
-        ${expired ? `<span style="color:var(--red)"><b>${expired}</b> expired</span>` : ""}
-        ${within30 ? `<span style="color:var(--amber-dark)"><b>${within30}</b> expiring ≤30d</span>` : ""}
-        ${within90 ? `<span><b style="color:var(--text-muted)">${within90}</b> renewal due ≤90d</span>` : ""}
-      </div>
-    </div>
     <table class="table table-clickable">
       <thead><tr>
         <th style="width:32%">Driver</th>
