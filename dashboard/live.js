@@ -22977,6 +22977,146 @@ document.addEventListener("click", async (e) => {
 });
 
 
+// ─── Schedule activity feed ───────────────────────────────────────────
+// Chronological merge of every audit event on the schedule. Pulls
+// from shift_changes (#834) + shift_offers_audit (#830) +
+// shift_swaps_audit (#838) via schedule_activity(p_since, p_limit).
+// Hidden by default behind the Activity text link to the right of
+// Forecast.
+async function loadScheduleActivity() {
+  const host = document.getElementById("rr-sched-activity");
+  if (!host || host.style.display === "none") return;
+  host.innerHTML = `<div class="rr-loading" style="padding:16px">Loading activity</div>`;
+  const { data, error } = await sb.rpc("schedule_activity", {
+    p_since: null, p_limit: 200,
+  });
+  if (!host.isConnected) return;
+  if (error) {
+    host.innerHTML = `<div style="padding:14px 16px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;color:var(--text-subtle);font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load activity")}</div>`;
+    return;
+  }
+  const events = Array.isArray(data?.events) ? data.events : [];
+  if (events.length === 0) {
+    host.innerHTML = `
+      <div style="padding:24px 18px;background:var(--canvas);border:1px solid var(--border);border-radius:12px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);line-height:1.55">
+        Nothing has happened on the schedule in the last 24 hours.
+      </div>`;
+    return;
+  }
+  host.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)">
+        <span>Last 24 hours</span>
+        <span>${events.length} event${events.length === 1 ? "" : "s"}</span>
+      </div>
+      ${events.map(_renderActivityRow).join("")}
+    </div>`;
+}
+
+function _renderActivityRow(e) {
+  const when = new Date(e.at);
+  const timeLbl = when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const ago    = _rrTimeAgo(when.getTime());
+  const summary = _activitySummary(e);
+  const tone = _activityTone(e);
+  return `
+    <div style="display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start;padding:12px 16px;border-top:1px solid var(--border)">
+      <div style="width:6px;height:6px;border-radius:50%;background:${tone};margin-top:7px"></div>
+      <div style="min-width:0">
+        <div style="font-size:var(--fs-sm);color:var(--text);line-height:1.45">${summary.body}</div>
+        <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">
+          ${e.actor_name ? escapeHtml(e.actor_name) : (e.source === "swap" || e.source === "offer" ? "Driver" : "System")}${summary.route ? " · " + escapeHtml(summary.route) : ""}${summary.date ? " · " + summary.date : ""}
+        </div>
+      </div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap">
+        ${escapeHtml(timeLbl)}<div style="font-size:10px">${escapeHtml(ago)}</div>
+      </div>
+    </div>`;
+}
+
+function _activityTone(e) {
+  if (e.source === "shift") {
+    if (e.event === "driver_unassigned" || e.event === "deleted") return "var(--red)";
+    if (e.event === "driver_assigned" || e.event === "created")   return "var(--green)";
+    return "var(--text-muted)";
+  }
+  if (e.source === "offer") {
+    if (e.event === "accepted")     return "var(--green)";
+    if (e.event === "expired" || e.event === "declined" || e.event === "cancelled") return "var(--red)";
+    return "var(--accent)";
+  }
+  if (e.source === "swap") {
+    if (e.event === "swapped" || e.event === "accepted") return "var(--green)";
+    if (e.event === "blocked" || e.event === "expired" || e.event === "declined") return "var(--red)";
+    return "var(--accent)";
+  }
+  return "var(--text-muted)";
+}
+
+function _activitySummary(e) {
+  const route = e.route_code || "";
+  const date  = e.shift_date ? new Date(e.shift_date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
+  let body = "";
+  if (e.source === "shift") {
+    switch (e.event) {
+      case "created":          body = "Shift created"; break;
+      case "deleted":          body = "Shift removed"; break;
+      case "driver_assigned":  body = "Driver assigned to the shift"; break;
+      case "driver_unassigned":body = "Driver removed from the shift"; break;
+      case "driver_changed":   body = "Driver swapped on the shift"; break;
+      case "time_changed":     body = "Start / end times updated"; break;
+      case "date_changed":     body = `Date moved to ${escapeHtml(date)}`; break;
+      case "route_changed":    body = "Route code updated"; break;
+      case "status_changed":   body = `Status set to ${escapeHtml(e.after?.status || "—")}`; break;
+      default:                 body = escapeHtml(e.event);
+    }
+  } else if (e.source === "offer") {
+    switch (e.event) {
+      case "created":          body = "Cover offer sent"; break;
+      case "accepted":         body = "Cover offer accepted"; break;
+      case "declined":         body = "Cover offer declined"; break;
+      case "expired":          body = "Cover offer expired"; break;
+      case "cancelled":        body = "Cover offer cancelled"; break;
+      case "reassigned":       body = "Shift reassigned via Cover"; break;
+      default:                 body = "Cover " + escapeHtml(e.event);
+    }
+  } else if (e.source === "swap") {
+    switch (e.event) {
+      case "created":          body = "Swap request sent"; break;
+      case "accepted":         body = "Swap accepted"; break;
+      case "swapped":          body = "Shifts swapped"; break;
+      case "declined":         body = "Swap declined"; break;
+      case "expired":          body = "Swap request expired"; break;
+      case "blocked":          body = "Swap blocked by compliance"; break;
+      case "cancelled":        body = "Swap cancelled"; break;
+      default:                 body = "Swap " + escapeHtml(e.event);
+    }
+  }
+  return { body, route, date };
+}
+
+function _rrTimeAgo(ts) {
+  const ms = Date.now() - ts;
+  if (ms < 60_000) return "just now";
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)} min ago`;
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)} hr ago`;
+  return `${Math.floor(ms / 86_400_000)} day${ms > 172_800_000 ? "s" : ""} ago`;
+}
+
+document.addEventListener("click", async (e) => {
+  const tog = e.target.closest("#rr-sched-activity-toggle");
+  if (!tog) return;
+  e.preventDefault();
+  const box = document.getElementById("rr-sched-activity");
+  if (!box) return;
+  const show = box.style.display === "none";
+  box.style.display = show ? "" : "none";
+  tog.setAttribute("aria-pressed", show ? "true" : "false");
+  tog.classList.toggle("is-on", show);
+  if (show) await loadScheduleActivity();
+});
+
+
 // ─── Cover this shift ─────────────────────────────────────────────────
 // Future-only cover-recovery: dispatcher opens an uncovered shift, sees
 // ranked candidates (hard compliance enforced server-side, OT priced
@@ -23922,6 +24062,10 @@ window.goto = function (view) {
     if (fbox) fbox.style.display = "none";
     const ftog = document.getElementById("rr-sched-forecast-toggle");
     if (ftog) { ftog.setAttribute("aria-pressed", "false"); ftog.classList.remove("is-on"); }
+    const abox = document.getElementById("rr-sched-activity");
+    if (abox) abox.style.display = "none";
+    const atog = document.getElementById("rr-sched-activity-toggle");
+    if (atog) { atog.setAttribute("aria-pressed", "false"); atog.classList.remove("is-on"); }
     loadScheduleView();
     loadCoverageRadar();
     _schedRealtimeStart();
