@@ -8648,15 +8648,8 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- Coverage-gap radar · forward-looking attention pull. Hidden
-             by default; live.js paints it whenever there are uncovered
-             shifts on the next 14 days, color-coded by urgency, and a
-             single click jumps to Open Shifts where the Cover flow
-             lives. Stays quiet (and shows the all-clear) when nothing
-             needs attention. -->
-        <button type="button" id="rr-sched-radar"
-                style="display:none;width:100%;text-align:left;appearance:none;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:12px 16px;margin-bottom:var(--s-3);cursor:pointer;transition:border-color .12s,background .12s"
-                aria-label="Open uncovered shifts"></button>
+        <!-- Coverage-gap radar removed per direction. The Cover flow is
+             still reachable directly from open chips in the week grid. -->
 
         <!-- Insights toggles the 6-card KPI bar (Hours scheduled,
              Overtime, Coverage, Open shifts, Rule violations,
@@ -8669,7 +8662,6 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- Sub-nav -->
         <div class="subnav" data-rr-tabbar="schedule">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
-          <button class="subnav-item" data-sub="open" onclick="schedSub('open')" style="display:none">Open shifts <span id="rr-sched-open-badge" style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
           <button class="subnav-item" data-sub="smartfill" onclick="schedSub('smartfill')">Smart Fill</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
           <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
@@ -9225,36 +9217,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 <button class="btn btn-primary btn-sm">Choose driver</button>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- OPEN SHIFTS -->
-        <div class="sched-subview" id="sched-sub-open" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-4)">
-            <div class="page-sub" style="margin:0">3 routes need a driver this week. Notify backup pool to claim.</div>
-            <button class="btn btn-primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Notify backup pool
-            </button>
-          </div>
-
-          <div class="open-shift">
-            <div><div class="open-shift-route">KMO2-15A</div><div class="open-shift-route-meta">South Springfield · 32 stops</div></div>
-            <div><div class="open-shift-when">Tuesday May 1</div><div class="open-shift-when-sub">7:00 AM – 6:00 PM (today)</div></div>
-            <div class="open-shift-claims"><strong>4 backup drivers</strong> notified · 1 claimed</div>
-            <button class="btn btn-primary btn-sm">Assign Marcus Hill</button>
-          </div>
-          <div class="open-shift">
-            <div><div class="open-shift-route">KMO3-07C</div><div class="open-shift-route-meta">Joplin · 28 stops</div></div>
-            <div><div class="open-shift-when">Friday May 4</div><div class="open-shift-when-sub">7:00 AM – 6:00 PM</div></div>
-            <div class="open-shift-claims"><strong>0 claims</strong> · backup pool not yet notified</div>
-            <button class="btn btn-primary btn-sm">Notify backup</button>
-          </div>
-          <div class="open-shift">
-            <div><div class="open-shift-route">KMO1-19D</div><div class="open-shift-route-meta">North Springfield · 35 stops</div></div>
-            <div><div class="open-shift-when">Saturday May 5</div><div class="open-shift-when-sub">7:00 AM – 6:00 PM</div></div>
-            <div class="open-shift-claims"><strong>2 backup drivers</strong> notified · waiting</div>
-            <button class="btn btn-sm">Send reminder</button>
           </div>
         </div>
 
@@ -19544,7 +19506,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513ar-activity-out"></script>
+<script type="module" src="./live.js?v=20260513as-kill-open-radar"></script>
 
 </body>
 </html>
