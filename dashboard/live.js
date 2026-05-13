@@ -22718,6 +22718,117 @@ function _todayIsoLocal() {
 }
 
 
+// ─── Coverage-gap radar ───────────────────────────────────────────────
+// Forward-looking attention pull at the top of the Schedule view. Reads
+// the same uncovered-shift set the Open Shifts sub-tab pulls, buckets
+// by urgency, and either (a) calls out the count + most-critical
+// bucket and routes the click into the Cover flow, or (b) shows a
+// quiet "fully covered" pill when there's nothing to do. Re-fires on
+// every Schedule view entry and after every Cover acceptance.
+async function loadCoverageRadar() {
+  const el = document.getElementById("rr-sched-radar");
+  const subBadge = document.getElementById("rr-sched-open-badge");
+  if (!el) return;
+  const today = _todayIsoLocal();
+  const horizon = (() => {
+    const d = new Date(); d.setDate(d.getDate() + 13);   // next 14 days inclusive
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const { data: rows, error } = await sb.from("shifts")
+    .select("id, date")
+    .eq("dsp_id", window.RR.dsp.id)
+    .is("driver_id", null)
+    .gte("date", today)
+    .lte("date", horizon)
+    .limit(500);
+  if (error) { el.style.display = "none"; return; }
+
+  // Bucket the open shifts by urgency relative to *today*.
+  const dayOf  = [];   // date == today; absorbed by cushion
+  const next48 = [];   // tomorrow and the day after
+  const week   = [];   // dates 3..7 from today
+  const later  = [];   // dates 8..14 from today
+  const ms = 86400000;
+  const t0 = new Date(today + "T00:00:00").getTime();
+  for (const r of (rows || [])) {
+    const days = Math.round((new Date(r.date + "T00:00:00").getTime() - t0) / ms);
+    if (days <= 0) dayOf.push(r);
+    else if (days <= 2) next48.push(r);
+    else if (days <= 7) week.push(r);
+    else later.push(r);
+  }
+  const futureN = next48.length + week.length + later.length;
+
+  // Show the Open Shifts sub-nav (kept hidden by default) once the radar
+  // has anything to alert on, and surface a count badge on it.
+  const openTab = document.querySelector('[data-rr-tabbar="schedule"] [data-sub="open"]');
+  if (openTab) openTab.style.display = futureN > 0 || dayOf.length > 0 ? "" : "none";
+  if (subBadge) {
+    if (futureN > 0) { subBadge.style.display = ""; subBadge.textContent = String(futureN); }
+    else subBadge.style.display = "none";
+  }
+
+  if (futureN === 0 && dayOf.length === 0) {
+    // All clear — quiet green pill. Stays calm so it doesn't compete
+    // with anything else on the page.
+    el.style.display = "";
+    el.style.borderColor = "rgba(5,150,105,.20)";
+    el.style.background  = "var(--green-soft)";
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;color:var(--green)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span style="font-weight:600;color:var(--text);font-size:var(--fs-md)">Schedule fully covered</span>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle);margin-left:auto">Next 14 days</span>
+      </div>`;
+    el.style.cursor = "default";
+    el.disabled = true;
+    return;
+  }
+
+  // Urgency drives the dominant color: red if anything within 48h,
+  // amber otherwise (the cushion-absorbed day-of count alone doesn't
+  // trip red; the future window is what the radar is here to push on).
+  const critical = next48.length > 0;
+  const tone = critical ? "red" : "amber";
+  const toneVar = critical ? "var(--red)" : "var(--amber-dark)";
+  const toneBg  = critical ? "var(--red-soft)" : "var(--amber-soft)";
+  const toneBor = critical ? "rgba(225,29,72,.22)" : "rgba(217,119,6,.22)";
+
+  el.style.display     = "";
+  el.style.borderColor = toneBor;
+  el.style.background  = toneBg;
+  el.style.cursor      = "pointer";
+  el.disabled = false;
+
+  // Segment chips read left-to-right by urgency.
+  const seg = (n, label, c) => n > 0
+    ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:${c}"><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c}"></i>${n} ${escapeHtml(label)}</span>`
+    : "";
+  const segments = [
+    seg(next48.length, "in next 48 h", "var(--red)"),
+    seg(week.length,   "this week",    "var(--amber-dark)"),
+    seg(later.length,  "next week",    "var(--text-muted)"),
+  ].filter(Boolean).join('<span style="color:var(--border-strong);font-size:11px;margin:0 2px">·</span>');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:32px;height:32px;border-radius:10px;background:${toneVar};color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 32px"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:var(--text);font-size:var(--fs-md)">${futureN} open ${futureN === 1 ? "shift" : "shifts"} on the schedule</div>
+        <div style="margin-top:3px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${segments}</div>
+      </div>
+      <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${toneVar}">Cover →</span>
+    </div>`;
+}
+
+// Click → jump to Open Shifts sub-tab where the Cover flow lives.
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("#rr-sched-radar");
+  if (!el || el.disabled) return;
+  if (typeof window.schedSub === "function") window.schedSub("open");
+});
+
+
 // ─── Cover this shift ─────────────────────────────────────────────────
 // Future-only cover-recovery: dispatcher opens an uncovered shift, sees
 // ranked candidates (hard compliance enforced server-side, OT priced
@@ -22948,7 +23059,8 @@ function _coverHandleOutcome(outcome) {
       </div>`;
     body.querySelector("#rr-cover-done")?.addEventListener("click", () => {
       _coverTeardown();
-      if (typeof loadOpenShifts === "function") loadOpenShifts();
+      if (typeof loadOpenShifts    === "function") loadOpenShifts();
+      if (typeof loadCoverageRadar === "function") loadCoverageRadar();
     });
     return;
   }
@@ -23461,7 +23573,7 @@ document.addEventListener("click", (e) => {
 const _origGotoForSched = window.goto;
 window.goto = function (view) {
   if (typeof _origGotoForSched === "function") _origGotoForSched(view);
-  if (view === "schedule") loadScheduleView();
+  if (view === "schedule") { loadScheduleView(); loadCoverageRadar(); }
   if (view === "okami")    loadOkamiView();
 };
 
