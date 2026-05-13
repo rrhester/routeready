@@ -2408,7 +2408,33 @@ function _obSchedulePoll() {
     if (currentRoute() !== "/tasks/onboarding") return;          // navigated away — let the poll die
     if (!document.hidden) renderOnboarding({ silent: true });    // (re-arms itself at the end)
     else _obSchedulePoll();                                      // hidden — try again later
-  }, 6000);
+  }, 3000);
+}
+
+// True-realtime path on top of the poll. While the hub is in view, the
+// driver app subscribes to postgres_changes on the tables that back
+// onboarding state — drivers (status/bg/drug/training), onboarding_progress
+// (handbook / job offer / "sent" timestamps), driver_onboarding_state
+// (acknowledgements / videos / custom docs), i9_records, document_envelopes,
+// onboarding_blueprint. Any event hands off to a silent re-render.
+// Realtime is best-effort given the driver app's anon-key session +
+// table RLS; the 3s poll is the safety net.
+let _obRealtimeChannel  = null;
+let _obRealtimeDriverId = null;
+function _obSetupRealtime(driverId) {
+  if (!driverId || typeof sb.channel !== "function") return;
+  if (_obRealtimeChannel && _obRealtimeDriverId === driverId) return;
+  if (_obRealtimeChannel) { try { sb.removeChannel(_obRealtimeChannel); } catch (_) {} _obRealtimeChannel = null; }
+  _obRealtimeDriverId = driverId;
+  const onChange = () => { if (currentRoute() === "/tasks/onboarding" && !document.hidden) renderOnboarding({ silent: true }); };
+  const ch = sb.channel("rr-driver-onboarding-" + driverId);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "drivers",                 filter: "id=eq." + driverId },                  onChange);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "onboarding_progress",     filter: "driver_id=eq." + driverId },           onChange);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "driver_onboarding_state", filter: "driver_id=eq." + driverId },           onChange);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "i9_records",              filter: "driver_id=eq." + driverId },           onChange);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "document_envelopes",      filter: "recipient_driver_id=eq." + driverId }, onChange);
+  ch.subscribe();
+  _obRealtimeChannel = ch;
 }
 
 async function renderOnboarding(opts) {
@@ -2437,6 +2463,9 @@ async function renderOnboarding(opts) {
     main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load onboarding.<br><small>${escapeHtml(error.message)}</small></div>`;
     return;
   }
+  // First successful render — wire up the realtime channel for this
+  // driver. Subsequent renders just reuse the channel.
+  if (prof && prof.id) _obSetupRealtime(prof.id);
 
   const i9rec    = i9Res?.data?.record || null;
   const av       = availRes?.data || null;

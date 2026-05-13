@@ -3296,6 +3296,8 @@ function _obMxStylesOnce() {
     ".ob-bld-card.dragging{opacity:.45;border-color:var(--accent);box-shadow:0 8px 24px -8px rgba(15,23,42,.22)}" +
     ".ob-bld-card.drop-before{box-shadow:inset 0 3px 0 0 var(--accent)}" +
     ".ob-bld-card.drop-after{box-shadow:inset 0 -3px 0 0 var(--accent)}" +
+    ".ob-bld-card--locked{background:var(--canvas);border-style:dashed}" +
+    ".ob-bld-card--locked:hover{border-color:var(--border)}" +
     ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:4px 8px;margin-left:-8px;min-width:180px;max-width:340px;flex:1;transition:border-color .12s,background .12s,box-shadow .12s}" +
     ".ob-bld-title:hover{border-color:var(--border-strong)}" +
     ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}" +
@@ -3331,11 +3333,6 @@ function _obMxStylesOnce() {
     ".ob-bld-confirm-txt strong{font-weight:700}" +
     ".ob-bld-confirm-actions{display:flex;gap:8px;margin-left:auto}" +
     /* autosave state — quiet, never a button */
-    ".ob-bld-savestate{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;color:var(--text-subtle);transition:color .2s ease}" +
-    ".ob-bld-savestate svg{width:13px;height:13px;flex:0 0 auto}" +
-    ".ob-bld-savestate.syncing{color:var(--text-muted)}" +
-    ".ob-bld-savestate.err{color:var(--red)}" +
-    ".ob-bld-spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:ob-bld-spin .6s linear infinite;flex:0 0 auto}" +
     "@keyframes ob-bld-spin{to{transform:rotate(360deg)}}";
   document.head.appendChild(s);
 }
@@ -3529,10 +3526,8 @@ const _OB_TYPE_LABELS = { welcome: "Welcome", task: "Task", background_check: "B
 let _obBuilderSteps = null;   // working copy of the blueprint while editing
 let _obTemplates = [];        // [{id, title, kind}] — for the "attach document" picker
 let _obConfirmDelete = null;  // index of the step showing its inline delete confirm, or null
-let _obSaveState = "saved";   // "saved" | "syncing" | "justsaved" | "error"
 let _obSaveTimer = null;      // debounce handle for text edits
 let _obSaveSeq = 0;           // monotonically increasing; guards out-of-order RPC replies
-let _obJustSavedTimer = null; // fades "Updated just now" back to "Saved"
 
 async function loadOnboardingBuilder() {
   const root = document.getElementById("obsub-builder");
@@ -3552,36 +3547,21 @@ async function loadOnboardingBuilder() {
     .filter(s => s && s.enabled !== false)
     .map(s => ({ ...s, enabled: true }));
   _obConfirmDelete = null;
-  clearTimeout(_obSaveTimer); clearTimeout(_obJustSavedTimer);
-  _obSaveState = "saved";
+  clearTimeout(_obSaveTimer);
   _obRenderBuilder();
 }
 
 function _obTplTitle(id) { const t = _obTemplates.find(x => x.id === id); return t ? t.title : null; }
 
-const _OB_BLD_TICK2  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
 const _OB_BLD_TRASH  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
-const _OB_BLD_WARN   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></svg>`;
 
-function _obSaveStateHTML() {
-  if (_obSaveState === "syncing")   return `<span class="ob-bld-savestate syncing" aria-live="polite"><span class="ob-bld-spin"></span>Syncing…</span>`;
-  if (_obSaveState === "justsaved") return `<span class="ob-bld-savestate ok" aria-live="polite">${_OB_BLD_TICK2}Updated just now</span>`;
-  if (_obSaveState === "error")     return `<span class="ob-bld-savestate err" aria-live="polite">${_OB_BLD_WARN}Couldn’t sync — will retry</span>`;
-  return `<span class="ob-bld-savestate ok" aria-live="polite">${_OB_BLD_TICK2}Saved</span>`;
-}
-function _obSetSaveState(s) {
-  _obSaveState = s;
-  const el = document.getElementById("ob-bld-savestate");
-  if (el) el.innerHTML = _obSaveStateHTML();
-  clearTimeout(_obJustSavedTimer);
-  if (s === "justsaved") _obJustSavedTimer = setTimeout(() => { if (_obSaveState === "justsaved") _obSetSaveState("saved"); }, 4500);
-}
 // Persist the working blueprint.  `immediate` flushes on the next tick
-// (structural changes); otherwise it debounces (text typing).
+// (structural changes); otherwise it debounces (text typing). Failures
+// retry silently; the DSP doesn't need a "saved" chip — every edit
+// that lands made its way back here.
 function _obAutosave(opts) {
   if (!_obBuilderSteps) return;
   clearTimeout(_obSaveTimer);
-  _obSetSaveState("syncing");
   _obSaveTimer = setTimeout(_obFlushSave, (opts && opts.immediate) ? 0 : 650);
 }
 async function _obFlushSave() {
@@ -3594,13 +3574,8 @@ async function _obFlushSave() {
   }));
   const { data, error } = await sb.rpc("onboarding_blueprint_set", { p_steps: clean });
   if (seq !== _obSaveSeq) return;          // a newer edit already kicked off its own save
-  if (error) {
-    _obSetSaveState("error");
-    _obSaveTimer = setTimeout(() => { if (_obSaveSeq === seq) _obFlushSave(); }, 2800);
-    return;
-  }
+  if (error) { _obSaveTimer = setTimeout(() => { if (_obSaveSeq === seq) _obFlushSave(); }, 2800); return; }
   _obBlueprint = Array.isArray(data) ? data : clean;
-  _obSetSaveState("justsaved");
   // Keep the matrix's columns in sync without yanking the operator off
   // the Builder tab.  Debounced saves already coalesce, so this fires
   // at most once per burst of edits.
@@ -3615,13 +3590,9 @@ function _obRenderBuilder() {
     if (s.type === "document") {
       const title = _obTplTitle(s.document_template_id);
       const tpl = _obTemplates.find(x => x.id === s.document_template_id);
-      return `<div class="ob-bld-row">
-        ${s.document_template_id
-          ? `<span class="ob-bld-attach"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${escapeHtml(title || "(missing document)")}${tpl ? `<span class="ob-bld-tier ${tpl.kind === "informational" ? "info" : "secure"}">${tpl.kind === "informational" ? "Informational" : "Secure"}</span>` : ""}</span>
-             <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-attach="${i}">Change</button>
-             <button type="button" class="btn btn-sm btn-ghost" data-rr-bld-detach="${i}">Remove</button>`
-          : `<button type="button" class="btn btn-sm" data-rr-bld-attach="${i}">Attach a document…</button><span class="ob-bld-hint">pick from your Documents workspace</span>`}
-      </div>`;
+      return s.document_template_id
+        ? `<span class="ob-bld-attach"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${escapeHtml(title || "(missing document)")}${tpl ? `<span class="ob-bld-tier ${tpl.kind === "informational" ? "info" : "secure"}">${tpl.kind === "informational" ? "Informational" : "Secure"}</span>` : ""}</span><button type="button" class="btn btn-sm btn-ghost" data-rr-bld-detach="${i}">Remove</button>`
+        : `<button type="button" class="btn btn-sm" data-rr-bld-attach="${i}">Attach a document…</button>`;
     }
     if (s.type === "video") {
       return `<div class="ob-bld-row" style="display:block"><label style="display:block;max-width:420px"><span class="ob-bld-flabel">Video URL</span><input type="url" class="ob-bld-text" data-rr-bld-video="${i}" value="${escapeHtml(s.video_url || "")}" placeholder="https://…"></label></div>`;
@@ -3641,21 +3612,50 @@ function _obRenderBuilder() {
         </div>
       </div>
     </div>`;
-  const card = (s, i) => (_obConfirmDelete === i) ? confirmCard(s, i) : `
+  const grip = (i) => `<div class="ob-bld-grip" draggable="true" data-rr-bld-grip="${i}" title="Drag to reorder" aria-label="Drag to reorder this step" role="button"><svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></svg></div>`;
+  const titleInput = (s, i) => `<input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60" style="display:block;width:100%;max-width:none;margin-left:0">`;
+  const trashBtn = (s, i) => `<button type="button" class="ob-bld-trash" data-rr-bld-del="${i}" title="Delete this step" aria-label="Delete step${s.title ? " " + escapeHtml(s.title) : ""}">${_OB_BLD_TRASH}</button>`;
+  const card = (s, i) => {
+    if (_obConfirmDelete === i) return confirmCard(s, i);
+    // Document steps render the attach UI inline at the right of the
+    // title so cards line up uniformly; video / acknowledgement keep
+    // their config row below the title (those inputs need full width).
+    if (s.type === "document") {
+      return `
     <div class="ob-bld-card" data-i="${i}">
-      <div class="ob-bld-grip" draggable="true" data-rr-bld-grip="${i}" title="Drag to reorder" aria-label="Drag to reorder this step" role="button"><svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></svg></div>
+      ${grip(i)}
+      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">${titleInput(s, i)}</div>
+        <div style="display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;flex-wrap:wrap;justify-content:flex-end">${attachRow(s, i)}</div>
+      </div>
+      ${trashBtn(s, i)}
+    </div>`;
+    }
+    return `
+    <div class="ob-bld-card" data-i="${i}">
+      ${grip(i)}
       <div style="flex:1;min-width:0">
-        <input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60" style="display:block;width:100%;max-width:none;margin-left:0">
+        ${titleInput(s, i)}
         ${attachRow(s, i)}
       </div>
-      <button type="button" class="ob-bld-trash" data-rr-bld-del="${i}" title="Delete this step" aria-label="Delete step${s.title ? " " + escapeHtml(s.title) : ""}">${_OB_BLD_TRASH}</button>
+      ${trashBtn(s, i)}
+    </div>`;
+  };
+  // The terminal "App Complete" card — fixed, can't be deleted or
+  // reordered, not stored in the saved blueprint. The dot on the
+  // onboarding overview flips to green automatically when the driver
+  // has finished every step above it.
+  const appCompleteCard = () => `
+    <div class="ob-bld-card ob-bld-card--locked" data-app-complete="1">
+      <div class="ob-bld-grip" aria-hidden="true" style="opacity:.25;cursor:default" tabindex="-1"><svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></svg></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);padding:4px 0">App Complete</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4">Goes green automatically when the driver finishes every step above. Built-in — can't be edited or deleted.</div>
+      </div>
     </div>`;
   root.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:var(--s-4)">
-      <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
-      <div id="ob-bld-savestate" style="flex:0 0 auto;white-space:nowrap">${_obSaveStateHTML()}</div>
-    </div>
-    <div class="ob-bld-list">${steps.map(card).join("")}</div>
+    <h3 class="di-section-title" style="margin:0 0 var(--s-4)">Onboarding builder</h3>
+    <div class="ob-bld-list">${steps.map(card).join("")}${appCompleteCard()}</div>
     <div style="margin-top:14px"><button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button></div>`;
 }
 
@@ -3810,7 +3810,9 @@ document.addEventListener("dragover", (e) => {
   if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
   document.querySelectorAll("#obsub-builder .ob-bld-card.drop-before, #obsub-builder .ob-bld-card.drop-after").forEach(c => c.classList.remove("drop-before", "drop-after"));
   const card = e.target.closest("#obsub-builder .ob-bld-card");
-  if (!card || card.classList.contains("dragging")) { _obDragOverIdx = null; return; }
+  // The locked terminal "App Complete" card is not a drop target — drops
+  // dropped over it just go to the end of the real list.
+  if (!card || card.classList.contains("dragging") || card.classList.contains("ob-bld-card--locked")) { _obDragOverIdx = null; return; }
   const r = card.getBoundingClientRect();
   _obDragOverIdx = +card.getAttribute("data-i");
   _obDragBefore = (e.clientY - r.top) < r.height / 2;
@@ -3919,7 +3921,7 @@ async function loadOnboardingOps(opts) {
     const days = d.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000)) : null;
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
     const stState = (_rosterState && _rosterState.get(d.id)) || {};
-    const cells = stepCols.map(s => {
+    const builtCells = stepCols.map(s => {
       const m = s.map;
       const stepType = s.type || "";
       let done = false, val = null;
@@ -3932,25 +3934,30 @@ async function loadOnboardingOps(opts) {
         if (status === "complete") { done = true; val = entry.at || true; }
         else if (status && status !== "not_started") labelTodo = `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`;
         else if (stepType === "document") labelTodo = `${s.title || "Step"} — not sent yet`;
-        return dotCell(d.id, "state", m.done, done, val, { readonly: true, labelDone, labelTodo });
+        return { done, html: dotCell(d.id, "state", m.done, done, val, { readonly: true, labelDone, labelTodo }) };
       }
       if (m.kind === "i9") {
         if (i9verified) { done = true; val = i9CompletedAt || true; }
         else if (i9.key === "section1_complete") labelTodo = "Section 1 done — verify Section 2";
         else if (["needs_correction", "section1_in_progress", "not_started", "no_record"].includes(i9.key)) labelTodo = "Form I-9 — with the driver (Section 1)";
-        return dotCell(d.id, "i9", "", done, val, { readonly: true, labelDone, labelTodo });
+        return { done, html: dotCell(d.id, "i9", "", done, val, { readonly: true, labelDone, labelTodo }) };
       }
       if (m.kind === "drv") {
         // Background check / drug test / training — recorded by the DSP.
         if (d[m.done]) { done = true; val = d[m.done]; }
-        return dotCell(d.id, "drv", m.done, done, val, { labelDone, labelTodo });
+        return { done, html: dotCell(d.id, "drv", m.done, done, val, { labelDone, labelTodo }) };
       }
       // prog: handbook / job offer are documents the driver signs (read-only
       // dot); the "sent" steps (welcome email, etc.) are DSP-recorded.
       if (prog[m.done]) { done = true; val = prog[m.done]; }
       else if (m.sent && prog[m.sent]) labelTodo = `Sent · ${fmtCellDate(prog[m.sent]) || ""} — with the driver`;
-      return dotCell(d.id, "prog", m.done, done, val, { readonly: !!m.sent, labelDone, labelTodo });
-    }).join("");
+      return { done, html: dotCell(d.id, "prog", m.done, done, val, { readonly: !!m.sent, labelDone, labelTodo }) };
+    });
+    const cells = builtCells.map(c => c.html).join("");
+    // Terminal "App Complete" dot — green automatically once every step
+    // in the row above is done. Read-only; the DSP doesn't toggle this.
+    const appCompleteDone = builtCells.length > 0 && builtCells.every(c => c.done);
+    const appCompleteCell = dotCell(d.id, "app_complete", "", appCompleteDone, null, { readonly: true, labelDone: "Driver finished everything in the app", labelTodo: "Waiting on the steps above" });
     return `
       <tr data-driver-id="${escapeHtml(d.id)}">
         <td class="ob-mx-namecell">
@@ -3963,6 +3970,7 @@ async function loadOnboardingOps(opts) {
           </div>
         </td>
         ${cells}
+        ${appCompleteCell}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
@@ -3978,6 +3986,7 @@ async function loadOnboardingOps(opts) {
           <tr>
             <th class="ob-mx-namecol">Driver</th>
             ${stepHeaders}
+            <th title="Goes green automatically when the driver finishes every step above">App Complete</th>
             <th>Active</th>
             <th>Send</th>
             <th>Notes</th>
@@ -13259,13 +13268,17 @@ async function loadDriverWorkAuthView() {
     else if (cls.bucket === "awaiting_employee") line = r.status === "no_record" ? "No I-9 started yet" : "Section 1 not started";
     else if (cls.bucket === "reverification") line = `Work authorization expires ${fmtD(cls.reverDate)}${cls.reverDays < 0 ? " (expired)" : ` — ${cls.reverDays} day${cls.reverDays === 1 ? "" : "s"}`}`;
     else if (cls.bucket === "verified")     line = `Verified ${r.section2_completed_at ? new Date(r.section2_completed_at).toLocaleDateString() : ""}${r.section2_completed_by_name ? " by " + escapeHtml(r.section2_completed_by_name) : ""}`;
-    const tier = (cls.bucket === "s2_overdue" || cls.bucket === "needs_correction") ? "var(--red)"
-      : (cls.bucket === "s2_due" || cls.bucket === "reverification" || (cls.bucket === "s2_needed" && cls.note)) ? "var(--amber-dark)"
-      : "transparent";
+    // The red left bar flags every driver who isn't meeting the time
+    // requirement (overdue, due soon, needs correction, reverification,
+    // or a Section-2-needed row with a "set first day" note). Drivers on
+    // track / awaiting Section 1 / verified get no bar — the bucket
+    // header above the row already says where they sit.
+    const offTrack = cls.bucket === "s2_overdue" || cls.bucket === "s2_due" || cls.bucket === "needs_correction" || cls.bucket === "reverification" || (cls.bucket === "s2_needed" && cls.note);
+    const tier = offTrack ? "var(--red)" : "transparent";
     return `
       <div class="rr-i9-row" style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0 10px 12px;border-top:1px solid var(--border);border-left:3px solid ${tier};cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
         <div style="min-width:0">
-          <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.driver_name || "—")} ${_i9StatusChip(cls.d || r)}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">· onboarding</span>` : ""}</div>
+          <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.driver_name || "—")}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">· onboarding</span>` : ""}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${line}${r.hire_date ? ` · hired ${new Date(r.hire_date).toLocaleDateString()}` : ""}</div>
         </div>
         <div><button type="button" class="btn btn-sm" data-rr-i9-open="${escapeHtml(r.driver_id)}">Open</button></div>
