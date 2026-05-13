@@ -23839,6 +23839,7 @@ document.addEventListener("click", (e) => {
   }
   if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="driver-pickup"] > summary')) {
     setTimeout(_rrPickupPaintForm, 0);
+    setTimeout(_rrSwapPaintForm,   0);
   }
 });
 
@@ -23872,6 +23873,35 @@ document.addEventListener("change", async (e) => {
   }
   _rrPickupCache = { driver_pickup_enabled: !!data?.driver_pickup_enabled };
   toast(next ? "Driver pickup enabled" : "Driver pickup disabled", "success");
+});
+
+
+// ─── Driver swap toggle ───────────────────────────────────────────────
+let _rrSwapCache = null;
+async function _rrSwapLoad() {
+  const { data, error } = await sb.rpc("get_swap_settings");
+  if (error || !data) return null;
+  _rrSwapCache = { driver_swap_enabled: !!data.driver_swap_enabled };
+  return _rrSwapCache;
+}
+async function _rrSwapPaintForm() {
+  if (!_rrSwapCache) await _rrSwapLoad();
+  const tog = document.getElementById("rr-swap-toggle");
+  if (tog) tog.checked = !!_rrSwapCache?.driver_swap_enabled;
+}
+document.addEventListener("change", async (e) => {
+  if (e.target.id !== "rr-swap-toggle") return;
+  const next = !!e.target.checked;
+  e.target.disabled = true;
+  const { data, error } = await sb.rpc("set_swap_settings", { p_enabled: next });
+  e.target.disabled = false;
+  if (error) {
+    e.target.checked = !next;
+    toast(error.message || "Couldn't save", "warn");
+    return;
+  }
+  _rrSwapCache = { driver_swap_enabled: !!data?.driver_swap_enabled };
+  toast(next ? "Shift swaps enabled" : "Shift swaps disabled", "success");
 });
 
 // Reset every view to its first sub-tab when the operator navigates
