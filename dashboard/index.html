@@ -319,6 +319,7 @@ a{color:inherit;text-decoration:none}
 .nav-item[data-c="messages"] {--ni-fg:#7DD3FC;--ni-bg:rgba(2,132,199,.18);--ni-bg-strong:rgba(2,132,199,.28);--ni-glow:rgba(2,132,199,.22)}
 .nav-item[data-c="forms"]    {--ni-fg:#C4B5FD;--ni-bg:rgba(124,58,237,.14);--ni-bg-strong:rgba(124,58,237,.24);--ni-glow:rgba(124,58,237,.22)}
 .nav-item[data-c="finances"] {--ni-fg:#6EE7B7;--ni-bg:rgba(5,150,105,.18);--ni-bg-strong:rgba(5,150,105,.28);--ni-glow:rgba(5,150,105,.22)}
+.nav-item[data-c="settings"] {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.16);--ni-bg-strong:rgba(148,163,184,.26);--ni-glow:rgba(148,163,184,.20)}
 
 .nav-section-label{
   font-size:var(--fs-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;
@@ -6266,12 +6267,17 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-badge" style="background:var(--green)">$2.4k</span>
       </button>
 
+      <button class="nav-item" data-view="settings" data-c="settings" style="margin-top:auto" onclick="goto('settings')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        Settings
+      </button>
+
       <!-- Platform admin · cross-tenant DSP management.  Hidden by
            default; live.js reveals it for users with role='platform_admin'
            after the auth gate completes (see _revealPlatformAdminNav). -->
       <button class="nav-item" data-view="admin" data-c="admin"
               data-rr-platform-admin-only="1"
-              style="display:none;margin-top:auto"
+              style="display:none"
               onclick="goto('admin')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span>
         Admin
