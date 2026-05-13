@@ -25052,40 +25052,10 @@ async function openDriverAppPreview(driverId) {
   document.body.appendChild(m);
   _dappState = { driverId, tab: "schedule", data: null, mode: null, previewToken: null };
 
-  // Preferred path: mint a short-lived read-only preview token and embed the
-  // *actual* driver PWA in the phone frame, so it's literally what the driver
-  // sees. If that RPC isn't available (e.g. deployed before migration 0188)
-  // or fails, fall back to the dispatcher-side recreation below.
-  let pv = null;
-  try {
-    const r = await sb.rpc("driver_preview_token", { p_driver_id: driverId });
-    if (!r.error && r.data && r.data.token) pv = r.data;
-  } catch (e) { pv = null; }
-  if (!_dappState || _dappState.driverId !== driverId) return;   // closed / switched while loading
-
-  if (pv) {
-    _dappState.mode = "iframe";
-    _dappState.previewToken = pv.token;
-    const drv = pv.driver || {};
-    const dspName = (window.RR && window.RR.dsp && window.RR.dsp.name) ? window.RR.dsp.name : "";
-    const qs = new URLSearchParams();
-    qs.set("preview", pv.token);
-    if (drv.name) qs.set("n", String(drv.name));
-    if (dspName) qs.set("d", String(dspName));
-    if (drv.id) qs.set("did", String(drv.id));
-    if (drv.status) qs.set("st", String(drv.status));
-    if (drv.status === "onboarding") qs.set("onb", "1");
-    const body = document.getElementById("rr-dapp-body");
-    if (body) {
-      body.classList.add("dapp-body-iframe");
-      body.innerHTML = `
-        <div class="dapp-statusbar"><span>9:41</span><span class="dapp-rotag">Preview · read-only</span></div>
-        <iframe class="dapp-iframe" src="../app/index.html?${qs.toString()}" title="Driver app preview" referrerpolicy="no-referrer"></iframe>`;
-    }
-    return;
-  }
-
-  // ── Fallback: dispatcher-side recreation ──
+  // Dispatcher-side recreation of the driver's app — built from their real
+  // data. (An earlier iteration embedded the live PWA via a short-lived
+  // preview token; that's parked behind migration 0188 until the infra side
+  // is settled — see openDriverAppPreview history.)
   _dappState.mode = "recreation";
   const body = document.getElementById("rr-dapp-body");
   if (body) {
