@@ -310,6 +310,8 @@ function _paintDriverAvatars(root) {
   const scope = root && root.querySelectorAll ? root : document;
   scope.querySelectorAll(".avatar-sm").forEach((el) => {
     if (el.dataset.rrPhotoPainted) return;
+    // Opt-out for branded / non-driver avatars (e.g. RouteReady Support).
+    if (el.dataset.rrNoPhoto) return;
     const id = _resolveDriverIdForAvatar(el);
     if (!id) return;
     const url = _driverPhotos.map.get(id);
@@ -14255,7 +14257,7 @@ async function refreshDriverChatList(autoSelect) {
   const supLastTrunc = supLastBody.length > 60 ? supLastBody.slice(0, 57) + "…" : supLastBody;
   const supActive = _msgInboxSelectedId === "__support__";
   const supportRow = `<div class="msg-item ${supActive ? "active" : ""}" data-rr-support-thread style="border-bottom:1px solid var(--border)">
-      <div class="msg-item-avatar"><div class="avatar-sm" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px" aria-hidden="true">R</div></div>
+      <div class="msg-item-avatar"><div class="avatar-sm" data-rr-no-photo="1" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px" aria-hidden="true">R</div></div>
       <div><div class="msg-item-name">RouteReady Support<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Support</span></div><div class="msg-item-preview">${escapeHtml(supLastTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(supLastAt ? fmtRelative(supLastAt) : "")}</div>${supUnread > 0 ? `<div class="msg-item-unread">${supUnread}</div>` : ""}</div>
     </div>`;
@@ -14387,7 +14389,7 @@ async function refreshSupportThread(scrollToBottom) {
     conv.innerHTML = `
       <div class="rr-mc-shell">
         <div class="rr-mc-head">
-          <div class="avatar-sm" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;font-size:15px">R</div>
+          <div class="avatar-sm" data-rr-no-photo="1" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;font-size:15px">R</div>
           <div>
             <div class="rr-mc-name">RouteReady Support<span style="margin-left:8px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Verified</span></div>
             <div class="rr-mc-sub">We’re here to help you run a stronger operation — typical reply within a business day.</div>
