@@ -3037,7 +3037,7 @@ const _OB_FIXED_TO_BP = {            // _onbSteps key → blueprint key (null = 
   i9: "i9", offer: "job_offer", scheduled: "scheduled", active: null,
 };
 const _OB_CANON_KEYS = new Set(["welcome_email","bg_instructions","bg_check","drug_info","drug_test","handbook","i9","job_offer","training","scheduled"]);
-const _OB_STATE_LABELS = { not_started: "Not started", in_progress: "In progress", sent: "Sent", awaiting_review: "Awaiting review", complete: "Complete", declined: "Declined" };
+const _OB_STATE_LABELS = { not_started: "Not started", in_progress: "In progress", sent: "Sent to the driver", viewed: "Viewed by the driver", awaiting_review: "Awaiting your review", acknowledged: "Acknowledged", signed: "Signed", complete: "Complete", declined: "Declined" };
 
 // _onbSteps, narrowed to the DSP's configured blueprint: canonical steps
 // the DSP disabled drop out, the blueprint's `blocking` flag overrides
@@ -3278,6 +3278,7 @@ function _obMxStylesOnce() {
     ".ob-mxdot{appearance:none;background:transparent;border:1.5px solid var(--border-strong);width:14px;height:14px;border-radius:50%;cursor:pointer;padding:0;transition:background .12s,border-color .12s,transform .1s}" +
     ".ob-mxdot:hover{transform:scale(1.18)}" +
     ".ob-mxdot.done{background:#16a34a;border-color:#16a34a}" +
+    ".ob-mxdot.sent{background:#eab308;border-color:#ca8a04}" +
     ".ob-mxdot.readonly{cursor:default;opacity:.7}" +
     ".ob-mxdot.readonly:hover{transform:none}" +
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
@@ -3288,10 +3289,14 @@ function _obMxStylesOnce() {
     ".ob-bld-card{display:flex;align-items:flex-start;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:14px 16px;transition:opacity .12s,border-color .12s}" +
     ".ob-bld-card:hover{border-color:var(--border-strong)}" +
     ".ob-bld-card.disabled{opacity:.6}" +
-    ".ob-bld-reorder{display:flex;flex-direction:column;gap:3px;flex:0 0 auto}" +
-    ".ob-bld-mv{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-sm);width:22px;height:18px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;transition:color .12s,border-color .12s,background .12s}" +
-    ".ob-bld-mv:hover:not([disabled]){color:var(--text);border-color:var(--text-subtle);background:var(--surface)}" +
-    ".ob-bld-mv[disabled]{opacity:.3;cursor:default}" +
+    /* drag-to-reorder: grip handle + drag/drop affordances */
+    ".ob-bld-grip{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:24px;align-self:stretch;color:var(--text-subtle);cursor:grab;border-radius:var(--r-md);transition:color .12s,background .12s}" +
+    ".ob-bld-grip:hover{color:var(--text-muted);background:var(--canvas)}" +
+    ".ob-bld-grip:active{cursor:grabbing}" +
+    ".ob-bld-grip svg{width:13px;height:auto;pointer-events:none}" +
+    ".ob-bld-card.dragging{opacity:.45;border-color:var(--accent);box-shadow:0 8px 24px -8px rgba(15,23,42,.22)}" +
+    ".ob-bld-card.drop-before{box-shadow:inset 0 3px 0 0 var(--accent)}" +
+    ".ob-bld-card.drop-after{box-shadow:inset 0 -3px 0 0 var(--accent)}" +
     ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:4px 8px;margin-left:-8px;min-width:180px;max-width:340px;flex:1;transition:border-color .12s,background .12s,box-shadow .12s}" +
     ".ob-bld-title:hover{border-color:var(--border-strong)}" +
     ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}" +
@@ -3498,8 +3503,8 @@ const _OB_STEP_FIELDS = {
   bg_check:        { kind: "drv",  done: "background_check_completed_at", doneLabel: "Cleared",   head: "BG clear" },
   drug_info:       { kind: "prog", done: "drug_info_sent_at",            doneLabel: "Sent",      head: "Drug info" },
   drug_test:       { kind: "drv",  done: "drug_test_completed_at",       doneLabel: "Cleared",   head: "Drug clear" },
-  handbook:        { kind: "prog", done: "handbook_completed_at",        doneLabel: "Completed", head: "Handbook" },
-  job_offer:       { kind: "prog", done: "job_offer_completed_at",       doneLabel: "Signed",    head: "Job offer" },
+  handbook:        { kind: "prog", done: "handbook_completed_at",  sent: "handbook_sent_at",  doneLabel: "Acknowledged", head: "Handbook" },
+  job_offer:       { kind: "prog", done: "job_offer_completed_at", sent: "job_offer_sent_at", doneLabel: "Signed",    head: "Job offer" },
   i9:              { kind: "i9",   done: null, readonly: true,           doneLabel: "Verified",  head: "Form I-9", todoLabel: "Manage in Work authorization" },
   training:        { kind: "drv",  done: "training_date",                doneLabel: "Complete",  head: "Training" },
   scheduled:       { kind: "prog", done: "scheduled_at",                 doneLabel: "Scheduled", head: "Scheduled" },
@@ -3658,10 +3663,7 @@ function _obRenderBuilder() {
     </div>`;
   const card = (s, i) => (_obConfirmDelete === i) ? confirmCard(s, i) : `
     <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
-      <div class="ob-bld-reorder">
-        <button type="button" class="ob-bld-mv" data-rr-bld-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move step up">${_OB_BLD_CHEVRON_UP}</button>
-        <button type="button" class="ob-bld-mv" data-rr-bld-down="${i}" ${i === steps.length - 1 ? "disabled" : ""} aria-label="Move step down">${_OB_BLD_CHEVRON_DOWN}</button>
-      </div>
+      <div class="ob-bld-grip" draggable="true" data-rr-bld-grip="${i}" title="Drag to reorder" aria-label="Drag to reorder this step" role="button"><svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></svg></div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60">
@@ -3670,10 +3672,6 @@ function _obRenderBuilder() {
           ${custom(s) ? `<span class="ob-bld-typechip custom">Custom</span>` : ""}
         </div>
         ${attachRow(s, i)}
-        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:12px">
-          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-blocking="${i}" ${s.blocking ? "checked" : ""}><span class="ob-bld-box">${_OB_BLD_TICK}</span>Blocks activation</label>
-          <label class="ob-bld-chk"><input type="checkbox" data-rr-bld-required="${i}" ${s.required ? "checked" : ""}><span class="ob-bld-box">${_OB_BLD_TICK}</span>Required</label>
-        </div>
       </div>
       <label class="ob-bld-switch" title="${s.enabled ? "Step is on — turn off to leave it out for new hires" : "Step is off — turn on to include it"}"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span class="ob-bld-track"></span><span class="ob-bld-switch-label">${s.enabled ? "On" : "Off"}</span></label>
       <button type="button" class="ob-bld-trash" data-rr-bld-del="${i}" title="Delete this step" aria-label="Delete step${s.title ? " " + escapeHtml(s.title) : ""}">${_OB_BLD_TRASH}</button>
@@ -3796,12 +3794,11 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("change", (e) => {
   if (!e.target.closest("#obsub-builder") || !_obBuilderSteps) return;
-  let i, key;
-  const eb = e.target.closest("[data-rr-bld-enabled]"); if (eb) { i = +eb.getAttribute("data-rr-bld-enabled"); key = "enabled"; }
-  const bb = e.target.closest("[data-rr-bld-blocking]"); if (bb) { i = +bb.getAttribute("data-rr-bld-blocking"); key = "blocking"; }
-  const rb = e.target.closest("[data-rr-bld-required]"); if (rb) { i = +rb.getAttribute("data-rr-bld-required"); key = "required"; }
-  if (key === undefined || i === undefined || !_obBuilderSteps[i]) return;
-  _obBuilderSteps[i][key] = !!e.target.checked;
+  const eb = e.target.closest("[data-rr-bld-enabled]");
+  if (!eb) return;
+  const i = +eb.getAttribute("data-rr-bld-enabled");
+  if (!_obBuilderSteps[i]) return;
+  _obBuilderSteps[i].enabled = !!e.target.checked;
   _obConfirmDelete = null;
   _obAutosave({ immediate: true });
   _obRenderBuilder();
@@ -3821,16 +3818,6 @@ document.addEventListener("click", (e) => {
     else { _obConfirmDelete = null; _obRenderBuilder(); }
     return;
   }
-  const up = e.target.closest("[data-rr-bld-up]");
-  const dn = e.target.closest("[data-rr-bld-down]");
-  if ((up || dn) && _obBuilderSteps) {
-    e.preventDefault();
-    const i = +(up || dn).getAttribute(up ? "data-rr-bld-up" : "data-rr-bld-down");
-    const j = up ? i - 1 : i + 1;
-    if (j < 0 || j >= _obBuilderSteps.length) return;
-    const tmp = _obBuilderSteps[i]; _obBuilderSteps[i] = _obBuilderSteps[j]; _obBuilderSteps[j] = tmp;
-    _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder(); return;
-  }
   if (e.target.closest("[data-rr-bld-reset]")) {
     e.preventDefault();
     _obBuilderSteps = _OB_DEFAULT_BLUEPRINT.map(s => ({ ...s }));
@@ -3842,6 +3829,59 @@ document.addEventListener("click", (e) => {
   const detach = e.target.closest("[data-rr-bld-detach]");
   if (detach && _obBuilderSteps) { e.preventDefault(); const i = +detach.getAttribute("data-rr-bld-detach"); if (_obBuilderSteps[i]) { _obBuilderSteps[i].document_template_id = null; _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder(); } return; }
   if (e.target.closest("[data-rr-bld-add]")) { e.preventDefault(); _obAddStepPicker(); return; }
+});
+
+// Builder reorder — drag the grip handle. We don't reorder live (that
+// would yank the dragstart node out of the DOM mid-drag); we track the
+// would-be insertion point and apply it on drop.
+let _obDragFrom = null;     // source step index, or null when not dragging
+let _obDragOverIdx = null;  // index of the card the cursor is over
+let _obDragBefore = false;  // insert before that card vs after it
+function _obDragClearMarkers() {
+  document.querySelectorAll("#obsub-builder .ob-bld-card.drop-before, #obsub-builder .ob-bld-card.drop-after, #obsub-builder .ob-bld-card.dragging")
+    .forEach(c => c.classList.remove("drop-before", "drop-after", "dragging"));
+}
+document.addEventListener("dragstart", (e) => {
+  const g = e.target.closest("#obsub-builder [data-rr-bld-grip]");
+  if (!g || !_obBuilderSteps) return;
+  _obDragFrom = +g.getAttribute("data-rr-bld-grip");
+  _obDragOverIdx = null; _obDragBefore = false;
+  const card = g.closest(".ob-bld-card");
+  if (card) { card.classList.add("dragging"); try { e.dataTransfer.setDragImage(card, 24, 24); } catch (_) {} }
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", String(_obDragFrom)); } catch (_) {} }
+});
+document.addEventListener("dragover", (e) => {
+  if (_obDragFrom == null || !e.target.closest("#obsub-builder")) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  document.querySelectorAll("#obsub-builder .ob-bld-card.drop-before, #obsub-builder .ob-bld-card.drop-after").forEach(c => c.classList.remove("drop-before", "drop-after"));
+  const card = e.target.closest("#obsub-builder .ob-bld-card");
+  if (!card || card.classList.contains("dragging")) { _obDragOverIdx = null; return; }
+  const r = card.getBoundingClientRect();
+  _obDragOverIdx = +card.getAttribute("data-i");
+  _obDragBefore = (e.clientY - r.top) < r.height / 2;
+  card.classList.add(_obDragBefore ? "drop-before" : "drop-after");
+});
+document.addEventListener("drop", (e) => {
+  if (_obDragFrom == null) return;
+  if (!e.target.closest("#obsub-builder")) { _obDragFrom = null; _obDragClearMarkers(); return; }
+  e.preventDefault();
+  const from = _obDragFrom, arr = _obBuilderSteps;
+  _obDragFrom = null;
+  _obDragClearMarkers();
+  if (!arr || from == null || _obDragOverIdx == null) { _obRenderBuilder(); return; }
+  let to = _obDragOverIdx + (_obDragBefore ? 0 : 1);
+  if (from < to) to--;
+  if (to === from || to < 0 || to > arr.length) { _obRenderBuilder(); return; }
+  const [item] = arr.splice(from, 1);
+  arr.splice(to, 0, item);
+  _obConfirmDelete = null;
+  _obAutosave({ immediate: true });
+  _obRenderBuilder();
+});
+document.addEventListener("dragend", () => {
+  _obDragFrom = null; _obDragOverIdx = null; _obDragBefore = false;
+  _obDragClearMarkers();
 });
 
 async function loadOnboardingOps(opts) {
@@ -3906,11 +3946,16 @@ async function loadOnboardingOps(opts) {
   // fixed "Active" + a "Send documents" action column.
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
-  const dotCell = (driverId, kind, field, val, opts) => {
+  // Tri-state dot: green = the driver finished it · yellow = it's with the
+  // driver (sent / awaiting them) · no colour = DSP action needed.
+  const dotCell = (driverId, kind, field, state3, val, opts) => {
     const ro = opts && opts.readonly;
-    const done = !!val;
-    const title = done ? ((opts && opts.doneLabel ? opts.doneLabel + " " : "Done ") + (fmtCellDate(val) || "")) : ((opts && opts.todoLabel) || "Not yet");
-    return `<td><button type="button" class="ob-mxdot${done ? " done" : ""}${ro ? " readonly" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(driverId)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${done ? "done" : "empty"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${ro ? " disabled" : ""}></button></td>`;
+    const cls = state3 === "done" ? "done" : state3 === "sent" ? "sent" : "";
+    const dv = fmtCellDate(val);
+    const title = state3 === "done" ? ((opts && opts.labelDone ? opts.labelDone : "Done") + (dv ? " " + dv : ""))
+      : state3 === "sent" ? ((opts && opts.labelSent) || "With the driver — waiting on them")
+      : ((opts && opts.labelTodo) || "Not yet");
+    return `<td><button type="button" class="ob-mxdot${cls ? " " + cls : ""}${ro ? " readonly" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(driverId)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${state3}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${ro ? " disabled" : ""}></button></td>`;
   };
 
   const matrixRow = ({ d, ob }) => {
@@ -3925,17 +3970,40 @@ async function loadOnboardingOps(opts) {
     const stState = (_rosterState && _rosterState.get(d.id)) || {};
     const cells = stepCols.map(s => {
       const m = s.map;
+      const owner = s.owner === "driver" ? "driver" : "dsp";
+      const stepType = s.type || "";
+      let state3 = "todo", val = null;
+      let labelDone = m.doneLabel || "Done", labelSent = "", labelTodo = m.todoLabel || `${s.title} — not yet`;
       if (m.kind === "state") {
         const entry = stState[m.done];
         const status = entry && entry.status;
-        const val = status === "complete" ? (entry.at || true) : null;
-        const todo = (status && status !== "complete" && status !== "not_started")
-          ? `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`
-          : `${s.title || "Step"} — not yet`;
-        return dotCell(d.id, "state", m.done, val, { doneLabel: m.doneLabel, todoLabel: todo });
+        if (status === "complete") { state3 = "done"; val = entry.at || true; }
+        else if (status && status !== "not_started") {
+          state3 = "sent";
+          labelSent = `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`;
+        } else if (owner === "driver" && stepType !== "document") {
+          state3 = "sent"; labelSent = `${s.title || "Step"} — waiting on the driver`;
+        } else {
+          state3 = "todo";
+          labelTodo = stepType === "document" ? `${s.title || "Step"} — not sent yet` : labelTodo;
+        }
+        return dotCell(d.id, "state", m.done, state3, val, { labelDone, labelSent, labelTodo });
       }
-      const val = m.kind === "drv" ? d[m.done] : m.kind === "i9" ? (i9verified ? (i9CompletedAt || true) : null) : prog[m.done];
-      return dotCell(d.id, m.kind, m.done, val, { readonly: !!m.readonly, doneLabel: m.doneLabel, todoLabel: m.todoLabel || `${s.title} — not yet` });
+      if (m.kind === "i9") {
+        if (i9verified) { state3 = "done"; val = i9CompletedAt || true; }
+        else if (i9.key === "section1_complete") { state3 = "todo"; labelTodo = "Section 1 done — verify Section 2"; }
+        else if (["needs_correction", "section1_in_progress", "not_started", "no_record"].includes(i9.key)) { state3 = "sent"; labelSent = "Form I-9 — waiting on the driver"; }
+        else { state3 = "todo"; }
+        return dotCell(d.id, "i9", "", state3, val, { readonly: true, labelDone, labelSent, labelTodo });
+      }
+      if (m.kind === "drv") {
+        if (d[m.done]) { state3 = "done"; val = d[m.done]; }
+        return dotCell(d.id, "drv", m.done, state3, val, { labelDone, labelTodo });
+      }
+      // prog: a "sent at" timestamp (handbook / job_offer) means it's with the driver.
+      if (prog[m.done]) { state3 = "done"; val = prog[m.done]; }
+      else if (m.sent && prog[m.sent]) { state3 = "sent"; labelSent = `Sent · ${fmtCellDate(prog[m.sent]) || ""}`; }
+      return dotCell(d.id, "prog", m.done, state3, val, { labelDone, labelSent, labelTodo });
     }).join("");
     return `
       <tr data-driver-id="${escapeHtml(d.id)}">
@@ -14136,7 +14204,10 @@ async function refreshDriverChatList(autoSelect) {
     list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`;
     return;
   }
-  _msgInboxList = data || [];
+  // Drivers still in onboarding don't belong in the general Messages
+  // inbox — they're reachable from the Orientation dashboard's inline
+  // chat instead, and roll into this inbox once they're activated.
+  _msgInboxList = (data || []).filter(t => t && t.status !== "onboarding");
   if (_msgInboxList.length === 0) {
     list.innerHTML = `<div class="rr-empty-inline">No active drivers yet.</div>`;
     return;
