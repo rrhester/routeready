@@ -948,7 +948,21 @@ window.goto = function (view) {
   if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
-  if (view === "drivers")   { loadDriversRoster(); refreshI9Badge(); }
+  if (view === "drivers")   {
+    // KPI strip starts hidden every time the operator returns to Drivers.
+    const insBox = document.getElementById("rr-roster-insights");
+    if (insBox) insBox.style.display = "none";
+    const insBtn = document.getElementById("rr-roster-insights-toggle");
+    if (insBtn) { insBtn.setAttribute("aria-pressed", "false"); insBtn.classList.remove("is-on"); }
+    // And the stage always returns to Active.
+    _driverStage = "active";
+    document.querySelectorAll('[data-rr-tabbar="drivers-stage"] .stage-tab').forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-stage") === "active");
+    });
+    const inLink = document.getElementById("rr-roster-inactive-link");
+    if (inLink) inLink.classList.remove("is-on");
+    loadDriversRoster(); refreshI9Badge();
+  }
   if (view === "onboarding-ops") loadOnboardingOps();
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); }
@@ -2601,12 +2615,6 @@ let _rosterState = new Map();        // driver_id -> driver_onboarding_state.ste
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
-  // KPI insights strip is hidden by default — every fresh load resets it,
-  // so leaving and returning to Drivers always starts with KPIs collapsed.
-  const insightsBox = document.getElementById("rr-roster-insights");
-  if (insightsBox) insightsBox.style.display = "none";
-  const insightsBtn = document.getElementById("rr-roster-insights-toggle");
-  if (insightsBtn) insightsBtn.setAttribute("aria-pressed", "false");
   // Paint skeleton rows immediately so the page feels instant.
   tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 7 : 6);
 
@@ -2640,19 +2648,13 @@ async function loadDriversRoster() {
   _populateRosterStationFilter(_rosterRows);
   renderDriverTable(_rosterRows, error);
 
-  // Page sub-line: live count of active drivers + distinct active stations.
+  // Page sub-line: live count of active drivers only — station and
+  // on-app rollups dropped per direction; those facts live in the table.
   const sub = document.getElementById("rr-drivers-page-sub");
   if (sub) {
     const all = rows || [];
     const active = all.filter(r => r.status === "active").length;
-    const stationCodes = new Set(
-      all.filter(r => r.status === "active" && r.station?.code).map(r => r.station.code)
-    );
-    const stationN = stationCodes.size;
-    const onApp = [..._rosterAppStatus.values()].filter(s => s.signed_in_at).length;
-    sub.textContent = `${active} active driver${active === 1 ? "" : "s"}`
-      + (stationN > 0 ? ` across ${stationN} station${stationN === 1 ? "" : "s"}` : "")
-      + (onApp > 0 ? ` · ${onApp} on the app` : "");
+    sub.textContent = `${active} active driver${active === 1 ? "" : "s"}`;
   }
 }
 
@@ -2999,9 +3001,24 @@ function _appStatusCell(driverId) {
   const s = _rosterAppStatus.get(driverId);
   if (!s) return `<span style="color:var(--text-subtle)">—</span>`;
   if (s.signed_in_at) {
-    const seenTitle = `Signed in ${new Date(s.signed_in_at).toLocaleString()}`
+    const ref = s.last_seen_at || s.signed_in_at;
+    const refDate = new Date(ref);
+    const diffMs = Date.now() - refDate.getTime();
+    let label;
+    if (diffMs < 60_000) label = "Just now";
+    else if (diffMs < 3_600_000) {
+      const m = Math.floor(diffMs / 60_000);
+      label = `${m} min ago`;
+    } else if (diffMs < 86_400_000) {
+      const h = Math.floor(diffMs / 3_600_000);
+      label = `${h} hr ago`;
+    } else {
+      const d = Math.floor(diffMs / 86_400_000);
+      label = d === 1 ? "1 day ago" : `${d} days ago`;
+    }
+    const title = `Signed in ${new Date(s.signed_in_at).toLocaleString()}`
       + (s.last_seen_at ? ` · last active ${new Date(s.last_seen_at).toLocaleString()}` : "");
-    return `<span title="${escapeHtml(seenTitle)}">On the app</span>`;
+    return `<span title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
   }
   if (s.invited) return `<span title="Invite sent — hasn't signed in yet">Invited</span>`;
   return `<span style="color:var(--text-subtle)" title="No app invite sent yet">Not invited</span>`;
@@ -3303,6 +3320,11 @@ function _obMxStylesOnce() {
     ".rr-help-btn{appearance:none;background:transparent;border:0;font:inherit;font-size:11px;font-weight:500;color:var(--text-subtle);cursor:pointer;padding:2px 6px;border-radius:var(--r-sm);transition:color .12s,background .12s}" +
     ".rr-help-btn:hover{color:var(--text-muted);background:var(--canvas);text-decoration:underline}" +
     ".rr-help-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}" +
+    /* Plain-text inline links — identical typography to the Help button. */
+    ".rr-text-link{font:inherit;font-size:11px;font-weight:500;color:var(--text-subtle);text-decoration:none;cursor:pointer;padding:2px 4px;border-radius:var(--r-sm);transition:color .12s}" +
+    ".rr-text-link:hover{color:var(--text-muted);text-decoration:underline}" +
+    ".rr-text-link:focus-visible{outline:none;color:var(--text-muted);text-decoration:underline}" +
+    ".rr-text-link.is-on{color:var(--accent-text)}" +
     ".ob-bld-title{font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:4px 8px;margin-left:-8px;min-width:180px;max-width:340px;flex:1;transition:border-color .12s,background .12s,box-shadow .12s}" +
     ".ob-bld-title:hover{border-color:var(--border-strong)}" +
     ".ob-bld-title:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}" +
@@ -4692,9 +4714,10 @@ window.filterDriversStage = function (btn) {
   loadDriversRoster();
 };
 
-// Right-side toolbar links: "Insights" toggles the KPI strip; "Inactive
-// drivers" switches into the inactive stage view. Both live above the
-// table aligned uniformly, matching the subtle Help affordance pattern.
+// Right-side toolbar text links — both toggle on/off. "Insights" shows
+// or hides the KPI strip; "Inactive drivers" jumps into the inactive
+// stage view and a second click flips back to Active. Match the subtle
+// Help affordance pattern (text only, no buttons).
 document.addEventListener("click", (e) => {
   const tog = e.target.closest("#rr-roster-insights-toggle");
   if (tog) {
@@ -4704,15 +4727,19 @@ document.addEventListener("click", (e) => {
     const show = box.style.display === "none" || !box.style.display;
     box.style.display = show ? "" : "none";
     tog.setAttribute("aria-pressed", show ? "true" : "false");
+    tog.classList.toggle("is-on", show);
     return;
   }
   const inact = e.target.closest("#rr-roster-inactive-link");
   if (inact) {
     e.preventDefault();
-    _driverStage = "inactive";
-    // Visually deselect any active stage tab so the toolbar reflects the jump.
-    document.querySelectorAll('[data-rr-tabbar="drivers-stage"] .stage-tab.active')
-      .forEach((b) => b.classList.remove("active"));
+    const goingInactive = _driverStage !== "inactive";
+    _driverStage = goingInactive ? "inactive" : "active";
+    document.querySelectorAll('[data-rr-tabbar="drivers-stage"] .stage-tab').forEach((b) => {
+      const tgt = goingInactive ? null : "active";
+      b.classList.toggle("active", b.getAttribute("data-stage") === tgt);
+    });
+    inact.classList.toggle("is-on", goingInactive);
     loadDriversRoster();
   }
 });
@@ -8684,11 +8711,19 @@ async function loadDriverLicensesView() {
     body.innerHTML = _rosterEmpty({ error: true, title: "Couldn't load licenses", body: escapeHtml(error.message) });
     return;
   }
-  if (!rows || rows.length === 0) {
+  // Licenses tab only surfaces drivers whose license is expiring within
+  // the next 30 days (or already expired). Anything valid past that
+  // horizon lives quietly on the driver record.
+  const visible = (rows || []).filter((d) => {
+    if (!d.dl_expires_on) return false;
+    const days = Math.floor((new Date(d.dl_expires_on).getTime() - Date.now()) / 86400000);
+    return days <= 30;
+  });
+  if (visible.length === 0) {
     body.innerHTML = _rosterEmpty({
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="15" x2="13" y2="15"/></svg>',
-      title: "No driver licenses on file",
-      body: "Open a driver record → License tab to add a license number and expiration. Renewals within 30 days (or already expired) will surface here automatically.",
+      title: "No licenses expiring soon",
+      body: "Drivers whose license is within 30 days of expiring — or already expired — surface here automatically.",
     });
     return;
   }
@@ -8702,28 +8737,32 @@ async function loadDriverLicensesView() {
         <th style="width:18%">Status</th>
         <th style="width:16%">Expires</th>
       </tr></thead>
-      <tbody>${rows.map(renderLicenseRow).join("")}</tbody>
+      <tbody>${visible.map(renderLicenseRow).join("")}</tbody>
     </table>`;
 }
 
-function _licenseChip(days) {
-  if (days < 0)   return `<span class="docs-chip-x" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--red-soft);color:var(--red);border:1px solid rgba(225,29,72,.18)"><i style="width:6px;height:6px;border-radius:50%;background:var(--red)"></i>Expired</span>`;
-  if (days <= 30) return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--amber-soft);color:var(--amber-dark);border:1px solid rgba(217,119,6,.18)"><i style="width:6px;height:6px;border-radius:50%;background:var(--amber)"></i>Expiring soon</span>`;
-  if (days <= 90) return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--canvas);color:var(--amber-dark);border:1px solid var(--border)"><i style="width:6px;height:6px;border-radius:50%;background:var(--amber)"></i>Renewal due</span>`;
-  return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 10px 3px 8px;background:var(--green-soft);color:var(--green);border:1px solid rgba(5,150,105,.20)"><i style="width:6px;height:6px;border-radius:50%;background:var(--green)"></i>Valid</span>`;
+function _licenseStatusText(days) {
+  if (days < 0)   return "Expired";
+  if (days === 0) return "Expires today";
+  if (days <= 14) return `Expires in ${days} day${days === 1 ? "" : "s"}`;
+  return `Expires in ${days} days`;
 }
 function renderLicenseRow(d) {
   const exp = new Date(d.dl_expires_on);
   const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
   const initials = displayDriverInitials(d);
   const rel = days < 0 ? `Expired ${-days}d ago` : days === 0 ? "Expires today" : `in ${days}d`;
+  // Within 14 days of expiry (including already expired) → red left bar,
+  // mirroring the Work Authorization "attention" treatment.
+  const danger = days <= 14;
+  const rowStyle = danger ? ' style="box-shadow:inset 3px 0 0 var(--red)"' : "";
   return `
-    <tr data-driver-id="${d.id}" data-rr-open-driver>
+    <tr data-driver-id="${d.id}" data-rr-open-driver${rowStyle}>
       <td><div class="cell-driver"><div class="avatar-sm">${initials}</div><div><div class="cell-name">${escapeHtml(displayDriverName(d))}</div></div></div></td>
       <td>${d.station?.code ? escapeHtml(d.station.code) : '<span style="color:var(--text-subtle)">—</span>'}</td>
       <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm)">${escapeHtml(d.dl_number || "—")}</td>
-      <td>${_licenseChip(days)}</td>
-      <td>${exp.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}<div style="font-size:var(--fs-xs);color:${days < 0 ? "var(--red)" : days <= 30 ? "var(--amber-dark)" : "var(--text-subtle)"}">${rel}</div></td>
+      <td>${escapeHtml(_licenseStatusText(days))}</td>
+      <td>${exp.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${rel}</div></td>
     </tr>`;
 }
 
@@ -17979,31 +18018,31 @@ function _renderCoachFeed() {
   const body = rows.map(c => {
     const drv = _coachFeedCache.drivers.get(c.driver_id);
     const name = drv ? (drv.preferred_name || drv.full_name || "—") : "—";
-    const sevChip = _coachSeverityChip(c.severity, c.metadata?.level);
+    const initials = drv ? displayDriverInitials(drv) : "—";
     const occurred = new Date(c.occurred_at).toLocaleDateString();
     const followCell = c.follow_up_at
       ? (c.resolved_at
-          ? `<span style="font-size:var(--fs-xs);color:var(--green)">Resolved</span>`
-          : `<span style="font-size:var(--fs-xs);color:${new Date(c.follow_up_at) < new Date() ? "var(--red)" : "var(--accent-text)"}">${new Date(c.follow_up_at).toLocaleDateString()}</span>`)
+          ? `<span style="color:var(--text-subtle)">Resolved</span>`
+          : escapeHtml(new Date(c.follow_up_at).toLocaleDateString()))
       : `<span style="color:var(--text-subtle)">—</span>`;
     const ack = c.acknowledgment && c.acknowledgment !== "none"
-      ? `<span class="status-pill status-pill-acknowledged">Ack</span>`
-      : (c.driver_visible ? `<span class="status-pill status-pill-pending">Pending ack</span>` : "");
+      ? "Acknowledged"
+      : (c.driver_visible ? "Pending ack" : "");
     const status = c.archived_at
-      ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Archived</span>`
+      ? `<span style="color:var(--text-subtle)">Archived</span>`
       : (c.resolved_at
-          ? `<span style="font-size:var(--fs-xs);color:var(--green)">Resolved</span>`
-          : ack || `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Open</span>`);
-
-    const topicChip = c.topic
-      ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted)">${escapeHtml(c.topic)}</span>`
-      : '<span style="color:var(--text-subtle)">—</span>';
-    return `<tr data-rr-coach-feed-driver="${c.driver_id}" style="cursor:pointer">
+          ? "Resolved"
+          : ack || `<span style="color:var(--text-subtle)">Open</span>`);
+    const sevText = c.metadata?.level || c.severity || "—";
+    const topicText = c.topic || "—";
+    return `<tr data-rr-coach-feed-driver="${c.driver_id}">
       <td style="font-variant-numeric:tabular-nums;color:var(--text-muted)">${escapeHtml(occurred)}</td>
-      <td><strong>${escapeHtml(name)}</strong>${drv?.station?.code ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(drv.station.code)}</div>` : ""}</td>
-      <td>${sevChip}</td>
-      <td>${topicChip}</td>
-      <td style="max-width:320px">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
+      <td><div class="cell-driver"><div class="avatar-sm">${initials}</div>
+        <div><div class="cell-name">${escapeHtml(name)}</div>
+        ${drv?.station?.code ? `<div class="cell-name-sub">${escapeHtml(drv.station.code)}</div>` : ""}</div></div></td>
+      <td style="text-transform:capitalize">${escapeHtml(sevText)}</td>
+      <td style="text-transform:capitalize">${escapeHtml(topicText)}</td>
+      <td style="max-width:320px;color:var(--text-muted)">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
       <td style="color:var(--text-muted)">${escapeHtml(c.coached_by_name || "—")}</td>
       <td>${followCell}</td>
       <td>${status}</td>
