@@ -140,9 +140,14 @@ grant select on public.shift_swaps_audit   to authenticated;
 -- Returns the upcoming shifts the calling driver could swap their own
 -- shift for. One row per (other_driver, their_shift) in the next 21
 -- days. Empty if swap is disabled for the DSP.
+--
+-- NOTE: VOLATILE (not STABLE) — private.driver_validate_token bumps a
+-- last-seen timestamp, which is an UPDATE, and STABLE functions run
+-- in a read-only context that rejects the write. Same reasoning
+-- applies to the driver_swap_list / driver_offer_list family.
 create or replace function public.driver_swap_pool(p_token text)
 returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 declare
   v_drv     public.drivers;
   v_enabled boolean;
@@ -388,31 +393,17 @@ begin
   end if;
 
   if v_block is null then
-    -- Compliance: each driver must be able to take the *other's*
-    -- shift. private.driver_can_take_shift only returns true when
-    -- the shift is currently unassigned, so we re-check the underlying
-    -- gates inline. Cheap and explicit.
-    -- (We rely on the centralised gates being well-tested via Cover.)
+    -- Compliance: each driver must remain eligible against the other's
+    -- shift after the swap. We check the gates BEFORE mutating any
+    -- shift row — PL/pgSQL doesn't allow explicit SAVEPOINT statements
+    -- inside a function body, and we don't need them here: every
+    -- relevant fact (driver status, DL expiry vs shift date) is known
+    -- without performing the swap. Mirrors the hard gates the Cover
+    -- and Pickup flows enforce (#830 / #835); future iterations can
+    -- extend this with cert / PTO / hour-cap checks via a shared
+    -- helper.
     select * into v_other_drv from public.drivers where id = v_req.requester_driver_id;
 
-    -- Quick re-check: the swap effectively reassigns; verify no
-    -- compliance violation on the new arrangement by performing the
-    -- swap inside a savepoint and re-evaluating eligibility against
-    -- the temporary state.
-    savepoint try_swap;
-    update public.shifts set driver_id = v_drv.id,        updated_at = now()
-     where id = v_their_shift.id;
-    update public.shifts set driver_id = v_req.requester_driver_id, updated_at = now()
-     where id = v_my_shift.id;
-
-    -- Now both shifts hold their post-swap driver. Run compliance:
-    -- each driver should still be valid against *their new shift*.
-    -- private.driver_can_take_shift checks driver_id is null, which
-    -- it isn't post-swap. We approximate by re-querying the gates
-    -- inline. For brevity we trust the swap is valid if both drivers
-    -- were active + had valid certs/licenses for the dates. A future
-    -- iteration can extend driver_can_take_shift with a
-    -- "p_ignore_assignment" flag.
     v_eligible := (
       v_drv.status = 'active'
       and v_other_drv.status = 'active'
@@ -421,11 +412,18 @@ begin
     );
 
     if not v_eligible then
-      rollback to savepoint try_swap;
       v_block := 'compliance_failed';
-    else
-      release savepoint try_swap;
     end if;
+  end if;
+
+  -- Execute the swap if nothing blocked us. The two UPDATEs run in
+  -- the same function-level transaction; any later RAISE would roll
+  -- them both back automatically.
+  if v_block is null then
+    update public.shifts set driver_id = v_drv.id,                  updated_at = now()
+     where id = v_their_shift.id;
+    update public.shifts set driver_id = v_req.requester_driver_id, updated_at = now()
+     where id = v_my_shift.id;
   end if;
 
   if v_block is not null then

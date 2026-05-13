@@ -180,9 +180,13 @@ $$;
 -- Returns the open shifts the calling driver is eligible to pick up.
 -- Empty when the DSP has driver_pickup_enabled = false. Future-only,
 -- bounded to the next 21 days so the list stays a reasonable size.
+--
+-- VOLATILE (not STABLE) — private.driver_validate_token bumps a
+-- last-seen timestamp, which is an UPDATE. STABLE would force a
+-- read-only context and reject the write.
 create or replace function public.driver_open_shifts_list(p_token text)
 returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 declare
   v_drv     public.drivers;
   v_enabled boolean;

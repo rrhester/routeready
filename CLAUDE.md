@@ -29,3 +29,17 @@ them on the same PR, but call them out prominently in the PR body so the
 user can review post-merge / coordinate the deploy. Merge once CI is
 green like anything else — don't block on verification unless the user
 has said otherwise for that specific change.
+
+## Database migrations
+
+The user applies Supabase migrations manually in the SQL Editor (no
+Supabase CLI in their loop). **Whenever I add a migration under
+`supabase/migrations/`, paste its full SQL contents into chat in a
+fenced code block** so the user can copy → Supabase → Run without
+hunting for raw GitHub URLs. Keep migrations idempotent (use
+`create or replace`, `if not exists`, `drop ... if exists` before
+`create trigger`, `do $$ begin ... exception when duplicate_object then
+null; end $$` for enums and publications) so re-running a partially
+applied migration doesn't fail.
+
+This is durable across sessions (set 2026-05-13).
