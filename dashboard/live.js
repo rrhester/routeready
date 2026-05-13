@@ -21022,6 +21022,10 @@ async function openShiftEditModal(shiftId) {
           <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
         </label>
         <div id="rr-shift-edit-status" style="font-size:var(--fs-xs);color:var(--text-subtle);min-height:14px"></div>
+        <details style="margin-top:4px">
+          <summary style="cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)">History</summary>
+          <div id="rr-shift-edit-history" style="margin-top:8px;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5">Loading…</div>
+        </details>
       </div>
       <div style="display:flex;justify-content:space-between;gap:8px;padding:14px 22px;border-top:1px solid var(--border);background:var(--canvas)">
         <button class="btn btn-sm" data-rr-shift-edit-remove style="color:var(--red);border-color:rgba(220,38,38,.3)">Remove shift</button>
@@ -21032,6 +21036,9 @@ async function openShiftEditModal(shiftId) {
       </div>
     </div>`;
   document.body.appendChild(m);
+
+  // Load shift history lazily — fire once the modal is on screen.
+  _loadShiftHistory(shiftId);
 
   const close = () => m.remove();
   m.addEventListener("click", async (e) => {
@@ -21088,6 +21095,46 @@ async function openShiftEditModal(shiftId) {
       renderScheduleWeek();
     }
   });
+}
+
+// Compact change history for a single shift — driver moves, time
+// tweaks, status flips, plus a "created" anchor at the bottom. Pulled
+// from migration 0200's shift_changes table via the shift_history RPC.
+async function _loadShiftHistory(shiftId) {
+  const host = document.getElementById("rr-shift-edit-history");
+  if (!host) return;
+  const { data, error } = await sb.rpc("shift_history", { p_shift_id: shiftId, p_limit: 20 });
+  if (!document.getElementById("rr-shift-edit-history")) return;   // modal closed
+  if (error) { host.textContent = "Couldn't load history."; host.style.color = "var(--red)"; return; }
+  const rows = Array.isArray(data?.changes) ? data.changes : [];
+  if (rows.length === 0) { host.textContent = "No edits yet."; return; }
+  host.innerHTML = rows.map(_renderShiftChangeRow).join("");
+}
+
+function _renderShiftChangeRow(c) {
+  const when = new Date(c.at).toLocaleString();
+  const who = c.actor_name ? escapeHtml(c.actor_name) : '<span style="color:var(--text-subtle)">System</span>';
+  let summary = "";
+  switch (c.event) {
+    case "created":          summary = "Shift created"; break;
+    case "deleted":          summary = "Shift deleted"; break;
+    case "driver_assigned":  summary = `Assigned · driver ${escapeHtml(String(c.after?.driver_id || "—").slice(0, 8))}`; break;
+    case "driver_unassigned":summary = "Driver removed"; break;
+    case "driver_changed":   summary = `Driver swapped · ${escapeHtml(String(c.before?.driver_id || "—").slice(0, 8))} → ${escapeHtml(String(c.after?.driver_id || "—").slice(0, 8))}`; break;
+    case "time_changed": {
+      const bs = c.before?.starts_at ? new Date(c.before.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
+      const be = c.before?.ends_at   ? new Date(c.before.ends_at).toLocaleTimeString(undefined,   { hour: "numeric", minute: "2-digit" }) : "—";
+      const as = c.after?.starts_at  ? new Date(c.after.starts_at).toLocaleTimeString(undefined,  { hour: "numeric", minute: "2-digit" }) : "—";
+      const ae = c.after?.ends_at    ? new Date(c.after.ends_at).toLocaleTimeString(undefined,    { hour: "numeric", minute: "2-digit" }) : "—";
+      summary = `Time · ${bs}–${be} → ${as}–${ae}`;
+      break;
+    }
+    case "date_changed":     summary = `Date · ${escapeHtml(c.before?.date || "—")} → ${escapeHtml(c.after?.date || "—")}`; break;
+    case "route_changed":    summary = `Route · ${escapeHtml(c.before?.route_code || "—")} → ${escapeHtml(c.after?.route_code || "—")}`; break;
+    case "status_changed":   summary = `Status · ${escapeHtml(c.before?.status || "—")} → ${escapeHtml(c.after?.status || "—")}`; break;
+    default:                 summary = escapeHtml(c.event);
+  }
+  return `<div style="padding:6px 0;border-top:1px solid var(--border)"><div style="color:var(--text)">${summary}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:2px">${escapeHtml(when)} · ${who}</div></div>`;
 }
 
 function _schedShiftChip(sh) {
