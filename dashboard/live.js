@@ -953,7 +953,7 @@ window.goto = function (view) {
   if (view === "messages")  loadDriverChatInbox();
   if (view === "workspaces") loadWorkspacesView();
   if (view === "forms")     loadFormsList();
-  if (view === "admin")     loadPlatformAdmin();
+  if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
 };
 
@@ -14191,10 +14191,22 @@ new MutationObserver(() => {
 }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
 
+// One conversation per DSP with RouteReady Support — pinned at the top
+// of the Messages inbox so help is one click away without bolting on a
+// separate widget. Same chat surface, same patterns.
+let _msgSupportData = null;        // last fetched support thread (cached for the inbox preview + opening the panel)
+let _msgSupportRealtime = null;    // realtime channel for support_messages (DSP side)
+
 async function refreshDriverChatList(autoSelect) {
   const list = document.getElementById("rr-msg-driver-list");
   if (!list) return;
-  const { data, error } = await sb.rpc("dispatch_chat_threads");
+  // Fetch the driver inbox and the support thread in parallel — the
+  // support thread fuels the pinned "RouteReady Support" row at the top.
+  const [{ data, error }, supRes] = await Promise.all([
+    sb.rpc("dispatch_chat_threads"),
+    sb.rpc("support_thread").then((r) => r, () => ({ data: null })),
+  ]);
+  _msgSupportData = (supRes && supRes.data) || null;
   if (error) {
     if (_isAuthError(error)) {
       list.innerHTML = `<div style="padding:32px 20px;text-align:center"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load your conversations.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
@@ -14208,10 +14220,8 @@ async function refreshDriverChatList(autoSelect) {
   // inbox — they're reachable from the Orientation dashboard's inline
   // chat instead, and roll into this inbox once they're activated.
   _msgInboxList = (data || []).filter(t => t && t.status !== "onboarding");
-  if (_msgInboxList.length === 0) {
-    list.innerHTML = `<div class="rr-empty-inline">No active drivers yet.</div>`;
-    return;
-  }
+  // (No early return on an empty driver list — the pinned RouteReady
+  // Support row is still rendered below, so the inbox is never empty.)
   // Sort: unread first, then most-recent activity, then alpha for inactive.
   _msgInboxList.sort((a, b) => {
     if ((b.unread > 0) !== (a.unread > 0)) return (b.unread > 0) - (a.unread > 0);
@@ -14233,7 +14243,24 @@ async function refreshDriverChatList(autoSelect) {
     if (days < 7) return `${days}d ago`;
     return d.toLocaleDateString();
   };
-  list.innerHTML = _msgInboxList.map((t) => {
+  // Pinned RouteReady Support row at the top of the inbox.
+  const sup = _msgSupportData || {};
+  const supMsgs = Array.isArray(sup.messages) ? sup.messages : [];
+  const supLast = supMsgs.length ? supMsgs[supMsgs.length - 1] : null;
+  const supUnread = supMsgs.filter(m => m && m.sender_kind === "support" && m.is_unread).length;
+  const supLastAt = supLast ? supLast.created_at : sup.last_message_at || null;
+  const supLastBody = supLast
+    ? (supLast.sender_kind === "dsp" ? "You: " : "") + (supLast.body || "")
+    : "We’re here to help with anything operational — open this to start the conversation.";
+  const supLastTrunc = supLastBody.length > 60 ? supLastBody.slice(0, 57) + "…" : supLastBody;
+  const supActive = _msgInboxSelectedId === "__support__";
+  const supportRow = `<div class="msg-item ${supActive ? "active" : ""}" data-rr-support-thread style="border-bottom:1px solid var(--border)">
+      <div class="msg-item-avatar"><div class="avatar-sm" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px" aria-hidden="true">R</div></div>
+      <div><div class="msg-item-name">RouteReady Support<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Support</span></div><div class="msg-item-preview">${escapeHtml(supLastTrunc)}</div></div>
+      <div><div class="msg-item-time">${escapeHtml(supLastAt ? fmtRelative(supLastAt) : "")}</div>${supUnread > 0 ? `<div class="msg-item-unread">${supUnread}</div>` : ""}</div>
+    </div>`;
+
+  list.innerHTML = supportRow + _msgInboxList.map((t) => {
     const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
     const lastBody = t.last_message?.body
       ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
@@ -14249,13 +14276,30 @@ async function refreshDriverChatList(autoSelect) {
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
+  list.querySelector("[data-rr-support-thread]")?.addEventListener("click", () => openSupportThread());
   list.querySelectorAll("[data-rr-thread]").forEach((el) => {
     el.addEventListener("click", () => openDriverChatThread(el.dataset.rrThread));
   });
-  // Auto-open first unread thread on initial load if nothing's selected.
-  if (autoSelect && !_msgInboxSelectedId && _msgInboxList.length > 0) {
-    const target = _msgInboxList.find(t => t.unread > 0) || _msgInboxList[0];
-    openDriverChatThread(target.driver_id);
+  // Subscribe once to support_messages realtime so the inbox preview + an
+  // open support thread refresh the moment RouteReady replies.
+  if (!_msgSupportRealtime && typeof sb.channel === "function") {
+    const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+    _msgSupportRealtime = sb.channel("rr-support-thread-" + (dspId || "x"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_messages", filter: dspId ? ("dsp_id=eq." + dspId) : undefined }, () => {
+        if (!document.getElementById("view-messages")?.classList.contains("active")) return;
+        refreshDriverChatList(false);
+        if (_msgInboxSelectedId === "__support__") refreshSupportThread(false);
+      })
+      .subscribe();
+  }
+  // Auto-open the support thread if there's an unread support reply and
+  // nothing else is selected; otherwise the first unread driver chat.
+  if (autoSelect && !_msgInboxSelectedId) {
+    if (supUnread > 0) openSupportThread();
+    else if (_msgInboxList.length > 0) {
+      const target = _msgInboxList.find(t => t.unread > 0) || _msgInboxList[0];
+      openDriverChatThread(target.driver_id);
+    }
   }
 }
 
@@ -14264,6 +14308,7 @@ async function openDriverChatThread(driverId) {
   document.querySelectorAll("#rr-msg-driver-list [data-rr-thread]").forEach((el) => {
     el.classList.toggle("active", el.dataset.rrThread === driverId);
   });
+  document.querySelector("#rr-msg-driver-list [data-rr-support-thread]")?.classList.remove("active");
   await refreshDriverChatThread(true);
   if (_msgInboxThreadTimer) clearInterval(_msgInboxThreadTimer);
   // Realtime (postgres_changes on driver_messages) is the primary
@@ -14275,6 +14320,335 @@ async function openDriverChatThread(driverId) {
     }
     refreshDriverChatThread(false);
   }, 30000);
+}
+
+// ── RouteReady Support thread ────────────────────────────────────────
+// Mirrors the driver chat shell in #rr-msg-conv so the experience is
+// the same — bubbles right-aligned for the DSP, left-aligned for
+// support — but with a simpler composer (text only) and a calmer
+// header that makes it clear this is RouteReady's product team.
+let _supScrollSig = "";
+async function openSupportThread() {
+  _msgInboxSelectedId = "__support__";
+  document.querySelectorAll("#rr-msg-driver-list [data-rr-thread]").forEach((el) => el.classList.remove("active"));
+  document.querySelector("#rr-msg-driver-list [data-rr-support-thread]")?.classList.add("active");
+  _supScrollSig = "";
+  await refreshSupportThread(true);
+  // Opening the thread counts as reading it.
+  sb.rpc("support_mark_read").then(() => refreshDriverChatList(false), () => {});
+  if (_msgInboxThreadTimer) clearInterval(_msgInboxThreadTimer);
+  _msgInboxThreadTimer = setInterval(() => {
+    if (!document.getElementById("view-messages")?.classList.contains("active") || _msgInboxSelectedId !== "__support__") {
+      clearInterval(_msgInboxThreadTimer); _msgInboxThreadTimer = null; return;
+    }
+    refreshSupportThread(false);
+  }, 30000);
+}
+
+function _supBubblesHTML(msgs) {
+  if (!msgs.length) return `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);line-height:1.55;padding:40px 24px;max-width:380px">
+    <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:var(--accent);color:#fff;font-weight:700;font-size:20px;margin-bottom:10px">R</div>
+    <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:4px">RouteReady Support</div>
+    <div>We’re here to help you solve operational problems and get more out of the platform. Send your first message any time — we’ll reply right here.</div>
+  </div>`;
+  let out = ""; let lastDay = "";
+  msgs.forEach((m) => {
+    const dt = m.created_at ? new Date(m.created_at) : null;
+    const day = dt ? dt.toDateString() : "";
+    if (day && day !== lastDay) {
+      lastDay = day;
+      const lbl = (day === new Date().toDateString()) ? "Today" : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+      out += `<div style="align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin:6px 0">${escapeHtml(lbl)}</div>`;
+    }
+    const mine = m.sender_kind === "dsp";
+    const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    const body = m.body ? escapeHtml(m.body) : "";
+    const author = mine ? "" : `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-text);margin-bottom:3px">RouteReady Support</div>`;
+    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:8px 12px;border-radius:14px;font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
+  });
+  return out;
+}
+
+async function refreshSupportThread(scrollToBottom) {
+  const conv = document.getElementById("rr-msg-conv");
+  if (!conv) return;
+  const { data, error } = await sb.rpc("support_thread");
+  if (error) {
+    if (_isAuthError(error)) { conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to open this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+      conv.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired")); return; }
+    conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message || "Couldn't load support conversation")}</div>`;
+    return;
+  }
+  _msgSupportData = data || _msgSupportData;
+  const msgs = Array.isArray(data && data.messages) ? data.messages : [];
+  const isFirstPaint = conv.dataset.rrSupport !== "1";
+  if (isFirstPaint) {
+    conv.dataset.rrSupport = "1"; conv.dataset.rrDriverId = "";
+    conv.innerHTML = `
+      <div class="rr-mc-shell">
+        <div class="rr-mc-head">
+          <div class="avatar-sm" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;font-size:15px">R</div>
+          <div>
+            <div class="rr-mc-name">RouteReady Support<span style="margin-left:8px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Verified</span></div>
+            <div class="rr-mc-sub">We’re here to help you run a stronger operation — typical reply within a business day.</div>
+          </div>
+        </div>
+        <div class="rr-mc-thread" id="rr-mc-thread-support" data-rr-anchor="1"></div>
+        <form class="rr-mc-composer" id="rr-mc-form-support">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+            <textarea id="rr-mc-input-support" rows="1" placeholder="Tell us what’s going on — a question, a problem, or feedback…" maxlength="4000"></textarea>
+          </div>
+          <button class="rr-mc-send" type="submit">Send</button>
+        </form>
+      </div>`;
+    const form = document.getElementById("rr-mc-form-support");
+    const ta = document.getElementById("rr-mc-input-support");
+    if (ta) {
+      const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(140, Math.max(20, ta.scrollHeight)) + "px"; };
+      ta.addEventListener("input", grow);
+      ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); _supSend(); } });
+    }
+    form?.addEventListener("submit", (e) => { e.preventDefault(); _supSend(); });
+  }
+  const thread = document.getElementById("rr-mc-thread-support");
+  if (thread) {
+    const sig = msgs.map(m => m.id + ":" + m.created_at).join("|");
+    if (sig !== _supScrollSig || scrollToBottom) {
+      _supScrollSig = sig;
+      const wasNear = thread.scrollTop + thread.clientHeight >= thread.scrollHeight - 64;
+      thread.innerHTML = _supBubblesHTML(msgs);
+      if (scrollToBottom || wasNear) thread.scrollTop = thread.scrollHeight;
+    }
+  }
+  // If new "support" messages came in while open, mark read.
+  if (msgs.some(m => m.sender_kind === "support" && m.is_unread)) {
+    sb.rpc("support_mark_read").then(() => refreshDriverChatList(false), () => {});
+  }
+}
+
+async function _supSend() {
+  const ta = document.getElementById("rr-mc-input-support");
+  const btn = document.querySelector("#rr-mc-form-support .rr-mc-send");
+  if (!ta) return;
+  const body = (ta.value || "").trim();
+  if (!body) return;
+  if (btn) btn.disabled = true;
+  const { error } = await sb.rpc("support_send", { p_body: body });
+  if (btn) btn.disabled = false;
+  if (error) { toast("Couldn't send: " + (error.message || ""), "warn"); return; }
+  ta.value = ""; ta.style.height = "auto"; ta.focus();
+  _supScrollSig = "";
+  await refreshSupportThread(true);
+  refreshDriverChatList(false);
+}
+
+// ── Admin support inbox · centralized intake for RouteReady staff ─────
+// One pane lists every DSP thread (most recent activity first, unread
+// floats up); selecting a DSP loads the conversation on the right. Free
+// search filters by DSP name / short code / last-message body. Realtime
+// keeps both panes fresh; the safety-net poll fires every 20s while the
+// admin view is up.
+let _supAdmThreads      = [];
+let _supAdmSelectedDsp  = null;
+let _supAdmFilter       = "all";
+let _supAdmSearch       = "";
+let _supAdmPollTimer    = null;
+let _supAdmRealtime     = null;
+let _supAdmScrollSig    = "";
+
+async function loadAdminSupportInbox() {
+  const section = document.getElementById("rr-supadm-section");
+  if (!section) return;
+  await _supAdmRefreshList(true);
+  if (_supAdmPollTimer) clearInterval(_supAdmPollTimer);
+  _supAdmPollTimer = setInterval(() => {
+    if (!document.getElementById("view-admin")?.classList.contains("active")) { clearInterval(_supAdmPollTimer); _supAdmPollTimer = null; return; }
+    _supAdmRefreshList(false);
+    if (_supAdmSelectedDsp) _supAdmRefreshThread(false);
+  }, 20000);
+  if (!_supAdmRealtime && typeof sb.channel === "function") {
+    _supAdmRealtime = sb.channel("rr-supadm-thread")
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_messages" }, () => {
+        if (!document.getElementById("view-admin")?.classList.contains("active")) return;
+        _supAdmRefreshList(false);
+        if (_supAdmSelectedDsp) _supAdmRefreshThread(false);
+      })
+      .subscribe();
+  }
+  // Wire toolbar (idempotent — these listeners get reattached each load).
+  const q = document.getElementById("rr-supadm-search");
+  if (q && !q.dataset.wired) {
+    q.dataset.wired = "1";
+    q.addEventListener("input", () => { _supAdmSearch = q.value.trim().toLowerCase(); _supAdmRenderList(); });
+  }
+  const f = document.getElementById("rr-supadm-filter");
+  if (f && !f.dataset.wired) {
+    f.dataset.wired = "1";
+    f.addEventListener("change", () => { _supAdmFilter = f.value || "all"; _supAdmRenderList(); });
+  }
+}
+
+async function _supAdmRefreshList(autoSelect) {
+  const { data, error } = await sb.rpc("support_threads_admin");
+  if (error) {
+    const list = document.getElementById("rr-supadm-list");
+    if (list) list.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load")}</div>`;
+    return;
+  }
+  _supAdmThreads = Array.isArray(data) ? data : [];
+  _supAdmRenderList();
+  if (autoSelect && !_supAdmSelectedDsp && _supAdmThreads.length) {
+    const target = _supAdmThreads.find(t => (t.unread || 0) > 0) || _supAdmThreads[0];
+    _supAdmOpen(target.dsp_id);
+  }
+}
+
+function _supAdmRenderList() {
+  const list = document.getElementById("rr-supadm-list");
+  const countEl = document.getElementById("rr-supadm-count");
+  if (!list) return;
+  const fmtRel = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso), m = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+    const days = Math.floor(h / 24); if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString();
+  };
+  const now = Date.now();
+  let filtered = _supAdmThreads.filter(t => {
+    if (_supAdmFilter === "unread" && (t.unread || 0) === 0) return false;
+    if (_supAdmFilter === "active") {
+      if (!t.last_message_at) return false;
+      if (now - new Date(t.last_message_at).getTime() > 30 * 86400000) return false;
+    }
+    if (_supAdmSearch) {
+      const hay = (t.dsp_name + " " + (t.dsp_short_code || "") + " " + (t.last_message?.body || "")).toLowerCase();
+      if (!hay.includes(_supAdmSearch)) return false;
+    }
+    return true;
+  });
+  filtered.sort((a, b) => {
+    if ((b.unread > 0) !== (a.unread > 0)) return (b.unread > 0) - (a.unread > 0);
+    const at = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+    const bt = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+    return bt - at;
+  });
+  if (countEl) countEl.textContent = `${filtered.length} ${filtered.length === 1 ? "conversation" : "conversations"}`;
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:32px 20px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">No conversations match.</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(t => {
+    const initials = (t.dsp_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || (t.dsp_short_code || "—").slice(0, 2).toUpperCase();
+    const last = t.last_message || null;
+    const lastBody = last ? (last.sender_kind === "support" ? "You: " : "") + (last.body || "") : "(no messages yet)";
+    const lastBodyTrunc = lastBody.length > 70 ? lastBody.slice(0, 67) + "…" : lastBody;
+    const isActive = _supAdmSelectedDsp === t.dsp_id;
+    const senderLine = last ? `${last.sender_name || (last.sender_kind === "support" ? "RouteReady" : "DSP")}${last.sender_role ? " · " + last.sender_role : ""}` : "";
+    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-supadm="${escapeHtml(t.dsp_id)}" style="border-bottom:1px solid var(--border);cursor:pointer">
+      <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div></div>
+      <div><div class="msg-item-name">${escapeHtml(t.dsp_name || "(unnamed DSP)")}${t.dsp_short_code ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(t.dsp_short_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div>${senderLine && last && last.sender_kind === "dsp" ? `<div style="font-size:10px;color:var(--text-subtle);margin-top:2px">${escapeHtml(senderLine)}</div>` : ""}</div>
+      <div><div class="msg-item-time">${escapeHtml(fmtRel(t.last_message_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("[data-rr-supadm]").forEach(el => { el.addEventListener("click", () => _supAdmOpen(el.getAttribute("data-rr-supadm"))); });
+}
+
+async function _supAdmOpen(dspId) {
+  if (!dspId) return;
+  _supAdmSelectedDsp = dspId;
+  _supAdmScrollSig = "";
+  document.querySelectorAll("#rr-supadm-list [data-rr-supadm]").forEach(el => el.classList.toggle("active", el.getAttribute("data-rr-supadm") === dspId));
+  await _supAdmRefreshThread(true);
+  sb.rpc("support_mark_read", { p_dsp_id: dspId }).then(() => _supAdmRefreshList(false), () => {});
+}
+
+async function _supAdmRefreshThread(scrollToBottom) {
+  const dspId = _supAdmSelectedDsp;
+  const conv = document.getElementById("rr-supadm-conv");
+  if (!dspId || !conv) return;
+  const { data, error } = await sb.rpc("support_thread", { p_dsp_id: dspId });
+  if (error) { conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message || "Couldn't load")}</div>`; return; }
+  if (_supAdmSelectedDsp !== dspId) return;
+  const msgs = Array.isArray(data && data.messages) ? data.messages : [];
+  const isFirstPaint = conv.dataset.rrSupadmDsp !== dspId;
+  if (isFirstPaint) {
+    conv.dataset.rrSupadmDsp = dspId;
+    const dspName = data?.dsp_name || "DSP";
+    const dspCode = data?.dsp_short_code || "";
+    const initials = (dspName || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || (dspCode || "—").slice(0, 2).toUpperCase();
+    conv.innerHTML = `
+      <div class="rr-mc-shell" style="background:var(--surface)">
+        <div class="rr-mc-head"><div class="avatar-sm">${escapeHtml(initials)}</div><div><div class="rr-mc-name">${escapeHtml(dspName)}${dspCode ? `<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--canvas);color:var(--text-muted);text-transform:uppercase;vertical-align:1px">${escapeHtml(dspCode)}</span>` : ""}</div><div class="rr-mc-sub">RouteReady Support conversation</div></div></div>
+        <div class="rr-mc-thread" id="rr-supadm-thread"></div>
+        <form class="rr-mc-composer" id="rr-supadm-form">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+            <textarea id="rr-supadm-input" rows="1" placeholder="Reply as RouteReady Support…" maxlength="4000"></textarea>
+          </div>
+          <button class="rr-mc-send" type="submit">Send</button>
+        </form>
+      </div>`;
+    const ta = document.getElementById("rr-supadm-input");
+    const form = document.getElementById("rr-supadm-form");
+    if (ta) {
+      const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(140, Math.max(20, ta.scrollHeight)) + "px"; };
+      ta.addEventListener("input", grow);
+      ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); _supAdmSend(); } });
+    }
+    form?.addEventListener("submit", (e) => { e.preventDefault(); _supAdmSend(); });
+  }
+  const thread = document.getElementById("rr-supadm-thread");
+  if (thread) {
+    const sig = msgs.map(m => m.id + ":" + m.created_at).join("|");
+    if (sig !== _supAdmScrollSig || scrollToBottom) {
+      _supAdmScrollSig = sig;
+      const wasNear = thread.scrollTop + thread.clientHeight >= thread.scrollHeight - 64;
+      thread.innerHTML = _supAdmBubblesHTML(msgs);
+      if (scrollToBottom || wasNear) thread.scrollTop = thread.scrollHeight;
+    }
+  }
+  // If new DSP messages came in while open, mark read.
+  if (msgs.some(m => m.sender_kind === "dsp" && m.is_unread)) {
+    sb.rpc("support_mark_read", { p_dsp_id: dspId }).then(() => _supAdmRefreshList(false), () => {});
+  }
+}
+
+function _supAdmBubblesHTML(msgs) {
+  if (!msgs.length) return `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);padding:40px 24px;max-width:380px">No messages yet — start the conversation when you're ready.</div>`;
+  let out = ""; let lastDay = "";
+  msgs.forEach(m => {
+    const dt = m.created_at ? new Date(m.created_at) : null;
+    const day = dt ? dt.toDateString() : "";
+    if (day && day !== lastDay) {
+      lastDay = day;
+      const lbl = (day === new Date().toDateString()) ? "Today" : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+      out += `<div style="align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin:6px 0">${escapeHtml(lbl)}</div>`;
+    }
+    const mine = m.sender_kind === "support";
+    const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    const body = m.body ? escapeHtml(m.body) : "";
+    const author = `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml((m.sender_name || (mine ? "RouteReady Support" : "DSP")))}${m.sender_role && !mine ? ` · ${escapeHtml(m.sender_role)}` : ""}</div>`;
+    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:8px 12px;border-radius:14px;font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
+  });
+  return out;
+}
+
+async function _supAdmSend() {
+  const ta = document.getElementById("rr-supadm-input");
+  const btn = document.querySelector("#rr-supadm-form .rr-mc-send");
+  if (!ta || !_supAdmSelectedDsp) return;
+  const body = (ta.value || "").trim();
+  if (!body) return;
+  if (btn) btn.disabled = true;
+  const { error } = await sb.rpc("support_send", { p_body: body, p_dsp_id: _supAdmSelectedDsp });
+  if (btn) btn.disabled = false;
+  if (error) { toast("Couldn't send: " + (error.message || ""), "warn"); return; }
+  ta.value = ""; ta.style.height = "auto"; ta.focus();
+  _supAdmScrollSig = "";
+  await _supAdmRefreshThread(true);
+  _supAdmRefreshList(false);
 }
 
 async function refreshDriverChatThread(scrollToBottom) {
@@ -14310,6 +14684,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   // body and leave the composer / textarea state alone.
   if (isFirstPaint) {
     conv.dataset.rrDriverId = driverId;
+    conv.dataset.rrSupport = "";
     conv.innerHTML = `
       <div class="rr-mc-shell">
         <div class="rr-mc-head" data-rr-driver-id="${escapeHtml(driverId)}">
