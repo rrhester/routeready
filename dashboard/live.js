@@ -22196,7 +22196,8 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
     }
 
     // ── Working hours compliance (WOC) ────────────────────────────────
-    const WOC = { max_hours_per_week: 55, max_consecutive_days: 6, min_rest_hours: 10 };
+    const WOC = (typeof _rrWocCurrent === "function" ? _rrWocCurrent() : null)
+              || { max_hours_per_week: 55, max_consecutive_days: 6, min_rest_hours: 10 };
 
     // Total hours this week
     const totalHrs = list.reduce((s, sh) => {
@@ -23573,7 +23574,7 @@ document.addEventListener("click", (e) => {
 const _origGotoForSched = window.goto;
 window.goto = function (view) {
   if (typeof _origGotoForSched === "function") _origGotoForSched(view);
-  if (view === "schedule") { loadScheduleView(); loadCoverageRadar(); _schedRealtimeStart(); }
+  if (view === "schedule") { _rrWocLoad(); loadScheduleView(); loadCoverageRadar(); _schedRealtimeStart(); }
   else                     { _schedRealtimeStop(); }
   if (view === "okami")    loadOkamiView();
 };
@@ -23621,6 +23622,69 @@ function _schedRealtimeStop() {
   }
   _schedRealtimeChannel = null;
 }
+
+
+// ─── Working-hours compliance (WOC) settings ──────────────────────────
+// Per-DSP config for the three constants Cover + Smart Fill enforce:
+// max hours per week, max consecutive days, min rest hours. Defaults
+// (55 / 6 / 10) match the prior hardcoded values so existing behavior
+// is unchanged until the owner tweaks them in Schedule → Rules.
+let _rrWocCache = null;
+function _rrWocCurrent() { return _rrWocCache; }
+async function _rrWocLoad() {
+  const { data, error } = await sb.rpc("get_woc_settings");
+  if (error || !data) return null;
+  _rrWocCache = {
+    max_hours_per_week:   Number(data.max_hours_per_week)   || 55,
+    max_consecutive_days: Number(data.max_consecutive_days) || 6,
+    min_rest_hours:       Number(data.min_rest_hours)       || 10,
+  };
+  return _rrWocCache;
+}
+async function _rrWocPaintForm() {
+  if (!_rrWocCache) { await _rrWocLoad(); }
+  const w = _rrWocCache || { max_hours_per_week: 55, max_consecutive_days: 6, min_rest_hours: 10 };
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = String(v); };
+  setVal("rr-woc-max-hours-per-week",   w.max_hours_per_week);
+  setVal("rr-woc-max-consecutive-days", w.max_consecutive_days);
+  setVal("rr-woc-min-rest-hours",       w.min_rest_hours);
+}
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-woc-save")) return;
+  const btn = e.target.closest("#rr-woc-save");
+  const status = document.getElementById("rr-woc-status");
+  const num = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const v = parseInt(el.value, 10);
+    return Number.isFinite(v) ? v : null;
+  };
+  btn.disabled = true; if (status) { status.textContent = "Saving…"; status.style.color = "var(--text-subtle)"; }
+  const { data, error } = await sb.rpc("set_woc_settings", {
+    p_max_hours_per_week:   num("rr-woc-max-hours-per-week"),
+    p_max_consecutive_days: num("rr-woc-max-consecutive-days"),
+    p_min_rest_hours:       num("rr-woc-min-rest-hours"),
+  });
+  btn.disabled = false;
+  if (error) {
+    if (status) { status.textContent = error.message || "Couldn't save"; status.style.color = "var(--red)"; }
+    return;
+  }
+  _rrWocCache = {
+    max_hours_per_week:   Number(data.max_hours_per_week)   || 55,
+    max_consecutive_days: Number(data.max_consecutive_days) || 6,
+    min_rest_hours:       Number(data.min_rest_hours)       || 10,
+  };
+  if (status) { status.textContent = "Saved"; status.style.color = "var(--green)"; }
+  setTimeout(() => { if (status && status.textContent === "Saved") status.textContent = ""; }, 1800);
+});
+// Repaint the form whenever the Rules sub-tab opens (or the WOC details
+// inside it expands).
+document.addEventListener("click", (e) => {
+  if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="woc-limits"] > summary')) {
+    setTimeout(_rrWocPaintForm, 0);
+  }
+});
 
 // Reset every view to its first sub-tab when the operator navigates
 // to it.  Without this the dashboard remembers the last sub-tab they

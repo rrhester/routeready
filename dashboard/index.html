@@ -9519,27 +9519,31 @@ body.rr-cmdk-open{ overflow:hidden }
 
               <details class="rules-sub" data-rr-rules-sub="woc-limits">
                 <summary>Working hour limits</summary>
-                <div class="rules-sub-body">
+                <div class="rules-sub-body" data-rr-woc-form>
                   <div class="rule-row">
                     <div>
                       <div class="rule-label">Max hours per driver per week</div>
-                      <div class="rule-help">Auto-fill won't push a driver above this. Currently enforced at 55h.</div>
+                      <div class="rule-help">Hard cap. Cover and Smart Fill exclude any driver who'd exceed this.</div>
                     </div>
-                    <input class="rule-input" value="55" />
+                    <input class="rule-input" id="rr-woc-max-hours-per-week" type="number" min="1" max="168" value="55" />
                   </div>
                   <div class="rule-row">
                     <div>
-                      <div class="rule-label">Max consecutive working days · rolling</div>
-                      <div class="rule-help">Rolling window — counts back into the previous schedule too. Currently enforced at 6.</div>
+                      <div class="rule-label">Max consecutive working days</div>
+                      <div class="rule-help">Sliding window — counts in both directions from the candidate date.</div>
                     </div>
-                    <input class="rule-input" value="6" />
+                    <input class="rule-input" id="rr-woc-max-consecutive-days" type="number" min="1" max="14" value="6" />
                   </div>
                   <div class="rule-row">
                     <div>
                       <div class="rule-label">Minimum rest between shifts (hours)</div>
-                      <div class="rule-help">Currently enforced at 10.</div>
+                      <div class="rule-help">Compared against the start / end time on the adjacent shift.</div>
                     </div>
-                    <input class="rule-input" value="10" />
+                    <input class="rule-input" id="rr-woc-min-rest-hours" type="number" min="0" max="24" value="10" />
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                    <button class="btn btn-primary btn-sm" id="rr-woc-save" type="button">Save</button>
+                    <span id="rr-woc-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
                   </div>
                 </div>
               </details>
@@ -19489,7 +19493,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513ae-sched-realtime"></script>
+<script type="module" src="./live.js?v=20260513af-configurable-woc"></script>
 
 </body>
 </html>
