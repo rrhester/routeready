@@ -7622,10 +7622,37 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers .dr-bulkbar .spacer{ flex:1; }
           #view-drivers .table td.dr-cb, #view-drivers .table th.dr-cb{ width:34px;padding-left:16px;padding-right:0;text-align:center; }
           #view-drivers .table input.dr-cb-in{ width:15px;height:15px;accent-color:var(--accent);cursor:pointer;vertical-align:middle; }
+
+          /* Drivers · quieter stage segmentation — the Active / At-risk /
+             Leave / Inactive tabs read as table segmentation instead of a
+             floating pill bar above the page. */
+          #view-drivers .stage-tabs{
+            background:transparent;padding:0;border-radius:0;width:auto;gap:2px;
+            border-bottom:1px solid var(--border);margin-bottom:var(--s-3);
+          }
+          #view-drivers .stage-tab{
+            padding:8px 12px;border-radius:0;border-bottom:2px solid transparent;
+            font-weight:500;color:var(--text-subtle);
+            margin-bottom:-1px;transition:color .12s,border-color .12s,background .12s;
+          }
+          #view-drivers .stage-tab:hover{color:var(--text);background:transparent}
+          #view-drivers .stage-tab.active{
+            background:transparent;color:var(--text);font-weight:600;
+            border-bottom-color:var(--accent);box-shadow:none;
+          }
+          #view-drivers .stage-tab-count{
+            font-size:10px;font-weight:700;letter-spacing:.02em;
+            padding:1px 6px;border-radius:999px;background:var(--canvas);
+          }
+          #view-drivers .stage-tab.active .stage-tab-count{background:var(--accent-soft);color:var(--accent-text)}
+
+          /* Attendance · drop the at-rest decoration on the (now hidden)
+             filter row so nothing reserves space for it. */
+          #view-drivers #rr-att-filters[hidden]{display:none}
         </style>
 
         <div class="dr-roster-bar">
-          <button class="btn btn-primary btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
+          <button class="btn btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span id="rr-drivers-cta-label">Add driver</span>
           </button>
@@ -7679,17 +7706,7 @@ body.rr-cmdk-open{ overflow:hidden }
              LICENSES SUB-VIEW — DL renewals (live)
              ═══════════════════════════════════════════════════════ -->
         <div class="dr-subview" id="dr-sub-licenses">
-          <div class="di-section" id="lic-renewals-panel">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-3)">
-              <div>
-                <h3 class="di-section-title" style="margin:0">Driver licenses</h3>
-                <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 0 0">Drivers with a license on file. Rows highlight when the license is within the next 30 days or already expired.</p>
-              </div>
-              <span id="lic-panel-status" style="font-size:var(--fs-xs);color:var(--text-subtle)">—</span>
-            </div>
-            <div id="lic-renewals-body"><div class="rr-loading">Loading</div></div>
-          </div>
-
+          <div id="lic-renewals-body"><div class="rr-loading">Loading</div></div>
         </div><!-- /dr-sub-licenses -->
 
 
@@ -7847,11 +7864,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div class="di-val" id="att-kpi-excused">—</div>
                 <div class="di-sub" id="att-kpi-excused-sub">Absences forgiven by dispatch</div>
               </div>
-              <div class="di-card di-card-clickable" data-rr-att-kpi="action" role="button" tabindex="0" aria-label="Open coaching breakdown">
-                <div class="di-label">In corrective action</div>
-                <div class="di-val" id="att-kpi-action-count">—</div>
-                <div class="di-sub" id="att-kpi-action-breakdown">Verbal · Written · Final · Termination</div>
-              </div>
             </div>
 
             <!-- KPI detail panel · populated by _renderAttKpiDetail.  Toggled
@@ -7861,14 +7873,14 @@ body.rr-cmdk-open{ overflow:hidden }
             <!-- Policy snapshot banner — populated by loadAttendanceLive -->
             <div id="rr-att-snapshot" class="att-snapshot" style="display:none"></div>
 
-            <div class="att-filter-row" id="rr-att-filters" role="tablist">
-              <button type="button" class="att-filter-chip active" data-rr-att-filter="all">All drivers</button>
-              <button type="button" class="att-filter-chip" data-rr-att-filter="atrisk">At risk only</button>
-              <button type="button" class="att-filter-chip" data-rr-att-filter="recent">Recently coached</button>
-              <button type="button" class="att-filter-chip" data-rr-att-filter="uncoached">Not coached</button>
-              <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px">
-                <button class="btn btn-sm btn-ghost btn-icon" onclick="attExportCsv()" title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
-              </span>
+            <!-- The pill-style filter row was retired (#823); the table
+                 itself handles sorting + segmentation now. The export
+                 action lives quietly to the right of the table. -->
+            <div id="rr-att-filters" role="tablist" hidden>
+              <button type="button" class="att-filter-chip active" data-rr-att-filter="all" hidden>All drivers</button>
+            </div>
+            <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:var(--s-2)">
+              <button class="btn btn-sm btn-ghost btn-icon" onclick="attExportCsv()" title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
             </div>
 
             <div class="table-wrap">
@@ -19413,7 +19425,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513s-support-avatar-fix"></script>
+<script type="module" src="./live.js?v=20260513t-drivers-polish-1"></script>
 
 </body>
 </html>
