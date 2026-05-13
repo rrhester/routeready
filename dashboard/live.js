@@ -3738,12 +3738,15 @@ function _obAttachDocPicker(stepIndex) {
   });
 }
 
-// "Add a step" picker — only the approved custom step types.
+// "Add a step" picker — every step a DSP adds is something the driver
+// acknowledges (a plain confirmation or a watched video) or signs (a
+// secure document, which runs its own e-signature workflow). The
+// DSP-recorded compliance steps (background check, drug test, training)
+// are built into the blueprint, not something you add here.
 const _OB_ADD_TYPES = [
-  { type: "document",        owner: "driver", title: "New document", label: "Document to sign or acknowledge", blurb: "Attach a PDF from your Documents library; the driver opens it and signs or acknowledges." },
-  { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement", blurb: "A short statement the driver confirms (no PDF) — e.g. a policy or expectation." },
-  { type: "video",          owner: "driver", title: "New video", label: "Watch a video", blurb: "Link a training or orientation video the driver watches and confirms." },
-  { type: "task",           owner: "dsp",    title: "New task", label: "Task you record", blurb: "Something the DSP completes and marks off — e.g. an internal check or handoff." },
+  { type: "document",        owner: "driver", title: "New document", label: "Document to sign or acknowledge", blurb: "Attach a PDF from your Documents workspace. Informational docs the driver opens and acknowledges; secure docs run the e-signature & compliance flow." },
+  { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement", blurb: "A short statement the driver reads and confirms — e.g. a policy or an expectation. No PDF." },
+  { type: "video",          owner: "driver", title: "New video", label: "Watch a video", blurb: "Link a training or orientation video; the driver watches it, then confirms they're done." },
 ];
 function _obAddStepPicker() {
   if (!_obBuilderSteps) return;
