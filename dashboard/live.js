@@ -21512,11 +21512,14 @@ async function renderScheduleWeek() {
   // Drivers Roster + the rest of the dashboard uses, so the cards
   // read at the same scale as the other KPI strips operators see.
   let kpis = sub.querySelector("#rr-sched-kpis");
+  // Preserve the toggle's current open/closed state so the dispatcher's
+  // click survives the next re-render (loadScheduleView fires often).
+  const kpisWasOpen = kpis ? kpis.style.display !== "none" : false;
   if (!kpis) {
     kpis = document.createElement("div");
     kpis.id = "rr-sched-kpis";
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = "grid-template-columns:repeat(6,minmax(0,1fr))";
+    kpis.style.cssText = "grid-template-columns:repeat(6,minmax(0,1fr));display:none";
     // Anchor: insert directly after the toolbar rail. Selector covers
     // both the new .sched-toolbar-rail (#524) and the legacy
     // .sched-toolbar in case any DSP is on a stale bundle.
@@ -21524,7 +21527,7 @@ async function renderScheduleWeek() {
     if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
   } else {
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = "grid-template-columns:repeat(6,minmax(0,1fr))";
+    kpis.style.cssText = `grid-template-columns:repeat(6,minmax(0,1fr));display:${kpisWasOpen ? "" : "none"}`;
   }
   const kpiCard = (label, value, sublabel, tone) => {
     const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "";
@@ -23036,6 +23039,23 @@ document.addEventListener("click", async (e) => {
   if (show) await loadScheduleActivity();
 });
 
+// Insights toggle — flips the 6-card KPI bar (#rr-sched-kpis) on
+// and off. Matches the Insights pattern used elsewhere (Drivers,
+// Attendance, Availability): calm by default, one click reveals, one
+// click hides. Bar contents are still rendered live by the Schedule
+// week loader; we only mutate display.
+document.addEventListener("click", (e) => {
+  const tog = e.target.closest("#rr-sched-kpis-toggle");
+  if (!tog) return;
+  e.preventDefault();
+  const box = document.getElementById("rr-sched-kpis");
+  if (!box) return;
+  const show = box.style.display === "none";
+  box.style.display = show ? "" : "none";
+  tog.setAttribute("aria-pressed", show ? "true" : "false");
+  tog.classList.toggle("is-on", show);
+});
+
 
 // ─── Cover this shift ─────────────────────────────────────────────────
 // Future-only cover-recovery: dispatcher opens an uncovered shift, sees
@@ -23982,6 +24002,12 @@ window.goto = function (view) {
     if (abox) abox.style.display = "none";
     const atog = document.getElementById("rr-sched-activity-toggle");
     if (atog) { atog.setAttribute("aria-pressed", "false"); atog.classList.remove("is-on"); }
+    // KPI bar starts collapsed every Schedule view entry — matches the
+    // Insights pattern used elsewhere.
+    const kbox = document.getElementById("rr-sched-kpis");
+    if (kbox) kbox.style.display = "none";
+    const ktog = document.getElementById("rr-sched-kpis-toggle");
+    if (ktog) { ktog.setAttribute("aria-pressed", "false"); ktog.classList.remove("is-on"); }
     loadScheduleView();
     loadCoverageRadar();
     _schedRealtimeStart();
