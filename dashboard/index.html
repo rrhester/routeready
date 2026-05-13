@@ -11668,6 +11668,32 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
         </div>
+
+        <!-- ── RouteReady Support inbox · centralized DSP support conversations -->
+        <div class="section" id="rr-supadm-section" style="margin-top:var(--s-6)">
+          <div class="section-head">
+            <div>
+              <h3 class="section-title">RouteReady Support inbox</h3>
+              <p class="section-sub">Conversations with DSPs — open, search, and respond from one place.</p>
+            </div>
+            <div id="rr-supadm-count" class="section-sub" style="font-variant-numeric:tabular-nums">—</div>
+          </div>
+          <div class="rr-admin-toolbar">
+            <div class="rr-admin-toolbar__search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="search" id="rr-supadm-search" placeholder="Search DSP name, short code, or message text…" autocomplete="off"/>
+            </div>
+            <select class="rr-admin-toolbar__select" id="rr-supadm-filter" aria-label="Filter conversations">
+              <option value="all">All conversations</option>
+              <option value="unread">Unread only</option>
+              <option value="active">Active (last 30 days)</option>
+            </select>
+          </div>
+          <div id="rr-supadm-shell" style="display:grid;grid-template-columns:320px 1fr;border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;background:var(--surface);min-height:520px">
+            <div id="rr-supadm-list" style="border-right:1px solid var(--border);overflow-y:auto;max-height:640px;display:flex;flex-direction:column"><div class="rr-loading" style="padding:24px">Loading conversations…</div></div>
+            <div id="rr-supadm-conv" style="display:flex;flex-direction:column;min-height:520px;background:var(--canvas)"><div style="margin:auto;color:var(--text-subtle);font-size:var(--fs-sm);padding:40px;text-align:center;max-width:380px"><div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:20px;margin-bottom:10px">R</div><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:4px">Pick a DSP to open their thread</div><div>Conversations are listed left-most by most-recent activity; unread DSP messages rise to the top with a badge.</div></div></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -19387,7 +19413,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513q-help-buttons-no-app-complete"></script>
+<script type="module" src="./live.js?v=20260513r-routeready-support"></script>
 
 </body>
 </html>
