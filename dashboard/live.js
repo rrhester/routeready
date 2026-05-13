@@ -2601,8 +2601,14 @@ let _rosterState = new Map();        // driver_id -> driver_onboarding_state.ste
 async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
+  // KPI insights strip is hidden by default — every fresh load resets it,
+  // so leaving and returning to Drivers always starts with KPIs collapsed.
+  const insightsBox = document.getElementById("rr-roster-insights");
+  if (insightsBox) insightsBox.style.display = "none";
+  const insightsBtn = document.getElementById("rr-roster-insights-toggle");
+  if (insightsBtn) insightsBtn.setAttribute("aria-pressed", "false");
   // Paint skeleton rows immediately so the page feels instant.
-  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 7 : 9);
+  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 7 : 6);
 
   const [{ data: rows, error }, { data: appStatus }, { data: coachRows }, { data: i9Rows }] = await Promise.all([
     sb.from("drivers")
@@ -2805,18 +2811,16 @@ function renderDriverTable(rows, error) {
   } else {
     thead.innerHTML = cbHeader + `
       <th data-rr-roster-sort="name"   style="cursor:pointer;user-select:none">Driver${caret("name")}</th>
-      <th>Station</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score${caret("score")}</th>
-      <th>Last coached</th>
       <th>App</th>
       <th></th>`;
-    thead.dataset.rrColCount = "9";
+    thead.dataset.rrColCount = "6";
   }
 
   _obSetStrip(error ? null : rows);
 
-  const colspan = _driverStage === "onboarding" ? 7 : 9;
+  const colspan = _driverStage === "onboarding" ? 7 : 6;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
       error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
@@ -2896,7 +2900,7 @@ function _updateRosterHint(shown, total) {
   if (_rosterFilters.q || _rosterFilters.station || _rosterFilters.tenure || _rosterFilters.score) {
     el.textContent = `${shown} of ${total} ${total === 1 ? "driver" : "drivers"}`;
   } else {
-    el.textContent = "Click a column to sort";
+    el.textContent = "";
   }
 }
 
@@ -2997,11 +3001,10 @@ function _appStatusCell(driverId) {
   if (s.signed_in_at) {
     const seenTitle = `Signed in ${new Date(s.signed_in_at).toLocaleString()}`
       + (s.last_seen_at ? ` · last active ${new Date(s.last_seen_at).toLocaleString()}` : "");
-    const seenShort = s.last_seen_at ? `<span class="dr-app-rel">${escapeHtml(_relTimeShort(s.last_seen_at))}</span>` : "";
-    return `<span class="dr-app-chip on" title="${escapeHtml(seenTitle)}"><i class="dot"></i>On the app</span>${seenShort}`;
+    return `<span title="${escapeHtml(seenTitle)}">On the app</span>`;
   }
-  if (s.invited) return `<span class="dr-app-chip invited" title="Invite sent — hasn't signed in yet"><i class="dot"></i>Invited</span>`;
-  return `<span class="dr-app-chip none" title="No app invite sent yet"><i class="dot"></i>Not invited</span>`;
+  if (s.invited) return `<span title="Invite sent — hasn't signed in yet">Invited</span>`;
+  return `<span style="color:var(--text-subtle)" title="No app invite sent yet">Not invited</span>`;
 }
 
 // ── Onboarding steps — the full ordered checklist for one driver ─────
@@ -3274,7 +3277,6 @@ function _obMxStylesOnce() {
     ".ob-matrix tr:hover td{background:var(--canvas)}" +
     ".ob-matrix tr:hover td.ob-mx-namecell{background:var(--canvas)}" +
     ".ob-mx-name{font-size:var(--fs-md);font-weight:600;color:var(--text);cursor:pointer}" +
-    ".ob-mx-name:hover{text-decoration:underline}" +
     ".ob-mx-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.3}" +
     ".ob-mxdot{appearance:none;background:transparent;border:1.5px solid var(--border-strong);width:14px;height:14px;border-radius:50%;cursor:pointer;padding:0;transition:background .12s,border-color .12s,transform .1s}" +
     ".ob-mxdot:hover{transform:scale(1.18)}" +
@@ -4643,22 +4645,15 @@ function renderDriverRow(d) {
   const display = displayDriverName(d);
   const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
   const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
-  const station = d.station?.code || "—";
   const contact = d.phone || d.email || "";
-  // Status column dropped from the active roster — it'd always read
-  // "Active" by definition.  The Active / Onboarding / At risk /
-  // Inactive stage tabs above already split that.
-  const dim = '<span style="color:var(--text-subtle)">—</span>';
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
-      <td>${station === "—" ? dim : escapeHtml(station)}</td>
       <td>${tenure}</td>
       <td>${_scoreCell(d.score)}</td>
-      <td class="cell-time">${_lastCoachedCell(d.id)}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
     </tr>`;
@@ -4696,6 +4691,31 @@ window.filterDriversStage = function (btn) {
   _driverStage = btn.getAttribute("data-stage") || "active";
   loadDriversRoster();
 };
+
+// Right-side toolbar links: "Insights" toggles the KPI strip; "Inactive
+// drivers" switches into the inactive stage view. Both live above the
+// table aligned uniformly, matching the subtle Help affordance pattern.
+document.addEventListener("click", (e) => {
+  const tog = e.target.closest("#rr-roster-insights-toggle");
+  if (tog) {
+    e.preventDefault();
+    const box = document.getElementById("rr-roster-insights");
+    if (!box) return;
+    const show = box.style.display === "none" || !box.style.display;
+    box.style.display = show ? "" : "none";
+    tog.setAttribute("aria-pressed", show ? "true" : "false");
+    return;
+  }
+  const inact = e.target.closest("#rr-roster-inactive-link");
+  if (inact) {
+    e.preventDefault();
+    _driverStage = "inactive";
+    // Visually deselect any active stage tab so the toolbar reflects the jump.
+    document.querySelectorAll('[data-rr-tabbar="drivers-stage"] .stage-tab.active')
+      .forEach((b) => b.classList.remove("active"));
+    loadDriversRoster();
+  }
+});
 
 
 // ─── Drivers → Licenses tab ──────────────────────────────────────────────
@@ -18800,9 +18820,7 @@ aside.driver-pool::-webkit-scrollbar-thumb:hover { background: var(--text-subtle
 .okami-table tbody tr.hve { background: transparent !important; }
 /* Driver names anywhere are clickable — open the driver record drawer. */
 [data-rr-driver-id]{cursor:pointer}
-[data-rr-driver-id]:hover{text-decoration:underline;text-underline-offset:2px}
-[data-rr-open-driver]{cursor:pointer}
-[data-rr-open-driver]:hover .cell-name{text-decoration:underline;text-underline-offset:2px}`;
+[data-rr-open-driver]{cursor:pointer}`;
 document.head.appendChild(_styleEl);
 
 

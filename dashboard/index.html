@@ -7478,17 +7478,18 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- ROSTER SUB-VIEW -->
         <div class="dr-subview active" id="dr-sub-roster">
 
-        <!-- Stage tabs sit above the KPI strip — same pill format as
-             the Attendance subtab strip so the Drivers page reads
-             consistently with the rest of the dashboard. -->
+        <!-- Stage tabs · Active and On leave are first-class; Inactive
+             is reached via the small "Inactive drivers" link above the
+             table. At-risk has its own coverage on the Attendance
+             page, so it isn't surfaced here. -->
         <div class="stage-tabs" data-rr-tabbar="drivers-stage">
-          <button class="stage-tab active" data-stage="active" onclick="filterDriversStage(this)">Active <span class="stage-tab-count">—</span></button>
-          <button class="stage-tab" data-stage="atrisk" onclick="filterDriversStage(this)">At risk <span class="stage-tab-count">—</span></button>
-          <button class="stage-tab" data-stage="onleave" onclick="filterDriversStage(this)">On leave <span class="stage-tab-count">—</span></button>
-          <button class="stage-tab" data-stage="inactive" onclick="filterDriversStage(this)">Inactive <span class="stage-tab-count">—</span></button>
+          <button class="stage-tab active" data-stage="active" onclick="filterDriversStage(this)">Active</button>
+          <button class="stage-tab" data-stage="onleave" onclick="filterDriversStage(this)">On leave</button>
         </div>
 
-        <div class="driver-stat-row">
+        <!-- Driver insights · KPI grid hidden by default; surfaced by
+             the small "Insights" link to the right of the table. -->
+        <div class="driver-stat-row" id="rr-roster-insights" style="display:none">
           <div class="stat-mini"><div class="stat-mini-label">Active</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
           <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="score" role="button" tabindex="0" aria-label="Open average score detail">
             <div class="stat-mini-label">Avg score</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
@@ -7713,19 +7714,13 @@ body.rr-cmdk-open{ overflow:hidden }
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span id="rr-drivers-cta-label">Add driver</span>
           </button>
-          <button class="btn btn-ghost btn-sm" type="button" onclick="openModal('modal-bulk-drivers')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Bulk import
-          </button>
           <div class="dr-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="rr-roster-search" placeholder="Search name, email, phone, or station…" autocomplete="off" spellcheck="false">
+            <input type="search" id="rr-roster-search" placeholder="Search name, email, or phone…" autocomplete="off" spellcheck="false">
           </div>
-          <select id="rr-roster-station" class="dr-filter" aria-label="Filter by station">
-            <option value="">Station: All</option>
-          </select>
           <div class="dr-bar-spacer"></div>
-          <span class="dr-bar-hint" id="rr-roster-bar-hint">Click a column to sort</span>
+          <button type="button" class="rr-help-btn" id="rr-roster-insights-toggle" aria-pressed="false">Insights</button>
+          <button type="button" class="rr-help-btn" id="rr-roster-inactive-link">Inactive drivers</button>
         </div>
 
         <div class="dr-bulkbar" id="rr-roster-bulkbar" hidden>
@@ -7742,15 +7737,14 @@ body.rr-cmdk-open{ overflow:hidden }
               <tr>
                 <th class="dr-cb" data-rr-no-drawer></th>
                 <th>Driver</th>
-                <th>Station</th>
                 <th>Tenure</th>
                 <th>Score</th>
-                <th>Last coached</th>
+                <th>App</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="drivers-tbody">
-              <tr><td colspan="7" style="padding:0"></td></tr>
+              <tr><td colspan="6" style="padding:0"></td></tr>
             </tbody>
           </table>
         </div>
@@ -19480,7 +19474,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513v-attendance-audit"></script>
+<script type="module" src="./live.js?v=20260513w-drivers-polish-v2"></script>
 
 </body>
 </html>
