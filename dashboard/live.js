@@ -23927,10 +23927,77 @@ document.addEventListener("click", (e) => {
   if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="woc-limits"] > summary')) {
     setTimeout(_rrWocPaintForm, 0);
   }
+  if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="pay-ot"] > summary')) {
+    setTimeout(_rrPayPaintForm, 0);
+  }
   if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="driver-pickup"] > summary')) {
     setTimeout(_rrPickupPaintForm, 0);
     setTimeout(_rrSwapPaintForm,   0);
   }
+});
+
+
+// ─── Pay & overtime settings ──────────────────────────────────────────
+// Per-DSP defaults that Cover and the schedule forecast read:
+// overtime threshold, default OT multiplier, default hourly rate. Driver-
+// level pay overrides still win; these are the DSP-wide fallbacks.
+let _rrPayCache = null;
+async function _rrPayLoad() {
+  const { data, error } = await sb.rpc("get_pay_settings");
+  if (error || !data) return null;
+  _rrPayCache = {
+    overtime_threshold_hours:    Number(data.overtime_threshold_hours)    || 40,
+    default_overtime_multiplier: Number(data.default_overtime_multiplier) || 1.5,
+    default_hourly_rate:         data.default_hourly_rate == null ? null : Number(data.default_hourly_rate),
+  };
+  return _rrPayCache;
+}
+async function _rrPayPaintForm() {
+  if (!_rrPayCache) { await _rrPayLoad(); }
+  const p = _rrPayCache || { overtime_threshold_hours: 40, default_overtime_multiplier: 1.5, default_hourly_rate: null };
+  const setVal = (id, v) => {
+    const el = document.getElementById(id);
+    if (!el || document.activeElement === el) return;
+    el.value = (v == null || Number.isNaN(v)) ? "" : String(v);
+  };
+  setVal("rr-pay-ot-threshold",   p.overtime_threshold_hours);
+  setVal("rr-pay-ot-mult",        p.default_overtime_multiplier);
+  setVal("rr-pay-default-rate",   p.default_hourly_rate);
+}
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-pay-save")) return;
+  const btn = e.target.closest("#rr-pay-save");
+  const status = document.getElementById("rr-pay-status");
+  const numInt = (id) => {
+    const el = document.getElementById(id);
+    if (!el || el.value === "") return null;
+    const v = parseInt(el.value, 10);
+    return Number.isFinite(v) ? v : null;
+  };
+  const numFloat = (id) => {
+    const el = document.getElementById(id);
+    if (!el || el.value === "") return null;
+    const v = parseFloat(el.value);
+    return Number.isFinite(v) ? v : null;
+  };
+  btn.disabled = true; if (status) { status.textContent = "Saving…"; status.style.color = "var(--text-subtle)"; }
+  const { data, error } = await sb.rpc("set_pay_settings", {
+    p_overtime_threshold_hours:    numInt("rr-pay-ot-threshold"),
+    p_default_overtime_multiplier: numFloat("rr-pay-ot-mult"),
+    p_default_hourly_rate:         numFloat("rr-pay-default-rate"),
+  });
+  btn.disabled = false;
+  if (error) {
+    if (status) { status.textContent = error.message || "Couldn't save"; status.style.color = "var(--red)"; }
+    return;
+  }
+  _rrPayCache = {
+    overtime_threshold_hours:    Number(data.overtime_threshold_hours)    || 40,
+    default_overtime_multiplier: Number(data.default_overtime_multiplier) || 1.5,
+    default_hourly_rate:         data.default_hourly_rate == null ? null : Number(data.default_hourly_rate),
+  };
+  if (status) { status.textContent = "Saved"; status.style.color = "var(--green)"; }
+  setTimeout(() => { if (status && status.textContent === "Saved") status.textContent = ""; }, 1800);
 });
 
 
