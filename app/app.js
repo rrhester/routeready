@@ -573,6 +573,7 @@ async function renderSchedule() {
   // Reset any leftover Cover-offer poller from a previous schedule view.
   _coverOfferTeardown();
   _pickupListTeardown();
+  _swapInboxTeardown();
 
   try {
     const session = readSession();
@@ -646,21 +647,24 @@ async function renderSchedule() {
 
     main.innerHTML = `
       <div id="rr-cover-offer-slot"></div>
+      <div id="rr-swap-incoming-slot"></div>
       ${todayShifts.length ? `
         <div class="section-title">Today</div>
         ${todayShifts.map((s) => shiftCardHtml(s, true, vanByIso.get(s.iso))).join("")}
       ` : ""}
       ${upcomingShifts.length ? `
         <div class="section-title">Upcoming</div>
-        ${upcomingShifts.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso))).join("")}
+        ${upcomingShifts.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso), { swappable: true })).join("")}
       ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}
       <div id="rr-pickup-slot"></div>`;
 
     // Pinned Cover-offer card at the top — fetched separately so a
-    // failure here never blocks the schedule render. Pickup section is
-    // also fetched in the background; both hide themselves when empty.
+    // failure here never blocks the schedule render. Pickup + swap
+    // sections are also fetched in the background; each hides itself
+    // when empty.
     _coverOfferStart(session.token);
     _pickupListStart(session.token);
+    _swapInboxStart(session.token);
   } catch (err) {
     // A thrown error inside renderSchedule used to kill the whole
     // render and leave main empty.  Surface it instead.
@@ -817,11 +821,171 @@ async function _pickupConfirm(shiftId, token, btn) {
 }
 
 
+// ── Shift swaps ──────────────────────────────────────────────────────
+// Driver A offers their assigned shift in exchange for Driver B's
+// upcoming shift. B sees a pinned request card on their schedule
+// (driver_swap_list); on accept the server runs a compliance check
+// and either flips both shifts atomically or rejects with a reason.
+let _swapInboxTimer = null;
+function _swapInboxTeardown() {
+  if (_swapInboxTimer) { clearInterval(_swapInboxTimer); _swapInboxTimer = null; }
+}
+function _swapInboxStart(token) {
+  _swapInboxTeardown();
+  const pull = () => _swapInboxRefresh(token);
+  pull();
+  _swapInboxTimer = setInterval(pull, 20000);
+}
+async function _swapInboxRefresh(token) {
+  const slot = document.getElementById("rr-swap-incoming-slot");
+  if (!slot) { _swapInboxTeardown(); return; }
+  try {
+    const { data, error } = await sb.rpc("driver_swap_list", { p_token: token });
+    if (error) return;
+    const reqs = Array.isArray(data?.requests) ? data.requests : [];
+    _swapInboxPaint(slot, reqs, token);
+  } catch { /* network blip */ }
+}
+function _swapInboxPaint(slot, reqs, token) {
+  if (!reqs.length) { slot.innerHTML = ""; return; }
+  const fmtShiftLine = (sh) => {
+    const d = new Date(sh.date + "T12:00:00");
+    const dateLbl = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    const start = sh.starts_at ? new Date(sh.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+    const end   = sh.ends_at   ? new Date(sh.ends_at).toLocaleTimeString(undefined,   { hour: "numeric", minute: "2-digit" }) : "";
+    const time  = start && end ? `${start} – ${end}` : start;
+    return `${escapeHtml(sh.route_code || "Route")} · ${escapeHtml(dateLbl)}${time ? " · " + escapeHtml(time) : ""}`;
+  };
+  slot.innerHTML = reqs.map((r) => `
+    <div class="rr-swap-card" data-rr-swap-id="${escapeHtml(r.id)}" style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 4px 18px -8px rgba(15,108,189,.18)">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)">Swap request</div>
+      <div style="margin-top:4px;font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(r.requester_name || "A driver")} wants to swap</div>
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr;gap:8px;font-size:var(--fs-sm);color:var(--text-muted)">
+        <div><strong style="color:var(--text);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase">They give you</strong><br>${fmtShiftLine(r.their_shift)}</div>
+        <div><strong style="color:var(--text);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase">You give them</strong><br>${fmtShiftLine(r.your_shift_to_give)}</div>
+      </div>
+      ${r.message ? `<div style="margin-top:10px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);font-style:italic">"${escapeHtml(r.message)}"</div>` : ""}
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-primary" style="flex:1" data-rr-swap-accept="${escapeHtml(r.id)}">Accept</button>
+        <button class="btn btn-ghost"   style="flex:1" data-rr-swap-decline="${escapeHtml(r.id)}">Decline</button>
+      </div>
+    </div>`).join("");
+  slot.querySelectorAll("[data-rr-swap-accept]").forEach((b) => b.addEventListener("click", (e) => _swapRespond(e.currentTarget.getAttribute("data-rr-swap-accept"), true,  token)));
+  slot.querySelectorAll("[data-rr-swap-decline]").forEach((b) => b.addEventListener("click", (e) => _swapRespond(e.currentTarget.getAttribute("data-rr-swap-decline"), false, token)));
+}
+async function _swapRespond(reqId, accept, token) {
+  const card = document.querySelector(`[data-rr-swap-id="${CSS.escape(reqId)}"]`);
+  if (card) card.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  const { data, error } = await sb.rpc("driver_swap_respond", {
+    p_token: token, p_request_id: reqId, p_accept: accept,
+  });
+  if (error) {
+    if (card) card.querySelectorAll("button").forEach((b) => (b.disabled = false));
+    toast(error.message || "Couldn't respond", "warn");
+    return;
+  }
+  if (data?.status === "blocked") {
+    const reason = ({
+      shift_missing:        "One of the shifts isn't there anymore.",
+      your_shift_changed:   "Your shift changed before you could accept.",
+      their_shift_changed:  "Their shift changed before you could accept.",
+      shift_in_past:        "One of the shifts is no longer in the future.",
+      compliance_failed:    "Compliance check blocked the swap (license, certs, hours, or rest).",
+    })[data?.reason] || "The swap was blocked.";
+    toast(reason, "warn");
+  } else {
+    toast(accept ? "Swap completed" : "Declined", accept ? "success" : "warn");
+  }
+  _swapInboxTeardown();
+  renderSchedule();
+}
+
+// Outgoing — driver opens "Offer swap" on one of their upcoming shifts,
+// picks a target shift from the swap pool, and submits. Modal renders
+// inline; cancelled on backdrop tap.
+async function openSwapModal(myShiftId, token) {
+  let m = document.getElementById("rr-swap-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-swap-modal";
+  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:flex-end;justify-content:center";
+  m.innerHTML = `
+    <div style="background:var(--surface);width:100%;max-width:480px;max-height:85vh;border-top-left-radius:18px;border-top-right-radius:18px;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:var(--fs-md)">Offer a swap</div>
+        <button type="button" data-rr-swap-close style="appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:6px"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div id="rr-swap-modal-body" style="flex:1;overflow-y:auto;padding:14px 18px"><div class="loader" style="margin:24px auto"></div></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-rr-swap-close]")) m.remove(); });
+
+  const { data, error } = await sb.rpc("driver_swap_pool", { p_token: token });
+  const body = document.getElementById("rr-swap-modal-body");
+  if (!body) return;
+  if (error) {
+    body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red)">${escapeHtml(error.message || "Couldn't load swap pool")}</div>`;
+    return;
+  }
+  if (!data?.enabled) {
+    body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);line-height:1.55">Shift swaps aren't enabled at your DSP. Talk to dispatch if you'd like to use them.</div>`;
+    return;
+  }
+  const shifts = Array.isArray(data.shifts) ? data.shifts : [];
+  if (!shifts.length) {
+    body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-subtle);line-height:1.55">No other drivers have an upcoming shift you can swap for right now.</div>`;
+    return;
+  }
+  body.innerHTML = `
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px">Pick the shift you'd like in exchange for yours.</div>
+    ${shifts.map((s) => {
+      const d = new Date(s.date + "T12:00:00");
+      const dateLbl = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+      const start = s.starts_at ? new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+      const end   = s.ends_at   ? new Date(s.ends_at).toLocaleTimeString(undefined,   { hour: "numeric", minute: "2-digit" }) : "";
+      const time  = start && end ? `${start} – ${end}` : start;
+      return `
+        <button class="rr-swap-pool-row" data-rr-swap-target="${escapeHtml(s.shift_id)}" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;text-align:left;cursor:pointer">
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:700;color:var(--text);font-size:var(--fs-md)">${escapeHtml(s.driver_name || "Driver")}</div>
+            <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-muted)">${escapeHtml(s.route_code || "Route")} · ${escapeHtml(dateLbl)}${time ? " · " + escapeHtml(time) : ""}${s.station_code ? " · " + escapeHtml(s.station_code) : ""}</div>
+          </div>
+          <span style="font-size:var(--fs-xs);font-weight:600;color:var(--accent)">Pick →</span>
+        </button>`;
+    }).join("")}`;
+  body.querySelectorAll("[data-rr-swap-target]").forEach((b) => {
+    b.addEventListener("click", () => _swapSubmit(myShiftId, b.getAttribute("data-rr-swap-target"), token, m));
+  });
+}
+async function _swapSubmit(myShiftId, targetShiftId, token, modal) {
+  if (!confirm("Send this swap request?")) return;
+  const { data, error } = await sb.rpc("driver_swap_request", {
+    p_token: token, p_my_shift_id: myShiftId, p_target_shift_id: targetShiftId, p_message: null,
+  });
+  if (error) {
+    toast(error.message || "Couldn't send", "warn");
+    return;
+  }
+  toast("Swap request sent", "success");
+  if (modal) modal.remove();
+}
+
+// Delegate "Offer swap" link clicks anywhere on the schedule view.
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-rr-swap-from]");
+  if (!a) return;
+  e.preventDefault();
+  const token = readSession()?.token;
+  if (!token) return;
+  openSwapModal(a.getAttribute("data-rr-swap-from"), token);
+});
+
+
 // Shift card · date block on the left, time/station in the middle. No
 // chevron (cards aren't tappable yet) and no "Scheduled" tag (every
 // non-completed shift is scheduled — redundant). Only badges that
 // carry information appear: Completed, service type, EX cushion.
-function shiftCardHtml(s, isToday, vanName) {
+function shiftCardHtml(s, isToday, vanName, opts) {
   const dow = s.date.toLocaleDateString(undefined, { weekday: "short" });
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
@@ -863,6 +1027,9 @@ function shiftCardHtml(s, isToday, vanName) {
         <div class="meta-station">${escapeHtml(s.station)}</div>
         ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}</div>` : ""}
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
+        ${opts?.swappable && s.status === "scheduled" ? `
+          <div style="margin-top:8px"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}" style="font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer">Offer swap</a></div>
+        ` : ""}
       </div>
     </div>`;
 }

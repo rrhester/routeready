@@ -9567,6 +9567,13 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                     <label class="toggle"><input type="checkbox" id="rr-pickup-toggle" /><span class="toggle-slider"></span></label>
                   </div>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Allow drivers to swap shifts with each other</div>
+                      <div class="rule-help">Peer-to-peer: a driver offers one of their shifts in exchange for another driver's. Both sides confirm; the swap executes only if both drivers pass compliance.</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" id="rr-swap-toggle" /><span class="toggle-slider"></span></label>
+                  </div>
                 </div>
               </details>
 
@@ -19515,7 +19522,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260513aj-forecast"></script>
+<script type="module" src="./live.js?v=20260513ak-shift-swap"></script>
 
 </body>
 </html>
