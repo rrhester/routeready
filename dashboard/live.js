@@ -3495,24 +3495,17 @@ const _OB_STEP_FIELDS = {
   training:        { kind: "drv",  done: "training_date",                doneLabel: "Complete",  head: "Training" },
   scheduled:       { kind: "prog", done: "scheduled_at",                 doneLabel: "Scheduled", head: "Scheduled" },
 };
-// The canonical default blueprint — used until the DSP's row is seeded
-// (mirrors private.onboarding_blueprint_default in migration 0190).
-//
-// A new DSP starts with just the three compliance gates every hire has
-// to clear — Background check, Drug test, Form I-9.  The other canonical
-// steps stay in the catalogue (so a DSP can switch them back on) but ship
-// disabled, so the builder isn't a wall of boilerplate on day one.
+// The default blueprint a fresh DSP starts from (mirrors
+// private.onboarding_blueprint_default in migration 0193). Just the three
+// compliance gates every hire clears — Background check, Drug test, Form
+// I-9. To add anything else (a handbook, a policy acknowledgement, a
+// video, a job offer), the DSP adds a step in the builder; to remove a
+// step, they delete it. There is no enabled/disabled state — a step is
+// either in the blueprint or it isn't.
 const _OB_DEFAULT_BLUEPRINT = [
-  { key: "bg_check",       type: "background_check",title: "Background check cleared",       enabled: true,  blocking: true,  required: true,  owner: "dsp" },
-  { key: "drug_test",      type: "drug_test",       title: "Drug test cleared",              enabled: true,  blocking: true,  required: true,  owner: "dsp" },
-  { key: "i9",             type: "i9",              title: "Form I-9",                       enabled: true,  blocking: true,  required: true,  owner: "driver" },
-  { key: "welcome_email",  type: "welcome",         title: "Welcome email",                 enabled: false, blocking: false, required: false, owner: "dsp" },
-  { key: "bg_instructions",type: "task",            title: "Background-check instructions",  enabled: false, blocking: false, required: false, owner: "dsp" },
-  { key: "drug_info",      type: "task",            title: "Drug-testing information",       enabled: false, blocking: false, required: false, owner: "dsp" },
-  { key: "handbook",       type: "document",        title: "Employment handbook",            enabled: false, blocking: true,  required: true,  owner: "driver" },
-  { key: "job_offer",      type: "document",        title: "Job offer",                      enabled: false, blocking: true,  required: true,  owner: "driver" },
-  { key: "training",       type: "task",            title: "Training",                       enabled: false, blocking: false, required: false, owner: "dsp" },
-  { key: "scheduled",      type: "schedule",        title: "Driver scheduled",               enabled: false, blocking: false, required: false, owner: "dsp" },
+  { key: "bg_check",  type: "background_check", title: "Background check cleared", enabled: true, blocking: true, required: true, owner: "dsp" },
+  { key: "drug_test", type: "drug_test",        title: "Drug test cleared",        enabled: true, blocking: true, required: true, owner: "dsp" },
+  { key: "i9",        type: "i9",               title: "Form I-9",                 enabled: true, blocking: true, required: true, owner: "driver" },
 ];
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
@@ -3536,7 +3529,6 @@ const _OB_TYPE_LABELS = { welcome: "Welcome", task: "Task", background_check: "B
 let _obBuilderSteps = null;   // working copy of the blueprint while editing
 let _obTemplates = [];        // [{id, title, kind}] — for the "attach document" picker
 let _obConfirmDelete = null;  // index of the step showing its inline delete confirm, or null
-let _obConfirmReset = false;  // true while the "reset to defaults" confirm strip is showing
 let _obSaveState = "saved";   // "saved" | "syncing" | "justsaved" | "error"
 let _obSaveTimer = null;      // debounce handle for text edits
 let _obSaveSeq = 0;           // monotonically increasing; guards out-of-order RPC replies
@@ -3553,9 +3545,13 @@ async function loadOnboardingBuilder() {
   ]);
   if (error) { root.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red)">!</div><h3>Couldn't load the blueprint</h3><p>${escapeHtml(error.message || "")}</p></div>`; return; }
   _obTemplates = Array.isArray(tplRes?.data) ? tplRes.data : [];
-  _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT).map(s => ({ ...s }));
+  // The blueprint has no enabled/disabled state any more — show only the
+  // steps that are actually in play (older blueprints kept some disabled),
+  // and treat everything as on.
+  _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT)
+    .filter(s => s && s.enabled !== false)
+    .map(s => ({ ...s, enabled: true }));
   _obConfirmDelete = null;
-  _obConfirmReset = false;
   clearTimeout(_obSaveTimer); clearTimeout(_obJustSavedTimer);
   _obSaveState = "saved";
   _obRenderBuilder();
@@ -3593,7 +3589,7 @@ async function _obFlushSave() {
   const seq = ++_obSaveSeq;
   const clean = _obBuilderSteps.map(s => ({
     key: s.key, type: s.type, title: (s.title || "").trim() || _OB_TYPE_LABELS[s.type] || "Step",
-    enabled: !!s.enabled, blocking: !!s.blocking, required: !!s.required, owner: s.owner === "driver" ? "driver" : "dsp",
+    enabled: true, blocking: !!s.blocking, required: !!s.required, owner: s.owner === "driver" ? "driver" : "dsp",
     document_template_id: s.document_template_id || null, video_url: s.video_url || null, ack_text: s.ack_text || null,
   }));
   const { data, error } = await sb.rpc("onboarding_blueprint_set", { p_steps: clean });
@@ -3646,30 +3642,24 @@ function _obRenderBuilder() {
       </div>
     </div>`;
   const card = (s, i) => (_obConfirmDelete === i) ? confirmCard(s, i) : `
-    <div class="ob-bld-card${s.enabled ? "" : " disabled"}" data-i="${i}">
+    <div class="ob-bld-card" data-i="${i}">
       <div class="ob-bld-grip" draggable="true" data-rr-bld-grip="${i}" title="Drag to reorder" aria-label="Drag to reorder this step" role="button"><svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></svg></div>
       <div style="flex:1;min-width:0">
         <input type="text" class="ob-bld-title" data-rr-bld-title="${i}" value="${escapeHtml(s.title || "")}" placeholder="Step name" maxlength="60" style="display:block;width:100%;max-width:none;margin-left:0">
         ${attachRow(s, i)}
       </div>
-      <label class="ob-bld-switch" title="${s.enabled ? "Step is on — turn off to leave it out for new hires" : "Step is off — turn on to include it"}"><input type="checkbox" data-rr-bld-enabled="${i}" ${s.enabled ? "checked" : ""}><span class="ob-bld-track"></span><span class="ob-bld-switch-label">${s.enabled ? "On" : "Off"}</span></label>
       <button type="button" class="ob-bld-trash" data-rr-bld-del="${i}" title="Delete this step" aria-label="Delete step${s.title ? " " + escapeHtml(s.title) : ""}">${_OB_BLD_TRASH}</button>
     </div>`;
   root.innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:var(--s-4)">
       <div>
         <h3 class="di-section-title" style="margin:0">Onboarding builder</h3>
-        <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through — turn them on or off, drag to reorder, rename, and choose what each delivers. Every change saves on its own and reaches new and in-progress drivers.</p>
+        <p style="font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0;max-width:560px;line-height:1.55">The steps every new hire moves through, in order — drag to reorder, rename, and choose what each delivers. Add a step to ask the driver for something; delete one to drop it. Every change saves on its own and reaches new and in-progress drivers.</p>
       </div>
       <div id="ob-bld-savestate" style="flex:0 0 auto;padding-top:3px;white-space:nowrap">${_obSaveStateHTML()}</div>
     </div>
     <div class="ob-bld-list">${steps.map(card).join("")}</div>
-    <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button>
-      ${_obConfirmReset
-        ? `<span style="margin-left:auto;display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-size:var(--fs-xs);color:var(--text-muted)">Replace your blueprint with the default set? This can’t be undone.</span><button type="button" class="btn btn-sm" data-rr-bld-resetcancel>Keep mine</button><button type="button" class="btn btn-sm btn-danger" data-rr-bld-resetok>Reset to defaults</button></span>`
-        : `<button type="button" class="btn btn-sm btn-ghost" data-rr-bld-reset style="margin-left:auto;color:var(--text-subtle)">Reset to the default set</button>`}
-    </div>`;
+    <div style="margin-top:14px"><button type="button" class="btn btn-sm" data-rr-bld-add>+ Add a step</button></div>`;
 }
 
 // "Attach a document" picker for a document-type step — pick an
@@ -3776,17 +3766,6 @@ document.addEventListener("input", (e) => {
   };
   set("data-rr-bld-title", "title") || set("data-rr-bld-video", "video_url") || set("data-rr-bld-ack", "ack_text");
 });
-document.addEventListener("change", (e) => {
-  if (!e.target.closest("#obsub-builder") || !_obBuilderSteps) return;
-  const eb = e.target.closest("[data-rr-bld-enabled]");
-  if (!eb) return;
-  const i = +eb.getAttribute("data-rr-bld-enabled");
-  if (!_obBuilderSteps[i]) return;
-  _obBuilderSteps[i].enabled = !!e.target.checked;
-  _obConfirmDelete = null;
-  _obAutosave({ immediate: true });
-  _obRenderBuilder();
-});
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#obsub-builder")) return;
   // Delete: trash icon → inline confirm → remove the step.
@@ -3801,14 +3780,6 @@ document.addEventListener("click", (e) => {
     if (_obBuilderSteps[i]) { _obBuilderSteps.splice(i, 1); _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder(); toast("Step removed", "success"); }
     else { _obConfirmDelete = null; _obRenderBuilder(); }
     return;
-  }
-  if (e.target.closest("[data-rr-bld-reset]")) { e.preventDefault(); _obConfirmReset = true; _obConfirmDelete = null; _obRenderBuilder(); return; }
-  if (e.target.closest("[data-rr-bld-resetcancel]")) { e.preventDefault(); _obConfirmReset = false; _obRenderBuilder(); return; }
-  if (e.target.closest("[data-rr-bld-resetok]")) {
-    e.preventDefault();
-    _obBuilderSteps = _OB_DEFAULT_BLUEPRINT.map(s => ({ ...s }));
-    _obConfirmReset = false; _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder();
-    toast("Reset to the default onboarding set", "success"); return;
   }
   const attach = e.target.closest("[data-rr-bld-attach]");
   if (attach) { e.preventDefault(); _obAttachDocPicker(+attach.getAttribute("data-rr-bld-attach")); return; }
@@ -3957,12 +3928,14 @@ async function loadOnboardingOps(opts) {
       let done = false, val = null;
       let labelDone = m.doneLabel || "Done", labelTodo = m.todoLabel || `${s.title} — not yet`;
       if (m.kind === "state") {
+        // Custom acknowledgement / video / document steps — the driver
+        // completes these in their app; the dot is read-only here.
         const entry = stState[m.done];
         const status = entry && entry.status;
         if (status === "complete") { done = true; val = entry.at || true; }
         else if (status && status !== "not_started") labelTodo = `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`;
         else if (stepType === "document") labelTodo = `${s.title || "Step"} — not sent yet`;
-        return dotCell(d.id, "state", m.done, done, val, { labelDone, labelTodo });
+        return dotCell(d.id, "state", m.done, done, val, { readonly: true, labelDone, labelTodo });
       }
       if (m.kind === "i9") {
         if (i9verified) { done = true; val = i9CompletedAt || true; }
@@ -3971,13 +3944,15 @@ async function loadOnboardingOps(opts) {
         return dotCell(d.id, "i9", "", done, val, { readonly: true, labelDone, labelTodo });
       }
       if (m.kind === "drv") {
+        // Background check / drug test / training — recorded by the DSP.
         if (d[m.done]) { done = true; val = d[m.done]; }
         return dotCell(d.id, "drv", m.done, done, val, { labelDone, labelTodo });
       }
-      // prog (handbook / job_offer / welcome email / scheduled / …)
+      // prog: handbook / job offer are documents the driver signs (read-only
+      // dot); the "sent" steps (welcome email, etc.) are DSP-recorded.
       if (prog[m.done]) { done = true; val = prog[m.done]; }
       else if (m.sent && prog[m.sent]) labelTodo = `Sent · ${fmtCellDate(prog[m.sent]) || ""} — with the driver`;
-      return dotCell(d.id, "prog", m.done, done, val, { labelDone, labelTodo });
+      return dotCell(d.id, "prog", m.done, done, val, { readonly: !!m.sent, labelDone, labelTodo });
     }).join("");
     return `
       <tr data-driver-id="${escapeHtml(d.id)}">
@@ -3990,7 +3965,6 @@ async function loadOnboardingOps(opts) {
             </div>
           </div>
         </td>
-        <td class="ob-mx-statuscell"><span style="display:inline-flex;align-items:center;gap:7px">${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums" title="${ob.doneN} of ${ob.totalN} gates complete">${ob.pct}%</span></span></td>
         ${cells}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
@@ -4006,7 +3980,6 @@ async function loadOnboardingOps(opts) {
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
-            <th class="ob-mx-statuscol">Status</th>
             ${stepHeaders}
             <th>Active</th>
             <th>Send</th>
