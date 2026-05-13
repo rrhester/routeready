@@ -4724,7 +4724,10 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     const box = document.getElementById("rr-roster-insights");
     if (!box) return;
-    const show = box.style.display === "none" || !box.style.display;
+    // Treat anything other than display:none as "currently visible".
+    // An empty inline-style display ("" / undefined) means the box is
+    // already showing, so the next click should close it.
+    const show = box.style.display === "none";
     box.style.display = show ? "" : "none";
     tog.setAttribute("aria-pressed", show ? "true" : "false");
     tog.classList.toggle("is-on", show);
@@ -4753,7 +4756,10 @@ document.addEventListener("click", (e) => {
     const boxId = tog.id === "rr-att-insights-toggle" ? "rr-att-insights" : "rr-avail-insights";
     const box = document.getElementById(boxId);
     if (!box) return;
-    const show = box.style.display === "none" || !box.style.display;
+    // Empty inline-style display = box is currently visible (browser
+    // default kicks in); only "none" means it's hidden. So the next
+    // click should hide if anything other than "none" is set.
+    const show = box.style.display === "none";
     box.style.display = show ? "" : "none";
     tog.setAttribute("aria-pressed", show ? "true" : "false");
     tog.classList.toggle("is-on", show);
