@@ -10587,12 +10587,8 @@ body.rr-cmdk-open{ overflow:hidden }
              operator who knows that surface can map 1:1.  Wiring is in
              fleetSub() in live.js. -->
         <div class="subnav" data-rr-tabbar="fleet">
-          <button class="subnav-item active" data-sub="dashboard"  onclick="fleetSub('dashboard')">Dashboard</button>
-          <button class="subnav-item"        data-sub="vehicles"   onclick="fleetSub('vehicles')">My vehicles <span id="rr-fleet-tabcount-vehicles" style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
-          <button class="subnav-item"        data-sub="issues"     onclick="fleetSub('issues')">Issues <span id="rr-fleet-tabcount-issues" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
-          <button class="subnav-item"        data-sub="claims"     onclick="fleetSub('claims')">Claims</button>
-          <button class="subnav-item"        data-sub="rentals"    onclick="fleetSub('rentals')">Rental reservations</button>
-          <button class="subnav-item"        data-sub="branded"    onclick="fleetSub('branded')">Branded vehicle orders</button>
+          <button class="subnav-item active" data-sub="vehicles" onclick="fleetSub('vehicles')">My vehicles <span id="rr-fleet-tabcount-vehicles" style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
+          <button class="subnav-item"        data-sub="issues"   onclick="fleetSub('issues')">Issues <span id="rr-fleet-tabcount-issues" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
         </div>
 
         <style>
@@ -10648,21 +10644,6 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-sub{display:none}
           #view-fleet .fl-sub.active{display:block}
 
-          /* Dashboard KPI grid */
-          #view-fleet .fl-dash-section-h{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;margin:18px 0 12px}
-          #view-fleet .fl-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--s-3);margin-bottom:var(--s-5)}
-          #view-fleet .fl-kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px}
-          #view-fleet .fl-kpi-card .h{font-size:var(--fs-sm);color:var(--text-muted);font-weight:600;margin-bottom:10px}
-          #view-fleet .fl-kpi-row{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
-          #view-fleet .fl-kpi-stat{display:flex;flex-direction:column;gap:2px;min-width:48px}
-          #view-fleet .fl-kpi-stat .n{font-size:28px;font-weight:700;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
-          #view-fleet .fl-kpi-stat .l{font-size:var(--fs-xs);color:var(--text-subtle)}
-          #view-fleet .fl-kpi-stat.warn .n{color:var(--amber-dark)}
-          #view-fleet .fl-kpi-stat.urgent .n{color:var(--red)}
-          #view-fleet .fl-kpi-stat.good .n{color:var(--green)}
-          #view-fleet .fl-kpi-foot{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);line-height:1.55}
-          #view-fleet .fl-kpi-foot strong{color:var(--text);font-weight:600}
-
           /* Operational status pill (Operational / Grounded) — for roster + drawer */
           #view-fleet .fl-opstat{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;line-height:1.5;white-space:nowrap}
           #view-fleet .fl-opstat .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
@@ -10677,45 +10658,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-sev.medium{background:var(--accent-soft);color:var(--accent-text)}
           #view-fleet .fl-sev.high{background:var(--amber-soft);color:var(--amber-dark)}
           #view-fleet .fl-sev.critical{background:var(--red-soft);color:var(--red)}
-
-          /* Coming-soon placeholder for tabs we haven't built yet */
-          #view-fleet .fl-soon{padding:48px 28px;text-align:center;background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-xl)}
-          #view-fleet .fl-soon h3{margin:0 0 6px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
-          #view-fleet .fl-soon p{margin:0;font-size:var(--fs-sm);color:var(--text-subtle);max-width:420px;margin-inline:auto;line-height:1.55}
         </style>
 
-        <!-- DASHBOARD sub-tab — KPI rollups -->
-        <div class="fl-sub active" id="fl-sub-dashboard">
-          <div class="fl-dash-section-h">Current vehicle health</div>
-          <div class="fl-kpi-grid" id="rr-fleet-kpi-grid">
-            <div class="fl-kpi-card"><div class="h">Vehicles by operational status</div><div class="fl-kpi-row">
-              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="totals.total">—</span><span class="l">Total active</span></div>
-              <div class="fl-kpi-stat good"><span class="n" data-rr-kpi="totals.operational">—</span><span class="l">Operational</span></div>
-              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="totals.grounded">—</span><span class="l">Grounded</span></div>
-            </div></div>
-            <div class="fl-kpi-card"><div class="h">Open issues</div><div class="fl-kpi-row">
-              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="issues.open">—</span><span class="l">All open</span></div>
-              <div class="fl-kpi-stat warn"><span class="n" data-rr-kpi="issues.high">—</span><span class="l">High / critical</span></div>
-              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="issues.overdue">—</span><span class="l">Past due</span></div>
-            </div></div>
-            <div class="fl-kpi-card"><div class="h">Today's DVIC inspections</div><div class="fl-kpi-row">
-              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="inspections_today.pre">—</span><span class="l">Pre-trip</span></div>
-              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="inspections_today.post">—</span><span class="l">Post-trip</span></div>
-              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="inspections_today.total">—</span><span class="l">Total today</span></div>
-            </div></div>
-            <div class="fl-kpi-card"><div class="h">Preventative maintenance</div><div class="fl-kpi-row">
-              <div class="fl-kpi-stat warn"><span class="n" data-rr-kpi="pm.due_soon">—</span><span class="l">Due in 14d</span></div>
-              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="pm.overdue">—</span><span class="l">Overdue</span></div>
-            </div></div>
-            <div class="fl-kpi-card"><div class="h">DOT annual inspection</div><div class="fl-kpi-row">
-              <div class="fl-kpi-stat warn"><span class="n" data-rr-kpi="dot.due_soon">—</span><span class="l">Due in 30d</span></div>
-              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="dot.overdue">—</span><span class="l">Overdue</span></div>
-            </div></div>
-          </div>
-        </div>
-
         <!-- MY VEHICLES sub-tab — roster -->
-        <div class="fl-sub" id="fl-sub-vehicles">
+        <div class="fl-sub active" id="fl-sub-vehicles">
         <div class="fl-roster-bar">
           <div class="fl-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -10790,31 +10736,6 @@ body.rr-cmdk-open{ overflow:hidden }
             </table>
           </div>
         </div>
-
-        <!-- CLAIMS sub-tab — placeholder for future build -->
-        <div class="fl-sub" id="fl-sub-claims">
-          <div class="fl-soon">
-            <h3>Claims tracking — coming soon</h3>
-            <p>Liability claims and damage reports tied to a vehicle will live here. For now, log them as an Issue with category "body" or "safety".</p>
-          </div>
-        </div>
-
-        <!-- RENTAL RESERVATIONS sub-tab — placeholder -->
-        <div class="fl-sub" id="fl-sub-rentals">
-          <div class="fl-soon">
-            <h3>Rental reservations — coming soon</h3>
-            <p>Track Amazon Branded Last Mile Rental + outside rental reservations here. Until this is built, mark a vehicle's ownership as <strong>Rental</strong> on its record drawer.</p>
-          </div>
-        </div>
-
-        <!-- BRANDED VEHICLE ORDERS sub-tab — placeholder -->
-        <div class="fl-sub" id="fl-sub-branded">
-          <div class="fl-soon">
-            <h3>Branded vehicle orders — coming soon</h3>
-            <p>Pending and delivered Amazon-branded vehicle orders will land here once the Logistics integration ships.</p>
-          </div>
-        </div>
-
       </div>
     </div>
 
@@ -19607,7 +19528,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260514a-fleet-roster"></script>
+<script type="module" src="./live.js?v=20260514b-fleet-trim"></script>
 
 </body>
 </html>
