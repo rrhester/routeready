@@ -4438,8 +4438,25 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-field-remove:hover{background:var(--red-soft);color:var(--red)}
 .builder-field-handle{
   position:absolute;left:-22px;top:50%;transform:translateY(-50%);
-  color:var(--text-subtle);font-size:var(--fs-base);
+  color:var(--text-subtle);font-size:var(--fs-base);cursor:grab;
+  user-select:none;line-height:1;padding:2px;border-radius:4px;
 }
+.builder-field-handle:hover{color:var(--text);background:var(--canvas)}
+.builder-field-handle:active{cursor:grabbing}
+.builder-field.is-dragging{opacity:.45}
+.builder-field.is-drop-target{box-shadow:inset 0 2px 0 0 var(--accent)}
+.builder-field.is-drop-target-bottom{box-shadow:inset 0 -2px 0 0 var(--accent)}
+.rr-field-nudge{
+  position:absolute;right:34px;top:50%;transform:translateY(-50%);
+  display:none;flex-direction:column;gap:1px;
+}
+.builder-field.active .rr-field-nudge{display:flex}
+.rr-field-nudge button{
+  width:18px;height:14px;border:0;background:transparent;color:var(--text-subtle);
+  cursor:pointer;padding:0;line-height:1;font-size:11px;border-radius:3px;
+}
+.rr-field-nudge button:hover{background:var(--canvas);color:var(--text)}
+.rr-field-nudge button:disabled{opacity:.3;cursor:not-allowed}
 .builder-field-label{
   display:block;font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:6px;
 }
@@ -19693,7 +19710,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260514m-role-dropdown"></script>
+<script type="module" src="./live.js?v=20260514n-form-reorder"></script>
 
 </body>
 </html>
