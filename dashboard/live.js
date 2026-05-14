@@ -8007,6 +8007,48 @@ function _tpCacheWrite(key, data) {
   try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
 }
 
+// 7-day Today's Plan navigator.  _tpDateIso drives every reader below;
+// loadTodayPlan resets it to today on (re-)entry.  The +/- buttons walk
+// the date within [today, today+6].  Attendance is only fetched when
+// viewing today — future days have no clock-ins yet.
+let _tpDateIso = null;
+function _tpToday() { return fmtIsoDate(new Date()); }
+function _tpMaxDate() {
+  const d = new Date(); d.setDate(d.getDate() + 6); return fmtIsoDate(d);
+}
+function _tpDateShift(deltaDays) {
+  const cur = _tpDateIso || _tpToday();
+  const d = new Date(cur + "T12:00:00");
+  d.setDate(d.getDate() + deltaDays);
+  const iso = fmtIsoDate(d);
+  const today = _tpToday(); const max = _tpMaxDate();
+  if (iso < today || iso > max) return;
+  _tpDateIso = iso;
+  _tpRenderDateLabel();
+  _refreshTodayPlanData();
+}
+function _tpRenderDateLabel() {
+  const dateEl = document.getElementById("rr-today-date");
+  if (!dateEl) return;
+  const iso = _tpDateIso || _tpToday();
+  const today = _tpToday();
+  const d = new Date(iso + "T12:00:00");
+  const label = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const isToday = iso === today;
+  const tomorrow = (() => { const t = new Date(); t.setDate(t.getDate()+1); return fmtIsoDate(t); })();
+  const prefix = isToday ? "" : (iso === tomorrow ? "Tomorrow · " : "");
+  dateEl.textContent = prefix + label;
+  // Update nav state
+  const nav = document.getElementById("rr-tp-datenav");
+  if (nav) nav.style.display = "";
+  const prev = document.getElementById("rr-tp-prev");
+  const next = document.getElementById("rr-tp-next");
+  const todayBtn = document.getElementById("rr-tp-today");
+  if (prev) prev.disabled = iso <= today;
+  if (next) next.disabled = iso >= _tpMaxDate();
+  if (todayBtn) todayBtn.classList.toggle("is-on-today", isToday);
+}
+
 async function loadTodayPlan() {
   const shell = document.getElementById("rr-today-plan-shell");
   if (!shell) return;
@@ -8017,17 +8059,17 @@ async function loadTodayPlan() {
     loadFleetSettings();
   }
 
-  const dateEl = document.getElementById("rr-today-date");
-  if (dateEl) {
-    dateEl.textContent = new Date().toLocaleDateString(undefined, {
-      weekday: "long", month: "long", day: "numeric",
-    });
-  }
+  // Reset navigator to today on every (re-)entry.
+  _tpDateIso = _tpToday();
+  _tpRenderDateLabel();
 
   if (_todayPlanTimer) clearInterval(_todayPlanTimer);
   _todayPlanTimer = setInterval(() => {
-    if (document.getElementById("view-dashboard")?.classList.contains("active") && !document.hidden) {
+    if (document.getElementById("view-dashboard")?.classList.contains("active") && !document.hidden && _tpDateIso === _tpToday()) {
       _refreshTodayPlanData();
+    } else if (_tpDateIso !== _tpToday()) {
+      // Future-day view stays static — no 30s polling.  The user can
+      // re-fire from the Today button or refresh manually.
     } else { clearInterval(_todayPlanTimer); _todayPlanTimer = null; }
   }, 30000);
 
@@ -8066,22 +8108,25 @@ async function loadTodayPlan() {
 }
 
 async function _refreshTodayPlanData() {
-  const todayIso = fmtIsoDate(new Date());
+  const todayIso = _tpToday();
+  const viewIso  = _tpDateIso || todayIso;
+  const isToday  = viewIso === todayIso;
 
   // Auto-assign vans for gaps before reading the roster so the
   // unified renderer paints a clean state on first frame.  Silent on
   // failure — the operator can re-run from the card header button.
   try {
     if (window.RR?.fleetSettings?.auto_van_assign === true) {
-      await sb.rpc("today_roster_auto_assign", { p_date: todayIso });
+      await sb.rpc("today_roster_auto_assign", { p_date: viewIso });
     }
   } catch (e) { console.warn("today plan · auto-assign:", e); }
 
-  // Fire both RPCs in parallel; render once both land.  Either result
-  // can be null on error; the renderer handles partial data gracefully.
+  // Attendance is today-only (it reads live clock-ins).  Skip the call
+  // when the operator is viewing a future day; the renderer will draw
+  // a planning-mode header instead.
   const [attRes, rosterRes] = await Promise.allSettled([
-    sb.rpc("today_attendance"),
-    sb.rpc("today_roster", { p_date: todayIso }),
+    isToday ? sb.rpc("today_attendance") : Promise.resolve({ data: null, error: null }),
+    sb.rpc("today_roster", { p_date: viewIso }),
   ]);
 
   const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
@@ -8601,20 +8646,53 @@ function _tpRowActions(r) {
 function _renderTpMeta(attData) {
   const el = document.getElementById("rr-tp-meta");
   if (!el) return;
+  const viewIso = (typeof _tpDateIso === "string" && _tpDateIso) || (typeof _tpToday === "function" ? _tpToday() : null);
+  const todayIso = (typeof _tpToday === "function" ? _tpToday() : null);
+  const planning = viewIso && todayIso && viewIso !== todayIso;
   const rows = attData?.rows || [];
-  if (!rows.length) { el.textContent = "No shifts scheduled today."; return; }
+  if (!rows.length) {
+    el.textContent = planning ? "No shifts scheduled for this day." : "No shifts scheduled today.";
+    return;
+  }
   const waves = new Set(rows.map(r => r.wave_index ?? 0));
   const extras = rows.filter(r => r.is_cushion).length;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
-  const bits = [`${rows.length} scheduled`, `${waves.size} wave${waves.size === 1 ? "" : "s"}`];
+  const bits = [];
+  if (planning) bits.push("Planning view");
+  bits.push(`${rows.length} scheduled`);
+  bits.push(`${waves.size} wave${waves.size === 1 ? "" : "s"}`);
   if (extras  > 0) bits.push(`${extras} extra${extras === 1 ? "" : "s"}`);
-  if (flagged > 0) bits.push(`${flagged} need attention`);
+  if (!planning && flagged > 0) bits.push(`${flagged} need attention`);
   el.textContent = bits.join(" · ");
 }
 
 function _renderTpUnifiedRoster(attData, rosterData, error) {
   const wrap = document.getElementById("rr-tp-roster");
   if (!wrap) return;
+
+  // Future-day planning mode: no attendance clock-ins yet, so the
+  // attendance card is meaningless.  Synthesize stub attendance rows
+  // from the roster so the rest of the renderer (which builds rows
+  // off attData) works unchanged — minus the live-attendance bits.
+  const viewIso = (typeof _tpDateIso === "string" && _tpDateIso) || (typeof _tpToday === "function" ? _tpToday() : null);
+  const todayIso = (typeof _tpToday === "function" ? _tpToday() : null);
+  const planningMode = viewIso && todayIso && viewIso !== todayIso;
+  if (planningMode && (!attData || !(attData.rows || []).length)) {
+    attData = {
+      rows: (rosterData || []).map(r => ({
+        shift_id:        r.shift_id,
+        driver_id:       r.driver_id,
+        driver_name:     r.driver_name,
+        station_code:    r.station_code,
+        starts_at:       r.starts_at,
+        wave_index:      0,
+        is_cushion:      false,
+        computed_outcome: "scheduled",
+        decision:        null,
+      })),
+      _planning: true,
+    };
+  }
 
   if (error) {
     wrap.innerHTML = `<div class="rr-tp-section-head">Today's roster</div>
@@ -8627,8 +8705,12 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
   for (const r of (rosterData || [])) rosterByShift.set(r.shift_id, r);
 
   if (attRows.length === 0) {
-    wrap.innerHTML = `<div class="rr-tp-section-head">Today's roster</div>
-      <div style="padding:36px 20px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">No shifts scheduled for today.</div>`;
+    const heading = planningMode ? "Roster · planning view" : "Today's roster";
+    const msg = planningMode
+      ? `No shifts scheduled for ${new Date(viewIso + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}.`
+      : "No shifts scheduled for today.";
+    wrap.innerHTML = `<div class="rr-tp-section-head">${escapeHtml(heading)}</div>
+      <div style="padding:36px 20px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">${escapeHtml(msg)}</div>`;
     return;
   }
 
@@ -9148,6 +9230,31 @@ function _tpReloadRoster() {
   // so re-run the master refresh instead of duplicating that logic.
   if (typeof _refreshTodayPlanData === "function") _refreshTodayPlanData();
 }
+
+// ── Today's Plan · 7-day date navigator wiring ──────────────────────
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-tp-prev"))   { e.preventDefault(); _tpDateShift(-1); return; }
+  if (e.target.closest && e.target.closest("#rr-tp-next"))   { e.preventDefault(); _tpDateShift( 1); return; }
+  if (e.target.closest && e.target.closest("#rr-tp-today"))  {
+    e.preventDefault();
+    if (_tpDateIso !== _tpToday()) {
+      _tpDateIso = _tpToday();
+      _tpRenderDateLabel();
+      _refreshTodayPlanData();
+    }
+    return;
+  }
+});
+// Keyboard shortcut: ← / → walk the navigator when the Today's Plan
+// view is the active dashboard.  Ignored when the operator is typing.
+document.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const tag = (e.target?.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select" || e.target?.isContentEditable) return;
+  if (!document.getElementById("view-dashboard")?.classList.contains("active")) return;
+  if (e.key === "ArrowLeft")  _tpDateShift(-1);
+  if (e.key === "ArrowRight") _tpDateShift( 1);
+});
 
 function _renderTpCoverage(data, error) {
   const covEl = document.getElementById("rr-tp-cov");

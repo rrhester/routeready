@@ -7018,7 +7018,35 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-today-date">—</p>
             </div>
           </div>
-          <div class="page-actions"></div>
+          <!-- 7-day navigator · today + 6 forward.  Buttons disable at
+               the boundaries; "Today" snaps back to current date. -->
+          <div class="page-actions" id="rr-tp-datenav" style="display:none">
+            <style>
+              #rr-tp-datenav{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px}
+              #rr-tp-datenav .nav-btn{
+                appearance:none;background:transparent;border:0;cursor:pointer;color:var(--text-muted);
+                width:30px;height:30px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;
+                transition:background .12s, color .12s;
+              }
+              #rr-tp-datenav .nav-btn:hover{background:var(--canvas);color:var(--text)}
+              #rr-tp-datenav .nav-btn:disabled{opacity:.35;cursor:not-allowed}
+              #rr-tp-datenav .nav-btn svg{width:14px;height:14px}
+              #rr-tp-datenav .nav-today{
+                font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+                color:var(--accent-text);padding:0 10px;border-radius:6px;cursor:pointer;height:26px;
+                background:transparent;border:0;display:inline-flex;align-items:center;
+              }
+              #rr-tp-datenav .nav-today:hover{background:var(--accent-soft)}
+              #rr-tp-datenav .nav-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
+            </style>
+            <button type="button" class="nav-btn" id="rr-tp-prev" title="Previous day" aria-label="Previous day">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button type="button" class="nav-today" id="rr-tp-today">Today</button>
+            <button type="button" class="nav-btn" id="rr-tp-next" title="Next day" aria-label="Next day">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
         </div>
 
         <div id="rr-today-plan-shell">
