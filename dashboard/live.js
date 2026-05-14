@@ -8031,35 +8031,19 @@ async function loadTodayPlan() {
   // Render the skeleton FIRST so the page never sits on a single spinner.
   // Re-render whenever the expected IDs are missing — handles upgrading
   // an open tab from an older live.js that wrote a different skeleton.
-  const skeletonOk = !!document.getElementById("rr-tp-waves")
-                  && !!document.getElementById("rr-tp-tool")
-                  && !!document.getElementById("rr-tp-vanroster")
-                  && !!document.getElementById("rr-tp-extras");
+  // Single unified roster card.  Wave summary cards, the separate
+  // attendance approvals tool, extras list, and the coverage tile are
+  // all absorbed into the roster body — one table grouped by wave with
+  // status pills, inline approve/VTO/deny actions, and assigned vans.
+  const skeletonOk = !!document.getElementById("rr-tp-roster")
+                  && !!document.getElementById("rr-tp-meta");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
-      <div id="rr-tp-waves"   style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--s-3);margin-bottom:var(--s-4)">
-        <div class="card" style="height:108px"></div>
-        <div class="card" style="height:108px"></div>
-      </div>
       <div id="rr-tp-meta" class="card card-compact" style="padding:var(--s-2) var(--s-4);margin-bottom:var(--s-4);font-size:var(--fs-sm);color:var(--text-subtle)">Loading</div>
-      <div id="rr-tp-tool" class="card card-flush" style="margin-bottom:var(--s-4)">
-        <div class="rr-tp-section-head">Daily attendance · approvals</div>
-        <div class="rr-loading">Loading</div>
-      </div>
-      <div id="rr-tp-vanroster" class="card card-flush" style="margin-bottom:var(--s-4)">
-        <div class="rr-tp-section-head">Today's roster · drivers + vans</div>
+      <div id="rr-tp-roster" class="card card-flush">
+        <div class="rr-tp-section-head">Today's roster</div>
         <div class="rr-loading" style="padding:18px 20px">Loading</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4)">
-        <div id="rr-tp-extras" class="card card-flush">
-          <div class="rr-tp-section-head">Extra drivers (Ex)</div>
-          <div class="rr-loading">Loading</div>
-        </div>
-        <div id="rr-tp-cov" class="card card-flush">
-          <div class="rr-tp-section-head">Coverage</div>
-          <div class="rr-loading">Loading</div>
-        </div>
       </div>`;
   }
 
@@ -8079,39 +8063,37 @@ async function loadTodayPlan() {
 }
 
 async function _refreshTodayPlanData() {
-  // Fire each RPC independently so a hang in one doesn't block the
-  // other. Each handler updates only its own region.  Wrap the render
-  // in try/catch so a single bad row never wipes out the whole page —
-  // keep the page alive and surface the error inline instead.
-  sb.rpc("today_attendance").then(({ data, error }) => {
-    if (error) { _renderTpAttendance(null, error); return; }
-    _tpCacheWrite(_TP_CACHE_KEYS.att, data);
-    try { _renderTpAttendance(data, null); }
-    catch (e) { console.error("today plan · attendance render failed:", e); _renderTpAttendance(null, e); }
-  }).catch(err => _renderTpAttendance(null, err));
+  const todayIso = fmtIsoDate(new Date());
 
-  sb.rpc("today_plan").then(({ data, error }) => {
-    if (error) { _renderTpCoverage(null, error); return; }
-    _tpCacheWrite(_TP_CACHE_KEYS.plan, data);
-    try { _renderTpCoverage(data, null); }
-    catch (e) { console.error("today plan · coverage render failed:", e); _renderTpCoverage(null, e); }
-  }).catch(err => _renderTpCoverage(null, err));
+  // Auto-assign vans for gaps before reading the roster so the
+  // unified renderer paints a clean state on first frame.  Silent on
+  // failure — the operator can re-run from the card header button.
+  try {
+    if (window.RR?.fleetSettings?.auto_van_assign === true) {
+      await sb.rpc("today_roster_auto_assign", { p_date: todayIso });
+    }
+  } catch (e) { console.warn("today plan · auto-assign:", e); }
 
-  // Today's driver+van roster.  When the DSP has auto-assign turned
-  // on, fire today_roster_auto_assign first so the gaps fill before
-  // the operator sees them.  Either way, we then read today_roster
-  // for the rendered payload.
-  (async () => {
-    const todayIso = fmtIsoDate(new Date());
-    try {
-      if (window.RR?.fleetSettings?.auto_van_assign === true) {
-        await sb.rpc("today_roster_auto_assign", { p_date: todayIso });
-      }
-      const { data, error } = await sb.rpc("today_roster", { p_date: todayIso });
-      try { _renderTpVanRoster(data, error); }
-      catch (e) { console.error("today plan · van roster render failed:", e); _renderTpVanRoster(null, e); }
-    } catch (err) { _renderTpVanRoster(null, err); }
-  })();
+  // Fire both RPCs in parallel; render once both land.  Either result
+  // can be null on error; the renderer handles partial data gracefully.
+  const [attRes, rosterRes] = await Promise.allSettled([
+    sb.rpc("today_attendance"),
+    sb.rpc("today_roster", { p_date: todayIso }),
+  ]);
+
+  const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
+  const attError   = (attRes.status === "fulfilled"    ? attRes.value.error   : attRes.reason);
+  const rosterData = (rosterRes.status === "fulfilled" ? rosterRes.value.data : null);
+  const rosterError= (rosterRes.status === "fulfilled" ? rosterRes.value.error: rosterRes.reason);
+
+  if (attData) _tpCacheWrite(_TP_CACHE_KEYS.att, attData);
+
+  // Update the meta line (page-level scheduled-driver count + on-app).
+  try { _renderTpMeta(attData); } catch (e) { console.warn("tp meta:", e); }
+
+  // The single unified roster card replaces the old four-card layout.
+  try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError); }
+  catch (e) { console.error("today plan · unified render failed:", e); _renderTpUnifiedRoster(null, null, e); }
 }
 
 function _renderTpAttendance(data, error) {
@@ -8448,11 +8430,8 @@ document.addEventListener("click", async (e) => {
       } else {
         toast(`Assigned ${assigned} · ${unassigned} couldn't be matched (no van available).`, "warn");
       }
-      // Refresh the roster card with the new resolution.
-      sb.rpc("today_roster", { p_date: todayIso }).then(({ data: roster, error: err }) => {
-        try { _renderTpVanRoster(roster, err); }
-        catch (e2) { console.error("today plan · van roster render after auto-assign:", e2); }
-      });
+      // Refresh the unified roster (attendance + van resolution).
+      _tpReloadRoster();
     } finally {
       autoBtn.disabled = false;
       autoBtn.innerHTML = origLabel;
@@ -8561,6 +8540,266 @@ document.addEventListener("click", async (e) => {
     }, 380);
   }, 600);
 });
+
+// ─── Unified Today's roster (attendance + vans, grouped by wave) ────
+// Source of truth for the home page's morning surface.  Absorbs:
+//   • today_attendance.rows (computed_outcome, decision, wave_index,
+//     is_cushion, checked_in_at, …)
+//   • today_roster array (van resolution: name, plate, via,
+//     covering_for, gap_kind)
+// Joined by shift_id; grouped into one section per wave; each row
+// renders driver + time + station/route (+ Ex chip) + van (click =
+// picker) + status pill + inline approve/VTO/deny when appropriate.
+
+// Status pill (Scheduled / Checked-in / Late / NCNS / …) — derived
+// from today_attendance.computed_outcome but with the dispatcher-
+// facing labels the user asked for, not the internal enum.
+function _tpStatusPill(r) {
+  const out = r?.computed_outcome || "waiting";
+  const decided = !!r?.decision;
+  const map = {
+    waiting:          ["Scheduled",   "var(--canvas)",     "var(--text-muted)"],
+    ready_to_checkin: ["Scheduled",   "var(--canvas)",     "var(--text-muted)"],
+    checked_in:       ["Checked-in",  "var(--green-soft)", "var(--green)"],
+    checked_out:      ["Completed",   "var(--green-soft)", "var(--green)"],
+    tardy:            ["Late",        "var(--amber-soft)", "var(--amber-dark)"],
+    ncns:             ["NCNS",        "var(--red-soft)",   "var(--red)"],
+    missed_reported:  ["Called off",  "var(--amber-soft)", "var(--amber-dark)"],
+  };
+  const [label, bg, fg] = map[out] || ["—", "var(--canvas)", "var(--text-subtle)"];
+  const dot = (out === "checked_in" || out === "checked_out") ? "var(--green)"
+            : (out === "tardy" || out === "missed_reported") ? "var(--amber)"
+            : (out === "ncns") ? "var(--red)"
+            : "transparent";
+  const dotMarkup = dot === "transparent" ? "" : `<span style="width:6px;height:6px;border-radius:50%;background:${dot};display:inline-block;margin-right:6px;vertical-align:middle"></span>`;
+  const decidedTag = decided ? ` · <span style="font-weight:600;color:var(--text-muted)">${escapeHtml(r.decision)}</span>` : "";
+  return `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;background:${bg};color:${fg};white-space:nowrap">${dotMarkup}${escapeHtml(label)}${decidedTag}</span>`;
+}
+
+// Approve / VTO / Deny buttons.  Wired to the existing data-rr-tp-*
+// handlers already in this file, so behavior is identical to the
+// stand-alone attendance tool the unified roster replaces.
+function _tpRowActions(r) {
+  // Only surface when the row needs a decision and hasn't been resolved.
+  if (r.decision) return "";
+  if (!["tardy", "ncns", "missed_reported"].includes(r.computed_outcome)) return "";
+  const sid = escapeHtml(r.shift_id);
+  const oc  = escapeHtml(r.computed_outcome);
+  const dn  = escapeHtml(r.driver_name);
+  return `<div style="display:inline-flex;gap:6px;flex-wrap:nowrap">
+    <button class="btn btn-sm btn-primary" data-rr-tp-approve="1" data-shift-id="${sid}" data-outcome="${oc}" data-driver-name="${dn}" type="button">Confirm</button>
+    <button class="btn btn-sm"             data-rr-tp-vto="1"     data-shift-id="${sid}" data-outcome="${oc}" data-driver-name="${dn}" type="button">VTO</button>
+    <button class="btn btn-sm"             data-rr-tp-deny="1"    data-shift-id="${sid}" data-outcome="${oc}" data-driver-name="${dn}" type="button">Excuse</button>
+  </div>`;
+}
+
+// Top-of-page meta line — replaces the old "X scheduled across N waves"
+// chip the rr-tp-meta card used to host.
+function _renderTpMeta(attData) {
+  const el = document.getElementById("rr-tp-meta");
+  if (!el) return;
+  const rows = attData?.rows || [];
+  if (!rows.length) { el.textContent = "No shifts scheduled today."; return; }
+  const waves = new Set(rows.map(r => r.wave_index ?? 0));
+  const extras = rows.filter(r => r.is_cushion).length;
+  const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
+  const bits = [`${rows.length} scheduled`, `${waves.size} wave${waves.size === 1 ? "" : "s"}`];
+  if (extras  > 0) bits.push(`${extras} extra${extras === 1 ? "" : "s"}`);
+  if (flagged > 0) bits.push(`${flagged} need attention`);
+  el.textContent = bits.join(" · ");
+}
+
+function _renderTpUnifiedRoster(attData, rosterData, error) {
+  const wrap = document.getElementById("rr-tp-roster");
+  if (!wrap) return;
+
+  if (error) {
+    wrap.innerHTML = `<div class="rr-tp-section-head">Today's roster</div>
+      <div style="padding:18px 20px;color:var(--red);font-size:var(--fs-sm)">Couldn't load: ${escapeHtml(error.message || String(error))}</div>`;
+    return;
+  }
+
+  const attRows = attData?.rows || [];
+  const rosterByShift = new Map();
+  for (const r of (rosterData || [])) rosterByShift.set(r.shift_id, r);
+
+  if (attRows.length === 0) {
+    wrap.innerHTML = `<div class="rr-tp-section-head">Today's roster</div>
+      <div style="padding:36px 20px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">No shifts scheduled for today.</div>`;
+    return;
+  }
+
+  // Join + normalize
+  const rows = attRows.map(att => {
+    const ro = rosterByShift.get(att.shift_id) || {};
+    return {
+      shift_id:        att.shift_id,
+      driver_id:       att.driver_id,
+      driver_name:     att.driver_name,
+      driver_photo_path: ro.driver_photo_path,
+      tier:            ro.tier,
+      station_code:    att.station_code,
+      route_code:      ro.route_code,
+      starts_at:       att.starts_at,
+      ends_at:         ro.ends_at,
+      wave_index:      att.wave_index ?? 0,
+      is_cushion:      !!att.is_cushion,
+      van_id:          ro.van_id,
+      van_name:        ro.van_name,
+      van_plate:       ro.van_plate,
+      van_via:         ro.van_via,
+      covering_for:    ro.covering_for,
+      gap_kind:        ro.gap_kind,
+      computed_outcome:att.computed_outcome,
+      decision:        att.decision,
+      missed_reason:   att.missed_reason,
+      service_type_color: att.service_type_color,
+    };
+  });
+
+  // Group by wave_index
+  const byWave = new Map();
+  for (const r of rows) {
+    const w = r.wave_index ?? 0;
+    if (!byWave.has(w)) byWave.set(w, []);
+    byWave.get(w).push(r);
+  }
+  const waveKeys = [...byWave.keys()].sort((a, b) => a - b);
+
+  const fmtTime = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  };
+
+  const initials = (name) => (name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+
+  const tierChip = (t) => {
+    if (!t) return "";
+    const map = {
+      "Fantastic+": ["#0e7c3a", "#dcfce7"],
+      "Fantastic":  ["var(--green)", "var(--green-soft)"],
+      "Great":      ["var(--accent-text)", "var(--accent-soft)"],
+      "Fair":       ["var(--amber-dark)", "var(--amber-soft)"],
+      "Poor":       ["var(--red)", "var(--red-soft)"],
+    };
+    const [fg, bg] = map[t] || ["var(--text-muted)", "var(--canvas)"];
+    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${bg};color:${fg};margin-left:6px">${escapeHtml(t)}</span>`;
+  };
+
+  const exTag = (r) => r.is_cushion
+    ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;background:#fef3c7;color:#92400e;letter-spacing:.04em;margin-left:6px">EX</span>`
+    : "";
+
+  const noVan = rows.filter(r => r.gap_kind === "no_van").length;
+  const headRight = (() => {
+    if (noVan === 0) return "";
+    return `<span style="font-size:var(--fs-xs);font-weight:700;color:var(--red);margin-right:8px">${noVan} no van</span>`;
+  })();
+
+  const autoBtn = noVan > 0
+    ? `<button type="button" class="btn btn-sm btn-primary" data-rr-tp-auto-assign style="display:inline-flex;align-items:center;gap:6px">
+         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+         Auto-assign ${noVan} van${noVan === 1 ? "" : "s"}
+       </button>`
+    : "";
+
+  const renderRow = (r) => {
+    const av = r.driver_photo_path
+      ? `<img src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
+      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto">${escapeHtml(initials(r.driver_name))}</div>`;
+
+    const timeStr = (r.starts_at || r.ends_at)
+      ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
+      : `<span style="color:var(--text-subtle)">—</span>`;
+
+    const shiftMeta = [r.route_code, r.station_code].filter(Boolean).map(escapeHtml).join(" · ");
+
+    const pickAttrs = `data-rr-tp-pick-van="${escapeHtml(r.driver_id)}" data-rr-tp-pick-via="${escapeHtml(r.van_via || "")}" data-rr-tp-pick-current="${escapeHtml(r.van_id || "")}" data-rr-tp-pick-driver-name="${escapeHtml(r.driver_name)}"`;
+    let vanCell;
+    if (r.van_name) {
+      const plate = r.van_plate ? `<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(r.van_plate)}</span>` : "";
+      const cover = r.van_via === "backup" && r.covering_for
+        ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
+        : (r.van_via === "override"
+            ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`
+            : "");
+      vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
+    } else {
+      vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:4px 10px;border-radius:999px;background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
+    }
+
+    const actions = _tpRowActions(r);
+
+    return `<tr class="rr-tp-tool-row" data-driver-id="${escapeHtml(r.driver_id)}">
+      <td style="padding:11px 14px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          ${av}
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}${exTag(r)}</div>
+            ${shiftMeta ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${shiftMeta}</div>` : ""}
+          </div>
+        </div>
+      </td>
+      <td style="padding:11px 14px;border-top:1px solid var(--border);white-space:nowrap;font-size:var(--fs-sm)">${timeStr}</td>
+      <td style="padding:11px 14px;border-top:1px solid var(--border);font-size:var(--fs-sm)">${vanCell}</td>
+      <td style="padding:11px 14px;border-top:1px solid var(--border)">${_tpStatusPill(r)}</td>
+      <td style="padding:11px 14px;border-top:1px solid var(--border);text-align:right">${actions || ""}</td>
+    </tr>`;
+  };
+
+  // Section header per wave.  If there's only one wave the header is
+  // suppressed so the table reads as a single roster.
+  const showWaveHeaders = waveKeys.length > 1;
+
+  const sections = waveKeys.map((w, idx) => {
+    const rs = byWave.get(w);
+    // Wave label: use the earliest starts_at in the wave when present;
+    // otherwise the wave index.
+    let timeLabel = "";
+    const earliest = rs.map(r => r.starts_at).filter(Boolean).sort()[0];
+    if (earliest) {
+      const d = new Date(earliest);
+      if (!isNaN(d.getTime())) {
+        timeLabel = " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      }
+    }
+    const extraCount = rs.filter(r => r.is_cushion).length;
+    const extraSuffix = extraCount > 0 ? ` <span style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-left:6px">${extraCount} ex</span>` : "";
+
+    const header = showWaveHeaders
+      ? `<div style="display:flex;align-items:center;gap:8px;padding:14px 18px 8px;border-top:${idx === 0 ? "0" : "1px solid var(--border)"};background:var(--canvas)">
+           <span style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:.06em;text-transform:uppercase">Wave ${w}${escapeHtml(timeLabel)}</span>
+           <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${rs.length} scheduled</span>
+           ${extraSuffix}
+         </div>`
+      : "";
+
+    return `${header}
+      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md)">
+        ${idx === 0 || showWaveHeaders ? `<thead>
+          <tr>
+            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Driver</th>
+            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Shift</th>
+            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Van</th>
+            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Status</th>
+            <th style="text-align:right;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Action</th>
+          </tr>
+        </thead>` : ""}
+        <tbody>${rs.map(renderRow).join("")}</tbody>
+      </table>`;
+  }).join("");
+
+  wrap.innerHTML = `
+    <div class="rr-tp-section-head" style="display:flex;align-items:center;gap:10px">
+      <span>Today's roster</span>
+      <span style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle)">${rows.length} scheduled${showWaveHeaders ? ` · ${waveKeys.length} waves` : ""}</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:12px">${headRight}${autoBtn}</div>
+    </div>
+    <div style="overflow-x:auto">${sections}</div>`;
+}
+
 
 // Today's roster · drivers + resolved vans for the day.  Each row
 // shows who is working, the van they're rolling, a "covering for X"
@@ -8880,11 +9119,9 @@ async function _tpOpenVanPicker(anchorEl) {
 }
 
 function _tpReloadRoster() {
-  const todayIso = fmtIsoDate(new Date());
-  sb.rpc("today_roster", { p_date: todayIso }).then(({ data, error }) => {
-    try { _renderTpVanRoster(data, error); }
-    catch (e) { console.error("today plan · roster reload after picker:", e); }
-  });
+  // The unified renderer reads both today_attendance and today_roster,
+  // so re-run the master refresh instead of duplicating that logic.
+  if (typeof _refreshTodayPlanData === "function") _refreshTodayPlanData();
 }
 
 function _renderTpCoverage(data, error) {
