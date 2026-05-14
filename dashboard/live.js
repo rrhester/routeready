@@ -8008,6 +8008,12 @@ async function loadTodayPlan() {
   const shell = document.getElementById("rr-today-plan-shell");
   if (!shell) return;
 
+  // Make sure fleet settings are loaded so _refreshTodayPlanData knows
+  // whether to auto-fire today_roster_auto_assign before rendering.
+  if (typeof loadFleetSettings === "function" && !window.RR?.fleetSettings) {
+    loadFleetSettings();
+  }
+
   const dateEl = document.getElementById("rr-today-date");
   if (dateEl) {
     dateEl.textContent = new Date().toLocaleDateString(undefined, {
@@ -8091,14 +8097,21 @@ async function _refreshTodayPlanData() {
     catch (e) { console.error("today plan · coverage render failed:", e); _renderTpCoverage(null, e); }
   }).catch(err => _renderTpCoverage(null, err));
 
-  // Today's driver+van roster — surfaces who is working today and the
-  // van each one is resolved into, plus the no-van gaps.  Pass p_date
-  // explicitly so PostgREST resolves the signature cleanly (an empty
-  // body with a single default-arg function 404s as "without parameters").
-  sb.rpc("today_roster", { p_date: fmtIsoDate(new Date()) }).then(({ data, error }) => {
-    try { _renderTpVanRoster(data, error); }
-    catch (e) { console.error("today plan · van roster render failed:", e); _renderTpVanRoster(null, e); }
-  }).catch(err => _renderTpVanRoster(null, err));
+  // Today's driver+van roster.  When the DSP has auto-assign turned
+  // on, fire today_roster_auto_assign first so the gaps fill before
+  // the operator sees them.  Either way, we then read today_roster
+  // for the rendered payload.
+  (async () => {
+    const todayIso = fmtIsoDate(new Date());
+    try {
+      if (window.RR?.fleetSettings?.auto_van_assign === true) {
+        await sb.rpc("today_roster_auto_assign", { p_date: todayIso });
+      }
+      const { data, error } = await sb.rpc("today_roster", { p_date: todayIso });
+      try { _renderTpVanRoster(data, error); }
+      catch (e) { console.error("today plan · van roster render failed:", e); _renderTpVanRoster(null, e); }
+    } catch (err) { _renderTpVanRoster(null, err); }
+  })();
 }
 
 function _renderTpAttendance(data, error) {
@@ -8447,6 +8460,16 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
+  // Inline van picker — click any van cell or "Assign van" chip on
+  // the Today's roster to open the popover.
+  const pickEl = e.target.closest("[data-rr-tp-pick-van]");
+  if (pickEl) {
+    e.preventDefault();
+    e.stopPropagation();
+    _tpOpenVanPicker(pickEl);
+    return;
+  }
+
   const ap  = e.target.closest("[data-rr-tp-approve]");
   const dn  = e.target.closest("[data-rr-tp-deny]");
   const vto = e.target.closest("[data-rr-tp-vto]");
@@ -8619,15 +8642,24 @@ function _renderTpVanRoster(data, error) {
 
     const shiftMeta = [r.route_code, r.station_code].filter(Boolean).map(escapeHtml).join(" · ");
 
+    // The whole cell is clickable — it opens the inline picker.  We
+    // keep the underlying van id on the cell via data-rr-tp-pick-van
+    // so the picker knows what (driver, date, currently-assigned van)
+    // it's editing.  This intentionally replaces the old "click van →
+    // open fleet drawer" behavior on this surface; the fleet drawer
+    // is still reachable from My vehicles.
+    const pickAttrs = `data-rr-tp-pick-van="${escapeHtml(r.driver_id)}" data-rr-tp-pick-via="${escapeHtml(r.van_via || "")}" data-rr-tp-pick-current="${escapeHtml(r.van_id || "")}" data-rr-tp-pick-driver-name="${escapeHtml(r.driver_name)}"`;
     let vanCell;
     if (r.van_name) {
       const plate = r.van_plate ? `<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(r.van_plate)}</span>` : "";
       const cover = r.van_via === "backup" && r.covering_for
         ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
-        : "";
-      vanCell = `<div data-rr-vehicle-id="${escapeHtml(r.van_id || "")}" style="cursor:pointer"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
+        : (r.van_via === "override"
+            ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`
+            : "");
+      vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
-      vanCell = `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:3px 9px;border-radius:999px;background:var(--red-soft);color:var(--red)"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>No van</span>`;
+      vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:4px 10px;border-radius:999px;background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
     }
 
     return `<tr>
@@ -8675,6 +8707,184 @@ function _renderTpVanRoster(data, error) {
         <tbody>${body}</tbody>
       </table>
     </div>`;
+}
+
+// ─── Today's roster · inline van picker ─────────────────────────────
+// Small popover that lets the operator change (or clear) the van
+// assigned to a driver for today.  Powered by:
+//   • vehicles_pickable_for_day  → list of vans with committed/who
+//   • vehicle_day_assignment_set → write the override (or clear)
+// On save we re-render the roster card with the fresh today_roster.
+async function _tpOpenVanPicker(anchorEl) {
+  // Close any existing picker first.
+  document.getElementById("rr-tp-vp-pop")?.remove();
+
+  const driverId       = anchorEl.getAttribute("data-rr-tp-pick-van");
+  const driverName     = anchorEl.getAttribute("data-rr-tp-pick-driver-name") || "Driver";
+  const currentVanId   = anchorEl.getAttribute("data-rr-tp-pick-current") || "";
+  const currentVia     = anchorEl.getAttribute("data-rr-tp-pick-via") || "";
+  const todayIso       = fmtIsoDate(new Date());
+
+  // Position the popover relative to the anchor.
+  const rect = anchorEl.getBoundingClientRect();
+
+  const pop = document.createElement("div");
+  pop.id = "rr-tp-vp-pop";
+  pop.innerHTML = `
+    <style>
+      #rr-tp-vp-pop{position:fixed;z-index:9998;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(0,0,0,.18);width:340px;max-height:420px;display:flex;flex-direction:column;overflow:hidden;font-size:var(--fs-md)}
+      #rr-tp-vp-pop .vp-h{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+      #rr-tp-vp-pop .vp-h .t{font-weight:600;font-size:var(--fs-sm);color:var(--text);min-width:0;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+      #rr-tp-vp-pop .vp-h .s{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+      #rr-tp-vp-pop .vp-h button{background:none;border:0;color:var(--text-subtle);font-size:18px;cursor:pointer;line-height:1;padding:0 4px}
+      #rr-tp-vp-pop .vp-search{padding:9px 12px;border-bottom:1px solid var(--border)}
+      #rr-tp-vp-pop .vp-search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);color:var(--text)}
+      #rr-tp-vp-pop .vp-list{overflow-y:auto;flex:1}
+      #rr-tp-vp-pop .vp-row{padding:9px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer}
+      #rr-tp-vp-pop .vp-row:first-child{border-top:0}
+      #rr-tp-vp-pop .vp-row:hover{background:var(--canvas)}
+      #rr-tp-vp-pop .vp-row.is-disabled{cursor:not-allowed;opacity:.55}
+      #rr-tp-vp-pop .vp-row.is-disabled:hover{background:transparent}
+      #rr-tp-vp-pop .vp-row.is-current{background:var(--accent-soft)}
+      #rr-tp-vp-pop .vp-row.is-current:hover{background:var(--accent-soft)}
+      #rr-tp-vp-pop .vp-row .nm{flex:1;min-width:0}
+      #rr-tp-vp-pop .vp-row .nm .n{font-weight:600;display:flex;align-items:center;gap:8px}
+      #rr-tp-vp-pop .vp-row .nm .s{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+      #rr-tp-vp-pop .vp-tag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+      #rr-tp-vp-pop .vp-tag.current{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
+      #rr-tp-vp-pop .vp-tag.taken{background:var(--amber-soft);color:var(--amber-dark);border:1px solid rgba(217,119,6,.18)}
+      #rr-tp-vp-pop .vp-foot{padding:9px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between}
+      #rr-tp-vp-pop .vp-foot .btn{font-size:var(--fs-sm)}
+    </style>
+    <div class="vp-h">
+      <div style="min-width:0">
+        <div class="t">${escapeHtml(driverName)} · today</div>
+        <div class="s">Pick a van — or clear to fall back to the standing chain.</div>
+      </div>
+      <button type="button" data-rr-tp-vp-close aria-label="Close">×</button>
+    </div>
+    <div class="vp-search"><input type="search" id="rr-tp-vp-search" placeholder="Search by name or plate…" autocomplete="off"></div>
+    <div class="vp-list" id="rr-tp-vp-list"><div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">Loading…</div></div>
+    <div class="vp-foot">
+      <button type="button" class="btn btn-sm" data-rr-tp-vp-clear${currentVanId ? "" : " disabled"}>Clear assignment</button>
+      <button type="button" class="btn btn-sm" data-rr-tp-vp-close>Cancel</button>
+    </div>`;
+  document.body.appendChild(pop);
+
+  // Position — prefer below the anchor; flip up if no room.
+  const popW = 340;
+  const popH = pop.offsetHeight || 420;
+  let left = Math.max(8, Math.min(rect.left, window.innerWidth - popW - 8));
+  let top  = rect.bottom + 6;
+  if (top + popH > window.innerHeight - 8) top = Math.max(8, rect.top - popH - 6);
+  pop.style.left = left + "px";
+  pop.style.top  = top  + "px";
+
+  // Outside-click closes — capture phase so it runs before list clicks.
+  setTimeout(() => {
+    const off = (ev) => {
+      if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener("click", off, true); }
+    };
+    document.addEventListener("click", off, true);
+    pop._rrOff = off;
+  }, 0);
+
+  // Close + clear handlers
+  pop.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-tp-vp-close]")) {
+      pop.remove();
+      if (pop._rrOff) document.removeEventListener("click", pop._rrOff, true);
+      return;
+    }
+    if (e.target.closest("[data-rr-tp-vp-clear]")) {
+      e.preventDefault();
+      const btn = e.target.closest("[data-rr-tp-vp-clear]");
+      if (btn.hasAttribute("disabled")) return;
+      const { error } = await sb.rpc("vehicle_day_assignment_set", { p_driver_id: driverId, p_date: todayIso, p_vehicle_id: null });
+      if (error) { toast("Couldn't clear: " + error.message, "warn"); return; }
+      toast("Assignment cleared. Resolver will use the standing chain.", "ok");
+      pop.remove();
+      if (pop._rrOff) document.removeEventListener("click", pop._rrOff, true);
+      _tpReloadRoster();
+      return;
+    }
+    const row = e.target.closest("[data-rr-tp-vp-pick]");
+    if (!row || row.classList.contains("is-disabled")) return;
+    const vanId = row.getAttribute("data-rr-tp-vp-pick");
+    if (vanId === currentVanId) {
+      pop.remove();
+      if (pop._rrOff) document.removeEventListener("click", pop._rrOff, true);
+      return;
+    }
+    const { error } = await sb.rpc("vehicle_day_assignment_set", { p_driver_id: driverId, p_date: todayIso, p_vehicle_id: vanId });
+    if (error) {
+      const msg = (error.message || "").includes("vehicle_already_assigned")
+        ? "That van is already taken for today by someone else. Clear that driver first."
+        : "Couldn't save: " + error.message;
+      toast(msg, "warn");
+      return;
+    }
+    toast(`Assigned ${row.querySelector(".n")?.textContent?.trim() || "van"} to ${driverName} for today.`, "ok");
+    pop.remove();
+    if (pop._rrOff) document.removeEventListener("click", pop._rrOff, true);
+    _tpReloadRoster();
+  });
+
+  // Load the pickable list.
+  const { data: list, error: lerr } = await sb.rpc("vehicles_pickable_for_day", { p_date: todayIso, p_driver_id: driverId });
+  const listEl = document.getElementById("rr-tp-vp-list");
+  if (!listEl) return;
+  if (lerr) { listEl.innerHTML = `<div style="padding:18px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(lerr.message)}</div>`; return; }
+  const vans = Array.isArray(list) ? list : [];
+  const renderList = (filter) => {
+    const q = (filter || "").toLowerCase();
+    const filtered = q
+      ? vans.filter((v) => [v.name, v.plate].filter(Boolean).join(" ").toLowerCase().includes(q))
+      : vans;
+    if (!filtered.length) {
+      listEl.innerHTML = `<div style="padding:18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">No vans match.</div>`;
+      return;
+    }
+    listEl.innerHTML = filtered.map((v) => {
+      const isCurrent = v.id === currentVanId;
+      // A van is selectable if it's not committed to someone else.
+      // A van currently held by the same driver (override) is also selectable (no-op).
+      const takenByOther = v.committed && !isCurrent && v.committed_kind !== null;
+      const cls = "vp-row" + (takenByOther ? " is-disabled" : "") + (isCurrent ? " is-current" : "");
+      const opAttrs = takenByOther ? "" : `data-rr-tp-vp-pick="${escapeHtml(v.id)}"`;
+      const sub = [];
+      if (v.plate) sub.push(escapeHtml(v.plate));
+      if (v.status === "spare") sub.push("Spare");
+      if (v.status === "out_of_service") sub.push("Out of service");
+      if (v.committed && !isCurrent) sub.push(`Held by ${escapeHtml(v.committed_to || "another driver")} (${escapeHtml((v.committed_kind || "").replace(/_/g, " "))})`);
+      const tag = isCurrent ? `<span class="vp-tag current">Current</span>` : (takenByOther ? `<span class="vp-tag taken">Taken</span>` : "");
+      return `<div class="${cls}" ${opAttrs}>
+        <div class="nm">
+          <div class="n">${escapeHtml(v.name)}${tag ? " " + tag : ""}</div>
+          ${sub.length ? `<div class="s">${sub.join(" · ")}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+  };
+  renderList("");
+
+  const searchInput = document.getElementById("rr-tp-vp-search");
+  if (searchInput) {
+    searchInput.focus();
+    let t = null;
+    searchInput.addEventListener("input", (ev) => {
+      clearTimeout(t);
+      t = setTimeout(() => renderList(ev.target.value || ""), 80);
+    });
+  }
+}
+
+function _tpReloadRoster() {
+  const todayIso = fmtIsoDate(new Date());
+  sb.rpc("today_roster", { p_date: todayIso }).then(({ data, error }) => {
+    try { _renderTpVanRoster(data, error); }
+    catch (e) { console.error("today plan · roster reload after picker:", e); }
+  });
 }
 
 function _renderTpCoverage(data, error) {
@@ -19891,10 +20101,52 @@ async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0, stId = null) {
 
 // ─── Settings · Scheduling (block hours, cushion, waves) ───────────────────
 
+// ─── Fleet settings (DSP-level) ─────────────────────────────────────
+// Single source of truth for the auto-van-assign toggle.  Cached on
+// window.RR.fleetSettings so the Today's Plan can read it without an
+// extra round-trip on every page focus.
+async function loadFleetSettings() {
+  if (!window.RR?.dsp?.id) return;
+  try {
+    const { data, error } = await sb.rpc("fleet_settings_get");
+    if (error) { console.warn("fleet_settings_get:", error.message); return; }
+    window.RR.fleetSettings = data || { auto_van_assign: false };
+    const toggle = document.getElementById("rr-set-auto-van-assign");
+    if (toggle) {
+      toggle.checked = !!data?.auto_van_assign;
+      const lbl = document.querySelector("[data-rr-auto-van-label]");
+      if (lbl) lbl.textContent = data?.auto_van_assign ? "On" : "Off";
+    }
+  } catch (e) { console.warn("loadFleetSettings:", e); }
+}
+
+document.addEventListener("change", async (e) => {
+  if (e.target?.id !== "rr-set-auto-van-assign") return;
+  const next = !!e.target.checked;
+  const lbl = document.querySelector("[data-rr-auto-van-label]");
+  if (lbl) lbl.textContent = next ? "On" : "Off";
+  const { error } = await sb.rpc("fleet_settings_set", { p_auto_van_assign: next });
+  if (error) {
+    toast("Couldn't save: " + error.message, "warn");
+    e.target.checked = !next;
+    if (lbl) lbl.textContent = !next ? "On" : "Off";
+    return;
+  }
+  window.RR.fleetSettings = { ...(window.RR.fleetSettings || {}), auto_van_assign: next };
+  toast(`Auto-assign vans turned ${next ? "on" : "off"}.`, "ok");
+  // If turning on, fire it for today right away so the operator sees the effect.
+  if (next && typeof _refreshTodayPlanData === "function") _refreshTodayPlanData();
+});
+
+
 async function loadSchedulingSettings() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
   if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  // Fleet settings live on their own DSP-level row — load them too so
+  // the toggle in Settings → Scheduling reflects current state.
+  loadFleetSettings();
 
   const { data, error } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
   if (error) { console.warn("scheduling settings load:", error.message); return; }
