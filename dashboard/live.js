@@ -25503,13 +25503,23 @@ function _renderBuilderCanvas() {
     return;
   }
   if (empty) empty.style.display = "none";
-  list.innerHTML = _formsState.fields.map((f, i) => _builderFieldHtml(f, i, f.id === _formsState.selectedId)).join("");
+  const last = _formsState.fields.length - 1;
+  list.innerHTML = _formsState.fields.map((f, i) => _builderFieldHtml(f, i, f.id === _formsState.selectedId, last)).join("");
 }
 
-function _builderFieldHtml(f, idx, selected) {
+function _builderFieldHtml(f, idx, selected, last) {
   const req = f.required ? '<span class="req">*</span>' : "";
   const cls = selected ? "builder-field active" : "builder-field";
   const id  = escapeHtml(f.id);
+  // Drag-and-drop attrs + keyboard-accessible nudge buttons.  The
+  // whole row is draggable (HTML5 DnD); ⋮⋮ on the left is just the
+  // visual cursor cue.  Nudge arrows render only when the row is
+  // selected, mirroring the remove (×) affordance.
+  const dnd = `draggable="true" data-rr-field-idx="${idx}"`;
+  const nudge = `<div class="rr-field-nudge" data-rr-no-drawer>
+    <button type="button" data-rr-field-up="${id}" aria-label="Move up" title="Move up"${idx === 0 ? " disabled" : ""}>▲</button>
+    <button type="button" data-rr-field-down="${id}" aria-label="Move down" title="Move down"${idx === last ? " disabled" : ""}>▼</button>
+  </div>`;
   let body = "";
   switch (f.type) {
     case "short_text": case "email": case "phone": case "number":
@@ -25550,22 +25560,35 @@ function _builderFieldHtml(f, idx, selected) {
       body = `<div class="builder-field-img-placeholder">GPS location · auto-captured on submit</div>`;
       break;
     case "section_header":
-      return `<div class="${cls}" data-rr-field-pick="${id}" style="margin-top:14px"><div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(f.label || "Section")}</div></div>`;
+      return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="margin-top:14px">
+        <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
+        <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove section">×</button>
+        ${nudge}
+        <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(f.label || "Section")}</div>
+      </div>`;
     case "divider":
-      return `<div class="${cls}" data-rr-field-pick="${id}"><hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/></div>`;
+      return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}">
+        <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
+        <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove divider">×</button>
+        ${nudge}
+        <hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/>
+      </div>`;
     case "instructions": {
       const text = (f.help || "").trim();
-      return `<div class="${cls}" data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:var(--accent-border)">
+      return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:var(--accent-border)">
+        <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
         <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove block">×</button>
+        ${nudge}
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text);margin-bottom:6px">${escapeHtml(f.label || "Instructions")}</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;white-space:pre-wrap">${escapeHtml(text || "Click here, then type instructions in the Help text field on the right.")}</div>
       </div>`;
     }
   }
   return `
-    <div class="${cls}" data-rr-field-pick="${id}">
-      <span class="builder-field-handle">⋮⋮</span>
+    <div class="${cls}" ${dnd} data-rr-field-pick="${id}">
+      <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
       <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove field">×</button>
+      ${nudge}
       <label class="builder-field-label">${escapeHtml(f.label || "Untitled")}${req}</label>
       ${f.help ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:6px">${escapeHtml(f.help)}</div>` : ""}
       ${body}
@@ -25688,6 +25711,24 @@ document.addEventListener("click", async (e) => {
     _renderBuilderProps();
     return;
   }
+  // Nudge up / down — keyboard-accessible alternative to drag, also
+  // works on touch where HTML5 drag-and-drop is unreliable.
+  const upBtn   = e.target.closest("[data-rr-field-up]");
+  const downBtn = e.target.closest("[data-rr-field-down]");
+  if (upBtn || downBtn) {
+    e.preventDefault(); e.stopPropagation();
+    const fid = (upBtn || downBtn).getAttribute(upBtn ? "data-rr-field-up" : "data-rr-field-down");
+    const i = _formsState.fields.findIndex(f => f.id === fid);
+    if (i < 0) return;
+    const j = upBtn ? i - 1 : i + 1;
+    if (j < 0 || j >= _formsState.fields.length) return;
+    const [f] = _formsState.fields.splice(i, 1);
+    _formsState.fields.splice(j, 0, f);
+    _formsState.selectedId = f.id;
+    _renderBuilderCanvas();
+    _renderBuilderProps();
+    return;
+  }
   // Pick a field for editing
   const pick = e.target.closest("[data-rr-field-pick]");
   if (pick) {
@@ -25701,6 +25742,56 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("[data-rr-form-save]"))    { e.preventDefault(); _saveBuilder({ publish: false }); return; }
   if (e.target.closest("[data-rr-form-publish]")) { e.preventDefault(); _saveBuilder({ publish: true });  return; }
 });
+
+// HTML5 drag-and-drop reordering for form-builder fields.  Each
+// .builder-field carries draggable=true + a data-rr-field-idx; on drop
+// we splice the array and re-render.  Targets render a top/bottom
+// inset line as the visual indicator depending on cursor position.
+(function () {
+  let dragIdx = null;
+  document.addEventListener("dragstart", (e) => {
+    const row = e.target.closest("#rr-builder-fields .builder-field");
+    if (!row) return;
+    dragIdx = Number(row.getAttribute("data-rr-field-idx"));
+    row.classList.add("is-dragging");
+    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(dragIdx)); } catch (_) {}
+  });
+  document.addEventListener("dragend", (e) => {
+    const row = e.target.closest("#rr-builder-fields .builder-field");
+    if (row) row.classList.remove("is-dragging");
+    document.querySelectorAll("#rr-builder-fields .builder-field.is-drop-target, #rr-builder-fields .builder-field.is-drop-target-bottom")
+      .forEach(el => el.classList.remove("is-drop-target", "is-drop-target-bottom"));
+    dragIdx = null;
+  });
+  document.addEventListener("dragover", (e) => {
+    const row = e.target.closest("#rr-builder-fields .builder-field");
+    if (!row || dragIdx == null) return;
+    e.preventDefault();   // allow drop
+    document.querySelectorAll("#rr-builder-fields .builder-field.is-drop-target, #rr-builder-fields .builder-field.is-drop-target-bottom")
+      .forEach(el => el.classList.remove("is-drop-target", "is-drop-target-bottom"));
+    const r = row.getBoundingClientRect();
+    const before = (e.clientY - r.top) < r.height / 2;
+    row.classList.add(before ? "is-drop-target" : "is-drop-target-bottom");
+  });
+  document.addEventListener("drop", (e) => {
+    const row = e.target.closest("#rr-builder-fields .builder-field");
+    if (!row || dragIdx == null) return;
+    e.preventDefault();
+    const targetIdx = Number(row.getAttribute("data-rr-field-idx"));
+    const r = row.getBoundingClientRect();
+    const before = (e.clientY - r.top) < r.height / 2;
+    let dest = targetIdx + (before ? 0 : 1);
+    if (dragIdx === targetIdx) return;
+    // Splice with index correction when removing-before-dest.
+    const [moved] = _formsState.fields.splice(dragIdx, 1);
+    if (dragIdx < dest) dest -= 1;
+    _formsState.fields.splice(dest, 0, moved);
+    _formsState.selectedId = moved.id;
+    dragIdx = null;
+    _renderBuilderCanvas();
+    _renderBuilderProps();
+  });
+})();
 
 // Inputs in the props panel update _formsState in place.
 document.addEventListener("input", (e) => {
