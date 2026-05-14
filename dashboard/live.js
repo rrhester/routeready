@@ -29192,14 +29192,13 @@ document.addEventListener("click", (e) => {
 
 // ═════════════════════════════════════════════════════════════════════
 // FLEET — van roster + per-van record drawer.  Shape mirrors the
-// Amazon Logistics Fleet portal (Dashboard / My vehicles / Issues / …).
+// Amazon Logistics Fleet portal (My vehicles + Issues).
 // Data layer is the vehicles table (0186) extended in migration 0213.
 // ═════════════════════════════════════════════════════════════════════
 
-let _fleetSub          = "dashboard";   // active sub-tab
+let _fleetSub          = "vehicles";    // active sub-tab
 let _fleetRows         = [];            // last loaded vehicles_roster payload
 let _fleetIssues       = [];            // last loaded vehicles_issues_list payload
-let _fleetDash         = null;          // last vehicles_dashboard payload
 let _fleetFilters      = { q: "", status: "", station: "" };
 let _fleetIssueFilters = { q: "", state: "open", severity: "" };
 let _fleetSearchT      = null;
@@ -29282,21 +29281,15 @@ window.fleetSub = function (sub) {
   });
   document.querySelectorAll("#view-fleet .fl-sub").forEach((s) => s.classList.remove("active"));
   document.getElementById("fl-sub-" + sub)?.classList.add("active");
-  // Per-tab loader — only the tabs that have data fetch.  Roster +
-  // dashboard reuse cached rows when they're already on hand to keep
-  // the tab switch instant.
-  if (sub === "dashboard") _flLoadDashboard();
-  else if (sub === "vehicles") _flLoadRoster();
+  if (sub === "vehicles")    _flLoadRoster();
   else if (sub === "issues") _flLoadIssues();
-  // The add-van + export buttons only make sense on My vehicles, but
-  // we keep them visible — they always open / export the roster.
 };
 
 // ─── Master loader (entry point from refreshActiveView) ──────────────
 async function loadFleetView() {
-  // Always refresh dashboard + roster so the tab counts stay accurate;
-  // these are cheap RPCs and the operator usually lands on Dashboard.
-  await Promise.all([_flLoadDashboard(), _flLoadRoster()]);
+  // Roster is always fetched on entry so the tab counts + page sub-line
+  // stay accurate; issues come along when the operator opens that tab.
+  await _flLoadRoster();
   if (_fleetSub === "issues") await _flLoadIssues();
   _flPaintTabCounts();
 }
@@ -29306,39 +29299,18 @@ function _flPaintTabCounts() {
   if (vc) vc.textContent = String(_fleetRows.length || 0);
   const ic = document.getElementById("rr-fleet-tabcount-issues");
   if (ic) {
-    const n = (_fleetDash?.issues?.open) || 0;
+    const n = _fleetRows.reduce((acc, v) => acc + (v.open_issue_count || 0), 0);
     ic.textContent = String(n);
     ic.style.display = n > 0 ? "" : "none";
   }
-  // Page sub-line — total + grounded
   const sub = document.getElementById("rr-fleet-page-sub");
-  if (sub && _fleetDash) {
-    const t = _fleetDash.totals || {};
-    const bits = [`${t.total ?? 0} van${t.total === 1 ? "" : "s"}`];
-    if ((t.grounded || 0) > 0) bits.push(`${t.grounded} grounded`);
-    if ((_fleetDash.issues?.open || 0) > 0) bits.push(`${_fleetDash.issues.open} open issue${_fleetDash.issues.open === 1 ? "" : "s"}`);
+  if (sub) {
+    const total    = _fleetRows.length;
+    const grounded = _fleetRows.filter((v) => v.operational_status === "grounded").length;
+    const bits = [`${total} van${total === 1 ? "" : "s"}`];
+    if (grounded > 0) bits.push(`${grounded} grounded`);
     sub.textContent = bits.join(" · ");
-  } else if (sub) {
-    sub.textContent = `${_fleetRows.length} van${_fleetRows.length === 1 ? "" : "s"}`;
   }
-}
-
-// ─── Dashboard ───────────────────────────────────────────────────────
-async function _flLoadDashboard() {
-  const { data, error } = await sb.rpc("vehicles_dashboard");
-  if (error) { console.warn("vehicles_dashboard:", error); _fleetDash = null; return; }
-  _fleetDash = data || null;
-  _flPaintDashboard();
-  _flPaintTabCounts();
-}
-
-function _flPaintDashboard() {
-  if (!_fleetDash) return;
-  const get = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), _fleetDash);
-  document.querySelectorAll("#view-fleet [data-rr-kpi]").forEach((el) => {
-    const v = get(el.getAttribute("data-rr-kpi"));
-    el.textContent = (v == null ? "0" : String(v));
-  });
 }
 
 // ─── My vehicles roster ──────────────────────────────────────────────
@@ -30179,7 +30151,7 @@ async function _fdPromptInspection() {
   }
   toast("Inspection logged.", "ok");
   await loadFleetDrawer(veh.id);
-  _flLoadDashboard();
+  _flLoadRoster();
   await _fdRefreshInspectionsList(veh.id);
 }
 
