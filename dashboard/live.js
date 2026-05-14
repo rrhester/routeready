@@ -19783,8 +19783,58 @@ async function loadSchedulingSettings() {
       ? "Inherited from a previous week — Save to make this week's settings independent"
       : `Custom settings for week of ${_schedStart}`;
   }
+  _rrPaintDefaultHints(s);
   loadServiceTypes();
 }
+
+// ─── Per-week drawer · DSP default hints ─────────────────────────────
+// For each settings field, show a small amber line under the help text
+// when the visible week overrides the DSP-wide default — e.g.
+// "Overrides DSP default of 10h". Stays hidden when the value matches,
+// so the form reads clean by default and only surfaces deviations.
+// Reacts live to input/change so operators see the hint flip as they
+// type before they save.
+const _rrTiebreakerLabel = {
+  least_loaded: "Fewest shifts so far",
+  seniority:    "Most senior",
+  fairness:     "Least recently honored",
+};
+function _rrPaintDefaultHints(s) {
+  if (!s || !s.defaults) return;
+  const D = s.defaults;
+  const fields = [
+    { id: "rr-set-block-hours",             get: el => parseInt(el.value, 10) || 0,                                def: parseInt(D.default_block_hours, 10) || 10,                           fmt: v => `${v}h` },
+    { id: "rr-set-cushion-pct",             get: el => Math.round(parseFloat(el.value) || 0),                      def: Math.round(parseFloat(D.cushion_pct) || 0),                          fmt: v => `${v}%` },
+    { id: "rr-set-max-days",                get: el => parseInt(el.value, 10) || 0,                                def: parseInt(D.max_days_per_week, 10) || 5,                              fmt: v => `${v} ${v === 1 ? "day" : "days"}` },
+    { id: "rr-set-report-lead",             get: el => parseInt(el.value, 10) || 0,                                def: parseInt(D.report_lead_minutes, 10) || 0,                            fmt: v => `${v} min` },
+    { id: "rr-set-availability-override",   get: el => !!el.checked,                                               def: !!D.allow_availability_override,                                     fmt: v => v ? "on" : "off" },
+    { id: "rr-set-pref-tiebreaker",         get: el => el.value,                                                   def: D.preference_tiebreaker || "least_loaded",                           fmt: v => _rrTiebreakerLabel[v] || v },
+  ];
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    const hint = document.querySelector(`[data-rr-default-for="${f.id}"]`);
+    if (!el || !hint) return;
+    const cur = f.get(el);
+    if (cur === f.def) {
+      hint.hidden = true;
+      hint.textContent = "";
+      return;
+    }
+    hint.hidden = false;
+    hint.style.fontSize  = "11px";
+    hint.style.color     = "var(--amber, #b45309)";
+    hint.style.marginTop = "2px";
+    hint.textContent = `Overrides DSP default of ${f.fmt(f.def)}`;
+  });
+}
+document.addEventListener("input", (e) => {
+  if (!e.target?.closest?.("#sched-sub-settings")) return;
+  if (window._rrEffectiveSettings) _rrPaintDefaultHints(window._rrEffectiveSettings);
+});
+document.addEventListener("change", (e) => {
+  if (!e.target?.closest?.("#sched-sub-settings")) return;
+  if (window._rrEffectiveSettings) _rrPaintDefaultHints(window._rrEffectiveSettings);
+});
 
 let _okamiServiceTypes = null;
 async function loadServiceTypes() {

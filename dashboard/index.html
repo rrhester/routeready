@@ -8983,6 +8983,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div>
                   <div class="rr-drawer-form-label">Block length</div>
                   <div class="rr-drawer-form-help">Hours per shift.</div>
+                  <div class="rr-default-hint" data-rr-default-for="rr-set-block-hours" hidden></div>
                 </div>
                 <div class="rr-drawer-form-control">
                   <input class="form-input rr-drawer-num-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1"/>
@@ -8993,6 +8994,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div>
                   <div class="rr-drawer-form-label">Cushion</div>
                   <div class="rr-drawer-form-help">Extra shifts above the route plan. <span id="rr-cushion-rec"></span></div>
+                  <div class="rr-default-hint" data-rr-default-for="rr-set-cushion-pct" hidden></div>
                 </div>
                 <div class="rr-drawer-form-control">
                   <input class="form-input rr-drawer-num-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1"/>
@@ -9003,6 +9005,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div>
                   <div class="rr-drawer-form-label">Max days per week</div>
                   <div class="rr-drawer-form-help">Auto-assign cap per driver.</div>
+                  <div class="rr-default-hint" data-rr-default-for="rr-set-max-days" hidden></div>
                 </div>
                 <div class="rr-drawer-form-control">
                   <input class="form-input rr-drawer-num-input" id="rr-set-max-days" type="number" min="1" max="7" step="1"/>
@@ -9013,6 +9016,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div>
                   <div class="rr-drawer-form-label">Report time</div>
                   <div class="rr-drawer-form-help">Drivers clock in this many minutes before the wave.</div>
+                  <div class="rr-default-hint" data-rr-default-for="rr-set-report-lead" hidden></div>
                 </div>
                 <div class="rr-drawer-form-control">
                   <input class="form-input rr-drawer-num-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5"/>
@@ -9023,6 +9027,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div>
                   <div class="rr-drawer-form-label">Availability override</div>
                   <div class="rr-drawer-form-help">Smart Fill ignores driver availability when no one matches a day. Use on tight weeks.</div>
+                  <div class="rr-default-hint" data-rr-default-for="rr-set-availability-override" hidden></div>
                 </div>
                 <div class="rr-drawer-form-control">
                   <label class="rr-toggle">
@@ -9035,6 +9040,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div>
                   <div class="rr-drawer-form-label">Preferred-day tiebreaker</div>
                   <div class="rr-drawer-form-help">When more drivers want a day than there are shifts on it, who gets it.</div>
+                  <div class="rr-default-hint" data-rr-default-for="rr-set-pref-tiebreaker" hidden></div>
                 </div>
                 <div class="rr-drawer-form-control">
                   <select class="form-input" id="rr-set-pref-tiebreaker">
