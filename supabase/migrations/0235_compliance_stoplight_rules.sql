@@ -39,22 +39,19 @@ returns numeric
 language sql
 stable
 as $$
-  with bounds as (
-    select least(p_a, p_b) as a, greatest(p_a, p_b) as b
-  ),
-  days as (
-    select count(*) filter (
-      where extract(isodow from gs) between 1 and 5
-    )::numeric
-    + (extract(epoch from (b - date_trunc('day', b))) / 86400.0)
-    - (extract(epoch from (a - date_trunc('day', a))) / 86400.0) as bd
-    from bounds, generate_series(
-      date_trunc('day', (select a from bounds)),
-      date_trunc('day', (select b from bounds)),
-      '1 day'::interval
-    ) gs
+  -- Counts whole Mon–Fri days STRICTLY AFTER the earlier timestamp's
+  -- day, through the later timestamp's day inclusive.  So "grounded
+  -- Mon 9am, now Wed 9am" returns 2; "grounded Mon, now Tue same day"
+  -- returns 1; "grounded Fri, now Mon" returns 1 (Sat/Sun skipped).
+  with d as (
+    select date_trunc('day', least(p_a, p_b))    as d_start,
+           date_trunc('day', greatest(p_a, p_b)) as d_end
   )
-  select greatest(bd, 0) from days;
+  select greatest(0, (
+    select count(*)::numeric
+    from d, generate_series(d.d_start + interval '1 day', d.d_end, '1 day'::interval) gs
+    where extract(isodow from gs) between 1 and 5
+  ));
 $$;
 grant execute on function public.business_days_between(timestamptz, timestamptz) to authenticated;
 
