@@ -8591,6 +8591,32 @@ body.rr-cmdk-open{ overflow:hidden }
                   </div>
                 </details>
 
+                <details class="rules-section" data-rr-rules-section="fleet-assign" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg>
+                    Fleet assignments
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    How the system fills gaps between scheduled drivers and vans. Standing chains (primary + backup) are still set on the Workspaces → Van assignments board.
+                  </div>
+                  <div class="rule-row" style="padding:14px 0">
+                    <div>
+                      <div class="rule-label">Auto-assign vans to scheduled drivers</div>
+                      <div class="rule-help">When on, the Today's Plan home page fills every "No van" gap automatically as soon as it opens, pulling from your active + spare pool. Per-day overrides only — the standing chain isn't changed. Manual changes from the Today's roster always override this.</div>
+                    </div>
+                    <label class="rr-switch" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+                      <input type="checkbox" id="rr-set-auto-van-assign" data-rr-fleet-setting="auto_van_assign" style="appearance:none;width:34px;height:20px;border-radius:10px;background:var(--canvas);border:1px solid var(--border);position:relative;cursor:pointer;transition:background .15s,border-color .15s">
+                      <span style="font-size:var(--fs-sm);color:var(--text-subtle)" data-rr-auto-van-label>Off</span>
+                    </label>
+                  </div>
+                  <style>
+                    .rr-switch input[type=checkbox]{appearance:none;-webkit-appearance:none}
+                    .rr-switch input[type=checkbox]::before{content:"";position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.18);transition:transform .15s,background .15s}
+                    .rr-switch input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+                    .rr-switch input[type=checkbox]:checked::before{transform:translateX(14px)}
+                  </style>
+                </details>
+
                 <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
                   <summary class="rules-section-title">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
@@ -19528,7 +19554,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260514g-auto-assign"></script>
+<script type="module" src="./live.js?v=20260514h-fleet-controls"></script>
 
 </body>
 </html>
