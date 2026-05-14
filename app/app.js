@@ -3149,6 +3149,7 @@ async function _collectFormAnswers(fields) {
   const out = {};
   const session = readSession();
   const driverId = session?.driver_id || null;
+  const dspId    = session?.dsp_id    || null;
   // Walk the inputs and collect; photos upload to storage in parallel
   // so their path ends up in answers when we submit (downstream DVIC
   // flow extracts paths from these to populate the inspection's
@@ -3164,14 +3165,16 @@ async function _collectFormAnswers(fields) {
       out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
     } else if (t === "photo") {
       // Upload the captured photo to driver-documents under a path
-      // the dispatcher's Inspections tab can render via signed URL.
-      // The answer ends up as { path, name, size, type } so the
-      // server-side DVIC hook can pull the path into the inspection.
+      // gated by the existing DSP-tenant SELECT policy (0021): the
+      // FIRST folder MUST be the DSP id so dispatchers on that DSP
+      // can read the object back.  Without this prefix, the
+      // dispatcher gets a 403 on createSignedUrls and the Inspections
+      // tab thumbnails come back broken.
       const f = el.files?.[0];
       if (f) {
         const ts = Date.now();
         const safe = (f.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
-        const path = `dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        const path = `${dspId || "no-dsp"}/dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
         out[fid] = { path, name: f.name, size: f.size, type: f.type, uploading: true };
         photoUploads.push(
           sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
