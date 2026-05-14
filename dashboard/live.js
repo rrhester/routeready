@@ -27555,6 +27555,587 @@ document.addEventListener("keydown", (e) => {
 
 
 // ═══════════════════════════════════════════════════════════════════════
+// Checklist Builder — template editor for Workspaces → Checklists
+// ═══════════════════════════════════════════════════════════════════════
+// Lives inside view-checklists, on the Templates sub-tab. Talks to the
+// checklist_template_* RPCs (migration 0211). The Builder is autosave-
+// only — no Save buttons anywhere. Each editable field debounces a
+// background save and surfaces a quiet "Saved" / "Saving…" indicator.
+//
+// State machine: list view ⇄ editor view (single template open at a
+// time). Drag-and-drop reordering for sections + items uses HTML5 DnD.
+// ─────────────────────────────────────────────────────────────────────
+let _cbView      = "list";          // "list" | "editor"
+let _cbTemplates = [];              // list view: [{id, name, description, item_count, ...}]
+let _cbTpl       = null;            // editor view: full template (with sections/items)
+let _cbSearch    = "";
+const _cbSaveTimers = new Map();    // debounce timers keyed by field id
+let _cbDragKind  = null;            // "section" | "item" | null
+let _cbDragId    = null;
+let _cbDragSection = null;          // for items: source section id
+
+function _cbEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function _cbFmtRel(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const diff = Math.floor((Date.now() - t) / 1000);
+  if (diff < 30)   return "just now";
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+function _cbSetStatus(kind, text) {
+  const el = document.getElementById("rr-cb-save-status");
+  if (!el) return;
+  el.classList.remove("saving", "saved", "err");
+  if (kind) el.classList.add(kind);
+  el.textContent = text || "";
+  if (kind === "saved") {
+    setTimeout(() => {
+      if (el.classList.contains("saved") && el.textContent === text) {
+        el.textContent = "";
+        el.classList.remove("saved");
+      }
+    }, 2500);
+  }
+}
+function _cbScheduleSave(key, fn, ms = 450) {
+  if (_cbSaveTimers.has(key)) clearTimeout(_cbSaveTimers.get(key));
+  _cbSetStatus("saving", "Saving…");
+  const t = setTimeout(async () => {
+    _cbSaveTimers.delete(key);
+    try { await fn(); _cbSetStatus("saved", "Saved"); }
+    catch (e) { console.warn("cb save:", e); _cbSetStatus("err", "Couldn't save"); }
+  }, ms);
+  _cbSaveTimers.set(key, t);
+}
+function _cbFlushSave(key) {
+  const t = _cbSaveTimers.get(key);
+  if (!t) return;
+  clearTimeout(t);
+  _cbSaveTimers.delete(key);
+}
+
+// ── List view ────────────────────────────────────────────────────────
+async function loadChecklistTemplates() {
+  const root = document.getElementById("rr-cb-root");
+  if (!root) return;
+  _cbView = "list"; _cbTpl = null;
+  if (typeof sb === "undefined" || !sb?.rpc) return;
+  const { data, error } = await sb.rpc("checklist_template_list");
+  if (error) {
+    root.innerHTML = `<div class="rr-an-error">Couldn't load checklists: ${_cbEsc(error.message || "")}</div>`;
+    return;
+  }
+  _cbTemplates = Array.isArray(data) ? data : [];
+  _cbRenderList();
+}
+function _cbRenderList() {
+  const root = document.getElementById("rr-cb-root");
+  if (!root) return;
+  const q = _cbSearch.trim().toLowerCase();
+  const active   = _cbTemplates.filter(t => !t.archived_at && (!q || (t.name || "").toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q)));
+  const archived = _cbTemplates.filter(t =>  t.archived_at && (!q || (t.name || "").toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q)));
+
+  const renderCard = (t) => {
+    const sections = Number(t.section_count || 0);
+    const items    = Number(t.item_count || 0);
+    return `<button class="cb-card${t.archived_at ? " archived" : ""}" data-cb-open="${_cbEsc(t.id)}" type="button">
+      <div class="nm">${_cbEsc(t.name || "Untitled checklist")}</div>
+      <div class="desc">${t.description ? _cbEsc(t.description) : '<span style="opacity:.55">No description</span>'}</div>
+      <div class="mt">
+        <span>${sections} ${sections === 1 ? "section" : "sections"}</span>
+        <span class="dot"></span>
+        <span>${items} ${items === 1 ? "item" : "items"}</span>
+        ${t.updated_at ? `<span class="dot"></span><span>Updated ${_cbFmtRel(t.updated_at)}</span>` : ""}
+      </div>
+    </button>`;
+  };
+
+  const empty = !active.length && !archived.length;
+  root.innerHTML = `
+    <div class="cb-toolbar">
+      <div class="cb-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="rr-cb-search" type="text" placeholder="Search templates" value="${_cbEsc(_cbSearch)}" autocomplete="off" />
+      </div>
+      <button class="btn btn-primary btn-sm" type="button" data-cb-new>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New template
+      </button>
+    </div>
+
+    ${empty ? `
+      <div class="cb-empty">
+        <div class="cb-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;stroke-width:2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <div class="cb-empty-title">No checklist templates yet</div>
+        <p class="cb-empty-sub">Start with a blank template. Build sections and items, then drop them into a daily / weekly / per-driver workflow.</p>
+        <button class="btn btn-primary btn-sm" type="button" data-cb-new>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Create your first template
+        </button>
+      </div>
+    ` : `
+      ${active.length ? `
+        <div class="cb-section-h">Active <span class="rules-sub-badge" style="margin-left:6px;background:var(--canvas);color:var(--text-subtle)">${active.length}</span></div>
+        <div class="cb-grid">
+          ${active.map(renderCard).join("")}
+          <button class="cb-new-card" type="button" data-cb-new>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New template
+          </button>
+        </div>
+      ` : `
+        <div class="cb-grid">
+          <button class="cb-new-card" type="button" data-cb-new>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New template
+          </button>
+        </div>
+      `}
+
+      ${archived.length ? `
+        <div class="cb-section-h">Archived <span class="rules-sub-badge" style="margin-left:6px;background:var(--canvas);color:var(--text-subtle)">${archived.length}</span></div>
+        <div class="cb-grid">${archived.map(renderCard).join("")}</div>
+      ` : ""}
+    `}
+  `;
+}
+
+// ── Editor view ──────────────────────────────────────────────────────
+async function _cbOpenTemplate(id) {
+  const root = document.getElementById("rr-cb-root");
+  if (!root) return;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Opening template…</div>`;
+  const { data, error } = await sb.rpc("checklist_template_get", { p_id: id });
+  if (error || !data) {
+    root.innerHTML = `<div class="rr-an-error">Couldn't open template: ${_cbEsc(error?.message || "")}</div>`;
+    return;
+  }
+  _cbTpl = data; _cbView = "editor";
+  _cbRenderEditor();
+}
+function _cbRenderEditor() {
+  const root = document.getElementById("rr-cb-root");
+  if (!root || !_cbTpl) return;
+  const sections = Array.isArray(_cbTpl.sections) ? _cbTpl.sections : [];
+  root.innerHTML = `
+    <div class="cb-edit-head">
+      <button class="cb-back-btn" type="button" data-cb-back>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        All templates
+      </button>
+      <div class="cb-edit-titlewrap">
+        <input class="cb-edit-title" id="rr-cb-title" type="text" value="${_cbEsc(_cbTpl.name || "")}" placeholder="Untitled checklist" />
+        <textarea class="cb-edit-desc" id="rr-cb-desc" rows="1" placeholder="Describe what this checklist is for…">${_cbEsc(_cbTpl.description || "")}</textarea>
+      </div>
+      <div class="cb-edit-actions">
+        <span class="cb-save-status" id="rr-cb-save-status"></span>
+        <button class="cb-iconbtn" type="button" data-cb-action="duplicate" title="Duplicate template">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button class="cb-iconbtn" type="button" data-cb-action="archive" title="${_cbTpl.archived_at ? 'Unarchive' : 'Archive template'}">
+          ${_cbTpl.archived_at
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5"/><polyline points="10 12 12 14 14 12"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>'}
+        </button>
+        <button class="cb-iconbtn is-danger" type="button" data-cb-action="delete" title="Delete template">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="cb-sections" id="rr-cb-sections">
+      ${sections.map(s => _cbRenderSection(s)).join("")}
+    </div>
+
+    <div class="cb-addsection-wrap">
+      <button class="cb-addsection" type="button" data-cb-add-section>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add section
+      </button>
+    </div>
+  `;
+  // Autosize the description on load
+  const desc = document.getElementById("rr-cb-desc");
+  if (desc) { desc.style.height = "auto"; desc.style.height = (desc.scrollHeight) + "px"; }
+}
+function _cbRenderSection(s) {
+  const items = Array.isArray(s.items) ? s.items : [];
+  return `<div class="cb-section" data-cb-section="${_cbEsc(s.id)}" draggable="true">
+    <div class="cb-section-head">
+      <span class="cb-handle" data-cb-handle title="Drag to reorder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg>
+      </span>
+      <input class="cb-section-label" data-cb-field="section-label" data-id="${_cbEsc(s.id)}" type="text" value="${_cbEsc(s.label || "")}" placeholder="Section name" />
+      <div class="cb-section-actions">
+        <button class="cb-iconbtn is-danger" type="button" data-cb-action="delete-section" data-id="${_cbEsc(s.id)}" title="Delete section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </div>
+    </div>
+    <textarea class="cb-section-desc" data-cb-field="section-desc" data-id="${_cbEsc(s.id)}" rows="1" placeholder="Optional context for this section…">${_cbEsc(s.description || "")}</textarea>
+    <div class="cb-items" data-cb-items="${_cbEsc(s.id)}">
+      ${items.map(i => _cbRenderItem(i)).join("")}
+    </div>
+    <button class="cb-additem" type="button" data-cb-add-item data-section="${_cbEsc(s.id)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add item
+    </button>
+  </div>`;
+}
+function _cbRenderItem(i) {
+  return `<div class="cb-item" data-cb-item="${_cbEsc(i.id)}" data-section="${_cbEsc(i.section_id)}" draggable="true">
+    <span class="cb-handle" data-cb-handle title="Drag to reorder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg>
+    </span>
+    <span class="cb-item-check" aria-hidden="true"></span>
+    <input class="cb-item-label" data-cb-field="item-label" data-id="${_cbEsc(i.id)}" type="text" value="${_cbEsc(i.label || "")}" placeholder="What needs to happen?" />
+    <button class="cb-item-required ${i.required ? "on" : ""}" type="button" data-cb-required data-id="${_cbEsc(i.id)}" title="${i.required ? "Required item" : "Mark as required"}">${i.required ? "Required" : "Optional"}</button>
+    <div class="cb-item-actions">
+      <button class="cb-iconbtn is-danger" type="button" data-cb-action="delete-item" data-id="${_cbEsc(i.id)}" title="Delete item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>
+    </div>
+    <textarea class="cb-item-inst" data-cb-field="item-inst" data-id="${_cbEsc(i.id)}" rows="1" placeholder="Add instructions or context (optional)">${_cbEsc(i.instructions || "")}</textarea>
+  </div>`;
+}
+
+// ── Mutations ────────────────────────────────────────────────────────
+async function _cbCreateTemplate() {
+  const { data, error } = await sb.rpc("checklist_template_create", { p_name: "Untitled checklist" });
+  if (error || !data) { toast("Couldn't create template", "warn"); return; }
+  await _cbOpenTemplate(data.id);
+}
+async function _cbDuplicateTemplate() {
+  if (!_cbTpl) return;
+  _cbSetStatus("saving", "Duplicating…");
+  const { data, error } = await sb.rpc("checklist_template_duplicate", { p_id: _cbTpl.id });
+  if (error || !data) { _cbSetStatus("err", "Couldn't duplicate"); return; }
+  _cbSetStatus("saved", "Duplicated");
+  await _cbOpenTemplate(data.id);
+}
+async function _cbArchiveTemplate() {
+  if (!_cbTpl) return;
+  const target = !_cbTpl.archived_at;
+  const { error } = await sb.rpc("checklist_template_archive", { p_id: _cbTpl.id, p_archived: target });
+  if (error) { toast("Couldn't update", "warn"); return; }
+  _cbTpl.archived_at = target ? new Date().toISOString() : null;
+  toast(target ? "Template archived" : "Template restored", "success");
+  await loadChecklistTemplates();
+}
+async function _cbDeleteTemplate() {
+  if (!_cbTpl) return;
+  if (!window.confirm(`Delete "${_cbTpl.name || "this template"}"? This can't be undone.`)) return;
+  const { error } = await sb.from("checklist_templates").delete().eq("id", _cbTpl.id);
+  if (error) { toast("Couldn't delete: " + error.message, "warn"); return; }
+  toast("Template deleted", "success");
+  await loadChecklistTemplates();
+}
+async function _cbAddSection() {
+  if (!_cbTpl) return;
+  const { data, error } = await sb.rpc("checklist_section_create", { p_template_id: _cbTpl.id, p_label: "Section" });
+  if (error || !data) { toast("Couldn't add section", "warn"); return; }
+  data.items = [];
+  _cbTpl.sections = (_cbTpl.sections || []).concat([data]);
+  _cbRenderEditor();
+  setTimeout(() => {
+    const el = document.querySelector(`[data-cb-section="${data.id}"] .cb-section-label`);
+    if (el) { el.focus(); el.select(); }
+  }, 30);
+}
+async function _cbAddItem(sectionId) {
+  if (!_cbTpl) return;
+  const { data, error } = await sb.rpc("checklist_item_create", { p_section_id: sectionId, p_label: "" });
+  if (error || !data) { toast("Couldn't add item", "warn"); return; }
+  const s = (_cbTpl.sections || []).find(s => s.id === sectionId);
+  if (s) { s.items = (s.items || []).concat([data]); }
+  _cbRenderEditor();
+  setTimeout(() => {
+    const el = document.querySelector(`[data-cb-item="${data.id}"] .cb-item-label`);
+    if (el) el.focus();
+  }, 30);
+}
+async function _cbDeleteSection(id) {
+  if (!_cbTpl) return;
+  if (!window.confirm("Delete this section and all its items?")) return;
+  const { error } = await sb.rpc("checklist_section_delete", { p_id: id });
+  if (error) { toast("Couldn't delete", "warn"); return; }
+  _cbTpl.sections = (_cbTpl.sections || []).filter(s => s.id !== id);
+  _cbRenderEditor();
+}
+async function _cbDeleteItem(id) {
+  if (!_cbTpl) return;
+  const { error } = await sb.rpc("checklist_item_delete", { p_id: id });
+  if (error) { toast("Couldn't delete", "warn"); return; }
+  for (const s of (_cbTpl.sections || [])) {
+    s.items = (s.items || []).filter(i => i.id !== id);
+  }
+  _cbRenderEditor();
+}
+async function _cbToggleRequired(id) {
+  if (!_cbTpl) return;
+  let target = null;
+  for (const s of (_cbTpl.sections || [])) {
+    const i = (s.items || []).find(x => x.id === id);
+    if (i) { i.required = !i.required; target = i; break; }
+  }
+  if (!target) return;
+  const btn = document.querySelector(`[data-cb-required][data-id="${id}"]`);
+  if (btn) {
+    btn.classList.toggle("on", target.required);
+    btn.textContent = target.required ? "Required" : "Optional";
+    btn.title = target.required ? "Required item" : "Mark as required";
+  }
+  _cbScheduleSave(`item-required-${id}`, async () => {
+    await sb.rpc("checklist_item_update", { p_id: id, p_required: target.required });
+  }, 80);
+}
+
+// ── Reorder helpers ──────────────────────────────────────────────────
+async function _cbCommitSectionsOrder() {
+  if (!_cbTpl) return;
+  const sectionIds = Array.from(document.querySelectorAll("#rr-cb-sections > .cb-section")).map(el => el.getAttribute("data-cb-section"));
+  // Sync model
+  const byId = new Map((_cbTpl.sections || []).map(s => [s.id, s]));
+  _cbTpl.sections = sectionIds.map(id => byId.get(id)).filter(Boolean);
+  _cbSetStatus("saving", "Saving…");
+  const { error } = await sb.rpc("checklist_sections_reorder", { p_template_id: _cbTpl.id, p_section_ids: sectionIds });
+  if (error) _cbSetStatus("err", "Couldn't save");
+  else _cbSetStatus("saved", "Saved");
+}
+async function _cbCommitItemsOrder(sectionId) {
+  if (!_cbTpl) return;
+  const itemIds = Array.from(document.querySelectorAll(`[data-cb-items="${sectionId}"] > .cb-item`)).map(el => el.getAttribute("data-cb-item"));
+  const s = (_cbTpl.sections || []).find(x => x.id === sectionId);
+  if (s) {
+    const byId = new Map((s.items || []).map(i => [i.id, i]));
+    s.items = itemIds.map(id => byId.get(id)).filter(Boolean);
+  }
+  _cbSetStatus("saving", "Saving…");
+  const { error } = await sb.rpc("checklist_items_reorder", { p_section_id: sectionId, p_item_ids: itemIds });
+  if (error) _cbSetStatus("err", "Couldn't save");
+  else _cbSetStatus("saved", "Saved");
+}
+
+// ── Event wiring (delegated) ─────────────────────────────────────────
+document.addEventListener("click", (e) => {
+  // Open a template
+  const openCard = e.target.closest?.("[data-cb-open]");
+  if (openCard) {
+    e.preventDefault();
+    _cbOpenTemplate(openCard.getAttribute("data-cb-open"));
+    return;
+  }
+  // New template
+  if (e.target.closest?.("[data-cb-new]")) {
+    e.preventDefault();
+    _cbCreateTemplate();
+    return;
+  }
+  // Back to list
+  if (e.target.closest?.("[data-cb-back]")) {
+    e.preventDefault();
+    loadChecklistTemplates();
+    return;
+  }
+  // Template-level actions
+  const tplAction = e.target.closest?.("[data-cb-action]");
+  if (tplAction) {
+    const action = tplAction.getAttribute("data-cb-action");
+    const id = tplAction.getAttribute("data-id");
+    if (action === "duplicate")      _cbDuplicateTemplate();
+    if (action === "archive")        _cbArchiveTemplate();
+    if (action === "delete")         _cbDeleteTemplate();
+    if (action === "delete-section") _cbDeleteSection(id);
+    if (action === "delete-item")    _cbDeleteItem(id);
+    return;
+  }
+  // Add section
+  if (e.target.closest?.("[data-cb-add-section]")) {
+    e.preventDefault();
+    _cbAddSection();
+    return;
+  }
+  // Add item
+  const addItem = e.target.closest?.("[data-cb-add-item]");
+  if (addItem) {
+    e.preventDefault();
+    _cbAddItem(addItem.getAttribute("data-section"));
+    return;
+  }
+  // Required toggle
+  const reqBtn = e.target.closest?.("[data-cb-required]");
+  if (reqBtn) {
+    e.preventDefault();
+    _cbToggleRequired(reqBtn.getAttribute("data-id"));
+    return;
+  }
+});
+
+// Inline edit autosave (input + textarea)
+document.addEventListener("input", (e) => {
+  // Search
+  if (e.target?.id === "rr-cb-search") {
+    _cbSearch = e.target.value || "";
+    _cbRenderList();
+    return;
+  }
+  // Editor fields
+  const field = e.target?.closest?.("[data-cb-field]");
+  if (field) {
+    const kind = field.getAttribute("data-cb-field");
+    const id   = field.getAttribute("data-id");
+    const val  = field.value;
+    // autosize textareas
+    if (field.tagName === "TEXTAREA") {
+      field.style.height = "auto";
+      field.style.height = (field.scrollHeight) + "px";
+    }
+    if (kind === "section-label") {
+      _cbScheduleSave(`s-label-${id}`, async () => { await sb.rpc("checklist_section_update", { p_id: id, p_label: val }); });
+      const s = (_cbTpl?.sections || []).find(x => x.id === id); if (s) s.label = val;
+    } else if (kind === "section-desc") {
+      _cbScheduleSave(`s-desc-${id}`, async () => { await sb.rpc("checklist_section_update", { p_id: id, p_description: val }); });
+      const s = (_cbTpl?.sections || []).find(x => x.id === id); if (s) s.description = val;
+    } else if (kind === "item-label") {
+      _cbScheduleSave(`i-label-${id}`, async () => { await sb.rpc("checklist_item_update", { p_id: id, p_label: val }); });
+      for (const s of (_cbTpl?.sections || [])) { const i = (s.items||[]).find(x => x.id === id); if (i) { i.label = val; break; } }
+    } else if (kind === "item-inst") {
+      _cbScheduleSave(`i-inst-${id}`, async () => { await sb.rpc("checklist_item_update", { p_id: id, p_instructions: val }); });
+      for (const s of (_cbTpl?.sections || [])) { const i = (s.items||[]).find(x => x.id === id); if (i) { i.instructions = val; break; } }
+    }
+    return;
+  }
+  // Title + description on the template itself
+  if (e.target?.id === "rr-cb-title") {
+    const val = e.target.value;
+    _cbScheduleSave(`tpl-name`, async () => { await sb.rpc("checklist_template_update", { p_id: _cbTpl.id, p_name: val }); });
+    if (_cbTpl) _cbTpl.name = val;
+    return;
+  }
+  if (e.target?.id === "rr-cb-desc") {
+    const val = e.target.value;
+    e.target.style.height = "auto";
+    e.target.style.height = (e.target.scrollHeight) + "px";
+    _cbScheduleSave(`tpl-desc`, async () => { await sb.rpc("checklist_template_update", { p_id: _cbTpl.id, p_description: val }); });
+    if (_cbTpl) _cbTpl.description = val;
+    return;
+  }
+});
+
+// Flush pending saves on blur so nothing is lost when the user clicks away
+document.addEventListener("blur", (e) => {
+  if (e.target?.id === "rr-cb-title")  _cbFlushSave(`tpl-name`);
+  if (e.target?.id === "rr-cb-desc")   _cbFlushSave(`tpl-desc`);
+  const f = e.target?.closest?.("[data-cb-field]");
+  if (f) {
+    const id = f.getAttribute("data-id");
+    const kind = f.getAttribute("data-cb-field");
+    if (kind === "section-label") _cbFlushSave(`s-label-${id}`);
+    if (kind === "section-desc")  _cbFlushSave(`s-desc-${id}`);
+    if (kind === "item-label")    _cbFlushSave(`i-label-${id}`);
+    if (kind === "item-inst")     _cbFlushSave(`i-inst-${id}`);
+  }
+}, true);
+
+// Enter on item label adds a new item below
+document.addEventListener("keydown", (e) => {
+  if (!_cbTpl) return;
+  const f = e.target?.closest?.("[data-cb-field]");
+  if (!f) return;
+  if (e.key === "Enter" && !e.shiftKey && f.getAttribute("data-cb-field") === "item-label") {
+    e.preventDefault();
+    const itemEl = f.closest(".cb-item");
+    const sectionId = itemEl?.getAttribute("data-section");
+    if (sectionId) _cbAddItem(sectionId);
+  }
+});
+
+// ── Drag-and-drop reorder (sections + items) ─────────────────────────
+document.addEventListener("dragstart", (e) => {
+  // Only react inside the Builder editor
+  if (!document.getElementById("rr-cb-root")?.contains(e.target)) return;
+  const itemEl = e.target.closest?.(".cb-item");
+  const sectionEl = e.target.closest?.(".cb-section");
+  if (itemEl) {
+    _cbDragKind = "item";
+    _cbDragId = itemEl.getAttribute("data-cb-item");
+    _cbDragSection = itemEl.getAttribute("data-section");
+    itemEl.classList.add("dragging");
+    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", _cbDragId); } catch (_) {}
+  } else if (sectionEl) {
+    _cbDragKind = "section";
+    _cbDragId = sectionEl.getAttribute("data-cb-section");
+    sectionEl.classList.add("dragging");
+    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", _cbDragId); } catch (_) {}
+  }
+});
+document.addEventListener("dragend", () => {
+  document.querySelectorAll(".cb-section.dragging, .cb-item.dragging").forEach(el => el.classList.remove("dragging"));
+  document.querySelectorAll(".drop-target").forEach(el => el.classList.remove("drop-target"));
+  _cbDragKind = null; _cbDragId = null; _cbDragSection = null;
+});
+document.addEventListener("dragover", (e) => {
+  if (!_cbDragKind) return;
+  if (!document.getElementById("rr-cb-root")?.contains(e.target)) return;
+  if (_cbDragKind === "section") {
+    const overEl = e.target.closest?.(".cb-section");
+    if (!overEl || overEl.classList.contains("dragging")) return;
+    e.preventDefault();
+    const rect = overEl.getBoundingClientRect();
+    const after = (e.clientY - rect.top) > rect.height / 2;
+    const dragging = document.querySelector(`.cb-section[data-cb-section="${_cbDragId}"]`);
+    if (!dragging || dragging === overEl) return;
+    overEl.parentNode.insertBefore(dragging, after ? overEl.nextSibling : overEl);
+  } else if (_cbDragKind === "item") {
+    // Allow drop onto items within the same section only (v1 — cross-section
+    // requires re-parenting and a separate RPC).
+    const overEl = e.target.closest?.(".cb-item");
+    if (!overEl || overEl.classList.contains("dragging")) return;
+    if (overEl.getAttribute("data-section") !== _cbDragSection) return;
+    e.preventDefault();
+    const rect = overEl.getBoundingClientRect();
+    const after = (e.clientY - rect.top) > rect.height / 2;
+    const dragging = document.querySelector(`.cb-item[data-cb-item="${_cbDragId}"]`);
+    if (!dragging || dragging === overEl) return;
+    overEl.parentNode.insertBefore(dragging, after ? overEl.nextSibling : overEl);
+  }
+});
+document.addEventListener("drop", (e) => {
+  if (!_cbDragKind) return;
+  if (!document.getElementById("rr-cb-root")?.contains(e.target)) return;
+  e.preventDefault();
+  if (_cbDragKind === "section") _cbCommitSectionsOrder();
+  else if (_cbDragKind === "item" && _cbDragSection) _cbCommitItemsOrder(_cbDragSection);
+});
+
+// Refresh when the Templates sub-tab is opened
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest?.('#view-checklists .subnav-item[data-sub="templates"]');
+  if (btn) setTimeout(loadChecklistTemplates, 0);
+});
+// Also load on first visit
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.('.nav-item[data-view="workspaces"]') || e.target.closest?.('.nav-item[data-view="checklists"]')) {
+    // Only auto-load if the Templates tab is currently visible
+    setTimeout(() => {
+      const tab = document.getElementById("checklist-tab-templates");
+      if (tab && tab.style.display !== "none") loadChecklistTemplates();
+    }, 80);
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
 // Analytics — AI-first analytics workspace
 // ═══════════════════════════════════════════════════════════════════════
 // Calls the analytics-ai edge function with the dispatcher's natural-
