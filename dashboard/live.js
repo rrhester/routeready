@@ -29349,7 +29349,7 @@ function _flApplyRosterFilters(rows) {
   if (f.q) {
     const q = f.q.toLowerCase();
     out = out.filter((v) => {
-      const hay = [v.name, v.nickname, v.make, v.model, v.plate, v.vin, v.primary_driver_name, v.station_code]
+      const hay = [v.name, v.nickname, v.make, v.model, v.plate, v.vin, v.primary_driver_name, v.today_driver_name, v.station_code]
         .filter(Boolean).join(" ").toLowerCase();
       return hay.includes(q);
     });
@@ -29383,9 +29383,23 @@ function _flRenderRoster() {
     const mileage = v.mileage != null
       ? `<strong>${Number(v.mileage).toLocaleString()}</strong> mi`
       : `<span style="color:var(--text-subtle)">—</span>`;
-    const driver = v.primary_driver_name
-      ? `<div>${escapeHtml(v.primary_driver_name)}${v.backup_count ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">+ ${v.backup_count} backup${v.backup_count === 1 ? "" : "s"}</div>` : ""}</div>`
-      : `<span style="color:var(--text-subtle)">— Unassigned</span>`;
+    // Today's resolved driver — falls back to the standing primary
+    // (shown muted with an "off today" tag) when no one in the chain is
+    // scheduled.  The "covering for X" chip surfaces a backup pickup so
+    // the dispatcher can spot reassignments without opening the drawer.
+    let driver;
+    if (v.today_driver_name) {
+      const coverChip = v.today_via === "backup" && v.today_primary_out_name
+        ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">Covering for ${escapeHtml(v.today_primary_out_name)}</div>`
+        : (v.backup_count
+            ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">+ ${v.backup_count} backup${v.backup_count === 1 ? "" : "s"}</div>`
+            : "");
+      driver = `<div>${escapeHtml(v.today_driver_name)}${coverChip}</div>`;
+    } else if (v.primary_driver_name) {
+      driver = `<div style="color:var(--text-subtle)">${escapeHtml(v.primary_driver_name)}<div style="font-size:var(--fs-xs);margin-top:2px">Primary · off today</div></div>`;
+    } else {
+      driver = `<span style="color:var(--text-subtle)">— Unassigned</span>`;
+    }
     const issueChip = v.open_issue_count
       ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
       : "";
@@ -29527,10 +29541,12 @@ document.addEventListener("click", (e) => {
 function _flExportCsv() {
   const rows = _flApplyRosterFilters(_fleetRows);
   if (!rows.length) { toast("No vans to export.", "warn"); return; }
-  const headers = ["name","nickname","ownership","operational_status","year","make","model","color","plate","plate_state","vin","mileage","station_code","primary_driver","backup_count","last_service_at","next_service_due_at","dot_inspection_at","registration_expires_on","insurance_expires_on","open_issue_count"];
+  const headers = ["name","nickname","ownership","operational_status","year","make","model","color","plate","plate_state","vin","mileage","station_code","primary_driver","today_driver","today_via","backup_count","last_service_at","next_service_due_at","dot_inspection_at","registration_expires_on","insurance_expires_on","open_issue_count"];
   const csv = [headers.join(",")].concat(rows.map((v) => headers.map((h) => {
     let val;
-    if (h === "primary_driver") val = v.primary_driver_name || "";
+    if (h === "primary_driver")     val = v.primary_driver_name || "";
+    else if (h === "today_driver")  val = v.today_driver_name   || "";
+    else if (h === "today_via")     val = v.today_via           || "";
     else val = v[h] == null ? "" : String(v[h]);
     return `"${String(val).replace(/"/g, '""')}"`;
   }).join(","))).join("\n");
