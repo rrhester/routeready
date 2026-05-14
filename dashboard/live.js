@@ -8092,8 +8092,10 @@ async function _refreshTodayPlanData() {
   }).catch(err => _renderTpCoverage(null, err));
 
   // Today's driver+van roster — surfaces who is working today and the
-  // van each one is resolved into, plus the no-van gaps.
-  sb.rpc("today_roster").then(({ data, error }) => {
+  // van each one is resolved into, plus the no-van gaps.  Pass p_date
+  // explicitly so PostgREST resolves the signature cleanly (an empty
+  // body with a single default-arg function 404s as "without parameters").
+  sb.rpc("today_roster", { p_date: fmtIsoDate(new Date()) }).then(({ data, error }) => {
     try { _renderTpVanRoster(data, error); }
     catch (e) { console.error("today plan · van roster render failed:", e); _renderTpVanRoster(null, e); }
   }).catch(err => _renderTpVanRoster(null, err));
