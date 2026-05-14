@@ -11365,6 +11365,14 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-workspaces .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
           #view-workspaces .ws-veh-row.is-grounded{background:rgba(225,29,72,.025)}
           #view-workspaces .ws-veh-row.is-grounded:hover td{background:rgba(225,29,72,.05)}
+
+          /* Van name is read-only on this board — Fleet roster owns the
+             record. */
+          #view-workspaces .ws-veh-name-ro{
+            display:inline-block;font-weight:650;color:var(--text);
+            font-size:var(--fs-sm);letter-spacing:.01em;
+            padding:5px 0;
+          }
         </style>
         <div class="page-header">
           <div class="page-header-l">

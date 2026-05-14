@@ -27307,7 +27307,7 @@ function _wsRenderVehicles(root) {
     const grounded = v.operational_status === "grounded";
     const rowCls = grounded ? " is-grounded" : "";
     return `<tr data-veh-id="${escapeHtml(v.id)}" class="ws-veh-row${rowCls}">
-      <td><input class="form-input ws-veh-input" data-veh-field="name" value="${escapeHtml(v.name || "")}" maxlength="40" placeholder="Van #"></td>
+      <td><span class="ws-veh-name-ro" title="Change from the Fleet roster">${escapeHtml(v.name || "—")}</span></td>
       <td>${_wsVehStatusCell(v)}</td>
       <td><select class="form-input ws-veh-select" data-veh-role="primary">${drvOpt(primary && primary.driver_id)}</select></td>
       <td><select class="form-input ws-veh-select" data-veh-role="backup">${drvOpt(backup && backup.driver_id)}</select></td>
@@ -27356,21 +27356,16 @@ async function _wsVehArchive(id) {
 }
 
 async function _wsVehFieldChange(id, field, el) {
-  // status is read-only on this board now — the Fleet workspace owns it.
-  // We only accept name + notes here.
-  if (field !== "name" && field !== "notes") return;
+  // Status and van name (number) are read-only on this board — the
+  // Fleet workspace owns them.  Only notes are editable here.
+  if (field !== "notes") return;
   const v = _wsVehById(id); if (!v) return;
-  if (field === "name") {
-    const nm = String(el.value || "").trim();
-    if (!nm) { toast("Van name can't be empty.", "warn"); el.value = v.name || ""; return; }
-    if (nm === (v.name || "")) return;
-  }
-  if (field === "notes" && String(el.value || "").trim() === (v.notes || "")) return;
+  if (String(el.value || "").trim() === (v.notes || "")) return;
   const { data: up, error } = await sb.rpc("vehicle_upsert", {
     p_id: id,
-    p_name:  field === "name"  ? String(el.value).trim()        : v.name,
+    p_name:  v.name,
     p_kind:  v.kind || "van",
-    p_notes: field === "notes" ? String(el.value || "").trim()  : (v.notes || null),
+    p_notes: String(el.value || "").trim(),
   });
   if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); return; }
   Object.assign(v, { name: up.name, kind: up.kind, notes: up.notes });
