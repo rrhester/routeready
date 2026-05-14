@@ -30961,3 +30961,350 @@ document.addEventListener("change", async (e) => {
   await loadFleetDrawer(veh.id);
   _flLoadRoster();
 });
+
+
+// ─── Staff schedule (support roles, separate from drivers) ──────────
+// Dispatchers, fleet managers, HR, ops managers, other.  Backed by
+// migration 0220's staff_members + staff_shifts tables.  Renders a
+// weekly grid (people × days) with click-to-add shift cells.
+
+let _stfStart   = null;            // Monday of the displayed week (Date)
+let _stfData    = null;            // last staff_schedule_grid payload
+let _stfEditing = null;            // shift being edited in the modal (or null = new)
+
+const _STF_ROLE_LABEL = {
+  dispatcher:    "Dispatcher",
+  fleet_manager: "Fleet manager",
+  hr:            "HR",
+  ops_manager:   "Ops manager",
+  other:         "Other",
+};
+
+function _stfMondayOf(d) {
+  const x = new Date(d);
+  const dow = x.getDay();           // 0=Sun … 6=Sat
+  const diff = (dow + 6) % 7;       // days since Monday
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - diff);
+  return x;
+}
+
+function _stfAddDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function _stfFmtIso(d) { return d.toISOString().slice(0, 10); }
+
+function _stfFmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+async function loadStaffSchedule() {
+  const grid = document.getElementById("rr-staff-grid");
+  if (!grid) return;
+  if (!_stfStart) _stfStart = _stfMondayOf(new Date());
+
+  // Week label
+  const lbl = document.getElementById("rr-staff-week-label");
+  if (lbl) {
+    const a = _stfStart;
+    const b = _stfAddDays(_stfStart, 6);
+    const sameMonth = a.getMonth() === b.getMonth();
+    const opts = (d, opts2) => d.toLocaleDateString(undefined, opts2);
+    lbl.textContent = sameMonth
+      ? `${opts(a, { month: "short", day: "numeric" })} – ${opts(b, { day: "numeric", year: "numeric" })}`
+      : `${opts(a, { month: "short", day: "numeric" })} – ${opts(b, { month: "short", day: "numeric", year: "numeric" })}`;
+  }
+
+  const { data, error } = await sb.rpc("staff_schedule_grid", { p_start: _stfFmtIso(_stfStart), p_weeks: 1 });
+  if (error) {
+    grid.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-sm);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl)">Couldn't load: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  _stfData = data || { staff: [], shifts: [] };
+  _stfRenderGrid();
+}
+
+function _stfRenderGrid() {
+  const grid = document.getElementById("rr-staff-grid");
+  if (!grid || !_stfData) return;
+  const staff  = _stfData.staff  || [];
+  const shifts = _stfData.shifts || [];
+
+  if (staff.length === 0) {
+    grid.innerHTML = `<div class="stf-empty">
+      <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px">No staff members yet</div>
+      <div>Add dispatchers, fleet managers, HR, and other support staff to schedule them.</div>
+      <button type="button" class="btn btn-sm btn-primary" data-rr-staff-manage>+ Add staff member</button>
+    </div>`;
+    return;
+  }
+
+  // Build (staff_id, dateIso) → shift map
+  const byCell = new Map();
+  for (const s of shifts) {
+    const key = `${s.staff_id}|${s.date}`;
+    if (!byCell.has(key)) byCell.set(key, []);
+    byCell.get(key).push(s);
+  }
+
+  const todayIso = _stfFmtIso(new Date());
+  const days = [0, 1, 2, 3, 4, 5, 6].map(i => {
+    const d = _stfAddDays(_stfStart, i);
+    return {
+      iso:   _stfFmtIso(d),
+      label: d.toLocaleDateString(undefined, { weekday: "short", month: "numeric", day: "numeric" }),
+      isToday: _stfFmtIso(d) === todayIso,
+    };
+  });
+
+  // Header row
+  const head = `
+    <div class="stf-grid">
+      <div class="head stf-name">Staff member</div>
+      ${days.map(d => `<div class="head day-head${d.isToday ? " today" : ""}">${escapeHtml(d.label)}${d.isToday ? " · today" : ""}</div>`).join("")}
+    </div>`;
+
+  // Body rows
+  const body = staff.map(m => {
+    const name = m.preferred_name || m.full_name;
+    const role = _STF_ROLE_LABEL[m.role] || m.role || "—";
+    return `
+      <div class="stf-grid">
+        <div class="stf-name">
+          <div class="nm">${escapeHtml(name)}</div>
+          <div class="sub">${escapeHtml(role)}</div>
+        </div>
+        ${days.map(d => {
+          const rows = byCell.get(`${m.id}|${d.iso}`) || [];
+          const chips = rows.map(s => {
+            const t1 = _stfFmtTime(s.starts_at);
+            const t2 = _stfFmtTime(s.ends_at);
+            const tStr = (t1 || t2) ? `<div class="stf-chip-time">${escapeHtml(t1)}${t2 ? " – " + escapeHtml(t2) : ""}</div>` : `<div class="stf-chip-time">All day</div>`;
+            const rRole = s.role ? _STF_ROLE_LABEL[s.role] : null;
+            const rStr = rRole ? `<div class="stf-chip-role">${escapeHtml(rRole)}</div>` : "";
+            return `<div class="stf-chip" data-rr-staff-shift-edit="${escapeHtml(s.id)}">${tStr}${rStr}</div>`;
+          }).join("");
+          const addHint = rows.length === 0 ? `<div class="stf-add-hint">+ Add shift</div>` : `<div class="stf-add-hint">+ Another shift</div>`;
+          return `<div class="stf-cell${d.isToday ? " today" : ""}" data-rr-staff-cell="${escapeHtml(m.id)}|${escapeHtml(d.iso)}">${chips}${addHint}</div>`;
+        }).join("")}
+      </div>`;
+  }).join("");
+
+  grid.innerHTML = `<div class="stf-grid-wrap">${head}${body}</div>`;
+}
+
+// ─── Add/edit shift modal ─────────────────────────────
+function _stfOpenShiftModal(opts) {
+  const modal = document.getElementById("rr-staff-shift-modal");
+  if (!modal) return;
+  _stfEditing = opts.shift || null;
+  const isEdit = !!opts.shift;
+  document.getElementById("rr-staff-shift-title").textContent = isEdit ? "Edit shift" : "Add shift";
+
+  // Populate staff dropdown
+  const staffSel = document.getElementById("rr-staff-shift-staff");
+  staffSel.innerHTML = (_stfData?.staff || []).map(m => {
+    const nm = m.preferred_name || m.full_name;
+    return `<option value="${escapeHtml(m.id)}">${escapeHtml(nm)} · ${escapeHtml(_STF_ROLE_LABEL[m.role] || m.role || "")}</option>`;
+  }).join("");
+  staffSel.value = opts.staffId || opts.shift?.staff_id || "";
+
+  // Pre-fill fields
+  document.getElementById("rr-staff-shift-date").value  = opts.dateIso || opts.shift?.date || _stfFmtIso(new Date());
+  document.getElementById("rr-staff-shift-start").value = isEdit && opts.shift.starts_at
+    ? new Date(opts.shift.starts_at).toTimeString().slice(0, 5) : "";
+  document.getElementById("rr-staff-shift-end").value   = isEdit && opts.shift.ends_at
+    ? new Date(opts.shift.ends_at).toTimeString().slice(0, 5) : "";
+  document.getElementById("rr-staff-shift-role").value  = opts.shift?.role || "";
+  document.getElementById("rr-staff-shift-notes").value = opts.shift?.notes || "";
+
+  // Delete button only on edit
+  const delBtn = modal.querySelector("[data-rr-staff-shift-delete]");
+  if (delBtn) delBtn.style.display = isEdit ? "" : "none";
+
+  modal.classList.add("open");
+}
+
+function _stfCloseShiftModal() {
+  document.getElementById("rr-staff-shift-modal")?.classList.remove("open");
+  _stfEditing = null;
+}
+
+async function _stfSaveShift() {
+  const staffId = document.getElementById("rr-staff-shift-staff").value;
+  const dateIso = document.getElementById("rr-staff-shift-date").value;
+  const startT  = document.getElementById("rr-staff-shift-start").value;
+  const endT    = document.getElementById("rr-staff-shift-end").value;
+  const role    = document.getElementById("rr-staff-shift-role").value;
+  const notes   = document.getElementById("rr-staff-shift-notes").value;
+  if (!staffId || !dateIso) { toast("Pick a staff member + date.", "warn"); return; }
+
+  const toIsoTs = (date, t) => t ? new Date(`${date}T${t}:00`).toISOString() : null;
+  const args = {
+    p_id:        _stfEditing?.id || null,
+    p_staff_id:  staffId,
+    p_date:      dateIso,
+    p_starts_at: toIsoTs(dateIso, startT),
+    p_ends_at:   toIsoTs(dateIso, endT),
+    p_role:      role || null,
+    p_notes:     notes || null,
+  };
+  const { error } = await sb.rpc("staff_shift_upsert", args);
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  toast(_stfEditing ? "Shift updated." : "Shift added.", "ok");
+  _stfCloseShiftModal();
+  loadStaffSchedule();
+}
+
+async function _stfDeleteShift() {
+  if (!_stfEditing) return;
+  if (!confirm("Delete this shift?")) return;
+  const { error } = await sb.rpc("staff_shift_delete", { p_id: _stfEditing.id });
+  if (error) { toast("Delete failed: " + error.message, "warn"); return; }
+  toast("Shift deleted.", "ok");
+  _stfCloseShiftModal();
+  loadStaffSchedule();
+}
+
+// ─── Manage staff modal ────────────────────────────────
+async function _stfOpenManageModal() {
+  const modal = document.getElementById("rr-staff-manage");
+  if (!modal) return;
+  modal.classList.add("open");
+  await _stfRenderManageList();
+}
+
+function _stfCloseManageModal() {
+  document.getElementById("rr-staff-manage")?.classList.remove("open");
+}
+
+async function _stfRenderManageList() {
+  const list = document.getElementById("rr-staff-manage-list");
+  if (!list) return;
+  const { data, error } = await sb.rpc("staff_members_list");
+  if (error) { list.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`; return; }
+  const members = Array.isArray(data) ? data : [];
+  if (members.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-subtle);font-size:var(--fs-sm)">No staff members yet. Add your first one below.</div>`;
+    return;
+  }
+  list.innerHTML = members.map(m => {
+    const nm = m.preferred_name && m.preferred_name !== m.full_name ? `${escapeHtml(m.preferred_name)} (${escapeHtml(m.full_name)})` : escapeHtml(m.full_name);
+    const meta = [_STF_ROLE_LABEL[m.role] || m.role, m.email, m.phone].filter(Boolean).map(escapeHtml).join(" · ");
+    return `<div class="stf-row" data-rr-staff-member="${escapeHtml(m.id)}">
+      <div>
+        <div class="nm">${nm}</div>
+        ${meta ? `<div class="sub">${meta}</div>` : ""}
+      </div>
+      <button type="button" class="btn btn-sm" data-rr-staff-edit="${escapeHtml(m.id)}">Edit</button>
+      <button type="button" class="btn btn-sm" data-rr-staff-archive="${escapeHtml(m.id)}" style="color:var(--red)">Archive</button>
+    </div>`;
+  }).join("");
+}
+
+async function _stfNewStaffPrompt(existingId) {
+  let existing = null;
+  if (existingId) {
+    existing = (_stfData?.staff || []).find(m => m.id === existingId) || null;
+    if (!existing) {
+      // Re-fetch full row when not already loaded.
+      const { data } = await sb.rpc("staff_members_list");
+      existing = (data || []).find(m => m.id === existingId) || null;
+    }
+  }
+  const fullName = prompt(existing ? "Full name:" : "Full name for the new staff member:", existing?.full_name || "");
+  if (fullName === null) return;
+  const trimmed = (fullName || "").trim();
+  if (!trimmed) { toast("Full name is required.", "warn"); return; }
+
+  const roleInput = prompt("Role (dispatcher / fleet_manager / hr / ops_manager / other):", existing?.role || "other");
+  if (roleInput === null) return;
+  const role = (roleInput || "other").trim().toLowerCase();
+  if (!["dispatcher","fleet_manager","hr","ops_manager","other"].includes(role)) {
+    toast("Role must be one of: dispatcher, fleet_manager, hr, ops_manager, other.", "warn");
+    return;
+  }
+
+  const args = {
+    p_id:             existing?.id || null,
+    p_full_name:      trimmed,
+    p_preferred_name: existing?.preferred_name || null,
+    p_role:           role,
+    p_email:          existing?.email || null,
+    p_phone:          existing?.phone || null,
+    p_app_user_id:    existing?.app_user_id || null,
+    p_notes:          existing?.notes || null,
+  };
+  const { error } = await sb.rpc("staff_member_upsert", args);
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  toast(existing ? "Staff member updated." : "Staff member added.", "ok");
+  await _stfRenderManageList();
+  loadStaffSchedule();
+}
+
+async function _stfArchiveStaff(id) {
+  if (!confirm("Archive this staff member? Their historical shifts stay, they just stop appearing in the active schedule.")) return;
+  const { error } = await sb.rpc("staff_member_archive", { p_id: id, p_unarchive: false });
+  if (error) { toast("Archive failed: " + error.message, "warn"); return; }
+  toast("Archived.", "ok");
+  await _stfRenderManageList();
+  loadStaffSchedule();
+}
+
+// ─── Event delegates ──────────────────────────────────
+document.addEventListener("click", async (e) => {
+  // Sub-tab nav already routes here via window.schedSub (defined in index.html).
+
+  // Week navigation
+  if (e.target.closest("[data-rr-staff-week-prev]")) { _stfStart = _stfAddDays(_stfStart || _stfMondayOf(new Date()), -7); loadStaffSchedule(); return; }
+  if (e.target.closest("[data-rr-staff-week-next]")) { _stfStart = _stfAddDays(_stfStart || _stfMondayOf(new Date()), 7);  loadStaffSchedule(); return; }
+  if (e.target.closest("[data-rr-staff-week-today]")) { _stfStart = _stfMondayOf(new Date()); loadStaffSchedule(); return; }
+
+  // Open shift modal (existing shift)
+  const editChip = e.target.closest("[data-rr-staff-shift-edit]");
+  if (editChip) {
+    e.preventDefault(); e.stopPropagation();
+    const id = editChip.getAttribute("data-rr-staff-shift-edit");
+    const sh = (_stfData?.shifts || []).find(s => s.id === id);
+    if (sh) _stfOpenShiftModal({ shift: sh });
+    return;
+  }
+
+  // Click empty cell → new shift for that staff + date
+  const cell = e.target.closest("[data-rr-staff-cell]");
+  if (cell) {
+    e.preventDefault();
+    const [staffId, dateIso] = cell.getAttribute("data-rr-staff-cell").split("|");
+    _stfOpenShiftModal({ staffId, dateIso });
+    return;
+  }
+
+  // Shift modal controls
+  if (e.target.closest("[data-rr-staff-shift-close]")) { _stfCloseShiftModal(); return; }
+  if (e.target.closest("[data-rr-staff-shift-save]"))  { _stfSaveShift(); return; }
+  if (e.target.closest("[data-rr-staff-shift-delete]")) { _stfDeleteShift(); return; }
+
+  // Manage modal controls
+  if (e.target.closest("[data-rr-staff-manage]"))       { _stfOpenManageModal(); return; }
+  if (e.target.closest("[data-rr-staff-manage-close]")) { _stfCloseManageModal(); return; }
+  if (e.target.closest("[data-rr-staff-new]"))          { _stfNewStaffPrompt(null); return; }
+  const editBtn = e.target.closest("[data-rr-staff-edit]");
+  if (editBtn) { _stfNewStaffPrompt(editBtn.getAttribute("data-rr-staff-edit")); return; }
+  const archBtn = e.target.closest("[data-rr-staff-archive]");
+  if (archBtn) { _stfArchiveStaff(archBtn.getAttribute("data-rr-staff-archive")); return; }
+});
+
+// Wrap schedSub so switching to the Staff tab loads it.
+(function () {
+  const prev = window.schedSub;
+  window.schedSub = function (sub) {
+    try { if (typeof prev === "function") prev(sub); } catch (e) { console.warn("schedSub:", e); }
+    if (sub === "staff") loadStaffSchedule();
+  };
+})();
