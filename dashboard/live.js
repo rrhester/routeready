@@ -28446,17 +28446,40 @@ async function _clToggleItem(itemId) {
   const items = _clOpenInstance.items || [];
   const it = items.find(x => x.id === itemId);
   if (!it) return;
-  const willComplete = !it.completed_at;
-  // Optimistic UI
-  it.completed_at = willComplete ? new Date().toISOString() : null;
+  // Per-item lock prevents a second click from firing while the first
+  // RPC is still in flight. Without this, a click on the post-render
+  // button (or a stray double-click) could fire a second toggle that
+  // undoes the first.
+  if (it._togglePending) return;
+
+  // Source-of-truth for "currently checked" is the DOM, not the model.
+  // The model can lag behind a rapid re-render; the DOM reflects what
+  // the user just saw and clicked on.
+  const btn  = document.querySelector(`.cl-rn-check[data-cl-toggle="${CSS.escape(itemId)}"]`);
+  const row  = document.querySelector(`.cl-rn-item[data-cl-item="${CSS.escape(itemId)}"]`);
+  const wasChecked = btn ? btn.classList.contains("on") : !!it.completed_at;
+  const willComplete = !wasChecked;
+
+  it._togglePending = true;
+
+  // Optimistic UI — toggle just this row's classes, no full re-render.
+  // (The full re-render mid-RPC was the original race that caused
+  // second toggles to fire on the re-rendered button.)
+  if (btn) btn.classList.toggle("on", willComplete);
+  if (row) row.classList.toggle("done", willComplete);
+  it.completed_at      = willComplete ? new Date().toISOString() : null;
   it.completed_by_email = willComplete ? (window.RR?.user?.email || "you") : null;
-  _clRenderRunner();
+
   _clSetRunnerSave("saving", "Saving…");
   const { data, error } = await sb.rpc("checklist_instance_item_toggle", { p_item_id: itemId, p_completed: willComplete });
+  delete it._togglePending;
+
   if (error) {
-    // Roll back optimistic update
-    it.completed_at = willComplete ? null : new Date().toISOString();
-    _clRenderRunner();
+    // Roll back optimistic UI + model
+    it.completed_at      = wasChecked ? new Date().toISOString() : null;
+    it.completed_by_email = wasChecked ? (window.RR?.user?.email || "you") : null;
+    if (btn) btn.classList.toggle("on", wasChecked);
+    if (row) row.classList.toggle("done", wasChecked);
     _clSetRunnerSave("err", "Couldn't save");
     return;
   }
@@ -28464,17 +28487,23 @@ async function _clToggleItem(itemId) {
     it.completed_at = data.completed_at;
     it.completed_by = data.completed_by;
   }
-  // The reconcile-trigger may have flipped the parent instance status —
-  // refresh that field cheaply by re-checking required counts.
+
+  // Status reconciliation — only re-render the full drawer if the
+  // parent instance status actually flipped (which changes the chip).
   const allReq = items.filter(i => i.required);
-  if (allReq.length > 0 && allReq.every(i => i.completed_at)) {
+  const wasCompleted = _clOpenInstance.status === "completed";
+  const shouldBeCompleted = allReq.length > 0 && allReq.every(i => i.completed_at);
+  let statusChanged = false;
+  if (shouldBeCompleted && !wasCompleted) {
     _clOpenInstance.status = "completed";
     _clOpenInstance.completed_at = new Date().toISOString();
-  } else if (_clOpenInstance.status === "completed") {
+    statusChanged = true;
+  } else if (!shouldBeCompleted && wasCompleted) {
     _clOpenInstance.status = "active";
     _clOpenInstance.completed_at = null;
+    statusChanged = true;
   }
-  _clRenderRunner();
+  if (statusChanged) _clRenderRunner();
   _clSetRunnerSave("saved", "Saved");
 }
 async function _clUpdateRunnerName(name) {
