@@ -9285,6 +9285,7 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- Sub-nav -->
         <div class="subnav" data-rr-tabbar="schedule">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
+          <button class="subnav-item" data-sub="staff" onclick="schedSub('staff')">Staff</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
         </div>
 
@@ -10063,6 +10064,132 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
           <div id="rr-tpl-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s-3)"></div>
         </div><!-- /sched-sub-templates -->
+
+        <!-- STAFF SCHEDULE — support roles (dispatchers, fleet, HR, ops, other).
+             Standalone roster + weekly grid, completely separate from the
+             driver schedule.  Backed by migration 0220's staff_members /
+             staff_shifts tables.  Rendered by loadStaffSchedule() in live.js. -->
+        <div class="sched-subview" id="sched-sub-staff" style="display:none">
+          <style>
+            #view-schedule .stf-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:var(--s-4)}
+            #view-schedule .stf-week-nav{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:4px}
+            #view-schedule .stf-week-nav button{background:none;border:0;color:var(--text-muted);font:inherit;font-size:var(--fs-md);padding:6px 10px;border-radius:6px;cursor:pointer}
+            #view-schedule .stf-week-nav button:hover{background:var(--canvas);color:var(--text)}
+            #view-schedule .stf-week-nav .lbl{font-size:var(--fs-sm);font-weight:600;color:var(--text);padding:0 6px;font-variant-numeric:tabular-nums;min-width:160px;text-align:center}
+            #view-schedule .stf-bar-spacer{flex:1}
+            #view-schedule .stf-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}
+            #view-schedule .stf-grid{display:grid;grid-template-columns:240px repeat(7, minmax(140px, 1fr));font-size:var(--fs-sm)}
+            #view-schedule .stf-grid > div{padding:10px 12px;border-top:1px solid var(--border)}
+            #view-schedule .stf-grid > .head{border-top:0;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:11px 12px}
+            #view-schedule .stf-grid .stf-name{position:sticky;left:0;z-index:1;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center}
+            #view-schedule .stf-grid .stf-name.head{background:var(--canvas)}
+            #view-schedule .stf-grid .stf-name .nm{font-weight:600;color:var(--text)}
+            #view-schedule .stf-grid .stf-name .sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+            #view-schedule .stf-grid .day-head{border-left:1px solid var(--border)}
+            #view-schedule .stf-grid .day-head.today{color:var(--accent-text);background:var(--accent-soft)}
+            #view-schedule .stf-grid .stf-cell{border-left:1px solid var(--border);min-height:54px;cursor:pointer;transition:background .12s;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+            #view-schedule .stf-grid .stf-cell:hover{background:var(--canvas)}
+            #view-schedule .stf-grid .stf-cell.today{background:rgba(15,108,189,.03)}
+            #view-schedule .stf-grid .stf-cell.today:hover{background:var(--accent-soft)}
+            #view-schedule .stf-grid .stf-cell .stf-chip{background:var(--accent-soft);color:var(--accent-text);border:1px solid var(--accent-border);border-radius:6px;padding:4px 8px;font-size:var(--fs-xs);font-weight:600;line-height:1.4;width:100%}
+            #view-schedule .stf-grid .stf-cell .stf-chip .stf-chip-time{font-variant-numeric:tabular-nums}
+            #view-schedule .stf-grid .stf-cell .stf-chip .stf-chip-role{font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
+            #view-schedule .stf-grid .stf-cell .stf-add-hint{font-size:var(--fs-xs);color:var(--text-subtle);opacity:0;transition:opacity .12s}
+            #view-schedule .stf-grid .stf-cell:hover .stf-add-hint{opacity:1}
+            #view-schedule .stf-empty{padding:48px 24px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-xl)}
+            #view-schedule .stf-empty button{margin-top:14px}
+
+            /* Manage staff modal · simple list */
+            #rr-staff-manage{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;display:none;align-items:flex-start;justify-content:center;padding:60px 20px;overflow-y:auto}
+            #rr-staff-manage.open{display:flex}
+            #rr-staff-manage .card{background:var(--surface);border-radius:var(--r-xl);width:100%;max-width:640px;box-shadow:0 24px 64px rgba(0,0,0,.24);display:flex;flex-direction:column;overflow:hidden}
+            #rr-staff-manage .h{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border)}
+            #rr-staff-manage .h h3{margin:0;font-size:18px;font-weight:600}
+            #rr-staff-manage .h button{background:none;border:0;font-size:22px;color:var(--text-subtle);cursor:pointer;line-height:1;padding:0 4px}
+            #rr-staff-manage .b{padding:18px 24px;flex:1;overflow-y:auto}
+            #rr-staff-manage .stf-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--border)}
+            #rr-staff-manage .stf-row:first-of-type{border-top:0}
+            #rr-staff-manage .stf-row .nm{font-weight:600}
+            #rr-staff-manage .stf-row .sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+            #rr-staff-manage .f{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between}
+
+            /* Shift modal — also reuses the modal pattern */
+            #rr-staff-shift-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:none;align-items:flex-start;justify-content:center;padding:60px 20px}
+            #rr-staff-shift-modal.open{display:flex}
+            #rr-staff-shift-modal .card{background:var(--surface);border-radius:var(--r-xl);width:100%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.24);display:flex;flex-direction:column}
+            #rr-staff-shift-modal .h{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border)}
+            #rr-staff-shift-modal .h h3{margin:0;font-size:17px;font-weight:600}
+            #rr-staff-shift-modal .h button{background:none;border:0;font-size:22px;color:var(--text-subtle);cursor:pointer;line-height:1;padding:0 4px}
+            #rr-staff-shift-modal .b{padding:18px 24px;display:flex;flex-direction:column;gap:12px}
+            #rr-staff-shift-modal .b label{display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm);color:var(--text-muted);font-weight:600}
+            #rr-staff-shift-modal .b label input,#rr-staff-shift-modal .b label select,#rr-staff-shift-modal .b label textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;background:var(--canvas);color:var(--text)}
+            #rr-staff-shift-modal .b label input:focus,#rr-staff-shift-modal .b label select:focus,#rr-staff-shift-modal .b label textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+            #rr-staff-shift-modal .b .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+            #rr-staff-shift-modal .f{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between}
+          </style>
+
+          <div class="stf-bar">
+            <div class="stf-week-nav">
+              <button type="button" data-rr-staff-week-prev aria-label="Previous week">‹</button>
+              <span class="lbl" id="rr-staff-week-label">—</span>
+              <button type="button" data-rr-staff-week-next aria-label="Next week">›</button>
+            </div>
+            <button type="button" class="btn btn-sm" data-rr-staff-week-today>This week</button>
+            <div class="stf-bar-spacer"></div>
+            <button type="button" class="btn btn-sm" data-rr-staff-manage>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Manage staff
+            </button>
+          </div>
+
+          <div id="rr-staff-grid"><div class="rr-loading" style="padding:32px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl)">Loading staff schedule…</div></div>
+
+          <!-- Manage staff modal -->
+          <div id="rr-staff-manage" role="dialog" aria-modal="true" aria-labelledby="rr-staff-manage-title">
+            <div class="card">
+              <div class="h"><h3 id="rr-staff-manage-title">Manage staff</h3><button type="button" data-rr-staff-manage-close aria-label="Close">×</button></div>
+              <div class="b" id="rr-staff-manage-list"></div>
+              <div class="f">
+                <button type="button" class="btn btn-sm btn-primary" data-rr-staff-new>+ Add staff member</button>
+                <button type="button" class="btn btn-sm" data-rr-staff-manage-close>Close</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Add/edit shift modal -->
+          <div id="rr-staff-shift-modal" role="dialog" aria-modal="true" aria-labelledby="rr-staff-shift-title">
+            <div class="card">
+              <div class="h"><h3 id="rr-staff-shift-title">Add shift</h3><button type="button" data-rr-staff-shift-close aria-label="Close">×</button></div>
+              <div class="b">
+                <label>Staff member<select id="rr-staff-shift-staff"></select></label>
+                <label>Date<input type="date" id="rr-staff-shift-date"></label>
+                <div class="grid2">
+                  <label>Start<input type="time" id="rr-staff-shift-start"></label>
+                  <label>End<input type="time" id="rr-staff-shift-end"></label>
+                </div>
+                <label>Role override (optional)
+                  <select id="rr-staff-shift-role">
+                    <option value="">— Use staff member's role</option>
+                    <option value="dispatcher">Dispatcher</option>
+                    <option value="fleet_manager">Fleet manager</option>
+                    <option value="hr">HR</option>
+                    <option value="ops_manager">Ops manager</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label>Notes<textarea id="rr-staff-shift-notes" rows="2"></textarea></label>
+              </div>
+              <div class="f">
+                <button type="button" class="btn btn-sm" data-rr-staff-shift-delete style="color:var(--red);display:none">Delete shift</button>
+                <div style="display:flex;gap:8px;margin-left:auto">
+                  <button type="button" class="btn btn-sm" data-rr-staff-shift-close>Cancel</button>
+                  <button type="button" class="btn btn-sm btn-primary" data-rr-staff-shift-save>Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /sched-sub-staff -->
 
         <!-- RULES — compliance + schedule settings -->
 
@@ -19566,7 +19693,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260514j-wave-align"></script>
+<script type="module" src="./live.js?v=20260514k-staff-schedule"></script>
 
 </body>
 </html>
