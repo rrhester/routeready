@@ -28382,7 +28382,7 @@ function _clRenderRunner() {
       <div class="cl-rn-label" data-cl-toggle="${_clEsc(it.id)}">${_clEsc(it.label || "")}${it.required ? '<span class="req">Required</span>' : ''}</div>
       ${it.instructions ? `<span class="cl-rn-inst">${_clEsc(it.instructions)}</span>` : ''}
     </div>
-    <div class="cl-rn-attr">${it.completed_at ? `${_clEsc(_clFmtRel(it.completed_at))}${it.completed_by_email ? `<br/>${_clEsc(it.completed_by_email.split("@")[0])}` : ''}` : ''}</div>
+    <div class="cl-rn-attr">${it.completed_at ? `${_clEsc(_cbFmtRel(it.completed_at))}${it.completed_by_email ? `<br/>${_clEsc(it.completed_by_email.split("@")[0])}` : ''}` : ''}</div>
   </div>`;
 
   drawer.innerHTML = `
