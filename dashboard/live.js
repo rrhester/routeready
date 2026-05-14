@@ -23971,20 +23971,33 @@ document.addEventListener("click", async (e) => {
   if (status) { status.textContent = "Saved"; status.style.color = "var(--green)"; }
   setTimeout(() => { if (status && status.textContent === "Saved") status.textContent = ""; }, 1800);
 });
-// Repaint the form whenever the Rules sub-tab opens (or the WOC details
-// inside it expands).
+// Repaint each form whenever the Settings → Scheduling section opens
+// (or the matching <details> inside it expands). The sections used to
+// live on the Schedule → Rules sub-tab; same paint functions, new home.
 document.addEventListener("click", (e) => {
-  if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="woc-limits"] > summary')) {
+  if (e.target.closest('[data-set="scheduling"]') || e.target.closest('[data-rr-rules-section="woc-limits"] > summary')) {
     setTimeout(_rrWocPaintForm, 0);
   }
-  if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="pay-ot"] > summary')) {
+  if (e.target.closest('[data-set="scheduling"]') || e.target.closest('[data-rr-rules-section="pay-ot"] > summary')) {
     setTimeout(_rrPayPaintForm, 0);
   }
-  if (e.target.closest('[data-sub="rules"]') || e.target.closest('[data-rr-rules-sub="driver-pickup"] > summary')) {
+  if (e.target.closest('[data-set="scheduling"]') || e.target.closest('[data-rr-rules-section="driver-pickup"] > summary')) {
     setTimeout(_rrPickupPaintForm, 0);
     setTimeout(_rrSwapPaintForm,   0);
   }
 });
+
+// Helper for inline links in the Smart Fill snapshot view that used to
+// jump to the (now-removed) Schedule → Rules sub-tab. Drops the user
+// straight on Settings → Scheduling.
+function gotoSettingsScheduling() {
+  if (typeof goto === "function") goto("settings");
+  setTimeout(() => {
+    const btn = document.querySelector('.settings-nav-item[data-set="scheduling"]');
+    if (btn && typeof setSettingsSection === "function") setSettingsSection(btn);
+  }, 50);
+}
+window.gotoSettingsScheduling = gotoSettingsScheduling;
 
 
 // ─── Pay & overtime settings ──────────────────────────────────────────

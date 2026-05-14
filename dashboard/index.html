@@ -8054,6 +8054,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
+            <button class="settings-nav-item" data-set="scheduling" onclick="setSettingsSection(this)">Scheduling</button>
             <button class="settings-nav-item" data-set="attendance" onclick="setSettingsSection(this)">Attendance policy</button>
             <button class="settings-nav-item" data-set="availability" onclick="setSettingsSection(this)">Availability rules</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
@@ -8211,6 +8212,253 @@ body.rr-cmdk-open{ overflow:hidden }
                   <span id="rr-lic-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
                   <button class="btn btn-primary" type="button" data-rr-lic-save>Save settings</button>
                 </div>
+              </div>
+            </div>
+
+
+            <!-- SCHEDULING SECTION -->
+            <div class="settings-section hidden" data-set="scheduling">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Scheduling</h2>
+                <p class="settings-section-sub">DSP-wide rules the schedule engine, Cover, and driver self-service all read. Per-week overrides still live behind the gear icon on the Schedule view.</p>
+              </div>
+
+              <div class="rules-grid">
+
+                <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    Always enforced · system floor
+                    <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Locked</span>
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    These guardrails apply to every DSP and aren't configurable. They protect against data corruption, payroll mistakes, and compliance violations. Open this section any time you want to see exactly what the schedule engine is doing behind the scenes.
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">No double-booking</div>
+                        <div class="rule-help">A driver can't hold two shifts on the same date in <code>scheduled</code>, <code>completed</code>, or <code>late</code> status.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">No past-date assignments</div>
+                        <div class="rule-help">Cover and driver pickup only operate on shifts dated after today.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">Expired driver's license blocks scheduling</div>
+                        <div class="rule-help">Drivers whose DL expires on or before the shift date are skipped by Cover and pickup.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">Service-type certifications</div>
+                        <div class="rule-help">DOT-required service types need <code>dot_certified</code> drivers; XL-required service types need <code>xl_certified</code> drivers.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">Approved time-off blocks scheduling</div>
+                        <div class="rule-help">Cover, pickup, and swaps all skip drivers with an <code>approved</code> PTO request that overlaps the shift date.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">Inactive drivers excluded</div>
+                        <div class="rule-help">Only drivers with <code>status = active</code> appear in Cover or pickup eligibility.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">Every shift edit audited</div>
+                        <div class="rule-help">Driver, date, time, route, and status changes write an immutable row to <code>shift_changes</code> (visible in the Activity feed).</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">Cross-DSP isolation</div>
+                        <div class="rule-help">Row-level security scopes every schedule table to your DSP — no other tenant can read or write your data.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">Dispatcher-only writes</div>
+                        <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role. Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                    <div class="rule-row" style="padding:8px 0;border:0">
+                      <div>
+                        <div class="rule-label">One pending offer per shift</div>
+                        <div class="rule-help">Cover offers and swap requests can't pile up on the same shift — a unique constraint enforces single-pending.</div>
+                      </div>
+                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                    </div>
+                  </div>
+                </details>
+
+                <details class="rules-section" data-rr-rules-section="woc-limits" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Working hour limits
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Cover and Smart Fill exclude any driver who'd violate one of these. Defaults match the previous hardcoded values (55 / 6 / 10) so existing weeks behave the same until you tweak them.
+                  </div>
+                  <div data-rr-woc-form>
+                    <div class="rule-row">
+                      <div>
+                        <div class="rule-label">Max hours per driver per week</div>
+                        <div class="rule-help">Hard cap. Cover and Smart Fill exclude any driver who'd exceed this.</div>
+                      </div>
+                      <input class="rule-input" id="rr-woc-max-hours-per-week" type="number" min="1" max="168" value="55" />
+                    </div>
+                    <div class="rule-row">
+                      <div>
+                        <div class="rule-label">Max consecutive working days</div>
+                        <div class="rule-help">Sliding window — counts in both directions from the candidate date.</div>
+                      </div>
+                      <input class="rule-input" id="rr-woc-max-consecutive-days" type="number" min="1" max="14" value="6" />
+                    </div>
+                    <div class="rule-row">
+                      <div>
+                        <div class="rule-label">Minimum rest between shifts (hours)</div>
+                        <div class="rule-help">Compared against the start / end time on the adjacent shift.</div>
+                      </div>
+                      <input class="rule-input" id="rr-woc-min-rest-hours" type="number" min="0" max="24" value="10" />
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                      <button class="btn btn-primary btn-sm" id="rr-woc-save" type="button">Save</button>
+                      <span id="rr-woc-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
+                    </div>
+                  </div>
+                </details>
+
+                <details class="rules-section" data-rr-rules-section="pay-ot" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Pay &amp; overtime
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Defaults Cover and the schedule forecast use when calculating projected OT premium. Per-driver overrides on the driver's Pay tab take precedence.
+                  </div>
+                  <div data-rr-pay-form>
+                    <div class="rule-row">
+                      <div>
+                        <div class="rule-label">Overtime threshold (hours per week)</div>
+                        <div class="rule-help">Weekly hours past this point count as overtime. Cover ranks candidates by how much OT they'd add.</div>
+                      </div>
+                      <input class="rule-input" id="rr-pay-ot-threshold" type="number" min="0" max="168" step="1" value="40" />
+                    </div>
+                    <div class="rule-row">
+                      <div>
+                        <div class="rule-label">Default overtime multiplier</div>
+                        <div class="rule-help">Applied to drivers without a per-driver override. 1.5&times; is the federal default.</div>
+                      </div>
+                      <input class="rule-input" id="rr-pay-ot-mult" type="number" min="1" max="5" step="0.05" value="1.5" />
+                    </div>
+                    <div class="rule-row">
+                      <div>
+                        <div class="rule-label">Default hourly rate ($)</div>
+                        <div class="rule-help">Fallback when a driver has no rate set on their Pay tab. Leave blank for no DSP-wide default.</div>
+                      </div>
+                      <input class="rule-input" id="rr-pay-default-rate" type="number" min="0" max="500" step="0.01" placeholder="—" />
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                      <button class="btn btn-primary btn-sm" id="rr-pay-save" type="button">Save</button>
+                      <span id="rr-pay-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
+                    </div>
+                  </div>
+                </details>
+
+                <details class="rules-section" data-rr-rules-section="driver-pickup" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    Driver self-service
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Lets drivers act on shifts directly from the driver app. Both flows run through the same hard-compliance gates as a Cover offer — license valid, certs present, no double-book, no PTO overlap, hours / rest / consecutive-day limits.
+                  </div>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Allow drivers to pick up open shifts</div>
+                      <div class="rule-help">When on, eligible drivers see open future shifts in their app and can claim them.</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" id="rr-pickup-toggle" /><span class="toggle-slider"></span></label>
+                  </div>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Allow drivers to swap shifts with each other</div>
+                      <div class="rule-help">Peer-to-peer: a driver offers one of their shifts in exchange for another driver's. Both sides confirm; the swap executes only if both drivers pass compliance.</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" id="rr-swap-toggle" /><span class="toggle-slider"></span></label>
+                  </div>
+                </details>
+
+                <details class="rules-section" data-rr-rules-section="attendance-windows" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Attendance windows · check-in, tardy, no-show
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Drivers can check in this many minutes before their shift starts. After the shift starts, the grace window decides when they're marked tardy; past the no-show window without a check-in or a reported missed-day, they're marked NCNS.
+                  </div>
+                  <div id="rr-att-windows" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+                    <div>
+                      <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Check-in opens (min before)</label>
+                      <input type="number" id="rr-att-lead" min="0" max="120" value="15" class="form-input form-input-block"/>
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Tardy after (min past start)</label>
+                      <input type="number" id="rr-att-grace" min="0" max="120" value="10" class="form-input form-input-block"/>
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">NCNS after (min past start)</label>
+                      <input type="number" id="rr-att-ncns" min="0" max="720" value="60" class="form-input form-input-block"/>
+                    </div>
+                    <button class="btn btn-sm btn-primary" id="rr-att-windows-save">Save</button>
+                  </div>
+                </details>
+
+                <details class="rules-section" data-rr-rules-section="geofence" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/></svg>
+                    Station geofences · driver check-in
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Set the lat/lng pin and radius for each station. Drivers can only check in for their shift when their phone reports a location inside the radius. Tap "Use current location" while standing at the station to capture the pin from your device.
+                  </div>
+                  <div id="rr-station-geofences"><div class="rr-loading">Loading</div></div>
+                </details>
+
+                <details class="rules-section" data-rr-rules-section="license-compliance" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M7 10h6M7 14h4"/><circle cx="17" cy="14" r="2"/></svg>
+                    License compliance · block scheduling past expiry
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Hard rule: drivers with an expired driver's license can't be assigned to upcoming shifts.  Recommended for DOT compliance.  When OFF, expired licenses still surface as warnings on the schedule but assignments aren't blocked.
+                  </div>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Block scheduling past license expiry</div>
+                      <div class="rule-help">Reminder cadence and message templates live in <strong>Settings → License renewals</strong>.</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" id="rr-lic-block-input" data-rr-lic-block-input/><span class="toggle-slider"></span></label>
+                  </div>
+                </details>
+
               </div>
             </div>
 
@@ -8663,7 +8911,6 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="subnav" data-rr-tabbar="schedule">
           <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
           <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
-          <button class="subnav-item" data-sub="rules" onclick="schedSub('rules')">Rules</button>
         </div>
 
         <!-- WEEK VIEW SUB-VIEW -->
@@ -9093,7 +9340,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Hard gates · skip a driver who fails any of these</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:8px">
                 <div class="rule-row"><div><div class="rule-label">Driver status = active or onboarding</div><div class="rule-help">Inactive / on leave / terminated drivers never auto-fill.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver's license valid through the shift date</div><div class="rule-help">Drivers whose DL expires before the shift are skipped — set the buffer in <a href="#" onclick="schedSub('rules');return false;">Rules → License gating</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver's license valid through the shift date</div><div class="rule-help">Drivers whose DL expires before the shift are skipped. Always enforced — see <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">DOT certification — required for Step Van routes</div><div class="rule-help">A driver without <code>dot_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_dot</code>. Step Vans is the seeded example. Set the flag in the driver record's DOT tab.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">XL certification — required for Extra-Large routes</div><div class="rule-help">A driver without <code>xl_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_xl</code>. XL is the seeded example. Set the flag in the driver record's DOT tab (XL toggle).</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Driver hasn't already worked the max days this week</div><div class="rule-help">Cap from <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Max days per week</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
@@ -9106,7 +9353,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div style="margin-bottom:var(--s-4)">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Tie-breakers · when multiple drivers qualify</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:8px">
-                <div class="rule-row"><div><div class="rule-label">Driver priority list</div><div class="rule-help">Tier · tenure · attendance · fewest hours. Reorder in <a href="#" onclick="schedSub('rules');return false;">Rules → Driver priority</a>.</div></div><span class="rules-sub-badge">Preview</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver priority list</div><div class="rule-help">Tier · tenure · attendance · fewest hours. Reordering UI lands in an upcoming release.</div></div><span class="rules-sub-badge">Preview</span></div>
                 <div class="rule-row"><div><div class="rule-label">Cushion %</div><div class="rule-help">Smart Fill staffs the OKAMI demand × (1 + cushion %). Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Cushion</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Default block length (hours)</div><div class="rule-help">Per-shift duration. Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Default block length</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Wave start times</div><div class="rule-help">Each shift's start time follows the active wave list in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Wave start times</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
@@ -9118,7 +9365,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div style="margin-bottom:var(--s-4)">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Working-hour limits · safety + compliance</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:8px">
-                <div class="rule-row"><div><div class="rule-label">Max hours per driver per week</div><div class="rule-help">Hard cap. Default <strong>55h</strong>. Edit in <a href="#" onclick="schedSub('rules');return false;">Rules → Working hour limits</a>.</div></div><span class="rules-sub-badge">Preview</span></div>
+                <div class="rule-row"><div><div class="rule-label">Max hours per driver per week</div><div class="rule-help">Hard cap. Default <strong>55h</strong>. Edit in <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling → Working hour limits</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Max consecutive working days · rolling</div><div class="rule-help">Default <strong>6 days</strong>. Walks back into the prior week.</div></div><span class="rules-sub-badge">Preview</span></div>
                 <div class="rule-row"><div><div class="rule-label">Minimum rest between shifts</div><div class="rule-help">Default <strong>10 hours</strong>.</div></div><span class="rules-sub-badge">Preview</span></div>
               </div>
@@ -9128,8 +9375,8 @@ body.rr-cmdk-open{ overflow:hidden }
             <div>
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">Attendance &amp; check-in</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:8px">
-                <div class="rule-row"><div><div class="rule-label">Attendance windows</div><div class="rule-help">Tardy / no-show grace times for check-in. <a href="#" onclick="schedSub('rules');return false;">Edit in Rules</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Station geofence radius</div><div class="rule-help">Drivers can only check in inside the geofence. <a href="#" onclick="schedSub('rules');return false;">Edit in Rules</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Attendance windows</div><div class="rule-help">Tardy / no-show grace times for check-in. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Station geofence radius</div><div class="rule-help">Drivers can only check in inside the geofence. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
               </div>
             </div>
           </div>
@@ -9443,354 +9690,6 @@ body.rr-cmdk-open{ overflow:hidden }
         </div><!-- /sched-sub-templates -->
 
         <!-- RULES — compliance + schedule settings -->
-        <div class="sched-subview" id="sched-sub-rules" style="display:none">
-          <div style="margin-bottom:var(--s-4)">
-            <h2 style="font-size:var(--fs-lg);font-weight:600;margin:0">Schedule rules &amp; compliance</h2>
-            <p class="page-sub" style="margin:4px 0 0 0">The system enforces these automatically. Conflicts surface inline as you build the schedule.</p>
-          </div>
-
-          <div class="rules-grid">
-
-            <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
-                Always enforced · system floor
-                <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Locked</span>
-              </summary>
-              <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                These guardrails apply to every DSP and aren't configurable. They protect against data corruption, payroll mistakes, and compliance violations. Open this section any time you want to see exactly what the schedule engine is doing behind the scenes.
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">No double-booking</div>
-                    <div class="rule-help">A driver can't hold two shifts on the same date in <code>scheduled</code>, <code>completed</code>, or <code>late</code> status.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">No past-date assignments</div>
-                    <div class="rule-help">Cover and driver pickup only operate on shifts dated after today.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">Expired driver's license blocks scheduling</div>
-                    <div class="rule-help">Drivers whose DL expires on or before the shift date are skipped by Cover and pickup.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">Service-type certifications</div>
-                    <div class="rule-help">DOT-required service types need <code>dot_certified</code> drivers; XL-required service types need <code>xl_certified</code> drivers.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">Approved time-off blocks scheduling</div>
-                    <div class="rule-help">Cover, pickup, and swaps all skip drivers with an <code>approved</code> PTO request that overlaps the shift date.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">Inactive drivers excluded</div>
-                    <div class="rule-help">Only drivers with <code>status = active</code> appear in Cover or pickup eligibility.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">Every shift edit audited</div>
-                    <div class="rule-help">Driver, date, time, route, and status changes write an immutable row to <code>shift_changes</code> (visible in the Activity feed).</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">Cross-DSP isolation</div>
-                    <div class="rule-help">Row-level security scopes every schedule table to your DSP — no other tenant can read or write your data.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">Dispatcher-only writes</div>
-                    <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role. Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-                <div class="rule-row" style="padding:8px 0;border:0">
-                  <div>
-                    <div class="rule-label">One pending offer per shift</div>
-                    <div class="rule-help">Cover offers and swap requests can't pile up on the same shift — a unique constraint enforces single-pending.</div>
-                  </div>
-                  <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
-                </div>
-              </div>
-            </details>
-
-            <details class="rules-section" data-rr-rules-section="attendance-windows" style="grid-column:1/-1">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                Attendance windows · check-in, tardy, no-show
-              </summary>
-              <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                Drivers can check in this many minutes before their shift starts. After the shift starts, the grace window decides when they're marked tardy; past the no-show window without a check-in or a reported missed-day, they're marked NCNS.
-              </div>
-              <div id="rr-att-windows" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
-                <div>
-                  <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Check-in opens (min before)</label>
-                  <input type="number" id="rr-att-lead" min="0" max="120" value="15" class="form-input form-input-block"/>
-                </div>
-                <div>
-                  <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">Tardy after (min past start)</label>
-                  <input type="number" id="rr-att-grace" min="0" max="120" value="10" class="form-input form-input-block"/>
-                </div>
-                <div>
-                  <label style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:3px">NCNS after (min past start)</label>
-                  <input type="number" id="rr-att-ncns" min="0" max="720" value="60" class="form-input form-input-block"/>
-                </div>
-                <button class="btn btn-sm btn-primary" id="rr-att-windows-save">Save</button>
-              </div>
-            </details>
-
-            <details class="rules-section" data-rr-rules-section="geofence" style="grid-column:1/-1">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/></svg>
-                Station geofences · driver check-in
-              </summary>
-              <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                Set the lat/lng pin and radius for each station. Drivers can only check in for their shift when their phone reports a location inside the radius. Tap "Use current location" while standing at the station to capture the pin from your device.
-              </div>
-              <div id="rr-station-geofences"><div class="rr-loading">Loading</div></div>
-            </details>
-
-            <details class="rules-section" data-rr-rules-section="license-compliance" style="grid-column:1/-1">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M7 10h6M7 14h4"/><circle cx="17" cy="14" r="2"/></svg>
-                License compliance · block scheduling past expiry
-              </summary>
-              <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                Hard rule: drivers with an expired driver's license can't be assigned to upcoming shifts.  Recommended for DOT compliance.  When OFF, expired licenses still surface as warnings on the schedule but assignments aren't blocked.
-              </div>
-              <div class="rule-row">
-                <div>
-                  <div class="rule-label">Block scheduling past license expiry</div>
-                  <div class="rule-help">Reminder cadence and message templates live in <strong>Settings → License renewals</strong>.</div>
-                </div>
-                <label class="toggle"><input type="checkbox" id="rr-lic-block-input" data-rr-lic-block-input/><span class="toggle-slider"></span></label>
-              </div>
-            </details>
-
-
-
-
-            <details class="rules-section" data-rr-rules-section="autofill" style="grid-column:1/-1">
-              <summary class="rules-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
-                Smart Fill rules
-                <span class="rules-sub-badge">Preview · wire-up next</span>
-              </summary>
-              <p class="page-sub" style="margin:0 0 var(--s-3) 0">Settings the Smart Fill button reads when assigning drivers. The structure is in place; per-rule enforcement lands in upcoming releases.</p>
-
-              <details class="rules-sub" data-rr-rules-sub="woc-limits">
-                <summary>Working hour limits</summary>
-                <div class="rules-sub-body" data-rr-woc-form>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Max hours per driver per week</div>
-                      <div class="rule-help">Hard cap. Cover and Smart Fill exclude any driver who'd exceed this.</div>
-                    </div>
-                    <input class="rule-input" id="rr-woc-max-hours-per-week" type="number" min="1" max="168" value="55" />
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Max consecutive working days</div>
-                      <div class="rule-help">Sliding window — counts in both directions from the candidate date.</div>
-                    </div>
-                    <input class="rule-input" id="rr-woc-max-consecutive-days" type="number" min="1" max="14" value="6" />
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Minimum rest between shifts (hours)</div>
-                      <div class="rule-help">Compared against the start / end time on the adjacent shift.</div>
-                    </div>
-                    <input class="rule-input" id="rr-woc-min-rest-hours" type="number" min="0" max="24" value="10" />
-                  </div>
-                  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-                    <button class="btn btn-primary btn-sm" id="rr-woc-save" type="button">Save</button>
-                    <span id="rr-woc-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
-                  </div>
-                </div>
-              </details>
-
-              <details class="rules-sub" data-rr-rules-sub="pay-ot">
-                <summary>Pay &amp; overtime</summary>
-                <div class="rules-sub-body" data-rr-pay-form>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Overtime threshold (hours per week)</div>
-                      <div class="rule-help">Weekly hours past this point count as overtime. Cover ranks candidates by how much OT they'd add.</div>
-                    </div>
-                    <input class="rule-input" id="rr-pay-ot-threshold" type="number" min="0" max="168" step="1" value="40" />
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Default overtime multiplier</div>
-                      <div class="rule-help">Applied to drivers without a per-driver override. 1.5&times; is the federal default.</div>
-                    </div>
-                    <input class="rule-input" id="rr-pay-ot-mult" type="number" min="1" max="5" step="0.05" value="1.5" />
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Default hourly rate ($)</div>
-                      <div class="rule-help">Fallback when a driver has no rate set on their Pay tab. Leave blank for no DSP-wide default.</div>
-                    </div>
-                    <input class="rule-input" id="rr-pay-default-rate" type="number" min="0" max="500" step="0.01" placeholder="—" />
-                  </div>
-                  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-                    <button class="btn btn-primary btn-sm" id="rr-pay-save" type="button">Save</button>
-                    <span id="rr-pay-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></span>
-                  </div>
-                </div>
-              </details>
-
-              <details class="rules-sub" data-rr-rules-sub="driver-pickup">
-                <summary>Driver self-service</summary>
-                <div class="rules-sub-body">
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Allow drivers to pick up open shifts</div>
-                      <div class="rule-help">When on, eligible drivers see open future shifts in their app and can claim them. Same hard-compliance gates as Cover.</div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" id="rr-pickup-toggle" /><span class="toggle-slider"></span></label>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Allow drivers to swap shifts with each other</div>
-                      <div class="rule-help">Peer-to-peer: a driver offers one of their shifts in exchange for another driver's. Both sides confirm; the swap executes only if both drivers pass compliance.</div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" id="rr-swap-toggle" /><span class="toggle-slider"></span></label>
-                  </div>
-                </div>
-              </details>
-
-              <details class="rules-sub" data-rr-rules-sub="license-cert">
-                <summary>License &amp; certification gating</summary>
-                <div class="rules-sub-body">
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Block drivers with expired DL</div>
-                      <div class="rule-help">Already enforced — drivers whose DL expires before the shift date are skipped.</div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" checked disabled /><span class="toggle-slider"></span></label>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Block if DL expires within (days)</div>
-                      <div class="rule-help">Pre-emptive — keep drivers off the schedule when renewal is imminent. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <input class="rule-input" value="0" />
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Require DOT certification for service types</div>
-                      <div class="rule-help">Only DOT-certified drivers fill these. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <select class="rule-input" style="width:140px"><option>None</option><option>HUB</option><option>XL</option><option>HUB + XL</option></select>
-                  </div>
-                </div>
-              </details>
-
-              <details class="rules-sub" data-rr-rules-sub="priority">
-                <summary>Driver priority &amp; tie-breakers</summary>
-                <div class="rules-sub-body">
-                  <p class="rule-help" style="margin:0 0 8px 0">Drag pills to reorder. When multiple drivers qualify for a shift, auto-fill walks this list top-down. <span class="rules-sub-badge">Preview</span></p>
-                  <div class="priority-pill-list" data-rr-tabbar="autofill-priority">
-                    <div class="priority-pill" data-rr-tab="tier">Tier (A → D)</div>
-                    <div class="priority-pill" data-rr-tab="tenure">Tenure (longest first)</div>
-                    <div class="priority-pill" data-rr-tab="attendance">Attendance score</div>
-                    <div class="priority-pill" data-rr-tab="hours">Fewest hours this week</div>
-                  </div>
-                  <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Order = priority. Top-most factor wins ties first.</div>
-                </div>
-              </details>
-
-              <details class="rules-sub" data-rr-rules-sub="service-type">
-                <summary>Service type assignment</summary>
-                <div class="rules-sub-body">
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Restrict each service type to qualified drivers</div>
-                      <div class="rule-help">Only XL-certified drivers fill XL shifts, etc. <span class="rules-sub-badge">Preview · needs Phase 2</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" disabled /><span class="toggle-slider"></span></label>
-                  </div>
-                </div>
-              </details>
-
-              <details class="rules-sub" data-rr-rules-sub="day-distribution">
-                <summary>Day distribution</summary>
-                <div class="rules-sub-body">
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Guarantee consecutive days off based on workload</div>
-                      <div class="rule-help">When ON, a 4-day driver gets at least 3 days off back-to-back, and a 3-day driver gets at least 4 days off back-to-back. Off days remain contiguous instead of split across the week. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Rotate weekend days fairly</div>
-                      <div class="rule-help">Distributes Sat/Sun shifts across the roster instead of always picking the same drivers. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-                  </div>
-                </div>
-              </details>
-
-              <details class="rules-sub" data-rr-rules-sub="overrides">
-                <summary>Override behaviors</summary>
-                <div class="rules-sub-body">
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Allow override of availability when no eligible match</div>
-                      <div class="rule-help">Already enforced — toggle in Scheduling settings.</div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" disabled /><span class="toggle-slider"></span></label>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Allow override of max hours per week</div>
-                      <div class="rule-help">When a shift would put a driver over 55h, prompt instead of block. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Allow override of consecutive-days cap</div>
-                      <div class="rule-help">Prompt instead of block when scheduling would push past 6 days in a row. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Skip drivers with active coaching warnings</div>
-                      <div class="rule-help">Auto-fill will not pick drivers with an unresolved Warning or Final coaching. <span class="rules-sub-badge">Preview</span></div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label>
-                  </div>
-                </div>
-              </details>
-            </details>
-
-          </div>
-        </div>
 
 
         <!-- INSIGHTS — driver availability + future insights -->
