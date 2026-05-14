@@ -30265,7 +30265,7 @@ function _flRenderIssues() {
   if (!tbody) return;
   const rows = _flApplyIssueFilters(_fleetIssues);
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">${
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">${
       _fleetIssues.length === 0 ? "No issues — fleet is clean." : "No issues match the current filters."
     }</td></tr>`;
     return;
@@ -30281,6 +30281,14 @@ function _flRenderIssues() {
     };
     const [sk, sl] = statusMap[i.status] || ["text-subtle", i.status];
     const colorVar = sk === "amber" ? "var(--amber-dark)" : sk === "green" ? "var(--green)" : sk === "accent" ? "var(--accent-text)" : "var(--text-subtle)";
+    // RO cell: either the linked RO code as a clickable chip, or an "Open RO" CTA
+    // when none has been opened yet.  Click is captured by document-level
+    // handler `data-rr-ro-action` so we don't fight the row-click → drawer.
+    const roCell = i.work_order
+      ? `<button type="button" class="btn btn-ghost btn-sm" data-rr-ro-action="manage" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-ro-code="${escapeHtml(i.work_order)}" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;padding:3px 8px">${escapeHtml(i.work_order)}</button>`
+      : (i.status === "completed"
+          ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`
+          : `<button type="button" class="btn btn-sm" data-rr-ro-action="open" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" style="font-size:11px;padding:3px 8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Open RO</button>`);
     return `<tr data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-issue-id="${escapeHtml(i.id)}">
       <td><div class="cell-name">${escapeHtml(i.vehicle_name)}${i.plate ? ` <span style="color:var(--text-subtle);font-weight:500">| ${escapeHtml(i.plate)}</span>` : ""}</div>${i.make || i.model ? `<div class="cell-name-sub">${escapeHtml([i.make, i.model].filter(Boolean).join(" "))}</div>` : ""}</td>
       <td><div style="font-weight:600">${escapeHtml(i.title)}</div>${i.description ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml((i.description || "").slice(0, 80))}${(i.description || "").length > 80 ? "…" : ""}</div>` : ""}</td>
@@ -30289,6 +30297,7 @@ function _flRenderIssues() {
       <td><span class="fl-date">${escapeHtml(reported)}</span></td>
       <td>${due}</td>
       <td><span style="font-size:var(--fs-xs);font-weight:600;color:${colorVar}">${escapeHtml(sl)}</span></td>
+      <td>${roCell}</td>
     </tr>`;
   }).join("");
 }
@@ -30381,6 +30390,235 @@ function _flExportCsv() {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+
+// ═════════════════════════════════════════════════════════════════════
+// FLEET — Repair Order workflow (migration 0228).
+//
+// "Open RO" button on each open Issue row creates a paired
+// repair_orders record, links its code into the issue's work_order
+// field, and auto-grounds the vehicle.  Clicking the RO chip again
+// opens a modal to manage status / vendor / ETA / completion + cost.
+// The Compliance exceptions table lights up from this data because
+// compliance_workspace_bundle reads grounded VINs + their open ROs.
+// ═════════════════════════════════════════════════════════════════════
+
+let _roVendors = null;       // cached vendors list for the dropdown
+
+async function _roLoadVendors(forceRefresh) {
+  if (_roVendors && !forceRefresh) return _roVendors;
+  const { data, error } = await sb.rpc("vendors_for_dsp");
+  if (error) { console.error("[ro] vendors_for_dsp failed:", error); _roVendors = []; return _roVendors; }
+  _roVendors = Array.isArray(data) ? data : [];
+  return _roVendors;
+}
+
+function _roVendorOptions(vendors, selectedId) {
+  const opts = vendors.map(v =>
+    `<option value="${escapeHtml(v.id)}"${v.id === selectedId ? " selected" : ""}>${escapeHtml(v.name)}${v.accountability_score != null ? ` · ${v.accountability_score}` : ""}</option>`
+  );
+  return `<option value="">— Unassigned —</option>${opts.join("")}<option value="__new__">+ Add new vendor…</option>`;
+}
+
+async function _roMaybeCreateVendorPrompt() {
+  const name = prompt("Vendor name");
+  if (!name || !name.trim()) return null;
+  const phone = prompt("Vendor phone (optional)") || null;
+  const { data, error } = await sb.rpc("vendor_save", {
+    p_name: name.trim(),
+    p_contact_phone: phone,
+  });
+  if (error) { toast("Couldn't create vendor: " + error.message, "danger"); return null; }
+  // Refresh cache
+  await _roLoadVendors(true);
+  return data;
+}
+
+async function _roOpenFromIssue(issueId) {
+  if (!issueId) return;
+  await _roLoadVendors();
+  const { data: ro, error } = await sb.rpc("repair_order_open_from_issue", { p_issue_id: issueId });
+  if (error) { toast("Couldn't open RO: " + error.message, "danger"); return; }
+  if (typeof toast === "function") toast(`Repair order ${ro.code} opened`);
+  // Refresh the issues list so the chip appears.
+  if (typeof _flLoadIssues === "function") _flLoadIssues();
+  // Open the manage modal so the operator can assign vendor + ETA immediately.
+  _roOpenManageModal(ro);
+}
+
+async function _roOpenManageModalByCode(vehicleId, roCode) {
+  if (!vehicleId || !roCode) return;
+  const { data, error } = await sb.rpc("repair_orders_for_vehicle", { p_vehicle_id: vehicleId });
+  if (error) { toast("Couldn't load RO: " + error.message, "danger"); return; }
+  const ro = (Array.isArray(data) ? data : []).find(r => r.code === roCode);
+  if (!ro) { toast("RO not found", "warn"); return; }
+  await _roLoadVendors();
+  _roOpenManageModal(ro);
+}
+
+function _roFmtDtLocal(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  // Format as YYYY-MM-DDTHH:MM for <input type="datetime-local">
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function _roOpenManageModal(ro) {
+  const existing = document.getElementById("rr-ro-modal");
+  if (existing) existing.remove();
+  const vendors = _roVendors || [];
+  const wrap = document.createElement("div");
+  wrap.id = "rr-ro-modal";
+  wrap.innerHTML = `
+    <style>
+      #rr-ro-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px}
+      #rr-ro-modal .ro-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:560px;max-width:100%;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-xl);display:flex;flex-direction:column}
+      #rr-ro-modal .ro-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+      #rr-ro-modal .ro-head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.005em}
+      #rr-ro-modal .ro-head .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--text-subtle);margin-top:2px}
+      #rr-ro-modal .ro-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+      #rr-ro-modal label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);display:block;margin-bottom:5px}
+      #rr-ro-modal select,#rr-ro-modal input[type=text],#rr-ro-modal input[type=number],#rr-ro-modal input[type=datetime-local],#rr-ro-modal textarea{
+        width:100%;padding:8px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+        font-size:13px;color:var(--text);font-family:inherit;line-height:1.4;
+      }
+      #rr-ro-modal select:focus,#rr-ro-modal input:focus,#rr-ro-modal textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+      #rr-ro-modal .ro-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+      @media (max-width:520px){#rr-ro-modal .ro-grid{grid-template-columns:1fr}}
+      #rr-ro-modal .ro-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;align-items:center;background:var(--canvas)}
+      #rr-ro-modal .ro-foot .right{display:flex;gap:8px}
+      #rr-ro-modal .ro-status-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+    </style>
+    <div class="ro-panel" role="dialog" aria-label="Manage repair order">
+      <div class="ro-head">
+        <div>
+          <h3>Repair order</h3>
+          <div class="code">${escapeHtml(ro.code || "(no code)")} · ${escapeHtml(ro.summary || "")}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" type="button" data-ro-close>Close</button>
+      </div>
+      <div class="ro-body">
+        <div class="ro-grid">
+          <div>
+            <label>Vendor</label>
+            <select id="ro-vendor">${_roVendorOptions(vendors, ro.vendor_id)}</select>
+          </div>
+          <div>
+            <label>Status</label>
+            <select id="ro-status">
+              ${["draft","scheduled","in_progress","awaiting_parts","completed","cancelled"].map(s =>
+                `<option value="${s}"${s === ro.status ? " selected" : ""}>${s.replace(/_/g," ")}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label>Summary</label>
+          <input type="text" id="ro-summary" value="${escapeHtml(ro.summary || "")}" placeholder="Brake squeal · driver side">
+        </div>
+        <div class="ro-grid">
+          <div>
+            <label>Scheduled at <span style="color:var(--text-subtle);font-weight:500;text-transform:none;letter-spacing:0;font-size:10px">· Amazon ≤ 2 BD</span></label>
+            <input type="datetime-local" id="ro-scheduled" value="${_roFmtDtLocal(ro.scheduled_at)}">
+          </div>
+          <div>
+            <label>Vendor ETA</label>
+            <input type="datetime-local" id="ro-eta" value="${_roFmtDtLocal(ro.eta_at)}">
+          </div>
+        </div>
+        <div class="ro-grid">
+          <div>
+            <label>Completed at <span style="color:var(--text-subtle);font-weight:500;text-transform:none;letter-spacing:0;font-size:10px">· Amazon ≤ 14 BD</span></label>
+            <input type="datetime-local" id="ro-completed" value="${_roFmtDtLocal(ro.completed_at)}">
+          </div>
+          <div>
+            <label>Cost (USD)</label>
+            <input type="number" id="ro-cost" min="0" step="0.01" value="${ro.cost_cents != null ? (ro.cost_cents / 100).toFixed(2) : ""}" placeholder="0.00">
+          </div>
+        </div>
+      </div>
+      <div class="ro-foot">
+        <span style="font-size:11px;color:var(--text-subtle)">Opened ${escapeHtml(new Date(ro.opened_at).toLocaleString())}</span>
+        <div class="right">
+          <button class="btn btn-ghost btn-sm" type="button" data-ro-action="complete">Mark complete</button>
+          <button class="btn btn-primary btn-sm" type="button" data-ro-action="save">Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  // Close on backdrop click
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-ro-close]")) {
+      wrap.remove();
+    }
+  });
+
+  // Vendor inline create
+  const vendorSel = wrap.querySelector("#ro-vendor");
+  vendorSel.addEventListener("change", async (e) => {
+    if (e.target.value === "__new__") {
+      const created = await _roMaybeCreateVendorPrompt();
+      if (created) {
+        // re-render the option list with the new vendor selected
+        vendorSel.innerHTML = _roVendorOptions(_roVendors, created.id);
+      } else {
+        // revert to previous selection
+        vendorSel.value = ro.vendor_id || "";
+      }
+    }
+  });
+
+  wrap.querySelector("[data-ro-action='save']").addEventListener("click", async () => {
+    const payload = {
+      p_id: ro.id,
+      p_vendor_id:    vendorSel.value && vendorSel.value !== "__new__" ? vendorSel.value : null,
+      p_status:       wrap.querySelector("#ro-status").value,
+      p_summary:      wrap.querySelector("#ro-summary").value.trim() || null,
+      p_scheduled_at: wrap.querySelector("#ro-scheduled").value ? new Date(wrap.querySelector("#ro-scheduled").value).toISOString() : null,
+      p_eta_at:       wrap.querySelector("#ro-eta").value       ? new Date(wrap.querySelector("#ro-eta").value).toISOString()       : null,
+      p_completed_at: wrap.querySelector("#ro-completed").value ? new Date(wrap.querySelector("#ro-completed").value).toISOString() : null,
+    };
+    const costInput = wrap.querySelector("#ro-cost").value;
+    if (costInput) payload.p_cost_cents = Math.round(parseFloat(costInput) * 100);
+    const { error } = await sb.rpc("repair_order_save", payload);
+    if (error) { toast("Couldn't save RO: " + error.message, "danger"); return; }
+    toast("Repair order saved");
+    wrap.remove();
+    if (typeof _flLoadIssues === "function") _flLoadIssues();
+  });
+
+  wrap.querySelector("[data-ro-action='complete']").addEventListener("click", async () => {
+    if (!confirm("Mark RO " + (ro.code || "") + " as completed?")) return;
+    const costInput = wrap.querySelector("#ro-cost").value;
+    const args = { p_id: ro.id };
+    if (costInput) args.p_cost_cents = Math.round(parseFloat(costInput) * 100);
+    const { error } = await sb.rpc("repair_order_complete", args);
+    if (error) { toast("Couldn't complete RO: " + error.message, "danger"); return; }
+    toast("Repair order completed");
+    wrap.remove();
+    if (typeof _flLoadIssues === "function") _flLoadIssues();
+  });
+}
+
+// Document-level handler for the row buttons (works whether the row is
+// in #fleet-issues-tbody or rendered elsewhere).  stopPropagation prevents
+// the underlying row-click → drawer from firing too.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("[data-rr-ro-action]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const action = btn.getAttribute("data-rr-ro-action");
+  if (action === "open") {
+    const issueId = btn.getAttribute("data-rr-issue-id");
+    _roOpenFromIssue(issueId);
+  } else if (action === "manage") {
+    const vehicleId = btn.getAttribute("data-rr-vehicle-id");
+    const code      = btn.getAttribute("data-rr-ro-code");
+    _roOpenManageModalByCode(vehicleId, code);
+  }
+}, true); // capture so we beat the row-click handler
 
 
 // ═════════════════════════════════════════════════════════════════════
