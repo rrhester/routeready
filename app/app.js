@@ -3041,6 +3041,11 @@ async function renderFormFill() {
       </form>
     </div>`;
 
+  // Populate any van_picker selects with the DSP's vans (active +
+  // spare), pre-select the system-resolved van, so the driver only
+  // changes it when they're actually on a different van.
+  _hydrateVanPickers(session.token).catch((e) => console.warn("van picker hydrate:", e));
+
   document.getElementById("rr-form-fill").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btnEarly = e.target.querySelector("button[type=submit]");
@@ -3128,6 +3133,12 @@ function _formFieldHtml(f) {
       const opts = (f.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
       return row(`<select class="field" id="${id}" data-rr-field="${escapeHtml(f.id)}" data-rr-type="dropdown"><option value="">— Select —</option>${opts}</select>`);
     }
+    case "van_picker":
+      // DVIC van picker — populated post-render by _hydrateVanPickers
+      // which fetches driver_list_vehicles + driver_resolve_van_today.
+      // The answer ends up as { vehicle_id, vehicle_name, plate, vin }
+      // so the server can use it as the inspection's authoritative van.
+      return row(`<select class="field" id="${id}" data-rr-field="${escapeHtml(f.id)}" data-rr-type="van_picker"><option value="">— Loading vans…</option></select>`);
     case "photo":
       return row(`<input class="field" id="${id}" type="file" accept="image/*" capture="environment" data-rr-field="${escapeHtml(f.id)}" data-rr-type="photo"/>`);
     case "file":
@@ -3142,6 +3153,31 @@ function _formFieldHtml(f) {
     case "short_text":
     default:
       return row(`<input class="field" id="${id}" type="text" data-rr-field="${escapeHtml(f.id)}" data-rr-type="short_text"/>`);
+  }
+}
+
+// Populate every van_picker <select> on the current form with the
+// DSP's active+spare vans.  Pre-select the resolved van so the driver
+// only has to change it when reality differs from the schedule.
+async function _hydrateVanPickers(token) {
+  const pickers = Array.from(document.querySelectorAll("#rr-form-fill [data-rr-type='van_picker']"));
+  if (!pickers.length) return;
+  const [{ data: vans }, { data: resolved }] = await Promise.all([
+    sb.rpc("driver_list_vehicles",      { p_token: token }),
+    sb.rpc("driver_resolve_van_today",  { p_token: token }),
+  ]);
+  const list = Array.isArray(vans) ? vans : [];
+  const preselect = resolved?.vehicle_id || null;
+  for (const sel of pickers) {
+    const opts = ['<option value="">— Choose a van —</option>'].concat(
+      list.map((v) => {
+        const tail = [v.plate, v.vin].filter(Boolean).join(" · ");
+        const label = `${v.name}${tail ? "  ·  " + tail : ""}${v.status === "spare" ? "  · spare" : ""}`;
+        const sel = v.id === preselect ? " selected" : "";
+        return `<option value="${v.id}" data-name="${(v.name || "").replace(/"/g, "&quot;")}" data-plate="${(v.plate || "").replace(/"/g, "&quot;")}" data-vin="${(v.vin || "").replace(/"/g, "&quot;")}"${sel}>${label.replace(/</g, "&lt;")}</option>`;
+      })
+    ).join("");
+    sel.innerHTML = opts;
   }
 }
 
@@ -3199,6 +3235,23 @@ async function _collectFormAnswers(fields) {
       out[fid] = f ? { name: f.name, size: f.size, type: f.type } : null;
     } else if (t === "gps") {
       out[fid] = el.dataset.rrGps || null;
+    } else if (t === "van_picker") {
+      // Stash the full picked-van record so the server can both use
+      // it as the inspection's authoritative vehicle_id AND keep the
+      // human-readable details (plate, VIN) in the submission answers
+      // for the audit trail.
+      const opt = el.options?.[el.selectedIndex] || null;
+      const vid = el.value || null;
+      if (vid && opt) {
+        out[fid] = {
+          vehicle_id:    vid,
+          vehicle_name:  opt.getAttribute("data-name")  || null,
+          vehicle_plate: opt.getAttribute("data-plate") || null,
+          vehicle_vin:   opt.getAttribute("data-vin")   || null,
+        };
+      } else {
+        out[fid] = null;
+      }
     } else {
       out[fid] = el.value || "";
     }

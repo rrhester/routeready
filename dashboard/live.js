@@ -25265,6 +25265,7 @@ const _FIELD_TYPE_LABELS = {
   date: "Date",              time: "Time",
   photo: "Photo capture",    file: "File upload",
   signature: "Signature",    gps: "GPS location",
+  van_picker: "Van picker · DVIC",
   instructions: "Instructions",
   section_header: "Section header", divider: "Divider",
 };
@@ -25560,6 +25561,13 @@ function _builderFieldHtml(f, idx, selected, last) {
       break;
     case "gps":
       body = `<div class="builder-field-img-placeholder">GPS location · auto-captured on submit</div>`;
+      break;
+    case "van_picker":
+      // DVIC-only field — driver picks their van for the day.  The
+      // picked van becomes the inspection's authoritative vehicle_id
+      // and writes a per-day override when it differs from the
+      // system-resolved van.
+      body = `<div class="builder-field-img-placeholder" style="background:var(--accent-soft);color:var(--accent-text);border:1px dashed var(--accent-border);font-weight:600">Van picker · driver confirms the van they're inspecting today</div>`;
       break;
     case "section_header":
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="margin-top:14px">
