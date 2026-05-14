@@ -8027,6 +8027,7 @@ async function loadTodayPlan() {
   // an open tab from an older live.js that wrote a different skeleton.
   const skeletonOk = !!document.getElementById("rr-tp-waves")
                   && !!document.getElementById("rr-tp-tool")
+                  && !!document.getElementById("rr-tp-vanroster")
                   && !!document.getElementById("rr-tp-extras");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
@@ -8039,6 +8040,10 @@ async function loadTodayPlan() {
       <div id="rr-tp-tool" class="card card-flush" style="margin-bottom:var(--s-4)">
         <div class="rr-tp-section-head">Daily attendance · approvals</div>
         <div class="rr-loading">Loading</div>
+      </div>
+      <div id="rr-tp-vanroster" class="card card-flush" style="margin-bottom:var(--s-4)">
+        <div class="rr-tp-section-head">Today's roster · drivers + vans</div>
+        <div class="rr-loading" style="padding:18px 20px">Loading</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4)">
         <div id="rr-tp-extras" class="card card-flush">
@@ -8085,6 +8090,13 @@ async function _refreshTodayPlanData() {
     try { _renderTpCoverage(data, null); }
     catch (e) { console.error("today plan · coverage render failed:", e); _renderTpCoverage(null, e); }
   }).catch(err => _renderTpCoverage(null, err));
+
+  // Today's driver+van roster — surfaces who is working today and the
+  // van each one is resolved into, plus the no-van gaps.
+  sb.rpc("today_roster").then(({ data, error }) => {
+    try { _renderTpVanRoster(data, error); }
+    catch (e) { console.error("today plan · van roster render failed:", e); _renderTpVanRoster(null, e); }
+  }).catch(err => _renderTpVanRoster(null, err));
 }
 
 function _renderTpAttendance(data, error) {
@@ -8489,6 +8501,132 @@ document.addEventListener("click", async (e) => {
     }, 380);
   }, 600);
 });
+
+// Today's roster · drivers + resolved vans for the day.  Each row
+// shows who is working, the van they're rolling, a "covering for X"
+// chip when a backup picked up the van, and a red "No van" chip when
+// the resolver couldn't satisfy the driver — the gap-flag the
+// dispatcher needs to see before 5 AM.
+function _renderTpVanRoster(data, error) {
+  const wrap = document.getElementById("rr-tp-vanroster");
+  if (!wrap) return;
+  const rows = Array.isArray(data) ? data : [];
+
+  if (error) {
+    wrap.innerHTML = `<div class="rr-tp-section-head">Today's roster · drivers + vans</div>
+      <div style="padding:18px 20px;color:var(--red);font-size:var(--fs-sm)">Couldn't load roster: ${escapeHtml(error.message || String(error))}</div>`;
+    return;
+  }
+
+  const noVan      = rows.filter((r) => r.gap_kind === "no_van").length;
+  const coverCount = rows.filter((r) => r.van_via === "backup").length;
+  const headRight  = (() => {
+    const bits = [];
+    if (noVan > 0)      bits.push(`<span style="color:var(--red);font-weight:700">${noVan} no van</span>`);
+    if (coverCount > 0) bits.push(`<span style="color:var(--amber-dark);font-weight:600">${coverCount} covering</span>`);
+    return bits.length ? `<span style="margin-left:auto;font-size:var(--fs-xs);font-weight:500;display:flex;gap:10px">${bits.join("")}</span>` : "";
+  })();
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div class="rr-tp-section-head" style="display:flex;align-items:center">
+        Today's roster · drivers + vans
+      </div>
+      <div style="padding:32px 20px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">No shifts scheduled for today.</div>`;
+    return;
+  }
+
+  const fmtTime = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  };
+
+  const statusPill = (s) => {
+    const map = {
+      scheduled:  ["var(--accent-soft)", "var(--accent-text)", "Scheduled"],
+      completed:  ["var(--green-soft)",  "var(--green)",       "Completed"],
+      cancelled:  ["var(--canvas)",      "var(--text-subtle)", "Cancelled"],
+      noshow:     ["var(--red-soft)",    "var(--red)",         "No-show"],
+      time_off:   ["var(--canvas)",      "var(--text-subtle)", "Time off"],
+    };
+    const [bg, fg, label] = map[s] || ["var(--canvas)", "var(--text-subtle)", s || "—"];
+    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:${bg};color:${fg}">${escapeHtml(label)}</span>`;
+  };
+
+  const tierChip = (t) => {
+    if (!t) return "";
+    const map = {
+      "Fantastic+": ["#0e7c3a", "#dcfce7"],
+      "Fantastic":  ["var(--green)", "var(--green-soft)"],
+      "Great":      ["var(--accent-text)", "var(--accent-soft)"],
+      "Fair":       ["var(--amber-dark)", "var(--amber-soft)"],
+      "Poor":       ["var(--red)", "var(--red-soft)"],
+    };
+    const [fg, bg] = map[t] || ["var(--text-muted)", "var(--canvas)"];
+    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${bg};color:${fg};margin-left:6px">${escapeHtml(t)}</span>`;
+  };
+
+  const initials = (name) => (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+
+  const body = rows.map((r) => {
+    const av = r.driver_photo_path
+      ? `<img src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
+      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto">${escapeHtml(initials(r.driver_name))}</div>`;
+
+    const timeStr = (r.starts_at || r.ends_at)
+      ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
+      : `<span style="color:var(--text-subtle)">—</span>`;
+
+    const shiftMeta = [r.route_code, r.station_code].filter(Boolean).map(escapeHtml).join(" · ");
+
+    let vanCell;
+    if (r.van_name) {
+      const plate = r.van_plate ? `<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(r.van_plate)}</span>` : "";
+      const cover = r.van_via === "backup" && r.covering_for
+        ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
+        : "";
+      vanCell = `<div data-rr-vehicle-id="${escapeHtml(r.van_id || "")}" style="cursor:pointer"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
+    } else {
+      vanCell = `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:3px 9px;border-radius:999px;background:var(--red-soft);color:var(--red)"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>No van</span>`;
+    }
+
+    return `<tr>
+      <td style="padding:11px 14px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          ${av}
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}</div>
+            ${shiftMeta ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${shiftMeta}</div>` : ""}
+          </div>
+        </div>
+      </td>
+      <td style="padding:11px 14px;border-top:1px solid var(--border);white-space:nowrap;font-size:var(--fs-sm)">${timeStr}</td>
+      <td style="padding:11px 14px;border-top:1px solid var(--border);font-size:var(--fs-sm)">${vanCell}</td>
+      <td style="padding:11px 14px;border-top:1px solid var(--border);text-align:right">${statusPill(r.shift_status)}</td>
+    </tr>`;
+  }).join("");
+
+  wrap.innerHTML = `
+    <div class="rr-tp-section-head" style="display:flex;align-items:center">
+      <span>Today's roster · drivers + vans</span>
+      <span style="margin-left:8px;font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle)">${rows.length} scheduled</span>
+      ${headRight}
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md)">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Driver</th>
+            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Shift</th>
+            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Van</th>
+            <th style="text-align:right;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Status</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
 
 function _renderTpCoverage(data, error) {
   const covEl = document.getElementById("rr-tp-cov");
@@ -29525,6 +29663,14 @@ document.addEventListener("click", (e) => {
     const issueId = row.getAttribute("data-rr-issue-id");
     openFleetDrawer(row.getAttribute("data-rr-vehicle-id"), { tab: issueId ? "overview" : "overview" });
     return;
+  }
+  // Generic — any element marked with [data-rr-vehicle-id] (e.g. the
+  // van cell on Today's Plan roster) opens the fleet drawer.  Excludes
+  // form controls so inline inputs inside such elements still behave.
+  const vehEl = e.target.closest("[data-rr-vehicle-id]");
+  if (vehEl && !e.target.closest("#fleet-tbody, #fleet-issues-tbody, button, a[href], input, select, textarea")) {
+    const id = vehEl.getAttribute("data-rr-vehicle-id");
+    if (id) { e.preventDefault(); openFleetDrawer(id); return; }
   }
   if (e.target.closest("#rr-fleet-add") || e.target.closest("[data-rr-fleet-add-empty]")) {
     e.preventDefault();
