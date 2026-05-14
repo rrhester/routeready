@@ -30054,6 +30054,126 @@ function _flOpStatPill(s) {
   return `<span class="fl-opstat ${k}"><span class="dot"></span>${escapeHtml(label)}</span>`;
 }
 
+// Days-grounded badge used next to the status pill on the roster.
+// Returns a short "Nd" chip with severity-scaled color, or empty when
+// the vehicle has been grounded for less than a day or is operational.
+function _flDaysGroundedBadge(v) {
+  if ((v.operational_status || "operational") === "operational") return "";
+  if (!v.grounded_since) return "";
+  const diffMs = Date.now() - new Date(v.grounded_since).getTime();
+  if (!isFinite(diffMs) || diffMs < 0) return "";
+  const days = Math.floor(diffMs / 86400000);
+  if (days < 1) {
+    const h = Math.max(1, Math.floor(diffMs / 3600000));
+    return `<span class="fl-down-badge soft" title="Grounded since ${escapeHtml(new Date(v.grounded_since).toLocaleString())}">${h}h</span>`;
+  }
+  // Amazon's repair-completion guidance is 14 BD; warn at 7+, escalate at 14+.
+  const cls = days >= 14 ? "crit" : days >= 7 ? "warn" : "";
+  const title = `Grounded ${days} day${days === 1 ? "" : "s"} (since ${new Date(v.grounded_since).toLocaleDateString()})${v.grounded_reason ? " · " + v.grounded_reason : ""}`;
+  return `<span class="fl-down-badge ${cls}" title="${escapeHtml(title)}">${days}d</span>`;
+}
+
+// Build the operational-status table cell.  Wrapping the pill in a
+// button (with data-rr-opstat-id) makes it a click target for the
+// inline status menu; the existing row-click handler skips elements
+// inside `button` so the drawer doesn't also pop.
+function _flOpStatCell(v) {
+  const pill   = _flOpStatPill(v.operational_status);
+  const badge  = _flDaysGroundedBadge(v);
+  const issue  = v.open_issue_count
+    ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
+    : "";
+  return `<button type="button" class="fl-opstat-btn" data-rr-opstat-id="${escapeHtml(v.id)}" data-rr-opstat-now="${escapeHtml(v.operational_status || "operational")}" data-rr-opstat-name="${escapeHtml(v.nickname || v.name || "")}">
+    <span class="fl-opstat-row">${pill}${badge}</span>
+    <svg class="fl-opstat-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>${issue}`;
+}
+
+// ── Inline operational-status menu ────────────────────────────────────
+// Wired via document-level click handlers (added once, below).  Calls
+// vehicle_set_operational_status (migration 0229); the trigger from
+// migration 0228 takes care of opening/closing the grounding event.
+let _flOpStatMenu = null;
+function _flCloseOpStatMenu() {
+  if (_flOpStatMenu) { _flOpStatMenu.remove(); _flOpStatMenu = null; }
+}
+function _flOpenOpStatMenu(triggerBtn) {
+  _flCloseOpStatMenu();
+  const id      = triggerBtn.getAttribute("data-rr-opstat-id");
+  const current = triggerBtn.getAttribute("data-rr-opstat-now") || "operational";
+  const name    = triggerBtn.getAttribute("data-rr-opstat-name") || "";
+  const rect    = triggerBtn.getBoundingClientRect();
+  const menu    = document.createElement("div");
+  menu.className = "fl-opstat-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = `
+    <button class="row${current === "operational" ? " is-active" : ""}" data-set="operational" type="button" ${current === "operational" ? "disabled" : ""}>
+      <span class="pip green"></span>Mark operational${current === "operational" ? `<span class="sub">Current</span>` : ""}
+    </button>
+    <button class="row${current === "grounded" ? " is-active" : ""}" data-set="grounded" type="button" ${current === "grounded" ? "disabled" : ""}>
+      <span class="pip red"></span>Mark grounded${current === "grounded" ? `<span class="sub">Current</span>` : ""}
+    </button>`;
+  document.body.appendChild(menu);
+  // Position below the trigger, right-aligned to the chevron
+  const margin = 4;
+  const mRect = menu.getBoundingClientRect();
+  let left = rect.left + window.scrollX;
+  let top  = rect.bottom + window.scrollY + margin;
+  if (left + mRect.width > window.scrollX + document.documentElement.clientWidth - 8) {
+    left = (rect.right + window.scrollX) - mRect.width;
+  }
+  if (top + mRect.height > window.scrollY + document.documentElement.clientHeight - 8) {
+    top = rect.top + window.scrollY - mRect.height - margin;
+  }
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top  = Math.max(8, top)  + "px";
+  _flOpStatMenu = menu;
+
+  menu.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-set]");
+    if (!btn || btn.disabled) return;
+    e.preventDefault();
+    const next = btn.getAttribute("data-set");
+    let reason = null;
+    if (next === "grounded") {
+      reason = prompt(`Reason for grounding ${name || "this vehicle"}?  (optional)`);
+      if (reason === null) { _flCloseOpStatMenu(); return; }   // user hit Cancel
+    }
+    _flCloseOpStatMenu();
+    const { error } = await sb.rpc("vehicle_set_operational_status", {
+      p_id: id,
+      p_status: next,
+      p_reason: reason || null,
+    });
+    if (error) { toast("Couldn't update status: " + error.message, "danger"); return; }
+    toast(next === "grounded" ? "Vehicle grounded" : "Vehicle returned to service");
+    if (typeof loadFleetView === "function") loadFleetView();
+    else if (typeof _flLoadRoster === "function") _flLoadRoster();
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest(".fl-opstat-btn");
+  if (btn) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Toggle: clicking the same button closes the menu
+    if (_flOpStatMenu && _flOpStatMenu.previousTrigger === btn) { _flCloseOpStatMenu(); return; }
+    _flOpenOpStatMenu(btn);
+    if (_flOpStatMenu) _flOpStatMenu.previousTrigger = btn;
+    return;
+  }
+  // Click outside the menu closes it
+  if (_flOpStatMenu && !e.target.closest(".fl-opstat-menu")) {
+    _flCloseOpStatMenu();
+  }
+}, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && _flOpStatMenu) _flCloseOpStatMenu();
+});
+window.addEventListener("scroll", () => _flCloseOpStatMenu(), true);
+window.addEventListener("resize", () => _flCloseOpStatMenu());
+
 function _flDateCell(iso, opts) {
   if (!iso) return `<span class="fl-date dim">—</span>`;
   const d = new Date(iso);
@@ -30193,9 +30313,6 @@ function _flRenderRoster() {
   tbody.innerHTML = rows.map((v) => {
     const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
     const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
-    const issueChip = v.open_issue_count
-      ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
-      : "";
     const vehSub = [v.vin && `VIN: ${v.vin}`, v.station_code].filter(Boolean).join(" · ");
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}">
       <td><div style="display:flex;align-items:center;gap:10px">${_flVehThumb(v)}<div>
@@ -30203,7 +30320,7 @@ function _flRenderRoster() {
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
       </div></div></td>
       <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
-      <td>${_flOpStatPill(v.operational_status)}${issueChip}</td>
+      <td>${_flOpStatCell(v)}</td>
       <td><span class="fl-date${v.last_route_completed_at ? "" : " dim"}">${v.last_route_completed_at ? escapeHtml(_flRelative(v.last_route_completed_at)) : "—"}</span></td>
     </tr>`;
   }).join("");

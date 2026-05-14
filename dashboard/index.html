@@ -10841,6 +10841,61 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-opstat.grounded{color:var(--red)}
           #view-fleet .fl-opstat.grounded .dot{background:var(--red)}
 
+          /* Inline-edit button wrapping the status pill on the roster.
+             Click → small popover menu (rendered into <body> at runtime)
+             that flips status without opening the per-van drawer. */
+          #view-fleet .fl-opstat-btn{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:2px 6px 2px 4px;border-radius:6px;
+            background:transparent;border:1px solid transparent;
+            color:inherit;cursor:pointer;font:inherit;line-height:1.4;
+            transition:background .12s ease, border-color .12s ease;
+          }
+          #view-fleet .fl-opstat-btn:hover{background:var(--canvas);border-color:var(--border)}
+          #view-fleet .fl-opstat-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-fleet .fl-opstat-row{display:inline-flex;align-items:center;gap:6px}
+          #view-fleet .fl-opstat-chev{width:11px;height:11px;color:var(--text-subtle);flex:0 0 auto}
+
+          /* Days-grounded badge — sits right next to the Grounded pill
+             on the roster.  Severity scales against Amazon's 7d / 14d
+             repair-completion thresholds. */
+          #view-fleet .fl-down-badge{
+            display:inline-flex;align-items:center;justify-content:center;
+            min-width:28px;padding:1px 6px;border-radius:999px;
+            font-size:10px;font-weight:700;letter-spacing:.04em;line-height:1.5;
+            background:var(--red-soft);color:var(--red);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-fleet .fl-down-badge.soft{background:var(--canvas);color:var(--text-muted)}
+          #view-fleet .fl-down-badge.warn{background:var(--amber-soft);color:var(--amber-dark)}
+          #view-fleet .fl-down-badge.crit{background:#9F1239;color:#fff}
+
+          /* Floating inline status menu — appended to <body> so it
+             escapes table-cell overflow.  Positioned in JS. */
+          .fl-opstat-menu{
+            position:absolute;z-index:9000;
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:10px;box-shadow:var(--shadow-lg);
+            padding:6px;min-width:200px;
+          }
+          .fl-opstat-menu .row{
+            display:flex;align-items:center;gap:10px;width:100%;
+            padding:8px 10px;border-radius:7px;
+            background:transparent;border:none;cursor:pointer;text-align:left;
+            font-size:13px;color:var(--text);font-weight:550;
+          }
+          .fl-opstat-menu .row:hover{background:var(--canvas)}
+          .fl-opstat-menu .row[disabled]{opacity:.55;cursor:default}
+          .fl-opstat-menu .row[disabled]:hover{background:transparent}
+          .fl-opstat-menu .pip{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+          .fl-opstat-menu .pip.green{background:var(--green)}
+          .fl-opstat-menu .pip.red{background:var(--red)}
+          .fl-opstat-menu .row .sub{
+            margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.05em;
+            text-transform:uppercase;color:var(--text-subtle);
+          }
+          .fl-opstat-menu .row.is-active .sub{color:var(--green)}
+
           /* Issue severity chip */
           #view-fleet .fl-sev{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
           #view-fleet .fl-sev.low{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
