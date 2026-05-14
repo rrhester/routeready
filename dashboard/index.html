@@ -10977,6 +10977,84 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-compliance .page-sub{ max-width:none; }
 
+          /* ── Viewport-fill shell ─────────────────────────────────────
+             Other dashboard pages (Fleet, Documents, Finances) all have
+             enough content to push the layout down past the fold; the
+             Compliance workspace's empty states would otherwise float in
+             a sea of whitespace.  Make the view + page + shell fill the
+             viewport so the page reads as "a full tool" even before the
+             DSP has populated their compliance data. */
+          #view-compliance.view.active{
+            display:flex;flex-direction:column;min-height:100vh;
+          }
+          #view-compliance .page.co-page{
+            flex:1;display:flex;flex-direction:column;min-width:0;
+          }
+          #view-compliance .co-shell{
+            flex:1;align-items:stretch;min-height:0;
+          }
+          #view-compliance .co-rail{
+            position:sticky;top:18px;align-self:start;
+          }
+          #view-compliance .co-main{
+            display:flex;flex-direction:column;min-height:100%;
+          }
+          #view-compliance .co-pane.is-active{
+            display:flex;flex-direction:column;flex:1;min-height:520px;
+          }
+          /* The "content" render target inside each pane (whatever the
+             renderer paints the main list/table/grid into) should grow
+             to fill the pane.  Chips + hero in the Active Risks pane
+             stay fixed-height. */
+          #view-compliance .co-pane.is-active > [data-co-render="risks-list"],
+          #view-compliance .co-pane.is-active > [data-co-render="cures"],
+          #view-compliance .co-pane.is-active > [data-co-render="fleet"],
+          #view-compliance .co-pane.is-active > [data-co-render="grounded"],
+          #view-compliance .co-pane.is-active > [data-co-render="vendors"],
+          #view-compliance .co-pane.is-active > [data-co-render="fmcsa"],
+          #view-compliance .co-pane.is-active > [data-co-render="docs"],
+          #view-compliance .co-pane.is-active > [data-co-render="audit"],
+          #view-compliance .co-pane.is-active > [data-co-render="library"]{
+            flex:1;display:flex;flex-direction:column;min-height:0;
+          }
+          /* When the content target holds a single co-empty card, let it
+             expand to fill the whole pane.  Otherwise its children sit
+             at their natural sizes. */
+          #view-compliance .co-pane.is-active > [data-co-render] > .co-empty{
+            flex:1;
+          }
+
+          /* Empty states · larger, page-native (no longer floating cards) */
+          #view-compliance .co-empty{
+            background:linear-gradient(180deg, var(--surface) 0%, #FCFCFD 100%);
+            border:1px solid var(--border);
+            border-radius:var(--co-radius);
+            padding:64px 32px;text-align:center;
+            font-size:13px;color:var(--text-muted);line-height:1.5;
+            min-height:440px;
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+          }
+          #view-compliance .co-empty .ic{
+            width:56px;height:56px;border-radius:16px;margin:0 0 16px;
+            display:flex;align-items:center;justify-content:center;color:var(--accent);
+            background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
+          }
+          #view-compliance .co-empty .ic svg{width:24px;height:24px}
+          #view-compliance .co-empty h3{
+            margin:0 0 6px;font-family:'Inter Tight','Inter',sans-serif;
+            font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;
+          }
+          #view-compliance .co-empty p{
+            margin:0 auto;max-width:520px;font-size:13px;color:var(--text-muted);line-height:1.55;
+          }
+          #view-compliance .co-empty .actions{
+            margin-top:18px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;
+          }
+
+          /* Pane head — give it a bit more breathing room when the body
+             below is large and centered. */
+          #view-compliance .co-pane-head{margin-bottom:18px}
+
           /* ── Always-on posture bar ── reads like an instrument
              cluster.  Six cells, one per operational dimension. */
           .co-posture{
