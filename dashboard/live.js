@@ -8545,12 +8545,14 @@ function _renderTpVanRoster(data, error) {
   };
 
   const statusPill = (s) => {
+    // Mirrors the shift_status enum (0025 + 0035 + 0042).
     const map = {
       scheduled:  ["var(--accent-soft)", "var(--accent-text)", "Scheduled"],
       completed:  ["var(--green-soft)",  "var(--green)",       "Completed"],
-      cancelled:  ["var(--canvas)",      "var(--text-subtle)", "Cancelled"],
-      noshow:     ["var(--red-soft)",    "var(--red)",         "No-show"],
-      time_off:   ["var(--canvas)",      "var(--text-subtle)", "Time off"],
+      late:       ["var(--amber-soft)",  "var(--amber-dark)",  "Late"],
+      vto:        ["var(--canvas)",      "var(--text-muted)",  "VTO"],
+      called_off: ["var(--red-soft)",    "var(--red)",         "Called off"],
+      no_show:    ["var(--red-soft)",    "var(--red)",         "No-show"],
     };
     const [bg, fg, label] = map[s] || ["var(--canvas)", "var(--text-subtle)", s || "—"];
     return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:${bg};color:${fg}">${escapeHtml(label)}</span>`;
