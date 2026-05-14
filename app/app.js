@@ -3043,7 +3043,10 @@ async function renderFormFill() {
 
   document.getElementById("rr-form-fill").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const answers = _collectFormAnswers(fields);
+    const btnEarly = e.target.querySelector("button[type=submit]");
+    if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = "Uploading…"; }
+    const answers = await _collectFormAnswers(fields);
+    if (btnEarly) { btnEarly.textContent = "Submitting…"; }
     // Required-field validation.
     for (const f of fields) {
       if (!f.required) continue;
@@ -3142,8 +3145,15 @@ function _formFieldHtml(f) {
   }
 }
 
-function _collectFormAnswers(fields) {
+async function _collectFormAnswers(fields) {
   const out = {};
+  const session = readSession();
+  const driverId = session?.driver_id || null;
+  // Walk the inputs and collect; photos upload to storage in parallel
+  // so their path ends up in answers when we submit (downstream DVIC
+  // flow extracts paths from these to populate the inspection's
+  // photos array).
+  const photoUploads = [];
   document.querySelectorAll("#rr-form-fill [data-rr-field]").forEach((el) => {
     const fid = el.getAttribute("data-rr-field");
     const t   = el.getAttribute("data-rr-type");
@@ -3152,24 +3162,47 @@ function _collectFormAnswers(fields) {
       if (sel) out[fid] = t === "rating" ? Number(sel.value) : sel.value;
     } else if (t === "multi_choice") {
       out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
-    } else if (t === "photo" || t === "file") {
-      // File uploads aren't wired to storage in this MVP — record the
-      // file name so the dispatcher knows the driver attached
-      // something.  Real upload lands when we hook driver-documents
-      // into the submission flow.
+    } else if (t === "photo") {
+      // Upload the captured photo to driver-documents under a path
+      // the dispatcher's Inspections tab can render via signed URL.
+      // The answer ends up as { path, name, size, type } so the
+      // server-side DVIC hook can pull the path into the inspection.
+      const f = el.files?.[0];
+      if (f) {
+        const ts = Date.now();
+        const safe = (f.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
+        const path = `dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        out[fid] = { path, name: f.name, size: f.size, type: f.type, uploading: true };
+        photoUploads.push(
+          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
+            .then(({ error }) => {
+              if (error) {
+                console.warn("DVIC photo upload failed:", error.message);
+                out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
+              } else {
+                out[fid] = { path, name: f.name, size: f.size, type: f.type };
+              }
+            })
+            .catch((e) => {
+              console.warn("DVIC photo upload error:", e);
+              out[fid] = { name: f.name, size: f.size, type: f.type, error: String(e) };
+            })
+        );
+      } else {
+        out[fid] = null;
+      }
+    } else if (t === "file") {
       const f = el.files?.[0];
       out[fid] = f ? { name: f.name, size: f.size, type: f.type } : null;
     } else if (t === "gps") {
-      // Filled in below by the geolocation hook.
       out[fid] = el.dataset.rrGps || null;
     } else {
       out[fid] = el.value || "";
     }
   });
-  // Best-effort GPS — when any gps field is present, ask the browser
-  // for a fix and stuff it into _collectFormAnswers result before
-  // returning.  Fast path uses cached position; slow path returns
-  // null and the dispatcher sees an empty GPS answer.
+  // Wait for all photo uploads to settle before returning so the
+  // submission's answers contain the final paths.
+  if (photoUploads.length) await Promise.all(photoUploads);
   return out;
 }
 

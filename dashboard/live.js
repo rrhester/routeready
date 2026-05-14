@@ -25438,6 +25438,8 @@ function openFormBuilder(form) {
     const oncePerDriver = !!form?.settings?.once_per_driver;
     allowResubmit.checked = !oncePerDriver;
   }
+  const isDvicEl = document.getElementById("rr-form-is-dvic");
+  if (isDvicEl) isDvicEl.checked = !!form?.settings?.is_dvic;
   // Audience — default to "all"; populate from the form's assignments if any.
   const radioAll  = document.querySelector('input[name="rr-form-audience"][value="all"]');
   const radioSome = document.querySelector('input[name="rr-form-audience"][value="some"]');
@@ -25828,9 +25830,11 @@ async function _saveBuilder({ publish }) {
   }
 
   const allowResubmitEl = document.getElementById("rr-form-allow-resubmit");
+  const isDvicEl        = document.getElementById("rr-form-is-dvic");
   const settings = {
     ..._formsState.editing?.settings || {},
     once_per_driver: allowResubmitEl ? !allowResubmitEl.checked : false,
+    is_dvic:         isDvicEl ? !!isDvicEl.checked : false,
   };
   const payload = {
     title,
@@ -31013,7 +31017,7 @@ async function _fdRefreshMileageList(vehicleId) {
 async function _fdRefreshInspectionsList(vehicleId) {
   if (_fdTab !== "inspections") return;
   const { data, error } = await sb.from("vehicle_inspections")
-    .select("id, inspected_at, kind, result, inspector_name, notes, mileage")
+    .select("id, inspected_at, kind, result, inspector_name, notes, mileage, photos, form_submission_id")
     .eq("vehicle_id", vehicleId)
     .order("inspected_at", { ascending: false })
     .limit(100);
@@ -31021,17 +31025,46 @@ async function _fdRefreshInspectionsList(vehicleId) {
   if (!wrap) return;
   if (error) { wrap.innerHTML = `<div class="fd-empty">Couldn't load: ${escapeHtml(error.message)}</div>`; return; }
   if (!data?.length) { wrap.innerHTML = `<div class="fd-empty">No inspections logged yet.</div>`; return; }
+
+  // Signed-URL pre-fetch for any photo paths attached to these rows.
+  // driver-documents is a private bucket; we only need a short-lived
+  // URL for the thumbnail strip.  Failures are silent — missing thumbs
+  // just render an icon tile.
+  const pathsAll = data.flatMap((r) => Array.isArray(r.photos) ? r.photos.filter(Boolean) : []);
+  const urlMap = new Map();
+  if (pathsAll.length) {
+    try {
+      const { data: signed } = await sb.storage.from("driver-documents").createSignedUrls(pathsAll, 3600);
+      (signed || []).forEach((s) => { if (s?.signedUrl) urlMap.set(s.path, s.signedUrl); });
+    } catch (e) { /* silent */ }
+  }
+
   wrap.innerHTML = data.map((r) => {
     const resColor = r.result === "passed" ? "var(--green)" : (r.result === "failed" ? "var(--red)" : "var(--amber-dark)");
+    const isDvic   = r.kind === "dvic" || !!r.form_submission_id;
+    const photos   = Array.isArray(r.photos) ? r.photos.filter(Boolean) : [];
+    const photoStrip = photos.length
+      ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${photos.slice(0, 6).map((p) => {
+          const u = urlMap.get(p);
+          return u
+            ? `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="display:block;width:54px;height:54px;border-radius:6px;overflow:hidden;border:1px solid var(--border);background:var(--canvas)" title="Open photo"><img src="${escapeHtml(u)}" alt="" style="width:100%;height:100%;object-fit:cover"></a>`
+            : `<div style="width:54px;height:54px;border-radius:6px;border:1px dashed var(--border);background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:18px" title="${escapeHtml(p)}">📷</div>`;
+        }).join("")}${photos.length > 6 ? `<div style="width:54px;height:54px;border-radius:6px;border:1px solid var(--border);background:var(--canvas);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--text-muted);font-weight:700">+${photos.length - 6}</div>` : ""}</div>`
+      : "";
+    const dvicTag = isDvic
+      ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent-text);margin-left:8px">DVIC FORM</span>`
+      : "";
     return `<div class="fd-list-row">
-      <div>
-        <div class="fd-list-title" style="text-transform:capitalize">${escapeHtml((r.kind || "").replace(/_/g, " "))} inspection</div>
+      <div style="min-width:0;flex:1">
+        <div class="fd-list-title" style="text-transform:capitalize;display:flex;align-items:center;flex-wrap:wrap">${escapeHtml((r.kind || "").replace(/_/g, " "))} inspection${dvicTag}</div>
         <div class="fd-list-sub">
           <span style="color:${resColor};font-weight:600;text-transform:capitalize">${escapeHtml((r.result || "").replace(/_/g, " "))}</span>
           ${r.inspector_name ? " · " + escapeHtml(r.inspector_name) : ""}
           ${r.mileage != null ? " · " + Number(r.mileage).toLocaleString() + " mi" : ""}
+          ${photos.length ? ` · ${photos.length} photo${photos.length === 1 ? "" : "s"}` : ""}
         </div>
         ${r.notes ? `<div class="fd-list-sub" style="margin-top:4px;white-space:pre-wrap">${escapeHtml(r.notes)}</div>` : ""}
+        ${photoStrip}
       </div>
       <div class="fd-list-meta">${escapeHtml(new Date(r.inspected_at).toLocaleString())}</div>
     </div>`;
