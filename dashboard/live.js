@@ -971,6 +971,7 @@ window.goto = function (view) {
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
+  if (view === "fleet" && typeof loadFleetView === "function") loadFleetView();
 };
 
 // ── Platform admin view ────────────────────────────────────────────────────
@@ -18389,10 +18390,12 @@ function refreshActiveView() {
     if (typeof loadCheckinView === "function") loadCheckinView();
   } else if (activeView === "view-admin") {
     if (typeof loadPlatformAdmin === "function") loadPlatformAdmin();
+  } else if (activeView === "view-fleet") {
+    if (typeof loadFleetView === "function") loadFleetView();
   }
   // view-schedule / view-okami refresh via their own focus hook below;
-  // view-messages has live chat; view-forms / view-fleet / view-checklists
-  // are edit surfaces or static, so they're intentionally left alone.
+  // view-messages has live chat; view-forms / view-checklists are edit
+  // surfaces or static, so they're intentionally left alone.
 }
 
 let _refreshDebounce = null;
@@ -29184,4 +29187,1092 @@ document.addEventListener("click", (e) => {
     setTimeout(_rrAnRenderPinnedGrid, 0);
     setTimeout(() => document.getElementById("rr-an-input")?.focus(), 80);
   }
+});
+
+
+// ═════════════════════════════════════════════════════════════════════
+// FLEET — van roster + per-van record drawer.  Shape mirrors the
+// Amazon Logistics Fleet portal (Dashboard / My vehicles / Issues / …).
+// Data layer is the vehicles table (0186) extended in migration 0213.
+// ═════════════════════════════════════════════════════════════════════
+
+let _fleetSub          = "dashboard";   // active sub-tab
+let _fleetRows         = [];            // last loaded vehicles_roster payload
+let _fleetIssues       = [];            // last loaded vehicles_issues_list payload
+let _fleetDash         = null;          // last vehicles_dashboard payload
+let _fleetFilters      = { q: "", status: "", station: "" };
+let _fleetIssueFilters = { q: "", state: "open", severity: "" };
+let _fleetSearchT      = null;
+let _fleetIssuesSearchT = null;
+
+// Public photo URL builder — same pattern as driver-photos.
+function _flPhotoUrl(path) {
+  if (!path) return null;
+  return `${cfg.SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${encodeURI(path)}`;
+}
+
+function _flVanIconSvg() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 17h2l1-4h12l1 4h2"/><path d="M5 13v4M19 13v4"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg>`;
+}
+
+function _flVehThumb(v, opts) {
+  const cls = (opts && opts.cls) || "fl-veh-thumb";
+  const url = _flPhotoUrl(v.photo_path);
+  if (url) return `<div class="${cls}"><img src="${escapeHtml(url)}" alt=""></div>`;
+  return `<div class="${cls}">${_flVanIconSvg()}</div>`;
+}
+
+function _flStatusPill(s) {
+  const map = {
+    active:         ["active", "Active"],
+    spare:          ["spare",  "Spare"],
+    out_of_service: ["oos",    "Out of service"],
+    retired:        ["spare",  "Retired"],
+  };
+  const [k, label] = map[s] || ["spare", s || "—"];
+  return `<span class="veh-status ${k}"><span class="dot"></span>${escapeHtml(label)}</span>`;
+}
+
+function _flOpStatPill(s) {
+  const k = s === "grounded" ? "grounded" : "operational";
+  const label = k === "grounded" ? "Grounded" : "Operational";
+  return `<span class="fl-opstat ${k}"><span class="dot"></span>${escapeHtml(label)}</span>`;
+}
+
+function _flDateCell(iso, opts) {
+  if (!iso) return `<span class="fl-date dim">—</span>`;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return `<span class="fl-date dim">—</span>`;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((d.getTime() - today.getTime()) / 86400000);
+  let cls = "";
+  if (opts && opts.compliance) {
+    if (days < 0) cls = "urgent";
+    else if (days <= 14) cls = "warn";
+  }
+  const fmt = d.toLocaleDateString(undefined, {
+    month: "short", day: "numeric",
+    year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric"
+  });
+  return `<span class="fl-date ${cls}">${escapeHtml(fmt)}</span>`;
+}
+
+function _flRelative(iso) {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (!t) return "—";
+  const diff = Date.now() - t;
+  const days = Math.floor(diff / 86400000);
+  if (days < 1) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 30) return `${days} days ago`;
+  if (days < 365) return `${Math.floor(days / 30)} mo ago`;
+  return `${Math.floor(days / 365)} yr ago`;
+}
+
+function _flOwnershipLabel(o) {
+  return { amazon_owned: "Amazon-owned", dsp_owned: "DSP-owned", rental: "Rental", leased: "Leased" }[o] || "—";
+}
+
+// ─── Sub-tab routing ─────────────────────────────────────────────────
+window.fleetSub = function (sub) {
+  _fleetSub = sub;
+  document.querySelectorAll("#view-fleet .subnav-item").forEach((b) => {
+    b.classList.toggle("active", b.getAttribute("data-sub") === sub);
+  });
+  document.querySelectorAll("#view-fleet .fl-sub").forEach((s) => s.classList.remove("active"));
+  document.getElementById("fl-sub-" + sub)?.classList.add("active");
+  // Per-tab loader — only the tabs that have data fetch.  Roster +
+  // dashboard reuse cached rows when they're already on hand to keep
+  // the tab switch instant.
+  if (sub === "dashboard") _flLoadDashboard();
+  else if (sub === "vehicles") _flLoadRoster();
+  else if (sub === "issues") _flLoadIssues();
+  // The add-van + export buttons only make sense on My vehicles, but
+  // we keep them visible — they always open / export the roster.
+};
+
+// ─── Master loader (entry point from refreshActiveView) ──────────────
+async function loadFleetView() {
+  // Always refresh dashboard + roster so the tab counts stay accurate;
+  // these are cheap RPCs and the operator usually lands on Dashboard.
+  await Promise.all([_flLoadDashboard(), _flLoadRoster()]);
+  if (_fleetSub === "issues") await _flLoadIssues();
+  _flPaintTabCounts();
+}
+
+function _flPaintTabCounts() {
+  const vc = document.getElementById("rr-fleet-tabcount-vehicles");
+  if (vc) vc.textContent = String(_fleetRows.length || 0);
+  const ic = document.getElementById("rr-fleet-tabcount-issues");
+  if (ic) {
+    const n = (_fleetDash?.issues?.open) || 0;
+    ic.textContent = String(n);
+    ic.style.display = n > 0 ? "" : "none";
+  }
+  // Page sub-line — total + grounded
+  const sub = document.getElementById("rr-fleet-page-sub");
+  if (sub && _fleetDash) {
+    const t = _fleetDash.totals || {};
+    const bits = [`${t.total ?? 0} van${t.total === 1 ? "" : "s"}`];
+    if ((t.grounded || 0) > 0) bits.push(`${t.grounded} grounded`);
+    if ((_fleetDash.issues?.open || 0) > 0) bits.push(`${_fleetDash.issues.open} open issue${_fleetDash.issues.open === 1 ? "" : "s"}`);
+    sub.textContent = bits.join(" · ");
+  } else if (sub) {
+    sub.textContent = `${_fleetRows.length} van${_fleetRows.length === 1 ? "" : "s"}`;
+  }
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────
+async function _flLoadDashboard() {
+  const { data, error } = await sb.rpc("vehicles_dashboard");
+  if (error) { console.warn("vehicles_dashboard:", error); _fleetDash = null; return; }
+  _fleetDash = data || null;
+  _flPaintDashboard();
+  _flPaintTabCounts();
+}
+
+function _flPaintDashboard() {
+  if (!_fleetDash) return;
+  const get = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), _fleetDash);
+  document.querySelectorAll("#view-fleet [data-rr-kpi]").forEach((el) => {
+    const v = get(el.getAttribute("data-rr-kpi"));
+    el.textContent = (v == null ? "0" : String(v));
+  });
+}
+
+// ─── My vehicles roster ──────────────────────────────────────────────
+async function _flLoadRoster() {
+  const tbody = document.getElementById("fleet-tbody");
+  if (tbody && !_fleetRows.length) tbody.innerHTML = _flRosterSkeleton(6);
+  const { data, error } = await sb.rpc("vehicles_roster");
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7"><div class="fl-empty"><h3>Couldn't load fleet</h3><p>${escapeHtml(error.message || "Try again")}</p></div></td></tr>`;
+    return;
+  }
+  _fleetRows = Array.isArray(data) ? data : [];
+  _flPopulateStationFilter(_fleetRows);
+  _flRenderRoster();
+  _flPaintTabCounts();
+}
+
+function _flRosterSkeleton(n) {
+  const row = `<tr style="pointer-events:none"><td><div style="display:flex;align-items:center;gap:10px"><div class="fl-skel-thumb"></div><div style="flex:1"><div class="fl-skel-cell" style="width:50%"></div><div class="fl-skel-cell" style="width:35%;margin-top:6px;height:10px"></div></div></div></td><td><div class="fl-skel-cell" style="width:60%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:40%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:55%"></div></td><td><div class="fl-skel-cell" style="width:45%"></div></td></tr>`;
+  return row.repeat(n);
+}
+
+function _flPopulateStationFilter(rows) {
+  const sel = document.getElementById("rr-fleet-station");
+  if (!sel) return;
+  const codes = [...new Set(rows.map((r) => r.station_code).filter(Boolean))].sort();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Station: All</option>'
+    + codes.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  if (codes.includes(cur)) sel.value = cur;
+}
+
+function _flApplyRosterFilters(rows) {
+  const f = _fleetFilters;
+  let out = rows;
+  if (f.q) {
+    const q = f.q.toLowerCase();
+    out = out.filter((v) => {
+      const hay = [v.name, v.nickname, v.make, v.model, v.plate, v.vin, v.primary_driver_name, v.station_code]
+        .filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  if (f.status)  out = out.filter((v) => v.operational_status === f.status);
+  if (f.station) out = out.filter((v) => v.station_code === f.station);
+  return out;
+}
+
+function _flRenderRoster() {
+  const tbody = document.getElementById("fleet-tbody");
+  if (!tbody) return;
+  const rows = _flApplyRosterFilters(_fleetRows);
+  if (rows.length === 0) {
+    tbody.innerHTML = _fleetRows.length === 0
+      ? `<tr><td colspan="7"><div class="fl-empty">
+          <div class="ic">${_flVanIconSvg()}</div>
+          <h3>No vans yet</h3>
+          <p>Add your first van to start tracking mileage, service, inspections, and driver assignments.</p>
+          <button class="btn btn-primary" data-rr-fleet-add-empty><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
+        </div></td></tr>`
+      : `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((v) => {
+    const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
+    const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
+    const plate = v.plate
+      ? `<div style="font-weight:600">${escapeHtml(v.plate)}</div>${v.plate_state ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.plate_state)}</div>` : ""}`
+      : `<span style="color:var(--text-subtle)">—</span>`;
+    const mileage = v.mileage != null
+      ? `<strong>${Number(v.mileage).toLocaleString()}</strong> mi`
+      : `<span style="color:var(--text-subtle)">—</span>`;
+    const driver = v.primary_driver_name
+      ? `<div>${escapeHtml(v.primary_driver_name)}${v.backup_count ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">+ ${v.backup_count} backup${v.backup_count === 1 ? "" : "s"}</div>` : ""}</div>`
+      : `<span style="color:var(--text-subtle)">— Unassigned</span>`;
+    const issueChip = v.open_issue_count
+      ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
+      : "";
+    const vehSub = [v.vin && `VIN: ${v.vin}`, v.station_code].filter(Boolean).join(" · ");
+    return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}">
+      <td><div style="display:flex;align-items:center;gap:10px">${_flVehThumb(v)}<div>
+        <div class="cell-name">${escapeHtml(v.name)}${v.plate ? ` <span style="color:var(--text-subtle);font-weight:500">| ${escapeHtml(v.plate)}</span>` : ""}</div>
+        ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
+      </div></div></td>
+      <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
+      <td>${plate}</td>
+      <td>${mileage}${v.mileage_updated_at ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(_flRelative(v.mileage_updated_at))}</div>` : ""}</td>
+      <td>${_flOpStatPill(v.operational_status)}${issueChip}</td>
+      <td>${driver}</td>
+      <td><span class="fl-date${v.last_route_completed_at ? "" : " dim"}">${v.last_route_completed_at ? escapeHtml(_flRelative(v.last_route_completed_at)) : "—"}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+// ─── Issues sub-tab ──────────────────────────────────────────────────
+async function _flLoadIssues() {
+  const tbody = document.getElementById("fleet-issues-tbody");
+  if (tbody) tbody.innerHTML = `<tr style="pointer-events:none"><td colspan="7" style="padding:24px;text-align:center;color:var(--text-subtle)">Loading…</td></tr>`;
+  const { data, error } = await sb.rpc("vehicles_issues_list", { p_status: _fleetIssueFilters.state || "open" });
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--red)">Couldn't load issues: ${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
+  _fleetIssues = Array.isArray(data) ? data : [];
+  _flRenderIssues();
+}
+
+function _flApplyIssueFilters(rows) {
+  const f = _fleetIssueFilters;
+  let out = rows;
+  if (f.q) {
+    const q = f.q.toLowerCase();
+    out = out.filter((i) => [i.vehicle_name, i.plate, i.title, i.description, i.work_order]
+      .filter(Boolean).join(" ").toLowerCase().includes(q));
+  }
+  if (f.severity) out = out.filter((i) => i.severity === f.severity);
+  return out;
+}
+
+function _flRenderIssues() {
+  const tbody = document.getElementById("fleet-issues-tbody");
+  if (!tbody) return;
+  const rows = _flApplyIssueFilters(_fleetIssues);
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">${
+      _fleetIssues.length === 0 ? "No issues — fleet is clean." : "No issues match the current filters."
+    }</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((i) => {
+    const reported = i.reported_at ? new Date(i.reported_at).toLocaleDateString() : "—";
+    const due = i.due_at ? _flDateCell(i.due_at, { compliance: true }).replace(/^<span/, '<span style="display:inline"') : `<span class="fl-date dim">—</span>`;
+    const statusMap = {
+      open:         ["amber",  "Open"],
+      needs_repair: ["amber",  "Needs repair"],
+      in_repair:    ["accent", "In repair"],
+      completed:    ["green",  "Completed"],
+    };
+    const [sk, sl] = statusMap[i.status] || ["text-subtle", i.status];
+    const colorVar = sk === "amber" ? "var(--amber-dark)" : sk === "green" ? "var(--green)" : sk === "accent" ? "var(--accent-text)" : "var(--text-subtle)";
+    return `<tr data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-issue-id="${escapeHtml(i.id)}">
+      <td><div class="cell-name">${escapeHtml(i.vehicle_name)}${i.plate ? ` <span style="color:var(--text-subtle);font-weight:500">| ${escapeHtml(i.plate)}</span>` : ""}</div>${i.make || i.model ? `<div class="cell-name-sub">${escapeHtml([i.make, i.model].filter(Boolean).join(" "))}</div>` : ""}</td>
+      <td><div style="font-weight:600">${escapeHtml(i.title)}</div>${i.description ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml((i.description || "").slice(0, 80))}${(i.description || "").length > 80 ? "…" : ""}</div>` : ""}</td>
+      <td><span class="fl-sev ${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span></td>
+      <td style="text-transform:capitalize">${escapeHtml((i.category || "").replace(/_/g, " "))}</td>
+      <td><span class="fl-date">${escapeHtml(reported)}</span></td>
+      <td>${due}</td>
+      <td><span style="font-size:var(--fs-xs);font-weight:600;color:${colorVar}">${escapeHtml(sl)}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+// ─── Wire interactions (search / filters / row clicks) ───────────────
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "rr-fleet-search") {
+    clearTimeout(_fleetSearchT);
+    _fleetSearchT = setTimeout(() => {
+      _fleetFilters = { ..._fleetFilters, q: (e.target.value || "").trim() };
+      _flRenderRoster();
+    }, 120);
+  }
+  if (e.target?.id === "rr-fleet-issues-search") {
+    clearTimeout(_fleetIssuesSearchT);
+    _fleetIssuesSearchT = setTimeout(() => {
+      _fleetIssueFilters = { ..._fleetIssueFilters, q: (e.target.value || "").trim() };
+      _flRenderIssues();
+    }, 120);
+  }
+});
+
+document.addEventListener("change", (e) => {
+  const id = e.target?.id;
+  if (id === "rr-fleet-status" || id === "rr-fleet-station") {
+    _fleetFilters = {
+      ..._fleetFilters,
+      status:  document.getElementById("rr-fleet-status")?.value  || "",
+      station: document.getElementById("rr-fleet-station")?.value || "",
+    };
+    e.target.classList.toggle("is-set", !!e.target.value);
+    _flRenderRoster();
+  }
+  if (id === "rr-fleet-issues-state" || id === "rr-fleet-issues-sev") {
+    _fleetIssueFilters = {
+      ..._fleetIssueFilters,
+      state:    document.getElementById("rr-fleet-issues-state")?.value || "open",
+      severity: document.getElementById("rr-fleet-issues-sev")?.value   || "",
+    };
+    if (id === "rr-fleet-issues-state") _flLoadIssues();
+    else _flRenderIssues();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  // Row → drawer (roster + issues both open the same drawer)
+  const row = e.target.closest("#fleet-tbody tr[data-rr-vehicle-id], #fleet-issues-tbody tr[data-rr-vehicle-id]");
+  if (row && !e.target.closest("button, a")) {
+    e.preventDefault();
+    const issueId = row.getAttribute("data-rr-issue-id");
+    openFleetDrawer(row.getAttribute("data-rr-vehicle-id"), { tab: issueId ? "overview" : "overview" });
+    return;
+  }
+  if (e.target.closest("#rr-fleet-add") || e.target.closest("[data-rr-fleet-add-empty]")) {
+    e.preventDefault();
+    openFleetDrawer(null);
+    return;
+  }
+  if (e.target.closest("#rr-fleet-export")) {
+    e.preventDefault();
+    _flExportCsv();
+    return;
+  }
+});
+
+function _flExportCsv() {
+  const rows = _flApplyRosterFilters(_fleetRows);
+  if (!rows.length) { toast("No vans to export.", "warn"); return; }
+  const headers = ["name","nickname","ownership","operational_status","year","make","model","color","plate","plate_state","vin","mileage","station_code","primary_driver","backup_count","last_service_at","next_service_due_at","dot_inspection_at","registration_expires_on","insurance_expires_on","open_issue_count"];
+  const csv = [headers.join(",")].concat(rows.map((v) => headers.map((h) => {
+    let val;
+    if (h === "primary_driver") val = v.primary_driver_name || "";
+    else val = v[h] == null ? "" : String(v[h]);
+    return `"${String(val).replace(/"/g, '""')}"`;
+  }).join(","))).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `fleet-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+
+// ═════════════════════════════════════════════════════════════════════
+// FLEET — record drawer (per-van).  Tabs mirror the Amazon portal:
+// Overview / Inspections / Service history / Mileage history / Vehicle
+// history.  Open via openFleetDrawer(vehicleId) — pass null to create.
+// ═════════════════════════════════════════════════════════════════════
+
+let _fdTab     = "overview";
+let _fdVehicle = null;   // { vehicle, drivers, logs } from vehicle_record
+let _fdHistory = null;   // lazy-loaded vehicle_history payload
+let _fdPending = {};     // dirty edits keyed by field
+
+async function openFleetDrawer(vehicleId, opts) {
+  const initialTab = (opts && opts.tab) || "overview";
+  let drawer = document.getElementById("rr-fd-drawer");
+  if (drawer) drawer.remove();
+  drawer = document.createElement("div");
+  drawer.id = "rr-fd-drawer";
+  drawer.innerHTML = `
+    <style>
+      #rr-fd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
+      #rr-fd-panel{width:780px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
+      .fd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
+      .fd-head{padding:20px 28px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+      .fd-head h3{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+      .fd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:4px;line-height:1.5}
+      .fd-thumb{width:56px;height:56px;border-radius:var(--r-md);background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;position:relative}
+      .fd-thumb img{width:100%;height:100%;object-fit:cover}
+      .fd-thumb svg{width:24px;height:24px}
+      .fd-thumb-edit{position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;display:none;align-items:center;justify-content:center}
+      .fd-thumb:hover .fd-thumb-edit{display:flex}
+      .fd-headside{background:var(--canvas);border-radius:var(--r-lg);padding:12px 14px;min-width:210px;font-size:var(--fs-sm)}
+      .fd-headside .lbl{font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between}
+      .fd-headside select{appearance:none;background:transparent;border:0;font:inherit;font-weight:600;color:var(--text);padding:0;cursor:pointer}
+      .fd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:9px;margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
+      .fd-tabs::-webkit-scrollbar{display:none}
+      .fd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 14px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
+      .fd-tab:hover{color:var(--text)}
+      .fd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+      .fd-body{padding:22px 28px;flex:1}
+      .fd-section{margin:0 0 18px}
+      .fd-section + .fd-section{margin-top:24px;padding-top:18px;border-top:1px solid var(--border)}
+      .fd-section-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+      .fd-section-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em}
+      .fd-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5}
+      .fd-row{display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:center;padding:11px 0;border-top:1px solid var(--border)}
+      .fd-row:first-of-type{border-top:0}
+      .fd-row label{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
+      .fd-row input,.fd-row select,.fd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font:inherit;font-size:var(--fs-md);color:var(--text)}
+      .fd-row input:focus,.fd-row select:focus,.fd-row textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+      .fd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      .fd-foot{padding:14px 28px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;background:var(--surface);position:sticky;bottom:0}
+      .fd-driver-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border)}
+      .fd-driver-row:first-of-type{border-top:0}
+      .fd-driver-row .nm{flex:1;font-size:var(--fs-md)}
+      .fd-driver-row .rk{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+      .fd-driver-row .av{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;overflow:hidden}
+      .fd-driver-row .av img{width:100%;height:100%;object-fit:cover}
+      .fd-driver-row button{background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:6px;border-radius:6px}
+      .fd-driver-row button:hover{background:var(--canvas);color:var(--red)}
+      .fd-empty{padding:18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);border:1px dashed var(--border);border-radius:8px}
+      .fd-list-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 0;border-top:1px solid var(--border)}
+      .fd-list-row:first-of-type{border-top:0}
+      .fd-list-title{font-size:var(--fs-md);font-weight:600}
+      .fd-list-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5}
+      .fd-list-meta{font-size:var(--fs-xs);color:var(--text-muted);text-align:right;white-space:nowrap}
+      .fd-issue-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap;margin-right:6px}
+      .fd-issue-pill.low{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+      .fd-issue-pill.medium{background:var(--accent-soft);color:var(--accent-text)}
+      .fd-issue-pill.high{background:var(--amber-soft);color:var(--amber-dark)}
+      .fd-issue-pill.critical{background:var(--red-soft);color:var(--red)}
+      .fd-add-link{background:transparent;border:1px dashed var(--border-strong);color:var(--text-subtle);font:inherit;font-size:var(--fs-sm);font-weight:600;padding:9px 14px;border-radius:8px;cursor:pointer;width:100%;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px}
+      .fd-add-link:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
+      .fd-add-link svg{width:13px;height:13px}
+      @media (max-width:640px){
+        .fd-head{padding:16px 18px;flex-direction:column}
+        .fd-tabs{margin:14px 18px 0}
+        .fd-body{padding:18px}
+        .fd-foot{padding:12px 18px}
+        .fd-row{grid-template-columns:1fr;gap:5px}
+        .fd-grid2{grid-template-columns:1fr}
+      }
+    </style>
+    <div id="rr-fd-panel">
+      <div class="fd-chrome">
+        <div class="fd-head">
+          <div style="display:flex;align-items:center;gap:14px;min-width:0;flex:1">
+            <div class="fd-thumb" id="rr-fd-thumb" title="Click to change photo">
+              ${_flVanIconSvg()}
+              <div class="fd-thumb-edit">Change</div>
+            </div>
+            <div style="min-width:0">
+              <h3 id="rr-fd-title">Van record</h3>
+              <div class="sub" id="rr-fd-sub">—</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <div class="fd-headside" id="rr-fd-headside" style="display:none">
+              <div class="lbl">Operational status</div>
+              <select data-rr-fd-quick="operational_status">
+                <option value="operational">Operational</option>
+                <option value="grounded">Grounded</option>
+              </select>
+            </div>
+            <button id="rr-fd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px;line-height:1">×</button>
+          </div>
+        </div>
+        <div class="fd-tabs">
+          <button type="button" class="fd-tab active" data-rr-fd-tab="overview">Overview</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="profile">Profile</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="drivers">Drivers</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="inspections">Inspections</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="service">Service history</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="mileage">Mileage history</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="history">Vehicle history</button>
+        </div>
+      </div>
+      <div class="fd-body" id="rr-fd-body"><div style="padding:32px;text-align:center;color:var(--text-subtle)">Loading…</div></div>
+      <div class="fd-foot" id="rr-fd-foot"></div>
+      <input type="file" id="rr-fd-photo-input" accept="image/*" style="display:none">
+    </div>`;
+  document.body.appendChild(drawer);
+
+  drawer.addEventListener("click", (e) => {
+    if (e.target === drawer || e.target.id === "rr-fd-close" || e.target.id === "rr-fd-cancel") { drawer.remove(); return; }
+  });
+
+  _fdTab = initialTab;
+  _fdHistory = null;
+  _fdPending = {};
+
+  if (vehicleId) {
+    await loadFleetDrawer(vehicleId);
+  } else {
+    _fdVehicle = {
+      vehicle: { id: null, name: "", kind: "van", status: "active", ownership: "dsp_owned", operational_status: "operational" },
+      drivers: [], logs: []
+    };
+    document.getElementById("rr-fd-title").textContent = "Add van";
+    document.getElementById("rr-fd-sub").textContent  = "New record";
+    _fdTab = "profile";
+    document.querySelectorAll("#rr-fd-drawer .fd-tab").forEach((t) => t.classList.toggle("active", t.getAttribute("data-rr-fd-tab") === "profile"));
+    _fdRenderTab();
+  }
+}
+
+async function loadFleetDrawer(vehicleId) {
+  if (!document.getElementById("rr-fd-drawer")) return;
+  const { data, error } = await sb.rpc("vehicle_record", { p_id: vehicleId });
+  if (error || !data) { toast("Couldn't load van: " + (error?.message || "not found"), "warn"); return; }
+  _fdVehicle = data;
+  _fdPaintHead();
+  // Activate the requested tab in the strip
+  document.querySelectorAll("#rr-fd-drawer .fd-tab").forEach((t) => t.classList.toggle("active", t.getAttribute("data-rr-fd-tab") === _fdTab));
+  _fdRenderTab();
+}
+
+function _fdPaintHead() {
+  if (!_fdVehicle) return;
+  const v = _fdVehicle.vehicle || {};
+  const title = document.getElementById("rr-fd-title");
+  const sub   = document.getElementById("rr-fd-sub");
+  if (title) {
+    title.innerHTML = `${escapeHtml(v.name || "Van record")}${v.plate ? ` <span style="color:var(--text-subtle);font-weight:500;font-size:16px">| ${escapeHtml(v.plate)}${v.plate_state ? ` (${escapeHtml(v.plate_state)})` : ""}</span>` : ""}`;
+  }
+  if (sub) {
+    const bits = [];
+    if (v.year || v.make || v.model) bits.push([v.year, v.make, v.model].filter(Boolean).join(" "));
+    if (v.vin) bits.push(escapeHtml(v.vin));
+    if (v.station_code) bits.push(escapeHtml(v.station_code));
+    if (v.mileage != null) bits.push(`${Number(v.mileage).toLocaleString()} mi`);
+    if (v.ownership) bits.push(_flOwnershipLabel(v.ownership));
+    sub.innerHTML = bits.join(" · ") || "—";
+  }
+  // Thumb
+  const thumb = document.getElementById("rr-fd-thumb");
+  if (thumb) {
+    thumb.querySelector("img")?.remove();
+    const url = _flPhotoUrl(v.photo_path);
+    if (url) {
+      const img = document.createElement("img");
+      img.src = url; img.alt = "";
+      thumb.insertBefore(img, thumb.firstChild);
+    }
+  }
+  // Operational status quick selector
+  const side = document.getElementById("rr-fd-headside");
+  if (side && v.id) {
+    side.style.display = "";
+    const sel = side.querySelector("[data-rr-fd-quick='operational_status']");
+    if (sel) sel.value = v.operational_status || "operational";
+  }
+}
+
+// Tab + quick-edit dispatching
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest("#rr-fd-drawer [data-rr-fd-tab]");
+  if (tab) {
+    _fdTab = tab.getAttribute("data-rr-fd-tab");
+    document.querySelectorAll("#rr-fd-drawer .fd-tab").forEach((t) => t.classList.toggle("active", t === tab));
+    _fdRenderTab();
+    return;
+  }
+});
+
+document.addEventListener("change", (e) => {
+  // Quick operational_status toggle in the head
+  const quick = e.target.closest("#rr-fd-drawer [data-rr-fd-quick]");
+  if (quick) {
+    const field = quick.getAttribute("data-rr-fd-quick");
+    _fdPending[field] = quick.value;
+    _fdSaveProfile().catch(() => {});
+    return;
+  }
+  // Field edits in profile / compliance tabs
+  const edit = e.target.closest("#rr-fd-drawer [data-rr-fd-field]");
+  if (edit) {
+    const field = edit.getAttribute("data-rr-fd-field");
+    _fdPending[field] = edit.value;
+  }
+});
+
+document.addEventListener("input", (e) => {
+  const edit = e.target.closest("#rr-fd-drawer [data-rr-fd-field]");
+  if (edit) _fdPending[edit.getAttribute("data-rr-fd-field")] = edit.value;
+});
+
+function _fdField(field, label, type, opts) {
+  const v = _fdVehicle?.vehicle || {};
+  const val = field in _fdPending ? _fdPending[field] : (v[field] ?? "");
+  const attrs = (opts && opts.attrs) || "";
+  if (type === "textarea") return `<div class="fd-row"><label>${escapeHtml(label)}</label><textarea data-rr-fd-field="${escapeHtml(field)}" ${attrs}>${escapeHtml(val ?? "")}</textarea></div>`;
+  if (type === "select")   return `<div class="fd-row"><label>${escapeHtml(label)}</label><select data-rr-fd-field="${escapeHtml(field)}" ${attrs}>${opts.options.map((o) => `<option value="${escapeHtml(o.value)}" ${String(val) === String(o.value) ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}</select></div>`;
+  return `<div class="fd-row"><label>${escapeHtml(label)}</label><input type="${escapeHtml(type)}" data-rr-fd-field="${escapeHtml(field)}" value="${escapeHtml(val ?? "")}" ${attrs}></div>`;
+}
+
+function _fdRenderTab() {
+  const body = document.getElementById("rr-fd-body");
+  const foot = document.getElementById("rr-fd-foot");
+  if (!body || !foot || !_fdVehicle) return;
+  const v = _fdVehicle.vehicle || {};
+  const hasId = !!v.id;
+
+  if (_fdTab === "overview")        body.innerHTML = _fdOverviewHtml(v, _fdVehicle.drivers, _fdVehicle.logs);
+  else if (_fdTab === "profile")    body.innerHTML = _fdProfileHtml(v);
+  else if (_fdTab === "drivers")    body.innerHTML = _fdDriversHtml(_fdVehicle.drivers);
+  else if (_fdTab === "inspections")body.innerHTML = _fdInspectionsHtml();
+  else if (_fdTab === "service")    body.innerHTML = _fdServiceHtml(_fdVehicle.logs);
+  else if (_fdTab === "mileage")    body.innerHTML = _fdMileageHtml();
+  else if (_fdTab === "history")    body.innerHTML = _fdHistoryHtml();
+
+  const saveBtn = (_fdTab === "profile")
+    ? `<button class="btn btn-primary" data-rr-fd-save="profile">${hasId ? "Save changes" : "Create van"}</button>`
+    : "";
+  foot.innerHTML = `
+    <div style="display:flex;gap:8px">
+      ${hasId && _fdTab === "profile" ? `<button class="btn" data-rr-fd-archive>Archive</button>` : ""}
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" id="rr-fd-cancel">Close</button>
+      ${saveBtn}
+    </div>`;
+
+  // Lazy load history when its tab opens.
+  if (_fdTab === "history" && _fdHistory === null && v.id) {
+    _fdLoadHistory(v.id);
+  }
+}
+
+function _fdOverviewHtml(v, drivers, logs) {
+  const primary = (drivers || []).find((d) => d.rank === 0);
+  const backups = (drivers || []).filter((d) => d.rank > 0);
+  const lastLog = (logs || [])[0];
+  return `
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">At a glance</div></div>
+      <div class="fd-grid2">
+        <div class="fd-headside" style="background:var(--canvas)"><div class="lbl">Operational status</div><div style="font-weight:600;color:${v.operational_status === "grounded" ? "var(--red)" : "var(--green)"}">${_flOpStatPill(v.operational_status).replace(/^<span[^>]*>|<\/span>$/g, "")}</div></div>
+        <div class="fd-headside" style="background:var(--canvas)"><div class="lbl">Ownership</div><div style="font-weight:600">${escapeHtml(_flOwnershipLabel(v.ownership))}</div></div>
+        <div class="fd-headside" style="background:var(--canvas)"><div class="lbl">Mileage</div><div style="font-weight:600">${v.mileage != null ? Number(v.mileage).toLocaleString() + " mi" : "—"}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(_flRelative(v.mileage_updated_at))}</div></div>
+        <div class="fd-headside" style="background:var(--canvas)"><div class="lbl">Last route completed</div><div style="font-weight:600">${escapeHtml(_flRelative(v.last_route_completed_at))}</div></div>
+      </div>
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Open tasks</div><div class="fd-section-sub">Open issues + preventative maintenance due in 30 days. Add an issue from the Inspections tab to track repairs.</div></div></div>
+      <div id="rr-fd-overview-issues"><div class="fd-empty">Loading open issues…</div></div>
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h">
+        <div class="fd-section-title">Driver chain</div>
+        <button class="btn btn-sm" data-rr-fd-tab="drivers" type="button">Edit chain</button>
+      </div>
+      <div>
+        ${primary ? `<div class="fd-driver-row"><div class="av">${escapeHtml((primary.name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div><div class="nm">${escapeHtml(primary.name)}</div><div class="rk">Primary</div></div>` : `<div class="fd-empty">No primary driver assigned.</div>`}
+        ${backups.map((d, i) => `<div class="fd-driver-row"><div class="av">${escapeHtml((d.name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div><div class="nm">${escapeHtml(d.name)}</div><div class="rk">Backup ${i + 1}</div></div>`).join("")}
+      </div>
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Latest service</div><button class="btn btn-sm" data-rr-fd-tab="service" type="button">All history →</button></div>
+      ${lastLog ? `<div><div class="fd-list-title">${escapeHtml(lastLog.summary || (lastLog.kind || "Service"))}</div><div class="fd-list-sub">${escapeHtml(new Date(lastLog.occurred_at).toLocaleDateString())}${lastLog.vendor ? " · " + escapeHtml(lastLog.vendor) : ""}${lastLog.cost_cents != null ? ` · $${(lastLog.cost_cents / 100).toFixed(2)}` : ""}</div></div>` : `<div class="fd-empty">No service entries yet.</div>`}
+    </div>
+  `;
+}
+
+function _fdProfileHtml(v) {
+  return `
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Identification</div></div>
+      ${_fdField("name", "Van name / number", "text", { attrs: 'placeholder="e.g. 4271 or VAN-04" maxlength="40"' })}
+      ${_fdField("nickname", "Nickname", "text", { attrs: 'placeholder="e.g. 09 WHEELS" maxlength="60"' })}
+      ${_fdField("ownership", "Ownership", "select", { options: [
+        { value: "dsp_owned", label: "DSP-owned" },
+        { value: "amazon_owned", label: "Amazon-owned" },
+        { value: "rental", label: "Rental" },
+        { value: "leased", label: "Leased" },
+      ]})}
+      ${_fdField("status", "Lifecycle status", "select", { options: [
+        { value: "active", label: "Active" },
+        { value: "spare",  label: "Spare" },
+        { value: "out_of_service", label: "Out of service" },
+        { value: "retired", label: "Retired" },
+      ]})}
+      ${_fdField("operational_status", "Operational status", "select", { options: [
+        { value: "operational", label: "Operational" },
+        { value: "grounded", label: "Grounded" },
+      ]})}
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Year, make &amp; model</div></div>
+      ${_fdField("year", "Year", "number", { attrs: 'min="1990" max="2099" placeholder="e.g. 2023"' })}
+      ${_fdField("make", "Make", "text", { attrs: 'placeholder="Ford, Ram, Mercedes…"' })}
+      ${_fdField("model", "Model", "text", { attrs: 'placeholder="Transit, ProMaster, Sprinter…"' })}
+      ${_fdField("trim", "Trim", "text", { attrs: 'placeholder="3500 159 WB High Roof…"' })}
+      ${_fdField("color", "Color", "text")}
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Plate &amp; VIN</div></div>
+      ${_fdField("plate", "License plate", "text", { attrs: 'maxlength="12" style="text-transform:uppercase"' })}
+      ${_fdField("plate_state", "Plate state", "text", { attrs: 'maxlength="2" style="text-transform:uppercase" placeholder="MO"' })}
+      ${_fdField("vin", "VIN", "text", { attrs: 'maxlength="17" style="text-transform:uppercase;font-variant-numeric:tabular-nums"' })}
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Compliance dates</div><div class="fd-section-sub">Powers the warning chips on the dashboard + roster.</div></div>
+      ${_fdField("in_service_on", "In service on", "date")}
+      ${_fdField("last_service_at", "Last service", "date")}
+      ${_fdField("next_service_due_at", "Next PM due", "date")}
+      ${_fdField("dot_inspection_at", "Last DOT inspection", "date")}
+      ${_fdField("registration_expires_on", "Registration expires", "date")}
+      ${_fdField("insurance_expires_on", "Insurance expires", "date")}
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Mileage</div></div>
+      ${_fdField("mileage", "Current mileage", "number", { attrs: 'min="0" placeholder="0"' })}
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Notes</div></div>
+      ${_fdField("notes", "Internal notes", "textarea", { attrs: 'rows="4" placeholder="Any non-compliance context, ongoing concerns, …"' })}
+    </div>
+  `;
+}
+
+function _fdDriversHtml(drivers) {
+  const list = drivers || [];
+  return `
+    <div class="fd-section">
+      <div class="fd-section-h">
+        <div><div class="fd-section-title">Driver chain</div><div class="fd-section-sub">Rank 0 is the primary; backups pick up the van when the primary isn't scheduled.  Set the chain from the Workspaces → Van assignments board.</div></div>
+      </div>
+      <div>
+        ${list.length === 0
+          ? `<div class="fd-empty">No drivers assigned.  Open Workspaces → Van assignments to build the chain.</div>`
+          : list.map((d, i) => `<div class="fd-driver-row">
+              <div class="av">${escapeHtml((d.name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
+              <div class="nm">${escapeHtml(d.name)}${d.phone ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(d.phone)}</div>` : ""}</div>
+              <div class="rk">${i === 0 ? "Primary" : `Backup ${i}`}</div>
+            </div>`).join("")
+        }
+      </div>
+      <button class="fd-add-link" type="button" onclick="goto('workspaces')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Open van assignments board</button>
+    </div>
+  `;
+}
+
+function _fdInspectionsHtml() {
+  const v = _fdVehicle?.vehicle || {};
+  return `
+    <div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Inspections</div><div class="fd-section-sub">DVIC pre/post-trip + DOT annual inspections.  Logging an inspection with a "needs repair" result auto-opens an Issue.</div></div></div>
+      <div id="rr-fd-inspections-list"><div class="fd-empty">Loading inspections…</div></div>
+      ${v.id ? `<button class="fd-add-link" type="button" data-rr-fd-add-inspection><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Log inspection</button>` : `<div class="fd-empty">Save the van first to log inspections.</div>`}
+    </div>
+  `;
+}
+
+function _fdServiceHtml(logs) {
+  const v = _fdVehicle?.vehicle || {};
+  const rows = (logs || []).map((l) => `
+    <div class="fd-list-row" data-rr-fd-log-id="${escapeHtml(l.id)}">
+      <div>
+        <div class="fd-list-title">${escapeHtml(l.summary || (l.kind || "Service"))}</div>
+        <div class="fd-list-sub">${escapeHtml(new Date(l.occurred_at).toLocaleDateString())}${l.vendor ? " · " + escapeHtml(l.vendor) : ""}${l.mileage != null ? " · " + Number(l.mileage).toLocaleString() + " mi" : ""}</div>
+        ${l.notes ? `<div class="fd-list-sub" style="margin-top:4px;color:var(--text-muted);white-space:pre-wrap">${escapeHtml(l.notes)}</div>` : ""}
+      </div>
+      <div class="fd-list-meta">${l.cost_cents != null ? `<strong style="color:var(--text)">$${(l.cost_cents / 100).toFixed(2)}</strong>` : "—"}<div style="margin-top:4px;text-transform:capitalize">${escapeHtml((l.kind || "").replace(/_/g, " "))}</div></div>
+    </div>`).join("");
+  return `
+    <div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Service history</div><div class="fd-section-sub">Oil changes, brake service, tire rotation, DOT inspections, accidents, repairs.</div></div></div>
+      ${rows || `<div class="fd-empty">No service entries logged yet.</div>`}
+      ${v.id ? `<button class="fd-add-link" type="button" data-rr-fd-add-log><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Log service entry</button>` : `<div class="fd-empty">Save the van first to log service.</div>`}
+    </div>
+  `;
+}
+
+function _fdMileageHtml() {
+  const v = _fdVehicle?.vehicle || {};
+  return `
+    <div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Mileage history</div><div class="fd-section-sub">Each reading bumps the van's current mileage if it's higher.  GeoTab + driver-app readings post here automatically when wired up.</div></div></div>
+      <div id="rr-fd-mileage-list"><div class="fd-empty">Loading…</div></div>
+      ${v.id ? `<button class="fd-add-link" type="button" data-rr-fd-add-mileage><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add mileage reading</button>` : `<div class="fd-empty">Save the van first to add readings.</div>`}
+    </div>
+  `;
+}
+
+function _fdHistoryHtml() {
+  if (_fdHistory === null) return `<div class="fd-empty" style="margin-top:14px">Loading vehicle history…</div>`;
+  if (!Array.isArray(_fdHistory) || !_fdHistory.length) return `<div class="fd-empty" style="margin-top:14px">No activity recorded for this van yet.</div>`;
+  return `<div class="fd-section">
+    <div class="fd-section-h"><div><div class="fd-section-title">Vehicle history</div><div class="fd-section-sub">Combined timeline of issues, inspections, service entries, and mileage readings.</div></div></div>
+    ${_fdHistory.map((h) => {
+      const when = h.at ? new Date(h.at).toLocaleString() : "—";
+      const kind = h.kind || "event";
+      return `<div class="fd-list-row">
+        <div>
+          <div class="fd-list-title">${escapeHtml(h.title || kind)}</div>
+          <div class="fd-list-sub" style="text-transform:capitalize">${escapeHtml(kind.replace(/_/g, " "))}${h.inspector ? " · " + escapeHtml(h.inspector) : ""}${h.vendor ? " · " + escapeHtml(h.vendor) : ""}${h.result ? " · " + escapeHtml(h.result.replace(/_/g, " ")) : ""}${h.severity ? " · " + escapeHtml(h.severity) : ""}</div>
+        </div>
+        <div class="fd-list-meta">${escapeHtml(when)}</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+async function _fdLoadHistory(vehicleId) {
+  const { data, error } = await sb.rpc("vehicle_history", { p_vehicle_id: vehicleId });
+  if (error) { _fdHistory = []; toast("Couldn't load history: " + error.message, "warn"); }
+  else _fdHistory = Array.isArray(data) ? data : [];
+  if (_fdTab === "history") _fdRenderTab();
+}
+
+// ─── Drawer save (profile tab) + footer buttons ──────────────────────
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-fd-drawer")) return;
+
+  // Photo upload trigger
+  if (e.target.closest("#rr-fd-thumb")) {
+    if (!_fdVehicle?.vehicle?.id) { toast("Save the van first to upload a photo.", "warn"); return; }
+    document.getElementById("rr-fd-photo-input")?.click();
+    return;
+  }
+
+  if (e.target.closest("[data-rr-fd-save='profile']")) {
+    e.preventDefault();
+    await _fdSaveProfile();
+    return;
+  }
+  if (e.target.closest("[data-rr-fd-archive]")) {
+    e.preventDefault();
+    if (!confirm("Archive this van? It'll be removed from the roster but kept in history.")) return;
+    const id = _fdVehicle?.vehicle?.id;
+    if (!id) return;
+    const { error } = await sb.rpc("vehicle_archive", { p_id: id, p_unarchive: false });
+    if (error) { toast("Couldn't archive: " + error.message, "warn"); return; }
+    toast("Van archived.", "ok");
+    document.getElementById("rr-fd-drawer")?.remove();
+    _flLoadRoster();
+    return;
+  }
+  if (e.target.closest("[data-rr-fd-add-log]")) {
+    e.preventDefault();
+    await _fdPromptServiceLog();
+    return;
+  }
+  if (e.target.closest("[data-rr-fd-add-mileage]")) {
+    e.preventDefault();
+    await _fdPromptMileage();
+    return;
+  }
+  if (e.target.closest("[data-rr-fd-add-inspection]")) {
+    e.preventDefault();
+    await _fdPromptInspection();
+    return;
+  }
+});
+
+async function _fdSaveProfile() {
+  const cur = _fdVehicle?.vehicle || {};
+  const m = { ...cur, ..._fdPending };
+  // Coerce numerics
+  const intOrNull = (x) => {
+    if (x === "" || x == null) return null;
+    const n = parseInt(String(x).replace(/[^\d-]/g, ""), 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  const dateOrNull = (x) => (x === "" || x == null) ? null : x;
+  const args = {
+    p_id:                     cur.id,
+    p_name:                   (m.name || "").trim(),
+    p_nickname:               m.nickname || null,
+    p_kind:                   m.kind || "van",
+    p_status:                 m.status || "active",
+    p_ownership:              m.ownership || "dsp_owned",
+    p_operational_status:     m.operational_status || "operational",
+    p_year:                   intOrNull(m.year),
+    p_make:                   m.make || null,
+    p_model:                  m.model || null,
+    p_trim:                   m.trim || null,
+    p_color:                  m.color || null,
+    p_vin:                    m.vin || null,
+    p_plate:                  m.plate || null,
+    p_plate_state:            m.plate_state || null,
+    p_mileage:                intOrNull(m.mileage),
+    p_station_id:             m.station_id || null,
+    p_in_service_on:          dateOrNull(m.in_service_on),
+    p_last_service_at:        dateOrNull(m.last_service_at),
+    p_last_service_note:      m.last_service_note || null,
+    p_next_service_due_at:    dateOrNull(m.next_service_due_at),
+    p_dot_inspection_at:      dateOrNull(m.dot_inspection_at),
+    p_registration_expires_on:dateOrNull(m.registration_expires_on),
+    p_insurance_expires_on:   dateOrNull(m.insurance_expires_on),
+    p_notes:                  m.notes || null,
+  };
+  if (!args.p_name) { toast("Van name is required.", "warn"); return; }
+  const { data, error } = await sb.rpc("vehicle_record_save", args);
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  toast(cur.id ? "Van updated." : "Van created.", "ok");
+  _fdPending = {};
+  await loadFleetDrawer(data.id);
+  _flLoadRoster();
+}
+
+async function _fdPromptServiceLog() {
+  const veh = _fdVehicle?.vehicle;
+  if (!veh?.id) return;
+  const summary = (prompt("Service summary (e.g. Oil change, Brake service)") || "").trim();
+  if (!summary) return;
+  const dateStr = prompt("Date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10)) || null;
+  const kind = (prompt("Kind: service | inspection | accident | repair | note", "service") || "service").trim();
+  const costStr = prompt("Cost in dollars (blank to skip)") || "";
+  const cost_cents = costStr ? Math.round(parseFloat(costStr) * 100) : null;
+  const vendor = (prompt("Vendor (optional)") || "").trim() || null;
+  const { error } = await sb.rpc("vehicle_service_log_save", {
+    p_vehicle_id: veh.id,
+    p_occurred_at: dateStr,
+    p_kind: kind,
+    p_summary: summary,
+    p_cost_cents: cost_cents,
+    p_vendor: vendor,
+  });
+  if (error) { toast("Couldn't log service: " + error.message, "warn"); return; }
+  toast("Service logged.", "ok");
+  await loadFleetDrawer(veh.id);
+}
+
+async function _fdPromptMileage() {
+  const veh = _fdVehicle?.vehicle;
+  if (!veh?.id) return;
+  const raw = prompt("New mileage reading", veh.mileage != null ? String(veh.mileage) : "");
+  if (!raw) return;
+  const mileage = parseInt(String(raw).replace(/[^\d]/g, ""), 10);
+  if (!Number.isFinite(mileage)) { toast("Invalid mileage.", "warn"); return; }
+  const { error } = await sb.rpc("vehicle_mileage_log_save", { p_vehicle_id: veh.id, p_mileage: mileage });
+  if (error) { toast("Couldn't save reading: " + error.message, "warn"); return; }
+  toast("Mileage logged.", "ok");
+  await loadFleetDrawer(veh.id);
+  // Refresh the mileage tab list inline
+  await _fdRefreshMileageList(veh.id);
+}
+
+async function _fdPromptInspection() {
+  const veh = _fdVehicle?.vehicle;
+  if (!veh?.id) return;
+  const kind = (prompt("Kind: pre_trip | post_trip | dot_annual | other", "pre_trip") || "pre_trip").trim();
+  const result = (prompt("Result: passed | needs_repair | failed", "passed") || "passed").trim();
+  const inspector = (prompt("Inspector name (optional)") || "").trim() || null;
+  const notes = (prompt("Notes / defects (optional)") || "").trim() || null;
+  const { error } = await sb.rpc("vehicle_inspection_save", {
+    p_vehicle_id: veh.id,
+    p_kind: kind,
+    p_result: result,
+    p_inspector_name: inspector,
+    p_notes: notes,
+  });
+  if (error) { toast("Couldn't save inspection: " + error.message, "warn"); return; }
+  // If result wasn't passed, also open an issue so it appears on the dashboard.
+  if (result !== "passed") {
+    await sb.rpc("vehicle_issue_save", {
+      p_vehicle_id: veh.id,
+      p_title: `${kind.replace(/_/g, " ")} inspection — ${result.replace(/_/g, " ")}`,
+      p_description: notes,
+      p_severity: result === "failed" ? "high" : "medium",
+      p_category: "safety",
+      p_status: "needs_repair",
+      p_source: "inspection",
+    });
+  }
+  toast("Inspection logged.", "ok");
+  await loadFleetDrawer(veh.id);
+  _flLoadDashboard();
+  await _fdRefreshInspectionsList(veh.id);
+}
+
+async function _fdRefreshMileageList(vehicleId) {
+  if (_fdTab !== "mileage") return;
+  const { data, error } = await sb.from("vehicle_mileage_log")
+    .select("id, reading_at, mileage, source")
+    .eq("vehicle_id", vehicleId)
+    .order("reading_at", { ascending: false })
+    .limit(100);
+  const wrap = document.getElementById("rr-fd-mileage-list");
+  if (!wrap) return;
+  if (error) { wrap.innerHTML = `<div class="fd-empty">Couldn't load readings: ${escapeHtml(error.message)}</div>`; return; }
+  if (!data?.length) { wrap.innerHTML = `<div class="fd-empty">No readings yet.</div>`; return; }
+  wrap.innerHTML = data.map((r) => `<div class="fd-list-row">
+    <div>
+      <div class="fd-list-title">${Number(r.mileage).toLocaleString()} mi</div>
+      <div class="fd-list-sub" style="text-transform:capitalize">${escapeHtml((r.source || "manual").replace(/_/g, " "))}</div>
+    </div>
+    <div class="fd-list-meta">${escapeHtml(new Date(r.reading_at).toLocaleString())}</div>
+  </div>`).join("");
+}
+
+async function _fdRefreshInspectionsList(vehicleId) {
+  if (_fdTab !== "inspections") return;
+  const { data, error } = await sb.from("vehicle_inspections")
+    .select("id, inspected_at, kind, result, inspector_name, notes, mileage")
+    .eq("vehicle_id", vehicleId)
+    .order("inspected_at", { ascending: false })
+    .limit(100);
+  const wrap = document.getElementById("rr-fd-inspections-list");
+  if (!wrap) return;
+  if (error) { wrap.innerHTML = `<div class="fd-empty">Couldn't load: ${escapeHtml(error.message)}</div>`; return; }
+  if (!data?.length) { wrap.innerHTML = `<div class="fd-empty">No inspections logged yet.</div>`; return; }
+  wrap.innerHTML = data.map((r) => {
+    const resColor = r.result === "passed" ? "var(--green)" : (r.result === "failed" ? "var(--red)" : "var(--amber-dark)");
+    return `<div class="fd-list-row">
+      <div>
+        <div class="fd-list-title" style="text-transform:capitalize">${escapeHtml((r.kind || "").replace(/_/g, " "))} inspection</div>
+        <div class="fd-list-sub">
+          <span style="color:${resColor};font-weight:600;text-transform:capitalize">${escapeHtml((r.result || "").replace(/_/g, " "))}</span>
+          ${r.inspector_name ? " · " + escapeHtml(r.inspector_name) : ""}
+          ${r.mileage != null ? " · " + Number(r.mileage).toLocaleString() + " mi" : ""}
+        </div>
+        ${r.notes ? `<div class="fd-list-sub" style="margin-top:4px;white-space:pre-wrap">${escapeHtml(r.notes)}</div>` : ""}
+      </div>
+      <div class="fd-list-meta">${escapeHtml(new Date(r.inspected_at).toLocaleString())}</div>
+    </div>`;
+  }).join("");
+}
+
+// Auto-refresh the per-tab lists when the user lands on Inspections /
+// Mileage so the drawer feels alive without an explicit reload.
+const _fdOriginalRender = _fdRenderTab;
+_fdRenderTab = function () {
+  _fdOriginalRender();
+  const id = _fdVehicle?.vehicle?.id;
+  if (!id) return;
+  if (_fdTab === "mileage") _fdRefreshMileageList(id);
+  if (_fdTab === "inspections") {
+    _fdRefreshInspectionsList(id);
+    // Also load open issues for the Overview tab (which links from here).
+  }
+  if (_fdTab === "overview") {
+    sb.from("vehicle_issues").select("id, title, severity, category, status, due_at").eq("vehicle_id", id).neq("status", "completed").order("reported_at", { ascending: false }).limit(20).then(({ data, error }) => {
+      const el = document.getElementById("rr-fd-overview-issues");
+      if (!el) return;
+      if (error || !data?.length) { el.innerHTML = `<div class="fd-empty">No open tasks — fleet is clean.</div>`; return; }
+      el.innerHTML = data.map((i) => `<div class="fd-list-row">
+        <div>
+          <div class="fd-list-title">${escapeHtml(i.title)}</div>
+          <div class="fd-list-sub"><span class="fd-issue-pill ${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span><span style="text-transform:capitalize">${escapeHtml((i.category || "").replace(/_/g, " "))}</span>${i.due_at ? " · due " + escapeHtml(new Date(i.due_at).toLocaleDateString()) : ""}</div>
+        </div>
+        <div class="fd-list-meta" style="text-transform:capitalize">${escapeHtml((i.status || "").replace(/_/g, " "))}</div>
+      </div>`).join("");
+    });
+  }
+};
+
+// ─── Photo upload ────────────────────────────────────────────────────
+document.addEventListener("change", async (e) => {
+  if (e.target?.id !== "rr-fd-photo-input") return;
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const veh = _fdVehicle?.vehicle;
+  if (!veh?.id) { toast("Save the van first to upload a photo.", "warn"); return; }
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `${veh.id}/${Date.now()}.${ext}`;
+  const { error: upErr } = await sb.storage.from("vehicle-photos").upload(path, file, { cacheControl: "3600", upsert: true });
+  if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+  const { error: setErr } = await sb.rpc("vehicle_photo_set", { p_vehicle_id: veh.id, p_path: path });
+  if (setErr) { toast("Couldn't link photo: " + setErr.message, "warn"); return; }
+  toast("Photo updated.", "ok");
+  await loadFleetDrawer(veh.id);
+  _flLoadRoster();
 });

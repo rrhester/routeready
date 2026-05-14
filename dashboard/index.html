@@ -10557,7 +10557,10 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-         FLEET — vehicles + assets + maintenance + documents
+         FLEET — van roster + per-van record drawer.  All data is live
+         from the vehicles table (migration 0186) + the descriptive
+         columns added in 0213.  Roster is built by loadFleetRoster() in
+         live.js; clicking a row opens the record drawer.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-fleet">
       <div class="page">
@@ -10566,311 +10569,249 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="page-icon" data-c="fleet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
             <div>
               <h1 class="page-title">Fleet</h1>
-              <p class="page-sub">24 vehicles · 312 issued assets · 2 maintenance items need attention</p>
+              <p class="page-sub" id="rr-fleet-page-sub">Loading…</p>
             </div>
           </div>
           <div class="page-actions">
-            <button class="btn btn-ghost btn-icon" title="Export" aria-label="Export">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
+            <button class="btn btn-ghost btn-icon" id="rr-fleet-export" title="Export CSV" aria-label="Export">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </button>
-            <button class="btn btn-primary" onclick="toast('Add vehicle/asset modal — would open here')">
+            <button class="btn btn-primary" id="rr-fleet-add">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add
+              Add van
             </button>
           </div>
         </div>
 
+        <!-- Page sub-nav mirrors the Amazon Logistics Fleet portal so an
+             operator who knows that surface can map 1:1.  Wiring is in
+             fleetSub() in live.js. -->
         <div class="subnav" data-rr-tabbar="fleet">
-          <button class="subnav-item active" data-sub="vehicles" onclick="fleetSub('vehicles')">Vehicles <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">24</span></button>
-          <button class="subnav-item" data-sub="assets" onclick="fleetSub('assets')">Assets <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">312</span></button>
-          <button class="subnav-item" data-sub="maint" onclick="fleetSub('maint')">Maintenance <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">2</span></button>
-          <button class="subnav-item" data-sub="docs" onclick="fleetSub('docs')">Documents <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">1</span></button>
+          <button class="subnav-item active" data-sub="dashboard"  onclick="fleetSub('dashboard')">Dashboard</button>
+          <button class="subnav-item"        data-sub="vehicles"   onclick="fleetSub('vehicles')">My vehicles <span id="rr-fleet-tabcount-vehicles" style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
+          <button class="subnav-item"        data-sub="issues"     onclick="fleetSub('issues')">Issues <span id="rr-fleet-tabcount-issues" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+          <button class="subnav-item"        data-sub="claims"     onclick="fleetSub('claims')">Claims</button>
+          <button class="subnav-item"        data-sub="rentals"    onclick="fleetSub('rentals')">Rental reservations</button>
+          <button class="subnav-item"        data-sub="branded"    onclick="fleetSub('branded')">Branded vehicle orders</button>
         </div>
 
-        <!-- VEHICLES -->
-        <div class="fleet-tab" id="fleet-tab-vehicles">
-          <div class="fleet-stat-grid">
-            <div class="kpi-card"><div class="kpi-label">Active</div><div class="kpi-value">19<span class="kpi-value-fraction"> / 24</span></div><div class="kpi-sub"><span class="kpi-pip green"></span>On the road today</div></div>
-            <div class="kpi-card"><div class="kpi-label">In maintenance</div><div class="kpi-value">3</div><div class="kpi-sub"><span class="kpi-pip amber"></span>Avg downtime 2.4 days</div></div>
-            <div class="kpi-card"><div class="kpi-label">Out of service</div><div class="kpi-value">1</div><div class="kpi-sub"><span class="kpi-pip red"></span>VAN-08 · accident</div></div>
-            <div class="kpi-card"><div class="kpi-label">Spare</div><div class="kpi-value">1</div><div class="kpi-sub">Available for backup</div></div>
-          </div>
+        <style>
+          /* ── Fleet · roster refinements (scoped) ─────────────────── */
+          #view-fleet .fl-roster-bar{display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap}
+          #view-fleet .fl-roster-bar .fl-search{position:relative;flex:1;min-width:220px;max-width:380px}
+          #view-fleet .fl-roster-bar .fl-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none}
+          #view-fleet .fl-roster-bar .fl-search input{
+            width:100%;padding:8px 11px 8px 32px;border:1px solid var(--border);border-radius:9px;
+            font:inherit;font-size:var(--fs-md);background:var(--canvas);color:var(--text);
+            transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+          }
+          #view-fleet .fl-roster-bar .fl-search input:focus{outline:none;background:var(--surface);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-fleet .fl-roster-bar .fl-bar-spacer{flex:1}
+          #view-fleet .fl-roster-bar select.fl-filter{
+            padding:8px 28px 8px 11px;border:1px solid var(--border);border-radius:9px;
+            font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text-muted);background:var(--canvas);
+            cursor:pointer;appearance:none;-webkit-appearance:none;
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 9px center;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-fleet .fl-roster-bar select.fl-filter:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-fleet .fl-roster-bar select.fl-filter.is-set{color:var(--accent-text);border-color:rgba(15,108,189,.30);background-color:var(--accent-soft)}
+          /* Vehicle photo / fallback icon in roster + drawer */
+          #view-fleet .fl-veh-thumb{width:38px;height:38px;border-radius:var(--r-md);background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+          #view-fleet .fl-veh-thumb img{width:100%;height:100%;object-fit:cover}
+          #view-fleet .fl-veh-thumb svg{width:18px;height:18px}
+          /* Roster table tightening — matches Drivers page rhythm */
+          #view-fleet .table tbody td{padding-top:11px;padding-bottom:11px}
+          #view-fleet .table tbody tr{cursor:pointer}
+          #view-fleet .table tbody tr:hover{background:var(--canvas)}
+          #view-fleet .table thead th{letter-spacing:.04em}
+          /* Empty state */
+          #view-fleet .fl-empty{padding:52px 28px;text-align:center}
+          #view-fleet .fl-empty .ic{width:46px;height:46px;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(15,108,189,.16)}
+          #view-fleet .fl-empty .ic svg{width:22px;height:22px}
+          #view-fleet .fl-empty h3{margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text)}
+          #view-fleet .fl-empty p{margin:0 auto 14px;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55}
+          /* Skeleton */
+          #view-fleet .fl-skel-cell{height:13px;border-radius:5px;background:var(--canvas);position:relative;overflow:hidden}
+          #view-fleet .fl-skel-cell::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.25s ease-in-out infinite}
+          #view-fleet .fl-skel-thumb{width:38px;height:38px;border-radius:var(--r-md);background:var(--canvas);position:relative;overflow:hidden}
+          #view-fleet .fl-skel-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.25s ease-in-out infinite}
+          @keyframes flShimmer{to{transform:translateX(100%)}}
+          /* Date-pill that warns when a compliance date is near/past */
+          #view-fleet .fl-date{font-variant-numeric:tabular-nums;font-size:var(--fs-sm);white-space:nowrap}
+          #view-fleet .fl-date.warn{color:var(--amber-dark);font-weight:600}
+          #view-fleet .fl-date.urgent{color:var(--red);font-weight:700}
+          #view-fleet .fl-date.dim{color:var(--text-subtle)}
 
-          <div class="toolbar">
-            <div class="toolbar-left">
-              <span class="filter-chip">Type: All</span>
-              <span class="filter-chip">Status: All</span>
-              <span class="filter-chip">Station: All</span>
-            </div>
-            <div class="toolbar-right">
-              <span class="filter-chip">Sort: Mileage (high → low)</span>
-            </div>
-          </div>
+          /* Subnav tab panels — only the active one renders */
+          #view-fleet .fl-sub{display:none}
+          #view-fleet .fl-sub.active{display:block}
 
+          /* Dashboard KPI grid */
+          #view-fleet .fl-dash-section-h{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;margin:18px 0 12px}
+          #view-fleet .fl-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--s-3);margin-bottom:var(--s-5)}
+          #view-fleet .fl-kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px}
+          #view-fleet .fl-kpi-card .h{font-size:var(--fs-sm);color:var(--text-muted);font-weight:600;margin-bottom:10px}
+          #view-fleet .fl-kpi-row{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+          #view-fleet .fl-kpi-stat{display:flex;flex-direction:column;gap:2px;min-width:48px}
+          #view-fleet .fl-kpi-stat .n{font-size:28px;font-weight:700;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
+          #view-fleet .fl-kpi-stat .l{font-size:var(--fs-xs);color:var(--text-subtle)}
+          #view-fleet .fl-kpi-stat.warn .n{color:var(--amber-dark)}
+          #view-fleet .fl-kpi-stat.urgent .n{color:var(--red)}
+          #view-fleet .fl-kpi-stat.good .n{color:var(--green)}
+          #view-fleet .fl-kpi-foot{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);line-height:1.55}
+          #view-fleet .fl-kpi-foot strong{color:var(--text);font-weight:600}
+
+          /* Operational status pill (Operational / Grounded) — for roster + drawer */
+          #view-fleet .fl-opstat{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;line-height:1.5;white-space:nowrap}
+          #view-fleet .fl-opstat .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+          #view-fleet .fl-opstat.operational{color:var(--green)}
+          #view-fleet .fl-opstat.operational .dot{background:var(--green)}
+          #view-fleet .fl-opstat.grounded{color:var(--red)}
+          #view-fleet .fl-opstat.grounded .dot{background:var(--red)}
+
+          /* Issue severity chip */
+          #view-fleet .fl-sev{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
+          #view-fleet .fl-sev.low{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+          #view-fleet .fl-sev.medium{background:var(--accent-soft);color:var(--accent-text)}
+          #view-fleet .fl-sev.high{background:var(--amber-soft);color:var(--amber-dark)}
+          #view-fleet .fl-sev.critical{background:var(--red-soft);color:var(--red)}
+
+          /* Coming-soon placeholder for tabs we haven't built yet */
+          #view-fleet .fl-soon{padding:48px 28px;text-align:center;background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-xl)}
+          #view-fleet .fl-soon h3{margin:0 0 6px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+          #view-fleet .fl-soon p{margin:0;font-size:var(--fs-sm);color:var(--text-subtle);max-width:420px;margin-inline:auto;line-height:1.55}
+        </style>
+
+        <!-- DASHBOARD sub-tab — KPI rollups -->
+        <div class="fl-sub active" id="fl-sub-dashboard">
+          <div class="fl-dash-section-h">Current vehicle health</div>
+          <div class="fl-kpi-grid" id="rr-fleet-kpi-grid">
+            <div class="fl-kpi-card"><div class="h">Vehicles by operational status</div><div class="fl-kpi-row">
+              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="totals.total">—</span><span class="l">Total active</span></div>
+              <div class="fl-kpi-stat good"><span class="n" data-rr-kpi="totals.operational">—</span><span class="l">Operational</span></div>
+              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="totals.grounded">—</span><span class="l">Grounded</span></div>
+            </div></div>
+            <div class="fl-kpi-card"><div class="h">Open issues</div><div class="fl-kpi-row">
+              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="issues.open">—</span><span class="l">All open</span></div>
+              <div class="fl-kpi-stat warn"><span class="n" data-rr-kpi="issues.high">—</span><span class="l">High / critical</span></div>
+              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="issues.overdue">—</span><span class="l">Past due</span></div>
+            </div></div>
+            <div class="fl-kpi-card"><div class="h">Today's DVIC inspections</div><div class="fl-kpi-row">
+              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="inspections_today.pre">—</span><span class="l">Pre-trip</span></div>
+              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="inspections_today.post">—</span><span class="l">Post-trip</span></div>
+              <div class="fl-kpi-stat"><span class="n" data-rr-kpi="inspections_today.total">—</span><span class="l">Total today</span></div>
+            </div></div>
+            <div class="fl-kpi-card"><div class="h">Preventative maintenance</div><div class="fl-kpi-row">
+              <div class="fl-kpi-stat warn"><span class="n" data-rr-kpi="pm.due_soon">—</span><span class="l">Due in 14d</span></div>
+              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="pm.overdue">—</span><span class="l">Overdue</span></div>
+            </div></div>
+            <div class="fl-kpi-card"><div class="h">DOT annual inspection</div><div class="fl-kpi-row">
+              <div class="fl-kpi-stat warn"><span class="n" data-rr-kpi="dot.due_soon">—</span><span class="l">Due in 30d</span></div>
+              <div class="fl-kpi-stat urgent"><span class="n" data-rr-kpi="dot.overdue">—</span><span class="l">Overdue</span></div>
+            </div></div>
+          </div>
+        </div>
+
+        <!-- MY VEHICLES sub-tab — roster -->
+        <div class="fl-sub" id="fl-sub-vehicles">
+        <div class="fl-roster-bar">
+          <div class="fl-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="rr-fleet-search" type="search" placeholder="Search by name, plate, VIN, driver…" autocomplete="off">
+          </div>
+          <div class="fl-bar-spacer"></div>
+          <select id="rr-fleet-status" class="fl-filter" aria-label="Filter by status">
+            <option value="">Status: All</option>
+            <option value="active">Active</option>
+            <option value="spare">Spare</option>
+            <option value="out_of_service">Out of service</option>
+            <option value="retired">Retired</option>
+          </select>
+          <select id="rr-fleet-station" class="fl-filter" aria-label="Filter by station">
+            <option value="">Station: All</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Vehicle</th>
+                <th>Ownership &amp; type</th>
+                <th>Plate</th>
+                <th>Mileage</th>
+                <th>Operational status</th>
+                <th>Primary driver</th>
+                <th>Last route</th>
+              </tr>
+            </thead>
+            <tbody id="fleet-tbody"></tbody>
+          </table>
+        </div>
+        </div><!-- /#fl-sub-vehicles -->
+
+        <!-- ISSUES sub-tab — open + completed -->
+        <div class="fl-sub" id="fl-sub-issues">
+          <div class="fl-roster-bar">
+            <div class="fl-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="rr-fleet-issues-search" type="search" placeholder="Search by van, plate, title…" autocomplete="off">
+            </div>
+            <div class="fl-bar-spacer"></div>
+            <select id="rr-fleet-issues-state" class="fl-filter" aria-label="Filter by state">
+              <option value="open">Open</option>
+              <option value="completed">Completed</option>
+              <option value="all">All</option>
+            </select>
+            <select id="rr-fleet-issues-sev" class="fl-filter" aria-label="Filter by severity">
+              <option value="">Severity: All</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
           <div class="table-wrap">
             <table class="table">
               <thead>
                 <tr>
                   <th>Vehicle</th>
-                  <th>Year/Model</th>
-                  <th>Mileage</th>
+                  <th>Issue</th>
+                  <th>Severity</th>
+                  <th>Category</th>
+                  <th>Reported</th>
+                  <th>Due</th>
                   <th>Status</th>
-                  <th>Assigned to</th>
-                  <th>Last serviced</th>
-                  <th></th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td><div style="display:flex;align-items:center;gap:10px"><div class="veh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div><div><div class="cell-name">VAN-04</div><div class="cell-name-sub">5HXXX12345 · KMO1</div></div></div></td>
-                  <td>2023 Mercedes Sprinter</td>
-                  <td><strong>87,420</strong> mi</td>
-                  <td><span class="veh-status active"><span class="dot"></span>Active</span></td>
-                  <td>Marcus Davidson</td>
-                  <td class="cell-time">Apr 15 · oil + tires</td>
-                  <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-                </tr>
-                <tr>
-                  <td><div style="display:flex;align-items:center;gap:10px"><div class="veh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div><div><div class="cell-name">VAN-07</div><div class="cell-name-sub">5HXXX12348 · KMO2</div></div></div></td>
-                  <td>2024 Ford Transit</td>
-                  <td><strong>42,180</strong> mi</td>
-                  <td><span class="veh-status active"><span class="dot"></span>Active</span></td>
-                  <td>Tasha Reyes</td>
-                  <td class="cell-time">Apr 22 · oil change</td>
-                  <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-                </tr>
-                <tr>
-                  <td><div style="display:flex;align-items:center;gap:10px"><div class="veh-icon maint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg></div><div><div class="cell-name">VAN-12</div><div class="cell-name-sub">5HXXX12353 · KMO3</div></div></div></td>
-                  <td>2022 Mercedes Sprinter</td>
-                  <td><strong>112,640</strong> mi</td>
-                  <td><span class="veh-status maint"><span class="dot"></span>In maintenance</span></td>
-                  <td style="color:var(--text-subtle)">— Brake service</td>
-                  <td class="cell-time">Mar 30</td>
-                  <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-                </tr>
-                <tr>
-                  <td><div style="display:flex;align-items:center;gap:10px"><div class="veh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div><div><div class="cell-name">VAN-15</div><div class="cell-name-sub">5HXXX12356 · KMO1</div></div></div></td>
-                  <td>2023 Ford Transit</td>
-                  <td><strong>68,920</strong> mi</td>
-                  <td><span class="veh-status active"><span class="dot"></span>Active</span></td>
-                  <td>Camille Foster</td>
-                  <td class="cell-time">Apr 28 · DOT inspection</td>
-                  <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-                </tr>
-                <tr>
-                  <td><div style="display:flex;align-items:center;gap:10px"><div class="veh-icon oos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="cell-name">VAN-08</div><div class="cell-name-sub">5HXXX12349 · KMO2</div></div></div></td>
-                  <td>2022 Mercedes Sprinter</td>
-                  <td><strong>96,310</strong> mi</td>
-                  <td><span class="veh-status oos"><span class="dot"></span>Out of service</span></td>
-                  <td style="color:var(--text-subtle)">— Accident · Apr 18</td>
-                  <td class="cell-time">Apr 5</td>
-                  <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-                </tr>
-                <tr>
-                  <td><div style="display:flex;align-items:center;gap:10px"><div class="veh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div><div><div class="cell-name">VAN-22</div><div class="cell-name-sub">5HXXX12363 · Spare</div></div></div></td>
-                  <td>2024 Ford Transit</td>
-                  <td><strong>18,540</strong> mi</td>
-                  <td><span class="veh-status spare"><span class="dot"></span>Spare</span></td>
-                  <td style="color:var(--text-subtle)">— Backup pool</td>
-                  <td class="cell-time">Apr 30</td>
-                  <td><button class="row-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
-                </tr>
-              </tbody>
+              <tbody id="fleet-issues-tbody"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- ASSETS -->
-        <div class="fleet-tab" id="fleet-tab-assets" style="display:none">
-          <div style="margin-bottom:var(--s-4);font-size:var(--fs-md);color:var(--text-muted)">Driver-issued assets · click any category to see assignments and history</div>
-
-          <div class="asset-cat-grid">
-            <div class="asset-cat" onclick="toast('Phones — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:var(--brand-grad)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
-              <div class="asset-cat-name">Phones</div>
-              <div class="asset-cat-stats"><strong>78</strong> assigned · <strong>2</strong> in inventory · <strong>1</strong> reported lost</div>
-              <div class="asset-cat-bar"><div class="asset-cat-bar-fill" style="width:97%"></div></div>
-            </div>
-            <div class="asset-cat" onclick="toast('Gas cards — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:linear-gradient(135deg,var(--green),var(--green-bright))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
-              <div class="asset-cat-name">Fuel cards</div>
-              <div class="asset-cat-stats"><strong>78</strong> assigned · <strong>4</strong> in inventory · <strong>$2.4k</strong> spend this week</div>
-              <div class="asset-cat-bar"><div class="asset-cat-bar-fill" style="width:95%"></div></div>
-            </div>
-            <div class="asset-cat" onclick="toast('Toll tags — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:var(--amber-grad)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="6"/></svg></div>
-              <div class="asset-cat-name">Toll tags</div>
-              <div class="asset-cat-stats"><strong>24</strong> assigned to vehicles · <strong>$340</strong> incurred this month</div>
-              <div class="asset-cat-bar"><div class="asset-cat-bar-fill" style="width:100%"></div></div>
-            </div>
-            <div class="asset-cat" onclick="toast('Key fobs — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:var(--violet-grad)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div>
-              <div class="asset-cat-name">Key fobs</div>
-              <div class="asset-cat-stats"><strong>24</strong> assigned · <strong>3</strong> in inventory</div>
-              <div class="asset-cat-bar"><div class="asset-cat-bar-fill" style="width:89%"></div></div>
-            </div>
-            <div class="asset-cat" onclick="toast('Uniforms — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:linear-gradient(135deg,#0F172A,#334155)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg></div>
-              <div class="asset-cat-name">Uniforms</div>
-              <div class="asset-cat-stats"><strong>132</strong> issued · <strong>1</strong> driver pending</div>
-              <div class="asset-cat-bar"><div class="asset-cat-bar-fill warn" style="width:85%"></div></div>
-            </div>
-            <div class="asset-cat" onclick="toast('Scanners — assignment list opens here')">
-              <div class="asset-cat-icon" style="background:linear-gradient(135deg,var(--red),var(--red-bright))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h20M7 12h2m4 0h2m4 0h2M2 17h20"/></svg></div>
-              <div class="asset-cat-name">Scanners</div>
-              <div class="asset-cat-stats"><strong>78</strong> assigned · <strong>2</strong> in inventory · <strong>1</strong> needs repair</div>
-              <div class="asset-cat-bar"><div class="asset-cat-bar-fill warn" style="width:95%"></div></div>
-            </div>
-          </div>
-
-          <div class="card" style="margin-top:var(--s-5)">
-            <div class="card-head">
-              <h3 class="card-title">Recent activity</h3>
-              <button class="btn btn-sm">All activity →</button>
-            </div>
-            <div class="report-event-list">
-              <div class="report-event">
-                <div class="report-event-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-                <div><div class="report-event-name">Trevor Anders · Phone, Fuel card, Uniform issued</div><div class="report-event-meta">Welcome kit · all 3 assets logged · iPhone SE-243</div></div>
-                <span class="flag" style="background:var(--green-soft);color:var(--green)">Issued</span>
-                <div class="cell-time">3 days ago</div>
-              </div>
-              <div class="report-event">
-                <div class="report-event-icon" style="background:var(--red-soft);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
-                <div><div class="report-event-name">Marcus Davidson · Phone reported lost</div><div class="report-event-meta">iPhone SE-187 · last seen Apr 28 · replacement issued</div></div>
-                <span class="flag" style="background:var(--red-soft);color:var(--red)">Lost</span>
-                <div class="cell-time">5 days ago</div>
-              </div>
-              <div class="report-event">
-                <div class="report-event-icon" style="background:var(--accent-soft);color:var(--accent-text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/></svg></div>
-                <div><div class="report-event-name">Tasha Reyes · Fuel card transferred</div><div class="report-event-meta">From Old card 4242 → New card 4577 · activated</div></div>
-                <span class="flag" style="background:var(--accent-soft);color:var(--accent-text)">Updated</span>
-                <div class="cell-time">1 week ago</div>
-              </div>
-            </div>
+        <!-- CLAIMS sub-tab — placeholder for future build -->
+        <div class="fl-sub" id="fl-sub-claims">
+          <div class="fl-soon">
+            <h3>Claims tracking — coming soon</h3>
+            <p>Liability claims and damage reports tied to a vehicle will live here. For now, log them as an Issue with category "body" or "safety".</p>
           </div>
         </div>
 
-        <!-- MAINTENANCE -->
-        <div class="fleet-tab" id="fleet-tab-maint" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4)">
-            <div><h3 style="font-size:var(--fs-base);font-weight:600;margin:0">Upcoming &amp; overdue</h3><p class="page-sub" style="margin:2px 0 0 0">Auto-generated from mileage and last-service dates</p></div>
-            <button class="btn btn-primary">Schedule service</button>
-          </div>
-
-          <div class="table-wrap" style="margin-bottom:var(--s-5)">
-            <div class="maint-row urgent">
-              <div class="veh-icon oos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/></svg></div>
-              <div><div class="maint-name">VAN-12 · Brake service in progress</div><div class="maint-meta">In maintenance since Apr 30 · ETA back: May 4 · estimated $740</div></div>
-              <span class="maint-due urgent">Active</span>
-              <span class="flag safety">Out of service</span>
-              <button class="btn btn-sm">View work order</button>
-            </div>
-            <div class="maint-row upcoming">
-              <div class="veh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
-              <div><div class="maint-name">VAN-04 · Oil change due</div><div class="maint-meta">5,000 mi since last · 87,420 mi total · last service Apr 15</div></div>
-              <span class="maint-due warn">In 4 days</span>
-              <span class="flag" style="background:var(--amber-soft);color:var(--amber)">Soon</span>
-              <button class="btn btn-sm btn-primary">Schedule</button>
-            </div>
-            <div class="maint-row upcoming">
-              <div class="veh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
-              <div><div class="maint-name">VAN-08 · DOT annual inspection</div><div class="maint-meta">Annual federal inspection · last passed Jan 5 2025</div></div>
-              <span class="maint-due warn">In 12 days</span>
-              <span class="flag" style="background:var(--amber-soft);color:var(--amber)">Required</span>
-              <button class="btn btn-sm">Schedule</button>
-            </div>
-            <div class="maint-row">
-              <div class="veh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
-              <div><div class="maint-name">VAN-15 · Tire rotation</div><div class="maint-meta">7,000 mi since last · 68,920 mi total</div></div>
-              <span class="maint-due ok">In 18 days</span>
-              <span class="tag">Routine</span>
-              <button class="btn btn-sm">Schedule</button>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head">
-              <h3 class="card-title">Service history · last 30 days</h3>
-              <button class="btn btn-sm">All history →</button>
-            </div>
-            <div class="report-event-list">
-              <div class="report-event">
-                <div class="report-event-icon" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-                <div><div class="report-event-name">VAN-15 · DOT inspection passed</div><div class="report-event-meta">Apr 28 · $185 · vendor: Springfield Truck</div></div>
-                <span class="tag" style="background:var(--green-soft);color:var(--green)">$185</span>
-                <div class="cell-time">3 days ago</div>
-              </div>
-              <div class="report-event">
-                <div class="report-event-icon" style="background:var(--accent-soft);color:var(--accent-text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg></div>
-                <div><div class="report-event-name">VAN-07 · Oil change</div><div class="report-event-meta">Apr 22 · $89 · vendor: Quick Lube Plus</div></div>
-                <span class="tag" style="background:var(--accent-soft);color:var(--accent-text)">$89</span>
-                <div class="cell-time">9 days ago</div>
-              </div>
-              <div class="report-event">
-                <div class="report-event-icon" style="background:var(--accent-soft);color:var(--accent-text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg></div>
-                <div><div class="report-event-name">VAN-04 · Oil + tire rotation</div><div class="report-event-meta">Apr 15 · $145 · vendor: Springfield Truck</div></div>
-                <span class="tag" style="background:var(--accent-soft);color:var(--accent-text)">$145</span>
-                <div class="cell-time">2 weeks ago</div>
-              </div>
-            </div>
-            <div style="padding:var(--s-3) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:var(--fs-sm)"><span class="page-sub" style="margin:0">11 services · 30 days</span><span><strong style="color:var(--text)">$1,824</strong> total</span></div>
+        <!-- RENTAL RESERVATIONS sub-tab — placeholder -->
+        <div class="fl-sub" id="fl-sub-rentals">
+          <div class="fl-soon">
+            <h3>Rental reservations — coming soon</h3>
+            <p>Track Amazon Branded Last Mile Rental + outside rental reservations here. Until this is built, mark a vehicle's ownership as <strong>Rental</strong> on its record drawer.</p>
           </div>
         </div>
 
-        <!-- DOCUMENTS -->
-        <div class="fleet-tab" id="fleet-tab-docs" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4)">
-            <div><h3 style="font-size:var(--fs-base);font-weight:600;margin:0">Vehicle &amp; insurance documents</h3><p class="page-sub" style="margin:2px 0 0 0">Centralized document library · auto-flag expiring docs</p></div>
-            <button class="btn btn-primary">Upload document</button>
-          </div>
-
-          <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 var(--s-3) 0">Insurance</h4>
-          <div class="doc-grid" style="margin-bottom:var(--s-5)">
-            <div class="doc-card">
-              <div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-              <div class="doc-card-name">Auto liability policy</div>
-              <div class="doc-card-meta">Progressive Commercial · all 24 vehicles</div>
-              <div class="doc-card-expiry">Expires Aug 15, 2026</div>
-            </div>
-            <div class="doc-card">
-              <div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-              <div class="doc-card-name">Workers comp</div>
-              <div class="doc-card-meta">The Hartford · 78 active drivers</div>
-              <div class="doc-card-expiry warn">Expires May 15 · in 14 days</div>
-            </div>
-            <div class="doc-card">
-              <div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-              <div class="doc-card-name">General liability</div>
-              <div class="doc-card-meta">Hiscox · DSP umbrella</div>
-              <div class="doc-card-expiry">Expires Sep 30, 2026</div>
-            </div>
-          </div>
-
-          <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 var(--s-3) 0">Vehicle registrations</h4>
-          <div class="doc-grid" style="margin-bottom:var(--s-5)">
-            <div class="doc-card">
-              <div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div>
-              <div class="doc-card-name">VAN-04 registration</div>
-              <div class="doc-card-meta">Missouri DOR · plate JR4-2918</div>
-              <div class="doc-card-expiry">Expires Jun 30, 2026</div>
-            </div>
-            <div class="doc-card">
-              <div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div>
-              <div class="doc-card-name">VAN-07 registration</div>
-              <div class="doc-card-meta">Missouri DOR · plate JR5-1182</div>
-              <div class="doc-card-expiry urgent">Expires May 12 · in 11 days</div>
-            </div>
-          </div>
-
-          <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 var(--s-3) 0">DOT inspections</h4>
-          <div class="doc-grid">
-            <div class="doc-card">
-              <div class="doc-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-              <div class="doc-card-name">VAN-15 · Annual DOT</div>
-              <div class="doc-card-meta">Passed Apr 28 · Springfield Truck</div>
-              <div class="doc-card-expiry">Renewable Apr 28, 2027</div>
-            </div>
+        <!-- BRANDED VEHICLE ORDERS sub-tab — placeholder -->
+        <div class="fl-sub" id="fl-sub-branded">
+          <div class="fl-soon">
+            <h3>Branded vehicle orders — coming soon</h3>
+            <p>Pending and delivered Amazon-branded vehicle orders will land here once the Logistics integration ships.</p>
           </div>
         </div>
 
@@ -15303,8 +15244,6 @@ John,Smith,555-0101,john@example.com</code>
     },
     documents: function(action){
       _hideBadge(action, 'nav-fleet', '.nav-item[data-view="fleet"] .nav-badge');
-      var sub = document.querySelector('#view-fleet .subnav-item[data-sub="docs"] span');
-      if (sub) _hideBadge(action, 'subnav-docs', '#view-fleet .subnav-item[data-sub="docs"] span');
     }
   };
 
@@ -15504,7 +15443,7 @@ John,Smith,555-0101,john@example.com</code>
       drivers: '78 active · 5 at risk',
       interview: 'Friday, May 4 · 7 booked · auto-SMS on every action',
       staffing: 'Live · headcount + bench + pipeline = accountability budget',
-      fleet: '24 vehicles · 312 assets · 2 maint items',
+      fleet: 'Van roster · drivers · service history',
       schedule: 'Week of May 1–7 · 5 pending approvals',
       okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
@@ -16061,14 +16000,6 @@ John,Smith,555-0101,john@example.com</code>
       if (v2) v2.innerHTML = v + '<span class="frac">%</span>';
     }
     recalcPlan();
-  }
-
-  // ─── FLEET ─────────────────────────────────────────────────
-  function fleetSub(sub){
-    document.querySelectorAll('#view-fleet .subnav-item').forEach(function(b){ b.classList.remove('active'); });
-    document.querySelector('#view-fleet .subnav-item[data-sub="' + sub + '"]').classList.add('active');
-    document.querySelectorAll('.fleet-tab').forEach(function(v){ v.style.display = 'none'; });
-    document.getElementById('fleet-tab-' + sub).style.display = 'block';
   }
 
   // ─── SMART DROP — multi-stage modal flow ─────────────────
