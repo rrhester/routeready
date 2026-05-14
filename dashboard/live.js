@@ -26328,6 +26328,16 @@ async function loadWorkspacesView() {
   if (!root) return;
   _wsEditing = null;
   root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading workspaces</div>`;
+
+  // First-time default seeding. Idempotent server-side via a flag on
+  // dsps.metadata.workspaces.defaults_seeded — repeat calls are no-ops.
+  // Gated per-session so we don't spam the RPC on every navigation.
+  if (!window._wsDefaultsSeedAttempted) {
+    window._wsDefaultsSeedAttempted = true;
+    try { await sb.rpc("seed_default_assignment_boards"); }
+    catch (e) { console.warn("seed_default_assignment_boards:", e?.message || e); }
+  }
+
   let bRes, dRes, tRes;
   try {
     [bRes, dRes, tRes] = await Promise.all([
