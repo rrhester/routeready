@@ -6258,6 +6258,118 @@ body.rr-cmdk-open{ overflow:hidden }
 .all-clear-title{font-size:18px;font-weight:700;color:#14532D;margin:0 0 4px;letter-spacing:-.01em}
 .all-clear-sub{font-size:var(--fs-md);color:var(--green-dark);margin:0}
 
+/* ─── Checklist Runner · live instances (My / Today's status) ────────── */
+#rr-cl-my-root,#rr-cl-status-root{max-width:1080px;margin:0 auto}
+.cl-tools{display:flex;align-items:center;gap:10px;margin-bottom:var(--s-4);flex-wrap:wrap}
+.cl-tools .cl-search{display:flex;align-items:center;gap:8px;flex:1;min-width:200px;max-width:340px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:7px 11px;transition:border-color .12s,box-shadow .12s}
+.cl-tools .cl-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.cl-tools .cl-search svg{width:14px;height:14px;color:var(--text-subtle);flex:0 0 auto}
+.cl-tools .cl-search input{flex:1;border:0;background:transparent;outline:none;font:inherit;font-size:var(--fs-sm);color:var(--text)}
+.cl-tools .cl-search input::placeholder{color:var(--text-subtle)}
+.cl-filterstrip{display:inline-flex;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:3px;gap:2px}
+.cl-filter{appearance:none;background:transparent;border:0;color:var(--text-subtle);font:inherit;font-size:var(--fs-sm);font-weight:500;padding:5px 12px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
+.cl-filter:hover{color:var(--text)}
+.cl-filter.active{background:var(--accent-soft);color:var(--accent-text)}
+
+.cl-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.cl-instance{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;cursor:pointer;text-align:left;font:inherit;width:100%;transition:border-color .12s,box-shadow .12s,transform .1s}
+.cl-instance:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+.cl-instance:active{transform:translateY(.5px)}
+.cl-instance .cl-i-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0}
+.cl-instance .cl-i-name{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:1;min-width:0}
+.cl-instance .cl-i-status{flex:0 0 auto;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:999px;background:var(--canvas);color:var(--text-subtle);white-space:nowrap}
+.cl-instance .cl-i-status.active   {background:var(--accent-soft);color:var(--accent-text)}
+.cl-instance .cl-i-status.completed{background:var(--green-soft);color:var(--green)}
+.cl-instance .cl-i-status.archived {background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+.cl-instance .cl-i-status.overdue  {background:var(--red-soft);color:var(--red)}
+.cl-instance .cl-i-status.due-today{background:var(--amber-soft);color:var(--amber-dark)}
+.cl-instance .cl-i-bar{height:5px;background:var(--canvas);border-radius:999px;overflow:hidden}
+.cl-instance .cl-i-bar-fill{height:100%;background:linear-gradient(90deg,#6366F1,#22D3EE);border-radius:999px;transition:width .25s ease}
+.cl-instance .cl-i-bar-fill.done{background:var(--green)}
+.cl-instance .cl-i-meta{display:flex;align-items:center;gap:10px;font-size:var(--fs-xs);color:var(--text-subtle);flex-wrap:wrap}
+.cl-instance .cl-i-meta .dot{width:3px;height:3px;border-radius:50%;background:var(--text-subtle);opacity:.5;flex:0 0 auto}
+.cl-instance .cl-i-meta .due-overdue{color:var(--red);font-weight:600}
+.cl-instance .cl-i-meta .due-today{color:var(--amber-dark);font-weight:600}
+
+.cl-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+.cl-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
+.cl-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0 auto;line-height:1.55;max-width:480px}
+
+.cl-bucket{margin-bottom:var(--s-5)}
+.cl-bucket-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:0 0 var(--s-3)}
+.cl-bucket-h .count{font-weight:600;color:var(--text-subtle);letter-spacing:0;text-transform:none;background:var(--canvas);padding:2px 7px;border-radius:999px;font-size:11px}
+.cl-bucket-h.overdue{color:var(--red)}
+.cl-bucket-h.overdue .count{background:var(--red-soft);color:var(--red)}
+.cl-bucket-h.due-today{color:var(--amber-dark)}
+.cl-bucket-h.due-today .count{background:var(--amber-soft);color:var(--amber-dark)}
+
+/* Runner drawer (right side, slides in) */
+#rr-cl-runner-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.32);z-index:80;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:saturate(.9) blur(2px)}
+#rr-cl-runner-backdrop.open{opacity:1;pointer-events:auto}
+#rr-cl-runner{position:fixed;top:0;bottom:0;right:0;width:min(560px,100vw);max-width:100vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:-20px 0 50px -25px rgba(15,23,42,.22);z-index:81;transform:translateX(100%);transition:transform .22s cubic-bezier(.32,.72,.0,1);display:flex;flex-direction:column;overflow:hidden}
+#rr-cl-runner.open{transform:translateX(0)}
+.cl-rn-head{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px}
+.cl-rn-head-inner{flex:1;min-width:0}
+.cl-rn-title{font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:18px;font-weight:700;letter-spacing:-.015em;color:var(--text);line-height:1.25;width:100%;background:transparent;border:1px solid transparent;border-radius:5px;padding:3px 6px;margin:-3px -6px;outline:none;transition:background .12s,border-color .12s,box-shadow .12s}
+.cl-rn-title:hover,.cl-rn-title:focus{background:var(--canvas);border-color:var(--border)}
+.cl-rn-title:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
+.cl-rn-sub{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:var(--fs-xs);color:var(--text-subtle);flex-wrap:wrap}
+.cl-rn-sub .dot{width:3px;height:3px;border-radius:50%;background:var(--text-subtle);opacity:.5;flex:0 0 auto}
+.cl-rn-sub .due-overdue{color:var(--red);font-weight:600}
+.cl-rn-sub .due-today  {color:var(--amber-dark);font-weight:600}
+.cl-rn-close{appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:6px;border-radius:6px;flex:0 0 auto;transition:background .12s,color .12s}
+.cl-rn-close:hover{background:var(--canvas);color:var(--text)}
+.cl-rn-close svg{width:18px;height:18px}
+.cl-rn-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 22px;border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-subtle);gap:10px}
+.cl-rn-toolbar-l{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.cl-rn-toolbar-actions{display:flex;align-items:center;gap:4px}
+.cl-rn-save{font-size:11px;color:var(--text-subtle);transition:color .15s,opacity .2s}
+.cl-rn-save.saving{color:var(--text-muted)}
+.cl-rn-save.saved{color:var(--green)}
+.cl-rn-save.err{color:var(--red)}
+.cl-rn-meta-btn{appearance:none;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text-subtle);cursor:pointer;padding:5px 9px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--fs-xs);font-weight:500;transition:background .12s,color .12s,border-color .12s}
+.cl-rn-meta-btn:hover{background:var(--canvas);color:var(--text);border-color:var(--border)}
+.cl-rn-meta-btn svg{width:11px;height:11px}
+.cl-rn-body{flex:1;overflow-y:auto;padding:14px 22px 22px}
+.cl-rn-section{margin-bottom:var(--s-5)}
+.cl-rn-section-h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:0 0 8px;padding:0 4px}
+.cl-rn-items{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.cl-rn-item{display:grid;grid-template-columns:auto 1fr auto;gap:11px;padding:11px 14px;align-items:flex-start;border-top:1px solid var(--border);transition:background .12s}
+.cl-rn-item:first-child{border-top:0}
+.cl-rn-item:hover{background:var(--canvas)}
+.cl-rn-check{flex:0 0 auto;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border-strong);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,border-color .12s;color:#fff;margin-top:1px}
+.cl-rn-check:hover{border-color:var(--text-subtle)}
+.cl-rn-check.on{background:var(--accent);border-color:var(--accent)}
+.cl-rn-check svg{width:12px;height:12px;stroke-width:3;opacity:0;transition:opacity .15s}
+.cl-rn-check.on svg{opacity:1}
+.cl-rn-label{font-size:var(--fs-md);color:var(--text);line-height:1.5;cursor:pointer;min-width:0;word-wrap:break-word}
+.cl-rn-item.done .cl-rn-label{text-decoration:line-through;color:var(--text-subtle)}
+.cl-rn-label .req{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red);margin-left:6px;background:var(--red-soft);padding:1px 6px;border-radius:5px;vertical-align:middle}
+.cl-rn-inst{display:block;font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5}
+.cl-rn-attr{font-size:10.5px;color:var(--text-subtle);text-align:right;flex:0 0 auto;line-height:1.4;white-space:nowrap;padding-top:2px}
+.cl-rn-progress{display:flex;align-items:center;gap:10px}
+.cl-rn-progress .bar{flex:1;height:5px;background:var(--canvas);border-radius:999px;overflow:hidden}
+.cl-rn-progress .bar-fill{height:100%;background:linear-gradient(90deg,#6366F1,#22D3EE);transition:width .25s ease}
+.cl-rn-progress .bar-fill.done{background:var(--green)}
+.cl-rn-progress .pct{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums;min-width:36px;text-align:right}
+
+/* Inline meta dropdown (assignee + due_at) */
+.cl-rn-meta-pop{position:absolute;top:48px;right:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-md);padding:14px;width:280px;z-index:82}
+.cl-rn-meta-pop label{display:block;font-size:11px;font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+.cl-rn-meta-pop select,.cl-rn-meta-pop input[type=datetime-local]{display:block;width:100%;font:inherit;font-size:var(--fs-sm);padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);outline:none;transition:border-color .12s,box-shadow .12s}
+.cl-rn-meta-pop select:focus,.cl-rn-meta-pop input[type=datetime-local]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.cl-rn-meta-pop > div{margin-bottom:12px}
+.cl-rn-meta-pop > div:last-child{margin-bottom:0}
+
+/* Launch dialog */
+.cl-launch-pop{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-md);padding:14px;width:300px;z-index:82}
+.cl-launch-pop label{display:block;font-size:11px;font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;margin-top:10px}
+.cl-launch-pop label:first-child{margin-top:0}
+.cl-launch-pop input,.cl-launch-pop select{display:block;width:100%;font:inherit;font-size:var(--fs-sm);padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);outline:none;transition:border-color .12s,box-shadow .12s}
+.cl-launch-pop input:focus,.cl-launch-pop select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.cl-launch-pop .cl-launch-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:14px}
+
+
 /* ─── Checklist Builder · template list + editor ─────────────────────── */
 #rr-cb-root{max-width:1080px;margin:0 auto}
 #rr-cb-root .cb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:var(--s-4);flex-wrap:wrap}
@@ -10981,233 +11093,22 @@ body.rr-cmdk-open{ overflow:hidden }
         </div>
 
         <!-- MY CHECKLISTS -->
+        <!-- MY CHECKLISTS -->
+        <!-- Real instances list, rendered into #rr-cl-my-root by
+             loadChecklistInstances() in live.js. -->
         <div class="checklist-tab" id="checklist-tab-my">
-          <div class="cl-grid">
-            <div class="cl-card" onclick="toast('Opens checklist editor with task list + assignee + completion log')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon opening"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/></svg></div>
-                <span class="cl-card-status partial">75% done</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Opening</div>
-                <div class="cl-card-name">Station opening · KMO1</div>
-              </div>
-              <div class="cl-card-meta">12 tasks · daily by 6:30 AM · assigned to opening dispatcher</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:75%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>9 of 12</strong> complete</span><span>Jaime · 6:18 AM</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon closing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
-                <span class="cl-card-status due">Due 7 PM</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Closing</div>
-                <div class="cl-card-name">Station closing · KMO1</div>
-              </div>
-              <div class="cl-card-meta">10 tasks · daily by 7:00 PM · assigned to closing dispatcher</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill warn" style="width:0%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>0 of 10</strong> complete</span><span>Not started yet</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
-                <span class="cl-card-status done">100% today</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Vehicle</div>
-                <div class="cl-card-name">Driver pre-trip walk-around</div>
-              </div>
-              <div class="cl-card-meta">8 tasks · per shift, before route start · all drivers</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:100%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>72 of 72</strong> drivers</span><span>92% on time</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
-                <span class="cl-card-status partial">71 of 78</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Vehicle</div>
-                <div class="cl-card-name">Post-trip vehicle return</div>
-              </div>
-              <div class="cl-card-meta">6 tasks · per shift, on return · all drivers</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:91%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>71 of 78</strong> drivers</span><span>7 still on route</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon onboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-                <span class="cl-card-status partial">3 in progress</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Onboarding</div>
-                <div class="cl-card-name">New driver · day 1</div>
-              </div>
-              <div class="cl-card-meta">15 tasks · once per new hire · within 48h of start</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:60%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>Trevor · 12 of 15</strong></span><span>Anders, Davis, Wright</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon shift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/></svg></div>
-                <span class="cl-card-status done">Done</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Shift handoff</div>
-                <div class="cl-card-name">AM → PM dispatcher handoff</div>
-              </div>
-              <div class="cl-card-meta">7 tasks · daily 2:00 PM · between dispatchers</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:100%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>7 of 7</strong> complete</span><span>Jaime → Alex · 2:04 PM</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                <span class="cl-card-status due">Weekly · Fri</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Compliance</div>
-                <div class="cl-card-name">Weekly safety walk</div>
-              </div>
-              <div class="cl-card-meta">11 tasks · weekly Fridays · station manager · photo evidence</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:0%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>0 of 11</strong></span><span>Due in 3 days</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon shift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></div>
-                <span class="cl-card-status draft">Draft</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Incident</div>
-                <div class="cl-card-name">Vehicle accident response</div>
-              </div>
-              <div class="cl-card-meta">9 tasks · on incident trigger · driver + dispatch</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:0%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span>Last triggered Apr 18</span><span>by Davidson</span></div>
-              </div>
-            </div>
-
-            <div class="cl-card" onclick="toast('Opens checklist editor')">
-              <div class="cl-card-head">
-                <div class="cl-card-icon compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-                <span class="cl-card-status due">Monthly</span>
-              </div>
-              <div>
-                <div class="cl-card-cat">Compliance</div>
-                <div class="cl-card-name">DOT log review · monthly</div>
-              </div>
-              <div class="cl-card-meta">14 tasks · 1st of every month · station manager</div>
-              <div>
-                <div class="cl-card-progress"><div class="cl-card-progress-fill" style="width:0%"></div></div>
-                <div class="cl-card-foot" style="margin-top:6px"><span><strong>Due May 1</strong></span><span>Today</span></div>
-              </div>
-            </div>
+          <div id="rr-cl-my-root">
+            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading checklists</div>
           </div>
         </div>
 
-        <!-- TODAY'S STATUS — live monitoring -->
+        <!-- TODAY'S STATUS — live operational rollup -->
         <div class="checklist-tab" id="checklist-tab-status" style="display:none">
-          <div style="margin-bottom:var(--s-4);font-size:var(--fs-md);color:var(--text-muted)">Live view of every checklist due today and who's behind. Auto-flags late submissions to Alerts.</div>
-
-          <table class="cl-status-table">
-            <thead>
-              <tr>
-                <th>Checklist</th>
-                <th>Assignee</th>
-                <th>Progress</th>
-                <th>Deadline</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon opening" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="12" cy="12" r="5"/></svg></div>
-                  <div><div style="font-weight:600">Station opening · KMO1</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">12 tasks</div></div></div>
-                </td>
-                <td>Jaime Navarro</td>
-                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill" style="width:75%"></div></div> <span style="font-size:var(--fs-xs);color:var(--text-muted)">9/12</span></td>
-                <td><div class="cl-deadline">Done by 6:30 AM</div></td>
-                <td><span class="cl-card-status partial">In progress</span></td>
-                <td><button class="btn btn-sm">View</button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon vehicle" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
-                  <div><div style="font-weight:600">Driver pre-trip walk-around</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">8 tasks</div></div></div>
-                </td>
-                <td>All drivers (78)</td>
-                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill" style="width:92%"></div></div> <span style="font-size:var(--fs-xs);color:var(--text-muted)">72/78</span></td>
-                <td><div class="cl-deadline warn">Before route start</div></td>
-                <td><span class="cl-card-status partial">6 late</span></td>
-                <td><button class="btn btn-sm">View laggards</button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon onboard" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="12" cy="7" r="4"/></svg></div>
-                  <div><div style="font-weight:600">New driver · day 1</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">15 tasks</div></div></div>
-                </td>
-                <td>Trevor Anders</td>
-                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill warn" style="width:80%"></div></div> <span style="font-size:var(--fs-xs);color:var(--text-muted)">12/15</span></td>
-                <td><div class="cl-deadline warn">Within 48h · 4h left</div></td>
-                <td><span class="cl-card-status partial">3 remaining</span></td>
-                <td><button class="btn btn-sm">Nudge</button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon closing" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
-                  <div><div style="font-weight:600">Station closing · KMO1</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">10 tasks</div></div></div>
-                </td>
-                <td>Alex Mendez</td>
-                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill" style="width:0%"></div></div> <span style="font-size:var(--fs-xs);color:var(--text-muted)">0/10</span></td>
-                <td><div class="cl-deadline">Due 7:00 PM</div></td>
-                <td><span class="cl-card-status due">Not started</span></td>
-                <td><button class="btn btn-sm">Remind</button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div style="display:flex;align-items:center;gap:10px"><div class="cl-card-icon compliance" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><circle cx="12" cy="12" r="10"/></svg></div>
-                  <div><div style="font-weight:600">DOT log review · monthly</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">14 tasks</div></div></div>
-                </td>
-                <td>Ryan Hester</td>
-                <td><div class="cl-mini-bar"><div class="cl-mini-bar-fill bad" style="width:0%"></div></div> <span style="font-size:var(--fs-xs);color:var(--text-muted)">0/14</span></td>
-                <td><div class="cl-deadline bad">Due TODAY</div></td>
-                <td><span class="cl-card-status due">Overdue</span></td>
-                <td><button class="btn btn-sm btn-primary">Start now</button></td>
-              </tr>
-            </tbody>
-          </table>
+          <div id="rr-cl-status-root">
+            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading status</div>
+          </div>
         </div>
 
-        <!-- TEMPLATES -->
-        <!-- Real Checklist Builder, replaces the previous static cards.
-             Rendered into #rr-cb-root by loadChecklistTemplates() / the
-             _cbRender* fns in live.js. -->
         <div class="checklist-tab" id="checklist-tab-templates" style="display:none">
           <div id="rr-cb-root">
             <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading templates</div>
