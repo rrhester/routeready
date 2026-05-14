@@ -9073,9 +9073,11 @@ async function _tpOpenVanPicker(anchorEl) {
     }
     const { error } = await sb.rpc("vehicle_day_assignment_set", { p_driver_id: driverId, p_date: todayIso, p_vehicle_id: vanId });
     if (error) {
-      const msg = (error.message || "").includes("vehicle_already_assigned")
-        ? "That van is already taken for today by someone else. Clear that driver first."
-        : "Couldn't save: " + error.message;
+      const m = error.message || "";
+      const msg =
+        m.includes("vehicle_grounded")        ? "That van is grounded. Unground it on the Fleet roster before assigning it to a route."
+      : m.includes("vehicle_already_assigned") ? "That van is already taken for today by someone else. Clear that driver first."
+      :                                          "Couldn't save: " + m;
       toast(msg, "warn");
       return;
     }
@@ -9102,17 +9104,24 @@ async function _tpOpenVanPicker(anchorEl) {
     }
     listEl.innerHTML = filtered.map((v) => {
       const isCurrent = v.id === currentVanId;
-      // A van is selectable if it's not committed to someone else.
+      // A van is selectable if it's operational AND not committed to someone else.
       // A van currently held by the same driver (override) is also selectable (no-op).
+      const grounded     = v.operational_status === "grounded";
       const takenByOther = v.committed && !isCurrent && v.committed_kind !== null;
-      const cls = "vp-row" + (takenByOther ? " is-disabled" : "") + (isCurrent ? " is-current" : "");
-      const opAttrs = takenByOther ? "" : `data-rr-tp-vp-pick="${escapeHtml(v.id)}"`;
+      const disabled     = grounded || takenByOther;
+      const cls = "vp-row" + (disabled ? " is-disabled" : "") + (isCurrent ? " is-current" : "");
+      const opAttrs = disabled ? "" : `data-rr-tp-vp-pick="${escapeHtml(v.id)}"`;
       const sub = [];
       if (v.plate) sub.push(escapeHtml(v.plate));
       if (v.status === "spare") sub.push("Spare");
       if (v.status === "out_of_service") sub.push("Out of service");
       if (v.committed && !isCurrent) sub.push(`Held by ${escapeHtml(v.committed_to || "another driver")} (${escapeHtml((v.committed_kind || "").replace(/_/g, " "))})`);
-      const tag = isCurrent ? `<span class="vp-tag current">Current</span>` : (takenByOther ? `<span class="vp-tag taken">Taken</span>` : "");
+      if (grounded) sub.push("Grounded · unground on Fleet roster");
+      const tag = isCurrent
+        ? `<span class="vp-tag current">Current</span>`
+        : grounded
+          ? `<span class="vp-tag taken" style="background:var(--red-soft);color:var(--red)">Grounded</span>`
+          : (takenByOther ? `<span class="vp-tag taken">Taken</span>` : "");
       return `<div class="${cls}" ${opAttrs}>
         <div class="nm">
           <div class="n">${escapeHtml(v.name)}${tag ? " " + tag : ""}</div>
@@ -30055,22 +30064,26 @@ function _flOpStatPill(s) {
 }
 
 // Days-grounded badge used next to the status pill on the roster.
-// Returns a short "Nd" chip with severity-scaled color, or empty when
-// the vehicle has been grounded for less than a day or is operational.
+// Always visible when the vehicle is grounded — "0d / today" through
+// "Nd" — so the operator can see exposure at a glance.  Severity scales
+// against Amazon's 7d / 14d repair-completion thresholds.
 function _flDaysGroundedBadge(v) {
   if ((v.operational_status || "operational") === "operational") return "";
-  if (!v.grounded_since) return "";
-  const diffMs = Date.now() - new Date(v.grounded_since).getTime();
-  if (!isFinite(diffMs) || diffMs < 0) return "";
-  const days = Math.floor(diffMs / 86400000);
-  if (days < 1) {
-    const h = Math.max(1, Math.floor(diffMs / 3600000));
-    return `<span class="fl-down-badge soft" title="Grounded since ${escapeHtml(new Date(v.grounded_since).toLocaleString())}">${h}h</span>`;
+  // Default to "0d" / "today" when we don't yet have a grounded_since
+  // (e.g., migration 0228/0229 hasn't been applied, or this is a brand-
+  // new ground that hasn't round-tripped yet).  Better to surface
+  // *something* than to have the box disappear.
+  let days = 0;
+  let title = "Grounded";
+  if (v.grounded_since) {
+    const diffMs = Date.now() - new Date(v.grounded_since).getTime();
+    if (isFinite(diffMs) && diffMs > 0) {
+      days = Math.floor(diffMs / 86400000);
+      title = `Grounded ${days} day${days === 1 ? "" : "s"} (since ${new Date(v.grounded_since).toLocaleDateString()})${v.grounded_reason ? " · " + v.grounded_reason : ""}`;
+    }
   }
-  // Amazon's repair-completion guidance is 14 BD; warn at 7+, escalate at 14+.
   const cls = days >= 14 ? "crit" : days >= 7 ? "warn" : "";
-  const title = `Grounded ${days} day${days === 1 ? "" : "s"} (since ${new Date(v.grounded_since).toLocaleDateString()})${v.grounded_reason ? " · " + v.grounded_reason : ""}`;
-  return `<span class="fl-down-badge ${cls}" title="${escapeHtml(title)}">${days}d</span>`;
+  return `<span class="fl-down-badge ${cls}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${days}d</span>`;
 }
 
 // Build the operational-status table cell.  Wrapping the pill in a

@@ -10856,19 +10856,20 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-opstat-row{display:inline-flex;align-items:center;gap:6px}
           #view-fleet .fl-opstat-chev{width:11px;height:11px;color:var(--text-subtle);flex:0 0 auto}
 
-          /* Days-grounded badge — sits right next to the Grounded pill
-             on the roster.  Severity scales against Amazon's 7d / 14d
-             repair-completion thresholds. */
+          /* Days-grounded box — sits right next to the Grounded pill.
+             Square (logistics-instrument vibe, not a pill); severity
+             ramps against Amazon's 7d / 14d repair-completion thresholds. */
           #view-fleet .fl-down-badge{
             display:inline-flex;align-items:center;justify-content:center;
-            min-width:28px;padding:1px 6px;border-radius:999px;
-            font-size:10px;font-weight:700;letter-spacing:.04em;line-height:1.5;
+            min-width:34px;padding:2px 8px;
+            border-radius:5px;
+            font-size:11px;font-weight:700;letter-spacing:.02em;line-height:1.4;
             background:var(--red-soft);color:var(--red);
+            border:1px solid rgba(225,29,72,.18);
             font-variant-numeric:tabular-nums;
           }
-          #view-fleet .fl-down-badge.soft{background:var(--canvas);color:var(--text-muted)}
-          #view-fleet .fl-down-badge.warn{background:var(--amber-soft);color:var(--amber-dark)}
-          #view-fleet .fl-down-badge.crit{background:#9F1239;color:#fff}
+          #view-fleet .fl-down-badge.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.22)}
+          #view-fleet .fl-down-badge.crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
 
           /* Floating inline status menu — appended to <body> so it
              escapes table-cell overflow.  Positioned in JS. */
