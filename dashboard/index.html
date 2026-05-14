@@ -11516,6 +11516,34 @@ body.rr-cmdk-open{ overflow:hidden }
           .co-cap.review svg{color:var(--amber)}
           .co-cap.escalate{background:#1B1F2C;color:#FCA5A5;border-color:transparent}
           .co-cap.escalate svg{color:#F87171}
+
+          /* ── Empty / loading states ───────────────────────────────── */
+          .co-empty{
+            background:var(--surface);border:1px dashed var(--border-strong);
+            border-radius:var(--co-radius);padding:42px 28px;text-align:center;
+            font-size:13px;color:var(--text-muted);line-height:1.5;
+          }
+          .co-empty .ic{
+            width:42px;height:42px;border-radius:var(--r-xl);margin:0 auto 12px;
+            display:flex;align-items:center;justify-content:center;color:var(--accent);
+            background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
+          }
+          .co-empty .ic svg{width:20px;height:20px}
+          .co-empty h3{margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text)}
+          .co-empty p{margin:0 auto;max-width:480px;font-size:12.5px;color:var(--text-subtle);line-height:1.5}
+          .co-empty .actions{margin-top:14px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+
+          /* Inline skeletons for the posture + list loading states. */
+          .co-skel{
+            position:relative;overflow:hidden;background:var(--canvas);
+            border-radius:6px;
+          }
+          .co-skel::after{
+            content:"";position:absolute;inset:0;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+            transform:translateX(-100%);animation:coShim 1.25s ease-in-out infinite;
+          }
+          @keyframes coShim{ to { transform:translateX(100%); } }
         </style>
 
         <div class="page-header">
@@ -11539,49 +11567,32 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- Always-on posture bar -->
-        <div class="co-posture">
+        <!-- Always-on posture bar · populated by loadComplianceWorkspace -->
+        <div class="co-posture" data-co-render="posture" aria-busy="true">
           <div class="co-posture-cell">
-            <div class="co-p-lbl"><span class="pip warn"></span>Operational readiness</div>
-            <div class="co-readiness">
-              <div class="co-readiness-ring" aria-hidden="true">
-                <svg width="48" height="48" viewBox="0 0 48 48">
-                  <circle cx="24" cy="24" r="20" class="track"/>
-                  <circle cx="24" cy="24" r="20" class="fill" stroke-dasharray="125.66" stroke-dashoffset="40.21"/>
-                </svg>
-                <div class="num">68</div>
-              </div>
-              <div class="co-readiness-meta">
-                <div class="lbl">Posture</div>
-                <div class="state">At risk</div>
-                <div class="trend">2 escalation patterns matched · 14d</div>
-              </div>
-            </div>
+            <div class="co-p-lbl">Operational readiness</div>
+            <div class="co-skel" style="width:120px;height:32px;margin-top:2px"></div>
+            <div class="co-skel" style="width:170px;height:11px;margin-top:8px"></div>
           </div>
           <div class="co-posture-cell">
-            <div class="co-p-lbl"><span class="pip crit"></span>Grounded VINs</div>
-            <div class="co-p-val">3 <span class="unit">of 32</span></div>
-            <div class="co-p-sub crit">1 over 14-day Amazon threshold</div>
+            <div class="co-p-lbl">Grounded VINs</div>
+            <div class="co-skel" style="width:80px;height:24px;margin-top:2px"></div>
           </div>
           <div class="co-posture-cell">
-            <div class="co-p-lbl"><span class="pip warn"></span>Repairs overdue</div>
-            <div class="co-p-val">2</div>
-            <div class="co-p-sub warn">Scheduled cutoff &gt; 2 BD · 1 case · no RO</div>
+            <div class="co-p-lbl">Repairs overdue</div>
+            <div class="co-skel" style="width:50px;height:24px;margin-top:2px"></div>
           </div>
           <div class="co-posture-cell">
-            <div class="co-p-lbl"><span class="pip warn"></span>Vendor stalls</div>
-            <div class="co-p-val">4 <span class="unit">work orders</span></div>
-            <div class="co-p-sub warn">1 vendor exceeds reassignment threshold</div>
+            <div class="co-p-lbl">Vendor stalls</div>
+            <div class="co-skel" style="width:100px;height:24px;margin-top:2px"></div>
           </div>
           <div class="co-posture-cell">
-            <div class="co-p-lbl"><span class="pip crit"></span>Cure deadlines</div>
-            <div class="co-p-val">2 <span class="unit">open</span></div>
-            <div class="co-p-sub crit">MCS-150 cure · 14d · Repair RTS · 4d</div>
+            <div class="co-p-lbl">Cure deadlines</div>
+            <div class="co-skel" style="width:90px;height:24px;margin-top:2px"></div>
           </div>
           <div class="co-posture-cell">
-            <div class="co-p-lbl"><span class="pip"></span>Last sweep</div>
-            <div class="co-p-val" style="font-size:15px;font-weight:650">3 min ago</div>
-            <div class="co-p-sub">Continuous · 31 monitors green</div>
+            <div class="co-p-lbl">Last sweep</div>
+            <div class="co-skel" style="width:90px;height:18px;margin-top:2px"></div>
           </div>
         </div>
 
@@ -11593,28 +11604,28 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-rail-h">Operations</div>
               <button class="co-rail-item is-active" data-co-pane="risks" onclick="coPane('risks')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
-                Active Risks <span class="count crit">7</span>
-              </button>
+                Active Risks
+              <span class="count" data-co-rail-count="risks" hidden></span></button>
               <button class="co-rail-item" data-co-pane="cure" onclick="coPane('cure')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                Cure Actions <span class="count info">2</span>
-              </button>
+                Cure Actions
+              <span class="count" data-co-rail-count="cures" hidden></span></button>
               <button class="co-rail-item" data-co-pane="fleet" onclick="coPane('fleet')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
-                Fleet Readiness <span class="count">32</span>
-              </button>
+                Fleet Readiness
+              <span class="count" data-co-rail-count="fleet" hidden></span></button>
               <button class="co-rail-item" data-co-pane="grounded" onclick="coPane('grounded')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                Grounded Vehicles <span class="count crit">3</span>
-              </button>
+                Grounded Vehicles
+              <span class="count" data-co-rail-count="grounded" hidden></span></button>
               <button class="co-rail-item" data-co-pane="vendors" onclick="coPane('vendors')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6V4a2 2 0 0 0-2-2h-0a2 2 0 0 0-2 2v2"/><rect x="3" y="6" width="18" height="14" rx="2"/></svg>
-                Vendor Delays <span class="count warn">4</span>
-              </button>
+                Vendor Delays
+              <span class="count" data-co-rail-count="vendors" hidden></span></button>
               <button class="co-rail-item" data-co-pane="fmcsa" onclick="coPane('fmcsa')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                FMCSA / DOT <span class="count warn">1</span>
-              </button>
+                FMCSA / DOT
+              <span class="count" data-co-rail-count="fmcsa" hidden></span></button>
             </div>
             <div class="co-rail-section">
               <div class="co-rail-h">Record</div>
@@ -11640,415 +11651,24 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-pane-head">
                 <div>
                   <h2 class="co-pane-title">Active Risks</h2>
-                  <p class="co-pane-sub">Highest-exposure operational risks across fleet, drivers, vendors, FMCSA, and CAP — sorted by escalation likelihood, not by count.</p>
+                  <p class="co-pane-sub">Highest-exposure operational risks across fleet, drivers, vendors, FMCSA, and CAP — synthesized live from the operational state of every connected object.</p>
                 </div>
                 <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">Group · severity</button>
+                  <button class="btn btn-ghost btn-sm" type="button" id="co-risks-refresh">Refresh</button>
                 </div>
               </div>
 
-              <!-- Hero exposure callouts · the two real infractions in our cure pipeline -->
-              <div class="co-hero">
-                <div class="co-hero-card">
-                  <div class="top">
-                    <div class="topL">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                      <span class="co-hero-tag">Highest exposure · grounded vehicle</span>
-                    </div>
-                    <span class="co-sev crit"><span class="dot"></span>Critical</span>
-                  </div>
-                  <h3>KMO1-08B grounded 12 days · no active RO · Amazon escalation imminent.</h3>
-                  <p>Repair scheduled inside Amazon's 2 BD window (May 2) — but no RO has been documented and the repair has not completed inside the 14 BD threshold. Vendor has not updated the work order in 5 BD. Operational readiness flagged overdue on the Amazon fleet portal.</p>
-                  <div class="co-hero-meta">
-                    <span><b>VIN</b> 5TDBZ23C7HS842901</span>
-                    <span>·</span>
-                    <span><b>Vendor</b> Quick-Fix Auto</span>
-                    <span>·</span>
-                    <span><b>Days grounded</b> <span style="color:var(--co-crit);font-weight:700">12 / 14</span></span>
-                    <span>·</span>
-                    <span><b>RO status</b> <span style="color:var(--co-crit);font-weight:700">Missing</span></span>
-                  </div>
-                  <div class="co-hero-cta">
-                    <button class="co-action danger" type="button" onclick="coPane('grounded')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 13 3 17 7 21"/><line x1="15" y1="17" x2="3" y2="17"/></svg>
-                      Reassign vendor
-                    </button>
-                    <button class="co-action" type="button">Open cure plan</button>
-                    <button class="co-action" type="button">Message Quick-Fix Auto</button>
-                  </div>
-                </div>
-
-                <div class="co-hero-card amber">
-                  <div class="top">
-                    <div class="topL">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                      <span class="co-hero-tag">FMCSA cure · MCS-150 + CMV</span>
-                    </div>
-                    <span class="co-sev high"><span class="dot"></span>High</span>
-                  </div>
-                  <h3>Amazon required MCS-150 re-file + CMV reclassification · cure deadline 14 days.</h3>
-                  <p>Current MCS-150 declares 2 commercial motor vehicles for an Amazon-DSP profile that operates Non-CMV cargo vans. Amazon required re-filing MCS-150 with corrected classifications, SAFER profile reconciliation, and proof of submission uploaded to the cure record.</p>
-                  <div class="co-hero-meta">
-                    <span><b>USDOT</b> 3819442</span>
-                    <span>·</span>
-                    <span><b>CMV declared</b> <span style="color:var(--co-crit);font-weight:700">2</span> · actual 0</span>
-                    <span>·</span>
-                    <span><b>Cure deadline</b> May 28 · <span style="color:var(--amber-dark);font-weight:700">14d</span></span>
-                    <span>·</span>
-                    <span><b>Proof</b> 1 of 3 uploaded</span>
-                  </div>
-                  <div class="co-hero-cta">
-                    <button class="co-action primary" type="button" onclick="coPane('fmcsa')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                      Open MCS-150 cure
-                    </button>
-                    <button class="co-action" type="button">Upload submission proof</button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Filters -->
-              <div class="co-chiprow">
+              <div class="co-chiprow" data-co-render="risks-chips">
                 <button class="co-chip is-on" type="button">All risks</button>
                 <button class="co-chip" type="button">Grounded / repair</button>
                 <button class="co-chip" type="button">FMCSA / DOT</button>
                 <button class="co-chip" type="button">Vendor</button>
                 <button class="co-chip" type="button">Driver / docs</button>
-                <button class="co-chip" type="button">Operational</button>
-                <span style="flex:1"></span>
-                <button class="co-chip" type="button">Owner · me <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
-                <button class="co-chip is-on" type="button">Status · open</button>
               </div>
 
-              <!-- Critical group -->
-              <div class="co-group">
-                <div class="co-group-head">
-                  <span class="co-sev crit"><span class="dot"></span>Critical</span>
-                  <span class="co-group-count">3 risks · 2 escalation-likely</span>
-                  <span class="co-group-spacer"></span>
-                  <span class="co-group-meta">Oldest unresolved · 12d</span>
-                </div>
-
-                <article class="co-risk sev-crit is-open" id="co-risk-r1">
-                  <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-                    <div class="co-risk-l">
-                      <div class="co-risk-headrow">
-                        <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <div class="co-risk-title">Vehicle grounded 12 days · no active RO · Amazon 14-day completion threshold in 2 days.</div>
-                        <span class="co-risk-cite amazon">Amazon</span>
-                      </div>
-                      <div class="co-subjects">
-                        <span class="co-subj"><span class="lbl">VIN</span>5TDBZ23C7HS842901</span>
-                        <span class="co-subj"><span class="lbl">UNIT</span>KMO1-08B</span>
-                        <span class="co-subj"><span class="lbl">RULE</span>repair-completion-14bd</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/></svg>Fleet</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/></svg>Repair</span>
-                      </div>
-                      <div class="co-meta">
-                        <span>Grounded since <b>May 2</b> · <span class="age crit">12d ago</span></span>
-                        <span class="sep">·</span>
-                        <span>Vendor · <b>Quick-Fix Auto</b> · last contact <span class="age warn">5d</span></span>
-                        <span class="sep">·</span>
-                        <span>RO · <b class="crit">missing</b></span>
-                        <span class="sep">·</span>
-                        <span>Linked cure · <b>CURE-2026-014 · Repair RTS</b></span>
-                      </div>
-                    </div>
-                    <div class="co-risk-r">
-                      <span class="co-status esc"><span class="dot"></span>Escalation likely</span>
-                      <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
-                    </div>
-                  </div>
-
-                  <div class="co-risk-body">
-                    <div class="co-drawer-grid">
-                      <div>
-                        <div class="co-pattern">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
-                          <span><b>Amazon-CAP precursor.</b> Repair completion &gt; 14 BD without active RO has preceded operational-readiness CAP escalation in 78% of observed cases. Recommended path: reassign to alternate vendor (Atlas Fleet Service · 9.2 score) and open RO retroactively to preserve compliance trail.</span>
-                        </div>
-
-                        <div class="co-d-section">
-                          <h4 class="co-d-h">Operational timeline · against Amazon SLAs</h4>
-                          <div class="co-tl">
-                            <div class="co-tl-row good">
-                              <span class="co-tl-when">May 2 · 09:14</span>
-                              <span class="co-tl-what">Vehicle reported down · DVIC defect by J. Mendez<span class="sub">Brake squeal · severity high · DVIC-2026-0502-08B</span></span>
-                              <span class="co-tl-tag">DVIC</span>
-                            </div>
-                            <div class="co-tl-row good">
-                              <span class="co-tl-when">May 2 · 10:02</span>
-                              <span class="co-tl-what">Auto-routed to Quick-Fix Auto · within 2 BD scheduling window<span class="sub">Workflow · fleet.repair.dispatch · vendor accepted</span></span>
-                              <span class="co-tl-tag">Auto · in SLA</span>
-                            </div>
-                            <div class="co-tl-row warn">
-                              <span class="co-tl-when">May 5 · 17:00</span>
-                              <span class="co-tl-what">Vendor SLA breach · ETA confirmation overdue<span class="sub">Reminder sent · vendor portal &amp; SMS</span></span>
-                              <span class="co-tl-tag">SLA · 48h</span>
-                            </div>
-                            <div class="co-tl-row warn">
-                              <span class="co-tl-when">May 9 · 08:30</span>
-                              <span class="co-tl-what">RO field still empty in vendor portal · escalation tier 1<span class="sub">Auto-escalation · Ryan H. notified · expected RO upload</span></span>
-                              <span class="co-tl-tag">Esc · 1</span>
-                            </div>
-                            <div class="co-tl-row crit">
-                              <span class="co-tl-when">May 14 · 06:00</span>
-                              <span class="co-tl-what">Amazon fleet portal flagged operational readiness as overdue<span class="sub">Pattern matched · CAP precursor · cure CURE-2026-014 pre-staged</span></span>
-                              <span class="co-tl-tag">Pattern</span>
-                            </div>
-                            <div class="co-tl-row now">
-                              <span class="co-tl-when">Now</span>
-                              <span class="co-tl-what">Decision required · reassign vendor or extend SLA<span class="sub">Amazon 14-BD repair threshold crossed in 2 days</span></span>
-                              <span class="co-tl-tag">Now</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="co-d-section">
-                          <h4 class="co-d-h">Recommended actions</h4>
-                          <div class="co-actions">
-                            <button type="button" class="co-action danger">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 13 3 17 7 21"/><line x1="15" y1="17" x2="3" y2="17"/></svg>
-                              Reassign to Atlas Fleet Service
-                            </button>
-                            <button type="button" class="co-action primary">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                              Open RO retroactively
-                            </button>
-                            <button type="button" class="co-action">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92V21a1 1 0 0 1-1.11 1 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 3.07 4.18 1 1 0 0 1 4 3h4.09a1 1 0 0 1 1 .75 12.84 12.84 0 0 0 .7 2.81 1 1 0 0 1-.23 1l-1.7 1.7a16 16 0 0 0 6 6l1.7-1.7a1 1 0 0 1 1-.23 12.84 12.84 0 0 0 2.81.7 1 1 0 0 1 .85 1z"/></svg>
-                              Call Quick-Fix Auto
-                            </button>
-                            <button type="button" class="co-action">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/></svg>
-                              Acknowledge
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <aside>
-                        <div class="co-side-card">
-                          <div class="co-side-lbl">Amazon SLA clock</div>
-                          <div class="co-side-val">
-                            Scheduled · <span style="color:var(--co-good);font-weight:650">in SLA (1 BD)</span><br>
-                            Completion · <span class="crit">12 of 14 BD · 2 BD left</span>
-                            <div class="dim" style="margin-top:3px">Amazon thresholds · scheduled ≤ 2 BD · completed ≤ 14 BD</div>
-                          </div>
-                        </div>
-                        <div class="co-side-card">
-                          <div class="co-side-lbl">Vendor SLA</div>
-                          <div class="co-side-val">
-                            <span class="crit">5d 04h overdue</span> on ETA confirmation
-                            <div class="dim" style="margin-top:3px">Tier 2 · accountability 62 / 100 · trend ↓</div>
-                          </div>
-                        </div>
-                        <div class="co-side-card">
-                          <div class="co-side-lbl">Repair order</div>
-                          <div class="co-side-val">
-                            <span class="dim">No RO uploaded</span>
-                            <div class="dim" style="margin-top:3px">Last vendor portal activity · 5d ago</div>
-                          </div>
-                        </div>
-                        <div class="co-side-card">
-                          <div class="co-side-lbl">Recommended vendor</div>
-                          <div class="co-side-val">
-                            <b>Atlas Fleet Service</b> · score 9.2
-                            <div class="dim" style="margin-top:3px">Avg completion 6.4 BD · on-time 96% · 4mi from yard</div>
-                          </div>
-                        </div>
-                        <div class="co-side-card">
-                          <div class="co-side-lbl">Audit · history</div>
-                          <div class="co-side-val">
-                            <span class="dim">3 prior groundings · 90d</span>
-                            <div class="dim" style="margin-top:3px">Repeat-defect threshold · 1 from breach</div>
-                          </div>
-                        </div>
-                      </aside>
-                    </div>
-                  </div>
-                </article>
-
-                <article class="co-risk sev-crit">
-                  <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-                    <div class="co-risk-l">
-                      <div class="co-risk-headrow">
-                        <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <div class="co-risk-title">MCS-150 cure deadline approaching · CMV reclassification + proof of submission required.</div>
-                        <span class="co-risk-cite fmcsa">FMCSA</span>
-                      </div>
-                      <div class="co-subjects">
-                        <span class="co-subj"><span class="lbl">USDOT</span>3819442</span>
-                        <span class="co-subj"><span class="lbl">CURE</span>CURE-2026-013</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>FMCSA</span>
-                      </div>
-                      <div class="co-meta">
-                        <span>Cure deadline · <b>May 28</b> · <span class="age warn">14d</span></span>
-                        <span class="sep">·</span>
-                        <span>CMV declared <b class="crit">2</b> · actual 0</span>
-                        <span class="sep">·</span>
-                        <span>Proof uploaded · 1 of 3</span>
-                        <span class="sep">·</span>
-                        <span>SAFER last sync · 2h ago</span>
-                      </div>
-                    </div>
-                    <div class="co-risk-r">
-                      <span class="co-status cure"><span class="dot"></span>In cure</span>
-                      <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
-                    </div>
-                  </div>
-                </article>
-
-                <article class="co-risk sev-crit">
-                  <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-                    <div class="co-risk-l">
-                      <div class="co-risk-headrow">
-                        <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <div class="co-risk-title">KMO1-12A grounded 6 days · RO open but vendor has not provided ETA · approaching scheduled-completion SLA.</div>
-                        <span class="co-risk-cite amazon">Amazon</span>
-                      </div>
-                      <div class="co-subjects">
-                        <span class="co-subj"><span class="lbl">VIN</span>5TDBZ23C2HS771208</span>
-                        <span class="co-subj"><span class="lbl">UNIT</span>KMO1-12A</span>
-                        <span class="co-subj"><span class="lbl">RO</span>RO-2026-118</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/></svg>Repair</span>
-                      </div>
-                      <div class="co-meta">
-                        <span>Days grounded · <b class="warn">6 / 14</b></span>
-                        <span class="sep">·</span>
-                        <span>Vendor · <b>Roadside Pros</b> · ETA pending <span class="age warn">3d</span></span>
-                        <span class="sep">·</span>
-                        <span>Estimate · received · invoice pending</span>
-                      </div>
-                    </div>
-                    <div class="co-risk-r">
-                      <span class="co-status open"><span class="dot"></span>Open</span>
-                      <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
-                    </div>
-                  </div>
-                </article>
-              </div>
-
-              <!-- High group -->
-              <div class="co-group">
-                <div class="co-group-head">
-                  <span class="co-sev high"><span class="dot"></span>High</span>
-                  <span class="co-group-count">2 risks</span>
-                  <span class="co-group-spacer"></span>
-                </div>
-
-                <article class="co-risk sev-high">
-                  <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-                    <div class="co-risk-l">
-                      <div class="co-risk-headrow">
-                        <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <div class="co-risk-title">Quick-Fix Auto · 3 open work orders without status update inside SLA window.</div>
-                      </div>
-                      <div class="co-subjects">
-                        <span class="co-subj"><span class="lbl">VENDOR</span>Quick-Fix Auto</span>
-                        <span class="co-subj"><span class="lbl">OPEN ROs</span>3</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/></svg>Vendors</span>
-                      </div>
-                      <div class="co-meta">
-                        <span>Accountability score · <b class="warn">62 / 100</b> · trending ↓</span>
-                        <span class="sep">·</span>
-                        <span>Reassignment threshold · <span class="age warn">crossed</span></span>
-                        <span class="sep">·</span>
-                        <span>Recommended · pause new assignments</span>
-                      </div>
-                    </div>
-                    <div class="co-risk-r">
-                      <span class="co-status open"><span class="dot"></span>Open</span>
-                      <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
-                    </div>
-                  </div>
-                </article>
-
-                <article class="co-risk sev-high">
-                  <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-                    <div class="co-risk-l">
-                      <div class="co-risk-headrow">
-                        <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <div class="co-risk-title">Operational readiness on Amazon fleet portal disagrees with internal grounded state.</div>
-                        <span class="co-risk-cite amazon">Amazon</span>
-                      </div>
-                      <div class="co-subjects">
-                        <span class="co-subj"><span class="lbl">VIN</span>KMO1-14B</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/></svg>Fleet</span>
-                      </div>
-                      <div class="co-meta">
-                        <span>Portal · shows as <b>grounded</b></span>
-                        <span class="sep">·</span>
-                        <span>Internal · marked <b>ungrounded May 12</b></span>
-                        <span class="sep">·</span>
-                        <span>Recommended · re-sync portal · upload completion evidence</span>
-                      </div>
-                    </div>
-                    <div class="co-risk-r">
-                      <span class="co-status ack"><span class="dot"></span>Acknowledged</span>
-                      <span class="co-owner"><span class="av">MO</span>Maya O.</span>
-                    </div>
-                  </div>
-                </article>
-              </div>
-
-              <!-- Medium -->
-              <div class="co-group">
-                <div class="co-group-head">
-                  <span class="co-sev med"><span class="dot"></span>Medium</span>
-                  <span class="co-group-count">2 risks · approaching deadline</span>
-                  <span class="co-group-spacer"></span>
-                </div>
-
-                <article class="co-risk sev-med">
-                  <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-                    <div class="co-risk-l">
-                      <div class="co-risk-headrow">
-                        <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <div class="co-risk-title">3 driver licenses expire inside 14 days · schedule will block at expiry.</div>
-                      </div>
-                      <div class="co-subjects">
-                        <span class="co-subj"><span class="lbl">COUNT</span>3 drivers</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/></svg>Drivers</span>
-                      </div>
-                      <div class="co-meta">
-                        <span>J. Mendez · <span class="age warn">4d</span></span>
-                        <span class="sep">·</span>
-                        <span>R. Patel · <span class="age warn">7d</span></span>
-                        <span class="sep">·</span>
-                        <span>L. Okafor · <span class="age">12d</span></span>
-                      </div>
-                    </div>
-                    <div class="co-risk-r">
-                      <span class="co-status ack"><span class="dot"></span>Acknowledged</span>
-                      <span class="co-owner"><span class="av">MO</span>Maya O.</span>
-                    </div>
-                  </div>
-                </article>
-
-                <article class="co-risk sev-med">
-                  <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-                    <div class="co-risk-l">
-                      <div class="co-risk-headrow">
-                        <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <div class="co-risk-title">DVIC defect repeated across 3 vehicles · rear cargo door alignment.</div>
-                      </div>
-                      <div class="co-subjects">
-                        <span class="co-subj"><span class="lbl">DEFECT</span>cargo-door-align</span>
-                        <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/></svg>Fleet</span>
-                      </div>
-                      <div class="co-meta">
-                        <span>14d occurrence rate · <b>4.2×</b> baseline</span>
-                        <span class="sep">·</span>
-                        <span>Recommended · root-cause inspection campaign</span>
-                      </div>
-                    </div>
-                    <div class="co-risk-r">
-                      <span class="co-status open"><span class="dot"></span>Open</span>
-                      <span class="co-owner unassigned"><span class="av">?</span>Unassigned</span>
-                    </div>
-                  </div>
-                </article>
+              <div data-co-render="risks-hero"></div>
+              <div data-co-render="risks-list">
+                <div class="co-empty" data-co-empty>Loading risks…</div>
               </div>
             </section>
 
@@ -12060,191 +11680,17 @@ body.rr-cmdk-open{ overflow:hidden }
                   <p class="co-pane-sub">Open Corrective Action Plans · each cure ties a specific Amazon or FMCSA infraction to a deadline, an evidence checklist, an owner, and a tamper-evident submission record.</p>
                 </div>
                 <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">View closed cures</button>
-                  <button class="btn btn-primary btn-sm" type="button">
+                  <button class="btn btn-ghost btn-sm" type="button" data-co-open-closed-cures>View closed cures</button>
+                  <button class="btn btn-primary btn-sm" type="button" data-co-new-cure>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New cure
                   </button>
                 </div>
               </div>
 
-              <div class="co-chiprow">
-                <button class="co-chip is-on" type="button">Open · 2</button>
-                <button class="co-chip" type="button">Submitted · 1</button>
-                <button class="co-chip" type="button">Closed · 12</button>
-                <span style="flex:1"></span>
-                <button class="co-chip" type="button">Source · Amazon</button>
-                <button class="co-chip" type="button">Source · FMCSA</button>
+              <div data-co-render="cures">
+                <div class="co-empty" data-co-empty>Loading cures…</div>
               </div>
-
-              <!-- Cure 1 · Repair RTS (urgent) -->
-              <article class="co-cure urgent">
-                <div class="co-cure-head">
-                  <div class="co-cure-l">
-                    <div class="co-cure-cite">
-                      <span class="amz">Amazon</span>
-                      <span>CURE-2026-014 · Repair operational readiness</span>
-                    </div>
-                    <div class="co-cure-title">Return KMO1-08B to operational status with documented RO, completion evidence, and re-inspection sign-off.</div>
-                    <p class="co-cure-desc">Cited by Amazon on May 12 · grounded vehicle exceeded repair-completion guidance with no active RO and lapsed vendor oversight. Cure requires repair completed, RO documented retroactively, vehicle re-inspected, and operational-readiness signal restored on the Amazon fleet portal.</p>
-                  </div>
-                  <div class="co-cure-r">
-                    <div class="co-cure-countdown">
-                      <span class="num">4d</span>
-                      <span class="lbl">Deadline · May 18</span>
-                    </div>
-                    <span class="co-status open"><span class="dot"></span>In remediation</span>
-                  </div>
-                </div>
-                <div class="co-cure-body">
-                  <div class="co-cure-checklist">
-                    <div class="co-cure-step done">
-                      <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-                      <div><div class="nm">Acknowledge Amazon citation</div><span class="sub">Logged in audit trail · May 12 · 14:08 · Ryan H.</span></div>
-                      <span class="tag done">Done</span>
-                    </div>
-                    <div class="co-cure-step done">
-                      <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-                      <div><div class="nm">Reassign repair to alternate vendor</div><span class="sub">Atlas Fleet Service accepted · ETA confirmed · 48h</span></div>
-                      <span class="tag done">Done</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Document RO retroactively for KMO1-08B (May 2 → May 18 window)</div><span class="sub">Required · Amazon expects a documented RO covering the full grounded period</span></div>
-                      <span class="tag live">Active</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Upload completion evidence · invoice + photos + sign-off</div><span class="sub">From Atlas Fleet Service when work completes</span></div>
-                      <span class="tag">Pending</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Re-inspect VIN · pass DVIC + safety check</div><span class="sub">Driver re-inspection required before returning to service</span></div>
-                      <span class="tag">Pending</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Restore operational-readiness signal on Amazon fleet portal</div><span class="sub">Re-sync after completion · screenshot proof to be attached</span></div>
-                      <span class="tag">Pending</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Submit cure packet to Amazon · evidence bundle</div><span class="sub">Auto-assembled · Compliance owner signs &amp; submits</span></div>
-                      <span class="tag">Pending</span>
-                    </div>
-                  </div>
-                  <div class="co-cure-side">
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Owner</div>
-                      <div class="co-side-val"><span class="co-owner" style="font-size:12px"><span class="av">RH</span>Ryan Hester</span></div>
-                    </div>
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Linked objects</div>
-                      <div class="co-side-val">
-                        VIN · <b>KMO1-08B</b><br>
-                        Risk · <b>R-1 (grounded vehicle)</b><br>
-                        Vendor · Atlas Fleet Service<br>
-                        Prior vendor · Quick-Fix Auto
-                      </div>
-                    </div>
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Evidence collected</div>
-                      <div class="co-side-val">
-                        2 of 5 required · <span class="dim">acknowledgement · reassignment confirmation</span>
-                      </div>
-                    </div>
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Submission</div>
-                      <div class="co-side-val">
-                        Not yet submitted
-                        <div class="dim" style="margin-top:3px">Packet auto-builds when checklist completes</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </article>
-
-              <!-- Cure 2 · MCS-150 -->
-              <article class="co-cure">
-                <div class="co-cure-head">
-                  <div class="co-cure-l">
-                    <div class="co-cure-cite">
-                      <span class="amz">FMCSA</span>
-                      <span>CURE-2026-013 · MCS-150 re-filing + CMV reclassification</span>
-                    </div>
-                    <div class="co-cure-title">Re-file MCS-150 with corrected CMV vs Non-CMV classifications and verify SAFER profile.</div>
-                    <p class="co-cure-desc">Amazon required correcting MCS-150 to reflect the actual Non-CMV cargo-van fleet operated by an Amazon DSP, plus re-syncing SAFER and uploading proof of submission. Cure window 28 days · 14 remaining.</p>
-                  </div>
-                  <div class="co-cure-r">
-                    <div class="co-cure-countdown">
-                      <span class="num warn">14d</span>
-                      <span class="lbl">Deadline · May 28</span>
-                    </div>
-                    <span class="co-status cure"><span class="dot"></span>In cure</span>
-                  </div>
-                </div>
-                <div class="co-cure-body">
-                  <div class="co-cure-checklist">
-                    <div class="co-cure-step done">
-                      <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-                      <div><div class="nm">Acknowledge FMCSA / Amazon citation</div><span class="sub">Logged · May 1 · 10:22 · Ryan H.</span></div>
-                      <span class="tag done">Done</span>
-                    </div>
-                    <div class="co-cure-step done">
-                      <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-                      <div><div class="nm">Reconcile fleet inventory · count CMV vs Non-CMV</div><span class="sub">0 CMV · 32 Non-CMV cargo vans confirmed against the roster</span></div>
-                      <span class="tag done">Done</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Re-file MCS-150 with corrected CMV count (0) and operations classification</div><span class="sub">Form draft ready · pending owner signature</span></div>
-                      <span class="tag live">Active</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Upload submission confirmation (FMCSA receipt)</div><span class="sub">Required proof · auto-attaches to cure packet</span></div>
-                      <span class="tag">Pending</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Verify SAFER profile reflects corrected filing</div><span class="sub">Auto-checked daily after submission</span></div>
-                      <span class="tag">Pending</span>
-                    </div>
-                    <div class="co-cure-step">
-                      <span class="box"></span>
-                      <div><div class="nm">Submit cure packet to Amazon · evidence bundle</div><span class="sub">Packet · acknowledgement, reconciliation, MCS-150 receipt, SAFER print</span></div>
-                      <span class="tag">Pending</span>
-                    </div>
-                  </div>
-                  <div class="co-cure-side">
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Owner</div>
-                      <div class="co-side-val"><span class="co-owner" style="font-size:12px"><span class="av">RH</span>Ryan Hester</span></div>
-                    </div>
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Linked objects</div>
-                      <div class="co-side-val">
-                        USDOT · <b>3819442</b><br>
-                        Profile · Cardinal Logistics<br>
-                        Source · FMCSA SAFER<br>
-                        Risk · R-2 (MCS-150 cure)
-                      </div>
-                    </div>
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Evidence collected</div>
-                      <div class="co-side-val">1 of 3 required · <span class="dim">reconciliation report</span></div>
-                    </div>
-                    <div class="co-side-card">
-                      <div class="co-side-lbl">Reminders</div>
-                      <div class="co-side-val">
-                        Today 14:00 · file MCS-150
-                        <div class="dim" style="margin-top:3px">Daily until submitted · then auto-paused</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </article>
             </section>
 
             <!-- ═══════════ FLEET READINESS ═══════════ -->
@@ -12252,121 +11698,11 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-pane-head">
                 <div>
                   <h2 class="co-pane-title">Fleet Readiness</h2>
-                  <p class="co-pane-sub">Real-time operational state of every VIN against Amazon's readiness expectations. Fleet posture feeds the daily schedule · grounded VINs are auto-excluded from publish.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">Today</button>
-                  <button class="btn btn-ghost btn-sm" type="button">Tomorrow</button>
+                  <p class="co-pane-sub">Real-time operational state of every VIN against Amazon's readiness expectations. Grounded VINs are auto-excluded from schedule publish.</p>
                 </div>
               </div>
-
-              <div class="co-fleet-grid">
-                <div class="co-fleet-donut-card">
-                  <div class="co-fleet-donut">
-                    <svg width="160" height="160" viewBox="0 0 160 160">
-                      <circle cx="80" cy="80" r="62" fill="none" stroke="var(--border)" stroke-width="14"/>
-                      <circle cx="80" cy="80" r="62" fill="none" stroke="#059669" stroke-width="14" stroke-dasharray="389.56" stroke-dashoffset="73.65" transform="rotate(-90 80 80)" stroke-linecap="butt"/>
-                      <circle cx="80" cy="80" r="62" fill="none" stroke="#D97706" stroke-width="14" stroke-dasharray="48.7 340.86" stroke-dashoffset="-315.91" transform="rotate(-90 80 80)"/>
-                      <circle cx="80" cy="80" r="62" fill="none" stroke="#9F1239" stroke-width="14" stroke-dasharray="36.5 353.06" stroke-dashoffset="-364.61" transform="rotate(-90 80 80)"/>
-                    </svg>
-                    <div class="center">
-                      <div class="big">26</div>
-                      <div class="lbl">In service</div>
-                    </div>
-                  </div>
-                  <div class="co-fleet-legend">
-                    <div class="co-fleet-legend-row"><span class="sw" style="background:#059669"></span>In service<span class="n">26</span></div>
-                    <div class="co-fleet-legend-row"><span class="sw" style="background:#D97706"></span>In repair<span class="n">3</span></div>
-                    <div class="co-fleet-legend-row"><span class="sw" style="background:#9F1239"></span>Grounded<span class="n">3</span></div>
-                    <div class="co-fleet-legend-row" style="margin-top:4px;padding-top:6px;border-top:1px solid var(--border-subtle)"><span style="color:var(--text-subtle);font-size:11px">Fleet total</span><span class="n">32</span></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div class="co-table-wrap" style="margin-bottom:10px">
-                    <div style="padding:11px 16px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);display:flex;justify-content:space-between;align-items:center">
-                      <span>Today's readiness vs route demand</span>
-                      <span style="color:var(--co-good)">Coverage holds · 2 spare</span>
-                    </div>
-                    <table class="co-table">
-                      <thead><tr>
-                        <th>Demand</th><th>In service</th><th>Coverage</th><th>Headroom</th><th>Operator</th>
-                      </tr></thead>
-                      <tbody>
-                        <tr><td><b>24 routes</b><span class="dim">Confirmed for May 14</span></td><td>26 vans</td><td><span style="color:var(--co-good);font-weight:650">100%</span></td><td>+2 spare</td><td>R. Hester</td></tr>
-                        <tr class="row-crit"><td><b>26 routes</b><span class="dim">May 15 · confirmation cutoff today 18:00</span></td><td>26 vans <span class="dim">(if RTS holds)</span></td><td><span style="color:var(--amber-dark);font-weight:650">100% · 0 spare</span></td><td><span style="color:var(--co-crit);font-weight:700">Tight</span></td><td>R. Hester</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <h4 style="margin:18px 0 10px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)">Fleet state · all VINs</h4>
-              <div class="co-fleet-cells">
-                <div class="co-fleet-cell state-grounded">
-                  <div class="vin"><span class="pip"></span>KMO1-08B</div>
-                  <div class="meta">Grounded · brake repair</div>
-                  <div class="age">12d · over Amazon threshold</div>
-                </div>
-                <div class="co-fleet-cell state-grounded">
-                  <div class="vin"><span class="pip"></span>KMO1-12A</div>
-                  <div class="meta">Grounded · transmission</div>
-                  <div class="age">6d · in window</div>
-                </div>
-                <div class="co-fleet-cell state-grounded">
-                  <div class="vin"><span class="pip"></span>KMO1-19C</div>
-                  <div class="meta">Grounded · DVIC defect</div>
-                  <div class="age">2d · scheduled</div>
-                </div>
-                <div class="co-fleet-cell state-repair">
-                  <div class="vin"><span class="pip"></span>KMO1-14B</div>
-                  <div class="meta">In repair · oil leak</div>
-                  <div class="age">Awaiting RTS sync</div>
-                </div>
-                <div class="co-fleet-cell state-repair">
-                  <div class="vin"><span class="pip"></span>KMO1-22A</div>
-                  <div class="meta">In repair · tire</div>
-                  <div class="age">ETA today 16:00</div>
-                </div>
-                <div class="co-fleet-cell state-repair">
-                  <div class="vin"><span class="pip"></span>KMO1-26B</div>
-                  <div class="meta">In repair · windshield</div>
-                  <div class="age">ETA May 15</div>
-                </div>
-                <div class="co-fleet-cell state-watch">
-                  <div class="vin"><span class="pip"></span>KMO1-04A</div>
-                  <div class="meta">Watch · DVIC defect repeated</div>
-                  <div class="age">3rd occurrence · 14d</div>
-                </div>
-                <div class="co-fleet-cell">
-                  <div class="vin"><span class="pip"></span>KMO1-01A</div>
-                  <div class="meta">In service</div>
-                  <div class="age">92% util · 14d</div>
-                </div>
-                <div class="co-fleet-cell">
-                  <div class="vin"><span class="pip"></span>KMO1-02A</div>
-                  <div class="meta">In service</div>
-                  <div class="age">88% util</div>
-                </div>
-                <div class="co-fleet-cell">
-                  <div class="vin"><span class="pip"></span>KMO1-03A</div>
-                  <div class="meta">In service</div>
-                  <div class="age">94% util</div>
-                </div>
-                <div class="co-fleet-cell">
-                  <div class="vin"><span class="pip"></span>KMO1-05A</div>
-                  <div class="meta">In service</div>
-                  <div class="age">90% util</div>
-                </div>
-                <div class="co-fleet-cell">
-                  <div class="vin"><span class="pip"></span>KMO1-06A</div>
-                  <div class="meta">In service</div>
-                  <div class="age">86% util</div>
-                </div>
-                <div class="co-fleet-cell" style="opacity:.7;border-style:dashed">
-                  <div class="vin" style="color:var(--text-subtle)">+ 20 more</div>
-                  <div class="meta">In service · expand</div>
-                </div>
+              <div data-co-render="fleet">
+                <div class="co-empty" data-co-empty>Loading fleet readiness…</div>
               </div>
             </section>
 
@@ -12375,109 +11711,18 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-pane-head">
                 <div>
                   <h2 class="co-pane-title">Grounded Vehicles</h2>
-                  <p class="co-pane-sub">Every grounded VIN, tracked against Amazon's repair-scheduling (2 BD) and completion (14 BD) expectations. RO state, vendor responsiveness, and reassignment paths in one view.</p>
+                  <p class="co-pane-sub">Every grounded VIN tracked against Amazon's 2 BD scheduling and 14 BD completion expectations. RO status, vendor responsiveness, and reassignment paths in one view.</p>
                 </div>
                 <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">History (90d)</button>
-                  <button class="btn btn-primary btn-sm" type="button">
+                  <button class="btn btn-primary btn-sm" type="button" data-co-ground-vehicle>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Ground a vehicle
                   </button>
                 </div>
               </div>
-
-              <div class="co-chiprow">
-                <button class="co-chip is-on" type="button">All grounded · 3</button>
-                <button class="co-chip" type="button">Over threshold · 1</button>
-                <button class="co-chip" type="button">Missing RO · 1</button>
-                <button class="co-chip" type="button">Vendor stalled · 1</button>
+              <div data-co-render="grounded">
+                <div class="co-empty" data-co-empty>Loading grounded vehicles…</div>
               </div>
-
-              <div class="co-table-wrap">
-                <table class="co-table">
-                  <thead><tr>
-                    <th>VIN · Unit</th>
-                    <th>Days grounded · vs Amazon SLA</th>
-                    <th>RO</th>
-                    <th>Vendor</th>
-                    <th>Vendor status</th>
-                    <th>Owner</th>
-                    <th style="text-align:right">Actions</th>
-                  </tr></thead>
-                  <tbody>
-                    <tr class="row-crit">
-                      <td>
-                        <b>KMO1-08B</b>
-                        <span class="dim mono">5TDBZ23C7HS842901</span>
-                      </td>
-                      <td>
-                        <div style="font-weight:700;color:var(--co-crit)">12 / 14 BD</div>
-                        <div class="co-aging" title="Aging vs Amazon SLA">
-                          <div class="fill crit" style="width:86%"></div>
-                          <span class="tick amazon" style="left:14.3%" title="Scheduled cutoff · 2 BD"></span>
-                          <span class="tick amazon" style="left:100%" title="Completion cutoff · 14 BD"></span>
-                        </div>
-                        <div class="co-aging-cap"><span>0</span><span>2 BD scheduled</span><span>14 BD complete</span></div>
-                      </td>
-                      <td><span class="co-status open" style="font-size:9.5px">Missing</span></td>
-                      <td>Quick-Fix Auto</td>
-                      <td><span style="color:var(--co-crit);font-weight:650">No update · 5 BD</span><div class="dim">Tier 2 escalation</div></td>
-                      <td><span class="co-owner" style="font-size:11.5px"><span class="av">RH</span>Ryan H.</span></td>
-                      <td style="text-align:right">
-                        <button class="co-action danger" type="button">Reassign</button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <b>KMO1-12A</b>
-                        <span class="dim mono">5TDBZ23C2HS771208</span>
-                      </td>
-                      <td>
-                        <div style="font-weight:650;color:var(--amber-dark)">6 / 14 BD</div>
-                        <div class="co-aging">
-                          <div class="fill warn" style="width:43%"></div>
-                          <span class="tick amazon" style="left:14.3%"></span>
-                          <span class="tick amazon" style="left:100%"></span>
-                        </div>
-                        <div class="co-aging-cap"><span>0</span><span>2 BD scheduled</span><span>14 BD complete</span></div>
-                      </td>
-                      <td><b>RO-2026-118</b><div class="dim">Estimate received</div></td>
-                      <td>Roadside Pros</td>
-                      <td>ETA pending<div class="dim">Last update 3d ago</div></td>
-                      <td><span class="co-owner" style="font-size:11.5px"><span class="av">RH</span>Ryan H.</span></td>
-                      <td style="text-align:right">
-                        <button class="co-action" type="button">Open RO</button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <b>KMO1-19C</b>
-                        <span class="dim mono">5TDBZ23C9HS667442</span>
-                      </td>
-                      <td>
-                        <div style="font-weight:650;color:var(--co-good)">2 / 14 BD</div>
-                        <div class="co-aging">
-                          <div class="fill" style="width:14%"></div>
-                          <span class="tick amazon" style="left:14.3%"></span>
-                          <span class="tick amazon" style="left:100%"></span>
-                        </div>
-                        <div class="co-aging-cap"><span>0</span><span>2 BD scheduled</span><span>14 BD complete</span></div>
-                      </td>
-                      <td><b>RO-2026-121</b><div class="dim">Scheduled · in SLA</div></td>
-                      <td>Atlas Fleet Service</td>
-                      <td><span style="color:var(--co-good);font-weight:650">ETA · May 16</span><div class="dim">Confirmed</div></td>
-                      <td><span class="co-owner" style="font-size:11.5px"><span class="av">RH</span>Ryan H.</span></td>
-                      <td style="text-align:right">
-                        <button class="co-action" type="button">View</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p style="margin:14px 0 0;font-size:11px;color:var(--text-subtle);line-height:1.5">
-                Aging meters are scaled to Amazon's published repair guidance · scheduling within 2 business days, completion within 14 business days. The system creates an escalation workflow + cure record when either threshold is crossed without an active RO; vendors below the reassignment threshold get paused from new assignments automatically.
-              </p>
             </section>
 
             <!-- ═══════════ VENDOR DELAYS ═══════════ -->
@@ -12488,106 +11733,15 @@ body.rr-cmdk-open{ overflow:hidden }
                   <p class="co-pane-sub">Vendor accountability across every open repair order. Score reflects on-time scheduling (2 BD), completion (14 BD), ETA accuracy, RO documentation, and message responsiveness.</p>
                 </div>
                 <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">All vendors</button>
-                  <button class="btn btn-primary btn-sm" type="button">
+                  <button class="btn btn-primary btn-sm" type="button" data-co-add-vendor>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add vendor
                   </button>
                 </div>
               </div>
-
-              <div class="co-chiprow">
-                <button class="co-chip is-on" type="button">Stalled · 1</button>
-                <button class="co-chip" type="button">At risk · 1</button>
-                <button class="co-chip" type="button">On track · 3</button>
+              <div data-co-render="vendors">
+                <div class="co-empty" data-co-empty>Loading vendors…</div>
               </div>
-
-              <article class="co-vendor" style="border-color:rgba(159,18,57,.30)">
-                <div class="co-vendor-av">QF</div>
-                <div class="co-vendor-l">
-                  <div class="nm">Quick-Fix Auto <span class="co-status esc" style="margin-left:8px"><span class="dot"></span>Stalled</span></div>
-                  <div class="meta">
-                    <span><b>3</b> open ROs · 1 over Amazon threshold</span>
-                    <span><b>Avg ETA confirm</b> 4.8d <span style="color:var(--co-crit)">(SLA 2d)</span></span>
-                    <span><b>On-time completion</b> 41%</span>
-                    <span><b>Last message</b> 5d ago</span>
-                  </div>
-                </div>
-                <div class="co-vendor-score">
-                  <span class="n crit">62</span>
-                  <span class="lbl">Accountability</span>
-                </div>
-                <div class="co-vendor-actions">
-                  <button class="co-action danger" type="button">Reassign all</button>
-                  <button class="co-action" type="button">Pause new assignments</button>
-                  <button class="co-action" type="button">Message</button>
-                </div>
-              </article>
-
-              <article class="co-vendor" style="border-color:rgba(217,119,6,.25)">
-                <div class="co-vendor-av" style="background:linear-gradient(135deg,#92400E 0%,#B45309 100%)">RP</div>
-                <div class="co-vendor-l">
-                  <div class="nm">Roadside Pros <span class="co-status ack" style="margin-left:8px"><span class="dot"></span>At risk</span></div>
-                  <div class="meta">
-                    <span><b>2</b> open ROs</span>
-                    <span><b>Avg ETA confirm</b> 2.6d</span>
-                    <span><b>On-time completion</b> 78%</span>
-                    <span><b>Last message</b> 18h ago</span>
-                  </div>
-                </div>
-                <div class="co-vendor-score">
-                  <span class="n warn">78</span>
-                  <span class="lbl">Accountability</span>
-                </div>
-                <div class="co-vendor-actions">
-                  <button class="co-action" type="button">Open thread</button>
-                  <button class="co-action" type="button">Request ETA</button>
-                </div>
-              </article>
-
-              <article class="co-vendor">
-                <div class="co-vendor-av" style="background:linear-gradient(135deg,#064E3B 0%,#047857 100%)">AF</div>
-                <div class="co-vendor-l">
-                  <div class="nm">Atlas Fleet Service <span class="co-status mitig" style="margin-left:8px"><span class="dot"></span>On track</span></div>
-                  <div class="meta">
-                    <span><b>3</b> open ROs · 0 over threshold</span>
-                    <span><b>Avg ETA confirm</b> 0.9d</span>
-                    <span><b>On-time completion</b> 96%</span>
-                    <span><b>Last message</b> 42m ago</span>
-                  </div>
-                </div>
-                <div class="co-vendor-score">
-                  <span class="n" style="color:var(--co-good)">92</span>
-                  <span class="lbl">Accountability</span>
-                </div>
-                <div class="co-vendor-actions">
-                  <button class="co-action" type="button">View</button>
-                </div>
-              </article>
-
-              <article class="co-vendor">
-                <div class="co-vendor-av" style="background:linear-gradient(135deg,#1E3A8A 0%,#1D4ED8 100%)">BM</div>
-                <div class="co-vendor-l">
-                  <div class="nm">BlueMax Mobile Mechanics <span class="co-status mitig" style="margin-left:8px"><span class="dot"></span>On track</span></div>
-                  <div class="meta">
-                    <span><b>1</b> open RO</span>
-                    <span><b>Avg ETA confirm</b> 0.4d</span>
-                    <span><b>On-time completion</b> 94%</span>
-                    <span><b>Last message</b> 2h ago</span>
-                  </div>
-                </div>
-                <div class="co-vendor-score">
-                  <span class="n" style="color:var(--co-good)">90</span>
-                  <span class="lbl">Accountability</span>
-                </div>
-                <div class="co-vendor-actions">
-                  <button class="co-action" type="button">View</button>
-                </div>
-              </article>
-
-              <p style="margin:14px 0 0;font-size:11px;color:var(--text-subtle);line-height:1.5">
-                Vendors receive scoped access via work-order links · they upload estimates, ROs, photos, ETAs, and invoices directly against the VIN thread. Communication, evidence, and accountability all stay on one shared object. When a vendor's score drops below the reassignment threshold, the system surfaces alternates ranked by score and proximity.
-              </p>
             </section>
 
             <!-- ═══════════ FMCSA / DOT ═══════════ -->
@@ -12595,115 +11749,15 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-pane-head">
                 <div>
                   <h2 class="co-pane-title">FMCSA / DOT</h2>
-                  <p class="co-pane-sub">Operating-authority identity, MCS-150 filing posture, CMV vs Non-CMV reconciler, and submission tracker. Built specifically around the MCS-150 / classification cure pattern.</p>
+                  <p class="co-pane-sub">Operating-authority identity, MCS-150 filing posture, CMV vs Non-CMV reconciler, and submission tracker.</p>
                 </div>
                 <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">Sync SAFER</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-co-fmcsa-edit>Edit record</button>
                 </div>
               </div>
-
-              <!-- Identity card -->
-              <div class="co-fmcsa-id" style="margin-bottom:14px">
-                <div>
-                  <div class="lbl">USDOT</div>
-                  <div class="val">3819442</div>
-                  <div class="sub">Cardinal Logistics · LLC</div>
-                </div>
-                <div>
-                  <div class="lbl">Operating authority</div>
-                  <div class="val good">Active</div>
-                  <div class="sub">No OOS order in effect</div>
-                </div>
-                <div>
-                  <div class="lbl">Insurance · BIPD</div>
-                  <div class="val good">On file</div>
-                  <div class="sub">$1.0M · effective Feb 12</div>
-                </div>
-                <div>
-                  <div class="lbl">SAFER last sync</div>
-                  <div class="val">2h ago</div>
-                  <div class="sub">Daily · automated</div>
-                </div>
-                <div>
-                  <div class="lbl">MCS-150 last filed</div>
-                  <div class="val warn">Jun 4, 2024</div>
-                  <div class="sub">Cure required · refile by May 28</div>
-                </div>
+              <div data-co-render="fmcsa">
+                <div class="co-empty" data-co-empty>Loading FMCSA record…</div>
               </div>
-
-              <!-- CMV reconciler -->
-              <div class="co-cmv-recon" style="margin-bottom:14px">
-                <div class="co-cmv-head">
-                  <h4>CMV vs Non-CMV reconciler</h4>
-                  <span style="font-size:11px;color:var(--co-crit);font-weight:650">Mismatch · 2 declared vs 0 actual</span>
-                </div>
-                <div class="co-cmv-grid">
-                  <div class="co-cmv-col">
-                    <h5>Declared on MCS-150 (current)</h5>
-                    <div class="co-cmv-num warn">2</div>
-                    <div class="co-cmv-cap">Commercial motor vehicles</div>
-                    <div style="margin-top:14px">
-                      <div class="co-cmv-row"><span>Profile</span><span class="v">Amazon DSP · Non-CDL ops</span></div>
-                      <div class="co-cmv-row"><span>Filed</span><span class="v">Jun 4, 2024</span></div>
-                      <div class="co-cmv-row"><span>Cited by</span><span class="v">Amazon · May 1, 2026</span></div>
-                    </div>
-                  </div>
-                  <div class="co-cmv-col">
-                    <h5>Actual · reconciled against fleet roster</h5>
-                    <div class="co-cmv-num" style="color:var(--co-good)">0</div>
-                    <div class="co-cmv-cap">Commercial motor vehicles · 32 Non-CMV cargo vans</div>
-                    <div style="margin-top:14px">
-                      <div class="co-cmv-row"><span>Cargo vans (Non-CMV)</span><span class="v">32</span></div>
-                      <div class="co-cmv-row"><span>CMVs in roster</span><span class="v">0</span></div>
-                      <div class="co-cmv-row"><span>Reconciled</span><span class="v">May 6 · Ryan H.</span></div>
-                    </div>
-                  </div>
-                </div>
-                <div style="padding:12px 18px;border-top:1px solid var(--border);background:var(--canvas);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-                  <span style="font-size:12px;color:var(--text-muted)"><b style="color:var(--text)">Recommended filing</b> · re-submit MCS-150 with CMV count <b>0</b> and operations classification <b>Non-CDL · Amazon DSP</b>.</span>
-                  <button class="co-action primary" type="button">Open MCS-150 cure</button>
-                </div>
-              </div>
-
-              <!-- Submission tracker -->
-              <div class="co-table-wrap" style="margin-bottom:14px">
-                <div style="padding:11px 16px;background:var(--canvas);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)">Submission tracker</div>
-                <table class="co-table">
-                  <thead><tr>
-                    <th>Filing</th><th>Status</th><th>Filed</th><th>Effective</th><th>Proof</th><th style="text-align:right">Action</th>
-                  </tr></thead>
-                  <tbody>
-                    <tr class="row-crit">
-                      <td><b>MCS-150 biennial · re-file (cure)</b><span class="dim">CMV 2 → 0 · profile Non-CDL</span></td>
-                      <td><span class="co-status cure"><span class="dot"></span>Draft</span></td>
-                      <td><span class="dim">Pending</span></td>
-                      <td><span class="dim">—</span></td>
-                      <td><span class="dim">Receipt required</span></td>
-                      <td style="text-align:right"><button class="co-action primary" type="button">File</button></td>
-                    </tr>
-                    <tr>
-                      <td><b>MCS-150 · last accepted filing</b><span class="dim">Biennial · superseded by cure</span></td>
-                      <td><span class="co-status mitig"><span class="dot"></span>On file</span></td>
-                      <td>Jun 4, 2024</td>
-                      <td>Jun 4, 2024</td>
-                      <td><span style="color:var(--co-good);font-weight:650">FMCSA receipt</span></td>
-                      <td style="text-align:right"><button class="co-action" type="button">View</button></td>
-                    </tr>
-                    <tr>
-                      <td><b>BOC-3 designation</b></td>
-                      <td><span class="co-status mitig"><span class="dot"></span>On file</span></td>
-                      <td>Feb 9, 2024</td>
-                      <td>Feb 9, 2024</td>
-                      <td><span style="color:var(--co-good);font-weight:650">FMCSA receipt</span></td>
-                      <td style="text-align:right"><button class="co-action" type="button">View</button></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p style="margin:0;font-size:11px;color:var(--text-subtle);line-height:1.5">
-                Every filing carries a tamper-evident submission record (signed, timestamped, hash-chained) and an audit trail row visible to Amazon if requested. The reconciler runs against the live fleet roster nightly · a mismatch automatically re-opens the MCS-150 risk.
-              </p>
             </section>
 
             <!-- ═══════════ DOCUMENTATION ═══════════ -->
@@ -12711,116 +11765,17 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-pane-head">
                 <div>
                   <h2 class="co-pane-title">Documentation</h2>
-                  <p class="co-pane-sub">Single evidence library across every compliance object · ROs, invoices, photos, MCS-150 receipts, SAFER prints, cure submissions, CAP responses. Each file attaches back to the originating VIN, cure, or risk for audit traceability.</p>
+                  <p class="co-pane-sub">Evidence library across every compliance object · ROs, invoices, photos, MCS-150 receipts, SAFER prints, cure submissions, CAP responses.</p>
                 </div>
                 <div class="co-pane-actions">
-                  <button class="btn btn-primary btn-sm" type="button">
+                  <button class="btn btn-primary btn-sm" type="button" data-co-upload-evidence>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Upload evidence
                   </button>
                 </div>
               </div>
-
-              <div class="co-chiprow">
-                <button class="co-chip is-on" type="button">All · 47</button>
-                <button class="co-chip" type="button">Repair orders</button>
-                <button class="co-chip" type="button">Invoices</button>
-                <button class="co-chip" type="button">FMCSA filings</button>
-                <button class="co-chip" type="button">Photos</button>
-                <button class="co-chip" type="button">Cure packets</button>
-              </div>
-
-              <div class="co-docs-grid">
-
-                <div class="co-doc-card">
-                  <div class="co-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-                  <div style="min-width:0;flex:1">
-                    <div class="co-doc-nm">RO-2026-118 · transmission service</div>
-                    <div class="co-doc-meta">
-                      Attached to · <b>KMO1-12A</b> · vendor Roadside Pros<br>
-                      Uploaded May 8 · 2.4MB
-                    </div>
-                    <div class="co-doc-tags">
-                      <span class="co-doc-tag">RO</span>
-                      <span class="co-doc-tag verified">Verified</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="co-doc-card">
-                  <div class="co-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-                  <div style="min-width:0;flex:1">
-                    <div class="co-doc-nm">Brake assembly · pre-repair photos (4)</div>
-                    <div class="co-doc-meta">
-                      Attached to · <b>KMO1-08B</b><br>
-                      Uploaded May 2 · driver J. Mendez
-                    </div>
-                    <div class="co-doc-tags">
-                      <span class="co-doc-tag">Photo</span>
-                      <span class="co-doc-tag verified">Verified</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="co-doc-card">
-                  <div class="co-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                  <div style="min-width:0;flex:1">
-                    <div class="co-doc-nm">MCS-150 · fleet reconciliation worksheet</div>
-                    <div class="co-doc-meta">
-                      Attached to · <b>CURE-2026-013</b><br>
-                      Uploaded May 6 · Ryan H. · 18.2KB
-                    </div>
-                    <div class="co-doc-tags">
-                      <span class="co-doc-tag">FMCSA</span>
-                      <span class="co-doc-tag verified">Verified</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="co-doc-card">
-                  <div class="co-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                  <div style="min-width:0;flex:1">
-                    <div class="co-doc-nm">SAFER profile · pre-cure snapshot</div>
-                    <div class="co-doc-meta">
-                      Attached to · <b>CURE-2026-013</b><br>
-                      Uploaded May 1 · auto-captured
-                    </div>
-                    <div class="co-doc-tags">
-                      <span class="co-doc-tag">FMCSA</span>
-                      <span class="co-doc-tag">Auto</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="co-doc-card">
-                  <div class="co-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-                  <div style="min-width:0;flex:1">
-                    <div class="co-doc-nm">Invoice · INV-2026-1124 · Roadside Pros</div>
-                    <div class="co-doc-meta">
-                      Attached to · <b>RO-2026-118</b> · KMO1-12A<br>
-                      Uploaded May 10 · $642.18
-                    </div>
-                    <div class="co-doc-tags">
-                      <span class="co-doc-tag">Invoice</span>
-                      <span class="co-doc-tag verified">Verified</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="co-doc-card">
-                  <div class="co-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-                  <div style="min-width:0;flex:1">
-                    <div class="co-doc-nm">Amazon citation · May 1 · MCS-150 + Repair RTS</div>
-                    <div class="co-doc-meta">
-                      Attached to · 2 cures<br>
-                      Uploaded May 1 · Ryan H.
-                    </div>
-                    <div class="co-doc-tags">
-                      <span class="co-doc-tag">Citation</span>
-                      <span class="co-doc-tag verified">Verified</span>
-                    </div>
-                  </div>
-                </div>
+              <div data-co-render="docs">
+                <div class="co-empty" data-co-empty>Loading documents…</div>
               </div>
             </section>
 
@@ -12829,73 +11784,11 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-pane-head">
                 <div>
                   <h2 class="co-pane-title">Audit Trail</h2>
-                  <p class="co-pane-sub">Immutable, hash-chained log of every compliance event across the DSP · who did what, when, against which VIN / cure / vendor, with the resulting state.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">Export PDF</button>
+                  <p class="co-pane-sub">Immutable, hash-chained log of every compliance event across the DSP · who did what, when, against which VIN / cure / vendor.</p>
                 </div>
               </div>
-
-              <div class="co-chiprow">
-                <button class="co-chip is-on" type="button">All events</button>
-                <button class="co-chip" type="button">Cure activity</button>
-                <button class="co-chip" type="button">Repair / RO</button>
-                <button class="co-chip" type="button">Vendor</button>
-                <button class="co-chip" type="button">FMCSA</button>
-                <span style="flex:1"></span>
-                <button class="co-chip" type="button">Last 30d</button>
-              </div>
-
-              <div class="co-audit">
-                <div class="co-audit-row">
-                  <div class="ts">May 14 · 06:00</div>
-                  <div class="what">Amazon fleet portal flagged operational readiness as overdue for <b>KMO1-08B</b><span class="sub">Pattern match · CAP precursor · CURE-2026-014 pre-staged</span></div>
-                  <div class="who"><span class="av bot">RR</span>System</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 12 · 14:08</div>
-                  <div class="what">CURE-2026-014 · acknowledgement signed by owner<span class="sub">Repair operational readiness · Cardinal Logistics</span></div>
-                  <div class="who"><span class="av">RH</span>Ryan H.</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 12 · 14:02</div>
-                  <div class="what">Amazon citation received · grounded vehicle / repair RTS<span class="sub">Auto-attached to CURE-2026-014 · evidence #1</span></div>
-                  <div class="who"><span class="av bot">RR</span>System</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 10 · 09:14</div>
-                  <div class="what">Invoice INV-2026-1124 uploaded by Roadside Pros · attached to RO-2026-118<span class="sub">KMO1-12A · transmission · $642.18</span></div>
-                  <div class="who"><span class="av" style="background:#0F172A;color:#fff">RP</span>Vendor</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 9 · 08:30</div>
-                  <div class="what">Tier-1 escalation auto-fired · RO field empty in vendor portal for KMO1-08B<span class="sub">Quick-Fix Auto · 5 BD since last update · Ryan H. notified</span></div>
-                  <div class="who"><span class="av bot">RR</span>System</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 6 · 11:24</div>
-                  <div class="what">Fleet reconciliation worksheet attached to CURE-2026-013<span class="sub">CMV count corrected · 2 → 0 · 32 Non-CMV cargo vans verified</span></div>
-                  <div class="who"><span class="av">RH</span>Ryan H.</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 5 · 17:00</div>
-                  <div class="what">Vendor SLA breach · Quick-Fix Auto · ETA confirmation overdue<span class="sub">48h target · vendor reminder sent · portal + SMS</span></div>
-                  <div class="who"><span class="av bot">RR</span>System</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 2 · 10:02</div>
-                  <div class="what">KMO1-08B grounded · auto-routed to Quick-Fix Auto<span class="sub">Workflow · fleet.repair.dispatch · vendor accepted · in 2 BD window</span></div>
-                  <div class="who"><span class="av bot">RR</span>System</div>
-                </div>
-                <div class="co-audit-row">
-                  <div class="ts">May 1 · 10:22</div>
-                  <div class="what">CURE-2026-013 · acknowledgement signed by owner<span class="sub">MCS-150 re-filing + CMV reclassification</span></div>
-                  <div class="who"><span class="av">RH</span>Ryan H.</div>
-                </div>
-                <div class="co-audit-foot">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-                  Hash-chained · RFC-3161 timestamps · tamper-evident · 124 events in last 30d
-                </div>
+              <div data-co-render="audit">
+                <div class="co-empty" data-co-empty>Loading audit trail…</div>
               </div>
             </section>
 
@@ -12904,147 +11797,12 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="co-pane-head">
                 <div>
                   <h2 class="co-pane-title">Risk Tracking Library</h2>
-                  <p class="co-pane-sub">Every check RouteReady runs on behalf of this DSP · operational transparency, not a settings page. If a risk is missing from the list, it isn't being silently ignored — it isn't being monitored, and you can add it.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button">Add monitor</button>
+                  <p class="co-pane-sub">Every check RouteReady runs on behalf of this DSP. If a risk is missing from the list, it isn't being silently ignored — it isn't being monitored.</p>
                 </div>
               </div>
-
-              <div class="co-chiprow">
-                <button class="co-chip is-on" type="button">All · 31</button>
-                <button class="co-chip" type="button">Fleet</button>
-                <button class="co-chip" type="button">FMCSA</button>
-                <button class="co-chip" type="button">Vendor</button>
-                <button class="co-chip" type="button">Driver</button>
-                <button class="co-chip" type="button">CAP / cure</button>
+              <div data-co-render="library">
+                <div class="co-empty" data-co-empty>Loading monitor registry…</div>
               </div>
-
-              <div class="co-mon-list">
-                <article class="co-mon-card crit">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Vehicle grounding duration vs Amazon SLA</div>
-                    <span class="co-mon-state crit"><span class="dot"></span>Alerting</span>
-                  </div>
-                  <p class="co-mon-desc">IF <b>grounded_days &gt; 14</b> OR <b>(grounded_days &gt; 7 AND no_active_RO)</b> THEN trigger escalation workflow and stage cure.</p>
-                  <div class="co-mon-meta"><span>Source · <b>DVIC + fleet portal</b></span><span>·</span><span>Last check · <b>3m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap escalate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/></svg>Escalation workflow</span></div>
-                </article>
-
-                <article class="co-mon-card alert">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Repair scheduled within 2 BD</div>
-                    <span class="co-mon-state alert"><span class="dot"></span>Alerting</span>
-                  </div>
-                  <p class="co-mon-desc">Tracks every grounded VIN against Amazon's 2-business-day repair-scheduling expectation · auto-reminds the assigned vendor and dispatcher if scheduling slips.</p>
-                  <div class="co-mon-meta"><span>Source · <b>vendor portal</b></span><span>·</span><span>Last check · <b>11m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-reminded</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Repair completed within 14 BD</div>
-                    <span class="co-mon-state watch"><span class="dot"></span>Watching</span>
-                  </div>
-                  <p class="co-mon-desc">Tracks every open RO against Amazon's 14-business-day completion expectation · pre-stages cure record when threshold is crossed without RTS.</p>
-                  <div class="co-mon-meta"><span>Source · <b>internal RO ledger</b></span><span>·</span><span>Last check · <b>11m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap escalate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/></svg>Pre-stages cure</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Active RO required while grounded</div>
-                    <span class="co-mon-state crit"><span class="dot"></span>Alerting</span>
-                  </div>
-                  <p class="co-mon-desc">A grounded VIN without a documented RO inside 1 BD raises a critical risk and notifies the DSP owner. RO can be uploaded by the vendor or by the dispatcher.</p>
-                  <div class="co-mon-meta"><span>Source · <b>RO ledger + DVIC</b></span><span>·</span><span>Last check · <b>3m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span></div>
-                </article>
-
-                <article class="co-mon-card alert">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Vendor SLA &amp; reassignment threshold</div>
-                    <span class="co-mon-state alert"><span class="dot"></span>Alerting</span>
-                  </div>
-                  <p class="co-mon-desc">Per-vendor accountability rolls ETA confirm, RO upload, on-time completion, message latency, and invoice timeliness into one score. Drops below 70 → pause new assignments; below 60 → recommend reassignment.</p>
-                  <div class="co-mon-meta"><span>Source · <b>vendor portal + msgs</b></span><span>·</span><span>Last check · <b>11m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-reassign</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Ungrounding reminder · post-repair</div>
-                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
-                  </div>
-                  <p class="co-mon-desc">Once an RO is marked complete with evidence attached, the system reminds the dispatcher to re-inspect and un-ground the vehicle, and to re-sync the operational readiness signal on the Amazon fleet portal.</p>
-                  <div class="co-mon-meta"><span>Source · <b>RO ledger</b></span><span>·</span><span>Last check · <b>11m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-reminded</span></div>
-                </article>
-
-                <article class="co-mon-card alert">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">MCS-150 biennial · CMV reconciliation</div>
-                    <span class="co-mon-state crit"><span class="dot"></span>Alerting</span>
-                  </div>
-                  <p class="co-mon-desc">IF <b>cmv_count &gt; 0</b> AND <b>dsp_type = amazon_dsp</b> THEN trigger compliance warning. Daily reconciliation of MCS-150 declaration against the live fleet roster.</p>
-                  <div class="co-mon-meta"><span>Source · <b>MCS-150 · fleet roster</b></span><span>·</span><span>Last check · <b>2h</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">SAFER profile change</div>
-                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
-                  </div>
-                  <p class="co-mon-desc">Continuous watch on FMCSA SAFER · alerts on de-authorization, rating change, insurance gap, or OOS order. Halts schedule publish on OOS.</p>
-                  <div class="co-mon-meta"><span>Source · <b>FMCSA SAFER</b></span><span>·</span><span>Last check · <b>2m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Operational readiness · portal sync</div>
-                    <span class="co-mon-state watch"><span class="dot"></span>Watching</span>
-                  </div>
-                  <p class="co-mon-desc">4× daily comparison of Amazon fleet portal vs internal grounded state. Surfaces any disagreement as a risk so the operator can re-sync before Amazon escalates.</p>
-                  <div class="co-mon-meta"><span>Source · <b>Amazon fleet portal</b></span><span>·</span><span>Last check · <b>22m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">DVIC defect trends</div>
-                    <span class="co-mon-state watch"><span class="dot"></span>Watching</span>
-                  </div>
-                  <p class="co-mon-desc">Rolling 14d defect frequency per VIN and per category · 3× baseline triggers a root-cause inspection campaign.</p>
-                  <div class="co-mon-meta"><span>Source · <b>DVIC submissions</b></span><span>·</span><span>Last check · <b>5m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">License expiration · hard-rule integration</div>
-                    <span class="co-mon-state alert"><span class="dot"></span>Alerting</span>
-                  </div>
-                  <p class="co-mon-desc">Tiered reminders 30d / 14d / 7d / 1d · the Schedule blocks publish on expired licenses (configurable).</p>
-                  <div class="co-mon-meta"><span>Source · <b>driver records</b></span><span>·</span><span>Last check · <b>9m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span></div>
-                </article>
-
-                <article class="co-mon-card">
-                  <div class="co-mon-top">
-                    <div class="co-mon-nm">Amazon escalation precursor patterns</div>
-                    <span class="co-mon-state watch"><span class="dot"></span>Watching</span>
-                  </div>
-                  <p class="co-mon-desc">Pattern matcher trained on historical Amazon CAPs · scores live operational state against signatures that historically preceded breach notifications. Pre-stages cure records on match.</p>
-                  <div class="co-mon-meta"><span>Source · <b>cross-module · v2026.5</b></span><span>·</span><span>Last check · <b>3m</b></span></div>
-                  <div class="co-mon-foot"><span class="co-cap escalate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/></svg>Pre-staged cure</span></div>
-                </article>
-              </div>
-
-              <p style="margin:18px 0 0;font-size:11px;color:var(--text-subtle);line-height:1.5;text-align:center">
-                Monitors are evaluated by the RouteReady compliance rules engine. Add a custom monitor with a rule expression, schedule, source, and escalation policy in <a href="#" onclick="goto('settings');return false" style="color:var(--accent-text);text-decoration:none;font-weight:600">Settings · Rules</a>.
-              </p>
             </section>
 
           </main>
@@ -13220,7 +11978,7 @@ body.rr-cmdk-open{ overflow:hidden }
             </button>
             <button class="forms-side-item" onclick="formsTab(this,'subm')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              Submissions <span class="count">0</span>
+              Submissions
             </button>
           </aside>
 
