@@ -7545,15 +7545,11 @@ window.attTab = function (name) {
   // Redirect any lingering "today" call to history — the Today pane was
   // moved to the sidebar Today's Plan page.
   if (name === "today") name = "history";
-  // Policy builder lives in Settings → Attendance policy now.  If
-  // anything still triggers attTab('policy'), bounce the operator to
-  // the new home instead of rendering nothing.
+  // Policy builder lives in Settings → Scheduling now (under the
+  // Attendance policy details card). If anything still triggers
+  // attTab('policy'), bounce the operator to the new home.
   if (name === "policy") {
-    if (typeof window.goto === "function") window.goto("settings");
-    setTimeout(() => {
-      const btn = document.querySelector('.settings-nav-item[data-set="attendance"]');
-      if (btn) btn.click();
-    }, 50);
+    if (typeof window.gotoSettingsScheduling === "function") window.gotoSettingsScheduling();
     return;
   }
   // The Report / Event log tab strip was removed — pane switching is
@@ -7615,10 +7611,8 @@ function _rrApplyAttPolicyMode() {
 // Load the right data when the operator opens a settings section
 // that's hosted by JS rather than baked into the HTML mockup.
 document.addEventListener("click", (e) => {
-  if (e.target.closest('.settings-nav-item[data-set="attendance"]')) {
-    setTimeout(() => loadAttendancePolicy(), 0);
-  }
-  if (e.target.closest('.settings-nav-item[data-set="availability"]')) {
+  if (e.target.closest('.settings-nav-item[data-set="scheduling"]')) {
+    setTimeout(() => loadAttendancePolicy(),     0);
     setTimeout(() => loadAvailabilityRequests(), 0);
   }
   if (e.target.closest('.settings-nav-item[data-set="team"]')) {
@@ -16942,7 +16936,7 @@ function _renderAvailabilityShell() {
 
   // The page-level settings drawer was removed; lead-time / auto-
   // responses / blackout windows now live exclusively in
-  // Settings → Availability rules (reachable via the topbar gear).
+  // Settings → Scheduling → Availability rules (reachable via the topbar gear).
   // KPI / settings / blackouts containers still live in static HTML
   // — the renderers populate them in place.
 
@@ -17443,7 +17437,7 @@ document.addEventListener("keydown", (e) => {
 
 function _renderAvailabilityBlackouts(rows) {
   // The blackout container moved from the Availability page modal
-  // (deleted) to Settings → Availability rules.  Look up the element
+  // (deleted) to Settings → Scheduling → Availability rules. Look up the element
   // anywhere in the document rather than scoping to dr-sub-availability.
   const el = document.querySelector("[data-rr-avail-blackouts]");
   if (!el) return;
@@ -17489,7 +17483,7 @@ function _renderAvailabilityBlackouts(rows) {
 
 function _renderAvailabilitySettingsPanel(s) {
   // Like _renderAvailabilityBlackouts above — the settings form lives
-  // in Settings → Availability rules now, so query the document
+  // in Settings → Scheduling → Availability rules now, so query the document
   // globally instead of scoping to dr-sub-availability.
   const el = document.querySelector("[data-rr-avail-settings]");
   if (!el) return;
