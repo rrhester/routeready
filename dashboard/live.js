@@ -27739,6 +27739,10 @@ function _cbRenderEditor() {
       </div>
       <div class="cb-edit-actions">
         <span class="cb-save-status" id="rr-cb-save-status"></span>
+        <button class="btn btn-primary btn-sm" type="button" data-cl-launch-template="${_cbEsc(_cbTpl.id)}" style="margin-right:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="5 12 12 5 19 12"/><line x1="12" y1="5" x2="12" y2="19"/></svg>
+          Launch
+        </button>
         <button class="cb-iconbtn" type="button" data-cb-action="duplicate" title="Duplicate template">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
@@ -28130,6 +28134,608 @@ document.addEventListener("click", (e) => {
     setTimeout(() => {
       const tab = document.getElementById("checklist-tab-templates");
       if (tab && tab.style.display !== "none") loadChecklistTemplates();
+    }, 80);
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// Checklist Runner — live instances (My Checklists + Today's Status)
+// ═══════════════════════════════════════════════════════════════════════
+// Bridges the Builder (templates) and the operator (running checklists).
+// A template is "launched" into a checklist_instance — a snapshot of
+// sections + items that someone works through, every check-off
+// autosaved + attributed to the user who clicked it. The Today's Status
+// tab is a DSP-wide rollup of every active instance, bucketed into
+// overdue / due today / in progress.
+// ─────────────────────────────────────────────────────────────────────
+let _clMyInstances    = [];   // active list for My Checklists
+let _clMyFilter       = "active";   // 'active' | 'completed' | 'mine'
+let _clMySearch       = "";
+let _clOpenInstance   = null; // currently open in the runner drawer
+let _clTeamMembers    = null; // cached team_members list
+const _clItemTimers   = new Map(); // debounce per-item save
+
+function _clEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function _clFmtDate(iso, opts) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return "";
+    return d.toLocaleString(undefined, opts || { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  } catch { return ""; }
+}
+function _clDueLabel(iso) {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  const now = Date.now();
+  const diffMin = Math.round((t - now) / 60000);
+  if (diffMin < 0) {
+    const past = Math.abs(diffMin);
+    if (past < 60)        return { text: `${past}m overdue`, kind: "overdue" };
+    if (past < 60 * 24)   return { text: `${Math.round(past / 60)}h overdue`, kind: "overdue" };
+    return { text: `${Math.round(past / (60 * 24))}d overdue`, kind: "overdue" };
+  }
+  if (diffMin < 60)        return { text: `Due in ${diffMin}m`, kind: diffMin <= 60 ? "due-today" : "" };
+  if (diffMin < 60 * 24) {
+    const sameDay = new Date(t).toDateString() === new Date(now).toDateString();
+    return { text: `Due ${_clFmtDate(iso, { hour: "numeric", minute: "2-digit" })}`, kind: sameDay ? "due-today" : "" };
+  }
+  return { text: `Due ${_clFmtDate(iso, { month: "short", day: "numeric" })}`, kind: "" };
+}
+
+// ── My Checklists tab ────────────────────────────────────────────────
+async function loadChecklistInstances() {
+  const root = document.getElementById("rr-cl-my-root");
+  if (!root) return;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading checklists</div>`;
+  const params = {
+    p_status: _clMyFilter === "completed" ? "completed" : null,
+    p_assigned_to_me_only: _clMyFilter === "mine",
+    p_search: _clMySearch || null,
+    p_limit: 100,
+  };
+  const { data, error } = await sb.rpc("checklist_instance_list", params);
+  if (error) {
+    root.innerHTML = `<div class="rr-an-error">Couldn't load checklists: ${_clEsc(error.message || "")}</div>`;
+    return;
+  }
+  _clMyInstances = Array.isArray(data) ? data : [];
+  _clRenderMy();
+}
+function _clRenderMy() {
+  const root = document.getElementById("rr-cl-my-root");
+  if (!root) return;
+  const list = _clMyInstances;
+  const renderCard = (inst) => {
+    const total = Number(inst.item_count || 0);
+    const done  = Number(inst.completed_count || 0);
+    const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+    const due   = _clDueLabel(inst.due_at);
+    let statusKind = inst.status;
+    let statusLabel = inst.status === "active" ? "Active" : inst.status === "completed" ? "Complete" : "Archived";
+    if (inst.status === "active" && due?.kind === "overdue") { statusKind = "overdue"; statusLabel = "Overdue"; }
+    else if (inst.status === "active" && due?.kind === "due-today") { statusKind = "due-today"; statusLabel = "Due today"; }
+    return `<button class="cl-instance" type="button" data-cl-open="${_clEsc(inst.id)}">
+      <div class="cl-i-head">
+        <div class="cl-i-name">${_clEsc(inst.name || "Untitled checklist")}</div>
+        <span class="cl-i-status ${statusKind}">${statusLabel}</span>
+      </div>
+      <div class="cl-i-bar"><div class="cl-i-bar-fill${pct >= 100 ? " done" : ""}" style="width:${pct}%"></div></div>
+      <div class="cl-i-meta">
+        <span>${done} / ${total} done</span>
+        ${due ? `<span class="dot"></span><span class="${due.kind === 'overdue' ? 'due-overdue' : (due.kind === 'due-today' ? 'due-today' : '')}">${_clEsc(due.text)}</span>` : ""}
+        ${inst.assigned_email ? `<span class="dot"></span><span>${_clEsc(inst.assigned_email.split("@")[0])}</span>` : ""}
+      </div>
+    </button>`;
+  };
+  root.innerHTML = `
+    <div class="cl-tools">
+      <div class="cl-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="rr-cl-my-search" type="text" placeholder="Search checklists" value="${_clEsc(_clMySearch)}" autocomplete="off" />
+      </div>
+      <div class="cl-filterstrip" role="tablist">
+        <button class="cl-filter ${_clMyFilter === 'active' ? 'active' : ''}" type="button" data-cl-filter="active">Active</button>
+        <button class="cl-filter ${_clMyFilter === 'mine' ? 'active' : ''}" type="button" data-cl-filter="mine">Assigned to me</button>
+        <button class="cl-filter ${_clMyFilter === 'completed' ? 'active' : ''}" type="button" data-cl-filter="completed">Completed</button>
+      </div>
+      <button class="btn btn-primary btn-sm" type="button" data-cl-launch-new>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Launch checklist
+      </button>
+    </div>
+    ${list.length === 0 ? `
+      <div class="cl-empty">
+        <div class="cl-empty-title">No checklists ${_clMyFilter === 'completed' ? 'completed yet' : (_clMyFilter === 'mine' ? 'assigned to you' : 'in progress')}</div>
+        <p class="cl-empty-sub">Launch a checklist from one of your templates to get started. Progress autosaves as you work through it.</p>
+      </div>
+    ` : `<div class="cl-list">${list.map(renderCard).join("")}</div>`}
+  `;
+}
+
+// ── Today's Status tab ───────────────────────────────────────────────
+async function loadChecklistTodaySummary() {
+  const root = document.getElementById("rr-cl-status-root");
+  if (!root) return;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading status</div>`;
+  const { data, error } = await sb.rpc("checklist_instance_today_summary");
+  if (error || !data) {
+    root.innerHTML = `<div class="rr-an-error">Couldn't load status: ${_clEsc(error?.message || "")}</div>`;
+    return;
+  }
+  const buckets = data.buckets || {};
+  const totals  = data.totals  || {};
+  const renderRow = (inst) => {
+    const total = Number(inst.item_count || 0);
+    const done  = Number(inst.completed_count || 0);
+    const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+    const due   = _clDueLabel(inst.due_at);
+    return `<button class="cl-instance" type="button" data-cl-open="${_clEsc(inst.id)}">
+      <div class="cl-i-head">
+        <div class="cl-i-name">${_clEsc(inst.name || "Untitled checklist")}</div>
+        ${due ? `<span class="cl-i-status ${due.kind === 'overdue' ? 'overdue' : (due.kind === 'due-today' ? 'due-today' : 'active')}">${_clEsc(due.text)}</span>` : ""}
+      </div>
+      <div class="cl-i-bar"><div class="cl-i-bar-fill" style="width:${pct}%"></div></div>
+      <div class="cl-i-meta">
+        <span>${done} / ${total} done</span>
+        ${inst.assigned_email ? `<span class="dot"></span><span>${_clEsc(inst.assigned_email.split("@")[0])}</span>` : ""}
+      </div>
+    </button>`;
+  };
+  const overdue = Array.isArray(buckets.overdue) ? buckets.overdue : [];
+  const dueToday = Array.isArray(buckets.due_today) ? buckets.due_today : [];
+  const inProgress = Array.isArray(buckets.in_progress) ? buckets.in_progress : [];
+  if (!overdue.length && !dueToday.length && !inProgress.length) {
+    root.innerHTML = `<div class="cl-empty">
+      <div class="cl-empty-title">No active checklists right now</div>
+      <p class="cl-empty-sub">When checklists are launched, they'll show up here grouped by overdue, due today, and in progress.</p>
+    </div>`;
+    return;
+  }
+  root.innerHTML = `
+    ${overdue.length ? `
+      <div class="cl-bucket">
+        <div class="cl-bucket-h overdue">Overdue <span class="count">${overdue.length}</span></div>
+        <div class="cl-list">${overdue.map(renderRow).join("")}</div>
+      </div>
+    ` : ""}
+    ${dueToday.length ? `
+      <div class="cl-bucket">
+        <div class="cl-bucket-h due-today">Due today <span class="count">${dueToday.length}</span></div>
+        <div class="cl-list">${dueToday.map(renderRow).join("")}</div>
+      </div>
+    ` : ""}
+    ${inProgress.length ? `
+      <div class="cl-bucket">
+        <div class="cl-bucket-h">In progress <span class="count">${inProgress.length}</span></div>
+        <div class="cl-list">${inProgress.map(renderRow).join("")}</div>
+      </div>
+    ` : ""}
+  `;
+}
+
+// ── Runner drawer ────────────────────────────────────────────────────
+function _clEnsureRunnerDom() {
+  if (document.getElementById("rr-cl-runner")) return;
+  const back = document.createElement("div");
+  back.id = "rr-cl-runner-backdrop";
+  back.addEventListener("click", _clCloseRunner);
+  document.body.appendChild(back);
+  const drawer = document.createElement("aside");
+  drawer.id = "rr-cl-runner";
+  drawer.setAttribute("aria-hidden", "true");
+  drawer.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading…</div>`;
+  document.body.appendChild(drawer);
+}
+function _clCloseRunner() {
+  const drawer = document.getElementById("rr-cl-runner");
+  const back   = document.getElementById("rr-cl-runner-backdrop");
+  if (drawer) { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (back)   back.classList.remove("open");
+  _clOpenInstance = null;
+}
+async function _clOpenRunner(id) {
+  _clEnsureRunnerDom();
+  const drawer = document.getElementById("rr-cl-runner");
+  const back   = document.getElementById("rr-cl-runner-backdrop");
+  if (!drawer || !back) return;
+  drawer.classList.add("open"); drawer.setAttribute("aria-hidden", "false");
+  back.classList.add("open");
+  drawer.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading…</div>`;
+  const { data, error } = await sb.rpc("checklist_instance_get", { p_id: id });
+  if (error || !data) {
+    drawer.innerHTML = `<div class="cl-rn-head"><button class="cl-rn-close" data-cl-close>×</button></div><div class="cl-rn-body"><div class="rr-an-error">Couldn't open: ${_clEsc(error?.message || "")}</div></div>`;
+    return;
+  }
+  _clOpenInstance = data;
+  _clRenderRunner();
+}
+function _clRenderRunner() {
+  const drawer = document.getElementById("rr-cl-runner");
+  if (!drawer || !_clOpenInstance) return;
+  const inst  = _clOpenInstance;
+  const items = Array.isArray(inst.items) ? inst.items : [];
+  const total = items.length;
+  const done  = items.filter(i => i.completed_at).length;
+  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+  const due   = _clDueLabel(inst.due_at);
+
+  // Group items by section_label preserving order
+  const groups = [];
+  let cur = null;
+  for (const it of items) {
+    const key = it.section_label || "";
+    if (!cur || cur.key !== key) { cur = { key, items: [] }; groups.push(cur); }
+    cur.items.push(it);
+  }
+  const renderItem = (it) => `<div class="cl-rn-item ${it.completed_at ? 'done' : ''}" data-cl-item="${_clEsc(it.id)}">
+    <button class="cl-rn-check ${it.completed_at ? 'on' : ''}" type="button" data-cl-toggle="${_clEsc(it.id)}" aria-pressed="${it.completed_at ? 'true' : 'false'}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </button>
+    <div>
+      <div class="cl-rn-label" data-cl-toggle="${_clEsc(it.id)}">${_clEsc(it.label || "")}${it.required ? '<span class="req">Required</span>' : ''}</div>
+      ${it.instructions ? `<span class="cl-rn-inst">${_clEsc(it.instructions)}</span>` : ''}
+    </div>
+    <div class="cl-rn-attr">${it.completed_at ? `${_clEsc(_clFmtRel(it.completed_at))}${it.completed_by_email ? `<br/>${_clEsc(it.completed_by_email.split("@")[0])}` : ''}` : ''}</div>
+  </div>`;
+
+  drawer.innerHTML = `
+    <div class="cl-rn-head" style="position:relative">
+      <div class="cl-rn-head-inner">
+        <input class="cl-rn-title" id="rr-cl-rn-title" type="text" value="${_clEsc(inst.name || '')}" placeholder="Untitled checklist" />
+        <div class="cl-rn-sub">
+          <span class="cl-i-status ${inst.status}${due?.kind === 'overdue' ? ' overdue' : (due?.kind === 'due-today' ? ' due-today' : '')}" style="padding:2px 8px;border-radius:999px;font-size:10px">${inst.status === 'completed' ? 'Complete' : (due?.kind === 'overdue' ? 'Overdue' : (due?.kind === 'due-today' ? 'Due today' : 'Active'))}</span>
+          ${due ? `<span class="dot"></span><span class="${due.kind === 'overdue' ? 'due-overdue' : (due.kind === 'due-today' ? 'due-today' : '')}">${_clEsc(due.text)}</span>` : `<span class="dot"></span><span>No due date</span>`}
+          ${inst.assigned_email ? `<span class="dot"></span><span>${_clEsc(inst.assigned_email)}</span>` : `<span class="dot"></span><span>Unassigned</span>`}
+          <span class="dot"></span><span>Started ${_clEsc(_clFmtDate(inst.started_at))}</span>
+        </div>
+      </div>
+      <button class="cl-rn-close" type="button" data-cl-close title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="cl-rn-toolbar">
+      <div class="cl-rn-toolbar-l">
+        <div class="cl-rn-progress" style="min-width:220px;flex:1">
+          <div class="bar"><div class="bar-fill ${pct >= 100 ? 'done' : ''}" style="width:${pct}%"></div></div>
+          <span class="pct">${done}/${total}</span>
+        </div>
+      </div>
+      <div class="cl-rn-toolbar-actions">
+        <span class="cl-rn-save" id="rr-cl-rn-save"></span>
+        <button class="cl-rn-meta-btn" type="button" data-cl-meta>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33"/></svg>
+          Assign / due
+        </button>
+        <button class="cl-rn-meta-btn" type="button" data-cl-archive>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          ${inst.status === 'archived' ? 'Restore' : 'Archive'}
+        </button>
+      </div>
+    </div>
+    <div class="cl-rn-body">
+      ${groups.map(g => `
+        <div class="cl-rn-section">
+          ${g.key ? `<div class="cl-rn-section-h">${_clEsc(g.key)}</div>` : ''}
+          <div class="cl-rn-items">${g.items.map(renderItem).join("")}</div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+function _clSetRunnerSave(kind, text) {
+  const el = document.getElementById("rr-cl-rn-save");
+  if (!el) return;
+  el.classList.remove("saving", "saved", "err");
+  if (kind) el.classList.add(kind);
+  el.textContent = text || "";
+  if (kind === "saved") {
+    setTimeout(() => {
+      if (el.classList.contains("saved") && el.textContent === text) { el.textContent = ""; el.classList.remove("saved"); }
+    }, 2200);
+  }
+}
+async function _clToggleItem(itemId) {
+  if (!_clOpenInstance) return;
+  const items = _clOpenInstance.items || [];
+  const it = items.find(x => x.id === itemId);
+  if (!it) return;
+  const willComplete = !it.completed_at;
+  // Optimistic UI
+  it.completed_at = willComplete ? new Date().toISOString() : null;
+  it.completed_by_email = willComplete ? (window.RR?.user?.email || "you") : null;
+  _clRenderRunner();
+  _clSetRunnerSave("saving", "Saving…");
+  const { data, error } = await sb.rpc("checklist_instance_item_toggle", { p_item_id: itemId, p_completed: willComplete });
+  if (error) {
+    // Roll back optimistic update
+    it.completed_at = willComplete ? null : new Date().toISOString();
+    _clRenderRunner();
+    _clSetRunnerSave("err", "Couldn't save");
+    return;
+  }
+  if (data) {
+    it.completed_at = data.completed_at;
+    it.completed_by = data.completed_by;
+  }
+  // The reconcile-trigger may have flipped the parent instance status —
+  // refresh that field cheaply by re-checking required counts.
+  const allReq = items.filter(i => i.required);
+  if (allReq.length > 0 && allReq.every(i => i.completed_at)) {
+    _clOpenInstance.status = "completed";
+    _clOpenInstance.completed_at = new Date().toISOString();
+  } else if (_clOpenInstance.status === "completed") {
+    _clOpenInstance.status = "active";
+    _clOpenInstance.completed_at = null;
+  }
+  _clRenderRunner();
+  _clSetRunnerSave("saved", "Saved");
+}
+async function _clUpdateRunnerName(name) {
+  if (!_clOpenInstance) return;
+  _clSetRunnerSave("saving", "Saving…");
+  const { data, error } = await sb.rpc("checklist_instance_update", { p_id: _clOpenInstance.id, p_name: name });
+  if (error) { _clSetRunnerSave("err", "Couldn't save"); return; }
+  _clOpenInstance.name = data?.name || name;
+  _clSetRunnerSave("saved", "Saved");
+}
+async function _clArchiveRunner() {
+  if (!_clOpenInstance) return;
+  const target = _clOpenInstance.status !== "archived";
+  const { error } = await sb.rpc("checklist_instance_archive", { p_id: _clOpenInstance.id, p_archived: target });
+  if (error) { toast("Couldn't update", "warn"); return; }
+  _clOpenInstance.status = target ? "archived" : (_clOpenInstance.completed_at ? "completed" : "active");
+  toast(target ? "Checklist archived" : "Restored", "success");
+  await loadChecklistInstances();
+  await loadChecklistTodaySummary();
+  _clCloseRunner();
+}
+function _clOpenMetaPop() {
+  if (!_clOpenInstance) return;
+  const drawer = document.getElementById("rr-cl-runner");
+  if (!drawer) return;
+  // toggle off if already open
+  const existing = drawer.querySelector(".cl-rn-meta-pop");
+  if (existing) { existing.remove(); return; }
+
+  const pop = document.createElement("div");
+  pop.className = "cl-rn-meta-pop";
+  pop.innerHTML = `
+    <div>
+      <label for="rr-cl-rn-assignee">Assignee</label>
+      <select id="rr-cl-rn-assignee">
+        <option value="">— Unassigned —</option>
+      </select>
+    </div>
+    <div>
+      <label for="rr-cl-rn-due">Due (optional)</label>
+      <input id="rr-cl-rn-due" type="datetime-local" value="${_clOpenInstance.due_at ? new Date(_clOpenInstance.due_at).toISOString().slice(0, 16) : ''}" />
+    </div>
+  `;
+  drawer.querySelector(".cl-rn-head").appendChild(pop);
+  // Populate assignees
+  (async () => {
+    if (!_clTeamMembers) {
+      const { data } = await sb.rpc("checklist_team_members");
+      _clTeamMembers = Array.isArray(data) ? data : [];
+    }
+    const sel = document.getElementById("rr-cl-rn-assignee");
+    if (!sel) return;
+    for (const m of _clTeamMembers) {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.email || m.id;
+      if (_clOpenInstance.assigned_user_id === m.id) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  })();
+}
+async function _clMetaChange(field, value) {
+  if (!_clOpenInstance) return;
+  _clSetRunnerSave("saving", "Saving…");
+  const payload = { p_id: _clOpenInstance.id };
+  if (field === "assignee") {
+    if (!value) { payload.p_clear_assignee = true; }
+    else        { payload.p_assigned_user_id = value; }
+  } else if (field === "due") {
+    if (!value) { payload.p_clear_due = true; }
+    else        { payload.p_due_at = new Date(value).toISOString(); }
+  }
+  const { data, error } = await sb.rpc("checklist_instance_update", payload);
+  if (error || !data) { _clSetRunnerSave("err", "Couldn't save"); return; }
+  _clOpenInstance.assigned_user_id = data.assigned_user_id;
+  _clOpenInstance.due_at = data.due_at;
+  // Pull the assignee email from the cached member list if available
+  if (_clTeamMembers && data.assigned_user_id) {
+    const m = _clTeamMembers.find(x => x.id === data.assigned_user_id);
+    if (m) _clOpenInstance.assigned_email = m.email;
+  } else if (!data.assigned_user_id) {
+    _clOpenInstance.assigned_email = null;
+  }
+  _clRenderRunner();
+  _clSetRunnerSave("saved", "Saved");
+}
+
+// ── Launch flow ──────────────────────────────────────────────────────
+async function _clOpenLaunchDialog(templateId, anchorEl) {
+  // Reuse launching from a known template, or pick from a list
+  if (!_clTeamMembers) {
+    const { data } = await sb.rpc("checklist_team_members");
+    _clTeamMembers = Array.isArray(data) ? data : [];
+  }
+  let tpls = [];
+  if (!templateId) {
+    const { data } = await sb.rpc("checklist_template_list");
+    tpls = (Array.isArray(data) ? data : []).filter(t => !t.archived_at);
+    if (!tpls.length) { toast("No templates yet — build one in the Templates tab first", "warn"); return; }
+  }
+  // Remove any existing
+  document.getElementById("rr-cl-launch-pop")?.remove();
+
+  const pop = document.createElement("div");
+  pop.id = "rr-cl-launch-pop";
+  pop.className = "cl-launch-pop";
+  pop.innerHTML = `
+    ${templateId ? "" : `
+      <label for="rr-cl-launch-template">Template</label>
+      <select id="rr-cl-launch-template">
+        ${tpls.map(t => `<option value="${_clEsc(t.id)}">${_clEsc(t.name)}</option>`).join("")}
+      </select>
+    `}
+    <label for="rr-cl-launch-name">Name (optional)</label>
+    <input id="rr-cl-launch-name" type="text" placeholder="${templateId ? "Use template name" : "Use template name"}" />
+    <label for="rr-cl-launch-assignee">Assign to</label>
+    <select id="rr-cl-launch-assignee">
+      <option value="">— Unassigned —</option>
+      ${_clTeamMembers.map(m => `<option value="${_clEsc(m.id)}">${_clEsc(m.email || m.id)}</option>`).join("")}
+    </select>
+    <label for="rr-cl-launch-due">Due (optional)</label>
+    <input id="rr-cl-launch-due" type="datetime-local" />
+    <div class="cl-launch-actions">
+      <button class="btn btn-sm" type="button" data-cl-launch-cancel>Cancel</button>
+      <button class="btn btn-sm btn-primary" type="button" data-cl-launch-go data-template-id="${_clEsc(templateId || '')}">Launch</button>
+    </div>
+  `;
+  document.body.appendChild(pop);
+
+  // Position the popover near the anchor (or center)
+  const rect = anchorEl?.getBoundingClientRect();
+  if (rect) {
+    let top  = rect.bottom + window.scrollY + 6;
+    let left = rect.right  + window.scrollX - 300;
+    if (left < 8) left = 8;
+    pop.style.top  = `${top}px`;
+    pop.style.left = `${left}px`;
+  } else {
+    pop.style.top  = "50%"; pop.style.left = "50%"; pop.style.transform = "translate(-50%, -50%)";
+  }
+  setTimeout(() => document.getElementById("rr-cl-launch-name")?.focus(), 30);
+}
+function _clCloseLaunchDialog() { document.getElementById("rr-cl-launch-pop")?.remove(); }
+async function _clLaunch(templateId) {
+  const pop = document.getElementById("rr-cl-launch-pop");
+  const tplSelect  = pop?.querySelector("#rr-cl-launch-template");
+  const finalTplId = templateId || tplSelect?.value;
+  if (!finalTplId) { toast("Pick a template", "warn"); return; }
+  const name     = (document.getElementById("rr-cl-launch-name")?.value || "").trim();
+  const assignee = document.getElementById("rr-cl-launch-assignee")?.value || null;
+  const dueRaw   = document.getElementById("rr-cl-launch-due")?.value || "";
+  const due_at   = dueRaw ? new Date(dueRaw).toISOString() : null;
+
+  const { data, error } = await sb.rpc("checklist_instance_launch", {
+    p_template_id: finalTplId, p_name: name || null, p_assigned_user_id: assignee || null, p_due_at: due_at,
+  });
+  if (error || !data) { toast(`Couldn't launch: ${error?.message || "unknown error"}`, "warn"); return; }
+  _clCloseLaunchDialog();
+  toast("Checklist launched", "success");
+  // Show the new instance immediately
+  await loadChecklistInstances();
+  // Open the runner so the operator can start checking things off
+  _clOpenRunner(data.id);
+}
+
+// ── Event wiring (delegated) ─────────────────────────────────────────
+document.addEventListener("click", (e) => {
+  // Open an instance in the runner drawer
+  const openInst = e.target.closest?.("[data-cl-open]");
+  if (openInst) {
+    e.preventDefault();
+    _clOpenRunner(openInst.getAttribute("data-cl-open"));
+    return;
+  }
+  // Close drawer
+  if (e.target.closest?.("[data-cl-close]")) { e.preventDefault(); _clCloseRunner(); return; }
+  // Toggle item
+  const toggle = e.target.closest?.("[data-cl-toggle]");
+  if (toggle) { e.preventDefault(); _clToggleItem(toggle.getAttribute("data-cl-toggle")); return; }
+  // Filter
+  const filterBtn = e.target.closest?.("[data-cl-filter]");
+  if (filterBtn) {
+    _clMyFilter = filterBtn.getAttribute("data-cl-filter");
+    loadChecklistInstances();
+    return;
+  }
+  // Launch (no template)
+  if (e.target.closest?.("[data-cl-launch-new]")) { _clOpenLaunchDialog(null, e.target.closest("[data-cl-launch-new]")); return; }
+  // Launch (from a specific template)
+  const launchFromTpl = e.target.closest?.("[data-cl-launch-template]");
+  if (launchFromTpl) { e.preventDefault(); e.stopPropagation(); _clOpenLaunchDialog(launchFromTpl.getAttribute("data-cl-launch-template"), launchFromTpl); return; }
+  // Launch dialog actions
+  if (e.target.closest?.("[data-cl-launch-cancel]")) { _clCloseLaunchDialog(); return; }
+  const launchGo = e.target.closest?.("[data-cl-launch-go]");
+  if (launchGo) { _clLaunch(launchGo.getAttribute("data-template-id") || null); return; }
+  // Meta popover
+  if (e.target.closest?.("[data-cl-meta]")) { e.preventDefault(); _clOpenMetaPop(); return; }
+  // Archive
+  if (e.target.closest?.("[data-cl-archive]")) { e.preventDefault(); _clArchiveRunner(); return; }
+});
+
+document.addEventListener("input", (e) => {
+  // Search box in My Checklists
+  if (e.target?.id === "rr-cl-my-search") {
+    _clMySearch = e.target.value || "";
+    clearTimeout(_clItemTimers.get("_search"));
+    _clItemTimers.set("_search", setTimeout(loadChecklistInstances, 250));
+    return;
+  }
+  // Runner title (autosave debounced)
+  if (e.target?.id === "rr-cl-rn-title") {
+    const val = e.target.value;
+    clearTimeout(_clItemTimers.get("_title"));
+    _clItemTimers.set("_title", setTimeout(() => _clUpdateRunnerName(val), 450));
+    return;
+  }
+});
+document.addEventListener("change", (e) => {
+  if (e.target?.id === "rr-cl-rn-assignee") _clMetaChange("assignee", e.target.value);
+  if (e.target?.id === "rr-cl-rn-due")      _clMetaChange("due",      e.target.value);
+});
+
+// Close meta popover / launch popover on outside click
+document.addEventListener("click", (e) => {
+  const lp = document.getElementById("rr-cl-launch-pop");
+  if (lp && !lp.contains(e.target) && !e.target.closest?.("[data-cl-launch-new], [data-cl-launch-template]")) {
+    _clCloseLaunchDialog();
+  }
+  const meta = document.querySelector(".cl-rn-meta-pop");
+  if (meta && !meta.contains(e.target) && !e.target.closest?.("[data-cl-meta]")) {
+    meta.remove();
+  }
+}, true);
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (document.getElementById("rr-cl-launch-pop")) { _clCloseLaunchDialog(); return; }
+    if (document.querySelector(".cl-rn-meta-pop"))    { document.querySelector(".cl-rn-meta-pop").remove(); return; }
+    if (document.getElementById("rr-cl-runner")?.classList.contains("open")) { _clCloseRunner(); return; }
+  }
+});
+
+// Sub-tab navigation — refresh the right tab content
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest?.("#view-checklists .subnav-item");
+  if (!btn) return;
+  const sub = btn.getAttribute("data-sub");
+  setTimeout(() => {
+    if (sub === "my")        loadChecklistInstances();
+    if (sub === "status")    loadChecklistTodaySummary();
+    if (sub === "templates") loadChecklistTemplates();
+  }, 0);
+});
+// On first nav to the Checklists view, load the active sub-tab
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.('.nav-item[data-view="workspaces"]') || e.target.closest?.('.nav-item[data-view="checklists"]')) {
+    setTimeout(() => {
+      const myTab     = document.getElementById("checklist-tab-my");
+      const statusTab = document.getElementById("checklist-tab-status");
+      if (myTab && myTab.style.display !== "none") loadChecklistInstances();
+      else if (statusTab && statusTab.style.display !== "none") loadChecklistTodaySummary();
     }, 80);
   }
 });
