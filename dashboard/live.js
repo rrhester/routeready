@@ -30181,55 +30181,29 @@ function _flRenderRoster() {
   const rows = _flApplyRosterFilters(_fleetRows);
   if (rows.length === 0) {
     tbody.innerHTML = _fleetRows.length === 0
-      ? `<tr><td colspan="7"><div class="fl-empty">
+      ? `<tr><td colspan="4"><div class="fl-empty">
           <div class="ic">${_flVanIconSvg()}</div>
           <h3>No vans yet</h3>
-          <p>Add your first van to start tracking mileage, service, inspections, and driver assignments.</p>
+          <p>Add your first van to start tracking service, inspections, and driver assignments.</p>
           <button class="btn btn-primary" data-rr-fleet-add-empty><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
         </div></td></tr>`
-      : `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
+      : `<tr><td colspan="4" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((v) => {
     const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
     const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
-    const plate = v.plate
-      ? `<div style="font-weight:600">${escapeHtml(v.plate)}</div>${v.plate_state ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.plate_state)}</div>` : ""}`
-      : `<span style="color:var(--text-subtle)">—</span>`;
-    const mileage = v.mileage != null
-      ? `<strong>${Number(v.mileage).toLocaleString()}</strong> mi`
-      : `<span style="color:var(--text-subtle)">—</span>`;
-    // Today's resolved driver — falls back to the standing primary
-    // (shown muted with an "off today" tag) when no one in the chain is
-    // scheduled.  The "covering for X" chip surfaces a backup pickup so
-    // the dispatcher can spot reassignments without opening the drawer.
-    let driver;
-    if (v.today_driver_name) {
-      const coverChip = v.today_via === "backup" && v.today_primary_out_name
-        ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">Covering for ${escapeHtml(v.today_primary_out_name)}</div>`
-        : (v.backup_count
-            ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">+ ${v.backup_count} backup${v.backup_count === 1 ? "" : "s"}</div>`
-            : "");
-      driver = `<div>${escapeHtml(v.today_driver_name)}${coverChip}</div>`;
-    } else if (v.primary_driver_name) {
-      driver = `<div style="color:var(--text-subtle)">${escapeHtml(v.primary_driver_name)}<div style="font-size:var(--fs-xs);margin-top:2px">Primary · off today</div></div>`;
-    } else {
-      driver = `<span style="color:var(--text-subtle)">— Unassigned</span>`;
-    }
     const issueChip = v.open_issue_count
       ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
       : "";
     const vehSub = [v.vin && `VIN: ${v.vin}`, v.station_code].filter(Boolean).join(" · ");
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}">
       <td><div style="display:flex;align-items:center;gap:10px">${_flVehThumb(v)}<div>
-        <div class="cell-name">${escapeHtml(v.name)}${v.plate ? ` <span style="color:var(--text-subtle);font-weight:500">| ${escapeHtml(v.plate)}</span>` : ""}</div>
+        <div class="cell-name">${escapeHtml(v.name)}</div>
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
       </div></div></td>
       <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
-      <td>${plate}</td>
-      <td>${mileage}${v.mileage_updated_at ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(_flRelative(v.mileage_updated_at))}</div>` : ""}</td>
       <td>${_flOpStatPill(v.operational_status)}${issueChip}</td>
-      <td>${driver}</td>
       <td><span class="fl-date${v.last_route_completed_at ? "" : " dim"}">${v.last_route_completed_at ? escapeHtml(_flRelative(v.last_route_completed_at)) : "—"}</span></td>
     </tr>`;
   }).join("");
