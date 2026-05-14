@@ -31780,73 +31780,6 @@ document.addEventListener("click", async (e) => {
     }).join("");
   }
 
-  // ── Fleet readiness ──
-  function _renderFleet(host, fleet, grounded){
-    if (!host) return;
-    const total = fleet?.total || 0;
-    if (!total) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div>
-          <h3>No vehicles in the fleet roster yet</h3>
-          <p>Add vehicles in the Fleet workspace and they'll appear here, tracked against Amazon's operational readiness expectations.</p>
-          <div class="actions"><button class="btn btn-primary btn-sm" type="button" onclick="goto('fleet')">Open Fleet</button></div>
-        </div>`;
-      return;
-    }
-    const op = fleet.operational || 0;
-    const ground = fleet.grounded || 0;
-    const repair = fleet.in_repair || 0;
-    const ringCirc = 2 * Math.PI * 62;
-    const okLen = total ? (op / total) * ringCirc : 0;
-    const repLen = total ? (repair / total) * ringCirc : 0;
-    const groLen = total ? (ground / total) * ringCirc : 0;
-    host.innerHTML = `
-      <div class="co-fleet-grid">
-        <div class="co-fleet-donut-card">
-          <div class="co-fleet-donut">
-            <svg width="160" height="160" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="62" fill="none" stroke="var(--border)" stroke-width="14"/>
-              <circle cx="80" cy="80" r="62" fill="none" stroke="#059669" stroke-width="14"
-                      stroke-dasharray="${okLen.toFixed(2)} ${(ringCirc-okLen).toFixed(2)}"
-                      stroke-dashoffset="0" transform="rotate(-90 80 80)"/>
-              <circle cx="80" cy="80" r="62" fill="none" stroke="#D97706" stroke-width="14"
-                      stroke-dasharray="${repLen.toFixed(2)} ${(ringCirc-repLen).toFixed(2)}"
-                      stroke-dashoffset="${(-okLen).toFixed(2)}" transform="rotate(-90 80 80)"/>
-              <circle cx="80" cy="80" r="62" fill="none" stroke="#9F1239" stroke-width="14"
-                      stroke-dasharray="${groLen.toFixed(2)} ${(ringCirc-groLen).toFixed(2)}"
-                      stroke-dashoffset="${(-okLen-repLen).toFixed(2)}" transform="rotate(-90 80 80)"/>
-            </svg>
-            <div class="center">
-              <div class="big">${op}</div>
-              <div class="lbl">In service</div>
-            </div>
-          </div>
-          <div class="co-fleet-legend">
-            <div class="co-fleet-legend-row"><span class="sw" style="background:#059669"></span>In service<span class="n">${op}</span></div>
-            <div class="co-fleet-legend-row"><span class="sw" style="background:#D97706"></span>In repair<span class="n">${repair}</span></div>
-            <div class="co-fleet-legend-row"><span class="sw" style="background:#9F1239"></span>Grounded<span class="n">${ground}</span></div>
-            <div class="co-fleet-legend-row" style="margin-top:4px;padding-top:6px;border-top:1px solid var(--border-subtle)">
-              <span style="color:var(--text-subtle);font-size:11px">Fleet total</span><span class="n">${total}</span>
-            </div>
-          </div>
-        </div>
-        <div>
-          ${(grounded || []).length ? `
-            <h4 style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)">Grounded VINs</h4>
-            <div class="co-fleet-cells">
-              ${grounded.map(g => `
-                <div class="co-fleet-cell state-grounded">
-                  <div class="vin"><span class="pip"></span>${_esc(g.label || g.vin || "—")}</div>
-                  <div class="meta">${_esc(g.reason || "Grounded")}</div>
-                  <div class="age">${Number(g.days_grounded || 0).toFixed(0)}d · ${g.over_amazon_threshold ? "over Amazon threshold" : g.in_amazon_warn ? "approaching threshold" : "in window"}</div>
-                </div>`).join("")}
-            </div>
-          ` : `<p style="margin:0;font-size:12px;color:var(--text-subtle)">No grounded vehicles · fleet is fully operational.</p>`}
-        </div>
-      </div>`;
-  }
-
   // ── Grounded vehicles table ──
   function _renderGrounded(host, grounded){
     if (!host) return;
@@ -31903,20 +31836,26 @@ document.addEventListener("click", async (e) => {
       </p>`;
   }
 
-  // ── Vendors ──
+  // ── Vendors · exception-only (only renders below or near threshold) ──
   function _renderVendors(host, vendors){
     if (!host) return;
-    if (!vendors || !vendors.length) {
+    // Only surface vendors that are an exception: stalled (below threshold)
+    // or at-risk (within 15 of threshold).  Everything else is silent.
+    const exceptions = (vendors || []).filter(v => {
+      const sc = Number(v.accountability_score || 0);
+      const thr = (v.reassignment_threshold || 60);
+      return sc < thr + 15;
+    });
+    if (!exceptions.length) {
       host.innerHTML = `
         <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M14 6V4a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v2"/></svg></div>
-          <h3>No vendors on file yet</h3>
-          <p>Add the repair vendors you work with and RouteReady will start scoring each one on ETA confirmation, on-time completion, RO documentation, and message responsiveness — and recommend reassignment when scores drop.</p>
-          <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-co-add-vendor>Add vendor</button></div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 12 11 14 15 10"/><circle cx="12" cy="12" r="10"/></svg></div>
+          <h3>No vendor delays</h3>
+          <p>Every active vendor is hitting their ETA, RO, and completion SLAs. RouteReady will surface a vendor here the moment their accountability score crosses the reassignment threshold.</p>
         </div>`;
       return;
     }
-    host.innerHTML = vendors.map(v => {
+    host.innerHTML = exceptions.map(v => {
       const sc = Number(v.accountability_score || 0);
       const stalled = sc < (v.reassignment_threshold || 60);
       const atRisk  = !stalled && sc < ((v.reassignment_threshold || 60) + 15);
@@ -31950,16 +31889,25 @@ document.addEventListener("click", async (e) => {
     }).join("");
   }
 
-  // ── FMCSA ──
+  // ── FMCSA · exception-only · renders only when a cure / OOS / mismatch
+  //   exists.  If the record is healthy, the pane stays quiet.
   function _renderFmcsa(host, f){
     if (!host) return;
-    if (!f) {
+    const hasException = f && (
+      f.cure_required ||
+      f.oos_order ||
+      (Number(f.mcs150_cmv_declared || 0) > 0) ||
+      f.insurance_bipd_on_file === false
+    );
+    if (!hasException) {
       host.innerHTML = `
         <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-          <h3>No FMCSA record on file</h3>
-          <p>Add your USDOT number, MCS-150 filing details, and SAFER metadata. RouteReady will then track filing deadlines, reconcile CMV declarations against your live fleet roster, and alert on SAFER profile changes.</p>
-          <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-co-fmcsa-edit>Add FMCSA record</button></div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 12 11 14 15 10"/><circle cx="12" cy="12" r="10"/></svg></div>
+          <h3>${f ? "No FMCSA exceptions" : "No FMCSA record on file"}</h3>
+          <p>${f
+            ? "MCS-150 is up to date, operating authority is active, BIPD insurance is on file, and the CMV declaration reconciles against your live fleet roster. Any change to SAFER state will surface here."
+            : "Add your USDOT number and MCS-150 filing details. RouteReady will only surface this pane when something needs your attention — a filing approaching deadline, a CMV mismatch, an OOS order, or an insurance lapse."}</p>
+          ${f ? "" : `<div class="actions"><button class="btn btn-primary btn-sm" type="button" data-co-fmcsa-edit>Add FMCSA record</button></div>`}
         </div>`;
       return;
     }
@@ -31998,92 +31946,6 @@ document.addEventListener("click", async (e) => {
       </div>`;
   }
 
-  // ── Documents ──
-  function _renderDocs(host, docs){
-    if (!host) return;
-    if (!docs || !docs.length) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-          <h3>No evidence uploaded yet</h3>
-          <p>Repair orders, invoices, photos, MCS-150 receipts, SAFER prints, and cure submissions all land in one library here, each one attached back to the originating VIN, cure, or vendor for audit traceability.</p>
-          <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-co-upload-evidence>Upload evidence</button></div>
-        </div>`;
-      return;
-    }
-    host.innerHTML = `<div class="co-docs-grid">${docs.map(d=>`
-      <div class="co-doc-card">
-        <div class="co-doc-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-        <div style="min-width:0;flex:1">
-          <div class="co-doc-nm">${_esc(d.name)}</div>
-          <div class="co-doc-meta">
-            ${d.attached_object_type ? `Attached to · <b>${_esc(d.attached_object_type)}</b><br>` : ""}
-            Uploaded ${_ago(d.uploaded_at)}${d.uploaded_by_name ? " · " + _esc(d.uploaded_by_name) : ""}
-          </div>
-          <div class="co-doc-tags">
-            <span class="co-doc-tag">${_esc((d.kind || "doc").toUpperCase())}</span>
-            ${d.verified ? '<span class="co-doc-tag verified">Verified</span>' : ""}
-          </div>
-        </div>
-      </div>`).join("")}</div>`;
-  }
-
-  // ── Audit ──
-  function _renderAudit(host, events){
-    if (!host) return;
-    if (!events || !events.length) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 7 8 12 13 17 8 21 12"/><polyline points="3 17 21 17"/></svg></div>
-          <h3>Audit trail is empty</h3>
-          <p>Every compliance action — citations, acknowledgements, vendor reassignments, RO uploads, cure submissions — is recorded here with a hash-chained, RFC-3161 timestamped entry.</p>
-        </div>`;
-      return;
-    }
-    host.innerHTML = `
-      <div class="co-audit">
-        ${events.map(e => `
-          <div class="co-audit-row">
-            <div class="ts">${_fmtDate(e.occurred_at)} · ${new Date(e.occurred_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
-            <div class="what">${_esc(e.summary)}${e.sub ? `<span class="sub">${_esc(e.sub)}</span>` : ""}</div>
-            <div class="who"><span class="av ${e.actor_type === 'system' ? 'bot' : ''}">${_esc(e.actor_type === 'system' ? 'RR' : (e.actor_label || '·').slice(0,2).toUpperCase())}</span>${_esc(e.actor_type === 'system' ? 'System' : (e.actor_label || ''))}</div>
-          </div>`).join("")}
-        <div class="co-audit-foot">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-          Hash-chained · RFC-3161 timestamps · ${events.length} recent event${events.length===1?"":"s"}
-        </div>
-      </div>`;
-  }
-
-  // ── Monitor registry ──
-  function _renderLibrary(host, monitors){
-    if (!host) return;
-    if (!monitors || !monitors.length) {
-      host.innerHTML = `<div class="co-empty"><h3>No monitors configured</h3><p>The default monitor pack hasn't been seeded for this DSP yet. Run a compliance sweep to populate it.</p></div>`;
-      return;
-    }
-    host.innerHTML = `<div class="co-mon-list">${monitors.map(m => {
-      const stateCls = m.state === 'crit' ? 'crit' : m.state === 'alerting' ? 'alert' : m.state === 'watching' ? 'watch' : m.state === 'paused' ? '' : '';
-      const cardCls = m.state === 'crit' ? 'crit' : m.state === 'alerting' ? 'alert' : '';
-      const capCls = m.automation === 'auto' ? 'auto' : m.automation === 'escalate' ? 'escalate' : m.automation === 'review' ? 'review' : '';
-      return `
-        <article class="co-mon-card ${cardCls}">
-          <div class="co-mon-top">
-            <div class="co-mon-nm">${_esc(m.name)}</div>
-            <span class="co-mon-state ${stateCls}"><span class="dot"></span>${_esc(m.state)}</span>
-          </div>
-          <p class="co-mon-desc">${_esc(m.description || "")}</p>
-          <div class="co-mon-meta">
-            ${m.data_source ? `<span>Source · <b>${_esc(m.data_source)}</b></span>` : ""}
-            ${m.last_check_at ? `<span>·</span><span>Last check · <b>${_ago(m.last_check_at)}</b></span>` : ""}
-          </div>
-          <div class="co-mon-foot">
-            ${m.automation ? `<span class="co-cap ${capCls}">${_esc(m.automation)}</span>` : ""}
-          </div>
-        </article>`;
-    }).join("")}</div>`;
-  }
-
   function _setRailCount(name, n){
     const root = _coRoot(); if (!root) return;
     const el = root.querySelector(`[data-co-rail-count="${name}"]`);
@@ -32098,7 +31960,6 @@ document.addEventListener("click", async (e) => {
   function _setRailCounts(b){
     _setRailCount("risks",    (b.risks || []).length);
     _setRailCount("cures",    (b.cures || []).length);
-    _setRailCount("fleet",    (b.fleet || {}).total || 0);
     _setRailCount("grounded", (b.grounded_vehicles || []).length);
     _setRailCount("vendors",  ((b.vendors || []).filter(v => v.accountability_score < (v.reassignment_threshold || 60))).length);
     _setRailCount("fmcsa",    (b.fmcsa && b.fmcsa.cure_required) ? 1 : 0);
@@ -32111,13 +31972,9 @@ document.addEventListener("click", async (e) => {
     _renderRisksHero(buckets["risks-hero"], bundle.risks || []);
     _renderRisks(buckets["risks-list"], bundle.risks || []);
     _renderCures(buckets.cures, bundle.cures || []);
-    _renderFleet(buckets.fleet, bundle.fleet || {}, bundle.grounded_vehicles || []);
     _renderGrounded(buckets.grounded, bundle.grounded_vehicles || []);
     _renderVendors(buckets.vendors, bundle.vendors || []);
     _renderFmcsa(buckets.fmcsa, bundle.fmcsa || null);
-    _renderDocs(buckets.docs, bundle.documents || []);
-    _renderAudit(buckets.audit, bundle.audit_events || []);
-    _renderLibrary(buckets.library, bundle.monitors || []);
     _setRailCounts(bundle);
     window[_coStateKey] = bundle;
   }

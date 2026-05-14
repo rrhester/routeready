@@ -11008,13 +11008,9 @@ body.rr-cmdk-open{ overflow:hidden }
              stay fixed-height. */
           #view-compliance .co-pane.is-active > [data-co-render="risks-list"],
           #view-compliance .co-pane.is-active > [data-co-render="cures"],
-          #view-compliance .co-pane.is-active > [data-co-render="fleet"],
           #view-compliance .co-pane.is-active > [data-co-render="grounded"],
           #view-compliance .co-pane.is-active > [data-co-render="vendors"],
-          #view-compliance .co-pane.is-active > [data-co-render="fmcsa"],
-          #view-compliance .co-pane.is-active > [data-co-render="docs"],
-          #view-compliance .co-pane.is-active > [data-co-render="audit"],
-          #view-compliance .co-pane.is-active > [data-co-render="library"]{
+          #view-compliance .co-pane.is-active > [data-co-render="fmcsa"]{
             flex:1;display:flex;flex-direction:column;min-height:0;
           }
           /* When the content target holds a single co-empty card, let it
@@ -11631,7 +11627,7 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div>
               <h1 class="page-title">Compliance</h1>
-              <p class="page-sub">Operational compliance &amp; fleet-readiness command center for Cardinal Logistics. Built around the real Amazon-DSP escalation patterns we cure against · grounded vehicles, repair SLAs, vendor stalls, MCS-150 / FMCSA, and operational readiness.</p>
+              <p class="page-sub">Exceptions only · this page surfaces operational compliance items that need your attention. Healthy state is silent.</p>
             </div>
           </div>
           <div class="page-actions">
@@ -11688,10 +11684,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Cure Actions
               <span class="count" data-co-rail-count="cures" hidden></span></button>
-              <button class="co-rail-item" data-co-pane="fleet" onclick="coPane('fleet')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
-                Fleet Readiness
-              <span class="count" data-co-rail-count="fleet" hidden></span></button>
               <button class="co-rail-item" data-co-pane="grounded" onclick="coPane('grounded')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                 Grounded Vehicles
@@ -11704,21 +11696,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 FMCSA / DOT
               <span class="count" data-co-rail-count="fmcsa" hidden></span></button>
-            </div>
-            <div class="co-rail-section">
-              <div class="co-rail-h">Record</div>
-              <button class="co-rail-item" data-co-pane="docs" onclick="coPane('docs')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                Documentation
-              </button>
-              <button class="co-rail-item" data-co-pane="audit" onclick="coPane('audit')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 7 8 12 13 17 8 21 12"/><polyline points="3 17 21 17"/></svg>
-                Audit Trail
-              </button>
-              <button class="co-rail-item" data-co-pane="library" onclick="coPane('library')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
-                Risk Tracking Library
-              </button>
             </div>
           </aside>
 
@@ -11770,20 +11747,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div class="co-empty" data-co-empty>Loading cures…</div>
               </div>
             </section>
-
-            <!-- ═══════════ FLEET READINESS ═══════════ -->
-            <section class="co-pane" data-co-pane="fleet" id="co-pane-fleet">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Fleet Readiness</h2>
-                  <p class="co-pane-sub">Real-time operational state of every VIN against Amazon's readiness expectations. Grounded VINs are auto-excluded from schedule publish.</p>
-                </div>
-              </div>
-              <div data-co-render="fleet">
-                <div class="co-empty" data-co-empty>Loading fleet readiness…</div>
-              </div>
-            </section>
-
             <!-- ═══════════ GROUNDED VEHICLES ═══════════ -->
             <section class="co-pane" data-co-pane="grounded" id="co-pane-grounded">
               <div class="co-pane-head">
@@ -11837,52 +11800,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div class="co-empty" data-co-empty>Loading FMCSA record…</div>
               </div>
             </section>
-
-            <!-- ═══════════ DOCUMENTATION ═══════════ -->
-            <section class="co-pane" data-co-pane="docs" id="co-pane-docs">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Documentation</h2>
-                  <p class="co-pane-sub">Evidence library across every compliance object · ROs, invoices, photos, MCS-150 receipts, SAFER prints, cure submissions, CAP responses.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-primary btn-sm" type="button" data-co-upload-evidence>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    Upload evidence
-                  </button>
-                </div>
-              </div>
-              <div data-co-render="docs">
-                <div class="co-empty" data-co-empty>Loading documents…</div>
-              </div>
-            </section>
-
-            <!-- ═══════════ AUDIT TRAIL ═══════════ -->
-            <section class="co-pane" data-co-pane="audit" id="co-pane-audit">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Audit Trail</h2>
-                  <p class="co-pane-sub">Immutable, hash-chained log of every compliance event across the DSP · who did what, when, against which VIN / cure / vendor.</p>
-                </div>
-              </div>
-              <div data-co-render="audit">
-                <div class="co-empty" data-co-empty>Loading audit trail…</div>
-              </div>
-            </section>
-
-            <!-- ═══════════ RISK TRACKING LIBRARY ═══════════ -->
-            <section class="co-pane" data-co-pane="library" id="co-pane-library">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Risk Tracking Library</h2>
-                  <p class="co-pane-sub">Every check RouteReady runs on behalf of this DSP. If a risk is missing from the list, it isn't being silently ignored — it isn't being monitored.</p>
-                </div>
-              </div>
-              <div data-co-render="library">
-                <div class="co-empty" data-co-empty>Loading monitor registry…</div>
-              </div>
-            </section>
-
           </main>
         </div>
       </div>
