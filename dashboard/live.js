@@ -8776,8 +8776,21 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
          </div>`
       : "";
 
+    // Shared colgroup pins column widths so every wave's table lines
+    // up — without this, each table auto-sizes independently and the
+    // columns drift apart visually.  table-layout:fixed makes the
+    // browser honor the colgroup percentages exactly.
+    const colgroup = `<colgroup>
+      <col style="width:32%">
+      <col style="width:18%">
+      <col style="width:18%">
+      <col style="width:14%">
+      <col style="width:18%">
+    </colgroup>`;
+
     return `${header}
-      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md)">
+      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md);table-layout:fixed">
+        ${colgroup}
         ${idx === 0 || showWaveHeaders ? `<thead>
           <tr>
             <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Driver</th>
