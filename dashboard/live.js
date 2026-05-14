@@ -27382,7 +27382,16 @@ async function _wsVehChainChange(id, rowEl) {
   }
   const ids = [primary, backup].filter(Boolean);
   const { error } = await sb.rpc("vehicle_assignment_set", { p_vehicle_id: id, p_driver_ids: ids });
-  if (error) { toast("Couldn't save the assignment: " + (error.message || "try again"), "warn"); _wsRenderVehicles(document.getElementById("rr-ws-root")); return; }
+  if (error) {
+    // The RPC raises a complete sentence for the role-uniqueness case
+    // ("Sarah is already primary of 4271. Remove them there first.") —
+    // surface that verbatim.  Other errors get a generic prefix.
+    const msg = error.message || "";
+    const friendly = /already (primary|backup) of /i.test(msg) ? msg : ("Couldn't save the assignment: " + (msg || "try again"));
+    toast(friendly, "warn");
+    _wsRenderVehicles(document.getElementById("rr-ws-root"));
+    return;
+  }
   v.drivers = ids.map((did, i) => ({ driver_id: did, rank: i, name: _wsDrvName(did) }));
 }
 
