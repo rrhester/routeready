@@ -31028,15 +31028,19 @@ async function _fdRefreshInspectionsList(vehicleId) {
 
   // Signed-URL pre-fetch for any photo paths attached to these rows.
   // driver-documents is a private bucket; we only need a short-lived
-  // URL for the thumbnail strip.  Failures are silent — missing thumbs
-  // just render an icon tile.
+  // URL for the thumbnail strip.  Per-path errors get logged so a
+  // broken-thumbnail mystery is greppable in the console next time.
   const pathsAll = data.flatMap((r) => Array.isArray(r.photos) ? r.photos.filter(Boolean) : []);
   const urlMap = new Map();
   if (pathsAll.length) {
     try {
-      const { data: signed } = await sb.storage.from("driver-documents").createSignedUrls(pathsAll, 3600);
-      (signed || []).forEach((s) => { if (s?.signedUrl) urlMap.set(s.path, s.signedUrl); });
-    } catch (e) { /* silent */ }
+      const { data: signed, error: signErr } = await sb.storage.from("driver-documents").createSignedUrls(pathsAll, 3600);
+      if (signErr) console.warn("DVIC signed urls · top-level error:", signErr);
+      (signed || []).forEach((s) => {
+        if (s?.signedUrl) urlMap.set(s.path, s.signedUrl);
+        else if (s?.error) console.warn(`DVIC photo unreadable: ${s.path} → ${s.error}`);
+      });
+    } catch (e) { console.warn("DVIC signed urls · exception:", e); }
   }
 
   wrap.innerHTML = data.map((r) => {
