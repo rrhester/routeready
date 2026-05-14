@@ -314,6 +314,7 @@ a{color:inherit;text-decoration:none}
 .nav-item[data-c="drivers"]  {--ni-fg:#5EEAD4;--ni-bg:rgba(13,148,136,.18);--ni-bg-strong:rgba(13,148,136,.28);--ni-glow:rgba(13,148,136,.22)}
 .nav-item[data-c="staffing"] {--ni-fg:#F9A8D4;--ni-bg:rgba(219,39,119,.16);--ni-bg-strong:rgba(219,39,119,.26);--ni-glow:rgba(219,39,119,.22)}
 .nav-item[data-c="fleet"]    {--ni-fg:#FCD34D;--ni-bg:rgba(217,119,6,.16);--ni-bg-strong:rgba(217,119,6,.26);--ni-glow:rgba(217,119,6,.22)}
+.nav-item[data-c="compliance"]{--ni-fg:#CBD5E1;--ni-bg:rgba(100,116,139,.22);--ni-bg-strong:rgba(100,116,139,.34);--ni-glow:rgba(148,163,184,.22)}
 .nav-item[data-c="schedule"] {--ni-fg:#818CF8;--ni-bg:rgba(79,70,229,.18);--ni-bg-strong:rgba(79,70,229,.28);--ni-glow:rgba(79,70,229,.22)}
 .nav-item[data-c="outlook"]  {--ni-fg:#FBBF24;--ni-bg:rgba(245,158,11,.16);--ni-bg-strong:rgba(245,158,11,.26);--ni-glow:rgba(245,158,11,.22)}
 .nav-item[data-c="analytics"]{--ni-fg:#C7D2FE;--ni-bg:rgba(99,102,241,.18);--ni-bg-strong:rgba(99,102,241,.28);--ni-glow:rgba(99,102,241,.22)}
@@ -474,6 +475,7 @@ a{color:inherit;text-decoration:none}
 .page-icon[data-c="drivers"]  {--pi-fg:#0D9488;--pi-bg:rgba(13,148,136,.10);--pi-ring:rgba(13,148,136,.20)}
 .page-icon[data-c="staffing"] {--pi-fg:#DB2777;--pi-bg:rgba(219,39,119,.10);--pi-ring:rgba(219,39,119,.20)}
 .page-icon[data-c="fleet"]    {--pi-fg:#D97706;--pi-bg:rgba(217,119,6,.10);--pi-ring:rgba(217,119,6,.20)}
+.page-icon[data-c="compliance"]{--pi-fg:#334155;--pi-bg:rgba(51,65,85,.08);--pi-ring:rgba(51,65,85,.18)}
 .page-icon[data-c="schedule"] {--pi-fg:#4F46E5;--pi-bg:rgba(79,70,229,.10);--pi-ring:rgba(79,70,229,.20)}
 .page-icon[data-c="outlook"]  {--pi-fg:#D97706;--pi-bg:rgba(245,158,11,.10);--pi-ring:rgba(245,158,11,.20)}
 .page-icon[data-c="messages"] {--pi-fg:#0284C7;--pi-bg:rgba(2,132,199,.10);--pi-ring:rgba(2,132,199,.20)}
@@ -6650,6 +6652,11 @@ body.rr-cmdk-open{ overflow:hidden }
         Fleet
         <span class="nav-badge" style="background:var(--amber)">2</span>
       </button>
+      <button class="nav-item" data-view="compliance" data-c="compliance" onclick="goto('compliance')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 12 L19.6 7.5"/></svg></span>
+        Compliance
+        <span class="nav-badge" style="background:var(--red)">4</span>
+      </button>
       <button class="nav-item" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
@@ -10918,6 +10925,1703 @@ body.rr-cmdk-open{ overflow:hidden }
             </table>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         COMPLIANCE — operational risk + monitoring command center.
+
+         Two tabs:
+           · Risks      — live, prioritized operational risk feed,
+                          aggregated from every connected module
+                          (fleet, drivers, vendors, DOT/FMCSA, CAP,
+                          documents, schedule, attendance).
+           · Monitoring — registry of every check RouteReady runs
+                          on the DSP's behalf.  Operational
+                          transparency: a DSP can verify whether a
+                          given risk is being tracked, the data
+                          source, last check time, severity reach,
+                          and whether remediation is automated.
+
+         Content here is static / illustrative; live wiring lands in
+         a follow-up (rules engine + risk aggregator service).
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-compliance">
+      <div class="page">
+
+        <style>
+          /* ── Compliance · scoped design system ──────────────────────
+             Premium, calm, operational.  No bright KPI strips, no
+             dashboard-y gradients.  Information density is high but
+             carried by typography + restrained color.
+             ─────────────────────────────────────────────────────────── */
+          #view-compliance{
+            --co-radius:var(--r-xl);
+            --co-radius-sm:var(--r-lg);
+            --co-rail-critical:#9F1239;
+            --co-rail-high:#D97706;
+            --co-rail-med:#0F6CBD;
+            --co-rail-low:#64748B;
+            --co-mute:#6E7B8C;
+          }
+          #view-compliance .page-sub{ max-width:none; }
+
+          /* ── Posture strip ── quiet operational read at the top of
+             the page.  Reads like an instrument cluster, not a
+             marketing dashboard. */
+          .co-posture{
+            display:grid;grid-template-columns:1.5fr repeat(4,1fr) auto;
+            gap:0;
+            border:1px solid var(--border);
+            background:linear-gradient(180deg,var(--surface) 0%, #FCFCFD 100%);
+            border-radius:var(--co-radius);
+            margin:14px 0 18px;
+            overflow:hidden;
+          }
+          .co-posture-cell{
+            padding:14px 18px;
+            border-right:1px solid var(--border-subtle);
+            min-width:0;
+          }
+          .co-posture-cell:last-child{border-right:none}
+          .co-posture-lbl{
+            font-size:10px;font-weight:700;letter-spacing:.08em;
+            text-transform:uppercase;color:var(--text-subtle);
+            margin-bottom:6px;
+          }
+          .co-posture-val{
+            font-family:'Inter Tight','Inter',system-ui,sans-serif;
+            font-size:22px;font-weight:700;letter-spacing:-.01em;color:var(--text);
+            line-height:1.1;
+          }
+          .co-posture-val .unit{font-size:12px;color:var(--text-subtle);font-weight:600;letter-spacing:0;margin-left:4px}
+          .co-posture-sub{
+            margin-top:4px;font-size:11px;color:var(--text-subtle);
+            font-weight:500;letter-spacing:.01em;
+          }
+          .co-score{
+            display:flex;align-items:center;gap:14px;
+          }
+          .co-score-ring{
+            position:relative;width:54px;height:54px;flex:0 0 auto;
+          }
+          .co-score-ring svg{transform:rotate(-90deg)}
+          .co-score-ring .track{stroke:var(--border);stroke-width:5;fill:none}
+          .co-score-ring .fill{stroke:var(--amber);stroke-width:5;fill:none;stroke-linecap:round}
+          .co-score-ring .num{
+            position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+            font-family:'Inter Tight','Inter',system-ui,sans-serif;
+            font-size:15px;font-weight:700;color:var(--text);
+            font-variant-numeric:tabular-nums;
+          }
+          .co-score-meta .co-score-label{
+            font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);
+          }
+          .co-score-meta .co-score-state{
+            font-size:15px;font-weight:700;color:var(--amber-dark);letter-spacing:-.005em;line-height:1.2;margin-top:3px;
+          }
+          .co-score-meta .co-score-trend{
+            font-size:11px;color:var(--text-subtle);margin-top:3px;
+            display:inline-flex;align-items:center;gap:5px;font-weight:500;
+          }
+          .co-score-trend svg{width:11px;height:11px;color:var(--green)}
+          .co-posture-cta{
+            display:flex;align-items:center;padding:14px 18px;gap:10px;background:var(--canvas);
+          }
+
+          /* ── Tools bar ── search · group-by · filters */
+          .co-tools{
+            display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+            margin:0 0 14px;
+          }
+          .co-search{
+            position:relative;flex:1;min-width:240px;max-width:420px;
+          }
+          .co-search svg{
+            position:absolute;left:11px;top:50%;transform:translateY(-50%);
+            width:14px;height:14px;color:var(--text-subtle);pointer-events:none;
+          }
+          .co-search input{
+            width:100%;height:34px;padding:0 12px 0 32px;
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:8px;font-size:var(--fs-md);color:var(--text);
+            transition:border-color .12s, box-shadow .12s, background .12s;
+          }
+          .co-search input:focus{
+            outline:none;border-color:var(--accent);
+            box-shadow:0 0 0 3px var(--accent-soft);
+          }
+          .co-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .co-filter{
+            display:inline-flex;align-items:center;gap:6px;
+            height:34px;padding:0 12px;border-radius:8px;
+            background:var(--surface);border:1px solid var(--border);
+            font-size:var(--fs-md);font-weight:600;color:var(--text-muted);
+            cursor:pointer;transition:border-color .12s, background .12s, color .12s;
+          }
+          .co-filter:hover{border-color:var(--border-strong);color:var(--text)}
+          .co-filter.is-set{
+            background:var(--accent-soft);border-color:transparent;color:var(--accent-text);
+          }
+          .co-filter svg{width:12px;height:12px;opacity:.7}
+          .co-toggle-group{
+            display:inline-flex;background:var(--surface);border:1px solid var(--border);
+            border-radius:8px;padding:2px;height:34px;
+          }
+          .co-toggle{
+            display:inline-flex;align-items:center;padding:0 11px;height:28px;
+            border-radius:6px;font-size:var(--fs-md);font-weight:600;color:var(--text-muted);
+            cursor:pointer;background:transparent;border:none;
+          }
+          .co-toggle.is-active{background:var(--canvas);color:var(--text);box-shadow:var(--shadow-xs)}
+
+          /* ── Severity rail row group header */
+          .co-group{margin:14px 0 16px}
+          .co-group:first-child{margin-top:0}
+          .co-group-head{
+            display:flex;align-items:center;gap:10px;
+            padding:0 4px 8px;
+          }
+          .co-sev-pill{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:3px 9px 3px 7px;border-radius:999px;
+            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            border:1px solid transparent;
+          }
+          .co-sev-pill .dot{width:6px;height:6px;border-radius:50%}
+          .co-sev-pill.critical{background:rgba(159,18,57,.08);color:#9F1239}
+          .co-sev-pill.critical .dot{background:#9F1239}
+          .co-sev-pill.high{background:rgba(217,119,6,.10);color:var(--amber-dark)}
+          .co-sev-pill.high .dot{background:var(--amber)}
+          .co-sev-pill.medium{background:var(--accent-soft);color:var(--accent-text)}
+          .co-sev-pill.medium .dot{background:var(--accent)}
+          .co-sev-pill.low{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
+          .co-sev-pill.low .dot{background:var(--co-rail-low)}
+          .co-group-count{
+            font-size:11px;font-weight:600;color:var(--text-subtle);
+          }
+          .co-group-spacer{flex:1}
+          .co-group-meta{
+            font-size:11px;color:var(--text-subtle);font-weight:500;
+            display:inline-flex;align-items:center;gap:6px;
+          }
+          .co-group-meta svg{width:11px;height:11px}
+
+          /* ── Risk row card ── */
+          .co-risks-list{
+            display:flex;flex-direction:column;gap:8px;
+          }
+          .co-risk{
+            position:relative;background:var(--surface);
+            border:1px solid var(--border);border-radius:var(--co-radius-sm);
+            overflow:hidden;
+            transition:border-color .12s, box-shadow .12s, background .12s;
+          }
+          .co-risk:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+          .co-risk::before{
+            content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+            background:var(--co-rail-low);
+          }
+          .co-risk.sev-critical::before{background:var(--co-rail-critical)}
+          .co-risk.sev-high::before{background:var(--co-rail-high)}
+          .co-risk.sev-medium::before{background:var(--co-rail-med)}
+          .co-risk-head{
+            display:grid;
+            grid-template-columns: minmax(0,1fr) auto;
+            gap:14px;padding:14px 18px 14px 22px;cursor:pointer;
+            align-items:start;
+          }
+          .co-risk-l{min-width:0}
+          .co-risk-title{
+            font-size:14px;font-weight:650;color:var(--text);
+            letter-spacing:-.005em;line-height:1.35;
+          }
+          .co-risk-subjects{
+            margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;
+          }
+          .co-subj{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:11px;font-weight:600;color:var(--text-muted);
+            background:var(--canvas);border:1px solid var(--border);
+            border-radius:5px;padding:2px 7px;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+          }
+          .co-subj .lbl{
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+            font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            color:var(--text-subtle);
+          }
+          .co-subj.module{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text-muted)}
+          .co-subj.module svg{width:11px;height:11px;color:var(--text-subtle)}
+          .co-risk-meta{
+            margin-top:8px;display:flex;flex-wrap:wrap;gap:10px 14px;
+            font-size:11px;color:var(--text-subtle);font-weight:500;
+            align-items:center;
+          }
+          .co-risk-meta .sep{opacity:.45}
+          .co-risk-meta svg{width:11px;height:11px;color:var(--text-subtle);flex:0 0 auto}
+          .co-risk-meta .age{color:var(--text-muted);font-variant-numeric:tabular-nums}
+          .co-risk-meta .age.warn{color:var(--amber-dark);font-weight:600}
+          .co-risk-meta .age.urgent{color:#9F1239;font-weight:700}
+          .co-risk-r{
+            display:flex;flex-direction:column;align-items:flex-end;gap:8px;
+            min-width:140px;
+          }
+          .co-status{
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            padding:3px 9px;border-radius:999px;
+            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
+          }
+          .co-status .dot{width:6px;height:6px;border-radius:50%;background:var(--text-subtle)}
+          .co-status.open{background:rgba(159,18,57,.07);color:#9F1239;border-color:transparent}
+          .co-status.open .dot{background:#9F1239}
+          .co-status.ack{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
+          .co-status.ack .dot{background:var(--amber)}
+          .co-status.remed{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          .co-status.remed .dot{background:var(--accent)}
+          .co-status.escalation{
+            background:#1B1F2C;color:#FCA5A5;border-color:transparent;
+            letter-spacing:.08em;
+          }
+          .co-status.escalation .dot{background:#F87171}
+          .co-status.mitig{background:var(--green-soft);color:var(--green);border-color:transparent}
+          .co-status.mitig .dot{background:var(--green)}
+          .co-owner{
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:11px;color:var(--text-muted);font-weight:600;
+          }
+          .co-owner .av{
+            width:20px;height:20px;border-radius:50%;
+            display:inline-flex;align-items:center;justify-content:center;
+            font-size:9px;font-weight:700;color:var(--accent-text);
+            background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);
+          }
+          .co-owner.unassigned .av{background:var(--canvas);border-style:dashed;color:var(--text-subtle)}
+
+          /* Expanded drawer body */
+          .co-risk-body{
+            display:none;padding:0 18px 16px 22px;
+            border-top:1px solid var(--border-subtle);background:#FCFCFD;
+          }
+          .co-risk.is-open .co-risk-body{display:block}
+          .co-risk.is-open .co-risk-chevron{transform:rotate(90deg)}
+          .co-risk-chevron{
+            color:var(--text-subtle);transition:transform .15s ease;
+            width:14px;height:14px;
+          }
+          .co-risk-headrow{display:flex;align-items:center;gap:8px}
+
+          .co-drawer-grid{
+            display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-top:14px;
+          }
+          @media (max-width:980px){.co-drawer-grid{grid-template-columns:1fr}}
+          .co-drawer-section{margin-top:6px}
+          .co-drawer-section + .co-drawer-section{margin-top:18px}
+          .co-drawer-h{
+            font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+            color:var(--text-subtle);margin:0 0 8px;
+          }
+          .co-timeline{
+            position:relative;padding-left:18px;
+          }
+          .co-timeline::before{
+            content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--border);
+          }
+          .co-timeline-row{
+            position:relative;display:grid;grid-template-columns:auto 1fr auto;gap:10px;
+            padding:5px 0;font-size:12px;
+          }
+          .co-timeline-row::before{
+            content:"";position:absolute;left:-15px;top:10px;width:9px;height:9px;
+            border-radius:50%;background:var(--surface);border:2px solid var(--border-strong);
+          }
+          .co-timeline-row.is-now::before{border-color:var(--accent);background:var(--accent)}
+          .co-timeline-row.is-warn::before{border-color:var(--amber);background:var(--amber)}
+          .co-timeline-row.is-crit::before{border-color:#9F1239;background:#9F1239}
+          .co-timeline-row.is-good::before{border-color:var(--green);background:var(--green)}
+          .co-tl-when{
+            color:var(--text-subtle);font-size:11px;font-variant-numeric:tabular-nums;min-width:90px;
+          }
+          .co-tl-what{color:var(--text);font-weight:550}
+          .co-tl-what .sub{display:block;color:var(--text-subtle);font-weight:500;margin-top:1px;font-size:11px}
+          .co-tl-tag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+
+          .co-actions{
+            display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;
+          }
+          .co-action{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:6px 11px;border-radius:7px;
+            background:var(--surface);border:1px solid var(--border);
+            font-size:12px;font-weight:600;color:var(--text);
+            cursor:pointer;transition:border-color .12s, background .12s;
+          }
+          .co-action:hover{border-color:var(--border-strong);background:var(--canvas)}
+          .co-action svg{width:12px;height:12px;color:var(--text-muted)}
+          .co-action.primary{
+            background:var(--accent-grad);border-color:transparent;color:#fff;
+            box-shadow:var(--shadow-xs);
+          }
+          .co-action.primary:hover{background:var(--accent-grad-hover);color:#fff}
+          .co-action.primary svg{color:#fff}
+
+          .co-side-card{
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--co-radius-sm);padding:14px;
+          }
+          .co-side-card + .co-side-card{margin-top:10px}
+          .co-side-label{
+            font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+            color:var(--text-subtle);margin-bottom:4px;
+          }
+          .co-side-val{font-size:12px;color:var(--text);font-weight:550;line-height:1.45}
+          .co-side-val .dim{color:var(--text-subtle);font-weight:500}
+
+          .co-pattern{
+            display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+            background:rgba(159,18,57,.05);border:1px solid rgba(159,18,57,.18);
+            border-radius:8px;font-size:12px;color:#7F1D3F;line-height:1.45;
+          }
+          .co-pattern svg{width:14px;height:14px;flex:0 0 auto;margin-top:1px;color:#9F1239}
+          .co-pattern b{font-weight:700;color:#9F1239}
+
+          /* ── Quiet detector banner ── */
+          .co-detector{
+            display:flex;align-items:center;gap:10px;
+            padding:9px 14px;margin:0 0 14px;
+            border-radius:10px;
+            border:1px solid var(--border-subtle);
+            background:linear-gradient(90deg, var(--surface) 0%, var(--canvas) 100%);
+          }
+          .co-detector .dot{
+            width:8px;height:8px;border-radius:50%;background:var(--green);
+            box-shadow:0 0 0 3px rgba(5,150,105,.16);flex:0 0 auto;
+          }
+          .co-detector .txt{
+            font-size:12px;color:var(--text-muted);font-weight:500;flex:1;min-width:0;
+          }
+          .co-detector .txt b{color:var(--text);font-weight:650}
+          .co-detector .meta{font-size:11px;color:var(--text-subtle);font-weight:500}
+
+          /* ── Monitoring tab styles ── */
+          .co-mon-cats{display:flex;flex-direction:column;gap:18px}
+          .co-mon-cat-head{
+            display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+            padding:0 4px 8px;border-bottom:1px solid var(--border-subtle);margin-bottom:12px;
+          }
+          .co-mon-cat-title{
+            display:flex;align-items:center;gap:10px;
+            font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text);
+          }
+          .co-mon-cat-icon{
+            width:22px;height:22px;border-radius:6px;
+            display:inline-flex;align-items:center;justify-content:center;
+            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
+          }
+          .co-mon-cat-icon svg{width:12px;height:12px}
+          .co-mon-cat-count{font-size:11px;color:var(--text-subtle);font-weight:600}
+
+          .co-mon-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));
+            gap:10px;
+          }
+          .co-mon-card{
+            position:relative;background:var(--surface);
+            border:1px solid var(--border);border-radius:var(--co-radius-sm);
+            padding:14px 16px 13px;
+            transition:border-color .12s, box-shadow .12s;
+          }
+          .co-mon-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+          .co-mon-card.is-alert{border-color:rgba(217,119,6,.30)}
+          .co-mon-card.is-crit{border-color:rgba(159,18,57,.30)}
+          .co-mon-card.is-paused{opacity:.72}
+          .co-mon-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+          .co-mon-name{
+            font-size:13px;font-weight:650;color:var(--text);
+            letter-spacing:-.005em;line-height:1.35;
+          }
+          .co-mon-state{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            padding:2px 8px;border-radius:999px;flex:0 0 auto;
+            background:var(--green-soft);color:var(--green);
+          }
+          .co-mon-state .dot{width:5px;height:5px;border-radius:50%;background:var(--green)}
+          .co-mon-state.watching{background:var(--accent-soft);color:var(--accent-text)}
+          .co-mon-state.watching .dot{background:var(--accent);animation:co-pulse 2s ease-in-out infinite}
+          .co-mon-state.alerting{background:var(--amber-soft);color:var(--amber-dark)}
+          .co-mon-state.alerting .dot{background:var(--amber)}
+          .co-mon-state.crit{background:rgba(159,18,57,.10);color:#9F1239}
+          .co-mon-state.crit .dot{background:#9F1239;animation:co-pulse 1.4s ease-in-out infinite}
+          .co-mon-state.paused{background:var(--canvas);color:var(--text-subtle);border:1px solid var(--border)}
+          .co-mon-state.paused .dot{background:var(--text-subtle)}
+
+          @keyframes co-pulse{
+            0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1}
+            50%{box-shadow:0 0 0 4px transparent;opacity:.65}
+          }
+
+          .co-mon-desc{
+            margin-top:6px;font-size:12px;color:var(--text-muted);
+            line-height:1.5;
+          }
+          .co-mon-meta{
+            margin-top:11px;padding-top:10px;border-top:1px solid var(--border-subtle);
+            display:grid;grid-template-columns:1fr 1fr;gap:7px 14px;
+            font-size:11px;color:var(--text-subtle);
+          }
+          .co-mon-meta dt{font-weight:700;letter-spacing:.05em;text-transform:uppercase;font-size:9.5px;color:var(--text-subtle);margin-bottom:1px}
+          .co-mon-meta dd{margin:0;color:var(--text-muted);font-weight:550;font-variant-numeric:tabular-nums}
+          .co-mon-meta dd.full{grid-column:1/-1}
+          .co-mon-meta dd b{color:var(--text);font-weight:650}
+
+          .co-mon-foot{
+            margin-top:11px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+          }
+          .co-cap{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);
+            border-radius:5px;padding:2px 7px;white-space:nowrap;
+          }
+          .co-cap svg{width:11px;height:11px;color:var(--text-subtle)}
+          .co-cap.auto{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          .co-cap.auto svg{color:var(--accent)}
+          .co-cap.review{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
+          .co-cap.review svg{color:var(--amber)}
+          .co-cap.readonly svg{color:var(--text-subtle)}
+          .co-cap.escalate{background:#1B1F2C;color:#FCA5A5;border-color:transparent}
+          .co-cap.escalate svg{color:#F87171}
+
+          .co-sev-mini{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text-muted);
+          }
+          .co-sev-mini .bars{display:inline-flex;gap:2px;align-items:center}
+          .co-sev-mini .bars i{width:3px;height:9px;border-radius:1px;background:var(--border-strong);display:inline-block}
+          .co-sev-mini.sev-crit .bars i:nth-child(-n+4){background:#9F1239}
+          .co-sev-mini.sev-high .bars i:nth-child(-n+3){background:var(--amber)}
+          .co-sev-mini.sev-med  .bars i:nth-child(-n+2){background:var(--accent)}
+          .co-sev-mini.sev-low  .bars i:nth-child(-n+1){background:var(--text-muted)}
+
+          /* Tab panel toggling */
+          .co-tab{display:none}
+          .co-tab.is-active{display:block}
+        </style>
+
+        <div class="page-header">
+          <div class="page-header-l">
+            <div class="page-icon" data-c="compliance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 12 L19.6 7.5"/></svg>
+            </div>
+            <div>
+              <h1 class="page-title">Compliance</h1>
+              <p class="page-sub">Live operational risk surface for Cardinal Logistics · continuous monitoring of fleet, drivers, vendors, DOT &amp; FMCSA, CAP items, documents, and operational readiness.</p>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost btn-icon" title="Export audit log" aria-label="Export audit log">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button class="btn btn-primary" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 4 21 10 15 10"/></svg>
+              Run sweep
+            </button>
+          </div>
+        </div>
+
+        <div class="subnav" id="co-subnav">
+          <button class="subnav-item active" data-co-sub="risks" onclick="complianceSub('risks')">
+            Risks
+            <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span>
+          </button>
+          <button class="subnav-item" data-co-sub="monitoring" onclick="complianceSub('monitoring')">
+            Monitoring
+            <span style="background:var(--canvas);color:var(--text-muted);font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px;border:1px solid var(--border)">31</span>
+          </button>
+        </div>
+
+        <!-- ═════ RISKS ═════ -->
+        <div class="co-tab is-active" id="co-tab-risks">
+
+          <!-- Posture strip -->
+          <div class="co-posture">
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Operational risk score</div>
+              <div class="co-score">
+                <div class="co-score-ring" aria-hidden="true">
+                  <svg width="54" height="54" viewBox="0 0 54 54">
+                    <circle cx="27" cy="27" r="22" class="track"/>
+                    <circle cx="27" cy="27" r="22" class="fill"
+                            stroke-dasharray="138.23"
+                            stroke-dashoffset="49.76"/>
+                  </svg>
+                  <div class="num">64</div>
+                </div>
+                <div class="co-score-meta">
+                  <div class="co-score-label">Posture</div>
+                  <div class="co-score-state">Elevated</div>
+                  <div class="co-score-trend">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 11 10 14 13 19 8"/><polyline points="14 8 19 8 19 13"/></svg>
+                    <span>Up 8 pts since Apr 30 · 3 new escalation patterns</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Active risks</div>
+              <div class="co-posture-val">12 <span class="unit">open</span></div>
+              <div class="co-posture-sub">4 critical · 3 high · 5 medium</div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Approaching deadlines</div>
+              <div class="co-posture-val">7</div>
+              <div class="co-posture-sub">3 inside Amazon CAP window</div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Escalation-likely</div>
+              <div class="co-posture-val" style="color:#9F1239">2</div>
+              <div class="co-posture-sub">Pattern match · grounded vehicle, vendor SLA</div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Last sweep</div>
+              <div class="co-posture-val" style="font-size:15px;font-weight:650">3 min ago</div>
+              <div class="co-posture-sub">Continuous · 31 monitors green</div>
+            </div>
+            <div class="co-posture-cta">
+              <button class="btn btn-ghost btn-sm" type="button">View audit trail</button>
+            </div>
+          </div>
+
+          <!-- Quiet pattern banner — proactive intelligence, no shouting -->
+          <div class="co-detector">
+            <span class="dot"></span>
+            <span class="txt"><b>Proactive intelligence:</b> 2 patterns matched Amazon-CAP precursor signatures in the last 24h. RouteReady has pre-staged remediation paths on each — review before Amazon does.</span>
+            <span class="meta">Updated · 3 min ago</span>
+          </div>
+
+          <!-- Tools bar -->
+          <div class="co-tools">
+            <div class="co-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" placeholder="Search risks · VIN, driver, vendor, RO, route…">
+            </div>
+            <div class="co-filters">
+              <button class="co-filter" type="button">Severity <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="co-filter is-set" type="button">Status · Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="co-filter" type="button">Module <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="co-filter" type="button">Owner <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+            </div>
+            <div style="flex:1"></div>
+            <div class="co-toggle-group" role="group" aria-label="Group by">
+              <button class="co-toggle is-active" type="button">By severity</button>
+              <button class="co-toggle" type="button">By category</button>
+              <button class="co-toggle" type="button">By deadline</button>
+            </div>
+          </div>
+
+          <!-- ── Critical group ── -->
+          <div class="co-group">
+            <div class="co-group-head">
+              <span class="co-sev-pill critical"><span class="dot"></span>Critical</span>
+              <span class="co-group-count">4 risks · 2 escalation-likely</span>
+              <span class="co-group-spacer"></span>
+              <span class="co-group-meta">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Oldest unresolved · 12d
+              </span>
+            </div>
+
+            <div class="co-risks-list">
+
+              <!-- Risk · grounded vehicle (expanded by default to demo drawer) -->
+              <article class="co-risk sev-critical is-open" data-co-risk="r1">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">Vehicle has been grounded for 12 days with no active repair order.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">VIN</span>5TDBZ23C7HS842901</span>
+                      <span class="co-subj"><span class="lbl">UNIT</span>KMO1-08B</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>Fleet</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6V4a2 2 0 0 0-2-2h-0a2 2 0 0 0-2 2v2"/><rect x="3" y="6" width="18" height="14" rx="2"/></svg>Repairs</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Detected May 2 · <span class="age urgent">12d ago</span></span>
+                      <span class="sep">·</span>
+                      <span>Vendor · <b style="color:var(--text-muted);font-weight:650">Quick-Fix Auto</b> · last contact 5d</span>
+                      <span class="sep">·</span>
+                      <span>Amazon fleet portal · operational readiness <b style="color:#9F1239;font-weight:700">overdue</b></span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status escalation"><span class="dot"></span>Escalation likely</span>
+                    <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
+                  </div>
+                </div>
+
+                <div class="co-risk-body">
+                  <div class="co-drawer-grid">
+                    <div>
+                      <div class="co-pattern">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+                        <span><b>Pattern match · Amazon-CAP precursor.</b> Grounding &gt; 7 days without active RO has historically preceded operational-readiness CAP escalation in 78% of observed cases. RouteReady recommends opening a vendor accountability ticket and a parallel repair-order trace.</span>
+                      </div>
+
+                      <div class="co-drawer-section">
+                        <h4 class="co-drawer-h">Timeline</h4>
+                        <div class="co-timeline">
+                          <div class="co-timeline-row is-good">
+                            <span class="co-tl-when">May 2 · 09:14</span>
+                            <span class="co-tl-what">Vehicle reported down by driver J. Mendez<span class="sub">DVIC defect · brake squeal · severity high</span></span>
+                            <span class="co-tl-tag">DVIC</span>
+                          </div>
+                          <div class="co-timeline-row is-good">
+                            <span class="co-tl-when">May 2 · 10:02</span>
+                            <span class="co-tl-what">Auto-routed to vendor Quick-Fix Auto<span class="sub">Workflow · fleet.repair.dispatch · vendor accepted</span></span>
+                            <span class="co-tl-tag">Auto</span>
+                          </div>
+                          <div class="co-timeline-row is-warn">
+                            <span class="co-tl-when">May 5 · 17:00</span>
+                            <span class="co-tl-what">Vendor SLA breach · ETA confirmation overdue<span class="sub">Reminder sent · vendor portal &amp; SMS</span></span>
+                            <span class="co-tl-tag">SLA</span>
+                          </div>
+                          <div class="co-timeline-row is-warn">
+                            <span class="co-tl-when">May 9 · 08:30</span>
+                            <span class="co-tl-what">Repair order field still empty in vendor portal<span class="sub">Auto-escalation tier 1 · Ryan H. notified</span></span>
+                            <span class="co-tl-tag">Esc · 1</span>
+                          </div>
+                          <div class="co-timeline-row is-crit">
+                            <span class="co-tl-when">May 14 · 06:00</span>
+                            <span class="co-tl-what">Amazon fleet portal flagged operational readiness as overdue<span class="sub">Pattern match · CAP precursor · auto-staged remediation</span></span>
+                            <span class="co-tl-tag">Pattern</span>
+                          </div>
+                          <div class="co-timeline-row is-now">
+                            <span class="co-tl-when">Now</span>
+                            <span class="co-tl-what">Awaiting your call · escalate or extend SLA window?</span>
+                            <span class="co-tl-tag">Now</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="co-drawer-section">
+                        <h4 class="co-drawer-h">Recommended actions</h4>
+                        <div class="co-actions">
+                          <button type="button" class="co-action primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92V21a1 1 0 0 1-1.11 1 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 3.07 4.18 1 1 0 0 1 4 3h4.09a1 1 0 0 1 1 .75 12.84 12.84 0 0 0 .7 2.81 1 1 0 0 1-.23 1l-1.7 1.7a16 16 0 0 0 6 6l1.7-1.7a1 1 0 0 1 1-.23 12.84 12.84 0 0 0 2.81.7 1 1 0 0 1 .85 1z"/></svg>
+                            Call vendor · Quick-Fix Auto
+                          </button>
+                          <button type="button" class="co-action">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Open repair order workflow
+                          </button>
+                          <button type="button" class="co-action">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            Message vendor
+                          </button>
+                          <button type="button" class="co-action">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            Acknowledge
+                          </button>
+                          <button type="button" class="co-action">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            Escalate · DSP owner
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <aside>
+                      <div class="co-side-card">
+                        <div class="co-side-label">Vendor SLA</div>
+                        <div class="co-side-val">
+                          <b style="color:#9F1239">5d 04h overdue</b> on ETA confirmation
+                          <div class="dim" style="margin-top:3px">SLA target · 48h · breached May 5</div>
+                        </div>
+                      </div>
+                      <div class="co-side-card">
+                        <div class="co-side-label">Repair order</div>
+                        <div class="co-side-val">
+                          <span class="dim">No RO uploaded</span>
+                          <div class="dim" style="margin-top:3px">Last vendor portal activity · 5d ago</div>
+                        </div>
+                      </div>
+                      <div class="co-side-card">
+                        <div class="co-side-label">Fleet impact</div>
+                        <div class="co-side-val">
+                          KMO1-08B grounded · route <b>R-214</b> redeployed
+                          <div class="dim" style="margin-top:3px">Coverage held · spare A-204 in rotation</div>
+                        </div>
+                      </div>
+                      <div class="co-side-card">
+                        <div class="co-side-label">Audit · history</div>
+                        <div class="co-side-val">
+                          <span class="dim">3 prior groundings on this VIN (90d)</span>
+                          <div class="dim" style="margin-top:3px">Repeat-defect threshold · 1 from breach</div>
+                        </div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </article>
+
+              <!-- Risk · MCS-150 approaching threshold -->
+              <article class="co-risk sev-critical" data-co-risk="r2">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">MCS-150 filing approaching compliance threshold.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">USDOT</span>3819442</span>
+                      <span class="co-subj"><span class="lbl">DSP</span>Cardinal Logistics</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>FMCSA</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Due Jun 1 · <span class="age urgent">18d</span> remaining</span>
+                      <span class="sep">·</span>
+                      <span>Last filing · Jun 4, 2024 (biennial)</span>
+                      <span class="sep">·</span>
+                      <span>Source · FMCSA SAFER · last check 2h ago</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status open"><span class="dot"></span>Open</span>
+                    <span class="co-owner unassigned"><span class="av">?</span>Unassigned</span>
+                  </div>
+                </div>
+              </article>
+
+              <!-- Risk · CMV classification mismatch -->
+              <article class="co-risk sev-critical" data-co-risk="r3">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">CMV classification mismatch detected · DOT registration lists 2 commercial motor vehicles for an Amazon DSP.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">RULE</span>cmv-amazon-dsp-mismatch</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>FMCSA</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>Fleet</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Detected May 12 · <span class="age warn">2d ago</span></span>
+                      <span class="sep">·</span>
+                      <span>Source · MCS-150 vs fleet inventory cross-check</span>
+                      <span class="sep">·</span>
+                      <span>Recommended · file MCS-150 correction within 30d</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status open"><span class="dot"></span>Open</span>
+                    <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
+                  </div>
+                </div>
+              </article>
+
+              <!-- Risk · repair completion exceeds threshold -->
+              <article class="co-risk sev-critical" data-co-risk="r4">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">VIN repair completion exceeds Amazon compliance thresholds (14d) — pattern match.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">VIN</span>5TDBZ23C7HS842901</span>
+                      <span class="co-subj"><span class="lbl">UNIT</span>KMO1-08B</span>
+                      <span class="co-subj"><span class="lbl">RULE</span>repair-completion-threshold</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>Fleet</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>Days grounded · <b style="color:#9F1239;font-weight:700">12</b> / threshold 14</span>
+                      <span class="sep">·</span>
+                      <span>Linked to risk · grounded vehicle (R-1)</span>
+                      <span class="sep">·</span>
+                      <span class="age urgent">Crossing threshold in 2d</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status escalation"><span class="dot"></span>Escalation likely</span>
+                    <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
+                  </div>
+                </div>
+              </article>
+
+            </div>
+          </div>
+
+          <!-- ── High group ── -->
+          <div class="co-group">
+            <div class="co-group-head">
+              <span class="co-sev-pill high"><span class="dot"></span>High</span>
+              <span class="co-group-count">3 risks</span>
+              <span class="co-group-spacer"></span>
+              <span class="co-group-meta">Includes 2 driver-compliance · 1 vendor</span>
+            </div>
+            <div class="co-risks-list">
+
+              <article class="co-risk sev-high" data-co-risk="r5">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">Driver license expiration approaching · 3 drivers expire inside the next 14 days.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">COUNT</span>3 drivers</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/></svg>Drivers</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Documents</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>J. Mendez · <span class="age warn">expires in 4d</span></span>
+                      <span class="sep">·</span>
+                      <span>R. Patel · <span class="age warn">7d</span></span>
+                      <span class="sep">·</span>
+                      <span>L. Okafor · <span class="age">12d</span></span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status ack"><span class="dot"></span>Acknowledged</span>
+                    <span class="co-owner"><span class="av">MO</span>Maya O.</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="co-risk sev-high" data-co-risk="r6">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">Route coverage risk identified for tomorrow · R-204 / R-217 / R-219 unfilled at confirmation cutoff.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">DATE</span>May 15</span>
+                      <span class="co-subj"><span class="lbl">SHORTFALL</span>3 routes</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Schedule</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Staffing</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>Bench depth · <b style="color:var(--amber-dark);font-weight:650">1 driver</b> available</span>
+                      <span class="sep">·</span>
+                      <span>Cover-shift offers sent · 4 · accepted · 1</span>
+                      <span class="sep">·</span>
+                      <span>Cutoff · today 18:00 · <span class="age warn">4h 12m</span></span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status remed"><span class="dot"></span>In remediation</span>
+                    <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="co-risk sev-high" data-co-risk="r7">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">Repair vendor has not updated RO status in 5 business days.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">VENDOR</span>Quick-Fix Auto</span>
+                      <span class="co-subj"><span class="lbl">OPEN ROs</span>3</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6V4a2 2 0 0 0-2-2h-0a2 2 0 0 0-2 2v2"/><rect x="3" y="6" width="18" height="14" rx="2"/></svg>Vendors</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>SLA target · 48h · <span class="age urgent">120h overdue</span></span>
+                      <span class="sep">·</span>
+                      <span>Tier · Tier 2 (auto-escalated)</span>
+                      <span class="sep">·</span>
+                      <span>Accountability score · <b style="color:var(--amber-dark);font-weight:650">62</b>/100 · trending down</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status open"><span class="dot"></span>Open</span>
+                    <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
+                  </div>
+                </div>
+              </article>
+
+            </div>
+          </div>
+
+          <!-- ── Medium group ── -->
+          <div class="co-group">
+            <div class="co-group-head">
+              <span class="co-sev-pill medium"><span class="dot"></span>Medium</span>
+              <span class="co-group-count">5 risks</span>
+              <span class="co-group-spacer"></span>
+              <span class="co-group-meta">Approaching deadlines · 2 inside 7d</span>
+            </div>
+            <div class="co-risks-list">
+
+              <article class="co-risk sev-medium" data-co-risk="r8">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">Repeated attendance failures detected across same route group (R-200s).</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">ROUTE GROUP</span>R-200s</span>
+                      <span class="co-subj"><span class="lbl">CALLOUTS · 14d</span>7</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/></svg>Drivers</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>Performance</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>Stability index · <b style="color:var(--amber-dark);font-weight:650">68</b>/100 · -12 vs cycle 13</span>
+                      <span class="sep">·</span>
+                      <span>Repeat offenders · 2</span>
+                      <span class="sep">·</span>
+                      <span>Unacknowledged coachings · 4</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status open"><span class="dot"></span>Open</span>
+                    <span class="co-owner"><span class="av">MO</span>Maya O.</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="co-risk sev-medium" data-co-risk="r9">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">2 medical cards expire inside the next 30 days.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">COUNT</span>2</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Documents</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>S. Reyes · <span class="age">19d</span></span>
+                      <span class="sep">·</span>
+                      <span>A. Cole · <span class="age">26d</span></span>
+                      <span class="sep">·</span>
+                      <span>Reminder sequence · active · next May 17</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status remed"><span class="dot"></span>In remediation</span>
+                    <span class="co-owner"><span class="av">MO</span>Maya O.</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="co-risk sev-medium" data-co-risk="r10">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">DVIC defect repeated across 3 vehicles · rear cargo door alignment.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">DEFECT</span>cargo-door-align</span>
+                      <span class="co-subj"><span class="lbl">VEHICLES</span>3</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>Fleet</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>14-day occurrence rate · <b style="color:var(--text-muted);font-weight:650">4.2×</b> baseline</span>
+                      <span class="sep">·</span>
+                      <span>Recommended · root-cause inspection campaign</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status open"><span class="dot"></span>Open</span>
+                    <span class="co-owner unassigned"><span class="av">?</span>Unassigned</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="co-risk sev-medium" data-co-risk="r11">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">Unresolved CAP item · scan compliance (Variable W16) · response window 5 days.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">CAP</span>CAP-2026-031</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Finances</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>Window · <span class="age">5d remaining</span></span>
+                      <span class="sep">·</span>
+                      <span>Evidence packet · auto-attached</span>
+                      <span class="sep">·</span>
+                      <span>Linked dispute · D-W16-117</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status remed"><span class="dot"></span>In remediation</span>
+                    <span class="co-owner"><span class="av">RH</span>Ryan H.</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="co-risk sev-medium" data-co-risk="r12">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">Fleet utilization anomaly · 4 vehicles below 65% utilization for 21d.</div>
+                    </div>
+                    <div class="co-risk-subjects">
+                      <span class="co-subj"><span class="lbl">COUNT</span>4 VINs</span>
+                      <span class="co-subj module"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>Fleet</span>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>Lowest · KMO1-12A · <b style="color:var(--text-muted);font-weight:650">41%</b></span>
+                      <span class="sep">·</span>
+                      <span>Recommended · rotation rebalance + roster review</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status open"><span class="dot"></span>Open</span>
+                    <span class="co-owner unassigned"><span class="av">?</span>Unassigned</span>
+                  </div>
+                </div>
+              </article>
+
+            </div>
+          </div>
+
+          <!-- ── Resolved / mitigated section · collapsed by default visual -->
+          <div class="co-group">
+            <div class="co-group-head">
+              <span class="co-sev-pill low"><span class="dot"></span>Recently mitigated · 14d</span>
+              <span class="co-group-count">9 resolved</span>
+              <span class="co-group-spacer"></span>
+              <span class="co-group-meta">Audit-visible · click to expand history</span>
+            </div>
+            <div class="co-risks-list">
+              <article class="co-risk" style="opacity:.78">
+                <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
+                  <div class="co-risk-l">
+                    <div class="co-risk-headrow">
+                      <svg class="co-risk-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      <div class="co-risk-title">DOT registration status returned to active · auto-verified.</div>
+                    </div>
+                    <div class="co-risk-meta">
+                      <span>Mitigated May 10 · resolved in 6h</span>
+                      <span class="sep">·</span>
+                      <span>Source · FMCSA SAFER</span>
+                    </div>
+                  </div>
+                  <div class="co-risk-r">
+                    <span class="co-status mitig"><span class="dot"></span>Mitigated</span>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+        </div><!-- /co-tab-risks -->
+
+
+        <!-- ═════ MONITORING ═════ -->
+        <div class="co-tab" id="co-tab-monitoring">
+
+          <!-- Posture strip mirrored but monitoring-flavored -->
+          <div class="co-posture">
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Monitors active</div>
+              <div class="co-posture-val">31 <span class="unit">live</span></div>
+              <div class="co-posture-sub">Across 6 operational categories</div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Healthy</div>
+              <div class="co-posture-val" style="color:var(--green)">25</div>
+              <div class="co-posture-sub">Within normal thresholds</div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Watching</div>
+              <div class="co-posture-val" style="color:var(--accent-text)">4</div>
+              <div class="co-posture-sub">Trending toward thresholds</div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Alerting</div>
+              <div class="co-posture-val" style="color:var(--amber-dark)">2</div>
+              <div class="co-posture-sub">Generating active risks</div>
+            </div>
+            <div class="co-posture-cell">
+              <div class="co-posture-lbl">Coverage</div>
+              <div class="co-posture-val">98% <span class="unit">of recommended</span></div>
+              <div class="co-posture-sub">3 optional monitors disabled</div>
+            </div>
+            <div class="co-posture-cta">
+              <button class="btn btn-ghost btn-sm" type="button">Configure</button>
+            </div>
+          </div>
+
+          <div class="co-detector">
+            <span class="dot" style="background:var(--accent);box-shadow:0 0 0 3px rgba(15,108,189,.16)"></span>
+            <span class="txt"><b>Operational transparency:</b> every monitor below shows you exactly what RouteReady is tracking, where the data comes from, how recently it was validated, and whether remediation is automated. If a risk is missing, it is not silently being ignored — it isn't being monitored, and you can add it.</span>
+            <span class="meta">Registry · v2026.5</span>
+          </div>
+
+          <!-- Tools bar -->
+          <div class="co-tools">
+            <div class="co-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" placeholder="Search monitors · &quot;Is RouteReady tracking medical card expirations?&quot;">
+            </div>
+            <div class="co-filters">
+              <button class="co-filter" type="button">Category <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="co-filter" type="button">State <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="co-filter" type="button">Data source <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="co-filter" type="button">Automation <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+            </div>
+          </div>
+
+          <div class="co-mon-cats">
+
+            <!-- ── DOT & FMCSA ── -->
+            <section>
+              <div class="co-mon-cat-head">
+                <div class="co-mon-cat-title">
+                  <span class="co-mon-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+                  DOT &amp; FMCSA
+                </div>
+                <span class="co-mon-cat-count">4 monitors · sourced from FMCSA SAFER</span>
+              </div>
+              <div class="co-mon-grid">
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">FMCSA SAFER monitoring</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Tracks DOT operating authority, insurance, and SAFER status for the DSP's USDOT number — alerts on any de-authorization or rating change.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd><b>2 min ago</b> · continuous</dd></div>
+                    <div><dt>Source</dt><dd>FMCSA SAFER · public API</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Immediate · auto-creates critical risk + owner alert</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card is-crit">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">MCS-150 biennial compliance</div>
+                    <span class="co-mon-state crit"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Validates MCS-150 filing age against the biennial threshold and notifies the DSP owner well before the FMCSA deadline. Surfaces correction triggers when fleet or operations data changes.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>2h ago · daily</dd></div>
+                    <div><dt>Source</dt><dd>FMCSA SAFER · internal record</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Tiered · 90d / 60d / 30d / 14d reminders, then daily</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Operator review</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">DOT operating authority validation</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Continuously verifies the DSP's USDOT number is active, that authority status matches operational profile, and that no out-of-service order is in effect.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>4 min ago · continuous</dd></div>
+                    <div><dt>Source</dt><dd>FMCSA SAFER</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Immediate · OOS order halts schedule publishing</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card is-alert">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">CMV vs Non-CMV classification</div>
+                    <span class="co-mon-state alerting"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Cross-checks fleet inventory against the MCS-150 commercial-motor-vehicle declaration. Catches the Amazon-DSP CMV-mismatch pattern (CMV count &gt; 0 on a non-CDL profile) before FMCSA does.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>2h ago · daily</dd></div>
+                    <div><dt>Source</dt><dd>MCS-150 · fleet roster</dd></div>
+                    <div class="full"><dt>Rule</dt><dd>IF <b>cmv_count &gt; 0</b> AND <b>dsp_type = amazon_dsp</b> THEN trigger warning</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Operator review</span>
+                  </div>
+                </article>
+
+              </div>
+            </section>
+
+            <!-- ── Fleet readiness ── -->
+            <section>
+              <div class="co-mon-cat-head">
+                <div class="co-mon-cat-title">
+                  <span class="co-mon-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2-7h10l2 7h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
+                  Fleet readiness
+                </div>
+                <span class="co-mon-cat-count">7 monitors · fleet portal + internal</span>
+              </div>
+              <div class="co-mon-grid">
+
+                <article class="co-mon-card is-crit">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Vehicle grounding duration</div>
+                    <span class="co-mon-state crit"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Watches every grounded VIN against Amazon's operational-readiness threshold. Triggers escalation workflow when days-grounded exceeds threshold without an active repair order.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>3 min ago · continuous</dd></div>
+                    <div><dt>Source</dt><dd>DVIC · Amazon fleet portal</dd></div>
+                    <div class="full"><dt>Rule</dt><dd>IF <b>grounded_days &gt; 7</b> AND <b>no_active_RO</b> THEN trigger escalation</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap escalate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 13 3 17 7 21"/><line x1="15" y1="17" x2="3" y2="17"/></svg>Escalation workflow</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card is-alert">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Repair order aging</div>
+                    <span class="co-mon-state alerting"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Measures days-since-RO-opened against repair-type SLAs (mechanical, body, brake, tire). Surfaces ROs that are aging without vendor ETA confirmation.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>11 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Vendor portal · internal RO ledger</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Tier 1 at SLA · Tier 2 at 2× SLA · DSP owner at 3×</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-reminded</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card is-alert">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Vendor SLA monitoring</div>
+                    <span class="co-mon-state alerting"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Per-vendor accountability score · tracks ETA confirmation, RO submission, photo uploads, invoice timeliness, and communication response time. Builds the vendor accountability rating.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>11 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Vendor portal · message history</dd></div>
+                    <div class="full"><dt>Rule</dt><dd>IF <b>vendor_response_time &gt; SLA</b> THEN escalate accountability warning</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-reminded</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">DVIC defect trends</div>
+                    <span class="co-mon-state watching"><span class="dot"></span>Watching</span>
+                  </div>
+                  <p class="co-mon-desc">Rolling 14d defect frequency per category and per VIN. Catches repeat-defect patterns that historically precede Amazon escalations.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>5 min ago · per submission</dd></div>
+                    <div><dt>Source</dt><dd>DVIC submissions · driver app</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>3× baseline triggers root-cause inspection task</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Inspection failure trends</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Tracks roadside and annual inspection outcomes per VIN and per driver. Elevates operational risk score when failure rate trends exceed threshold.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>1d ago · on event</dd></div>
+                    <div><dt>Source</dt><dd>FMCSA inspection records</dd></div>
+                    <div class="full"><dt>Rule</dt><dd>IF <b>inspection_failure_rate &gt; threshold</b> THEN elevate risk score</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap readonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Read-only</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Fleet utilization anomalies</div>
+                    <span class="co-mon-state watching"><span class="dot"></span>Watching</span>
+                  </div>
+                  <p class="co-mon-desc">Spots VINs that drop below expected utilization for sustained periods. Surfaces under-rotated vans and over-loaded vans for roster rebalancing.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>1h ago · daily roll-up</dd></div>
+                    <div><dt>Source</dt><dd>Schedule · day-assignment ledger</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Recommended action only · no automated remediation</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-low"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap readonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Read-only</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Operational readiness validation</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Daily sync against the Amazon fleet portal's operational-readiness signal · catches portal disagreements with our internal grounded state and surfaces them as risks.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>22 min ago · 4× daily</dd></div>
+                    <div><dt>Source</dt><dd>Amazon fleet portal</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Operator review on disagreement</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span>
+                  </div>
+                </article>
+
+              </div>
+            </section>
+
+            <!-- ── Driver compliance ── -->
+            <section>
+              <div class="co-mon-cat-head">
+                <div class="co-mon-cat-title">
+                  <span class="co-mon-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/></svg></span>
+                  Driver compliance
+                </div>
+                <span class="co-mon-cat-count">6 monitors · driver records + DVIC</span>
+              </div>
+              <div class="co-mon-grid">
+
+                <article class="co-mon-card is-alert">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">License expiration tracking</div>
+                    <span class="co-mon-state alerting"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Per-driver expiration watch with cascading reminder sequence. Hard-rule integration with Schedule blocks scheduling past expiry (configurable in Rules).</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>9 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Driver records · document store</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>30d / 14d / 7d / 1d reminders · schedule block at expiry</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Medical card expiration</div>
+                    <span class="co-mon-state watching"><span class="dot"></span>Watching</span>
+                  </div>
+                  <p class="co-mon-desc">DOT medical card renewal watch · auto-sends document-request envelope 45d ahead. Surfaces upcoming expirations on the Risks feed inside the 30d window.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>9 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Driver records</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>45d / 21d / 7d · auto-document request</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Attendance instability</div>
+                    <span class="co-mon-state watching"><span class="dot"></span>Watching</span>
+                  </div>
+                  <p class="co-mon-desc">Rolling 14d / 28d attendance trend per driver and per route group. Detects clustering of callouts, no-shows, and late starts that indicate operational stability risk.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>17 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Attendance ledger</dd></div>
+                    <div class="full"><dt>Rule</dt><dd>IF <b>repeated_callouts_detected</b> THEN generate stability warning</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Onboarding completion validation</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Validates that every newly-hired driver clears the full onboarding checklist before the first scheduled shift · I-9, license, MVR, drug screen, vehicle training.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>14 min ago · on schedule-publish</dd></div>
+                    <div><dt>Source</dt><dd>Onboarding builder</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Schedule publish blocked on missing items</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Unacknowledged coachings</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Coachings that have not been acknowledged or signed inside the acknowledgement window. Auto-reminders, then operator escalation.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>22 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Coaching records</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Auto-reminder · then performance review task</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-reminded</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Unresolved safety incidents</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Open safety incidents (collisions, near-misses, DOT-recordable) without a resolution path. Drives mandatory coaching, vehicle inspection, and audit-trail capture.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>9 min ago · on event</dd></div>
+                    <div><dt>Source</dt><dd>Incident reports · DVIC</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Owner alert · CAP workflow launched on DOT-recordable</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap escalate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 13 3 17 7 21"/><line x1="15" y1="17" x2="3" y2="17"/></svg>Escalation workflow</span>
+                  </div>
+                </article>
+
+              </div>
+            </section>
+
+            <!-- ── Operational integrity ── -->
+            <section>
+              <div class="co-mon-cat-head">
+                <div class="co-mon-cat-title">
+                  <span class="co-mon-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span>
+                  Operational integrity
+                </div>
+                <span class="co-mon-cat-count">5 monitors · schedule + workspaces + checklists</span>
+              </div>
+              <div class="co-mon-grid">
+
+                <article class="co-mon-card is-alert">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Staffing coverage risk</div>
+                    <span class="co-mon-state alerting"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Validates that every route on the publish-day schedule has a confirmed driver assignment with a compliance-cleared profile before the dispatch cutoff.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>3 min ago · on roster edit</dd></div>
+                    <div><dt>Source</dt><dd>Schedule · roster</dd></div>
+                    <div class="full"><dt>Rule</dt><dd>IF <b>route_coverage &lt; threshold</b> THEN elevate staffing risk</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-cover-shift</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Route staffing risk</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Per-route concentration risk · drivers per route, single-point-of-failure assignments, and cross-training coverage gaps surfaced for staffing review.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>1h ago · daily</dd></div>
+                    <div><dt>Source</dt><dd>Schedule · staffing</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Recommended only · surfaces on Staffing outlook</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap readonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Read-only</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Overdue compliance tasks</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Tracks tasks generated from compliance workflows that have aged past their due date — auto-reassigns when an owner is unresponsive after the reminder cadence.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>14 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Workspaces · task ledger</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Reminder · reassign · owner alert</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Inactive workflows</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Detects compliance workflows that have stopped emitting events for longer than expected · catches silent dispatch-workflow failures before they hide a real problem.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>17 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Workflow event stream</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Operator review · workflow health card on Today</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card is-paused">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Dispatch workflow failure detection</div>
+                    <span class="co-mon-state paused"><span class="dot"></span>Paused</span>
+                  </div>
+                  <p class="co-mon-desc">Watches the dispatch workflow for emission gaps, retry storms, and step timeouts. Paused while the new orchestration pipeline rolls out · re-enable from Configure.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>Paused since Apr 28</dd></div>
+                    <div><dt>Source</dt><dd>Workflow telemetry</dd></div>
+                    <div class="full"><dt>Note</dt><dd>Recommended re-enable once pipeline rollout completes</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap readonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Paused</span>
+                  </div>
+                </article>
+
+              </div>
+            </section>
+
+            <!-- ── CAP & escalation ── -->
+            <section>
+              <div class="co-mon-cat-head">
+                <div class="co-mon-cat-title">
+                  <span class="co-mon-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg></span>
+                  CAP &amp; escalation
+                </div>
+                <span class="co-mon-cat-count">5 monitors · Amazon CAP precursors + history</span>
+              </div>
+              <div class="co-mon-grid">
+
+                <article class="co-mon-card is-alert">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Unresolved CAP items</div>
+                    <span class="co-mon-state alerting"><span class="dot"></span>Alerting</span>
+                  </div>
+                  <p class="co-mon-desc">Open Corrective Action Plans · tracks remediation progress, evidence collection, and Amazon response window per CAP. Surfaces CAP items at risk of cycling to the next severity tier.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>22 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>CAP ledger</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Owner alert · evidence packet auto-assembled</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-evidence</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Repeat operational failures</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Identifies clusters of similar incidents across drivers, vehicles, and routes inside a rolling 30d window. Flags repeat failures Amazon's compliance team is statistically likely to bundle into a CAP.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>1h ago · daily</dd></div>
+                    <div><dt>Source</dt><dd>Incident · DVIC · CAP history</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Operator review on cluster match</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>Operator review</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Unresolved vendor communication</div>
+                    <span class="co-mon-state"><span class="dot"></span>Healthy</span>
+                  </div>
+                  <p class="co-mon-desc">Watches the vendor inbox for unread messages, unanswered requests, and threads aging past response SLA · escalates inside the vendor accountability framework.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>11 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Vendor messaging</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Auto-reminder · then DSP owner notification</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-med"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-reminded</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Document expiration tracking</div>
+                    <span class="co-mon-state watching"><span class="dot"></span>Watching</span>
+                  </div>
+                  <p class="co-mon-desc">Unified expiration watch across licenses, medical cards, insurance certs, registrations, and DSP-signed agreements stored in Documents.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>22 min ago · hourly</dd></div>
+                    <div><dt>Source</dt><dd>Document store</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Per-doc-type ladder · auto-renewal envelope</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-high"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>Auto-remediated</span>
+                  </div>
+                </article>
+
+                <article class="co-mon-card">
+                  <div class="co-mon-top">
+                    <div class="co-mon-name">Amazon escalation precursor patterns</div>
+                    <span class="co-mon-state watching"><span class="dot"></span>Watching</span>
+                  </div>
+                  <p class="co-mon-desc">Pattern matcher trained on historical Amazon CAPs · scores live operational state against signatures that have historically preceded breach notifications. The intelligence layer behind the Risks feed's pattern banner.</p>
+                  <dl class="co-mon-meta">
+                    <div><dt>Last check</dt><dd>3 min ago · continuous</dd></div>
+                    <div><dt>Source</dt><dd>Cross-module · model v2026.5</dd></div>
+                    <div class="full"><dt>Escalation</dt><dd>Pre-stages remediation · owner alert on match</dd></div>
+                  </dl>
+                  <div class="co-mon-foot">
+                    <span class="co-sev-mini sev-crit"><span>Reach</span><span class="bars"><i></i><i></i><i></i><i></i></span></span>
+                    <span class="co-cap escalate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 13 3 17 7 21"/><line x1="15" y1="17" x2="3" y2="17"/></svg>Pre-staged remediation</span>
+                  </div>
+                </article>
+
+              </div>
+            </section>
+
+          </div><!-- /co-mon-cats -->
+
+          <p style="margin:24px 0 8px;font-size:11px;color:var(--text-subtle);text-align:center;font-weight:500">
+            Registry sourced from the RouteReady compliance rules engine. Add a custom monitor with a rule expression, schedule, source, and escalation policy in <a href="#" onclick="goto('settings');return false" style="color:var(--accent-text);text-decoration:none;font-weight:600">Settings · Rules</a>.
+          </p>
+
+        </div><!-- /co-tab-monitoring -->
+
       </div>
     </div>
 
@@ -15533,6 +17237,7 @@ John,Smith,555-0101,john@example.com</code>
       interview: 'Interview Day',
       staffing: 'Performance Management',
       fleet: 'Fleet',
+      compliance: 'Compliance',
       schedule: 'Schedule',
       outlook: 'Staffing outlook',
       analytics: 'Analytics',
@@ -15554,6 +17259,7 @@ John,Smith,555-0101,john@example.com</code>
       interview: 'Friday, May 4 · 7 booked · auto-SMS on every action',
       staffing: 'Live · headcount + bench + pipeline = accountability budget',
       fleet: 'Van roster · drivers · service history',
+      compliance: 'Live operational risk · continuous monitoring across fleet, drivers, vendors, DOT',
       schedule: 'Week of May 1–7 · 5 pending approvals',
       okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
@@ -15568,6 +17274,11 @@ John,Smith,555-0101,john@example.com</code>
     // tb-title / tb-context were removed from the topbar — page-level h1 carries the title now.
     // (titles[] / contexts[] kept for future use, e.g. document.title updates.)
     if (titles[view]) document.title = titles[view] + ' · RouteReady';
+    // Compliance · re-anchor to the Risks tab on (re-)entry.
+    if (view === 'compliance' && typeof complianceSub === 'function') {
+      var openSub = document.querySelector('#co-subnav .subnav-item.active');
+      if (!openSub) complianceSub('risks');
+    }
     window.scrollTo({top:0,behavior:'instant'});
   }
 
@@ -15713,6 +17424,27 @@ John,Smith,555-0101,john@example.com</code>
     // Render coverage panel when funnel sub-view becomes active
     if (sub === 'funnel') setTimeout(pipeRenderForecast, 30);
   }
+
+  // ── Compliance · subnav (Risks / Monitoring) + risk drawer toggle.
+  //   Both panels live in the same view; the tab switcher just
+  //   flips .is-active.  The drawer is plain progressive disclosure
+  //   on the row card — no modal, keeps context in place.
+  function complianceSub(sub){
+    document.querySelectorAll('#co-subnav .subnav-item').forEach(function(b){ b.classList.remove('active'); });
+    var btn = document.querySelector('#co-subnav .subnav-item[data-co-sub="' + sub + '"]');
+    if (btn) btn.classList.add('active');
+    document.querySelectorAll('#view-compliance .co-tab').forEach(function(t){ t.classList.remove('is-active'); });
+    var panel = document.getElementById('co-tab-' + sub);
+    if (panel) panel.classList.add('is-active');
+    if (window.scrollTo) window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+  window.complianceSub = complianceSub;
+
+  function coRiskToggle(card){
+    if (!card) return;
+    card.classList.toggle('is-open');
+  }
+  window.coRiskToggle = coRiskToggle;
 
   // ═══════════════════════════════════════════════════════════════
   // PIPELINE COVERAGE — 5-week demand vs pipeline projection
