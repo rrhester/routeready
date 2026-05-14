@@ -13513,6 +13513,13 @@ Evidence attached:
           <span class="field-prop-label">Allow multiple submissions</span>
           <label class="toggle"><input type="checkbox" id="rr-form-allow-resubmit" checked /><span class="toggle-slider"></span></label>
         </div>
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px;border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <span class="field-prop-label">Vehicle inspection (DVIC)</span>
+            <label class="toggle"><input type="checkbox" id="rr-form-is-dvic" /><span class="toggle-slider"></span></label>
+          </div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.45">When on, each submission auto-creates an inspection on the driver's resolved van for today and lands in <strong>Fleet → van → Inspections</strong>. Photo fields upload to the van's record. Use this for morning pre-trip DVICs.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -19710,7 +19717,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260514n-form-reorder"></script>
+<script type="module" src="./live.js?v=20260514o-dvic"></script>
 
 </body>
 </html>
