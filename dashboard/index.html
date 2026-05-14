@@ -6258,6 +6258,104 @@ body.rr-cmdk-open{ overflow:hidden }
 .all-clear-title{font-size:18px;font-weight:700;color:#14532D;margin:0 0 4px;letter-spacing:-.01em}
 .all-clear-sub{font-size:var(--fs-md);color:var(--green-dark);margin:0}
 
+/* ─── Checklist Builder · template list + editor ─────────────────────── */
+#rr-cb-root{max-width:1080px;margin:0 auto}
+#rr-cb-root .cb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:var(--s-4);flex-wrap:wrap}
+#rr-cb-root .cb-search{display:flex;align-items:center;gap:8px;flex:1;min-width:200px;max-width:340px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:7px 11px;transition:border-color .12s,box-shadow .12s}
+#rr-cb-root .cb-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#rr-cb-root .cb-search svg{width:14px;height:14px;color:var(--text-subtle);flex:0 0 auto}
+#rr-cb-root .cb-search input{flex:1;border:0;background:transparent;outline:none;font:inherit;font-size:var(--fs-sm);color:var(--text)}
+#rr-cb-root .cb-search input::placeholder{color:var(--text-subtle)}
+#rr-cb-root .cb-section-h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:var(--s-5) 0 var(--s-3)}
+#rr-cb-root .cb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+#rr-cb-root .cb-card{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:18px;text-align:left;font:inherit;cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .1s}
+#rr-cb-root .cb-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+#rr-cb-root .cb-card:active{transform:translateY(.5px)}
+#rr-cb-root .cb-card .nm{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#rr-cb-root .cb-card .desc{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.45;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:34px}
+#rr-cb-root .cb-card .mt{font-size:var(--fs-xs);color:var(--text-subtle);display:flex;align-items:center;gap:10px;margin-top:2px;flex-wrap:wrap}
+#rr-cb-root .cb-card .mt .dot{width:3px;height:3px;border-radius:50%;background:var(--text-subtle);opacity:.5}
+#rr-cb-root .cb-card.archived{opacity:.65}
+#rr-cb-root .cb-card.archived .nm::after{content:"\2009\B7\2009 Archived";font-size:11px;font-weight:500;color:var(--text-subtle)}
+#rr-cb-root .cb-new-card{display:flex;align-items:center;justify-content:center;gap:8px;min-height:122px;background:transparent;border:1.5px dashed var(--border-strong);border-radius:var(--r-xl);color:var(--text-subtle);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:border-color .12s,color .12s,background .12s}
+#rr-cb-root .cb-new-card:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
+#rr-cb-root .cb-new-card svg{width:16px;height:16px}
+#rr-cb-root .cb-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+#rr-cb-root .cb-empty-icon{width:42px;height:42px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
+#rr-cb-root .cb-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
+#rr-cb-root .cb-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0;line-height:1.55;max-width:460px;margin:0 auto var(--s-4)}
+
+/* Editor view */
+#rr-cb-root .cb-edit-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:var(--s-4);flex-wrap:wrap}
+#rr-cb-root .cb-back-btn{appearance:none;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--text-subtle);cursor:pointer;padding:6px 10px 6px 8px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--fs-sm);font-weight:500;transition:background .12s,color .12s,border-color .12s}
+#rr-cb-root .cb-back-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
+#rr-cb-root .cb-back-btn svg{width:14px;height:14px}
+#rr-cb-root .cb-edit-titlewrap{flex:1;min-width:240px}
+#rr-cb-root .cb-edit-title{display:block;width:100%;font:inherit;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.2;background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:4px 8px;margin:-4px -8px;outline:none;transition:background .12s,border-color .12s}
+#rr-cb-root .cb-edit-title:hover,#rr-cb-root .cb-edit-title:focus{background:var(--surface);border-color:var(--border)}
+#rr-cb-root .cb-edit-title:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#rr-cb-root .cb-edit-desc{display:block;width:100%;font:inherit;font-size:var(--fs-md);color:var(--text-subtle);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:6px 8px;margin:6px -8px 0;outline:none;resize:none;transition:background .12s,border-color .12s,box-shadow .12s;line-height:1.5;min-height:24px}
+#rr-cb-root .cb-edit-desc:hover,#rr-cb-root .cb-edit-desc:focus{background:var(--surface);border-color:var(--border);color:var(--text)}
+#rr-cb-root .cb-edit-desc:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#rr-cb-root .cb-edit-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#rr-cb-root .cb-save-status{font-size:11px;color:var(--text-subtle);min-width:62px;text-align:right;transition:color .15s,opacity .2s}
+#rr-cb-root .cb-save-status.saving{color:var(--text-muted)}
+#rr-cb-root .cb-save-status.saved{color:var(--green)}
+#rr-cb-root .cb-save-status.err{color:var(--red)}
+#rr-cb-root .cb-iconbtn{appearance:none;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--text-subtle);cursor:pointer;padding:6px;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s}
+#rr-cb-root .cb-iconbtn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
+#rr-cb-root .cb-iconbtn.is-danger:hover{color:var(--red);border-color:var(--red-soft)}
+#rr-cb-root .cb-iconbtn svg{width:15px;height:15px}
+
+/* Sections + items */
+#rr-cb-root .cb-sections{display:flex;flex-direction:column;gap:14px}
+#rr-cb-root .cb-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:14px 16px 8px;transition:border-color .12s,box-shadow .12s,opacity .12s}
+#rr-cb-root .cb-section.dragging{opacity:.55;border-color:var(--accent)}
+#rr-cb-root .cb-section.drop-target{box-shadow:0 0 0 2px var(--accent-soft)}
+#rr-cb-root .cb-section-head{display:flex;align-items:center;gap:8px}
+#rr-cb-root .cb-handle{flex:0 0 auto;color:var(--text-subtle);cursor:grab;display:inline-flex;align-items:center;justify-content:center;padding:4px;border-radius:4px;transition:background .12s,color .12s;opacity:.55}
+#rr-cb-root .cb-handle:hover{background:var(--surface-hover);color:var(--text);opacity:1}
+#rr-cb-root .cb-handle:active{cursor:grabbing}
+#rr-cb-root .cb-handle svg{width:14px;height:14px}
+#rr-cb-root .cb-section-label{flex:1;min-width:0;font:inherit;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.01em;line-height:1.3;background:transparent;border:1px solid transparent;border-radius:6px;padding:4px 8px;margin:-4px -8px;outline:none;transition:background .12s,border-color .12s,box-shadow .12s}
+#rr-cb-root .cb-section-label:hover,#rr-cb-root .cb-section-label:focus{background:var(--canvas);border-color:var(--border)}
+#rr-cb-root .cb-section-label:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
+#rr-cb-root .cb-section-actions{display:flex;gap:2px;opacity:0;transition:opacity .12s}
+#rr-cb-root .cb-section:hover .cb-section-actions,#rr-cb-root .cb-section:focus-within .cb-section-actions{opacity:1}
+#rr-cb-root .cb-section-desc{display:block;width:calc(100% + 16px);margin:6px -8px 0;font:inherit;font-size:var(--fs-sm);color:var(--text-subtle);background:transparent;border:1px solid transparent;border-radius:6px;padding:5px 8px;outline:none;resize:none;line-height:1.5;min-height:20px;transition:background .12s,border-color .12s,box-shadow .12s}
+#rr-cb-root .cb-section-desc:hover,#rr-cb-root .cb-section-desc:focus{background:var(--canvas);border-color:var(--border);color:var(--text)}
+#rr-cb-root .cb-section-desc:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
+#rr-cb-root .cb-items{display:flex;flex-direction:column;margin:10px 0 4px;border-top:1px solid var(--border)}
+#rr-cb-root .cb-item{display:grid;grid-template-columns:auto 16px 1fr auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);transition:background .12s,opacity .12s}
+#rr-cb-root .cb-item:last-child{border-bottom:0}
+#rr-cb-root .cb-item.dragging{opacity:.55}
+#rr-cb-root .cb-item.drop-target{background:var(--accent-soft)}
+#rr-cb-root .cb-item-check{flex:0 0 auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border-strong);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;cursor:default}
+#rr-cb-root .cb-item-check::after{content:"";width:6px;height:10px;border:solid var(--accent);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px);opacity:0}
+#rr-cb-root .cb-item-label{flex:1;min-width:0;font:inherit;font-size:var(--fs-md);color:var(--text);background:transparent;border:1px solid transparent;border-radius:5px;padding:3px 8px;margin:-3px -8px;outline:none;transition:background .12s,border-color .12s,box-shadow .12s;line-height:1.45}
+#rr-cb-root .cb-item-label:hover,#rr-cb-root .cb-item-label:focus{background:var(--canvas);border-color:var(--border)}
+#rr-cb-root .cb-item-label:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
+#rr-cb-root .cb-item-required{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--text-subtle);background:transparent;border:1px solid var(--border);border-radius:999px;padding:3px 9px;cursor:pointer;transition:background .12s,color .12s,border-color .12s;letter-spacing:.02em}
+#rr-cb-root .cb-item-required:hover{border-color:var(--border-strong);color:var(--text-muted)}
+#rr-cb-root .cb-item-required.on{background:var(--red-soft);color:var(--red);border-color:transparent}
+#rr-cb-root .cb-item-required.on:hover{background:var(--red-soft);color:var(--red)}
+#rr-cb-root .cb-item-actions{display:flex;gap:2px;opacity:0;transition:opacity .12s}
+#rr-cb-root .cb-item:hover .cb-item-actions,#rr-cb-root .cb-item:focus-within .cb-item-actions{opacity:1}
+#rr-cb-root .cb-additem{display:flex;align-items:center;gap:8px;width:100%;padding:9px 0;background:transparent;border:0;color:var(--text-subtle);font:inherit;font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:color .1s;text-align:left}
+#rr-cb-root .cb-additem:hover{color:var(--accent-text)}
+#rr-cb-root .cb-additem svg{width:14px;height:14px}
+#rr-cb-root .cb-addsection-wrap{margin-top:14px;display:flex;justify-content:center}
+#rr-cb-root .cb-addsection{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:transparent;border:1.5px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-subtle);font:inherit;font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:border-color .12s,color .12s,background .12s}
+#rr-cb-root .cb-addsection:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
+#rr-cb-root .cb-addsection svg{width:14px;height:14px}
+
+/* Item-instructions inline popover */
+#rr-cb-root .cb-item-inst{grid-column:3 / -1;margin-top:-2px;display:block;width:100%;font:inherit;font-size:var(--fs-xs);color:var(--text-subtle);background:transparent;border:1px solid transparent;border-radius:5px;padding:3px 8px;outline:none;resize:none;line-height:1.5;min-height:18px;transition:background .12s,border-color .12s,box-shadow .12s}
+#rr-cb-root .cb-item-inst:hover,#rr-cb-root .cb-item-inst:focus{background:var(--canvas);border-color:var(--border);color:var(--text)}
+#rr-cb-root .cb-item-inst:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
+#rr-cb-root .cb-item-inst:placeholder-shown{opacity:.55}
+
+
 /* ─── Analytics page · AI-first analytics workspace ──────────────────── */
 .rr-an-page{max-width:1180px;margin:0 auto;padding:var(--s-6) var(--s-5) var(--s-7)}
 .rr-an-hero{padding:var(--s-6) 0 var(--s-5);text-align:left}
@@ -11107,46 +11205,12 @@ body.rr-cmdk-open{ overflow:hidden }
         </div>
 
         <!-- TEMPLATES -->
+        <!-- Real Checklist Builder, replaces the previous static cards.
+             Rendered into #rr-cb-root by loadChecklistTemplates() / the
+             _cbRender* fns in live.js. -->
         <div class="checklist-tab" id="checklist-tab-templates" style="display:none">
-          <div style="margin-bottom:var(--s-4);font-size:var(--fs-md);color:var(--text-muted)">Pre-built starter checklists for DSPs · click any to copy and edit</div>
-
-          <div class="cl-grid">
-            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
-              <div class="cl-card-head"><div class="cl-card-icon opening"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="5"/></svg></div><span class="cl-card-status draft">Template</span></div>
-              <div><div class="cl-card-cat">Opening</div><div class="cl-card-name">Standard Amazon DSP opening</div></div>
-              <div class="cl-card-meta">14 tasks · doors, scanners, vans staged, dispatcher login, route assignments printed</div>
-              <div class="cl-card-foot"><span>Used by <strong>1,800+ DSPs</strong></span></div>
-            </div>
-            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
-              <div class="cl-card-head"><div class="cl-card-icon closing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div><span class="cl-card-status draft">Template</span></div>
-              <div><div class="cl-card-cat">Closing</div><div class="cl-card-name">Standard closing</div></div>
-              <div class="cl-card-meta">10 tasks · all vans returned, scanners docked, fuel checks, dispatcher logout</div>
-              <div class="cl-card-foot"><span>Used by <strong>1,800+ DSPs</strong></span></div>
-            </div>
-            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
-              <div class="cl-card-head"><div class="cl-card-icon vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="3"/></svg></div><span class="cl-card-status draft">Template</span></div>
-              <div><div class="cl-card-cat">Vehicle</div><div class="cl-card-name">DOT pre-trip inspection</div></div>
-              <div class="cl-card-meta">17 tasks · brakes, tires, lights, fluids, mirrors, seat belts. Photo evidence.</div>
-              <div class="cl-card-foot"><span>Used by <strong>2,200+ DSPs</strong></span></div>
-            </div>
-            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
-              <div class="cl-card-head"><div class="cl-card-icon onboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="7" r="4"/></svg></div><span class="cl-card-status draft">Template</span></div>
-              <div><div class="cl-card-cat">Onboarding</div><div class="cl-card-name">New hire day-1</div></div>
-              <div class="cl-card-meta">15 tasks · uniform, scanner, fob, app login, ride-along, paperwork sign-offs</div>
-              <div class="cl-card-foot"><span>Used by <strong>1,500+ DSPs</strong></span></div>
-            </div>
-            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
-              <div class="cl-card-head"><div class="cl-card-icon compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span class="cl-card-status draft">Template</span></div>
-              <div><div class="cl-card-cat">Compliance</div><div class="cl-card-name">Weekly safety walk</div></div>
-              <div class="cl-card-meta">11 tasks · station hazards, first aid, fire ext, lighting, EE protective gear</div>
-              <div class="cl-card-foot"><span>Used by <strong>1,200+ DSPs</strong></span></div>
-            </div>
-            <div class="cl-card" onclick="openModal('modal-checklist-builder')">
-              <div class="cl-card-head"><div class="cl-card-icon shift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="17 1 21 5 17 9"/></svg></div><span class="cl-card-status draft">Template</span></div>
-              <div><div class="cl-card-cat">Shift handoff</div><div class="cl-card-name">Dispatcher shift change</div></div>
-              <div class="cl-card-meta">7 tasks · open issues, callouts, swap requests, route exceptions, alerts handed over</div>
-              <div class="cl-card-foot"><span>Used by <strong>900+ DSPs</strong></span></div>
-            </div>
+          <div id="rr-cb-root">
+            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading templates</div>
           </div>
         </div>
 
