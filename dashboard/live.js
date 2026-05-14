@@ -30823,10 +30823,8 @@ async function openFleetDrawer(vehicleId, opts) {
           <div style="display:flex;align-items:flex-start;gap:8px">
             <div class="fd-headside" id="rr-fd-headside" style="display:none">
               <div class="lbl">Operational status</div>
-              <select data-rr-fd-quick="operational_status">
-                <option value="operational">Operational</option>
-                <option value="grounded">Grounded</option>
-              </select>
+              <div id="rr-fd-headside-status" style="font-weight:600;line-height:1.3">—</div>
+              <div style="font-size:10px;color:var(--text-subtle);margin-top:2px;font-weight:500">Change from the Fleet roster</div>
             </div>
             <button id="rr-fd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px;line-height:1">×</button>
           </div>
@@ -30909,12 +30907,17 @@ function _fdPaintHead() {
       thumb.insertBefore(img, thumb.firstChild);
     }
   }
-  // Operational status quick selector
+  // Operational status — read-only display in the head; the Fleet
+  // roster pill is the only operator-facing surface that can change it.
   const side = document.getElementById("rr-fd-headside");
   if (side && v.id) {
     side.style.display = "";
-    const sel = side.querySelector("[data-rr-fd-quick='operational_status']");
-    if (sel) sel.value = v.operational_status || "operational";
+    const out = side.querySelector("#rr-fd-headside-status");
+    if (out) {
+      const grounded = v.operational_status === "grounded";
+      out.innerHTML = _flOpStatPill(v.operational_status).replace(/^<span[^>]*>|<\/span>$/g, "");
+      out.style.color = grounded ? "var(--red)" : "var(--green)";
+    }
   }
 }
 
@@ -31046,10 +31049,15 @@ function _fdProfileHtml(v) {
         { value: "out_of_service", label: "Out of service" },
         { value: "retired", label: "Retired" },
       ]})}
-      ${_fdField("operational_status", "Operational status", "select", { options: [
-        { value: "operational", label: "Operational" },
-        { value: "grounded", label: "Grounded" },
-      ]})}
+      <!-- Operational status is governed by the Fleet roster, not the
+           drawer.  Show it read-only with a hint to the operator. -->
+      <div class="fd-field">
+        <label>Operational status</label>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
+          ${_flOpStatPill(m.operational_status || "operational")}
+          <span style="font-size:11px;color:var(--text-subtle);font-weight:500">Change from the Fleet roster</span>
+        </div>
+      </div>
     </div>
     <div class="fd-section">
       <div class="fd-section-h"><div class="fd-section-title">Year, make &amp; model</div></div>
@@ -31237,7 +31245,12 @@ async function _fdSaveProfile() {
     p_kind:                   m.kind || "van",
     p_status:                 m.status || "active",
     p_ownership:              m.ownership || "dsp_owned",
-    p_operational_status:     m.operational_status || "operational",
+    // operational_status is governed by the Fleet roster pill (calls
+    // vehicle_set_operational_status).  We only set it here for brand-
+    // new vans, defaulting to 'operational'.  The server-side
+    // vehicle_record_save (migration 0231) also ignores this field on
+    // updates as a belt-and-braces guard.
+    p_operational_status:     cur.id ? null : (m.operational_status || "operational"),
     p_year:                   intOrNull(m.year),
     p_make:                   m.make || null,
     p_model:                  m.model || null,
