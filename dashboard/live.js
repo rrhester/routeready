@@ -8411,7 +8411,42 @@ async function _renderTpDailyTool(flagged) {
 // attendance_decide RPC (which stamps shifts.status, writes a coaching
 // row, and DMs the driver if auto_coaching is on).  Decline opens a
 // notes prompt — server enforces notes on deny.
+// Auto-assign vans for today — fills the "No van" gaps with per-day
+// overrides.  Confirmation step lists the gap count + names so the
+// operator isn't surprised.  Re-renders the roster on success.
 document.addEventListener("click", async (e) => {
+  const autoBtn = e.target.closest("[data-rr-tp-auto-assign]");
+  if (autoBtn) {
+    e.preventDefault();
+    if (autoBtn.disabled) return;
+    autoBtn.disabled = true;
+    const origLabel = autoBtn.innerHTML;
+    autoBtn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke-dasharray="40 20"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg> Assigning…`;
+    try {
+      const todayIso = fmtIsoDate(new Date());
+      const { data, error } = await sb.rpc("today_roster_auto_assign", { p_date: todayIso });
+      if (error) { toast("Auto-assign failed: " + error.message, "warn"); return; }
+      const assigned   = (data && data.assigned_count)   || 0;
+      const unassigned = (data && data.unassigned_count) || 0;
+      if (assigned === 0 && unassigned === 0) {
+        toast("No gaps to assign — every scheduled driver already has a van.", "ok");
+      } else if (unassigned === 0) {
+        toast(`Assigned ${assigned} van${assigned === 1 ? "" : "s"}.`, "ok");
+      } else {
+        toast(`Assigned ${assigned} · ${unassigned} couldn't be matched (no van available).`, "warn");
+      }
+      // Refresh the roster card with the new resolution.
+      sb.rpc("today_roster", { p_date: todayIso }).then(({ data: roster, error: err }) => {
+        try { _renderTpVanRoster(roster, err); }
+        catch (e2) { console.error("today plan · van roster render after auto-assign:", e2); }
+      });
+    } finally {
+      autoBtn.disabled = false;
+      autoBtn.innerHTML = origLabel;
+    }
+    return;
+  }
+
   const ap  = e.target.closest("[data-rr-tp-approve]");
   const dn  = e.target.closest("[data-rr-tp-deny]");
   const vto = e.target.closest("[data-rr-tp-vto]");
@@ -8526,7 +8561,7 @@ function _renderTpVanRoster(data, error) {
     const bits = [];
     if (noVan > 0)      bits.push(`<span style="color:var(--red);font-weight:700">${noVan} no van</span>`);
     if (coverCount > 0) bits.push(`<span style="color:var(--amber-dark);font-weight:600">${coverCount} covering</span>`);
-    return bits.length ? `<span style="margin-left:auto;font-size:var(--fs-xs);font-weight:500;display:flex;gap:10px">${bits.join("")}</span>` : "";
+    return bits.length ? `<span style="font-size:var(--fs-xs);font-weight:500;display:flex;gap:10px">${bits.join("")}</span>` : "";
   })();
 
   if (rows.length === 0) {
@@ -8611,11 +8646,21 @@ function _renderTpVanRoster(data, error) {
     </tr>`;
   }).join("");
 
+  // Auto-assign button — only when at least one shift is showing the
+  // "No van" gap.  Clicking calls today_roster_auto_assign which fills
+  // the gaps with per-day overrides without touching the standing chain.
+  const autoBtn = noVan > 0
+    ? `<button type="button" class="btn btn-sm btn-primary" data-rr-tp-auto-assign style="display:inline-flex;align-items:center;gap:6px">
+         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+         Auto-assign ${noVan} van${noVan === 1 ? "" : "s"}
+       </button>`
+    : "";
+
   wrap.innerHTML = `
-    <div class="rr-tp-section-head" style="display:flex;align-items:center">
+    <div class="rr-tp-section-head" style="display:flex;align-items:center;gap:10px">
       <span>Today's roster · drivers + vans</span>
-      <span style="margin-left:8px;font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle)">${rows.length} scheduled</span>
-      ${headRight}
+      <span style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle)">${rows.length} scheduled</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:12px">${headRight}${autoBtn}</div>
     </div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md)">
