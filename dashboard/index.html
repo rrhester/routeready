@@ -11333,6 +11333,38 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-workspaces .ws-veh-x{appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:6px;display:inline-flex;opacity:0;transition:opacity .1s,color .1s,background .1s}
           #view-workspaces .ws-veh-table tbody tr:hover .ws-veh-x{opacity:1}
           #view-workspaces .ws-veh-x:hover{background:var(--surface-hover);color:var(--red)}
+
+          /* Status column is read-only on this board (governed by the
+             Fleet roster).  Compact pill + an optional days-grounded box. */
+          #view-workspaces .ws-veh-status{display:inline-flex;align-items:center;gap:6px}
+          #view-workspaces .ws-veh-status-pill{
+            display:inline-flex;align-items:center;gap:5px;
+            padding:2px 9px;border-radius:999px;
+            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap;
+          }
+          #view-workspaces .ws-veh-status-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--text-subtle);flex:0 0 auto}
+          #view-workspaces .ws-veh-status-pill.active{background:var(--green-soft);color:var(--green);border-color:transparent}
+          #view-workspaces .ws-veh-status-pill.active .dot{background:var(--green)}
+          #view-workspaces .ws-veh-status-pill.spare{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          #view-workspaces .ws-veh-status-pill.spare .dot{background:var(--accent)}
+          #view-workspaces .ws-veh-status-pill.out_of_service{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
+          #view-workspaces .ws-veh-status-pill.out_of_service .dot{background:var(--amber)}
+          #view-workspaces .ws-veh-status-pill.retired{background:var(--canvas);color:var(--text-subtle)}
+          #view-workspaces .ws-veh-status-pill.grounded{background:var(--red-soft);color:var(--red);border-color:transparent}
+          #view-workspaces .ws-veh-status-pill.grounded .dot{background:var(--red)}
+          #view-workspaces .ws-veh-down{
+            display:inline-flex;align-items:center;justify-content:center;
+            min-width:32px;padding:1px 7px;border-radius:5px;
+            font-size:10px;font-weight:700;letter-spacing:.02em;line-height:1.4;
+            background:var(--red-soft);color:var(--red);
+            border:1px solid rgba(225,29,72,.18);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-workspaces .ws-veh-down.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.22)}
+          #view-workspaces .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
+          #view-workspaces .ws-veh-row.is-grounded{background:rgba(225,29,72,.025)}
+          #view-workspaces .ws-veh-row.is-grounded:hover td{background:rgba(225,29,72,.05)}
         </style>
         <div class="page-header">
           <div class="page-header-l">
