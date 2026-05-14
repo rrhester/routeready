@@ -7962,7 +7962,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
           </div><!-- /att-pane-report -->
 
-          <!-- Policy builder moved to Settings → Attendance policy. -->
+          <!-- Policy builder moved to Settings → Scheduling. -->
 
 
           <!-- ─── EVENT LOG PANE ──────────────────────────────── -->
@@ -8021,7 +8021,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="card card-flush">
             <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
               <div style="font-size:var(--fs-base);font-weight:700">Pending availability requests</div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Approvals stay in effect for 3 weeks from approval date. Tweak lead-time, auto-responses, or blackout windows in Settings → Availability rules (gear icon, top-right of the page).</div>
+              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Approvals stay in effect for 3 weeks from approval date. Tweak lead-time, auto-responses, or blackout windows in Settings → Scheduling (gear icon, top-right of the page).</div>
             </div>
             <div id="rr-avail-req-list">
               <div class="rr-loading">Loading requests</div>
@@ -8055,8 +8055,6 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="scheduling" onclick="setSettingsSection(this)">Scheduling</button>
-            <button class="settings-nav-item" data-set="attendance" onclick="setSettingsSection(this)">Attendance policy</button>
-            <button class="settings-nav-item" data-set="availability" onclick="setSettingsSection(this)">Availability rules</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
@@ -8224,6 +8222,39 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
 
               <div class="rules-grid">
+
+                <details class="rules-section" data-rr-rules-section="attendance-policy" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    Attendance policy
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Master toggle, occurrence rules (callout / no-show / late point weights), thresholds, auto-coaching ladder, and tardy / NCNS timing.
+                  </div>
+                  <div id="att-pane-policy">
+                    <div class="rr-loading">Loading policy</div>
+                  </div>
+                </details>
+
+                <details class="rules-section" data-rr-rules-section="availability-rules" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Availability rules
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Lead time on driver availability changes, the auto-response messages drivers receive on approve / deny, and blackout windows where driver-initiated availability changes are blocked.
+                  </div>
+                  <div class="card" style="margin-bottom:var(--s-4)">
+                    <h3 style="margin:0 0 4px;font-size:var(--fs-base);font-weight:700">Settings</h3>
+                    <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve / deny.</p>
+                    <div data-rr-avail-settings></div>
+                  </div>
+                  <div class="card">
+                    <h3 style="margin:0 0 4px;font-size:var(--fs-base);font-weight:700">Blackout dates</h3>
+                    <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 14px">Windows where drivers cannot submit availability changes — e.g. peak season, holidays.</p>
+                    <div data-rr-avail-blackouts></div>
+                  </div>
+                </details>
 
                 <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
                   <summary class="rules-section-title">
@@ -8462,35 +8493,6 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
 
-
-            <!-- ATTENDANCE POLICY SECTION -->
-            <div class="settings-section hidden" data-set="attendance">
-              <div class="settings-section-head">
-                <h2 class="settings-section-title">Attendance policy</h2>
-                <p class="settings-section-sub">Master toggle, occurrence rules, thresholds, auto-coaching, and timing.</p>
-              </div>
-              <div id="att-pane-policy">
-                <div class="rr-loading">Loading policy</div>
-              </div>
-            </div>
-
-            <!-- AVAILABILITY RULES SECTION -->
-            <div class="settings-section hidden" data-set="availability">
-              <div class="settings-section-head">
-                <h2 class="settings-section-title">Availability rules</h2>
-                <p class="settings-section-sub">Lead time, the auto-response messages drivers receive on approve / deny, and blackout windows.</p>
-              </div>
-              <div class="card" style="margin-bottom:var(--s-4)">
-                <h3 style="margin:0 0 4px;font-size:var(--fs-base);font-weight:700">Settings</h3>
-                <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve / deny.</p>
-                <div data-rr-avail-settings></div>
-              </div>
-              <div class="card">
-                <h3 style="margin:0 0 4px;font-size:var(--fs-base);font-weight:700">Blackout dates</h3>
-                <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 14px">Windows where drivers cannot submit availability changes — e.g. peak season, holidays.</p>
-                <div data-rr-avail-blackouts></div>
-              </div>
-            </div>
 
             <!-- TEAM SECTION -->
             <div class="settings-section hidden" data-set="team">
