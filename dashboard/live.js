@@ -27262,19 +27262,53 @@ function _wsRenderPicker(root) {
 }
 
 // ── Van assignments — a "standing tool" board: vehicles + primary/backup chains ──
-const _WS_VEH_STATUSES = [["active", "Active"], ["spare", "Spare"], ["out_of_service", "Out of service"], ["retired", "Retired"]];
+// Lifecycle status (active/spare/out_of_service/retired) and operational
+// status (operational/grounded) are both governed by the Fleet workspace —
+// this board only sets the primary/backup chain.  Status is shown
+// read-only here, including the grounded state + days-grounded count.
+const _WS_VEH_STATUS_LABEL = {
+  active:          "Active",
+  spare:           "Spare",
+  out_of_service:  "Out of service",
+  retired:         "Retired",
+};
 function _wsVehById(id) { return _wsVehicles.find(v => v.id === id); }
 function _wsDrvName(id) { const d = _wsDrivers.find(x => x.id === id); return d ? d.name : ""; }
 
+function _wsDaysSince(iso) {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!isFinite(ms) || ms < 0) return null;
+  return Math.floor(ms / 86400000);
+}
+
+function _wsVehStatusCell(v) {
+  const lifecycle = _WS_VEH_STATUS_LABEL[v.status] || v.status || "—";
+  const grounded  = v.operational_status === "grounded";
+  if (grounded) {
+    const days = _wsDaysSince(v.grounded_since);
+    const dayCls = (days != null && days >= 14) ? "crit" : (days != null && days >= 7) ? "warn" : "";
+    const box = `<span class="ws-veh-down" data-rr-tt="Change from the Fleet roster">${days == null ? "0d" : days + "d"}</span>`;
+    return `<div class="ws-veh-status is-grounded" title="Grounded · change from the Fleet roster">
+      <span class="ws-veh-status-pill grounded"><span class="dot"></span>Grounded</span>
+      <span class="ws-veh-down ${dayCls}">${days == null ? "0d" : days + "d"}</span>
+    </div>`;
+  }
+  return `<div class="ws-veh-status" title="Change from the Fleet roster">
+    <span class="ws-veh-status-pill ${escapeHtml(v.status || "active")}"><span class="dot"></span>${escapeHtml(lifecycle)}</span>
+  </div>`;
+}
+
 function _wsRenderVehicles(root) {
   const drvOpt = (selId) => `<option value="">— none —</option>` + _wsDrivers.map(d => `<option value="${escapeHtml(d.id)}"${d.id === selId ? " selected" : ""}>${escapeHtml(d.name)}</option>`).join("");
-  const statOpt = (cur) => _WS_VEH_STATUSES.map(([v, l]) => `<option value="${v}"${v === cur ? " selected" : ""}>${escapeHtml(l)}</option>`).join("");
   const rowHtml = (v) => {
     const primary = (v.drivers || []).find(d => d.rank === 0);
     const backup  = (v.drivers || []).find(d => d.rank === 1);
-    return `<tr data-veh-id="${escapeHtml(v.id)}">
+    const grounded = v.operational_status === "grounded";
+    const rowCls = grounded ? " is-grounded" : "";
+    return `<tr data-veh-id="${escapeHtml(v.id)}" class="ws-veh-row${rowCls}">
       <td><input class="form-input ws-veh-input" data-veh-field="name" value="${escapeHtml(v.name || "")}" maxlength="40" placeholder="Van #"></td>
-      <td><select class="form-input ws-veh-select" data-veh-field="status">${statOpt(v.status || "active")}</select></td>
+      <td>${_wsVehStatusCell(v)}</td>
       <td><select class="form-input ws-veh-select" data-veh-role="primary">${drvOpt(primary && primary.driver_id)}</select></td>
       <td><select class="form-input ws-veh-select" data-veh-role="backup">${drvOpt(backup && backup.driver_id)}</select></td>
       <td><input class="form-input ws-veh-input" data-veh-field="notes" value="${escapeHtml(v.notes || "")}" maxlength="200" placeholder="—"></td>
@@ -27286,14 +27320,14 @@ function _wsRenderVehicles(root) {
       <div style="min-width:0">
         <div class="ws-crumb"><a data-rr-ws-back title="Back to all workflows"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Workflows</a><span class="sep">/</span></div>
         <div class="ws-board-name" style="margin-top:2px"><span class="nm">Van assignments</span></div>
-        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:66ch">Set the primary driver for each van, and a backup who picks it up when the primary isn't scheduled. The resolved van shows on each driver's app schedule; an out-of-service van isn't handed to anyone. (A per-day override comes next.)</p>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:66ch">Set the primary driver for each van, and a backup who picks it up when the primary isn't scheduled. Status (including grounded state) is read-only here — change it from the <strong>Fleet roster</strong>.</p>
       </div>
     </div>
     <div class="ws-grid-wrap" style="overflow-x:auto">
       <table class="ws-veh-table">
         <thead><tr>
           <th style="min-width:120px">Van</th>
-          <th style="min-width:128px">Status</th>
+          <th style="min-width:148px">Status</th>
           <th style="min-width:168px">Primary driver</th>
           <th style="min-width:168px">Backup</th>
           <th style="min-width:200px">Notes</th>
@@ -27322,6 +27356,9 @@ async function _wsVehArchive(id) {
 }
 
 async function _wsVehFieldChange(id, field, el) {
+  // status is read-only on this board now — the Fleet workspace owns it.
+  // We only accept name + notes here.
+  if (field !== "name" && field !== "notes") return;
   const v = _wsVehById(id); if (!v) return;
   if (field === "name") {
     const nm = String(el.value || "").trim();
@@ -27329,16 +27366,14 @@ async function _wsVehFieldChange(id, field, el) {
     if (nm === (v.name || "")) return;
   }
   if (field === "notes" && String(el.value || "").trim() === (v.notes || "")) return;
-  if (field === "status" && el.value === (v.status || "active")) return;
   const { data: up, error } = await sb.rpc("vehicle_upsert", {
     p_id: id,
-    p_name:   field === "name"   ? String(el.value).trim()        : v.name,
-    p_kind:   v.kind || "van",
-    p_status: field === "status" ? el.value                       : (v.status || "active"),
-    p_notes:  field === "notes"  ? String(el.value || "").trim()  : (v.notes || null),
+    p_name:  field === "name"  ? String(el.value).trim()        : v.name,
+    p_kind:  v.kind || "van",
+    p_notes: field === "notes" ? String(el.value || "").trim()  : (v.notes || null),
   });
   if (error || !up) { toast("Couldn't save: " + ((error && error.message) || "try again"), "warn"); return; }
-  Object.assign(v, { name: up.name, kind: up.kind, status: up.status, notes: up.notes });
+  Object.assign(v, { name: up.name, kind: up.kind, notes: up.notes });
 }
 
 async function _wsVehChainChange(id, rowEl) {
