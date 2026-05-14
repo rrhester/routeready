@@ -31469,25 +31469,28 @@ document.addEventListener("click", async (e) => {
   };
 })();
 
+
 // ═══════════════════════════════════════════════════════════════════════
-// COMPLIANCE WORKSPACE — live renderer (migration 0227)
+// COMPLIANCE WORKSPACE — exceptions table + rules registry.
 //
-// Backed by the compliance_workspace_bundle(p_dsp_id) RPC, which returns
-// the entire page as one JSON blob.  Each pane has a data-co-render
-// target inside #view-compliance; the renderer below paints into those
-// targets, populates the always-on posture bar, and refreshes the rail
-// nav counts.  Empty states are explicit so the page is truthful when
-// data hasn't been entered yet.
+// Backed by compliance_workspace_bundle(p_dsp_id) (migration 0227).
+// The page is two tabs:
+//
+//   · Exceptions — one table.  Each row is a compliance risk the
+//                  rules engine surfaced (grounded-VIN past Amazon
+//                  SLA, cure approaching deadline, vendor below
+//                  reassignment threshold, MCS-150 cure required,
+//                  etc.).  Healthy state is silent — empty table.
+//
+//   · Rules      — the monitor registry.  Lists every rule the engine
+//                  is currently evaluating on this DSP's behalf, with
+//                  state, data source, and automation cap.
 // ═══════════════════════════════════════════════════════════════════════
 (function(){
-  const _coStateKey = "_coWorkspaceState";
   function _coRoot(){ return document.getElementById("view-compliance"); }
-  function _coBuckets(root){
-    const r = root || _coRoot();
-    if (!r) return {};
-    const out = {};
-    r.querySelectorAll("[data-co-render]").forEach((el) => { out[el.getAttribute("data-co-render")] = el; });
-    return out;
+  function _coBucket(name){
+    const r = _coRoot(); if (!r) return null;
+    return r.querySelector(`[data-co-render="${name}"]`);
   }
   function _esc(s){
     return String(s == null ? "" : s)
@@ -31498,10 +31501,10 @@ document.addEventListener("click", async (e) => {
     const d = (typeof ts === "string") ? new Date(ts) : ts;
     const diff = Math.max(0, Date.now() - d.getTime());
     const m = Math.floor(diff / 60000);
-    if (m < 1)   return "just now";
-    if (m < 60)  return m + "m ago";
+    if (m < 1) return "just now";
+    if (m < 60) return m + "m ago";
     const h = Math.floor(m / 60);
-    if (h < 24)  return h + "h ago";
+    if (h < 24) return h + "h ago";
     const days = Math.floor(h / 24);
     if (days < 30) return days + "d ago";
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -31511,472 +31514,192 @@ document.addEventListener("click", async (e) => {
     const d = (typeof ts === "string") ? new Date(ts) : ts;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
-  function _daysToWords(n){
-    if (n == null || isNaN(n)) return "—";
-    const r = Math.round(Math.abs(Number(n)));
-    return r + "d";
-  }
-
-  function _empty(target, html){
-    if (!target) return;
-    target.innerHTML = html;
-  }
-
-  // ── Renderers ──────────────────────────────────────────────────────
-  function _renderPosture(host, posture){
-    if (!host || !posture) return;
-    const fleet = posture.fleet || {};
-    const total = fleet.total || 0;
-    const score = Math.max(0, Math.min(100, Math.round(posture.readiness_score || 0)));
-    const state = score >= 85 ? { word:"Healthy",   cls:"" }
-                : score >= 65 ? { word:"At risk",   cls:"warn" }
-                :               { word:"Elevated",  cls:"crit" };
-    const ringDash = (2 * Math.PI * 20);
-    const ringOff = ringDash * (1 - score / 100);
-    host.setAttribute("aria-busy", "false");
-    host.innerHTML = `
-      <div class="co-posture-cell">
-        <div class="co-p-lbl"><span class="pip ${state.cls === "crit" ? "crit" : state.cls === "warn" ? "warn" : ""}"></span>Operational readiness</div>
-        <div class="co-readiness">
-          <div class="co-readiness-ring" aria-hidden="true">
-            <svg width="48" height="48" viewBox="0 0 48 48">
-              <circle cx="24" cy="24" r="20" class="track"/>
-              <circle cx="24" cy="24" r="20" class="fill" style="stroke:${state.cls === "crit" ? "var(--co-crit)" : state.cls === "warn" ? "var(--amber)" : "var(--co-good)"}" stroke-dasharray="${ringDash.toFixed(2)}" stroke-dashoffset="${ringOff.toFixed(2)}"/>
-            </svg>
-            <div class="num">${score}</div>
-          </div>
-          <div class="co-readiness-meta">
-            <div class="lbl">Posture</div>
-            <div class="state" style="${state.cls === "crit" ? "color:var(--co-crit)" : state.cls === "warn" ? "color:var(--amber-dark)" : "color:var(--co-good)"}">${state.word}</div>
-            <div class="trend">${(posture.over_amazon_threshold || 0)} over Amazon threshold · live</div>
-          </div>
-        </div>
-      </div>
-      <div class="co-posture-cell">
-        <div class="co-p-lbl"><span class="pip ${posture.grounded_count ? (posture.over_amazon_threshold ? "crit" : "warn") : ""}"></span>Grounded VINs</div>
-        <div class="co-p-val">${posture.grounded_count || 0} <span class="unit">of ${total}</span></div>
-        <div class="co-p-sub ${posture.over_amazon_threshold ? "crit" : ""}">${posture.over_amazon_threshold ? posture.over_amazon_threshold + " over 14-day Amazon threshold" : "All inside Amazon SLA"}</div>
-      </div>
-      <div class="co-posture-cell">
-        <div class="co-p-lbl"><span class="pip ${posture.repairs_overdue ? "warn" : ""}"></span>Repairs overdue</div>
-        <div class="co-p-val">${posture.repairs_overdue || 0}</div>
-        <div class="co-p-sub ${posture.repairs_overdue ? "warn" : ""}">${posture.repairs_overdue ? "Past Amazon 2 BD scheduling or 14 BD completion" : "All ROs in SLA"}</div>
-      </div>
-      <div class="co-posture-cell">
-        <div class="co-p-lbl"><span class="pip ${posture.vendor_stalls ? "warn" : ""}"></span>Vendor stalls</div>
-        <div class="co-p-val">${posture.vendor_stalls || 0}</div>
-        <div class="co-p-sub ${posture.vendor_stalls ? "warn" : ""}">${posture.vendor_stalls ? "Below reassignment threshold" : "All vendors on track"}</div>
-      </div>
-      <div class="co-posture-cell">
-        <div class="co-p-lbl"><span class="pip ${posture.open_cures ? "crit" : ""}"></span>Cure deadlines</div>
-        <div class="co-p-val">${posture.open_cures || 0} <span class="unit">open</span></div>
-        <div class="co-p-sub ${posture.open_cures ? "crit" : ""}">${posture.open_cures ? "Active corrective action plans" : "No open cures"}</div>
-      </div>
-      <div class="co-posture-cell">
-        <div class="co-p-lbl">Last sweep</div>
-        <div class="co-p-val" style="font-size:15px;font-weight:650">${_ago(posture.last_sweep_at)}</div>
-        <div class="co-p-sub">Continuous · rules engine</div>
-      </div>
-    `;
-  }
-
   function _sevClass(s){
-    if (s === "critical") return "crit";
-    if (s === "high")     return "high";
-    if (s === "medium")   return "med";
-    return "low";
-  }
-  function _riskRowClass(s){
     if (s === "critical") return "sev-crit";
     if (s === "high")     return "sev-high";
     if (s === "medium")   return "sev-med";
     return "";
   }
-  function _renderRiskSubjects(subjects){
-    if (!Array.isArray(subjects) || !subjects.length) return "";
-    return `<div class="co-subjects">${subjects.map(s => `
-      <span class="co-subj"><span class="lbl">${_esc(s.lbl || "")}</span>${_esc(s.val || "")}</span>
-    `).join("")}</div>`;
+  function _sevPill(s){
+    if (s === "critical") return '<span class="co-pill crit"><span class="dot"></span>Critical</span>';
+    if (s === "high")     return '<span class="co-pill high"><span class="dot"></span>High</span>';
+    if (s === "medium")   return '<span class="co-pill med"><span class="dot"></span>Medium</span>';
+    return '<span class="co-pill"><span class="dot"></span>Low</span>';
   }
-  function _renderRiskMeta(risk){
+  function _statusPill(severity){
+    return severity === "critical"
+      ? '<span class="co-pill esc"><span class="dot"></span>Escalation likely</span>'
+      : '<span class="co-pill crit"><span class="dot"></span>Open</span>';
+  }
+  function _citeChip(cite){
+    if (cite === "amazon") return '<span class="co-chip-inline amazon">Amazon</span>';
+    if (cite === "fmcsa")  return '<span class="co-chip-inline fmcsa">FMCSA</span>';
+    return '<span class="co-chip-inline">Internal</span>';
+  }
+  function _typeLabel(kind){
+    return {
+      grounded_vehicle: "Grounded vehicle",
+      cure_deadline:    "Cure deadline",
+      vendor_stall:     "Vendor delay",
+      fmcsa_mcs150:     "FMCSA / MCS-150"
+    }[kind] || "Risk";
+  }
+  function _subjectCell(risk){
+    const subjects = Array.isArray(risk.subjects) ? risk.subjects : [];
+    const head = _esc(risk.title || "");
+    if (!subjects.length) return `<div>${head}</div>`;
+    const meta = subjects.map(s =>
+      `<span class="mono">${_esc((s.lbl ? s.lbl + " " : "") + (s.val || ""))}</span>`
+    ).join(" · ");
+    return `<div>${head}</div><span class="dim">${meta}</span>`;
+  }
+  function _detailCell(risk){
     const m = risk.meta || {};
-    const parts = [];
     if (risk.kind === "grounded_vehicle") {
       const dg = Number(m.days_grounded || 0);
       const cls = dg > 14 ? "crit" : dg > 7 ? "warn" : "";
-      parts.push(`Days grounded · <b class="${cls}">${dg.toFixed(0)} / 14 BD</b>`);
-      if (m.vendor) parts.push(`Vendor · <b>${_esc(m.vendor)}</b>` + (m.vendor_score ? ` · score <b class="${Number(m.vendor_score)<60?'crit':'warn'}">${m.vendor_score}</b>` : ""));
-      if (!m.ro_code) parts.push(`RO · <b class="crit">missing</b>`);
-      else            parts.push(`RO · <b>${_esc(m.ro_code)}</b>`);
-    } else if (risk.kind === "cure_deadline") {
+      const ro  = m.ro_code ? `RO ${_esc(m.ro_code)}` : `<span style="color:var(--co-crit);font-weight:700">no RO</span>`;
+      const vendor = m.vendor ? `· ${_esc(m.vendor)}` : "";
+      return `<div><span class="co-age ${cls}">${dg.toFixed(0)} / 14 BD</span> · ${ro}</div><span class="dim">${vendor}</span>`;
+    }
+    if (risk.kind === "cure_deadline") {
       const dl = Number(m.days_to_deadline || 0);
       const cls = dl < 3 ? "crit" : dl < 14 ? "warn" : "";
-      parts.push(`Deadline · <b class="${cls}">${_fmtDate(m.deadline_at)}</b> · <span class="age ${cls}">${dl.toFixed(0)}d</span>`);
-      if (m.step_total != null) parts.push(`Steps · <b>${m.step_done || 0} / ${m.step_total}</b>`);
-    } else if (risk.kind === "vendor_stall") {
-      parts.push(`Accountability · <b class="${m.score < 60 ? "crit" : "warn"}">${m.score} / 100</b>`);
-      parts.push(`Threshold · ${m.threshold}`);
-      parts.push(`Open ROs · ${m.open_ros}`);
-    } else if (risk.kind === "fmcsa_mcs150") {
-      if (m.cure_deadline_at) parts.push(`Cure deadline · <b class="warn">${_fmtDate(m.cure_deadline_at)}</b>`);
-      if (m.mcs150_cmv_declared != null) parts.push(`CMV declared · <b class="crit">${m.mcs150_cmv_declared}</b>`);
+      const steps = (m.step_total != null) ? ` · ${m.step_done || 0}/${m.step_total} steps` : "";
+      return `<div><span class="co-age ${cls}">${Math.round(dl)}d</span> to ${_fmtDate(m.deadline_at)}${steps}</div>`;
     }
-    if (!parts.length) return "";
-    return `<div class="co-meta">${parts.join('<span class="sep">·</span>')}</div>`;
-  }
-  function _renderRiskRow(risk){
-    const sev = risk.severity || "medium";
-    const cite = risk.cite || "internal";
-    const citeBadge = cite === "amazon" ? `<span class="co-risk-cite amazon">Amazon</span>`
-                    : cite === "fmcsa"  ? `<span class="co-risk-cite fmcsa">FMCSA</span>`
-                    : "";
-    const status = sev === "critical" ? "esc" : "open";
-    const statusLabel = sev === "critical" ? "Escalation likely" : "Open";
-    return `
-      <article class="co-risk ${_riskRowClass(sev)}">
-        <div class="co-risk-head" onclick="coRiskToggle(this.parentElement)">
-          <div class="co-risk-l">
-            <div class="co-risk-headrow">
-              <svg class="co-risk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              <div class="co-risk-title">${_esc(risk.title || "")}</div>
-              ${citeBadge}
-            </div>
-            ${_renderRiskSubjects(risk.subjects)}
-            ${_renderRiskMeta(risk)}
-          </div>
-          <div class="co-risk-r">
-            <span class="co-status ${status}"><span class="dot"></span>${statusLabel}</span>
-          </div>
-        </div>
-      </article>`;
-  }
-  function _renderRisksHero(host, risks){
-    if (!host) return;
-    const top = (risks || []).slice()
-      .sort((a,b)=> (b.severity === "critical" ? 1 : 0) - (a.severity === "critical" ? 1 : 0))
-      .slice(0, 2);
-    if (!top.length) { host.innerHTML = ""; return; }
-    host.innerHTML = `
-      <div class="co-hero">
-        ${top.map((r,i)=>{
-          const m = r.meta || {};
-          const cls = r.severity === "critical" ? "" : "amber";
-          const tagColor = r.severity === "critical" ? "crit" : "high";
-          let bullets = "";
-          if (r.kind === "grounded_vehicle"){
-            const dg = Number(m.days_grounded || 0);
-            bullets = `<span><b>Days grounded</b> <span style="color:${dg>14?'var(--co-crit)':'var(--amber-dark)'};font-weight:700">${dg.toFixed(0)} / 14</span></span>
-                       <span>·</span>
-                       <span><b>RO</b> <span style="color:${m.ro_code?'var(--text)':'var(--co-crit)'};font-weight:700">${m.ro_code ? _esc(m.ro_code) : 'Missing'}</span></span>
-                       ${m.vendor ? `<span>·</span><span><b>Vendor</b> ${_esc(m.vendor)}</span>` : ""}`;
-          } else if (r.kind === "cure_deadline"){
-            const dl = Number(m.days_to_deadline || 0);
-            bullets = `<span><b>Deadline</b> ${_fmtDate(m.deadline_at)} · <span style="color:${dl<3?'var(--co-crit)':'var(--amber-dark)'};font-weight:700">${dl.toFixed(0)}d</span></span>
-                       <span>·</span>
-                       <span><b>Steps</b> ${m.step_done || 0} / ${m.step_total || 0}</span>`;
-          } else if (r.kind === "fmcsa_mcs150"){
-            bullets = `<span><b>CMV declared</b> <span style="color:var(--co-crit);font-weight:700">${m.mcs150_cmv_declared || 0}</span> · actual 0</span>
-                       <span>·</span>
-                       <span><b>Cure deadline</b> ${m.cure_deadline_at ? _fmtDate(m.cure_deadline_at) : '—'}</span>`;
-          } else {
-            bullets = `<span>${_esc((r.subjects && r.subjects[0] && r.subjects[0].val) || '')}</span>`;
-          }
-          return `
-            <div class="co-hero-card ${cls}">
-              <div class="top">
-                <div class="topL">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                  <span class="co-hero-tag">Highest exposure</span>
-                </div>
-                <span class="co-sev ${tagColor}"><span class="dot"></span>${r.severity || ""}</span>
-              </div>
-              <h3>${_esc(r.title || "")}</h3>
-              <div class="co-hero-meta">${bullets}</div>
-            </div>`;
-        }).join("")}
-      </div>`;
-  }
-  function _renderRisks(host, risks){
-    if (!host) return;
-    if (!risks || !risks.length) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg></div>
-          <h3>No active risks</h3>
-          <p>The rules engine is watching every monitor in your Risk Tracking Library. Nothing has crossed a threshold yet — RouteReady will surface risks here automatically the moment one does.</p>
-        </div>`;
-      return;
+    if (risk.kind === "vendor_stall") {
+      const cls = m.score < 60 ? "crit" : "warn";
+      return `<div><span class="co-age ${cls}">${m.score}</span> / 100 · ${m.open_ros} open RO${m.open_ros === 1 ? "" : "s"}</div><span class="dim">Threshold ${m.threshold}</span>`;
     }
-    const order = ["critical","high","medium","low"];
-    const groups = {};
-    risks.forEach(r => { (groups[r.severity || "medium"] ||= []).push(r); });
-    let html = "";
-    order.forEach(sev => {
-      const arr = groups[sev]; if (!arr || !arr.length) return;
-      html += `
-        <div class="co-group">
-          <div class="co-group-head">
-            <span class="co-sev ${_sevClass(sev)}"><span class="dot"></span>${sev}</span>
-            <span class="co-group-count">${arr.length} risk${arr.length===1?"":"s"}</span>
-            <span class="co-group-spacer"></span>
-          </div>
-          ${arr.map(_renderRiskRow).join("")}
-        </div>`;
-    });
-    host.innerHTML = html;
+    if (risk.kind === "fmcsa_mcs150") {
+      return `<div>CMV declared <span class="co-age crit">${m.mcs150_cmv_declared || 0}</span> · actual 0</div><span class="dim">${m.cure_deadline_at ? "Cure by " + _fmtDate(m.cure_deadline_at) : ""}</span>`;
+    }
+    return `<div>—</div>`;
+  }
+  function _detectedCell(risk){
+    const m = risk.meta || {};
+    // Best-effort timestamp per kind
+    const ts = risk.kind === "grounded_vehicle" ? null
+             : risk.kind === "cure_deadline"    ? null
+             : risk.kind === "vendor_stall"     ? null
+             : null;
+    if (risk.kind === "cure_deadline") {
+      return `<span class="co-age" style="color:var(--text-muted)">Deadline ${_fmtDate(m.deadline_at)}</span>`;
+    }
+    if (risk.kind === "grounded_vehicle") {
+      const dg = Number(m.days_grounded || 0);
+      return `<span class="co-age">${dg.toFixed(0)}d ago</span>`;
+    }
+    return `<span class="co-age" style="color:var(--text-subtle)">—</span>`;
+  }
+  function _rowAction(risk){
+    if (risk.kind === "grounded_vehicle") {
+      const m = risk.meta || {};
+      const dg = Number(m.days_grounded || 0);
+      if (dg > 14 || !m.ro_code) return `<button class="co-row-action danger" type="button">Reassign</button>`;
+      return `<button class="co-row-action" type="button">Open</button>`;
+    }
+    if (risk.kind === "cure_deadline") return `<button class="co-row-action" type="button">Open cure</button>`;
+    if (risk.kind === "vendor_stall")  return `<button class="co-row-action" type="button">Vendor</button>`;
+    if (risk.kind === "fmcsa_mcs150")  return `<button class="co-row-action" type="button">File</button>`;
+    return "";
   }
 
-  // ── Cures ──
-  function _renderCures(host, cures){
+  // ── Exceptions table ────────────────────────────────────────────
+  function _renderExceptions(host, risks){
     if (!host) return;
-    if (!cures || !cures.length) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-          <h3>No open cures</h3>
-          <p>When Amazon or FMCSA issues a citation, RouteReady creates a Corrective Action Plan here — with the deadline, an evidence checklist, an owner, and an auto-assembled submission packet.</p>
-          <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-co-new-cure>New cure</button></div>
-        </div>`;
-      return;
-    }
-    host.innerHTML = cures.map(c => {
-      const days = Number(c.days_to_deadline ?? 999);
-      const urgent = days < 7;
-      const stepHtml = (c.steps || []).map(s => `
-        <div class="co-cure-step ${s.done ? "done" : ""}">
-          <span class="box">${s.done ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}</span>
-          <div><div class="nm">${_esc(s.title || "")}</div>${s.sub ? `<span class="sub">${_esc(s.sub)}</span>` : ""}</div>
-          <span class="tag ${s.done ? "done" : ""}">${s.done ? "Done" : "Pending"}</span>
-        </div>`).join("");
-      const linkHtml = (c.links || []).map(l => `${_esc(l.object_type)} · <b>${_esc(l.label || l.object_id)}</b>`).join("<br>");
-      return `
-        <article class="co-cure ${urgent ? "urgent" : ""}">
-          <div class="co-cure-head">
-            <div class="co-cure-l">
-              <div class="co-cure-cite">
-                <span class="amz">${_esc((c.source || "").toUpperCase())}</span>
-                ${c.code ? `<span>${_esc(c.code)}</span>` : ""}
-              </div>
-              <div class="co-cure-title">${_esc(c.title || "")}</div>
-              ${c.description ? `<p class="co-cure-desc">${_esc(c.description)}</p>` : ""}
-            </div>
-            <div class="co-cure-r">
-              <div class="co-cure-countdown">
-                <span class="num ${urgent ? "" : "warn"}">${days < 0 ? "Past" : Math.round(days) + "d"}</span>
-                <span class="lbl">${c.deadline_at ? "Deadline · " + _fmtDate(c.deadline_at) : "No deadline"}</span>
-              </div>
-              <span class="co-status ${c.status === 'in_remediation' ? 'cure' : 'open'}"><span class="dot"></span>${_esc((c.status || '').replace(/_/g,' '))}</span>
-            </div>
-          </div>
-          <div class="co-cure-body">
-            <div class="co-cure-checklist">${stepHtml || '<div class="co-side-val dim">No checklist items yet.</div>'}</div>
-            <div class="co-cure-side">
-              <div class="co-side-card"><div class="co-side-lbl">Owner</div><div class="co-side-val">${c.owner_name ? _esc(c.owner_name) : '<span class="dim">Unassigned</span>'}</div></div>
-              ${linkHtml ? `<div class="co-side-card"><div class="co-side-lbl">Linked objects</div><div class="co-side-val">${linkHtml}</div></div>` : ""}
-              <div class="co-side-card"><div class="co-side-lbl">Evidence collected</div><div class="co-side-val">${c.step_done || 0} of ${c.step_total || 0} required</div></div>
-            </div>
-          </div>
-        </article>`;
-    }).join("");
-  }
+    const list = Array.isArray(risks) ? risks.slice() : [];
+    // Severity order: critical > high > medium > low
+    const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    list.sort((a,b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9));
 
-  // ── Grounded vehicles table ──
-  function _renderGrounded(host, grounded){
-    if (!host) return;
-    if (!grounded || !grounded.length) {
+    if (!list.length) {
       host.innerHTML = `
         <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg></div>
-          <h3>No grounded vehicles</h3>
-          <p>Every VIN in the fleet is in operational state. When a vehicle is grounded — by a DVIC defect, a manual flip on the Fleet workspace, or a workflow — it appears here tracked against Amazon's 2 BD and 14 BD thresholds.</p>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 12 11 14 15 10"/><circle cx="12" cy="12" r="10"/></svg></div>
+          <h3>No compliance exceptions</h3>
+          <p>Every rule under the Rules tab evaluated clean on the last sweep. RouteReady will surface a row here the instant a rule fires — you don't need to watch this page.</p>
         </div>`;
       return;
     }
-    const rows = grounded.map(g => {
-      const dg = Number(g.days_grounded || 0);
-      const pct = Math.min(100, Math.max(0, (dg / 14) * 100));
-      const cls = dg > 14 ? "crit" : dg > 7 ? "warn" : "";
-      const rowCls = dg > 14 ? "row-crit" : "";
-      return `
-        <tr class="${rowCls}">
-          <td><b>${_esc(g.label || "—")}</b><span class="dim mono">${_esc(g.vin || "")}</span></td>
-          <td>
-            <div style="font-weight:${dg>7?700:650};color:${dg>14?'var(--co-crit)':dg>7?'var(--amber-dark)':'var(--co-good)'}">${dg.toFixed(0)} / 14 BD</div>
-            <div class="co-aging"><div class="fill ${cls}" style="width:${pct}%"></div>
-              <span class="tick amazon" style="left:14.3%"></span>
-              <span class="tick amazon" style="left:100%"></span></div>
-            <div class="co-aging-cap"><span>0</span><span>2 BD scheduled</span><span>14 BD complete</span></div>
-          </td>
-          <td>${g.ro_code ? `<b>${_esc(g.ro_code)}</b><div class="dim">${_esc(g.ro_status || "")}</div>` : '<span class="co-status open" style="font-size:9.5px"><span class="dot"></span>Missing</span>'}</td>
-          <td>${g.vendor_name ? _esc(g.vendor_name) : '<span class="dim">Unassigned</span>'}</td>
-          <td>${g.ro_eta_at ? `ETA · ${_fmtDate(g.ro_eta_at)}` : (g.vendor_last_msg ? `Last contact · ${_ago(g.vendor_last_msg)}` : '<span class="dim">No vendor update</span>')}</td>
-          <td style="text-align:right">
-            ${dg > 14 || !g.ro_code
-              ? `<button class="co-action danger" type="button">Reassign</button>`
-              : `<button class="co-action" type="button">View</button>`}
-          </td>
-        </tr>`;
-    }).join("");
+    const rows = list.map(r => `
+      <tr class="${_sevClass(r.severity || "low")}">
+        <td>${_sevPill(r.severity || "low")}</td>
+        <td>${_esc(_typeLabel(r.kind))}<span class="dim">${_citeChip(r.cite || "internal")}</span></td>
+        <td>${_subjectCell(r)}</td>
+        <td>${_detailCell(r)}</td>
+        <td>${_detectedCell(r)}</td>
+        <td>${_statusPill(r.severity || "low")}</td>
+        <td style="text-align:right;white-space:nowrap">${_rowAction(r)}</td>
+      </tr>`).join("");
     host.innerHTML = `
       <div class="co-table-wrap">
         <table class="co-table">
           <thead><tr>
-            <th>VIN · Unit</th>
-            <th>Days grounded · vs Amazon SLA</th>
-            <th>RO</th>
-            <th>Vendor</th>
-            <th>Vendor status</th>
-            <th style="text-align:right">Actions</th>
+            <th>Severity</th>
+            <th>Type</th>
+            <th>Subject</th>
+            <th>Detail</th>
+            <th>Age / deadline</th>
+            <th>Status</th>
+            <th style="text-align:right">Action</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
-      </div>
-      <p style="margin:14px 0 0;font-size:11px;color:var(--text-subtle);line-height:1.5">
-        Aging meters scaled to Amazon's repair guidance · scheduling within 2 business days, completion within 14 business days. Escalation workflow + cure record fire automatically when either threshold is crossed without an active RO.
-      </p>`;
-  }
-
-  // ── Vendors · exception-only (only renders below or near threshold) ──
-  function _renderVendors(host, vendors){
-    if (!host) return;
-    // Only surface vendors that are an exception: stalled (below threshold)
-    // or at-risk (within 15 of threshold).  Everything else is silent.
-    const exceptions = (vendors || []).filter(v => {
-      const sc = Number(v.accountability_score || 0);
-      const thr = (v.reassignment_threshold || 60);
-      return sc < thr + 15;
-    });
-    if (!exceptions.length) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 12 11 14 15 10"/><circle cx="12" cy="12" r="10"/></svg></div>
-          <h3>No vendor delays</h3>
-          <p>Every active vendor is hitting their ETA, RO, and completion SLAs. RouteReady will surface a vendor here the moment their accountability score crosses the reassignment threshold.</p>
-        </div>`;
-      return;
-    }
-    host.innerHTML = exceptions.map(v => {
-      const sc = Number(v.accountability_score || 0);
-      const stalled = sc < (v.reassignment_threshold || 60);
-      const atRisk  = !stalled && sc < ((v.reassignment_threshold || 60) + 15);
-      const status = stalled ? "esc" : atRisk ? "ack" : "mitig";
-      const statusLbl = stalled ? "Stalled" : atRisk ? "At risk" : "On track";
-      const numCls = stalled ? "crit" : atRisk ? "warn" : "";
-      const initials = (v.name || "?").split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase();
-      return `
-        <article class="co-vendor" style="${stalled?'border-color:rgba(159,18,57,.30)':atRisk?'border-color:rgba(217,119,6,.25)':''}">
-          <div class="co-vendor-av">${_esc(initials || "?")}</div>
-          <div class="co-vendor-l">
-            <div class="nm">${_esc(v.name)} <span class="co-status ${status}" style="margin-left:8px"><span class="dot"></span>${statusLbl}</span></div>
-            <div class="meta">
-              <span><b>${v.open_ros || 0}</b> open ROs</span>
-              ${v.avg_eta_confirm_days != null ? `<span><b>Avg ETA confirm</b> ${Number(v.avg_eta_confirm_days).toFixed(1)}d</span>` : ""}
-              ${v.on_time_pct != null ? `<span><b>On-time</b> ${v.on_time_pct}%</span>` : ""}
-              ${v.last_message_at ? `<span><b>Last message</b> ${_ago(v.last_message_at)}</span>` : ""}
-            </div>
-          </div>
-          <div class="co-vendor-score">
-            <span class="n ${numCls}" style="${!numCls?'color:var(--co-good)':''}">${sc}</span>
-            <span class="lbl">Accountability</span>
-          </div>
-          <div class="co-vendor-actions">
-            ${stalled
-              ? `<button class="co-action danger" type="button">Reassign all</button>
-                 <button class="co-action" type="button">Pause</button>`
-              : `<button class="co-action" type="button">View</button>`}
-          </div>
-        </article>`;
-    }).join("");
-  }
-
-  // ── FMCSA · exception-only · renders only when a cure / OOS / mismatch
-  //   exists.  If the record is healthy, the pane stays quiet.
-  function _renderFmcsa(host, f){
-    if (!host) return;
-    const hasException = f && (
-      f.cure_required ||
-      f.oos_order ||
-      (Number(f.mcs150_cmv_declared || 0) > 0) ||
-      f.insurance_bipd_on_file === false
-    );
-    if (!hasException) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 12 11 14 15 10"/><circle cx="12" cy="12" r="10"/></svg></div>
-          <h3>${f ? "No FMCSA exceptions" : "No FMCSA record on file"}</h3>
-          <p>${f
-            ? "MCS-150 is up to date, operating authority is active, BIPD insurance is on file, and the CMV declaration reconciles against your live fleet roster. Any change to SAFER state will surface here."
-            : "Add your USDOT number and MCS-150 filing details. RouteReady will only surface this pane when something needs your attention — a filing approaching deadline, a CMV mismatch, an OOS order, or an insurance lapse."}</p>
-          ${f ? "" : `<div class="actions"><button class="btn btn-primary btn-sm" type="button" data-co-fmcsa-edit>Add FMCSA record</button></div>`}
-        </div>`;
-      return;
-    }
-    const cmv = f.mcs150_cmv_declared || 0;
-    const mismatch = cmv > 0; // Amazon-DSP profiles run Non-CMV cargo vans
-    host.innerHTML = `
-      <div class="co-fmcsa-id" style="margin-bottom:14px">
-        <div><div class="lbl">USDOT</div><div class="val">${_esc(f.usdot || "—")}</div><div class="sub">${f.mc_number ? "MC · " + _esc(f.mc_number) : ""}</div></div>
-        <div><div class="lbl">Operating authority</div><div class="val ${f.oos_order?'crit':'good'}">${f.oos_order ? "OOS" : "Active"}</div><div class="sub">${f.oos_order?'Out-of-service order in effect':'No OOS order'}</div></div>
-        <div><div class="lbl">Insurance · BIPD</div><div class="val ${f.insurance_bipd_on_file?'good':'crit'}">${f.insurance_bipd_on_file ? "On file" : "Missing"}</div><div class="sub">${f.insurance_effective_at ? "Effective " + _fmtDate(f.insurance_effective_at) : ""}</div></div>
-        <div><div class="lbl">SAFER last sync</div><div class="val">${_ago(f.safer_last_sync_at)}</div><div class="sub">Daily · automated</div></div>
-        <div><div class="lbl">MCS-150 last filed</div><div class="val ${f.cure_required?'warn':'good'}">${f.mcs150_filed_at ? _fmtDate(f.mcs150_filed_at) : '—'}</div><div class="sub">${f.cure_required?'Cure required · refile by ' + _fmtDate(f.cure_deadline_at) : 'Up to date'}</div></div>
-      </div>
-      <div class="co-cmv-recon">
-        <div class="co-cmv-head">
-          <h4>CMV vs Non-CMV reconciler</h4>
-          <span style="font-size:11px;color:${mismatch?'var(--co-crit)':'var(--co-good)'};font-weight:650">${mismatch ? `Mismatch · ${cmv} declared vs 0 actual` : 'In sync'}</span>
-        </div>
-        <div class="co-cmv-grid">
-          <div class="co-cmv-col">
-            <h5>Declared on MCS-150 (current)</h5>
-            <div class="co-cmv-num ${mismatch?'warn':''}">${cmv}</div>
-            <div class="co-cmv-cap">Commercial motor vehicles</div>
-          </div>
-          <div class="co-cmv-col">
-            <h5>Actual · reconciled against fleet roster</h5>
-            <div class="co-cmv-num" style="color:var(--co-good)">0</div>
-            <div class="co-cmv-cap">Commercial motor vehicles · cargo vans operate as Non-CMV</div>
-          </div>
-        </div>
-        ${mismatch ? `
-        <div style="padding:12px 18px;border-top:1px solid var(--border);background:var(--canvas);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-          <span style="font-size:12px;color:var(--text-muted)"><b style="color:var(--text)">Recommended filing</b> · re-submit MCS-150 with CMV count <b>0</b>.</span>
-          <button class="co-action primary" type="button">Open MCS-150 cure</button>
-        </div>` : ""}
       </div>`;
   }
 
-  function _setRailCount(name, n){
-    const root = _coRoot(); if (!root) return;
-    const el = root.querySelector(`[data-co-rail-count="${name}"]`);
-    if (!el) return;
-    if (n) {
-      el.textContent = n;
-      el.hidden = false;
-    } else {
-      el.hidden = true;
+  // ── Rules tab · monitor registry ─────────────────────────────────
+  function _renderRules(host, monitors){
+    if (!host) return;
+    const list = Array.isArray(monitors) ? monitors : [];
+    if (!list.length) {
+      host.innerHTML = `
+        <div class="co-empty">
+          <h3>No monitors configured</h3>
+          <p>The default monitor pack hasn't been seeded for this DSP yet. Run a compliance sweep to populate it.</p>
+        </div>`;
+      return;
     }
-  }
-  function _setRailCounts(b){
-    _setRailCount("risks",    (b.risks || []).length);
-    _setRailCount("cures",    (b.cures || []).length);
-    _setRailCount("grounded", (b.grounded_vehicles || []).length);
-    _setRailCount("vendors",  ((b.vendors || []).filter(v => v.accountability_score < (v.reassignment_threshold || 60))).length);
-    _setRailCount("fmcsa",    (b.fmcsa && b.fmcsa.cure_required) ? 1 : 0);
+    host.innerHTML = `<div class="co-rules-list">${list.map(m => {
+      const stateCls = m.state === "crit" ? "crit" : m.state === "alerting" ? "alerting" : m.state === "paused" ? "paused" : "";
+      const capCls = m.automation === "auto" ? "auto" : m.automation === "escalate" ? "escalate" : m.automation === "review" ? "review" : "";
+      const statePill =
+        m.state === "crit"     ? '<span class="co-pill crit"><span class="dot"></span>Alerting</span>' :
+        m.state === "alerting" ? '<span class="co-pill high"><span class="dot"></span>Alerting</span>' :
+        m.state === "watching" ? '<span class="co-pill med"><span class="dot"></span>Watching</span>' :
+        m.state === "paused"   ? '<span class="co-pill"><span class="dot"></span>Paused</span>' :
+                                 '<span class="co-pill good"><span class="dot"></span>Healthy</span>';
+      return `
+        <article class="co-rule ${stateCls}">
+          <div class="co-rule-top">
+            <div class="co-rule-nm">${_esc(m.name)}</div>
+            ${statePill}
+          </div>
+          <p class="co-rule-desc">${_esc(m.description || "")}</p>
+          <div class="co-rule-meta">
+            ${m.data_source ? `<span>Source · <b>${_esc(m.data_source)}</b></span>` : ""}
+            ${m.last_check_at ? `<span>·</span><span>Last check · <b>${_ago(m.last_check_at)}</b></span>` : ""}
+          </div>
+          <div class="co-rule-foot">
+            <span style="font-size:10.5px;color:var(--text-subtle);font-weight:500">${_esc((m.category || "").toUpperCase())}</span>
+            ${m.automation ? `<span class="co-cap ${capCls}">${_esc(m.automation)}</span>` : ""}
+          </div>
+        </article>`;
+    }).join("")}</div>`;
   }
 
-  function _renderAll(bundle){
-    const root = _coRoot(); if (!root) return;
-    const buckets = _coBuckets(root);
-    _renderPosture(buckets.posture, bundle.posture || {});
-    _renderRisksHero(buckets["risks-hero"], bundle.risks || []);
-    _renderRisks(buckets["risks-list"], bundle.risks || []);
-    _renderCures(buckets.cures, bundle.cures || []);
-    _renderGrounded(buckets.grounded, bundle.grounded_vehicles || []);
-    _renderVendors(buckets.vendors, bundle.vendors || []);
-    _renderFmcsa(buckets.fmcsa, bundle.fmcsa || null);
-    _setRailCounts(bundle);
-    window[_coStateKey] = bundle;
+  function _setSubnavCounts(b){
+    const r = _coRoot(); if (!r) return;
+    const setCount = (key, n) => {
+      const el = r.querySelector(`[data-co-count="${key}"]`);
+      if (!el) return;
+      if (n > 0) { el.textContent = n; el.hidden = false; }
+      else       { el.hidden = true; }
+    };
+    setCount("exceptions", (b.risks || []).length);
+    setCount("rules",      (b.monitors || []).length);
   }
 
   async function loadComplianceWorkspace(){
@@ -31986,26 +31709,41 @@ document.addEventListener("click", async (e) => {
       const dspId = window.RR && window.RR.dsp ? window.RR.dsp.id : null;
       const { data, error } = await sb.rpc("compliance_workspace_bundle", { p_dsp_id: dspId });
       if (error) throw error;
-      if (data && data.error) {
-        console.warn("[compliance] bundle error:", data.error);
-        _renderAll({});
-        return;
-      }
-      _renderAll(data || {});
+      const bundle = data && !data.error ? data : {};
+      _renderExceptions(_coBucket("exceptions-table"), bundle.risks || []);
+      _renderRules(_coBucket("rules-list"), bundle.monitors || []);
+      _setSubnavCounts(bundle);
     } catch (e) {
       console.error("[compliance] failed to load bundle:", e);
-      const buckets = _coBuckets(root);
-      Object.values(buckets).forEach(b => {
-        if (b.getAttribute("data-co-render") === "posture") return;
-        b.innerHTML = `<div class="co-empty"><h3>Couldn't load compliance data</h3><p>${_esc(e.message || "Unexpected error")}</p></div>`;
-      });
+      const ex = _coBucket("exceptions-table");
+      if (ex) ex.innerHTML = `<div class="co-empty"><h3>Couldn't load compliance data</h3><p>${_esc(e.message || "Unexpected error")}</p></div>`;
     }
   }
   window.loadComplianceWorkspace = loadComplianceWorkspace;
 
-  // Refresh button (Active Risks pane)
+  // Tab switcher
+  function coTab(name){
+    const r = _coRoot(); if (!r) return;
+    r.querySelectorAll("#co-subnav .subnav-item").forEach(b => b.classList.remove("active"));
+    const btn = r.querySelector(`#co-subnav .subnav-item[data-co-tab="${name}"]`);
+    if (btn) btn.classList.add("active");
+    r.querySelectorAll(".co-tab").forEach(t => t.classList.remove("is-active"));
+    const tab = document.getElementById("co-tab-" + name);
+    if (tab) tab.classList.add("is-active");
+  }
+  window.coTab = coTab;
+
+  // Back-compat shims so any pre-rebuild deep links still land safely
+  window.coPane = function(p){
+    if (p === "rules" || p === "library") return coTab("rules");
+    return coTab("exceptions");
+  };
+  window.complianceSub = window.coPane;
+  window.coRiskToggle = function(){ /* no-op; the table is the surface */ };
+
+  // Run-sweep button
   document.addEventListener("click", function(e){
-    const t = e.target.closest && e.target.closest("#co-risks-refresh");
+    const t = e.target.closest && e.target.closest("#co-run-sweep");
     if (t) { e.preventDefault(); loadComplianceWorkspace(); }
   });
 })();
