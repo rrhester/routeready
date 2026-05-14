@@ -2626,6 +2626,7 @@ async function loadDriversRoster() {
                training_scheduled_at, training_date,
                station:station_id (code)`)
       .eq("dsp_id", window.RR.dsp.id)
+      .eq("role", "driver")
       .order("hire_date", { ascending: false })
       .limit(500),
     sb.rpc("driver_app_status"),
@@ -6511,7 +6512,8 @@ async function loadCheckinView() {
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, phone, station:station_id (code), tier")
       .eq("dsp_id", dspId)
-      .eq("status", "active"),
+      .eq("status", "active")
+      .eq("role", "driver"),
     sb.from("shifts")
       .select("id, driver_id, status, date")
       .eq("dsp_id", dspId)
@@ -21921,6 +21923,7 @@ async function renderScheduleWeek() {
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, dot_certified, xl_certified, is_trainer, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
+      .eq("role", "driver")
       .order("full_name"),
     sb.from("time_off_requests")
       .select("id, driver_id, start_date, end_date, status")
@@ -31076,7 +31079,7 @@ function _stfRenderGrid() {
     const role = _STF_ROLE_LABEL[m.role] || m.role || "—";
     return `
       <div class="stf-grid">
-        <div class="stf-name">
+        <div class="stf-name" data-rr-driver-id="${escapeHtml(m.id)}" data-rr-no-drawer-on-cell style="cursor:pointer" title="Open record">
           <div class="nm">${escapeHtml(name)}</div>
           <div class="sub">${escapeHtml(role)}</div>
         </div>
