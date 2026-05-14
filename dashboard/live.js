@@ -27542,3 +27542,420 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && document.getElementById("rr-dapp-modal")) { e.stopPropagation(); _dappClose(); }
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// Analytics — AI-first analytics workspace
+// ═══════════════════════════════════════════════════════════════════════
+// Calls the analytics-ai edge function with the dispatcher's natural-
+// language prompt; that function asks Claude to pick from a small set of
+// DSP-scoped data tools, then to call render_result with a strict
+// analytics-object schema. The dashboard renders that object (kpi /
+// kpi_grid / table / text_summary / clarification_needed) and lets the
+// dispatcher pin it into a localStorage-backed personal dashboard.
+//
+// Pin storage shape (localStorage `rr.analytics.pins.v1`):
+//   [{ id, prompt, result, meta, pinned_at, custom_title? }, ...]
+// ─────────────────────────────────────────────────────────────────────
+const RR_AN_PIN_KEY  = "rr.analytics.pins.v1";
+const RR_AN_PIN_LIMIT = 24;
+
+function _rrAnEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function _rrAnLoadPins() {
+  try { const v = JSON.parse(localStorage.getItem(RR_AN_PIN_KEY) || "[]"); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function _rrAnSavePins(pins) {
+  try { localStorage.setItem(RR_AN_PIN_KEY, JSON.stringify(pins.slice(0, RR_AN_PIN_LIMIT))); }
+  catch (e) { console.warn("analytics: pin save failed", e); }
+}
+function _rrAnFmtRel(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const diff = Math.floor((Date.now() - t) / 1000);
+  if (diff < 30) return "just now";
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+function _rrAnAutosizeTextarea(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 160) + "px";
+}
+
+// ── Render functions for each analytics-object kind ──────────────────
+function _rrAnRenderKpi(data) {
+  const value = _rrAnEsc(data?.value ?? "—");
+  const unit  = data?.unit ? `<span class="rr-an-kpi-unit">${_rrAnEsc(data.unit)}</span>` : "";
+  const label = data?.label ? `<div class="rr-an-kpi-label">${_rrAnEsc(data.label)}</div>` : "";
+  const sub   = data?.sublabel ? `<div class="rr-an-kpi-label" style="margin-top:2px;color:var(--text-muted);font-size:11px">${_rrAnEsc(data.sublabel)}</div>` : "";
+  let delta = "";
+  if (Number.isFinite(data?.delta)) {
+    const d = data.delta;
+    const cls = data.trend === "up" ? "up" : data.trend === "down" ? "down" : (d > 0 ? "up" : d < 0 ? "down" : "flat");
+    const arrow = cls === "up" ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>'
+               : cls === "down" ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+               : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+    delta = `<span class="rr-an-kpi-delta ${cls}">${arrow}${d > 0 ? "+" : ""}${_rrAnEsc(d)}</span>`;
+  }
+  return `<div class="rr-an-kpi"><div><div style="display:flex;align-items:baseline;gap:14px"><div class="rr-an-kpi-value">${value}${unit}</div>${delta}</div>${label}${sub}</div></div>`;
+}
+function _rrAnRenderKpiGrid(data) {
+  const items = Array.isArray(data?.items) ? data.items : [];
+  if (!items.length) return '<div class="rr-an-text-body" style="color:var(--text-subtle)">No KPIs returned.</div>';
+  return `<div class="rr-an-kpi-grid">${items.map((it) => {
+    const value = _rrAnEsc(it?.value ?? "—");
+    const unit  = it?.unit ? `<span class="rr-an-kpi-unit">${_rrAnEsc(it.unit)}</span>` : "";
+    const label = it?.label ? `<div class="rr-an-kpi-label">${_rrAnEsc(it.label)}</div>` : "";
+    let delta = "";
+    if (Number.isFinite(it?.delta)) {
+      const d = it.delta;
+      const cls = it.trend === "up" ? "up" : it.trend === "down" ? "down" : (d > 0 ? "up" : d < 0 ? "down" : "flat");
+      delta = ` <span class="rr-an-kpi-delta ${cls}" style="margin-left:4px">${d > 0 ? "+" : ""}${_rrAnEsc(d)}</span>`;
+    }
+    return `<div class="rr-an-kpi-grid-cell">${label}<div class="rr-an-kpi-value">${value}${unit}${delta}</div></div>`;
+  }).join("")}</div>`;
+}
+function _rrAnBadgeClass(val) {
+  const s = String(val || "").toLowerCase();
+  if (/(active|complete|on[\s_-]?time|hired|approved|good|healthy|green|filled|covered)/.test(s)) return "green";
+  if (/(pending|onboarding|review|caution|amber|partial|at[\s_-]?risk)/.test(s))  return "amber";
+  if (/(expired|terminated|callout|called[\s_-]?off|no[\s_-]?show|rejected|fail|red|missed|over|gap)/.test(s)) return "red";
+  if (/(scheduled|interview|screen|new|offer|sent|invited|blue)/.test(s)) return "blue";
+  return "";
+}
+function _rrAnRenderTable(data) {
+  const cols = Array.isArray(data?.columns) ? data.columns : [];
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  if (!cols.length || !rows.length) return '<div class="rr-an-text-body" style="color:var(--text-subtle)">No rows.</div>';
+  const head = cols.map((c) => `<th${c.type === "number" ? ' class="num"' : ""}>${_rrAnEsc(c.label || c.key)}</th>`).join("");
+  const body = rows.map((r) => `<tr>${cols.map((c) => {
+    const v = r?.[c.key];
+    if (c.type === "badge") {
+      return `<td><span class="rr-an-table-badge ${_rrAnBadgeClass(v)}">${_rrAnEsc(v ?? "—")}</span></td>`;
+    }
+    if (c.type === "number") return `<td class="num">${_rrAnEsc(v ?? "—")}</td>`;
+    if (c.type === "date" && v) {
+      try { return `<td>${_rrAnEsc(new Date(v).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }))}</td>`; }
+      catch { return `<td>${_rrAnEsc(v)}</td>`; }
+    }
+    return `<td>${_rrAnEsc(v ?? "—")}</td>`;
+  }).join("")}</tr>`).join("");
+  return `<div class="rr-an-table-wrap"><table class="rr-an-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+function _rrAnRenderTextSummary(data) {
+  const body = String(data?.body || "").trim();
+  const bullets = Array.isArray(data?.bullets) ? data.bullets : [];
+  const para = body
+    ? `<div class="rr-an-text-body">${body.split(/\n{2,}/).map((p) => `<p>${_rrAnEsc(p).replace(/\n/g, "<br/>")}</p>`).join("")}</div>`
+    : "";
+  const list = bullets.length
+    ? `<ul class="rr-an-bullets">${bullets.map((b) => `<li>${_rrAnEsc(b)}</li>`).join("")}</ul>`
+    : "";
+  return `${para}${list}` || '<div class="rr-an-text-body" style="color:var(--text-subtle)">No content.</div>';
+}
+function _rrAnRenderClarification(data) {
+  const msg = _rrAnEsc(data?.message || "I need a bit more detail to answer that.");
+  const sugs = Array.isArray(data?.suggestions) ? data.suggestions : [];
+  return `<div class="rr-an-clarify">
+    <p class="rr-an-clarify-msg">${msg}</p>
+    ${sugs.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px">${sugs.map((s) => `<button class="rr-an-followup" type="button" data-rr-an-followup="${_rrAnEsc(s)}">${_rrAnEsc(s)}</button>`).join("")}</div>` : ""}
+  </div>`;
+}
+function _rrAnRenderResultBody(result) {
+  switch (result?.kind) {
+    case "kpi":                  return _rrAnRenderKpi(result.data || {});
+    case "kpi_grid":             return _rrAnRenderKpiGrid(result.data || {});
+    case "table":                return _rrAnRenderTable(result.data || {});
+    case "text_summary":         return _rrAnRenderTextSummary(result.data || {});
+    case "clarification_needed": return _rrAnRenderClarification(result.data || {});
+    default: return `<div class="rr-an-text-body" style="color:var(--text-subtle)">Unknown render kind: ${_rrAnEsc(result?.kind)}</div>`;
+  }
+}
+
+// ── Result card (used for both live + pinned) ────────────────────────
+function _rrAnRenderResultCard(entry, opts) {
+  const result = entry.result || {};
+  const meta   = entry.meta || {};
+  const isPinned = !!opts?.isPinned;
+  const title  = entry.custom_title || result.title || "Untitled";
+  const subtitle = result.subtitle ? `<div class="rr-an-result-subtitle">${_rrAnEsc(result.subtitle)}</div>` : "";
+
+  const metaPills = [];
+  if (result.source)         metaPills.push(`<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/></svg>${_rrAnEsc(result.source)}</span>`);
+  if (result.date_range?.label) metaPills.push(`<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>${_rrAnEsc(result.date_range.label)}</span>`);
+  if (meta.generated_at)    metaPills.push(`<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Refreshed ${_rrAnEsc(_rrAnFmtRel(meta.generated_at))}</span>`);
+  if (meta.tools_used?.length) metaPills.push(`<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5l7 7-7 7"/><path d="M3 12h18"/></svg>${_rrAnEsc(meta.tools_used.join(", "))}</span>`);
+
+  const followups = Array.isArray(result.follow_up_suggestions) ? result.follow_up_suggestions : [];
+  const followupBlock = followups.length
+    ? `<div class="rr-an-followups">
+        <div class="rr-an-followup-label">Follow up</div>
+        ${followups.map((s) => `<button class="rr-an-followup" type="button" data-rr-an-followup="${_rrAnEsc(s)}">${_rrAnEsc(s)}</button>`).join("")}
+      </div>` : "";
+
+  const pinBtn = isPinned
+    ? `<button class="rr-an-iconbtn is-pinned" title="Unpin" data-rr-an-action="unpin" data-rr-an-id="${_rrAnEsc(entry.id)}"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2c-.5 0-1 .2-1.4.6L8 5.2c-.4.4-.6.9-.6 1.4 0 .3.1.6.2.9l-3 3a3 3 0 0 0-.5 3.5l1.4 2.5L4 18l3-3 1.5 1.4a3 3 0 0 0 3.5-.5l3-3c.3.1.6.2.9.2.5 0 1-.2 1.4-.6l2.6-2.6c.8-.8.8-2 0-2.8L13.4 2.6c-.4-.4-.9-.6-1.4-.6z"/></svg></button>`
+    : `<button class="rr-an-iconbtn" title="Pin to Analytics" data-rr-an-action="pin" data-rr-an-id="${_rrAnEsc(entry.id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-2-7V5h-10v5z"/></svg></button>`;
+
+  const pinnedActions = isPinned ? `
+    <button class="rr-an-iconbtn" title="Refresh" data-rr-an-action="refresh" data-rr-an-id="${_rrAnEsc(entry.id)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.5 15A9 9 0 1 1 18 6.6L23 10"/></svg>
+    </button>
+    <button class="rr-an-iconbtn" title="Rename" data-rr-an-action="rename" data-rr-an-id="${_rrAnEsc(entry.id)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+    </button>
+    <button class="rr-an-iconbtn" title="Export CSV" data-rr-an-action="export" data-rr-an-id="${_rrAnEsc(entry.id)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>` : "";
+
+  return `<div class="rr-an-result" data-rr-an-card data-rr-an-id="${_rrAnEsc(entry.id)}">
+    <div class="rr-an-result-head">
+      <div style="flex:1;min-width:0">
+        <h3 class="rr-an-result-title">${_rrAnEsc(title)}</h3>
+        ${subtitle}
+        <div class="rr-an-result-meta">${metaPills.join("")}</div>
+      </div>
+      <div class="rr-an-result-actions">${pinnedActions}${pinBtn}</div>
+    </div>
+    <div class="rr-an-result-body">${_rrAnRenderResultBody(result)}</div>
+    ${followupBlock}
+  </div>`;
+}
+
+// ── Pinned grid + empty state ─────────────────────────────────────────
+function _rrAnRenderPinnedGrid() {
+  const host = document.getElementById("rr-an-pinned-host");
+  const countEl = document.getElementById("rr-an-pinned-count");
+  if (!host) return;
+  const pins = _rrAnLoadPins();
+  if (countEl) countEl.textContent = String(pins.length);
+  if (!pins.length) {
+    host.innerHTML = `<div class="rr-an-empty">
+      <div class="rr-an-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-2-7V5h-10v5z"/></svg>
+      </div>
+      <div class="rr-an-empty-title">Nothing pinned yet</div>
+      <p class="rr-an-empty-sub">Ask a question above and pin the results worth keeping. Pinned analytics live here so you can refresh, follow up, or export them whenever you need.</p>
+    </div>`;
+    return;
+  }
+  host.innerHTML = `<div class="rr-an-pinned-grid">${pins.map((p) => _rrAnRenderResultCard(p, { isPinned: true })).join("")}</div>`;
+}
+
+// ── Live result + agent call ─────────────────────────────────────────
+let _rrAnLiveEntry = null;     // currently shown above the pinned grid
+let _rrAnLastConversation = []; // for follow-ups
+let _rrAnInflight = false;
+
+function _rrAnShowLive(entry) {
+  _rrAnLiveEntry = entry;
+  const section = document.getElementById("rr-an-live-result-section");
+  const host    = document.getElementById("rr-an-live-result");
+  if (!section || !host) return;
+  section.style.display = "block";
+  host.innerHTML = _rrAnRenderResultCard(entry, { isPinned: false });
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function _rrAnShowLoading() {
+  const section = document.getElementById("rr-an-live-result-section");
+  const host    = document.getElementById("rr-an-live-result");
+  if (!section || !host) return;
+  section.style.display = "block";
+  host.innerHTML = `<div class="rr-an-result"><div class="rr-an-loading">
+    <span class="rr-an-loading-dots"><span></span><span></span><span></span></span>
+    <span>Thinking through the data…</span>
+  </div></div>`;
+}
+function _rrAnShowError(msg) {
+  const section = document.getElementById("rr-an-live-result-section");
+  const host    = document.getElementById("rr-an-live-result");
+  if (!section || !host) return;
+  section.style.display = "block";
+  host.innerHTML = `<div class="rr-an-result"><div class="rr-an-error">${_rrAnEsc(msg || "Couldn't generate that result.")}</div></div>`;
+}
+
+async function _rrAnAsk(prompt, opts) {
+  if (_rrAnInflight) return;
+  prompt = String(prompt || "").trim();
+  if (!prompt) return;
+  if (typeof sb === "undefined" || !sb?.functions?.invoke) {
+    _rrAnShowError("Supabase client isn't ready yet — try again in a moment.");
+    return;
+  }
+  _rrAnInflight = true;
+  const submitBtn = document.getElementById("rr-an-submit");
+  if (submitBtn) submitBtn.disabled = true;
+  _rrAnShowLoading();
+  try {
+    const conversation = opts?.followup ? _rrAnLastConversation : [];
+    const { data, error } = await sb.functions.invoke("analytics-ai", { body: { prompt, conversation } });
+    if (error || !data || data.error || !data.result) {
+      const msg = error?.message || data?.detail || data?.error || "Unknown error";
+      _rrAnShowError(`Couldn't generate that result: ${msg}`);
+      return;
+    }
+    const id = `live-${Date.now()}`;
+    const entry = {
+      id, prompt,
+      result: data.result,
+      meta:   data.meta || { prompt, generated_at: new Date().toISOString() },
+      pinned_at: null,
+    };
+    _rrAnLastConversation = [...conversation, { role: "user", content: prompt }];
+    _rrAnShowLive(entry);
+  } catch (e) {
+    _rrAnShowError(`Couldn't generate that result: ${e?.message || e}`);
+  } finally {
+    _rrAnInflight = false;
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+// ── Pin / unpin / refresh / rename / export ──────────────────────────
+function _rrAnPin(id) {
+  if (!_rrAnLiveEntry || _rrAnLiveEntry.id !== id) return;
+  const pins = _rrAnLoadPins();
+  const newId = `pin-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const entry = { ..._rrAnLiveEntry, id: newId, pinned_at: new Date().toISOString() };
+  pins.unshift(entry);
+  _rrAnSavePins(pins);
+  _rrAnRenderPinnedGrid();
+  // Reflect "pinned" state on the live card too.
+  _rrAnLiveEntry = { ..._rrAnLiveEntry, id: newId, pinned_at: entry.pinned_at };
+  const host = document.getElementById("rr-an-live-result");
+  if (host) host.innerHTML = _rrAnRenderResultCard(_rrAnLiveEntry, { isPinned: true });
+  if (typeof toast === "function") toast("Pinned to Analytics", "success");
+}
+function _rrAnUnpin(id) {
+  const pins = _rrAnLoadPins().filter((p) => p.id !== id);
+  _rrAnSavePins(pins);
+  _rrAnRenderPinnedGrid();
+  // Live card might be the same entry — flip its pin button back.
+  if (_rrAnLiveEntry?.id === id) {
+    _rrAnLiveEntry = { ..._rrAnLiveEntry, pinned_at: null };
+    const host = document.getElementById("rr-an-live-result");
+    if (host) host.innerHTML = _rrAnRenderResultCard(_rrAnLiveEntry, { isPinned: false });
+  }
+}
+function _rrAnRename(id) {
+  const pins = _rrAnLoadPins();
+  const i = pins.findIndex((p) => p.id === id);
+  if (i < 0) return;
+  const next = window.prompt("Rename this analytics card", pins[i].custom_title || pins[i].result?.title || "");
+  if (next == null) return;
+  const trimmed = String(next).trim();
+  pins[i].custom_title = trimmed || undefined;
+  _rrAnSavePins(pins);
+  _rrAnRenderPinnedGrid();
+}
+async function _rrAnRefresh(id) {
+  const pins = _rrAnLoadPins();
+  const i = pins.findIndex((p) => p.id === id);
+  if (i < 0) return;
+  const card = document.querySelector(`[data-rr-an-card][data-rr-an-id="${CSS.escape(id)}"]`);
+  if (card) card.style.opacity = "0.5";
+  try {
+    const { data, error } = await sb.functions.invoke("analytics-ai", { body: { prompt: pins[i].prompt } });
+    if (error || !data?.result) throw new Error(error?.message || data?.detail || data?.error || "refresh_failed");
+    pins[i] = { ...pins[i], result: data.result, meta: data.meta || pins[i].meta };
+    _rrAnSavePins(pins);
+    _rrAnRenderPinnedGrid();
+    if (typeof toast === "function") toast("Refreshed", "success");
+  } catch (e) {
+    if (typeof toast === "function") toast(`Refresh failed: ${e?.message || e}`, "warn");
+    if (card) card.style.opacity = "";
+  }
+}
+function _rrAnExportCsv(id) {
+  const all = _rrAnLoadPins().concat(_rrAnLiveEntry ? [_rrAnLiveEntry] : []);
+  const entry = all.find((p) => p.id === id);
+  if (!entry) return;
+  const r = entry.result;
+  let csv = "";
+  if (r?.kind === "table" && r.data?.columns && r.data?.rows) {
+    const cols = r.data.columns;
+    csv = cols.map((c) => `"${String(c.label || c.key).replace(/"/g, '""')}"`).join(",") + "\n";
+    csv += r.data.rows.map((row) => cols.map((c) => `"${String(row[c.key] ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+  } else if (r?.kind === "kpi" || r?.kind === "kpi_grid") {
+    const items = r.kind === "kpi" ? [r.data] : (r.data?.items || []);
+    csv = "label,value,unit,delta\n" + items.map((it) =>
+      `"${String(it.label || "").replace(/"/g, '""')}","${String(it.value ?? "").replace(/"/g, '""')}","${String(it.unit || "").replace(/"/g, '""')}","${String(it.delta ?? "").replace(/"/g, '""')}"`
+    ).join("\n");
+  } else {
+    csv = `"title","content"\n"${String(entry.custom_title || r?.title || "").replace(/"/g, '""')}","${String(JSON.stringify(r?.data || {})).replace(/"/g, '""')}"`;
+  }
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  const safe = (entry.custom_title || r?.title || "analytics").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
+  a.href = url; a.download = `${safe || "analytics"}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5_000);
+}
+
+// ── Event wiring (delegated) ─────────────────────────────────────────
+document.addEventListener("submit", (e) => {
+  if (e.target?.id !== "rr-an-form") return;
+  e.preventDefault();
+  const inp = document.getElementById("rr-an-input");
+  const val = inp?.value || "";
+  _rrAnAsk(val);
+});
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "rr-an-input") _rrAnAutosizeTextarea(e.target);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.target?.id !== "rr-an-input") return;
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById("rr-an-form")?.dispatchEvent(new Event("submit", { cancelable: true }));
+  }
+});
+document.addEventListener("click", (e) => {
+  // Example chip → drop into input + submit
+  const ex = e.target.closest?.("[data-rr-an-example]");
+  if (ex) {
+    const inp = document.getElementById("rr-an-input");
+    if (inp) { inp.value = ex.textContent.trim(); _rrAnAutosizeTextarea(inp); inp.focus(); }
+    document.getElementById("rr-an-form")?.dispatchEvent(new Event("submit", { cancelable: true }));
+    return;
+  }
+  // Follow-up chip
+  const fu = e.target.closest?.("[data-rr-an-followup]");
+  if (fu) {
+    const inp = document.getElementById("rr-an-input");
+    const text = fu.getAttribute("data-rr-an-followup") || fu.textContent.trim();
+    if (inp) { inp.value = text; _rrAnAutosizeTextarea(inp); }
+    _rrAnAsk(text, { followup: true });
+    return;
+  }
+  // Card actions
+  const action = e.target.closest?.("[data-rr-an-action]");
+  if (action) {
+    const id = action.getAttribute("data-rr-an-id");
+    const what = action.getAttribute("data-rr-an-action");
+    if (what === "pin")     _rrAnPin(id);
+    if (what === "unpin")   _rrAnUnpin(id);
+    if (what === "refresh") _rrAnRefresh(id);
+    if (what === "rename")  _rrAnRename(id);
+    if (what === "export")  _rrAnExportCsv(id);
+    return;
+  }
+});
+// First paint + repaint whenever the operator switches to Analytics
+document.addEventListener("DOMContentLoaded", () => {
+  _rrAnRenderPinnedGrid();
+});
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.('.nav-item[data-view="analytics"]')) {
+    setTimeout(_rrAnRenderPinnedGrid, 0);
+    setTimeout(() => document.getElementById("rr-an-input")?.focus(), 80);
+  }
+});
