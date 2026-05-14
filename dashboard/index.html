@@ -10929,44 +10929,28 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-         COMPLIANCE — operational risk + fleet-readiness command
-         center.  Purpose-built around the two real Amazon-DSP
-         infractions in our cure pipeline:
+         COMPLIANCE — exceptions only.
 
-           1. Grounded vehicle / repair overdue / missing RO.
-              Amazon expects repairs scheduled within 2 business
-              days and completed within 14 business days, with an
-              active RO, vendor oversight, and proactive vendor
-              reassignment when work stalls.
+         One table.  When the rules engine matches a compliance risk
+         it surfaces here as a row.  Healthy state is silent.
 
-           2. FMCSA / MCS-150 / CMV-classification.  Amazon required
-              re-filing MCS-150, correcting CMV vs Non-CMV
-              classifications, SAFER profile reconciliation, and
-              proof of submission.
+         A second tab lists the rules currently being evaluated, so an
+         operator can see exactly what RouteReady is watching on the
+         DSP's behalf.
 
-         The workspace treats VINs, work orders, vendors, cure
-         actions, repair documents, messages, and fleet readiness as
-         one connected operational system — not a reporting page.
-         Left rail navigates the operational surfaces; the always-on
-         posture bar at the top reads risk across the whole DSP.
+         Live data flows through compliance_workspace_bundle (RPC,
+         migration 0227); the renderer in dashboard/live.js paints
+         into [data-co-render="exceptions-table"] and
+         [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-compliance">
       <div class="page co-page">
 
         <style>
-          /* ── Compliance · scoped design system ───────────────────────
-             Built for operators under pressure.  Soft hierarchy,
-             instrument-cluster readouts, no vanity metrics.  Severity
-             carries color; everything else stays restrained.
-             ──────────────────────────────────────────────────────────── */
+          /* ── Compliance · table-first scoped design system ─────── */
           #view-compliance{
-            --co-radius:var(--r-xl);
-            --co-radius-sm:var(--r-lg);
-            --co-rail:#FAFBFC;
-            --co-rail-border:rgba(15,23,42,.07);
             --co-crit:#9F1239;
             --co-crit-soft:rgba(159,18,57,.08);
-            --co-crit-fg:#7F1D3F;
             --co-high:#D97706;
             --co-high-soft:rgba(217,119,6,.10);
             --co-high-fg:#B45309;
@@ -10975,649 +10959,166 @@ body.rr-cmdk-open{ overflow:hidden }
             --co-good:#059669;
             --co-good-soft:rgba(5,150,105,.10);
           }
-          #view-compliance .page-sub{ max-width:none; }
+          #view-compliance .page-sub{max-width:none}
+          #view-compliance.view.active{display:flex;flex-direction:column;min-height:100vh}
+          #view-compliance .page.co-page{flex:1;display:flex;flex-direction:column;min-width:0}
 
-          /* ── Viewport-fill shell ─────────────────────────────────────
-             Other dashboard pages (Fleet, Documents, Finances) all have
-             enough content to push the layout down past the fold; the
-             Compliance workspace's empty states would otherwise float in
-             a sea of whitespace.  Make the view + page + shell fill the
-             viewport so the page reads as "a full tool" even before the
-             DSP has populated their compliance data. */
-          #view-compliance.view.active{
-            display:flex;flex-direction:column;min-height:100vh;
+          /* Subnav tabs · Exceptions / Rules */
+          #co-subnav{margin-bottom:18px}
+          #co-subnav .subnav-count{
+            display:inline-flex;align-items:center;justify-content:center;
+            margin-left:6px;padding:1px 7px;border-radius:8px;
+            background:var(--canvas);color:var(--text-muted);
+            font-size:10px;font-weight:700;letter-spacing:.04em;
+            min-width:18px;line-height:1.3;
           }
-          #view-compliance .page.co-page{
-            flex:1;display:flex;flex-direction:column;min-width:0;
-          }
-          #view-compliance .co-shell{
-            flex:1;align-items:stretch;min-height:0;
-          }
-          #view-compliance .co-rail{
-            position:sticky;top:18px;align-self:start;
-          }
-          #view-compliance .co-main{
-            display:flex;flex-direction:column;min-height:100%;
-          }
-          #view-compliance .co-pane.is-active{
-            display:flex;flex-direction:column;flex:1;min-height:520px;
-          }
-          /* The "content" render target inside each pane (whatever the
-             renderer paints the main list/table/grid into) should grow
-             to fill the pane.  Chips + hero in the Active Risks pane
-             stay fixed-height. */
-          #view-compliance .co-pane.is-active > [data-co-render="risks-list"],
-          #view-compliance .co-pane.is-active > [data-co-render="cures"],
-          #view-compliance .co-pane.is-active > [data-co-render="grounded"],
-          #view-compliance .co-pane.is-active > [data-co-render="vendors"],
-          #view-compliance .co-pane.is-active > [data-co-render="fmcsa"]{
-            flex:1;display:flex;flex-direction:column;min-height:0;
-          }
-          /* When the content target holds a single co-empty card, let it
-             expand to fill the whole pane.  Otherwise its children sit
-             at their natural sizes. */
-          #view-compliance .co-pane.is-active > [data-co-render] > .co-empty{
-            flex:1;
+          #co-subnav .subnav-item.active .subnav-count{
+            background:var(--co-crit-soft);color:var(--co-crit);
           }
 
-          /* Empty states · larger, page-native (no longer floating cards) */
+          /* Panel toggling */
+          #view-compliance .co-tab{display:none;flex:1;flex-direction:column;min-height:0}
+          #view-compliance .co-tab.is-active{display:flex}
+
+          /* ── Exceptions table ─────────────────────────────────── */
+          .co-table-wrap{
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-xl);overflow:hidden;
+          }
+          .co-table{width:100%;border-collapse:collapse}
+          .co-table thead th{
+            text-align:left;padding:11px 14px;background:var(--canvas);
+            font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+            color:var(--text-subtle);border-bottom:1px solid var(--border);white-space:nowrap;
+          }
+          .co-table tbody tr{
+            border-top:1px solid var(--border);
+            transition:background .12s ease, box-shadow .12s ease;
+            cursor:pointer;position:relative;
+          }
+          .co-table tbody tr:first-child{border-top:none}
+          .co-table tbody tr:hover{background:var(--canvas)}
+          .co-table tbody tr::before{
+            content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+            background:var(--co-low);
+          }
+          .co-table tbody tr.sev-crit::before{background:var(--co-crit)}
+          .co-table tbody tr.sev-high::before{background:var(--co-high)}
+          .co-table tbody tr.sev-med::before{background:var(--co-med)}
+          .co-table tbody tr.sev-crit{background:rgba(159,18,57,.025)}
+          .co-table tbody tr.sev-crit:hover{background:rgba(159,18,57,.05)}
+          .co-table td{
+            padding:14px 14px;font-size:13px;color:var(--text);vertical-align:middle;
+            line-height:1.4;
+          }
+          .co-table td:first-child{padding-left:18px}
+          .co-table td .dim{color:var(--text-subtle);font-size:11px;font-weight:500;display:block;margin-top:2px}
+          .co-table td .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+
+          /* Severity pill (reused for both sev + status cells) */
+          .co-pill{
+            display:inline-flex;align-items:center;gap:5px;
+            padding:3px 9px;border-radius:999px;
+            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap;
+          }
+          .co-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--text-subtle)}
+          .co-pill.crit{background:var(--co-crit-soft);color:var(--co-crit);border-color:transparent}
+          .co-pill.crit .dot{background:var(--co-crit)}
+          .co-pill.high{background:var(--co-high-soft);color:var(--co-high-fg);border-color:transparent}
+          .co-pill.high .dot{background:var(--co-high)}
+          .co-pill.med{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          .co-pill.med .dot{background:var(--accent)}
+          .co-pill.cure{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          .co-pill.cure .dot{background:var(--accent)}
+          .co-pill.esc{background:#1B1F2C;color:#FCA5A5;border-color:transparent;letter-spacing:.07em}
+          .co-pill.esc .dot{background:#F87171}
+          .co-pill.good{background:var(--co-good-soft);color:var(--co-good);border-color:transparent}
+          .co-pill.good .dot{background:var(--co-good)}
+
+          /* Tiny module / source chip used inside cells */
+          .co-chip-inline{
+            display:inline-flex;align-items:center;gap:4px;
+            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            padding:2px 6px;border-radius:5px;
+            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
+          }
+          .co-chip-inline.amazon{background:rgba(15,23,42,.07);color:#0B1220;border-color:transparent}
+          .co-chip-inline.fmcsa{background:rgba(15,108,189,.10);color:var(--accent-text);border-color:transparent}
+
+          .co-owner{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-muted);font-weight:600;white-space:nowrap}
+          .co-owner .av{
+            width:20px;height:20px;border-radius:50%;flex:0 0 auto;
+            display:inline-flex;align-items:center;justify-content:center;
+            font-size:9px;font-weight:700;color:var(--accent-text);
+            background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);
+          }
+          .co-owner.unassigned .av{background:var(--canvas);border-style:dashed;color:var(--text-subtle)}
+
+          .co-age{font-variant-numeric:tabular-nums}
+          .co-age.warn{color:var(--co-high-fg);font-weight:650}
+          .co-age.crit{color:var(--co-crit);font-weight:700}
+
+          /* Right-side row actions */
+          .co-row-action{
+            display:inline-flex;align-items:center;gap:5px;
+            padding:5px 10px;border-radius:6px;
+            background:var(--surface);border:1px solid var(--border);
+            font-size:11.5px;font-weight:600;color:var(--text);cursor:pointer;
+            transition:border-color .12s, background .12s;
+          }
+          .co-row-action:hover{border-color:var(--border-strong);background:var(--canvas)}
+          .co-row-action.danger{background:var(--co-crit);border-color:transparent;color:#fff}
+          .co-row-action.danger:hover{background:#7F1D3F;color:#fff}
+
+          /* ── Empty state · table-native ──────────────────────────── */
           #view-compliance .co-empty{
             background:linear-gradient(180deg, var(--surface) 0%, #FCFCFD 100%);
-            border:1px solid var(--border);
-            border-radius:var(--co-radius);
-            padding:64px 32px;text-align:center;
-            font-size:13px;color:var(--text-muted);line-height:1.5;
-            min-height:440px;
+            border:1px solid var(--border);border-radius:var(--r-xl);
+            padding:80px 32px;text-align:center;
+            min-height:480px;flex:1;
             display:flex;flex-direction:column;align-items:center;justify-content:center;
+            color:var(--text-muted);font-size:13px;line-height:1.55;
           }
           #view-compliance .co-empty .ic{
             width:56px;height:56px;border-radius:16px;margin:0 0 16px;
-            display:flex;align-items:center;justify-content:center;color:var(--accent);
-            background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
+            display:flex;align-items:center;justify-content:center;color:var(--co-good);
+            background:var(--co-good-soft);border:1px solid rgba(5,150,105,.18);
           }
-          #view-compliance .co-empty .ic svg{width:24px;height:24px}
+          #view-compliance .co-empty .ic svg{width:26px;height:26px}
           #view-compliance .co-empty h3{
             margin:0 0 6px;font-family:'Inter Tight','Inter',sans-serif;
             font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;
           }
-          #view-compliance .co-empty p{
-            margin:0 auto;max-width:520px;font-size:13px;color:var(--text-muted);line-height:1.55;
-          }
-          #view-compliance .co-empty .actions{
-            margin-top:18px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;
-          }
+          #view-compliance .co-empty p{margin:0 auto;max-width:520px;font-size:13px;color:var(--text-muted)}
 
-          /* Pane head — give it a bit more breathing room when the body
-             below is large and centered. */
-          #view-compliance .co-pane-head{margin-bottom:18px}
-
-          /* ── Always-on posture bar ── reads like an instrument
-             cluster.  Six cells, one per operational dimension. */
-          .co-posture{
-            display:grid;grid-template-columns:1.4fr repeat(5,1fr);
-            border:1px solid var(--border);background:var(--surface);
-            border-radius:var(--co-radius);margin:14px 0 18px;overflow:hidden;
+          /* ── Rules tab · monitor cards ───────────────────────────── */
+          .co-rules-list{
+            display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;
           }
-          .co-posture-cell{
-            padding:13px 16px;border-right:1px solid var(--border-subtle);
-            position:relative;min-width:0;
+          .co-rule{
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+            padding:13px 15px 12px;transition:border-color .12s, box-shadow .12s;
           }
-          .co-posture-cell:last-child{border-right:none}
-          .co-p-lbl{
-            font-size:10px;font-weight:700;letter-spacing:.08em;
-            text-transform:uppercase;color:var(--text-subtle);margin-bottom:6px;
-            display:flex;align-items:center;gap:6px;
-          }
-          .co-p-lbl .pip{width:5px;height:5px;border-radius:50%;background:var(--green)}
-          .co-p-lbl .pip.warn{background:var(--amber)}
-          .co-p-lbl .pip.crit{background:var(--co-crit)}
-          .co-p-val{
-            font-family:'Inter Tight','Inter',system-ui,sans-serif;
-            font-size:21px;font-weight:700;letter-spacing:-.01em;color:var(--text);line-height:1.1;
-            font-variant-numeric:tabular-nums;
-          }
-          .co-p-val .unit{font-size:11px;color:var(--text-subtle);font-weight:600;letter-spacing:0;margin-left:4px}
-          .co-p-sub{margin-top:3px;font-size:11px;color:var(--text-subtle);font-weight:500}
-          .co-p-sub.warn{color:var(--amber-dark)}
-          .co-p-sub.crit{color:var(--co-crit);font-weight:600}
-          .co-readiness{
-            display:flex;align-items:center;gap:12px;
-          }
-          .co-readiness-ring{position:relative;width:48px;height:48px;flex:0 0 auto}
-          .co-readiness-ring svg{transform:rotate(-90deg)}
-          .co-readiness-ring .track{stroke:var(--border);stroke-width:5;fill:none}
-          .co-readiness-ring .fill{stroke:var(--amber);stroke-width:5;fill:none;stroke-linecap:round}
-          .co-readiness-ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;font-family:'Inter Tight','Inter',sans-serif}
-          .co-readiness-meta .lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)}
-          .co-readiness-meta .state{font-size:14px;font-weight:700;color:var(--amber-dark);line-height:1.2;margin-top:2px}
-          .co-readiness-meta .trend{font-size:11px;color:var(--text-subtle);margin-top:2px}
-
-          /* ── Two-column shell · rail + main ── */
-          .co-shell{display:grid;grid-template-columns:212px 1fr;gap:18px;align-items:start}
-          @media (max-width:1080px){.co-shell{grid-template-columns:1fr}}
-
-          .co-rail{
-            position:sticky;top:18px;
-            background:var(--co-rail);border:1px solid var(--co-rail-border);
-            border-radius:var(--co-radius);padding:8px;
-          }
-          .co-rail-section{padding:2px 0}
-          .co-rail-section + .co-rail-section{border-top:1px solid var(--border-subtle);margin-top:6px;padding-top:8px}
-          .co-rail-h{
-            font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-            color:var(--text-subtle);padding:4px 10px 6px;
-          }
-          .co-rail-item{
-            display:flex;align-items:center;gap:9px;
-            width:100%;padding:7px 10px;border-radius:8px;
-            background:transparent;border:none;color:var(--text-muted);
-            font-size:13px;font-weight:550;text-align:left;cursor:pointer;
-            transition:background .12s, color .12s;
-            position:relative;
-          }
-          .co-rail-item:hover{background:rgba(15,23,42,.04);color:var(--text)}
-          .co-rail-item.is-active{
-            background:var(--surface);color:var(--text);font-weight:650;
-            box-shadow:var(--shadow-xs);
-          }
-          .co-rail-item.is-active::before{
-            content:"";position:absolute;left:-1px;top:8px;bottom:8px;width:2px;
-            border-radius:2px;background:var(--accent);
-          }
-          .co-rail-item svg{width:14px;height:14px;color:var(--text-subtle);flex:0 0 auto}
-          .co-rail-item.is-active svg{color:var(--accent)}
-          .co-rail-item .count{
-            margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;
-            padding:2px 6px;border-radius:7px;
-            background:var(--canvas);color:var(--text-muted);
-          }
-          .co-rail-item .count.crit{background:var(--co-crit-soft);color:var(--co-crit)}
-          .co-rail-item .count.warn{background:var(--amber-soft);color:var(--amber-dark)}
-          .co-rail-item .count.info{background:var(--accent-soft);color:var(--accent-text)}
-
-          .co-main{min-width:0}
-          .co-pane{display:none}
-          .co-pane.is-active{display:block}
-
-          /* ── Section header (per pane) ── */
-          .co-pane-head{
-            display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
-            margin:0 0 14px;flex-wrap:wrap;
-          }
-          .co-pane-title{
-            font-family:'Inter Tight','Inter',system-ui,sans-serif;
-            font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--text);margin:0;
-          }
-          .co-pane-sub{margin:3px 0 0;font-size:12.5px;color:var(--text-muted);font-weight:500;line-height:1.45;max-width:680px}
-          .co-pane-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-
-          /* ── Filter chip row (shared) ── */
-          .co-chiprow{
-            display:flex;align-items:center;gap:6px;flex-wrap:wrap;
-            margin:0 0 14px;
-          }
-          .co-chip{
-            display:inline-flex;align-items:center;gap:6px;
-            height:30px;padding:0 11px;border-radius:8px;
-            background:var(--surface);border:1px solid var(--border);
-            font-size:12.5px;font-weight:600;color:var(--text-muted);
-            cursor:pointer;transition:border-color .12s, background .12s, color .12s;
-          }
-          .co-chip:hover{border-color:var(--border-strong);color:var(--text)}
-          .co-chip.is-on{background:var(--accent-soft);border-color:transparent;color:var(--accent-text)}
-          .co-chip svg{width:11px;height:11px;opacity:.7}
-
-          /* ── Risk row card ── */
-          .co-risk{
-            position:relative;background:var(--surface);
-            border:1px solid var(--border);border-radius:var(--co-radius-sm);
-            overflow:hidden;
-            transition:border-color .12s, box-shadow .12s;
-          }
-          .co-risk + .co-risk{margin-top:7px}
-          .co-risk:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-          .co-risk::before{
-            content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
-            background:var(--co-low);
-          }
-          .co-risk.sev-crit::before{background:var(--co-crit)}
-          .co-risk.sev-high::before{background:var(--co-high)}
-          .co-risk.sev-med::before{background:var(--co-med)}
-          .co-risk-head{
-            display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;
-            padding:14px 18px 14px 22px;cursor:pointer;align-items:start;
-          }
-          .co-risk-l{min-width:0}
-          .co-risk-headrow{display:flex;align-items:center;gap:7px}
-          .co-risk-chev{width:13px;height:13px;color:var(--text-subtle);transition:transform .15s ease}
-          .co-risk.is-open .co-risk-chev{transform:rotate(90deg)}
-          .co-risk-title{font-size:14px;font-weight:650;color:var(--text);letter-spacing:-.005em;line-height:1.35}
-          .co-risk-cite{
+          .co-rule:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+          .co-rule.alerting{border-color:rgba(217,119,6,.30)}
+          .co-rule.crit{border-color:rgba(159,18,57,.30)}
+          .co-rule.paused{opacity:.7}
+          .co-rule-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+          .co-rule-nm{font-size:13px;font-weight:650;color:var(--text);letter-spacing:-.005em;line-height:1.35}
+          .co-rule-desc{margin-top:5px;font-size:11.5px;color:var(--text-muted);line-height:1.5}
+          .co-rule-meta{margin-top:9px;display:flex;flex-wrap:wrap;gap:8px;font-size:10.5px;color:var(--text-subtle);font-weight:500}
+          .co-rule-meta b{color:var(--text-muted);font-weight:650}
+          .co-rule-foot{margin-top:9px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+          .co-cap{
             display:inline-flex;align-items:center;gap:5px;
-            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-            margin-left:6px;padding:2px 7px;border-radius:5px;
-            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
-            flex:0 0 auto;
+            font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            padding:2px 7px;border-radius:5px;
+            color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);
           }
-          .co-risk-cite.amazon{background:rgba(15,23,42,.06);color:#0B1220}
-          .co-risk-cite.fmcsa{background:rgba(15,108,189,.10);color:var(--accent-text)}
-
-          .co-subjects{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
-          .co-subj{
-            display:inline-flex;align-items:center;gap:5px;
-            font-size:11px;font-weight:600;color:var(--text-muted);
-            background:var(--canvas);border:1px solid var(--border);
-            border-radius:5px;padding:2px 7px;
-            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-          }
-          .co-subj .lbl{
-            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-            font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);
-          }
-          .co-subj.module{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text-muted)}
-          .co-subj.module svg{width:11px;height:11px;color:var(--text-subtle)}
-
-          .co-meta{
-            margin-top:8px;display:flex;flex-wrap:wrap;gap:10px 14px;
-            font-size:11px;color:var(--text-subtle);font-weight:500;align-items:center;
-          }
-          .co-meta .sep{opacity:.45}
-          .co-meta .age{color:var(--text-muted);font-variant-numeric:tabular-nums}
-          .co-meta .age.warn{color:var(--amber-dark);font-weight:600}
-          .co-meta .age.crit{color:var(--co-crit);font-weight:700}
-          .co-meta b{color:var(--text-muted);font-weight:650}
-          .co-meta b.warn{color:var(--amber-dark)}
-          .co-meta b.crit{color:var(--co-crit)}
-          .co-meta svg{width:11px;height:11px;flex:0 0 auto}
-
-          .co-risk-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px;min-width:140px}
-          .co-status{
-            display:inline-flex;align-items:center;gap:5px;
-            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-            padding:3px 9px;border-radius:999px;
-            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap;
-          }
-          .co-status .dot{width:5px;height:5px;border-radius:50%;background:var(--text-subtle)}
-          .co-status.open{background:var(--co-crit-soft);color:var(--co-crit);border-color:transparent}
-          .co-status.open .dot{background:var(--co-crit)}
-          .co-status.cure{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
-          .co-status.cure .dot{background:var(--accent)}
-          .co-status.esc{background:#1B1F2C;color:#FCA5A5;border-color:transparent}
-          .co-status.esc .dot{background:#F87171}
-          .co-status.mitig{background:var(--co-good-soft);color:var(--co-good);border-color:transparent}
-          .co-status.mitig .dot{background:var(--co-good)}
-          .co-status.ack{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
-          .co-status.ack .dot{background:var(--amber)}
-          .co-owner{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);font-weight:600}
-          .co-owner .av{
-            width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
-            font-size:9px;font-weight:700;color:var(--accent-text);background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);
-          }
-          .co-owner.unassigned .av{background:var(--canvas);border-style:dashed;color:var(--text-subtle)}
-
-          /* Severity badge (used in groupings + drill-ins) */
-          .co-sev{
-            display:inline-flex;align-items:center;gap:5px;
-            padding:3px 9px 3px 7px;border-radius:999px;
-            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-          }
-          .co-sev .dot{width:5px;height:5px;border-radius:50%}
-          .co-sev.crit{background:var(--co-crit-soft);color:var(--co-crit)}
-          .co-sev.crit .dot{background:var(--co-crit)}
-          .co-sev.high{background:var(--co-high-soft);color:var(--co-high-fg)}
-          .co-sev.high .dot{background:var(--co-high)}
-          .co-sev.med{background:var(--accent-soft);color:var(--accent-text)}
-          .co-sev.med .dot{background:var(--accent)}
-          .co-sev.low{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
-          .co-sev.low .dot{background:var(--co-low)}
-
-          .co-group{margin:14px 0 18px}
-          .co-group:first-child{margin-top:0}
-          .co-group-head{display:flex;align-items:center;gap:10px;padding:0 4px 8px}
-          .co-group-count{font-size:11px;font-weight:600;color:var(--text-subtle)}
-          .co-group-spacer{flex:1}
-          .co-group-meta{font-size:11px;color:var(--text-subtle);font-weight:500}
-
-          /* Risk drawer (in-place) */
-          .co-risk-body{display:none;padding:0 18px 16px 22px;border-top:1px solid var(--border-subtle);background:#FCFCFD}
-          .co-risk.is-open .co-risk-body{display:block}
-          .co-drawer-grid{display:grid;grid-template-columns:2fr 1fr;gap:22px;margin-top:14px}
-          @media (max-width:980px){.co-drawer-grid{grid-template-columns:1fr}}
-          .co-d-section + .co-d-section{margin-top:18px}
-          .co-d-h{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin:0 0 8px}
-
-          /* Operational timeline */
-          .co-tl{position:relative;padding-left:18px}
-          .co-tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--border)}
-          .co-tl-row{position:relative;display:grid;grid-template-columns:auto 1fr auto;gap:10px;padding:5px 0;font-size:12px;align-items:start}
-          .co-tl-row::before{content:"";position:absolute;left:-15px;top:9px;width:9px;height:9px;border-radius:50%;background:var(--surface);border:2px solid var(--border-strong)}
-          .co-tl-row.now::before{border-color:var(--accent);background:var(--accent)}
-          .co-tl-row.warn::before{border-color:var(--amber);background:var(--amber)}
-          .co-tl-row.crit::before{border-color:var(--co-crit);background:var(--co-crit)}
-          .co-tl-row.good::before{border-color:var(--co-good);background:var(--co-good)}
-          .co-tl-when{color:var(--text-subtle);font-size:11px;font-variant-numeric:tabular-nums;min-width:96px}
-          .co-tl-what{color:var(--text);font-weight:550;line-height:1.4}
-          .co-tl-what .sub{display:block;color:var(--text-subtle);font-weight:500;margin-top:1px;font-size:11px}
-          .co-tl-tag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);white-space:nowrap}
-
-          /* Action row */
-          .co-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
-          .co-action{
-            display:inline-flex;align-items:center;gap:6px;
-            padding:6px 11px;border-radius:7px;
-            background:var(--surface);border:1px solid var(--border);
-            font-size:12px;font-weight:600;color:var(--text);
-            cursor:pointer;transition:border-color .12s, background .12s;
-          }
-          .co-action:hover{border-color:var(--border-strong);background:var(--canvas)}
-          .co-action svg{width:12px;height:12px;color:var(--text-muted)}
-          .co-action.primary{background:var(--accent-grad);border-color:transparent;color:#fff;box-shadow:var(--shadow-xs)}
-          .co-action.primary:hover{background:var(--accent-grad-hover);color:#fff}
-          .co-action.primary svg{color:#fff}
-          .co-action.danger{background:var(--co-crit);border-color:transparent;color:#fff}
-          .co-action.danger:hover{background:#7F1D3F;color:#fff}
-          .co-action.danger svg{color:#fff}
-
-          /* Drawer side cards */
-          .co-side-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius-sm);padding:13px 14px}
-          .co-side-card + .co-side-card{margin-top:9px}
-          .co-side-lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:4px}
-          .co-side-val{font-size:12px;color:var(--text);font-weight:550;line-height:1.45}
-          .co-side-val .dim{color:var(--text-subtle);font-weight:500}
-          .co-side-val .crit{color:var(--co-crit);font-weight:700}
-          .co-side-val .warn{color:var(--amber-dark);font-weight:650}
-
-          /* Pattern banner inside drawer */
-          .co-pattern{
-            display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
-            background:var(--co-crit-soft);border:1px solid rgba(159,18,57,.18);
-            border-radius:8px;font-size:12px;color:var(--co-crit-fg);line-height:1.45;
-          }
-          .co-pattern svg{width:14px;height:14px;flex:0 0 auto;margin-top:1px;color:var(--co-crit)}
-          .co-pattern b{font-weight:700;color:var(--co-crit)}
-
-          /* Hero exposure callout (Active Risks top) */
-          .co-hero{
-            display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;
-          }
-          @media (max-width:880px){.co-hero{grid-template-columns:1fr}}
-          .co-hero-card{
-            position:relative;background:var(--surface);
-            border:1px solid var(--co-crit);border-radius:var(--co-radius);
-            padding:15px 17px 14px 20px;overflow:hidden;
-          }
-          .co-hero-card.amber{border-color:var(--co-high)}
-          .co-hero-card::before{
-            content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--co-crit);
-          }
-          .co-hero-card.amber::before{background:var(--co-high)}
-          .co-hero-card .top{display:flex;align-items:center;gap:9px;justify-content:space-between}
-          .co-hero-card .topL{display:flex;align-items:center;gap:8px;min-width:0}
-          .co-hero-card .topL svg{width:16px;height:16px;color:var(--co-crit);flex:0 0 auto}
-          .co-hero-card.amber .topL svg{color:var(--co-high)}
-          .co-hero-tag{
-            font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--co-crit);
-          }
-          .co-hero-card.amber .co-hero-tag{color:var(--co-high-fg)}
-          .co-hero-card h3{
-            margin:8px 0 4px;font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3;
-          }
-          .co-hero-card p{margin:0;font-size:12.5px;color:var(--text-muted);line-height:1.5}
-          .co-hero-meta{
-            margin-top:11px;display:flex;flex-wrap:wrap;gap:10px 14px;
-            font-size:11px;color:var(--text-subtle);font-weight:500;align-items:center;
-          }
-          .co-hero-meta b{color:var(--text);font-weight:650}
-          .co-hero-cta{margin-top:11px;display:flex;gap:7px;flex-wrap:wrap}
-
-          /* ── Tables (shared) ── */
-          .co-table-wrap{
-            background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius);overflow:hidden;
-          }
-          .co-table{width:100%;border-collapse:collapse}
-          .co-table thead th{
-            text-align:left;padding:10px 14px;background:var(--canvas);
-            font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
-            border-bottom:1px solid var(--border);white-space:nowrap;
-          }
-          .co-table tbody tr{border-top:1px solid var(--border);transition:background .12s ease}
-          .co-table tbody tr:first-child{border-top:none}
-          .co-table tbody tr:hover{background:var(--canvas)}
-          .co-table tbody tr.row-crit{background:rgba(159,18,57,.025)}
-          .co-table tbody tr.row-crit:hover{background:rgba(159,18,57,.05)}
-          .co-table td{padding:12px 14px;font-size:13px;color:var(--text);vertical-align:middle}
-          .co-table td .dim{color:var(--text-subtle);font-size:11px;font-weight:500;display:block;margin-top:1px}
-          .co-table td .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-
-          /* Aging meter (used in grounded vehicles + repair tracker) */
-          .co-aging{
-            position:relative;width:140px;height:10px;background:var(--canvas);
-            border-radius:999px;overflow:hidden;border:1px solid var(--border);
-          }
-          .co-aging .fill{position:absolute;left:0;top:0;bottom:0;background:var(--co-good);border-radius:999px}
-          .co-aging .fill.warn{background:var(--co-high)}
-          .co-aging .fill.crit{background:var(--co-crit)}
-          .co-aging .tick{
-            position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text-muted);opacity:.45;
-          }
-          .co-aging .tick.amazon{background:#0B1220;opacity:.55}
-          .co-aging-cap{margin-top:4px;display:flex;justify-content:space-between;font-size:10px;font-variant-numeric:tabular-nums;color:var(--text-subtle)}
-
-          /* Cure action card */
-          .co-cure{
-            background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius);overflow:hidden;
-          }
-          .co-cure + .co-cure{margin-top:12px}
-          .co-cure.urgent{border-color:rgba(159,18,57,.30)}
-          .co-cure-head{padding:14px 18px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start;border-bottom:1px solid var(--border-subtle)}
-          .co-cure-l{min-width:0}
-          .co-cure-cite{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:4px}
-          .co-cure-cite .amz{background:rgba(15,23,42,.07);color:#0B1220;padding:2px 7px;border-radius:5px;letter-spacing:.05em}
-          .co-cure-title{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
-          .co-cure-cite + .co-cure-title{margin-top:2px}
-          .co-cure-desc{margin:6px 0 0;font-size:12.5px;color:var(--text-muted);line-height:1.5;max-width:680px}
-          .co-cure-r{display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:170px}
-          .co-cure-countdown{
-            display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;
-          }
-          .co-cure-countdown .num{
-            font-family:'Inter Tight','Inter',sans-serif;font-size:22px;font-weight:700;color:var(--co-crit);letter-spacing:-.01em;font-variant-numeric:tabular-nums;
-          }
-          .co-cure-countdown .num.warn{color:var(--amber-dark)}
-          .co-cure-countdown .lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-top:1px}
-          .co-cure-body{padding:14px 18px;display:grid;grid-template-columns:1fr 280px;gap:22px}
-          @media (max-width:980px){.co-cure-body{grid-template-columns:1fr}}
-          .co-cure-checklist{display:flex;flex-direction:column;gap:7px}
-          .co-cure-step{
-            display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;
-            padding:9px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;
-          }
-          .co-cure-step.done{background:#F6FBF8;border-color:rgba(5,150,105,.20)}
-          .co-cure-step .box{
-            width:16px;height:16px;border-radius:5px;border:1.5px solid var(--border-strong);background:var(--surface);
-            display:inline-flex;align-items:center;justify-content:center;color:transparent;flex:0 0 auto;margin-top:1px;
-          }
-          .co-cure-step.done .box{background:var(--co-good);border-color:var(--co-good);color:#fff}
-          .co-cure-step .box svg{width:10px;height:10px}
-          .co-cure-step .nm{font-size:12.5px;color:var(--text);font-weight:600;line-height:1.35}
-          .co-cure-step.done .nm{color:var(--text-muted);text-decoration:line-through;text-decoration-color:rgba(5,150,105,.5)}
-          .co-cure-step .sub{display:block;font-size:11px;color:var(--text-subtle);font-weight:500;margin-top:1px}
-          .co-cure-step .tag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);white-space:nowrap;align-self:center}
-          .co-cure-step .tag.done{color:var(--co-good)}
-          .co-cure-step .tag.live{color:var(--accent-text)}
-          .co-cure-side{display:flex;flex-direction:column;gap:8px}
-
-          /* Fleet readiness — donut + status cells */
-          .co-fleet-grid{display:grid;grid-template-columns:280px 1fr;gap:18px;margin-bottom:18px}
-          @media (max-width:880px){.co-fleet-grid{grid-template-columns:1fr}}
-          .co-fleet-donut-card{
-            background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius);
-            padding:18px;text-align:center;
-          }
-          .co-fleet-donut{position:relative;width:160px;height:160px;margin:0 auto}
-          .co-fleet-donut svg{transform:rotate(-90deg)}
-          .co-fleet-donut .center{
-            position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-          }
-          .co-fleet-donut .big{font-family:'Inter Tight','Inter',sans-serif;font-size:28px;font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1}
-          .co-fleet-donut .lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);margin-top:5px}
-          .co-fleet-legend{margin-top:14px;display:flex;flex-direction:column;gap:6px;text-align:left}
-          .co-fleet-legend-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
-          .co-fleet-legend-row .sw{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
-          .co-fleet-legend-row .n{margin-left:auto;color:var(--text);font-weight:650;font-variant-numeric:tabular-nums}
-
-          .co-fleet-cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
-          .co-fleet-cell{
-            background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 13px;
-            display:flex;flex-direction:column;gap:3px;cursor:pointer;
-            transition:border-color .12s, box-shadow .12s;
-          }
-          .co-fleet-cell:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-          .co-fleet-cell .vin{font-size:13px;font-weight:700;color:var(--text);letter-spacing:-.005em;display:flex;align-items:center;gap:6px}
-          .co-fleet-cell .vin .pip{width:7px;height:7px;border-radius:50%;background:var(--co-good)}
-          .co-fleet-cell.state-grounded .vin .pip{background:var(--co-crit)}
-          .co-fleet-cell.state-repair .vin .pip{background:var(--co-high)}
-          .co-fleet-cell.state-watch .vin .pip{background:var(--accent)}
-          .co-fleet-cell .meta{font-size:10.5px;color:var(--text-subtle);font-weight:500;line-height:1.35}
-          .co-fleet-cell .age{margin-top:5px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);font-variant-numeric:tabular-nums}
-          .co-fleet-cell.state-grounded .age{color:var(--co-crit)}
-          .co-fleet-cell.state-repair .age{color:var(--co-high-fg)}
-
-          /* Vendor scorecard */
-          .co-vendor{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius-sm)}
-          .co-vendor + .co-vendor{margin-top:8px}
-          .co-vendor-av{
-            width:42px;height:42px;border-radius:10px;
-            display:flex;align-items:center;justify-content:center;
-            font-size:13px;font-weight:700;color:#fff;flex:0 0 auto;letter-spacing:.02em;
-            background:linear-gradient(135deg,#0F172A 0%,#1E3A8A 100%);
-          }
-          .co-vendor-l .nm{font-size:14px;font-weight:650;color:var(--text);letter-spacing:-.005em}
-          .co-vendor-l .meta{margin-top:3px;font-size:11px;color:var(--text-subtle);display:flex;gap:10px;flex-wrap:wrap}
-          .co-vendor-l .meta b{color:var(--text-muted);font-weight:650}
-          .co-vendor-score{
-            display:flex;flex-direction:column;align-items:flex-end;
-          }
-          .co-vendor-score .n{
-            font-family:'Inter Tight','Inter',sans-serif;font-size:18px;font-weight:700;color:var(--text);
-            font-variant-numeric:tabular-nums;letter-spacing:-.01em;
-          }
-          .co-vendor-score .n.warn{color:var(--amber-dark)}
-          .co-vendor-score .n.crit{color:var(--co-crit)}
-          .co-vendor-score .lbl{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin-top:-1px}
-          .co-vendor-actions{display:flex;gap:6px}
-
-          /* FMCSA identity card */
-          .co-fmcsa-id{
-            background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius);
-            padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:18px;
-          }
-          .co-fmcsa-id .lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:4px}
-          .co-fmcsa-id .val{font-size:14px;font-weight:650;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.005em}
-          .co-fmcsa-id .val.warn{color:var(--amber-dark)}
-          .co-fmcsa-id .val.crit{color:var(--co-crit)}
-          .co-fmcsa-id .val.good{color:var(--co-good)}
-          .co-fmcsa-id .sub{margin-top:2px;font-size:11px;color:var(--text-subtle)}
-
-          /* CMV reconciler */
-          .co-cmv-recon{
-            background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius);overflow:hidden;
-          }
-          .co-cmv-head{padding:14px 18px;background:var(--canvas);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
-          .co-cmv-head h4{margin:0;font-size:13px;font-weight:700;letter-spacing:.01em;color:var(--text)}
-          .co-cmv-grid{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
-          @media (max-width:780px){.co-cmv-grid{grid-template-columns:1fr}}
-          .co-cmv-col h5{margin:0 0 8px;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
-          .co-cmv-num{font-family:'Inter Tight','Inter',sans-serif;font-size:32px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
-          .co-cmv-num.warn{color:var(--co-crit)}
-          .co-cmv-cap{font-size:11px;color:var(--text-subtle);margin-top:5px}
-          .co-cmv-row{display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:var(--text-muted);border-bottom:1px dashed var(--border-subtle)}
-          .co-cmv-row:last-child{border-bottom:none}
-          .co-cmv-row .v{color:var(--text);font-weight:650;font-variant-numeric:tabular-nums}
-
-          /* Documentation grid */
-          .co-docs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
-          .co-doc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius-sm);padding:13px 14px;display:flex;gap:11px;align-items:flex-start;transition:border-color .12s, box-shadow .12s;cursor:pointer}
-          .co-doc-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-          .co-doc-tile{position:relative;width:34px;height:42px;flex:0 0 auto;border-radius:5px;background:linear-gradient(160deg,var(--surface) 0%,var(--canvas) 100%);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;color:var(--accent)}
-          .co-doc-tile::after{content:"";position:absolute;top:0;right:0;width:8px;height:8px;background:var(--canvas);border-left:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);border-bottom-left-radius:2px}
-          .co-doc-tile svg{width:14px;height:14px}
-          .co-doc-nm{font-size:12.5px;font-weight:650;color:var(--text);letter-spacing:-.005em;line-height:1.35}
-          .co-doc-meta{margin-top:3px;font-size:11px;color:var(--text-subtle);line-height:1.5}
-          .co-doc-meta b{color:var(--text-muted);font-weight:650}
-          .co-doc-tags{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
-          .co-doc-tag{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);border-radius:4px;padding:1px 6px}
-          .co-doc-tag.verified{background:var(--co-good-soft);color:var(--co-good);border-color:transparent}
-
-          /* Audit row */
-          .co-audit{background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius);overflow:hidden}
-          .co-audit-row{display:grid;grid-template-columns:140px 1fr auto;gap:14px;padding:11px 16px;border-top:1px solid var(--border-subtle);align-items:start;font-size:12.5px}
-          .co-audit-row:first-child{border-top:none}
-          .co-audit-row .ts{color:var(--text-subtle);font-size:11px;font-variant-numeric:tabular-nums;line-height:1.5}
-          .co-audit-row .what{color:var(--text);font-weight:550;line-height:1.45}
-          .co-audit-row .what .sub{display:block;color:var(--text-subtle);font-weight:500;font-size:11px;margin-top:1px}
-          .co-audit-row .who{font-size:11px;color:var(--text-muted);font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap}
-          .co-audit-row .who .av{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;background:var(--accent-soft);color:var(--accent-text)}
-          .co-audit-row .who .av.bot{background:#1B1F2C;color:#FCA5A5}
-
-          .co-audit-foot{padding:10px 16px;background:var(--canvas);border-top:1px solid var(--border);font-size:11px;color:var(--text-subtle);display:flex;align-items:center;gap:8px}
-          .co-audit-foot svg{width:11px;height:11px;color:var(--co-good)}
-
-          /* Risk library monitor card (compact) */
-          .co-mon-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
-          .co-mon-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--co-radius-sm);padding:12px 14px}
-          .co-mon-card.alert{border-color:rgba(217,119,6,.30)}
-          .co-mon-card.crit{border-color:rgba(159,18,57,.30)}
-          .co-mon-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-          .co-mon-nm{font-size:12.5px;font-weight:650;color:var(--text);letter-spacing:-.005em;line-height:1.35}
-          .co-mon-state{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--co-good-soft);color:var(--co-good);flex:0 0 auto}
-          .co-mon-state .dot{width:5px;height:5px;border-radius:50%;background:var(--co-good)}
-          .co-mon-state.watch{background:var(--accent-soft);color:var(--accent-text)}
-          .co-mon-state.watch .dot{background:var(--accent)}
-          .co-mon-state.alert{background:var(--amber-soft);color:var(--amber-dark)}
-          .co-mon-state.alert .dot{background:var(--amber)}
-          .co-mon-state.crit{background:var(--co-crit-soft);color:var(--co-crit)}
-          .co-mon-state.crit .dot{background:var(--co-crit)}
-          .co-mon-desc{margin-top:5px;font-size:11.5px;color:var(--text-muted);line-height:1.5}
-          .co-mon-meta{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--text-subtle);font-weight:500}
-          .co-mon-meta b{color:var(--text-muted);font-weight:650}
-          .co-mon-foot{margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
-          .co-cap{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);border-radius:5px;padding:2px 6px}
-          .co-cap svg{width:10px;height:10px;color:var(--text-subtle)}
           .co-cap.auto{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
-          .co-cap.auto svg{color:var(--accent)}
-          .co-cap.review{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
-          .co-cap.review svg{color:var(--amber)}
+          .co-cap.review{background:var(--co-high-soft);color:var(--co-high-fg);border-color:transparent}
           .co-cap.escalate{background:#1B1F2C;color:#FCA5A5;border-color:transparent}
-          .co-cap.escalate svg{color:#F87171}
-
-          /* ── Empty / loading states ───────────────────────────────── */
-          .co-empty{
-            background:var(--surface);border:1px dashed var(--border-strong);
-            border-radius:var(--co-radius);padding:42px 28px;text-align:center;
-            font-size:13px;color:var(--text-muted);line-height:1.5;
-          }
-          .co-empty .ic{
-            width:42px;height:42px;border-radius:var(--r-xl);margin:0 auto 12px;
-            display:flex;align-items:center;justify-content:center;color:var(--accent);
-            background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
-          }
-          .co-empty .ic svg{width:20px;height:20px}
-          .co-empty h3{margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text)}
-          .co-empty p{margin:0 auto;max-width:480px;font-size:12.5px;color:var(--text-subtle);line-height:1.5}
-          .co-empty .actions{margin-top:14px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
-
-          /* Inline skeletons for the posture + list loading states. */
-          .co-skel{
-            position:relative;overflow:hidden;background:var(--canvas);
-            border-radius:6px;
-          }
-          .co-skel::after{
-            content:"";position:absolute;inset:0;
-            background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
-            transform:translateX(-100%);animation:coShim 1.25s ease-in-out infinite;
-          }
-          @keyframes coShim{ to { transform:translateX(100%); } }
         </style>
 
         <div class="page-header">
@@ -11627,183 +11128,43 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div>
               <h1 class="page-title">Compliance</h1>
-              <p class="page-sub">Exceptions only · this page surfaces operational compliance items that need your attention. Healthy state is silent.</p>
+              <p class="page-sub">Exceptions only · the rules below run continuously, and any match surfaces here as a row.</p>
             </div>
           </div>
           <div class="page-actions">
-            <button class="btn btn-ghost btn-icon" title="Export audit log" aria-label="Export audit log">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            <button class="btn btn-primary" type="button">
+            <button class="btn btn-primary" type="button" id="co-run-sweep">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 4 21 10 15 10"/></svg>
-              Run compliance sweep
+              Run sweep
             </button>
           </div>
         </div>
 
-        <!-- Always-on posture bar · populated by loadComplianceWorkspace -->
-        <div class="co-posture" data-co-render="posture" aria-busy="true">
-          <div class="co-posture-cell">
-            <div class="co-p-lbl">Operational readiness</div>
-            <div class="co-skel" style="width:120px;height:32px;margin-top:2px"></div>
-            <div class="co-skel" style="width:170px;height:11px;margin-top:8px"></div>
-          </div>
-          <div class="co-posture-cell">
-            <div class="co-p-lbl">Grounded VINs</div>
-            <div class="co-skel" style="width:80px;height:24px;margin-top:2px"></div>
-          </div>
-          <div class="co-posture-cell">
-            <div class="co-p-lbl">Repairs overdue</div>
-            <div class="co-skel" style="width:50px;height:24px;margin-top:2px"></div>
-          </div>
-          <div class="co-posture-cell">
-            <div class="co-p-lbl">Vendor stalls</div>
-            <div class="co-skel" style="width:100px;height:24px;margin-top:2px"></div>
-          </div>
-          <div class="co-posture-cell">
-            <div class="co-p-lbl">Cure deadlines</div>
-            <div class="co-skel" style="width:90px;height:24px;margin-top:2px"></div>
-          </div>
-          <div class="co-posture-cell">
-            <div class="co-p-lbl">Last sweep</div>
-            <div class="co-skel" style="width:90px;height:18px;margin-top:2px"></div>
+        <div class="subnav" id="co-subnav">
+          <button class="subnav-item active" data-co-tab="exceptions" onclick="coTab('exceptions')" type="button">
+            Exceptions
+            <span class="subnav-count" data-co-count="exceptions" hidden>0</span>
+          </button>
+          <button class="subnav-item" data-co-tab="rules" onclick="coTab('rules')" type="button">
+            Rules
+            <span class="subnav-count" data-co-count="rules" hidden>0</span>
+          </button>
+        </div>
+
+        <div class="co-tab is-active" id="co-tab-exceptions">
+          <div data-co-render="exceptions-table" style="flex:1;display:flex;flex-direction:column;min-height:0">
+            <div class="co-empty"><h3>Loading exceptions…</h3></div>
           </div>
         </div>
 
-        <div class="co-shell">
-
-          <!-- Left rail navigation -->
-          <aside class="co-rail" id="co-rail">
-            <div class="co-rail-section">
-              <div class="co-rail-h">Operations</div>
-              <button class="co-rail-item is-active" data-co-pane="risks" onclick="coPane('risks')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
-                Active Risks
-              <span class="count" data-co-rail-count="risks" hidden></span></button>
-              <button class="co-rail-item" data-co-pane="cure" onclick="coPane('cure')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                Cure Actions
-              <span class="count" data-co-rail-count="cures" hidden></span></button>
-              <button class="co-rail-item" data-co-pane="grounded" onclick="coPane('grounded')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                Grounded Vehicles
-              <span class="count" data-co-rail-count="grounded" hidden></span></button>
-              <button class="co-rail-item" data-co-pane="vendors" onclick="coPane('vendors')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6V4a2 2 0 0 0-2-2h-0a2 2 0 0 0-2 2v2"/><rect x="3" y="6" width="18" height="14" rx="2"/></svg>
-                Vendor Delays
-              <span class="count" data-co-rail-count="vendors" hidden></span></button>
-              <button class="co-rail-item" data-co-pane="fmcsa" onclick="coPane('fmcsa')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                FMCSA / DOT
-              <span class="count" data-co-rail-count="fmcsa" hidden></span></button>
-            </div>
-          </aside>
-
-          <main class="co-main">
-
-            <!-- ═══════════ ACTIVE RISKS ═══════════ -->
-            <section class="co-pane is-active" data-co-pane="risks" id="co-pane-risks">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Active Risks</h2>
-                  <p class="co-pane-sub">Highest-exposure operational risks across fleet, drivers, vendors, FMCSA, and CAP — synthesized live from the operational state of every connected object.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button" id="co-risks-refresh">Refresh</button>
-                </div>
-              </div>
-
-              <div class="co-chiprow" data-co-render="risks-chips">
-                <button class="co-chip is-on" type="button">All risks</button>
-                <button class="co-chip" type="button">Grounded / repair</button>
-                <button class="co-chip" type="button">FMCSA / DOT</button>
-                <button class="co-chip" type="button">Vendor</button>
-                <button class="co-chip" type="button">Driver / docs</button>
-              </div>
-
-              <div data-co-render="risks-hero"></div>
-              <div data-co-render="risks-list">
-                <div class="co-empty" data-co-empty>Loading risks…</div>
-              </div>
-            </section>
-
-            <!-- ═══════════ CURE ACTIONS ═══════════ -->
-            <section class="co-pane" data-co-pane="cure" id="co-pane-cure">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Cure Actions</h2>
-                  <p class="co-pane-sub">Open Corrective Action Plans · each cure ties a specific Amazon or FMCSA infraction to a deadline, an evidence checklist, an owner, and a tamper-evident submission record.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button" data-co-open-closed-cures>View closed cures</button>
-                  <button class="btn btn-primary btn-sm" type="button" data-co-new-cure>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    New cure
-                  </button>
-                </div>
-              </div>
-
-              <div data-co-render="cures">
-                <div class="co-empty" data-co-empty>Loading cures…</div>
-              </div>
-            </section>
-            <!-- ═══════════ GROUNDED VEHICLES ═══════════ -->
-            <section class="co-pane" data-co-pane="grounded" id="co-pane-grounded">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Grounded Vehicles</h2>
-                  <p class="co-pane-sub">Every grounded VIN tracked against Amazon's 2 BD scheduling and 14 BD completion expectations. RO status, vendor responsiveness, and reassignment paths in one view.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-primary btn-sm" type="button" data-co-ground-vehicle>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Ground a vehicle
-                  </button>
-                </div>
-              </div>
-              <div data-co-render="grounded">
-                <div class="co-empty" data-co-empty>Loading grounded vehicles…</div>
-              </div>
-            </section>
-
-            <!-- ═══════════ VENDOR DELAYS ═══════════ -->
-            <section class="co-pane" data-co-pane="vendors" id="co-pane-vendors">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">Vendor Delays</h2>
-                  <p class="co-pane-sub">Vendor accountability across every open repair order. Score reflects on-time scheduling (2 BD), completion (14 BD), ETA accuracy, RO documentation, and message responsiveness.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-primary btn-sm" type="button" data-co-add-vendor>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add vendor
-                  </button>
-                </div>
-              </div>
-              <div data-co-render="vendors">
-                <div class="co-empty" data-co-empty>Loading vendors…</div>
-              </div>
-            </section>
-
-            <!-- ═══════════ FMCSA / DOT ═══════════ -->
-            <section class="co-pane" data-co-pane="fmcsa" id="co-pane-fmcsa">
-              <div class="co-pane-head">
-                <div>
-                  <h2 class="co-pane-title">FMCSA / DOT</h2>
-                  <p class="co-pane-sub">Operating-authority identity, MCS-150 filing posture, CMV vs Non-CMV reconciler, and submission tracker.</p>
-                </div>
-                <div class="co-pane-actions">
-                  <button class="btn btn-ghost btn-sm" type="button" data-co-fmcsa-edit>Edit record</button>
-                </div>
-              </div>
-              <div data-co-render="fmcsa">
-                <div class="co-empty" data-co-empty>Loading FMCSA record…</div>
-              </div>
-            </section>
-          </main>
+        <div class="co-tab" id="co-tab-rules">
+          <div data-co-render="rules-list" style="flex:1;display:flex;flex-direction:column;min-height:0">
+            <div class="co-empty"><h3>Loading rules…</h3></div>
+          </div>
         </div>
+
       </div>
     </div>
+
 
     <!-- ═══════════════════════════════════════════════════════════
          WORKSPACES — operational assignment boards (migration 0182).
