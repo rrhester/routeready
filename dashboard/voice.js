@@ -175,6 +175,27 @@ function closeDockPanel() {
   dock.classList.remove("open");
 }
 
+// ── Resolve phone by driver_id (for surfaces that have the id but
+//    not the phone — Today's Plan roster, etc.) ──────────────────
+async function resolveDriverPhone(driverId) {
+  const RR = window.RR || {};
+  const sb = RR.sb;
+  if (!sb) throw new Error("supabase_not_available");
+  const { data, error } = await sb
+    .from("drivers")
+    .select("id, full_name, phone")
+    .eq("id", driverId)
+    .maybeSingle();
+  if (error || !data) throw new Error("driver_not_found");
+  if (!data.phone) throw new Error("no_phone_on_file");
+  return { phone: data.phone, name: data.full_name };
+}
+
+async function dialByDriverId(driverId, fallbackLabel) {
+  const { phone, name } = await resolveDriverPhone(driverId);
+  return dial(phone, name || fallbackLabel);
+}
+
 // ── Public API ──────────────────────────────────────────────────
 async function dial(phone, label) {
   if (!phone) throw new Error("no_number");
@@ -243,20 +264,32 @@ function init() {
     });
   }
 
-  // Click-to-call delegation across the whole dashboard — any element
-  // with [data-rr-voice-call="<e164>"] (or [data-rr-voice-phone="<raw>"])
-  // becomes a dial trigger, with optional [data-rr-voice-label].
+  // Click-to-call delegation across the whole dashboard.  Two
+  // attribute paths so any surface can opt in without code changes:
+  //   [data-rr-voice-call="<e164>"]      direct dial
+  //   [data-rr-voice-phone="<raw>"]      direct dial (alias)
+  //   [data-rr-voice-driver-id="<uuid>"] look up phone from drivers
+  //                                       first, then dial
+  // Optional [data-rr-voice-label] for the dock display name.
   document.addEventListener("click", (ev) => {
-    const trigger = ev.target.closest("[data-rr-voice-call], [data-rr-voice-phone]");
+    const trigger = ev.target.closest(
+      "[data-rr-voice-call], [data-rr-voice-phone], [data-rr-voice-driver-id]"
+    );
     if (!trigger) return;
     ev.preventDefault();
-    const phone = trigger.getAttribute("data-rr-voice-call") ||
-                  trigger.getAttribute("data-rr-voice-phone");
+    ev.stopPropagation();
     const label = trigger.getAttribute("data-rr-voice-label") || "";
-    dial(phone, label).catch((err) => {
+    const driverId = trigger.getAttribute("data-rr-voice-driver-id");
+    const direct = trigger.getAttribute("data-rr-voice-call") ||
+                   trigger.getAttribute("data-rr-voice-phone");
+
+    const action = direct ? dial(direct, label) : dialByDriverId(driverId, label);
+    action.catch((err) => {
       const msg = String(err.message || err);
       if (msg.includes("twilio_not_configured")) {
         alert("Voice calling isn't set up yet. Ask an admin to configure Twilio.");
+      } else if (msg.includes("no_phone_on_file")) {
+        alert("This driver doesn't have a phone number on file.");
       } else if (msg.includes("invalid_phone")) {
         alert("That number isn't in a format we can dial.");
       } else {

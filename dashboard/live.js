@@ -4626,7 +4626,7 @@ function renderOnboardingRow(d) {
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(display)}</div>
+        <div style="flex:1;min-width:0"><div class="cell-name" style="display:flex;align-items:center;gap:6px">${escapeHtml(display)}${d.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-no-drawer data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(display)}" aria-label="Call ${escapeHtml(display)}" title="Call ${escapeHtml(display)} · ${escapeHtml(d.phone)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${daysCell}</td>
       <td>
@@ -4675,7 +4675,7 @@ function renderDriverRow(d) {
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(display)}</div>
+        <div style="flex:1;min-width:0"><div class="cell-name" style="display:flex;align-items:center;gap:6px">${escapeHtml(display)}${d.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-no-drawer data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(display)}" aria-label="Call ${escapeHtml(display)}" title="Call ${escapeHtml(display)} · ${escapeHtml(d.phone)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
       <td>${_scoreCell(d.score)}</td>
@@ -8819,7 +8819,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
         <div style="display:flex;align-items:center;gap:var(--s-2-5);min-width:0">
           ${av}
           <div style="min-width:0;flex:1">
-            <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}${exTag(r)}</div>
+            <div style="font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}"><span>${escapeHtml(r.driver_name)}</span><button type="button" class="rr-call-icon-btn" data-rr-voice-driver-id="${escapeHtml(r.driver_id)}" data-rr-voice-label="${escapeHtml(r.driver_name)}" aria-label="Call ${escapeHtml(r.driver_name)}" title="Call ${escapeHtml(r.driver_name)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>${tierChip(r.tier)}${exTag(r)}</div>
             ${shiftMeta ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${shiftMeta}</div>` : ""}
           </div>
         </div>
@@ -11073,10 +11073,11 @@ function renderInterviewCard(r) {
       <div class="iv-card-body">
         <div class="iv-card-header">
           <div class="iv-card-avatar tier-b">${initials}</div>
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="iv-card-name">${r.full_name ?? ""}</div>
             <div class="iv-card-meta">${[r.phone, r.email].filter(Boolean).join(" · ")}</div>
           </div>
+          ${r.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(r.phone)}" data-rr-voice-label="${escapeHtml(r.full_name || r.phone)}" aria-label="Call ${escapeHtml(r.full_name || "applicant")}" title="Call ${escapeHtml(r.full_name || r.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}
           ${badge}
         </div>
         ${tags.length ? `<div class="iv-card-tags">${tags.join("")}</div>` : ""}
@@ -31465,7 +31466,7 @@ function _fdDriversHtml(drivers) {
           ? `<div class="fd-empty">No drivers assigned.  Open Workspaces → Van assignments to build the chain.</div>`
           : list.map((d, i) => `<div class="fd-driver-row">
               <div class="av">${escapeHtml((d.name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
-              <div class="nm">${escapeHtml(d.name)}${d.phone ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(d.phone)}</div>` : ""}</div>
+              <div class="nm" style="flex:1;min-width:0">${escapeHtml(d.name)}${d.phone ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;display:flex;align-items:center;gap:6px"><span>${escapeHtml(d.phone)}</span><button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(d.name || d.phone)}" aria-label="Call ${escapeHtml(d.name || "driver")}" title="Call ${escapeHtml(d.name || d.phone)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button></div>` : ""}</div>
               <div class="rk">${i === 0 ? "Primary" : `Backup ${i}`}</div>
             </div>`).join("")
         }
@@ -32370,12 +32371,18 @@ async function _stfRenderManageList() {
   }
   list.innerHTML = members.map(m => {
     const nm = m.preferred_name && m.preferred_name !== m.full_name ? `${escapeHtml(m.preferred_name)} (${escapeHtml(m.full_name)})` : escapeHtml(m.full_name);
-    const meta = [_STF_ROLE_LABEL[m.role] || m.role, m.email, m.phone].filter(Boolean).map(escapeHtml).join(" · ");
+    const metaParts = [_STF_ROLE_LABEL[m.role] || m.role, m.email].filter(Boolean).map(escapeHtml);
+    if (m.phone) metaParts.push(escapeHtml(m.phone));
+    const meta = metaParts.join(" · ");
+    const callBtn = m.phone
+      ? `<button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(m.phone)}" data-rr-voice-label="${escapeHtml(m.full_name || m.phone)}" aria-label="Call ${escapeHtml(m.full_name || "staff member")}" title="Call ${escapeHtml(m.full_name || m.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>`
+      : "";
     return `<div class="stf-row" data-rr-staff-member="${escapeHtml(m.id)}">
       <div>
         <div class="nm">${nm}</div>
         ${meta ? `<div class="sub">${meta}</div>` : ""}
       </div>
+      ${callBtn}
       <button type="button" class="btn btn-sm" data-rr-staff-edit="${escapeHtml(m.id)}">Edit</button>
       <button type="button" class="btn btn-sm" data-rr-staff-archive="${escapeHtml(m.id)}" style="color:var(--red)">Archive</button>
     </div>`;
