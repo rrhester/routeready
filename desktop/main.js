@@ -18,6 +18,13 @@
 const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+
+// Tell Playwright to look for Chromium under node_modules/playwright-core/
+// .local-browsers/ rather than the global ms-playwright cache. The build
+// pipeline installs Chromium there using the same PLAYWRIGHT_BROWSERS_PATH=0
+// env var, and asarUnpack in package.json keeps the binaries on the real
+// filesystem so they can actually exec. Must be set BEFORE requiring playwright.
+process.env.PLAYWRIGHT_BROWSERS_PATH = "0";
 const { chromium } = require("playwright");
 
 // Where we keep the encrypted storage state + electron-store config.

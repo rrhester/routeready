@@ -36,6 +36,14 @@ jobs:
         # compiling Mac builds from Linux/Windows isn't reliable.
         os: [ubuntu-latest, windows-latest, macos-latest]
 
+    # PLAYWRIGHT_BROWSERS_PATH=0 tells Playwright to install Chromium under
+    # node_modules/playwright-core/.local-browsers/ rather than the global
+    # ms-playwright cache. That way electron-builder's `files` glob picks it
+    # up and the installer ships with Chromium inside it — without this, the
+    # installed app can't find a browser at runtime and crashes on launch.
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: '0'
+
     defaults:
       run:
         working-directory: desktop
