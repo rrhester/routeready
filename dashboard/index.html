@@ -8287,7 +8287,7 @@ body.rr-cmdk-open{ overflow:hidden }
              Documents records table). */
           #view-drivers .dr-bulkbar{
             display:flex;align-items:center;gap:var(--s-3);margin-bottom:10px;padding:9px 14px;
-            border-radius:var(--r-lg);background:var(--accent-soft);border:1px solid rgba(37,99,235,.20);
+            border-radius:var(--r-lg);background:var(--accent-soft);border:1px solid var(--accent-border);
             font-size:var(--fs-sm);color:var(--accent-text);box-shadow:var(--shadow-sm);
           }
           #view-drivers .dr-bulkbar[hidden]{ display:none; }
@@ -11797,7 +11797,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid transparent;white-space:nowrap;
           }
           .docs-chip .dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto; }
-          .docs-chip.is-pending{ background:var(--accent-soft);color:var(--accent-text);border-color:rgba(37,99,235,.18); }
+          .docs-chip.is-pending{ background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border); }
           .docs-chip.is-pending .dot{ background:var(--accent); }
           .docs-chip.is-viewed{ background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(245,158,11,.18); }
           .docs-chip.is-viewed .dot{ background:var(--amber); }
@@ -11840,7 +11840,7 @@ body.rr-cmdk-open{ overflow:hidden }
             width:30px;height:30px;border-radius:50%;flex:0 0 auto;
             display:flex;align-items:center;justify-content:center;
             font-size:var(--fs-xs);font-weight:700;color:var(--accent-text);
-            background:var(--accent-soft);border:1px solid rgba(37,99,235,.18);
+            background:var(--accent-soft);border:1px solid var(--accent-border);
           }
           .docs-recipient .nm{ font-weight:650;color:var(--text);line-height:1.3; }
           .docs-recipient .em{ font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3; }
@@ -11997,7 +11997,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .docs-bulkbar{
             display:flex;align-items:center;gap:var(--s-3);
             margin-bottom:10px;padding:9px 14px;border-radius:var(--docs-radius-sm);
-            background:var(--accent-soft);border:1px solid rgba(37,99,235,.20);
+            background:var(--accent-soft);border:1px solid var(--accent-border);
             font-size:var(--fs-sm);color:var(--accent-text);
             box-shadow:var(--shadow-sm);
           }
@@ -19433,9 +19433,9 @@ John,Smith,555-0101,john@example.com</code>
       + '.pool-sort-btn.active{background:var(--surface);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft-strong)}'
       + '.pool-driver .pool-driver-score{display:inline-block;font-size:var(--fs-xs);font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;font-variant-numeric:tabular-nums}'
       // VTO suggestion banner in check-in
-      + '#ci-vto-suggest{background:#F0F9FF;border:1px solid rgba(37,99,235,.22);color:#0C4A6E;border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)}'
+      + '#ci-vto-suggest{background:#F0F9FF;border:1px solid var(--accent-border);color:#0C4A6E;border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)}'
       + '#ci-vto-suggest .vto-chips{display:flex;gap:var(--s-1);flex-wrap:wrap}'
-      + '#ci-vto-suggest .vto-chip{display:inline-flex;align-items:center;gap:var(--s-1);background:#fff;border:1px solid rgba(37,99,235,.22);color:#0369A1;padding:2px 8px;border-radius:var(--r-md);font-size:var(--fs-xs);font-weight:600;cursor:pointer}'
+      + '#ci-vto-suggest .vto-chip{display:inline-flex;align-items:center;gap:var(--s-1);background:#fff;border:1px solid var(--accent-border);color:#0369A1;padding:2px 8px;border-radius:var(--r-md);font-size:var(--fs-xs);font-weight:600;cursor:pointer}'
       + '#ci-vto-suggest .vto-chip:hover{background:#E0F2FE}'
       + '.checkin-row.vto-suggested{box-shadow:inset 4px 0 0 var(--sky)}';
     var s = document.createElement('style');
@@ -19955,7 +19955,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515bo-amber-green-border-tokens"></script>
+<script type="module" src="./live.js?v=20260515bp-accent-border-sweep"></script>
 
 </body>
 </html>
