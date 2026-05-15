@@ -4,6 +4,11 @@
   "description": "RouteReady desktop sync · drives the Amazon DSP portal under the operator's corporate login, pulls route data + pick sheets, and ships them to RouteReady.",
   "main": "main.js",
   "private": true,
+  "homepage": "https://gorouteready.com",
+  "author": {
+    "name": "RouteReady",
+    "email": "support@gorouteready.com"
+  },
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
@@ -37,6 +42,7 @@
     "linux": {
       "target": ["AppImage", "deb"],
       "category": "Office",
+      "maintainer": "RouteReady <support@gorouteready.com>",
       "artifactName": "RouteReady-Desktop.${ext}"
     }
   }
