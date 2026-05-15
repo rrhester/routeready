@@ -6,6 +6,10 @@ const $ = (sel) => document.querySelector(sel);
 
 const els = {
   status: $("#session-status"),
+  welcome: $("#welcome"),
+  welcomeOther: $("#welcome-other"),
+  welcomeButtons: document.querySelectorAll("[data-quick-portal]"),
+  signinCard: $("#card-signin"),
   portalUrl: $("#portal-url"),
   login: $("#btn-login"),
   confirmLogin: $("#btn-confirm-login"),
@@ -50,6 +54,49 @@ els.portalUrl.addEventListener("input", () => {
 async function refreshSessionStatus() {
   const { hasSession } = await window.rr.portal.hasSession();
   setStatus(hasSession ? "Session saved" : "No session", hasSession ? "ok" : "warn");
+  // First-run: no saved session → surface the quick-pick welcome panel
+  // so the operator's path-to-portal is a single click instead of three.
+  if (els.welcome) els.welcome.hidden = hasSession;
+}
+
+// One-click sign in: pick a portal → set its URL → immediately launch
+// the headed login browser. Collapses the manual "type URL, click
+// 'Open portal & sign in'" sequence into a single button.
+async function quickSignIn(portalUrl, label) {
+  els.welcomeButtons.forEach(b => { b.disabled = true; });
+  els.portalUrl.value = portalUrl;
+  log(`Starting sign-in for ${label}…`);
+  try {
+    await window.rr.config.set({ portalUrl });
+    const r = await window.rr.portal.login({ portalUrl });
+    if (!r.ok) throw new Error(r.error || "login_failed");
+    log(`${label} opened in a managed browser. Sign in, then click "I'm signed in" below.`, "ok");
+    els.confirmLogin.disabled = false;
+    // Scroll the "I'm signed in" button into view so the next step is
+    // obvious once the operator returns from the portal.
+    els.confirmLogin.scrollIntoView({ behavior: "smooth", block: "center" });
+  } catch (e) {
+    log(`Couldn't start sign-in: ${e.message}`, "error");
+  } finally {
+    els.welcomeButtons.forEach(b => { b.disabled = false; });
+  }
+}
+
+els.welcomeButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    const url = btn.getAttribute("data-quick-portal");
+    const name = btn.getAttribute("data-quick-name") || "portal";
+    quickSignIn(url, name);
+  });
+});
+
+if (els.welcomeOther) {
+  els.welcomeOther.addEventListener("click", () => {
+    // Reveal the manual portal URL section; hide the welcome card.
+    if (els.welcome) els.welcome.hidden = true;
+    els.portalUrl.focus();
+    log("Paste your portal URL in section 1, then click 'Open portal & sign in'.");
+  });
 }
 
 function formatSize(bytes) {
