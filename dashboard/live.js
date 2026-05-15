@@ -3183,7 +3183,7 @@ function _obPill(label, tone) {
   const T = tone === "green" ? "background:var(--green-soft);color:var(--green-dark)"
     : tone === "red"   ? "background:var(--red-soft);color:var(--red-dark)"
     : tone === "amber" ? "background:var(--amber-soft);color:var(--amber-dark)"
-    : tone === "blue"  ? "background:#e0f2fe;color:#075985"
+    : tone === "blue"  ? "background:var(--accent-soft);color:#075985"
     : "background:var(--canvas);color:var(--text-muted)";
   return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
 }
@@ -12211,7 +12211,7 @@ async function openCoachingPrintView(driverId) {
 <title>Coaching record · ${escape(displayDriverName(drv))}</title>
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;background:#f5f5f5;color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:var(--fs-md);line-height:1.55}
+  html,body{margin:0;background:var(--canvas);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:var(--fs-md);line-height:1.55}
   .toolbar{position:sticky;top:0;background:#0f172a;color:#fff;padding:var(--s-2-5) 18px;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm);z-index:5}
   .toolbar button{background:#fff;color:var(--text);border:0;border-radius:var(--r-md);font:inherit;font-weight:600;padding:6px 12px;cursor:pointer}
   .page{max-width:780px;margin:18px auto 80px;background:#fff;padding:34px 44px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-radius:var(--r-md)}
@@ -12231,17 +12231,17 @@ async function openCoachingPrintView(driverId) {
   .rec-meta>div{display:flex;gap:var(--s-2);font-size:var(--fs-sm)}
   .lbl{display:inline-block;min-width:120px;color:var(--text-disabled);font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase}
   .rec-summary{font-size:var(--fs-lg);font-weight:600;line-height:1.4;margin:6px 0}
-  .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:var(--s-2-5) var(--s-3);border-left:3px solid #cbd5e1;border-radius:var(--r-sm);margin:8px 0}
+  .rec-notes{white-space:pre-wrap;color:#334155;background:var(--canvas);padding:var(--s-2-5) var(--s-3);border-left:3px solid #cbd5e1;border-radius:var(--r-sm);margin:8px 0}
   .rec-fields>div{display:flex;gap:var(--s-2);font-size:var(--fs-sm);margin-bottom:4px}
   .hr-only{color:var(--red);font-weight:700}
-  .sig{margin-top:var(--s-3);border:1px solid #e2e8f0;padding:var(--s-2-5) var(--s-3);border-radius:var(--r-sm);background:#fafafa}
+  .sig{margin-top:var(--s-3);border:1px solid #e2e8f0;padding:var(--s-2-5) var(--s-3);border-radius:var(--r-sm);background:var(--canvas)}
   .sig-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-disabled);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
   .sig img{max-width:300px;max-height:120px;display:block}
   .audit{margin-top:10px}
   .audit summary{cursor:pointer;font-size:var(--fs-xs);color:var(--text-muted);font-weight:600}
   .audit table{width:100%;border-collapse:collapse;font-size:var(--fs-xs);margin-top:var(--s-2)}
   .audit th,.audit td{text-align:left;padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top}
-  .audit th{background:#f8fafc;color:var(--text-muted);font-weight:600}
+  .audit th{background:var(--canvas);color:var(--text-muted);font-weight:600}
   .empty{padding:60px 0;text-align:center;color:var(--text-disabled);font-size:var(--fs-md)}
   footer{margin-top:30px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:var(--fs-xs);color:var(--text-disabled);line-height:1.5}
   @media print {
@@ -12319,7 +12319,7 @@ async function openDriverDrawer(driverId, opts) {
       .dd-tab-note.driver{color:var(--green)}
       .dd-head-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:5px}
       .dd-hchip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.5}
-      .dd-hchip-on{color:var(--green);border-color:rgba(22,163,74,.28);background:#f0fdf4}
+      .dd-hchip-on{color:var(--green);border-color:rgba(22,163,74,.28);background:var(--green-soft)}
       .dd-hchip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
       .dd-actfilt{appearance:none;background:transparent;border:1px solid var(--border);font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);padding:var(--s-1) 10px;border-radius:999px;cursor:pointer;letter-spacing:.01em;transition:background .12s,color .12s,border-color .12s}
       .dd-actfilt:hover{color:var(--text);border-color:var(--text-subtle)}
@@ -13639,7 +13639,7 @@ async function openI9Section2Modal(driverId) {
 
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
-      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:#eff6ff;border-color:rgba(37,99,235,.22);color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:var(--accent-soft);border-color:rgba(37,99,235,.22);color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
 
       ${step(1, "Examine the documents", "How did you review the employee's original documents?", `
         <label style="display:flex;align-items:flex-start;gap:var(--s-2);font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
@@ -13881,7 +13881,7 @@ function _i9FormPrintStylesOnce() {
     .i9f-f{border-bottom:1px solid #9ca3af;padding:2px 2px 1px;min-height:18px}
     .i9f-f .lab{display:block;font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
     .i9f-f .val{font-size:var(--fs-xs);color:var(--text)}
-    .i9f-attest{font-size:9.5px;color:#1f2937;border:1px solid #9ca3af;background:#f9fafb;padding:var(--s-2);margin:8px 0}
+    .i9f-attest{font-size:9.5px;color:#1f2937;border:1px solid #9ca3af;background:var(--canvas);padding:var(--s-2);margin:8px 0}
     .i9f-cit{margin:6px 0}
     .i9f-cit .opt{display:flex;align-items:flex-start;gap:6px;padding:1px 0;font-size:10px}
     .i9f-cit .box{width:11px;height:11px;border:1.4px solid #111827;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;line-height:1}
@@ -14113,8 +14113,8 @@ const _I9_BUCKETS = [
   { key: "s2_due",            label: "Section 2 due soon",     tone: "background:var(--amber-soft);color:var(--amber-dark)" },
   { key: "needs_correction",  label: "Needs correction",       tone: "background:var(--red-soft);color:var(--red-dark)" },
   { key: "awaiting_employee", label: "Awaiting employee",      tone: "background:var(--canvas);color:var(--text-muted)" },
-  { key: "s2_needed",         label: "Section 2 needed",       tone: "background:#e0f2fe;color:#0369a1" },
-  { key: "reverification",    label: "Reverification due",     tone: "background:#fffbeb;color:#b45309" },
+  { key: "s2_needed",         label: "Section 2 needed",       tone: "background:var(--accent-soft);color:#0369a1" },
+  { key: "reverification",    label: "Reverification due",     tone: "background:var(--amber-soft);color:#b45309" },
   { key: "verified",          label: "Verified",               tone: "background:var(--green-soft);color:var(--green-dark)" },
 ];
 // Map the derived status into one of the prioritized queue buckets +
@@ -14272,7 +14272,7 @@ function _i9SetRosterBanner(t) {
   if (!el) return;
   if (!t || !t.attention) { el.style.display = "none"; el.innerHTML = ""; return; }
   const urgent = t.s2_overdue || t.needs_correction;
-  const tone = urgent ? "background:#fef2f2;border-color:rgba(225,29,72,.22);color:var(--red-dark)" : "background:#fffbeb;border-color:rgba(245,158,11,.22);color:var(--amber-dark)";
+  const tone = urgent ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)";
   const parts = [];
   if (t.s2_overdue) parts.push(`${t.s2_overdue} overdue`);
   if (t.needs_correction) parts.push(`${t.needs_correction} need correction`);
