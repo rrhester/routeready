@@ -10385,7 +10385,8 @@ window.openModal = function (id) {
 // message out to every targeted driver via dispatch_chat_send (which
 // already handles SMS + push fan-out through the existing chat infra).
 let _broadcastDrivers = []; // [{id, station_id, station_code}]
-let _broadcastAudience = "all"; // "all" | "station:<id>"
+let _broadcastAudience = "all"; // "all" | "scheduled-today" | "station:<id>"
+let _broadcastScheduledTodayIds = new Set();  // driver_ids with a non-absent shift today
 
 async function _initBroadcastModal() {
   const dspId = window.RR?.dsp?.id;
@@ -10404,6 +10405,18 @@ async function _initBroadcastModal() {
   }));
   _broadcastAudience = "all";
 
+  // "Scheduled today (excluding absences)" — shifts on today's date whose
+  // status indicates the driver is actually going to run.  Excludes
+  // called_off, no_show, vto (all of which mean absent).
+  const today = new Date().toLocaleDateString("en-CA"); // yyyy-mm-dd in local tz
+  const { data: shiftsToday, error: shiftsErr } = await sb.from("shifts")
+    .select("driver_id")
+    .eq("dsp_id", dspId)
+    .eq("date", today)
+    .in("status", ["scheduled", "late", "completed"]);
+  if (shiftsErr) console.warn("broadcast · couldn't load today's shifts:", shiftsErr);
+  _broadcastScheduledTodayIds = new Set((shiftsToday || []).map(s => s.driver_id).filter(Boolean));
+
   // Group drivers by station for per-station pill counts.
   const byStation = new Map();
   for (const d of _broadcastDrivers) {
@@ -10415,6 +10428,8 @@ async function _initBroadcastModal() {
   }
   const stations = Array.from(byStation.values()).sort((a, b) => (a.code || "").localeCompare(b.code || ""));
 
+  const scheduledCount = _broadcastDrivers.filter(d => _broadcastScheduledTodayIds.has(d.id)).length;
+
   // Replace the static audience pill row + count line with live data.
   const modal = document.getElementById("modal-broadcast");
   if (!modal) return;
@@ -10422,6 +10437,7 @@ async function _initBroadcastModal() {
   if (pillRow) {
     pillRow.innerHTML =
       `<button class="aud-pill active" data-rr-bcast-aud="all">All drivers (${_broadcastDrivers.length})</button>` +
+      `<button class="aud-pill" data-rr-bcast-aud="scheduled-today" title="Drivers on today's schedule who haven't called off / no-showed">Scheduled today (${scheduledCount})</button>` +
       stations.map(s => `<button class="aud-pill" data-rr-bcast-aud="station:${escapeHtml(s.id)}">${escapeHtml(s.code || "—")} (${s.count})</button>`).join("");
     pillRow.querySelectorAll("[data-rr-bcast-aud]").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -10444,6 +10460,9 @@ async function _initBroadcastModal() {
 
 function _broadcastSelectedDrivers() {
   if (_broadcastAudience === "all") return _broadcastDrivers;
+  if (_broadcastAudience === "scheduled-today") {
+    return _broadcastDrivers.filter(d => _broadcastScheduledTodayIds.has(d.id));
+  }
   if (_broadcastAudience.startsWith("station:")) {
     const sid = _broadcastAudience.slice("station:".length);
     return _broadcastDrivers.filter(d => d.station_id === sid);
