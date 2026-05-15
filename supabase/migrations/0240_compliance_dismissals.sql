@@ -23,9 +23,13 @@ create table if not exists public.compliance_dismissals (
   expires_at      timestamptz not null,
   dismissed_by    uuid references auth.users(id) on delete set null
 );
+-- Composite lookup index for the bundle's "is this exception
+-- dismissed?" filter.  We can't use a partial `where expires_at >
+-- now()` predicate because now() is STABLE, not IMMUTABLE, and
+-- Postgres requires IMMUTABLE functions in index predicates.  The
+-- full composite index is plenty fast for the bundle filter.
 create index if not exists compliance_dismissals_active_idx
-  on public.compliance_dismissals (dsp_id, exception_kind, object_id)
-  where expires_at > now();
+  on public.compliance_dismissals (dsp_id, exception_kind, object_id);
 
 alter table public.compliance_dismissals enable row level security;
 drop policy if exists "compliance_dismissals_rw" on public.compliance_dismissals;
