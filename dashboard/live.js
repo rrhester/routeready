@@ -661,14 +661,14 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:600">Email · ${escapeHtml(rrTitleCaseName(fullName))}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(toEmail || "—")}</div>
         </div>
         <button class="btn btn-sm" data-rr-email-close>Close</button>
       </div>
-      <div id="rr-email-thread-body" style="flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:var(--s-3-5)">
+      <div id="rr-email-thread-body" style="flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
         <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading thread…</div>
       </div>
       <div style="border-top:1px solid var(--border);padding:var(--s-3-5) 22px;background:var(--surface)">
@@ -3382,7 +3382,7 @@ async function openOnboardingSendDocsModal(driverId) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:560px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Send documents to ${escapeHtml(displayDriverName(drv))}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Each pick lands as a task in the driver's app. Secure documents run the signing &amp; compliance flow on their own; informational ones the driver just opens and acknowledges.</div></div>
         <button type="button" class="btn btn-sm" data-rr-osd-close>Close</button>
       </div>
@@ -3701,7 +3701,7 @@ function _obAttachDocPicker(stepIndex) {
     : `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Nothing in your Documents workspace yet. Build one in <strong>Documents → Templates</strong>, then come back here to attach it.</div>`;
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Attach a document</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Delivered to the driver when they reach “${escapeHtml((_obBuilderSteps[stepIndex].title || "this step").trim() || "this step")}”. Secure documents run the signing &amp; compliance flow automatically.</div></div>
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Attach a document</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Delivered to the driver when they reach “${escapeHtml((_obBuilderSteps[stepIndex].title || "this step").trim() || "this step")}”. Secure documents run the signing &amp; compliance flow automatically.</div></div>
       ${hasDocs ? `<div style="padding:var(--s-3-5) 22px 0"><input type="search" id="rr-tplpick-q" placeholder="Search your documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;color:var(--text)"></div>` : ""}
       <div id="rr-tplpick-list" style="padding:var(--s-3-5) 22px 6px;display:flex;flex-direction:column;gap:var(--s-2);overflow:auto;flex:1">${rows}</div>
       <div id="rr-tplpick-empty" style="display:none;padding:6px 22px 14px;font-size:var(--fs-sm);color:var(--text-subtle)">No documents match that search.</div>
@@ -3752,8 +3752,8 @@ function _obAddStepPicker() {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
-      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:var(--s-2-5)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-2-5)">
         ${_OB_ADD_TYPES.map(t => `<button type="button" class="rr-addtype" data-type="${t.type}" style="text-align:left;border:1.5px solid var(--border);border-radius:11px;padding:13px 15px;cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
       </div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-add-close>Cancel</button></div>
@@ -4438,7 +4438,7 @@ function _onbChatStylesOnce() {
     ".onb-chat-time{font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px}" +
     ".onb-chat-read{align-self:flex-end;font-size:10px;color:var(--text-subtle);margin-top:-3px;padding-right:4px}" +
     ".onb-chat-day{align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin:6px 0}" +
-    ".onb-chat-quick{display:flex;gap:6px;overflow-x:auto;padding:9px 14px 0;flex-wrap:nowrap;scrollbar-width:none}" +
+    ".onb-chat-quick{display:flex;gap:6px;overflow-x:auto;padding:var(--s-2-5) var(--s-3-5) 0;flex-wrap:nowrap;scrollbar-width:none}" +
     ".onb-chat-quick::-webkit-scrollbar{display:none}" +
     ".onb-chat-quick button{flex:0 0 auto;appearance:none;background:var(--surface);border:1px solid var(--border);border-radius:999px;font:inherit;font-size:var(--fs-xs);color:var(--text-muted);padding:5px 11px;cursor:pointer;white-space:nowrap;transition:border-color .12s,color .12s,background .12s}" +
     ".onb-chat-quick button:hover{border-color:var(--accent-border);color:var(--accent-text);background:var(--canvas)}" +
@@ -7288,7 +7288,7 @@ async function loadAttendanceEventLog() {
     <div class="toolbar" style="margin-bottom:var(--s-3)">
       <div class="toolbar-left" style="display:flex;align-items:center;gap:var(--s-2-5)">
         <label style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Window</label>
-        <select id="rr-att-log-window" class="form-input" style="height:auto;padding:6px 10px">${windowOpts}</select>
+        <select id="rr-att-log-window" class="form-input" style="height:auto;padding:6px var(--s-2-5)">${windowOpts}</select>
         <span style="font-size:var(--fs-sm);color:var(--text-subtle)">
           <strong style="color:var(--text)">${events.length}</strong> event${events.length === 1 ? "" : "s"} ·
           <strong style="color:var(--text)">${totalsByDriver.size}</strong> driver${totalsByDriver.size === 1 ? "" : "s"}
@@ -9034,10 +9034,10 @@ function _renderTpVanRoster(data, error) {
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md)">
         <thead>
           <tr>
-            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Driver</th>
-            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Shift</th>
-            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Van</th>
-            <th style="text-align:right;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Status</th>
+            <th style="text-align:left;padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Driver</th>
+            <th style="text-align:left;padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Shift</th>
+            <th style="text-align:left;padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Van</th>
+            <th style="text-align:right;padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Status</th>
           </tr>
         </thead>
         <tbody>${body}</tbody>
@@ -9076,7 +9076,7 @@ async function _tpOpenVanPicker(anchorEl) {
       #rr-tp-vp-pop .vp-search{padding:9px 12px;border-bottom:1px solid var(--border)}
       #rr-tp-vp-pop .vp-search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;font-size:var(--fs-sm);background:var(--canvas);color:var(--text)}
       #rr-tp-vp-pop .vp-list{overflow-y:auto;flex:1}
-      #rr-tp-vp-pop .vp-row{padding:9px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:var(--s-2-5);cursor:pointer}
+      #rr-tp-vp-pop .vp-row{padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;align-items:center;gap:var(--s-2-5);cursor:pointer}
       #rr-tp-vp-pop .vp-row:first-child{border-top:0}
       #rr-tp-vp-pop .vp-row:hover{background:var(--canvas)}
       #rr-tp-vp-pop .vp-row.is-disabled{cursor:not-allowed;opacity:.55}
@@ -9089,7 +9089,7 @@ async function _tpOpenVanPicker(anchorEl) {
       #rr-tp-vp-pop .vp-tag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:var(--r-md);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
       #rr-tp-vp-pop .vp-tag.current{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
       #rr-tp-vp-pop .vp-tag.taken{background:var(--amber-soft);color:var(--amber-dark);border:1px solid rgba(245,158,11,.18)}
-      #rr-tp-vp-pop .vp-foot{padding:9px 14px;border-top:1px solid var(--border);display:flex;gap:var(--s-2);justify-content:space-between}
+      #rr-tp-vp-pop .vp-foot{padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;gap:var(--s-2);justify-content:space-between}
       #rr-tp-vp-pop .vp-foot .btn{font-size:var(--fs-sm)}
     </style>
     <div class="vp-h">
@@ -9713,10 +9713,10 @@ document.addEventListener("click", (e) => {
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:6px">
         <thead>
           <tr>
-            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Total</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Absences</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% absent</th>
+            <th style="padding:6px var(--s-2-5);text-align:left;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
+            <th style="padding:6px var(--s-2-5);text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Total</th>
+            <th style="padding:6px var(--s-2-5);text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Absences</th>
+            <th style="padding:6px var(--s-2-5);text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% absent</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
@@ -12042,12 +12042,12 @@ async function openCoachingDrawer(driverId) {
     <style>
       #rr-cd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
       #rr-cd-drawer .cd-panel{background:var(--surface);width:min(720px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.18)}
-      #rr-cd-drawer .cd-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)}
+      #rr-cd-drawer .cd-head{padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)}
       #rr-cd-drawer .cd-title{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0}
       #rr-cd-drawer .cd-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
       #rr-cd-drawer .cd-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
       #rr-cd-drawer .cd-close{background:transparent;border:0;font-size:var(--fs-xxl);color:var(--text-subtle);cursor:pointer;line-height:1;padding:0}
-      #rr-cd-drawer .cd-body{flex:1;overflow-y:auto;padding:18px 22px}
+      #rr-cd-drawer .cd-body{flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5)}
     </style>
     <div class="cd-panel">
       <div class="cd-head">
@@ -12608,12 +12608,12 @@ function renderAvailabilityTab(body, d, record) {
   const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
   const availBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;background:var(--canvas);user-select:none">
+    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;background:var(--canvas);user-select:none">
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
   const prefBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}">
+    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}">
       <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${isAvail(k) ? "" : "disabled"}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
@@ -13494,7 +13494,7 @@ function _i9ModalShell(title, sub, bodyHtml, footHtml) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">${escapeHtml(title)}</div>${sub ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(sub)}</div>` : ""}</div>
         <button type="button" class="btn btn-sm" data-rr-i9-close>Close</button>
       </div>
@@ -14058,7 +14058,7 @@ async function _i9OpenChainModal(driverId) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Form I-9 — chain of custody</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(empName)} · ${escapeHtml(dspName)} · ${escapeHtml(_i9DerivedLabel(rec))}</div></div>
         <button type="button" class="btn btn-sm" data-rr-i9-chain-close>Close</button>
       </div>
@@ -15951,7 +15951,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           // browser's scroll-anchor algorithm to "preserve" (which is
           // what was yanking the operator UP to a fixed image position).
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px var(--s-2-5);background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const isDeleted = !!m.deleted_at;
       const isMine    = m.sender_kind === "dispatch";
@@ -16600,7 +16600,7 @@ async function refreshChannelThread(scrollToBottom) {
           // image load and the scroll-anchor algorithm has nothing to
           // walk up to preserve.
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px var(--s-2-5);background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const senderLabel = m.sender_kind === "dispatch"
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
@@ -17356,7 +17356,7 @@ async function openCoachingForm(driverId) {
             <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">Cmd / Ctrl + Enter to save</div>
           </div>
           ${recent30 >= 3
-            ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px 10px;border-radius:var(--r-md);line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
+            ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px var(--s-2-5);border-radius:var(--r-md);line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
             : ""}
         </div>
       </div>
@@ -17757,7 +17757,7 @@ function _renderAvailabilityShell() {
   if (list) {
     list.insertAdjacentHTML("beforebegin", `
       <div id="rr-avail-toolbar" style="display:flex;align-items:center;gap:var(--s-3);padding:var(--s-2-5) 18px;border-bottom:1px solid var(--border-subtle);background:var(--canvas);flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:var(--s-2);flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:6px 10px">
+        <div style="display:flex;align-items:center;gap:var(--s-2);flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:6px var(--s-2-5)">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-subtle);flex-shrink:0"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="search" id="rr-avail-search" placeholder="Find a driver…" autocomplete="off"
                  style="flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:var(--fs-sm);color:var(--text)" />
@@ -21369,10 +21369,10 @@ document.addEventListener("click", (e) => {
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px">
         <thead>
           <tr>
-            <th style="padding:6px 10px;text-align:left;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Available</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% of roster</th>
-            <th style="padding:6px 10px;text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Needed</th>
+            <th style="padding:6px var(--s-2-5);text-align:left;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Day</th>
+            <th style="padding:6px var(--s-2-5);text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Available</th>
+            <th style="padding:6px var(--s-2-5);text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">% of roster</th>
+            <th style="padding:6px var(--s-2-5);text-align:right;background:var(--canvas);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Needed</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
@@ -21917,11 +21917,11 @@ async function openShiftEditModal(shiftId) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
         <div style="font-size:var(--fs-lg);font-weight:600">Edit shift</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}</div>
       </div>
-      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:var(--s-3-5)">
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Start time</span>
           <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input" style="max-width:160px" />
@@ -22758,7 +22758,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       : "Drag onto a driver to assign";
     return `<div class="rr-pool-shift" draggable="true"
         data-rr-pool-shift="${dragId}" data-rr-pool-shift-date="${sh.date}"${virtAttrs}
-        style="display:flex;align-items:center;gap:var(--s-2-5);padding:6px 10px;border:1px solid var(--border);border-radius:8px;${styleEx};cursor:grab;margin-bottom:4px"
+        style="display:flex;align-items:center;gap:var(--s-2-5);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:8px;${styleEx};cursor:grab;margin-bottom:4px"
         title="${tooltip}">
       <div style="flex:1;min-width:0">${headLine}</div>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-subtle);flex-shrink:0"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
@@ -22791,7 +22791,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:var(--fs-xs)">${countLabel}</span>
     </div>
     <button type="button" id="rr-unassign-week"
-      style="width:100%;margin-bottom:var(--s-2);padding:6px 10px;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);background:transparent;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast)"
+      style="width:100%;margin-bottom:var(--s-2);padding:6px var(--s-2-5);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);background:transparent;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast)"
       onmouseover="this.style.borderColor='var(--border-strong)';this.style.background='var(--canvas)';this.style.color='var(--text)'"
       onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent';this.style.color='var(--text-muted)'">
       Unassign all shifts this week
@@ -22809,7 +22809,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       const item = (d) => {
         const t = (ptoByDriver.get(d.id) || [])[0];
         const range = t ? `PTO ${t.start_date.slice(5)}–${t.end_date.slice(5)}` : "Off";
-        return `<div style="display:flex;align-items:center;gap:var(--s-2);padding:6px 10px;font-size:var(--fs-xs);color:var(--text-subtle)"><span>${escapeHtml(displayDriverName(d))}</span><span style="margin-left:auto">${escapeHtml(range)}</span></div>`;
+        return `<div style="display:flex;align-items:center;gap:var(--s-2);padding:6px var(--s-2-5);font-size:var(--fs-xs);color:var(--text-subtle)"><span>${escapeHtml(displayDriverName(d))}</span><span style="margin-left:auto">${escapeHtml(range)}</span></div>`;
       };
       return `<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
         <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">PTO this week</div>
@@ -23778,11 +23778,11 @@ async function _tplOpenApply(templateId, name) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">Apply template</div>
         <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(name)}</div>
       </div>
-      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:var(--s-3-5)">
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
         <label style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-3-5)">
           <span style="font-size:var(--fs-sm);font-weight:600">Target week starts</span>
           <input type="date" id="rr-tpl-apply-week" value="${escapeHtml(isoNextMon)}" class="form-input" style="max-width:200px"/>
@@ -23861,7 +23861,7 @@ function openCoverShiftDrawer(shiftId) {
   drawer.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;display:flex;justify-content:flex-end";
   drawer.innerHTML = `
     <div style="width:min(640px,100vw);height:100%;background:var(--surface);box-shadow:-8px 0 32px -8px rgba(15,23,42,.18);display:flex;flex-direction:column" data-rr-cover-panel>
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:start;justify-content:space-between;gap:var(--s-4)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:start;justify-content:space-between;gap:var(--s-4)">
         <div>
           <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)">Cover this shift</div>
           <h2 id="rr-cover-title" style="margin:4px 0 0;font-size:18px;font-weight:700;color:var(--text)">Loading…</h2>
@@ -23869,7 +23869,7 @@ function openCoverShiftDrawer(shiftId) {
         </div>
         <button type="button" id="rr-cover-close" aria-label="Close" style="appearance:none;background:transparent;border:0;cursor:pointer;color:var(--text-subtle);padding:6px;border-radius:8px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <div id="rr-cover-body" style="flex:1;overflow-y:auto;padding:18px 22px">
+      <div id="rr-cover-body" style="flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5)">
         <div class="rr-loading" style="padding:var(--s-6)">Loading candidates</div>
       </div>
     </div>`;
@@ -26460,8 +26460,8 @@ function _docsAskKind(file) {
     </button>`;
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:540px;width:100%;box-shadow:var(--shadow-lg)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">What kind of document is this?</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(file.name)}</div></div>
-      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:var(--s-3)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">What kind of document is this?</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(file.name)}</div></div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3)">
         ${opt("secure", "#dcfce7", "#15803d",
           `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
           "Secure compliance document",
@@ -27271,7 +27271,7 @@ async function loadWorkspacesView() {
   const root = document.getElementById("rr-ws-root");
   if (!root) return;
   _wsEditing = null;
-  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading workspaces</div>`;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px var(--s-5);text-align:center;color:var(--text-subtle)">Loading workspaces</div>`;
 
   // First-time default seeding. Idempotent server-side via a flag on
   // dsps.metadata.workspaces.defaults_seeded — repeat calls are no-ops.
@@ -27751,14 +27751,14 @@ function _wsOpenImport(prefill) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(11,18,32,.46);z-index:10018;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:42px 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 84px)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add rows from a spreadsheet</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5">Copy a block of cells in Excel or Google Sheets, then paste it below. Each line becomes a new row at the bottom of the board; columns are filled left-to-right.</div>
         </div>
         <button type="button" class="btn btn-sm" data-imp-close>Close</button>
       </div>
-      <div style="padding:18px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:13px">
+      <div style="padding:var(--s-4) var(--s-5);overflow:auto;flex:1;display:flex;flex-direction:column;gap:13px">
         <textarea data-imp-text class="form-input form-input-block" rows="6" placeholder="Paste here…" style="resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-sm);line-height:1.5"></textarea>
         <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer"><input type="checkbox" data-imp-header style="margin:0"> The first line is a header row — skip it</label>
         <div data-imp-preview style="font-size:var(--fs-sm);color:var(--text-subtle)"></div>
@@ -27877,7 +27877,7 @@ function _wsOpenSettings() {
   const check = (name, on, txt) => `<label style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--text);cursor:pointer"><input type="checkbox" data-cfg="${name}"${on ? " checked" : ""} style="accent-color:var(--accent);width:15px;height:15px"> ${escapeHtml(txt)}</label>`;
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg);max-height:calc(100vh - 96px);display:flex;flex-direction:column">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Board settings</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">How rows assigned to a driver behave in their app — applies to every row on <strong>${escapeHtml(b.name || "this board")}</strong>.</div></div>
         <button type="button" class="btn btn-sm" data-rr-ws-settings-close>Close</button>
       </div>
@@ -27967,7 +27967,7 @@ function _wsOpenColumnSettings(colId) {
   const sel = (name, val, opts) => `<select data-col="${name}" class="form-input form-input-block">${opts.map(o => `<option value="${escapeHtml(o[0])}"${o[0] === String(val == null ? "" : val) ? " selected" : ""}>${escapeHtml(o[1])}</option>`).join("")}</select>`;
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:440px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
-      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Column · ${escapeHtml(col.name || col.id)}</div>
         <button type="button" class="btn btn-sm" data-rr-ws-col-close>Close</button>
       </div>
@@ -28697,7 +28697,7 @@ function _cbRenderList() {
 async function _cbOpenTemplate(id) {
   const root = document.getElementById("rr-cb-root");
   if (!root) return;
-  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Opening template…</div>`;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px var(--s-5);text-align:center;color:var(--text-subtle)">Opening template…</div>`;
   const { data, error } = await sb.rpc("checklist_template_get", { p_id: id });
   if (error || !data) {
     root.innerHTML = `<div class="rr-an-error">Couldn't open template: ${_cbEsc(error?.message || "")}</div>`;
@@ -29176,7 +29176,7 @@ function _clDueLabel(iso) {
 async function loadChecklistInstances() {
   const root = document.getElementById("rr-cl-my-root");
   if (!root) return;
-  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading checklists</div>`;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px var(--s-5);text-align:center;color:var(--text-subtle)">Loading checklists</div>`;
   const params = {
     p_status: _clMyFilter === "completed" ? "completed" : null,
     p_assigned_to_me_only: _clMyFilter === "mine",
@@ -29246,7 +29246,7 @@ function _clRenderMy() {
 async function loadChecklistTodaySummary() {
   const root = document.getElementById("rr-cl-status-root");
   if (!root) return;
-  root.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading status</div>`;
+  root.innerHTML = `<div class="rr-loading" style="padding:48px var(--s-5);text-align:center;color:var(--text-subtle)">Loading status</div>`;
   const { data, error } = await sb.rpc("checklist_instance_today_summary");
   if (error || !data) {
     root.innerHTML = `<div class="rr-an-error">Couldn't load status: ${_clEsc(error?.message || "")}</div>`;
@@ -29313,7 +29313,7 @@ function _clEnsureRunnerDom() {
   const drawer = document.createElement("aside");
   drawer.id = "rr-cl-runner";
   drawer.setAttribute("aria-hidden", "true");
-  drawer.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading…</div>`;
+  drawer.innerHTML = `<div class="rr-loading" style="padding:48px var(--s-5);text-align:center;color:var(--text-subtle)">Loading…</div>`;
   document.body.appendChild(drawer);
 }
 function _clCloseRunner() {
@@ -29330,7 +29330,7 @@ async function _clOpenRunner(id) {
   if (!drawer || !back) return;
   drawer.classList.add("open"); drawer.setAttribute("aria-hidden", "false");
   back.classList.add("open");
-  drawer.innerHTML = `<div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading…</div>`;
+  drawer.innerHTML = `<div class="rr-loading" style="padding:48px var(--s-5);text-align:center;color:var(--text-subtle)">Loading…</div>`;
   const { data, error } = await sb.rpc("checklist_instance_get", { p_id: id });
   if (error || !data) {
     drawer.innerHTML = `<div class="cl-rn-head"><button class="cl-rn-close" data-cl-close>×</button></div><div class="cl-rn-body"><div class="rr-an-error">Couldn't open: ${_clEsc(error?.message || "")}</div></div>`;
