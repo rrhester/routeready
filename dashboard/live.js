@@ -660,7 +660,7 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
   m.id = "rr-email-thread-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:600">Email · ${escapeHtml(rrTitleCaseName(fullName))}</div>
@@ -3185,7 +3185,7 @@ function _obPill(label, tone) {
     : tone === "amber" ? "background:#fef3c7;color:#92400e"
     : tone === "blue"  ? "background:#e0f2fe;color:#075985"
     : "background:#f1f5f9;color:#475569";
-  return `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
 }
 // The "N onboarding · X ready · Y blocked · biggest bottleneck …" strip
 // over the roster table — only on the Onboarding stage tab.
@@ -3208,7 +3208,7 @@ function _obSetStrip(rows) {
   const parts = [`<strong>${list.length}</strong> onboarding`];
   if (ready)   parts.push(`<strong style="color:var(--green)">${ready}</strong> ready to activate`);
   if (blocked) parts.push(`<strong style="color:var(--red)">${blocked}</strong> blocked`);
-  el.innerHTML = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:var(--fs-sm)">
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm)">
     <span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap">${parts.join('<span style="color:var(--text-subtle)">·</span>')}</span>
     ${slowTxt ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs);margin-left:auto">Biggest bottleneck: ${escapeHtml(slowTxt)}</span>` : ""}
   </div>`;
@@ -3320,11 +3320,11 @@ function _obMxStylesOnce() {
     ".ob-bld-card.drop-before{box-shadow:inset 0 3px 0 0 var(--accent)}" +
     ".ob-bld-card.drop-after{box-shadow:inset 0 -3px 0 0 var(--accent)}" +
     /* tiny, understated "Help" button + popup trigger */
-    ".rr-help-btn{appearance:none;background:transparent;border:0;font:inherit;font-size:11px;font-weight:500;color:var(--text-subtle);cursor:pointer;padding:2px 6px;border-radius:var(--r-sm);transition:color .12s,background .12s}" +
+    ".rr-help-btn{appearance:none;background:transparent;border:0;font:inherit;font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);cursor:pointer;padding:2px 6px;border-radius:var(--r-sm);transition:color .12s,background .12s}" +
     ".rr-help-btn:hover{color:var(--text-muted);background:var(--canvas);text-decoration:underline}" +
     ".rr-help-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}" +
     /* Plain-text inline links — identical typography to the Help button. */
-    ".rr-text-link{font:inherit;font-size:11px;font-weight:500;color:var(--text-subtle);text-decoration:none;cursor:pointer;padding:2px 4px;border-radius:var(--r-sm);transition:color .12s}" +
+    ".rr-text-link{font:inherit;font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);text-decoration:none;cursor:pointer;padding:2px 4px;border-radius:var(--r-sm);transition:color .12s}" +
     ".rr-text-link:hover{color:var(--text-muted);text-decoration:underline}" +
     ".rr-text-link:focus-visible{outline:none;color:var(--text-muted);text-decoration:underline}" +
     ".rr-text-link.is-on{color:var(--accent-text)}" +
@@ -3334,7 +3334,7 @@ function _obMxStylesOnce() {
     /* master enable — pill switch */
     ".ob-bld-switch{display:inline-flex;align-items:center;gap:9px;flex:0 0 auto;cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);user-select:none}" +
     ".ob-bld-switch input{position:absolute;width:1px;height:1px;opacity:0;margin:-1px;clip:rect(0 0 0 0);overflow:hidden}" +
-    ".ob-bld-track{position:relative;width:34px;height:20px;border-radius:999px;background:var(--border-strong);transition:background .15s ease;flex:0 0 auto}" +
+    ".ob-bld-track{position:relative;width:34px;height:20px;border-radius:999px;background:var(--border-strong);transition:background var(--t-smooth);flex:0 0 auto}" +
     ".ob-bld-track::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:var(--shadow-sm);transition:transform .16s cubic-bezier(.4,0,.2,1)}" +
     ".ob-bld-switch input:checked + .ob-bld-track{background:var(--accent)}" +
     ".ob-bld-switch input:checked + .ob-bld-track::after{transform:translateX(14px)}" +
@@ -3381,7 +3381,7 @@ async function openOnboardingSendDocsModal(driverId) {
   m.id = "rr-osd-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:560px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:560px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Send documents to ${escapeHtml(displayDriverName(drv))}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Each pick lands as a task in the driver's app. Secure documents run the signing &amp; compliance flow on their own; informational ones the driver just opens and acknowledges.</div></div>
         <button type="button" class="btn btn-sm" data-rr-osd-close>Close</button>
@@ -3700,7 +3700,7 @@ function _obAttachDocPicker(stepIndex) {
   const rows = hasDocs ? _obTemplates.map(_obDocRowHTML).join("")
     : `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Nothing in your Documents workspace yet. Build one in <strong>Documents → Templates</strong>, then come back here to attach it.</div>`;
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Attach a document</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Delivered to the driver when they reach “${escapeHtml((_obBuilderSteps[stepIndex].title || "this step").trim() || "this step")}”. Secure documents run the signing &amp; compliance flow automatically.</div></div>
       ${hasDocs ? `<div style="padding:14px 22px 0"><input type="search" id="rr-tplpick-q" placeholder="Search your documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;color:var(--text)"></div>` : ""}
       <div id="rr-tplpick-list" style="padding:14px 22px 6px;display:flex;flex-direction:column;gap:8px;overflow:auto;flex:1">${rows}</div>
@@ -3751,7 +3751,7 @@ function _obAddStepPicker() {
   m.id = "rr-ob-addstep";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
       <div style="padding:18px 22px;display:flex;flex-direction:column;gap:10px">
         ${_OB_ADD_TYPES.map(t => `<button type="button" class="rr-addtype" data-type="${t.type}" style="text-align:left;border:1.5px solid var(--border);border-radius:11px;padding:13px 15px;cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
@@ -3900,7 +3900,7 @@ function _openHelpPopup(key) {
   const m = document.createElement("div");
   m.id = "rr-help-popup";
   m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.30);z-index:10020;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:64px 16px";
-  m.innerHTML = `<div role="dialog" aria-label="${escapeHtml(c.title)}" style="background:var(--surface);border-radius:14px;max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column">
+  m.innerHTML = `<div role="dialog" aria-label="${escapeHtml(c.title)}" style="background:var(--surface);border-radius:var(--r-xl);max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column">
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
       <div style="flex:1;font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(c.title)}</div>
       <button type="button" data-rr-help-close aria-label="Close" style="appearance:none;background:transparent;border:0;width:28px;height:28px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -4414,7 +4414,7 @@ function _onbChatStylesOnce() {
   s.id = "rr-onb-chat-styles";
   s.textContent =
     ".onb-msg-btn{position:relative}" +
-    ".onb-msg-btn .onb-msg-dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--surface);opacity:0;transform:scale(.4);transition:opacity .15s ease,transform .15s ease}" +
+    ".onb-msg-btn .onb-msg-dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--surface);opacity:0;transform:scale(.4);transition:opacity var(--t-smooth),transform var(--t-smooth)}" +
     ".onb-msg-btn.has-unread .onb-msg-dot{opacity:1;transform:none}" +
     ".onb-msg-btn.has-unread{color:var(--accent-text)}" +
     ".onb-chat-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.30);opacity:0;pointer-events:none;transition:opacity .26s ease;z-index:10012}" +
@@ -4432,7 +4432,7 @@ function _onbChatStylesOnce() {
     ".onb-chat-row{display:flex;flex-direction:column;max-width:84%}" +
     ".onb-chat-row.mine{align-self:flex-end;align-items:flex-end}" +
     ".onb-chat-row.theirs{align-self:flex-start;align-items:flex-start}" +
-    ".onb-chat-bubble{padding:8px 12px;border-radius:14px;font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;box-shadow:var(--shadow-xs,0 1px 2px rgba(15,23,42,.04))}" +
+    ".onb-chat-bubble{padding:8px 12px;border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;box-shadow:var(--shadow-xs,0 1px 2px rgba(15,23,42,.04))}" +
     ".onb-chat-row.mine .onb-chat-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:5px}" +
     ".onb-chat-row.theirs .onb-chat-bubble{background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px}" +
     ".onb-chat-time{font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px}" +
@@ -5379,7 +5379,7 @@ function _attKpiWeekdayBars(rows, valueFn, opts) {
     const w   = max > 0 ? (n / max) * 100 : 0;
     return `<div style="display:grid;grid-template-columns:96px 1fr 88px;gap:14px;align-items:center;padding:8px 0">
       <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${label}</div>
-      <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+      <div style="background:var(--canvas);border-radius:var(--r-md);height:14px;overflow:hidden;border:1px solid var(--border)">
         <div style="background:${color};height:100%;width:${w.toFixed(1)}%;transition:width var(--t-fast)"></div>
       </div>
       <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right">
@@ -5779,7 +5779,7 @@ async function loadDashboardWeather() {
     const hourlyHtml = hourlyPeriods.map(h => {
       const pct = h.probabilityOfPrecipitation?.value || 0;
       const wind = parseInt(String(h.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 5px;border-radius:4px;min-width:42px;background:var(--canvas)">
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 5px;border-radius:var(--r-sm);min-width:42px;background:var(--canvas)">
         <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600">${fmtHour(h.startTime)}</div>
         <div style="font-size:var(--fs-md);font-weight:700;color:${tempColor(h.temperature)};font-variant-numeric:tabular-nums;line-height:1">${h.temperature}°</div>
         <div style="font-size:9px;font-weight:600;color:${precipColor(pct)};line-height:1">${pct}%</div>
@@ -7460,7 +7460,7 @@ function _openSendCoachingModal(ctx) {
   const dsel = (v) => v === delDefault ? "selected" : "";
 
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:520px;max-width:100%;max-height:90vh;overflow-y:auto;padding:22px 24px;box-shadow:var(--shadow-lg)">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:520px;max-width:100%;max-height:90vh;overflow-y:auto;padding:22px 24px;box-shadow:var(--shadow-lg)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em">Send coaching</div>
@@ -7720,7 +7720,7 @@ async function loadTeamMembers() {
         ${canEditName
           ? `<input type="text" value="${escapeHtml(r.full_name || "")}" placeholder="${escapeHtml(r.email)}"
               data-rr-team-name="${r.id}"
-              style="font-size:var(--fs-md);font-weight:600;background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 6px;width:100%;color:var(--text)"
+              style="font-size:var(--fs-md);font-weight:600;background:transparent;border:1px solid transparent;border-radius:var(--r-sm);padding:2px 6px;width:100%;color:var(--text)"
               onfocus="this.style.borderColor='var(--border-strong)';this.style.background='var(--surface)'"
               onblur="this.style.borderColor='transparent';this.style.background='transparent'">`
           : `<div style="font-size:var(--fs-md);font-weight:600;padding:2px 6px">${escapeHtml(r.full_name || r.email)}</div>`}
@@ -7779,7 +7779,7 @@ document.addEventListener("click", async (e) => {
   // Build modal contents.
   const teammate = data?.full_name || data?.email || "this teammate";
   const checks = PAGES.map(p =>
-    `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
+    `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;border-radius:var(--r-sm)" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
        <input type="checkbox" data-rr-page-toggle="${p.key}" ${current.includes(p.key) ? "checked" : ""}>
        <span style="font-size:var(--fs-md)">${escapeHtml(p.label)}</span>
      </label>`
@@ -8221,7 +8221,7 @@ function _renderTpAttendance(data, error) {
     bySvc[sv].count++;
   }
   const svcChips = Object.entries(bySvc).map(([code, v]) =>
-    `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:var(--fs-xs);font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`
+    `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:var(--r-lg);background:${v.color}22;color:${v.color};font-size:var(--fs-xs);font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`
   ).join("");
   metaEl.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -8257,7 +8257,7 @@ function _renderTpAttendance(data, error) {
               <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
               <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0} · ${escapeHtml(t)}</div>
             </div>
-            <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
+            <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg)">${escapeHtml(label)}</span>
           </div>`;
       }).join("");
   extrasEl.innerHTML = `
@@ -8396,7 +8396,7 @@ async function _renderTpDailyTool(flagged) {
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
         </div>
         <div>
-          <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px">${escapeHtml(label)}</span>
+          <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg)">${escapeHtml(label)}</span>
         </div>
         <div style="min-width:0">
           <div style="font-size:var(--fs-sm);color:var(--text)"><strong>${after} occ${after === 1 ? "" : "s"}</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
@@ -8621,7 +8621,7 @@ function _tpStatusPill(r) {
             : "transparent";
   const dotMarkup = dot === "transparent" ? "" : `<span style="width:6px;height:6px;border-radius:50%;background:${dot};display:inline-block;margin-right:6px;vertical-align:middle"></span>`;
   const decidedTag = decided ? ` · <span style="font-weight:600;color:var(--text-muted)">${escapeHtml(r.decision)}</span>` : "";
-  return `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;background:${bg};color:${fg};white-space:nowrap">${dotMarkup}${escapeHtml(label)}${decidedTag}</span>`;
+  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;background:${bg};color:${fg};white-space:nowrap">${dotMarkup}${escapeHtml(label)}${decidedTag}</span>`;
 }
 
 // Approve / VTO / Deny buttons.  Wired to the existing data-rr-tp-*
@@ -8960,7 +8960,7 @@ function _renderTpVanRoster(data, error) {
       "Poor":       ["var(--red)", "var(--red-soft)"],
     };
     const [fg, bg] = map[t] || ["var(--text-muted)", "var(--canvas)"];
-    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${bg};color:${fg};margin-left:6px">${escapeHtml(t)}</span>`;
+    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-md);background:${bg};color:${fg};margin-left:6px">${escapeHtml(t)}</span>`;
   };
 
   const initials = (name) => (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
@@ -8968,7 +8968,7 @@ function _renderTpVanRoster(data, error) {
   const body = rows.map((r) => {
     const av = r.driver_photo_path
       ? `<img src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
-      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto">${escapeHtml(initials(r.driver_name))}</div>`;
+      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;flex:0 0 auto">${escapeHtml(initials(r.driver_name))}</div>`;
 
     const timeStr = (r.starts_at || r.ends_at)
       ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
@@ -8993,7 +8993,7 @@ function _renderTpVanRoster(data, error) {
       const cover = r.van_via === "backup" && r.covering_for
         ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
         : "";
-      vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
+      vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:var(--r-md);padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
       vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:4px 10px;border-radius:999px;background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
     }
@@ -9074,7 +9074,7 @@ async function _tpOpenVanPicker(anchorEl) {
       #rr-tp-vp-pop .vp-h .s{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
       #rr-tp-vp-pop .vp-h button{background:none;border:0;color:var(--text-subtle);font-size:18px;cursor:pointer;line-height:1;padding:0 4px}
       #rr-tp-vp-pop .vp-search{padding:9px 12px;border-bottom:1px solid var(--border)}
-      #rr-tp-vp-pop .vp-search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);color:var(--text)}
+      #rr-tp-vp-pop .vp-search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;font-size:var(--fs-sm);background:var(--canvas);color:var(--text)}
       #rr-tp-vp-pop .vp-list{overflow-y:auto;flex:1}
       #rr-tp-vp-pop .vp-row{padding:9px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer}
       #rr-tp-vp-pop .vp-row:first-child{border-top:0}
@@ -9086,7 +9086,7 @@ async function _tpOpenVanPicker(anchorEl) {
       #rr-tp-vp-pop .vp-row .nm{flex:1;min-width:0}
       #rr-tp-vp-pop .vp-row .nm .n{font-weight:600;display:flex;align-items:center;gap:8px}
       #rr-tp-vp-pop .vp-row .nm .s{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-      #rr-tp-vp-pop .vp-tag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+      #rr-tp-vp-pop .vp-tag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:var(--r-md);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
       #rr-tp-vp-pop .vp-tag.current{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
       #rr-tp-vp-pop .vp-tag.taken{background:var(--amber-soft);color:var(--amber-dark);border:1px solid rgba(217,119,6,.18)}
       #rr-tp-vp-pop .vp-foot{padding:9px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between}
@@ -9284,8 +9284,8 @@ function _renderTpCoverage(data, error) {
     ? `<div style="padding:18px;text-align:center;color:var(--green);font-size:var(--fs-sm);font-weight:600">✓ All shifts assigned</div>`
     : open.map(o => {
         const t = o.starts_at ? new Date(o.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
-        const svc = o.service_type_code ? `<span style="background:${o.service_type_color || "#94a3b8"}22;color:${o.service_type_color || "#94a3b8"};padding:2px 6px;border-radius:4px;font-size:var(--fs-xs);font-weight:700;margin-left:6px">${escapeHtml(o.service_type_code)}</span>` : "";
-        const cushion = o.is_cushion ? `<span style="background:rgba(180,83,9,.15);color:var(--amber);padding:2px 6px;border-radius:4px;font-size:var(--fs-xs);font-weight:700;margin-left:6px">EX</span>` : "";
+        const svc = o.service_type_code ? `<span style="background:${o.service_type_color || "#94a3b8"}22;color:${o.service_type_color || "#94a3b8"};padding:2px 6px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:700;margin-left:6px">${escapeHtml(o.service_type_code)}</span>` : "";
+        const cushion = o.is_cushion ? `<span style="background:rgba(180,83,9,.15);color:var(--amber);padding:2px 6px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:700;margin-left:6px">EX</span>` : "";
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-top:1px solid var(--border);font-size:var(--fs-md)">
           <div><strong>${escapeHtml(o.station_code || "—")}</strong> · ${escapeHtml(t)} · Wave ${o.wave_index ?? 0}${svc}${cushion}</div>
           <button class="btn btn-sm" onclick="goto('schedule')">Assign</button>
@@ -9416,7 +9416,7 @@ async function loadTodayAttendance() {
           <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(r.driver_name)}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}${noteBits.length ? " · " + escapeHtml(noteBits.join(" · ")) : ""}</div>
         </div>
-        <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:10px">${escapeHtml(label)}</span>
+        <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:var(--r-lg)">${escapeHtml(label)}</span>
       </div>`;
   };
 
@@ -9445,7 +9445,7 @@ async function loadTodayAttendance() {
   const waveLine = Object.keys(byWave).sort()
     .map(w => `Wave ${w}: <strong>${byWave[w]}</strong>`).join(" · ");
   const svcChips = Object.entries(bySvc)
-    .map(([code, v]) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:10px;background:${v.color}22;color:${v.color};font-size:var(--fs-xs);font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`)
+    .map(([code, v]) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:var(--r-lg);background:${v.color}22;color:${v.color};font-size:var(--fs-xs);font-weight:600;margin-right:4px">${escapeHtml(code)} · ${v.count}</span>`)
     .join("");
 
   wrap.innerHTML = `
@@ -9456,7 +9456,7 @@ async function loadTodayAttendance() {
       ${kpiCard("Working", cnt.working, `${cnt.missed} missed reported`, cnt.working > 0 ? "var(--green)" : undefined)}
     </div>
 
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:10px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
       <div style="display:flex;gap:8px;align-items:center">
         <span style="font-size:var(--fs-xs);color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</span>
@@ -9626,7 +9626,7 @@ async function openCoachDriverPicker() {
   m.id = "rr-coach-picker";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 18px 14px;max-width:440px;width:100%;max-height:80vh;display:flex;flex-direction:column">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:18px 18px 14px;max-width:440px;width:100%;max-height:80vh;display:flex;flex-direction:column">
       <h3 style="margin:0 0 10px;font-size:var(--fs-lg);font-weight:600">Coach a driver</h3>
       <input id="rr-coach-picker-search" type="text" placeholder="Search drivers…" class="form-input" style="margin-bottom:10px"/>
       <div id="rr-coach-picker-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
@@ -9708,7 +9708,7 @@ document.addEventListener("click", (e) => {
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Definitions</div>
       <div>· <strong>Total</strong> = shifts that had any outcome (completed, late, called_off, no_show, vto). Pure 'scheduled' (not yet started) is excluded.</div>
       <div>· <strong>Absences</strong> = called_off + no_show only. VTO is operator-approved and doesn't count.</div>
-      <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text);margin-top:8px">% absent = absences ÷ total</div>
+      <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:8px 10px;border-radius:var(--r-sm);color:var(--text);margin-top:8px">% absent = absences ÷ total</div>
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">By day</div>
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:6px">
         <thead>
@@ -10046,7 +10046,7 @@ function _renderRosterKpiDetail() {
       const w   = (n / max) * 100;
       return `<div style="display:grid;grid-template-columns:200px 1fr 90px;gap:14px;align-items:center;padding:8px 0">
         <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${labels[k]}</div>
-        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+        <div style="background:var(--canvas);border-radius:var(--r-md);height:14px;overflow:hidden;border:1px solid var(--border)">
           <div style="background:${colors[k]};height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
         </div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
@@ -10108,7 +10108,7 @@ function _renderRosterKpiDetail() {
       const w = (n / max) * 100;
       return `<div style="display:grid;grid-template-columns:160px 1fr 90px;gap:14px;align-items:center;padding:8px 0">
         <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${labels[k]}</div>
-        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+        <div style="background:var(--canvas);border-radius:var(--r-md);height:14px;overflow:hidden;border:1px solid var(--border)">
           <div style="background:var(--accent);height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
         </div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
@@ -10186,7 +10186,7 @@ function _renderRosterKpiDetail() {
       const isRookie = k === "0-30" || k === "30-90";
       return `<div style="display:grid;grid-template-columns:200px 1fr 80px;gap:14px;align-items:center;padding:6px 0">
         <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${bktLabel[k]}</div>
-        <div style="background:var(--canvas);border-radius:6px;height:12px;overflow:hidden;border:1px solid var(--border)">
+        <div style="background:var(--canvas);border-radius:var(--r-md);height:12px;overflow:hidden;border:1px solid var(--border)">
           <div style="background:${isRookie ? "var(--red)" : "var(--accent)"};height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
         </div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);text-align:right"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
@@ -11005,7 +11005,7 @@ function renderInterviewDayNav(day) {
   if (!nav) {
     nav = document.createElement("div");
     nav.setAttribute("data-rr-iv-nav", "1");
-    nav.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--s-3);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px";
+    nav.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--s-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:10px 14px";
     banner.parentNode.insertBefore(nav, banner);
   }
 
@@ -11859,7 +11859,7 @@ function openQuestionEditor(question) {
   m.id = "rr-question-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">${isEdit ? "Edit question" : "Add question"}</h3>
         <button data-rr-q-cancel style="background:none;border:0;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
@@ -12213,8 +12213,8 @@ async function openCoachingPrintView(driverId) {
   *{box-sizing:border-box}
   html,body{margin:0;background:#f5f5f5;color:#0f172a;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:var(--fs-md);line-height:1.55}
   .toolbar{position:sticky;top:0;background:#0f172a;color:#fff;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm);z-index:5}
-  .toolbar button{background:#fff;color:#0f172a;border:0;border-radius:6px;font:inherit;font-weight:600;padding:6px 12px;cursor:pointer}
-  .page{max-width:780px;margin:18px auto 80px;background:#fff;padding:34px 44px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-radius:6px}
+  .toolbar button{background:#fff;color:#0f172a;border:0;border-radius:var(--r-md);font:inherit;font-weight:600;padding:6px 12px;cursor:pointer}
+  .page{max-width:780px;margin:18px auto 80px;background:#fff;padding:34px 44px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-radius:var(--r-md)}
   header{border-bottom:2px solid #0f172a;padding-bottom:14px;margin-bottom:18px}
   .brand{font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569}
   h1{margin:4px 0 2px;font-size:var(--fs-xxl);letter-spacing:-.01em}
@@ -12224,7 +12224,7 @@ async function openCoachingPrintView(driverId) {
   .rec{padding:18px 0;border-bottom:1px solid #e2e8f0;page-break-inside:avoid;break-inside:avoid}
   .rec:last-child{border-bottom:0}
   .rec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .sev{display:inline-block;color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:10px;margin-right:8px}
+  .sev{display:inline-block;color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-lg);margin-right:8px}
   .rec-num{font-size:var(--fs-xs);color:#94a3b8}
   .rec-occurred{font-size:var(--fs-sm);color:#475569;font-variant-numeric:tabular-nums}
   .rec-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 18px;margin-bottom:10px}
@@ -12234,7 +12234,7 @@ async function openCoachingPrintView(driverId) {
   .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:10px 12px;border-left:3px solid #cbd5e1;border-radius:3px;margin:8px 0}
   .rec-fields>div{display:flex;gap:8px;font-size:var(--fs-sm);margin-bottom:4px}
   .hr-only{color:var(--red);font-weight:700}
-  .sig{margin-top:12px;border:1px solid #e2e8f0;padding:10px 12px;border-radius:4px;background:#fafafa}
+  .sig{margin-top:12px;border:1px solid #e2e8f0;padding:10px 12px;border-radius:var(--r-sm);background:#fafafa}
   .sig-label{font-size:var(--fs-xs);font-weight:600;color:#94a3b8;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
   .sig img{max-width:300px;max-height:120px;display:block}
   .audit{margin-top:10px}
@@ -12310,7 +12310,7 @@ async function openDriverDrawer(driverId, opts) {
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
       .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:9px;margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
-      .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 14px;border-radius:6px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
+      .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:8px 14px;border-radius:var(--r-md);cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
       .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
@@ -12318,10 +12318,10 @@ async function openDriverDrawer(driverId, opts) {
       .dd-tab-note.show{display:flex}
       .dd-tab-note.driver{color:var(--green)}
       .dd-head-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:5px}
-      .dd-hchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.01em;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.5}
+      .dd-hchip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.5}
       .dd-hchip-on{color:var(--green);border-color:rgba(22,163,74,.28);background:#f0fdf4}
       .dd-hchip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
-      .dd-actfilt{appearance:none;background:transparent;border:1px solid var(--border);font:inherit;font-size:11px;font-weight:600;color:var(--text-muted);padding:4px 10px;border-radius:999px;cursor:pointer;letter-spacing:.01em;transition:background .12s,color .12s,border-color .12s}
+      .dd-actfilt{appearance:none;background:transparent;border:1px solid var(--border);font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);padding:4px 10px;border-radius:999px;cursor:pointer;letter-spacing:.01em;transition:background .12s,color .12s,border-color .12s}
       .dd-actfilt:hover{color:var(--text);border-color:var(--text-subtle)}
       .dd-actfilt.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
       /* The per-section "Driver self-serve" / "DSP only" badges have been
@@ -12337,13 +12337,13 @@ async function openDriverDrawer(driverId, opts) {
       .dd-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
       .dd-section-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em}
       .dd-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.4}
-      .dd-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:10px;white-space:nowrap}
+      .dd-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg);white-space:nowrap}
       .dd-badge.driver{background:var(--green-soft);color:var(--green)}
       .dd-badge.dsp{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
       .dd-row{display:grid;grid-template-columns:160px 1fr;gap:14px;align-items:center;padding:11px 0;border-top:1px solid var(--border)}
       .dd-row:first-of-type{border-top:0}
       .dd-row label{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
-      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font:inherit;font-size:var(--fs-md);color:var(--text)}
+      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-md);color:var(--text)}
       .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
       .dd-foot{padding:14px 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);position:sticky;bottom:0}
       .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
@@ -12354,9 +12354,9 @@ async function openDriverDrawer(driverId, opts) {
       .dd-callout.warn{background:var(--amber-soft);color:var(--text)}
       .dd-callout.warn strong{color:var(--amber)}
       .dd-callout svg{flex-shrink:0;margin-top:2px}
-      .dd-skel-line{height:11px;background:var(--border);border-radius:6px;margin:8px 0;animation:dd-skel-pulse 1.3s ease-in-out infinite}
+      .dd-skel-line{height:11px;background:var(--border);border-radius:var(--r-md);margin:8px 0;animation:dd-skel-pulse 1.3s ease-in-out infinite}
       .dd-skel-block{margin-bottom:24px}
-      .dd-skel-block .head{height:14px;width:30%;background:var(--border);border-radius:6px;margin:0 0 12px;animation:dd-skel-pulse 1.3s ease-in-out infinite}
+      .dd-skel-block .head{height:14px;width:30%;background:var(--border);border-radius:var(--r-md);margin:0 0 12px;animation:dd-skel-pulse 1.3s ease-in-out infinite}
       @keyframes dd-skel-pulse{0%,100%{opacity:.5}50%{opacity:.85}}
       @media (max-width:640px){
         .dd-head{padding:16px 18px}
@@ -12608,12 +12608,12 @@ function renderAvailabilityTab(body, d, record) {
   const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
   const availBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--canvas);user-select:none">
+    <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;background:var(--canvas);user-select:none">
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
   const prefBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}">
+    <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-md);padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}">
       <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${isAvail(k) ? "" : "disabled"}/>
       <span style="font-weight:600">${dayLabel[k]}</span>
     </label>`).join("");
@@ -12666,7 +12666,7 @@ function renderAvailabilityTab(body, d, record) {
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:center">
       <label>Earliest start</label>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <select data-rr-avail-start style="font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);color:var(--text)">${_availStartOptionsHtml(earliest)}</select>
+        <select data-rr-avail-start style="font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text)">${_availStartOptionsHtml(earliest)}</select>
         <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Earliest time of day this driver can begin a shift.</span>
       </div>
     </div>
@@ -12755,7 +12755,7 @@ function renderActivityTab(body, dd) {
   } else {
     filtered.forEach((e, i) => {
       const dk = dayKey(e.at);
-      if (dk !== lastDay) { html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);margin:${i ? "16px" : "2px"} 0 8px">${escapeHtml(dk)}</div>`; lastDay = dk; }
+      if (dk !== lastDay) { html += `<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);margin:${i ? "16px" : "2px"} 0 8px">${escapeHtml(dk)}</div>`; lastDay = dk; }
       const nextDk = (i + 1 < filtered.length) ? dayKey(filtered[i + 1].at) : null;
       const isLastInDay = nextDk !== dk;
       html += `
@@ -13446,7 +13446,7 @@ function _i9Timeline(events) {
   let html = "", lastDay = null;
   list.forEach((ev, i) => {
     const dk = dayKey(ev.created_at);
-    if (dk !== lastDay) { html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);margin:${i ? "14px" : "2px"} 0 7px">${escapeHtml(dk)}</div>`; lastDay = dk; }
+    if (dk !== lastDay) { html += `<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);margin:${i ? "14px" : "2px"} 0 7px">${escapeHtml(dk)}</div>`; lastDay = dk; }
     const meta = _i9EventMeta(ev);
     const isLast = i === list.length - 1;
     html += `
@@ -13493,7 +13493,7 @@ function _i9ModalShell(title, sub, bodyHtml, footHtml) {
   m.id = "rr-i9-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">${escapeHtml(title)}</div>${sub ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(sub)}</div>` : ""}</div>
         <button type="button" class="btn btn-sm" data-rr-i9-close>Close</button>
@@ -13663,9 +13663,9 @@ async function openI9Section2Modal(driverId) {
         <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:var(--fs-sm);line-height:1.55"><input type="checkbox" id="i9-s2-attest" style="margin-top:3px"> <span id="i9-s2-attest-text">${escapeHtml(_I9_S2_ATTEST_BASE)}</span></label>`)}
 
       ${step(4, "Sign", "Your electronic signature is recorded with your name and a timestamp.", `
-        <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
           <canvas id="i9-s2-canvas" style="display:block;width:100%;height:160px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
-          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
+          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:#475569;cursor:pointer">Clear</button>
           <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
         </div>
         <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);width:100%">`)}
@@ -13868,10 +13868,10 @@ function _i9FormPrintStylesOnce() {
     #rr-i9form-modal{position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10002;display:flex;flex-direction:column}
     #rr-i9form-modal .i9f-toolbar{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:var(--surface);border-bottom:1px solid var(--border)}
     #rr-i9form-modal .i9f-toolbar .t{font-weight:700;color:var(--text)}
-    #rr-i9form-modal .i9f-toolbar .t small{display:block;font-weight:500;color:var(--text-subtle);font-size:11px}
+    #rr-i9form-modal .i9f-toolbar .t small{display:block;font-weight:500;color:var(--text-subtle);font-size:var(--fs-xs)}
     #rr-i9form-modal .i9f-scroll{flex:1;overflow:auto;padding:24px;display:flex;justify-content:center;background:#e5e7eb}
     #rr-i9form-modal .i9f-doc{background:#fff;color:#111827;width:8.5in;min-height:11in;padding:0.6in 0.7in;box-shadow:0 4px 24px rgba(0,0,0,.18);font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;line-height:1.4}
-    .i9f-doc h1{font-size:14px;margin:0 0 2px;letter-spacing:.01em}
+    .i9f-doc h1{font-size:var(--fs-base);margin:0 0 2px;letter-spacing:.01em}
     .i9f-doc .i9f-sub{font-size:10px;color:#374151;margin-bottom:2px}
     .i9f-doc .i9f-note{font-size:9px;color:#6b7280;margin-bottom:14px;border-bottom:2px solid #111827;padding-bottom:8px}
     .i9f-doc h2{font-size:11.5px;background:#1f2937;color:#fff;padding:4px 8px;margin:18px 0 8px;letter-spacing:.02em}
@@ -13880,7 +13880,7 @@ function _i9FormPrintStylesOnce() {
     .i9f-grid.c3{grid-template-columns:1fr 1fr 1fr}
     .i9f-f{border-bottom:1px solid #9ca3af;padding:2px 2px 1px;min-height:18px}
     .i9f-f .lab{display:block;font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}
-    .i9f-f .val{font-size:11px;color:#111827}
+    .i9f-f .val{font-size:var(--fs-xs);color:#111827}
     .i9f-attest{font-size:9.5px;color:#1f2937;border:1px solid #9ca3af;background:#f9fafb;padding:8px;margin:8px 0}
     .i9f-cit{margin:6px 0}
     .i9f-cit .opt{display:flex;align-items:flex-start;gap:6px;padding:1px 0;font-size:10px}
@@ -14041,7 +14041,7 @@ async function _i9OpenChainModal(driverId) {
   const empName = [s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || (_ddDriver?.driver ? displayDriverName(_ddDriver.driver) : "Employee");
   const dspName = window.RR?.dsp?.name || "Employer";
   const fmtTs = (x) => x ? new Date(x).toLocaleString() : "—";
-  const mono = (s) => `<code style="font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all">${escapeHtml(s || "—")}</code>`;
+  const mono = (s) => `<code style="font-family:ui-monospace,Menlo,monospace;font-size:var(--fs-xs);word-break:break-all">${escapeHtml(s || "—")}</code>`;
   const hasTs = !!(seal && (seal.tsa_gen_time || seal.tst_b64 || seal.tsa_url));
   const sealBlock = !rec.pdf_path ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No sealed PDF yet — complete Section 2, or use "Re-seal" on the driver record.</div>` : `
     <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--fs-sm)">
@@ -14057,7 +14057,7 @@ async function _i9OpenChainModal(driverId) {
   m.id = "rr-i9-chain-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Form I-9 — chain of custody</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(empName)} · ${escapeHtml(dspName)} · ${escapeHtml(_i9DerivedLabel(rec))}</div></div>
         <button type="button" class="btn btn-sm" data-rr-i9-chain-close>Close</button>
@@ -14139,7 +14139,7 @@ function _i9StatusPill(d) {
     : d.phase === "done"                                                ? { bg: "#dcfce7", fg: "#166534", dot: "#16a34a" }
     : d.phase === "employer"                                            ? { bg: "#e0f2fe", fg: "#075985", dot: "#0284c7" }
     : /* employee / system / none */                                      { bg: "#f1f5f9", fg: "#475569", dot: "#94a3b8" };
-  return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.01em;line-height:1.3;padding:2px 9px 2px 7px;border-radius:999px;white-space:nowrap;background:${T.bg};color:${T.fg}"><span style="width:6px;height:6px;border-radius:50%;background:${T.dot};flex:0 0 auto"></span>${escapeHtml(d.chipLabel)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;line-height:1.3;padding:2px 9px 2px 7px;border-radius:999px;white-space:nowrap;background:${T.bg};color:${T.fg}"><span style="width:6px;height:6px;border-radius:50%;background:${T.dot};flex:0 0 auto"></span>${escapeHtml(d.chipLabel)}</span>`;
 }
 // Accepts a derived object, an i9 record/row, or a raw status string.
 function _i9StatusChip(arg) {
@@ -14149,7 +14149,7 @@ function _i9StatusChip(arg) {
   return _i9StatusPill(d);
 }
 // Generic pill (used for queue section headers etc.).
-const _i9Chip = (label, tone) => `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:10px;white-space:nowrap;${tone}">${escapeHtml(label)}</span>`;
+const _i9Chip = (label, tone) => `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-lg);white-space:nowrap;${tone}">${escapeHtml(label)}</span>`;
 
 // One-time inline styles shared by the I-9 dashboard surfaces: skeleton
 // pulse, queue-row hover, and the Section-2 step cards.
@@ -14160,11 +14160,11 @@ function _i9DashStylesOnce() {
   st.textContent =
     "@keyframes i9-pulse{0%,100%{opacity:.5}50%{opacity:.85}}" +
     ".i9-skel{background:var(--border);border-radius:8px;animation:i9-pulse 1.3s ease-in-out infinite}" +
-    ".rr-i9-row{transition:background .12s ease}" +
+    ".rr-i9-row{transition:background var(--t-fast)}" +
     ".rr-i9-row:hover{background:var(--canvas)}" +
     ".i9-step{border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}" +
     ".i9-step-head{display:flex;align-items:flex-start;gap:10px}" +
-    ".i9-step-num{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}" +
+    ".i9-step-num{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:var(--fs-sm);font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}" +
     ".i9-step-title{font-size:var(--fs-sm);font-weight:700;color:var(--text)}" +
     ".i9-step-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.45}";
   document.head.appendChild(st);
@@ -14279,7 +14279,7 @@ function _i9SetRosterBanner(t) {
   if (t.s2_due) parts.push(`${t.s2_due} due soon`);
   if (t.reverification) parts.push(`${t.reverification} reverification`);
   if (t.blocked) parts.push(`${t.blocked} missing first day`);
-  el.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid;border-radius:10px;font-size:var(--fs-sm);${tone}">
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid;border-radius:var(--r-lg);font-size:var(--fs-sm);${tone}">
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     <div style="flex:1;min-width:0"><strong>${t.attention}</strong> Form I-9 ${t.attention === 1 ? "item needs" : "items need"} attention <span style="opacity:.8">· ${escapeHtml(parts.join(" · "))}</span></div>
     <button type="button" class="btn btn-sm" onclick="drSub('workauth')">Review</button>
@@ -14391,17 +14391,17 @@ function _erEmpStylesOnce() {
   s.id = "rr-emp-report-styles";
   s.textContent = `
     #rr-emp-report-modal{ position:fixed;inset:0;z-index:10000;background:rgba(11,18,32,.5);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;padding:24px; }
-    #rr-emp-report-modal .er-shell{ background:var(--surface);border:1px solid var(--border-strong);border-radius:14px;width:100%;max-width:880px;box-shadow:0 24px 60px rgba(11,18,32,.28);overflow:hidden;margin:0 auto 24px; }
+    #rr-emp-report-modal .er-shell{ background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-xl);width:100%;max-width:880px;box-shadow:0 24px 60px rgba(11,18,32,.28);overflow:hidden;margin:0 auto 24px; }
     #rr-emp-report-modal .er-toolbar{ display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--surface),var(--canvas) 280%);position:sticky;top:0;z-index:2; }
-    #rr-emp-report-modal .er-toolbar .t{ font-size:14px;font-weight:700;color:var(--text);line-height:1.2; }
-    #rr-emp-report-modal .er-toolbar .t small{ font-weight:500;color:var(--text-subtle);font-size:11px;display:block;margin-top:1px; }
+    #rr-emp-report-modal .er-toolbar .t{ font-size:var(--fs-base);font-weight:700;color:var(--text);line-height:1.2; }
+    #rr-emp-report-modal .er-toolbar .t small{ font-weight:500;color:var(--text-subtle);font-size:var(--fs-xs);display:block;margin-top:1px; }
     #rr-emp-report-modal .er-doc{ padding:34px 44px 44px;color:var(--text);font-size:12.5px;line-height:1.6; }
-    #rr-emp-report-modal .er-brand{ display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text);margin-bottom:14px; }
+    #rr-emp-report-modal .er-brand{ display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text);margin-bottom:14px; }
     #rr-emp-report-modal .er-brand .dot{ width:7px;height:7px;border-radius:50%;background:var(--accent); }
     #rr-emp-report-modal .er-doc h1{ font-size:21px;font-weight:800;letter-spacing:-.01em;margin:0 0 3px;color:var(--text); }
     #rr-emp-report-modal .er-doc .er-meta{ font-size:11.5px;color:var(--text-subtle);margin-bottom:18px; }
     #rr-emp-report-modal .er-doc .er-confid{ font-size:10.5px;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:26px;line-height:1.55; }
-    #rr-emp-report-modal .er-doc h2{ font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);margin:30px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:baseline; }
+    #rr-emp-report-modal .er-doc h2{ font-size:var(--fs-xs);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);margin:30px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:baseline; }
     #rr-emp-report-modal .er-doc h2 .num{ color:var(--accent-text);font-weight:800; }
     #rr-emp-report-modal .er-kv{ display:grid;grid-template-columns:max-content 1fr;gap:5px 20px;margin:0; }
     #rr-emp-report-modal .er-kv dt{ color:var(--text-subtle);font-weight:600; }
@@ -14418,7 +14418,7 @@ function _erEmpStylesOnce() {
     #rr-emp-report-modal .er-tl .d{ font-size:10.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums; }
     #rr-emp-report-modal .er-tl .h{ font-weight:650;color:var(--text); }
     #rr-emp-report-modal .er-tl .b{ color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word; }
-    #rr-emp-report-modal .er-tl .tag{ display:inline-block;font-size:9px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:1px 6px;border-radius:4px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);margin-left:6px;vertical-align:middle; }
+    #rr-emp-report-modal .er-tl .tag{ display:inline-block;font-size:9px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:1px 6px;border-radius:var(--r-sm);background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);margin-left:6px;vertical-align:middle; }
     #rr-emp-report-modal .er-empty{ color:var(--text-subtle);font-style:italic;padding:2px 0; }
     #rr-emp-report-modal table.er-table{ width:100%;border-collapse:collapse;font-size:11.5px; }
     #rr-emp-report-modal table.er-table th{ text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle); }
@@ -14586,7 +14586,7 @@ async function _buildEmploymentReport(driverId, m) {
       <dt>Section 2 (employer)</dt><dd>${i9Rec.section2_completed_at ? esc(`${i9s2.list_used === "A" ? "List A document" : "List B + List C documents"}; ${i9s2.exam_method === "remote_alternative" ? "DHS-authorized alternative remote procedure" : "in-person examination"}; verified ${fmtDT(i9Rec.section2_completed_at)}${i9Rec.section2_completed_by_name ? " by " + i9Rec.section2_completed_by_name : ""}`) : "Not completed"}</dd>
       ${i9ret ? `<dt>Retain until</dt><dd>${fmtD(i9ret.date)} (3 yrs after hire, or 1 yr after separation if later)</dd>` : ""}
     </dl>
-    <div class="b" style="font-size:11px;color:var(--text-subtle);margin-top:8px">Form I-9 is RouteReady's electronic Employment Eligibility Verification record, with an internal audit trail of ${i9Events.length} event${i9Events.length === 1 ? "" : "s"}. The full reproduced form is available from the driver's work-authorization panel.</div>`;
+    <div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:8px">Form I-9 is RouteReady's electronic Employment Eligibility Verification record, with an internal audit trail of ${i9Events.length} event${i9Events.length === 1 ? "" : "s"}. The full reproduced form is available from the driver's work-authorization panel.</div>`;
   } else {
     i9Html = `<div class="er-empty">No Form I-9 on file.</div>`;
   }
@@ -14621,19 +14621,19 @@ async function _buildEmploymentReport(driverId, m) {
       <div class="er-stat"><div class="v">${late}</div><div class="l">Late arrivals</div></div>
       <div class="er-stat"><div class="v">${noShow + calledOff}</div><div class="l">Missed (NCNS + called off)</div></div>
     </div>
-    <div class="b" style="font-size:11px;color:var(--text-subtle);margin-bottom:10px">${pastShifts.length} completed scheduled shifts on record${futureSched ? ` · ${futureSched} upcoming` : ""}. Attendance rate = shifts worked ÷ (worked + no-shows + called-off). NCNS = no-call / no-show.</div>
+    <div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px">${pastShifts.length} completed scheduled shifts on record${futureSched ? ` · ${futureSched} upcoming` : ""}. Attendance rate = shifts worked ÷ (worked + no-shows + called-off). NCNS = no-call / no-show.</div>
     ${attEvents.length ? `<table class="er-table"><thead><tr><th>Date</th><th>Event</th><th>Route</th><th>Station</th></tr></thead><tbody>${attEvents.map(a => `<tr><td>${fmtD(a.date)}</td><td>${esc(a.kind)}</td><td>${esc(a.route || "—")}</td><td>${esc(a.station || "—")}</td></tr>`).join("")}</tbody></table>` : `<div class="er-empty">No late arrivals, called-off shifts, or no-shows on record.</div>`}
 
     <h2><span class="num">3.</span> Coaching &amp; documentation timeline</h2>
     ${coachTl ? `<ul class="er-tl">${coachTl}</ul>` : `<div class="er-empty">No coaching records on file.</div>`}
 
     <h2><span class="num">4.</span> Communications timeline</h2>
-    ${msgTl ? `<div class="b" style="font-size:11px;color:var(--text-subtle);margin-bottom:8px">Most recent ${Math.min(60, msgs.length)} dispatch ⇄ driver messages, oldest first.</div><ul class="er-tl">${msgTl}</ul>` : `<div class="er-empty">No recorded dispatch ⇄ driver messages.</div>`}
+    ${msgTl ? `<div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">Most recent ${Math.min(60, msgs.length)} dispatch ⇄ driver messages, oldest first.</div><ul class="er-tl">${msgTl}</ul>` : `<div class="er-empty">No recorded dispatch ⇄ driver messages.</div>`}
 
     <h2><span class="num">5.</span> Scheduling history</h2>
-    <div class="b" style="font-size:11px;color:var(--text-subtle);margin-bottom:8px">Weekly rollup — scheduled, worked, and missed shifts (most recent 26 weeks).</div>
+    <div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">Weekly rollup — scheduled, worked, and missed shifts (most recent 26 weeks).</div>
     ${wkRows ? `<table class="er-table"><thead><tr><th>Week of</th><th style="text-align:right">Scheduled</th><th style="text-align:right">Worked</th><th style="text-align:right">Missed</th></tr></thead><tbody>${wkRows}</tbody></table>` : `<div class="er-empty">No scheduled shifts on record.</div>`}
-    ${toRows ? `<div class="b" style="font-size:11px;color:var(--text-subtle);margin:12px 0 6px">Recorded time-off</div><table class="er-table"><thead><tr><th>Dates</th><th>Status</th><th>Reason</th></tr></thead><tbody>${toRows}</tbody></table>` : ""}
+    ${toRows ? `<div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin:12px 0 6px">Recorded time-off</div><table class="er-table"><thead><tr><th>Dates</th><th>Status</th><th>Reason</th></tr></thead><tbody>${toRows}</tbody></table>` : ""}
 
     <h2><span class="num">6.</span> Signed documents</h2>
     ${docRows ? `<table class="er-table"><thead><tr><th>Document</th><th>Status</th><th>Date</th></tr></thead><tbody>${docRows}</tbody></table><div class="b" style="font-size:10.5px;color:var(--text-subtle);margin-top:6px">${signedDocs.length} document${signedDocs.length === 1 ? "" : "s"} signed &amp; sealed. Sealed PDFs and Certificates of Completion are retained in RouteReady and independently verifiable.</div>` : `<div class="er-empty">No e-signature documents on file.</div>`}
@@ -14650,7 +14650,7 @@ async function _buildEmploymentReport(driverId, m) {
       <dt>Final coaching on record</dt><dd>${lastCoaching ? fmtD(lastCoaching.occurred_at) + (lastCoaching.coached_by_name ? " · " + esc(lastCoaching.coached_by_name) : "") : "—"}</dd>
       <dt>Manager notes</dt><dd style="font-weight:500;color:var(--text-muted)">${esc(drv.metadata?.separation_note || "—")}</dd>
     </dl>
-    <div class="b" style="font-size:11px;color:var(--text-subtle);margin-top:10px">This section states the recorded status and the last documented operational events. It does not characterize the reason for separation beyond what is recorded above; any additional context should be supplied separately by the employer.</div>
+    <div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px">This section states the recorded status and the last documented operational events. It does not characterize the reason for separation beyond what is recorded above; any additional context should be supplied separately by the employer.</div>
 
     <div class="er-foot">
       Compiled by RouteReady — the operational system of record for this DSP. Sources: attendance &amp; check-in history, schedule, coaching log, dispatch messaging, e-signature envelopes, onboarding milestones, and the driver record. Each entry reflects the timestamp at which it was recorded in the system. Generated ${generatedAt.toLocaleString()} · Report covers all data on file for ${esc(name)}.
@@ -15108,7 +15108,7 @@ async function refreshDriverChatList(autoSelect) {
   _msgSupportData = (supRes && supRes.data) || null;
   if (error) {
     if (_isAuthError(error)) {
-      list.innerHTML = `<div style="padding:32px 20px;text-align:center"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load your conversations.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+      list.innerHTML = `<div style="padding:32px 20px;text-align:center"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load your conversations.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:var(--r-md);padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
       list.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired"));
       return;
     }
@@ -15246,7 +15246,7 @@ async function openSupportThread() {
 
 function _supBubblesHTML(msgs) {
   if (!msgs.length) return `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);line-height:1.55;padding:40px 24px;max-width:380px">
-    <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:var(--accent);color:#fff;font-weight:700;font-size:20px;margin-bottom:10px">R</div>
+    <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:var(--r-xl);background:var(--accent);color:#fff;font-weight:700;font-size:20px;margin-bottom:10px">R</div>
     <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:4px">RouteReady Support</div>
     <div>We’re here to help you solve operational problems and get more out of the platform. Send your first message any time — we’ll reply right here.</div>
   </div>`;
@@ -15263,7 +15263,7 @@ function _supBubblesHTML(msgs) {
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
     const body = m.body ? escapeHtml(m.body) : "";
     const author = mine ? "" : `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-text);margin-bottom:3px">RouteReady Support</div>`;
-    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:8px 12px;border-radius:14px;font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
+    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:8px 12px;border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
   return out;
 }
@@ -15273,7 +15273,7 @@ async function refreshSupportThread(scrollToBottom) {
   if (!conv) return;
   const { data, error } = await sb.rpc("support_thread");
   if (error) {
-    if (_isAuthError(error)) { conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to open this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+    if (_isAuthError(error)) { conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to open this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:var(--r-md);padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
       conv.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired")); return; }
     conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message || "Couldn't load support conversation")}</div>`;
     return;
@@ -15529,7 +15529,7 @@ function _supAdmBubblesHTML(msgs) {
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
     const body = m.body ? escapeHtml(m.body) : "";
     const author = `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml((m.sender_name || (mine ? "RouteReady Support" : "DSP")))}${m.sender_role && !mine ? ` · ${escapeHtml(m.sender_role)}` : ""}</div>`;
-    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:8px 12px;border-radius:14px;font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
+    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:8px 12px;border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
   return out;
 }
@@ -15568,7 +15568,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
   if (error) {
     if (_isAuthError(error)) {
-      conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+      conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:var(--r-md);padding:8px 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
       conv.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired"));
       return;
     }
@@ -15687,8 +15687,8 @@ async function refreshDriverChatThread(scrollToBottom) {
       const sizeKb = Math.round(f.size / 1024);
       previewEl.style.display = "";
       previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:var(--fs-sm)">
-          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
+        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
+          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
                   : `<span style="font-size:var(--fs-lg)">📎</span>`}
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
@@ -15950,7 +15950,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           // own height once src lands, so there's nothing for the
           // browser's scroll-anchor algorithm to "preserve" (which is
           // what was yanking the operator UP to a fixed image position).
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
       }
       const isDeleted = !!m.deleted_at;
@@ -16485,8 +16485,8 @@ async function refreshChannelThread(scrollToBottom) {
       const sizeKb = Math.round(f.size / 1024);
       previewEl.style.display = "";
       previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:var(--fs-sm)">
-          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
+        <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
+          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
                   : `<span style="font-size:var(--fs-lg)">📎</span>`}
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
@@ -16849,7 +16849,7 @@ function _coachSeverityChip(sev, level) {
   const SEV_LABEL = { info: "Info", concern: "Concern", warning: "Warning", final: "Final" };
   const label = LEVEL_LABEL[level] || SEV_LABEL[sev] || sev || "Coaching";
   // Neutral chip — no stoplight tints on the coaching log.
-  return `<span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">${escapeHtml(label)}</span>`;
+  return `<span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:var(--r-lg);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">${escapeHtml(label)}</span>`;
 }
 
 function _coachActionList(actionTaken) {
@@ -17015,7 +17015,7 @@ function renderDocumentsTab(docs, envelopes) {
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font:inherit;font-size:var(--fs-md)">
+        <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:7px 10px;font:inherit;font-size:var(--fs-md)">
           ${["drivers_license","mvr","dot_medical","background_check","social_security","i9","w4","direct_deposit","vehicle_registration","insurance","other"].map(k => `<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}
         </select>
         <input type="file" id="rr-doc-file" />
@@ -17346,7 +17346,7 @@ async function openCoachingForm(driverId) {
   const today = new Date().toISOString().slice(0, 10);
 
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);max-width:600px;width:100%;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column">
 
       <!-- Header -->
       <div style="padding:20px 24px 14px;border-bottom:1px solid var(--border)">
@@ -17356,7 +17356,7 @@ async function openCoachingForm(driverId) {
             <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">Cmd / Ctrl + Enter to save</div>
           </div>
           ${recent30 >= 3
-            ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px 10px;border-radius:6px;line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
+            ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px 10px;border-radius:var(--r-md);line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
             : ""}
         </div>
       </div>
@@ -17397,7 +17397,7 @@ async function openCoachingForm(driverId) {
         </div>
 
         <!-- Section 2: Driver acknowledgment -->
-        <div style="background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+        <div style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 14px">
           <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Driver acknowledgment</div>
           <label style="font-size:var(--fs-md);cursor:pointer;display:flex;align-items:flex-start;gap:10px">
             <input id="rr-coach-driver-visible" type="checkbox" style="margin-top:3px"/>
@@ -17406,7 +17406,7 @@ async function openCoachingForm(driverId) {
               <div id="rr-coach-rc-help" style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400;margin-top:3px;line-height:1.5">When ON, the coaching shows up on the driver's record in their RouteReady app and they get a tappable link to read and sign-acknowledge.  When OFF, the coaching is logged on your side only — useful for sensitive notes or when you've already coached in person.</div>
             </span>
           </label>
-          <div id="rr-coach-rc-locked" style="display:none;font-size:var(--fs-xs);color:var(--text-muted);background:var(--surface);border:1px dashed var(--border-strong);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.4">
+          <div id="rr-coach-rc-locked" style="display:none;font-size:var(--fs-xs);color:var(--text-muted);background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:8px 10px;margin-top:8px;line-height:1.4">
             <strong>Required at this level.</strong>  Written and Final coachings always Request Confirmation so the driver's signature is on file before the next escalation.
           </div>
         </div>
@@ -17777,7 +17777,7 @@ function _renderAvailabilityShell() {
       st.id = "rr-avail-sort-style";
       st.textContent = `
         .avail-sort-btn{font:inherit;text-transform:inherit;letter-spacing:inherit;
-          color:var(--text-subtle);background:none;border:0;padding:2px 6px;border-radius:4px;cursor:pointer}
+          color:var(--text-subtle);background:none;border:0;padding:2px 6px;border-radius:var(--r-sm);cursor:pointer}
         .avail-sort-btn:hover{color:var(--text)}
         .avail-sort-btn.active{color:var(--accent);background:var(--accent-soft)}
       `;
@@ -18118,7 +18118,7 @@ function _renderAvailKpiDetail() {
     const tier = (v) => v == null ? "var(--text-subtle)" : v >= 85 ? "var(--green)" : v >= 70 ? "var(--amber)" : "var(--red)";
 
     const card = (label, count, scored, avgVal, sub) => `
-      <div style="background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:18px 20px">
+      <div style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px">
         <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">${label}</div>
         <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px">
           <div style="font-size:36px;font-weight:700;color:${tier(avgVal)};letter-spacing:-.02em;line-height:1">${fmt(avgVal)}</div>
@@ -18171,7 +18171,7 @@ function _renderAvailKpiDetail() {
       const tier = days >= 4 ? "FT" : "PT";
       return `<div style="display:grid;grid-template-columns:96px 1fr 90px 90px;gap:14px;align-items:center;padding:8px 0">
         <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${days} day${days === 1 ? "" : "s"} <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;margin-left:4px">${tier}</span></div>
-        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+        <div style="background:var(--canvas);border-radius:var(--r-md);height:14px;overflow:hidden;border:1px solid var(--border)">
           <div style="background:${days >= 4 ? "var(--accent)" : "var(--amber)"};height:100%;width:${w.toFixed(1)}%;transition:width .3s"></div>
         </div>
         <div style="text-align:right;font-size:var(--fs-sm);color:var(--text-muted)"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
@@ -18205,7 +18205,7 @@ function _renderAvailKpiDetail() {
       const pct = total > 0 ? Math.round((n / total) * 100) : 0;
       return `<div style="display:grid;grid-template-columns:160px 1fr 90px;gap:14px;align-items:center;padding:8px 0">
         <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${label}</div>
-        <div style="background:var(--canvas);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border)">
+        <div style="background:var(--canvas);border-radius:var(--r-md);height:14px;overflow:hidden;border:1px solid var(--border)">
           <div style="background:${color};height:100%;width:${pct}%;transition:width .3s"></div>
         </div>
         <div style="text-align:right;font-size:var(--fs-sm);color:var(--text-muted)"><strong style="color:var(--text)">${n}</strong> · ${pct}%</div>
@@ -18491,14 +18491,14 @@ function _renderAvailabilityRows() {
         const dropChips = im.drops.map(d => {
           const before = (d.after + 1); // pre-change supply
           const tight  = d.tight;
-          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:10px;font-size:var(--fs-xs);font-weight:600">
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:600">
             <span>−${escapeHtml(d.label)}</span>
             <span style="font-weight:500">${arrow(before, d.after)}</span>
           </span>`;
         }).join("");
         const addChips = im.adds.map(a => {
           const before = (a.after - 1);
-          return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:10px;font-size:var(--fs-xs);font-weight:600">
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:600">
             <span>+${escapeHtml(a.label)}</span>
             <span style="font-weight:500">${arrow(before, a.after)}</span>
           </span>`;
@@ -19040,7 +19040,7 @@ function openMessageEditor(template) {
   }
 
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:640px;width:100%;max-height:90vh;overflow:auto">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:640px;width:100%;max-height:90vh;overflow:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div>
           <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">${escapeHtml(RR_TEMPLATE_LABELS[t.key] || t.key)}</h3>
@@ -20951,7 +20951,7 @@ function closeOkamiOverlay() {
   // navigates to OKAMI through any non-overlay path.
   const titleEl = document.getElementById("rr-okami-page-title");
   if (titleEl) {
-    titleEl.innerHTML = `OKAMI <span class="rr-okami-13week-badge" style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);padding:3px 8px;border-radius:6px;margin-left:8px;letter-spacing:0;text-transform:none;vertical-align:middle" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>`;
+    titleEl.innerHTML = `OKAMI <span class="rr-okami-13week-badge" style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);padding:3px 8px;border-radius:var(--r-md);margin-left:8px;letter-spacing:0;text-transform:none;vertical-align:middle" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>`;
   }
 }
 window.openOkamiOverlay  = openOkamiOverlay;
@@ -21364,7 +21364,7 @@ document.addEventListener("click", (e) => {
 
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
       <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-bottom:6px">For each day, we count the active drivers whose availability includes that day, then divide by total active drivers.</div>
-      <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:8px 10px;border-radius:4px;color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
+      <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:8px 10px;border-radius:var(--r-sm);color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil(peak_routes × 2 × (1 + ${m.padPct}%))</code>.</div>
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px">
         <thead>
@@ -21916,7 +21916,7 @@ async function openShiftEditModal(shiftId) {
   m.id = "rr-shift-edit-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:440px;overflow:hidden">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border)">
         <div style="font-size:var(--fs-lg);font-weight:600">Edit shift</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}</div>
@@ -22281,7 +22281,7 @@ async function renderScheduleWeek() {
   if (pageSub) {
     const wkRange = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
     const finalPill = window._rrWeekFinalized
-      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live</span>`
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);margin-left:8px;vertical-align:middle"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live</span>`
       : "";
     // Staffing at-a-glance: drivers · scheduled hours · open shifts.
     const hrsW = Math.round(Array.from(hoursPerDriver.values()).reduce((s, n) => s + (n || 0), 0));
@@ -22796,11 +22796,11 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent';this.style.color='var(--text-muted)'">
       Unassign all shifts this week
     </button>
-    <div style="display:flex;gap:4px;background:var(--canvas);padding:3px;border-radius:6px;margin-bottom:8px">
+    <div style="display:flex;gap:4px;background:var(--canvas);padding:3px;border-radius:var(--r-md);margin-bottom:8px">
       <button type="button" class="rr-pool-sort-btn" data-rr-pool-sort="day"
-        style="flex:1;border:0;background:${_poolSortMode === 'day' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:var(--fs-xs);font-weight:600;color:${_poolSortMode === 'day' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Day</button>
+        style="flex:1;border:0;background:${_poolSortMode === 'day' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:var(--fs-xs);font-weight:600;color:${_poolSortMode === 'day' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:var(--r-sm);cursor:pointer">Day</button>
       <button type="button" class="rr-pool-sort-btn" data-rr-pool-sort="wave"
-        style="flex:1;border:0;background:${_poolSortMode === 'wave' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:var(--fs-xs);font-weight:600;color:${_poolSortMode === 'wave' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:4px;cursor:pointer">Wave time</button>
+        style="flex:1;border:0;background:${_poolSortMode === 'wave' ? 'var(--surface)' : 'transparent'};font:inherit;font-size:var(--fs-xs);font-weight:600;color:${_poolSortMode === 'wave' ? 'var(--text)' : 'var(--text-muted)'};padding:5px 8px;border-radius:var(--r-sm);cursor:pointer">Wave time</button>
     </div>
     <div>${listHtml}</div>
     ${(() => {
@@ -23423,7 +23423,7 @@ function openAddShiftModal(date, stationId, prefDriverId) {
   m.id = "rr-shift-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:440px;width:100%">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:440px;width:100%">
       <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Add shift</h3>
       <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Date</label>
       <input type="date" id="rr-sh-date" class="form-input" style="width:100%;margin-bottom:10px" value="${date}"/>
@@ -23577,7 +23577,7 @@ function openTimeOffModal() {
   m.id = "rr-shift-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:440px;width:100%">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:440px;width:100%">
       <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Time off request</h3>
       <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver</label>
       <select id="rr-to-driver" class="form-input" style="width:100%;margin-bottom:10px">
@@ -23677,7 +23677,7 @@ function _rrRiskPill(driverId) {
     : { fg: "var(--amber-dark)", bg: "var(--amber-soft)", border: "rgba(217,119,6,.20)" };
   const label = r.label === "high" ? "High no-show risk" : "Watch list";
   const title = `${r.incidents} incident${r.incidents === 1 ? "" : "s"} in last ${r.total} shifts (${r.rate_pct}%)`;
-  return `<span title="${escapeHtml(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${tone.bg};color:${tone.fg};border:1px solid ${tone.border};white-space:nowrap"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${escapeHtml(label)}</span>`;
+  return `<span title="${escapeHtml(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:var(--r-lg);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${tone.bg};color:${tone.fg};border:1px solid ${tone.border};white-space:nowrap"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${escapeHtml(label)}</span>`;
 }
 // Paint risk pills into rendered surfaces that opt-in via
 // data-rr-risk-driver. Idempotent — only fills empty slots so re-runs
@@ -23707,13 +23707,13 @@ async function loadScheduleTemplates() {
   host.innerHTML = `<div class="rr-loading" style="padding:24px">Loading templates</div>`;
   const { data, error } = await sb.rpc("template_list");
   if (error) {
-    host.innerHTML = `<div style="padding:18px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;color:var(--text-subtle);font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load")}</div>`;
+    host.innerHTML = `<div style="padding:18px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);color:var(--text-subtle);font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't load")}</div>`;
     return;
   }
   const rows = Array.isArray(data?.templates) ? data.templates : [];
   if (rows.length === 0) {
     host.innerHTML = `
-      <div style="grid-column:1/-1;padding:36px 24px;background:var(--canvas);border:1px dashed var(--border-strong);border-radius:14px;text-align:center">
+      <div style="grid-column:1/-1;padding:36px 24px;background:var(--canvas);border:1px dashed var(--border-strong);border-radius:var(--r-xl);text-align:center">
         <div style="font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:6px">No templates yet</div>
         <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.55;max-width:420px;margin:0 auto">Build a week you're happy with in Week view, then click <strong>Save this week as template</strong> above to capture it. Templates are paste-able into any future week.</div>
       </div>`;
@@ -23727,7 +23727,7 @@ async function loadScheduleTemplates() {
 function _tplCard(t) {
   const updated = t.updated_at ? new Date(t.updated_at).toLocaleDateString() : "—";
   return `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;display:flex;flex-direction:column;gap:10px">
       <div>
         <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);line-height:1.3">${escapeHtml(t.name || "Untitled")}</div>
         ${t.description ? `<div style="margin-top:3px;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45">${escapeHtml(t.description)}</div>` : ""}
@@ -23777,7 +23777,7 @@ async function _tplOpenApply(templateId, name) {
   m.id = "rr-tpl-apply-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px";
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;width:100%;max-width:420px;overflow:hidden">
+    <div style="background:var(--surface);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border)">
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">Apply template</div>
         <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(name)}</div>
@@ -23910,7 +23910,7 @@ async function _coverLoadCandidates() {
     const msg = (error.message || "").includes("cover_future_only")
       ? "Cover is for the future schedule. Today's open shifts are absorbed by your built-in cushion — handle them from Today's Plan or the Week view directly."
       : (error.message || "Couldn't load candidates");
-    body.innerHTML = `<div style="padding:18px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sm);line-height:1.55">${escapeHtml(msg)}</div>`;
+    body.innerHTML = `<div style="padding:18px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);border-radius:var(--r-lg);font-size:var(--fs-sm);line-height:1.55">${escapeHtml(msg)}</div>`;
     return;
   }
   const shift = data?.shift || {};
@@ -24060,7 +24060,7 @@ function _coverHandleOutcome(outcome) {
   if (outcome === "accepted") {
     body.innerHTML = `
       <div style="padding:28px 24px;background:var(--green-soft);border:1px solid rgba(5,150,105,.20);border-radius:12px;text-align:center">
-        <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:var(--green);color:#fff;margin-bottom:10px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:var(--r-xl);background:var(--green);color:#fff;margin-bottom:10px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);margin-bottom:4px">Shift covered</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);max-width:380px;margin:0 auto;line-height:1.55">The schedule has been updated. The driver received a confirmation push with their route details.</div>
         <button id="rr-cover-done" class="btn btn-primary btn-sm" style="margin-top:14px">Done</button>
@@ -24259,7 +24259,7 @@ async function _openHiringTargetModal(target) {
   const t = target || {};
   const haveDays = new Set(Array.isArray(t.days) ? t.days : []);
   const dayBoxes = _OUTLOOK_DOW.map(k => `
-    <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);cursor:pointer;user-select:none;font-size:var(--fs-sm)">
+    <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);cursor:pointer;user-select:none;font-size:var(--fs-sm)">
       <input type="checkbox" data-rr-htf-day="${k}" ${haveDays.has(k) ? "checked" : ""}/><span style="font-weight:600">${_OUTLOOK_DOW_LBL[k]}</span>
     </label>`).join("");
   const svcOpts = `<option value="">No cert requirement</option>` + svcs.map(s => `<option value="${escapeHtml(s.id)}"${t.service_type_id === s.id ? " selected" : ""}>${escapeHtml(s.code || "")}${s.label ? ` — ${escapeHtml(s.label)}` : ""}</option>`).join("");
@@ -25537,7 +25537,7 @@ function _formCardHtml(f) {
   return `
     <div class="form-card" data-rr-form-edit="${escapeHtml(f.id)}" style="position:relative">
       ${statusLabel}
-      <button type="button" class="form-card-del" data-rr-form-delete="${escapeHtml(f.id)}" data-rr-form-title="${escapeHtml(f.title || "Untitled form")}" title="Delete this form" style="position:absolute;top:6px;right:6px;background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:18px;line-height:1;padding:2px 7px;border-radius:6px">×</button>
+      <button type="button" class="form-card-del" data-rr-form-delete="${escapeHtml(f.id)}" data-rr-form-title="${escapeHtml(f.title || "Untitled form")}" title="Delete this form" style="position:absolute;top:6px;right:6px;background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:18px;line-height:1;padding:2px 7px;border-radius:var(--r-md)">×</button>
       <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
       <div class="form-card-title">${escapeHtml(f.title || "Untitled form")}</div>
       <div class="form-card-desc">${escapeHtml(f.description || "")}</div>
@@ -26459,7 +26459,7 @@ function _docsAskKind(file) {
       <span style="min-width:0"><span style="font-size:var(--fs-md);font-weight:700;color:var(--text);display:block">${escapeHtml(title)}</span><span style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45;display:block;margin-top:3px">${escapeHtml(body)}</span></span>
     </button>`;
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:540px;width:100%;box-shadow:var(--shadow-lg)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:540px;width:100%;box-shadow:var(--shadow-lg)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">What kind of document is this?</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">${escapeHtml(file.name)}</div></div>
       <div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px">
         ${opt("secure", "#dcfce7", "#15803d",
@@ -26573,7 +26573,7 @@ async function _docsOpenFieldEditor(templateId) {
   m.className = "modal-backdrop";
   m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:stretch;justify-content:center;padding:18px";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:920px;display:flex;flex-direction:column;overflow:hidden">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:920px;display:flex;flex-direction:column;overflow:hidden">
       <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
           <div style="font-weight:600;font-size:var(--fs-lg)">Place fields</div>
@@ -26684,7 +26684,7 @@ async function _docsOpenFieldEditor(templateId) {
     const meta = _docsFieldMeta(f.kind || "signature");
     const node = document.createElement("div");
     node.className = "rr-docs-field";
-    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${meta.tint};border:1.5px dashed ${meta.border};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${meta.text};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px;overflow:hidden`;
+    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${meta.tint};border:1.5px dashed ${meta.border};border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:600;color:${meta.text};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px;overflow:hidden`;
     node.textContent = meta.fill ? (f.kind === "checkbox" ? "☐ " : "") + (f.label || meta.label) : meta.label;
     node.title = `${meta.hint}${f.label ? ` (“${f.label}”)` : ""} · click to remove`;
     node.addEventListener("click", (e) => {
@@ -26712,7 +26712,7 @@ async function _docsOpenFieldEditor(templateId) {
       startX = e.clientX - r.left; startY = e.clientY - r.top;
       ghost = document.createElement("div");
       const gm = _docsFieldMeta(currentKind);
-      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gm.tint};border:1.5px dashed ${gm.border};border-radius:4px;pointer-events:none`;
+      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gm.tint};border:1.5px dashed ${gm.border};border-radius:var(--r-sm);pointer-events:none`;
       overlay.appendChild(ghost);
     });
     overlay.addEventListener("pointermove", (e) => {
@@ -27043,8 +27043,8 @@ async function _docsOpenAudit(envelopeId) {
       ${sealKeyFp   ? secRow("Key fingerprint", String(sealKeyFp)) : ""}
       ${sealedAt    ? secRow("Sealed at",     new Date(sealedAt).toISOString()) : ""}
       ${sealTsaTime ? secRow("Timestamp (TSA)", String(sealTsaTime) + (sealTsa ? "  ·  " + String(sealTsa) : "")) : (sealTsa ? secRow("Timestamp", "token attached  ·  " + String(sealTsa)) : "")}
-      ${(!sealTsa && !sealTsaTime && sealTsaErr) ? `<div style="font-size:11px;color:var(--amber-dark);margin-top:4px;line-height:1.5"><strong>Timestamp unavailable</strong> — ${escapeHtml(String(sealTsaErr))}. The seal is still valid; only the third-party time anchor is missing. Use “Re-seal · retry timestamp” once the TSA is reachable, or set <code>RR_TSA_URL</code> on the sealing worker.</div>` : ""}
-      ${(!sealAlg && !hasSeal) ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">The cryptographic seal is applied by the sealing service after signing. If it isn't present on a signed record, check the service configuration.</div>` : ""}
+      ${(!sealTsa && !sealTsaTime && sealTsaErr) ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:4px;line-height:1.5"><strong>Timestamp unavailable</strong> — ${escapeHtml(String(sealTsaErr))}. The seal is still valid; only the third-party time anchor is missing. Use “Re-seal · retry timestamp” once the TSA is reachable, or set <code>RR_TSA_URL</code> on the sealing worker.</div>` : ""}
+      ${(!sealAlg && !hasSeal) ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">The cryptographic seal is applied by the sealing service after signing. If it isn't present on a signed record, check the service configuration.</div>` : ""}
     </div>`;
 
   // Timeline.
@@ -27077,10 +27077,10 @@ async function _docsOpenAudit(envelopeId) {
 
   body.innerHTML = `
     <div class="docs-coc-sectionlabel">Document &amp; signer</div>
-    <div style="display:flex;align-items:center;gap:12px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+    <div style="display:flex;align-items:center;gap:12px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 14px">
       <div class="docs-doc-tile" style="width:34px;height:42px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:650;color:var(--text);font-size:13px">${escapeHtml(docTitle)}</div>
+        <div style="font-weight:650;color:var(--text);font-size:var(--fs-md)">${escapeHtml(docTitle)}</div>
         <div style="font-size:11.5px;color:var(--text-subtle);margin-top:2px">${escapeHtml(envRow?.recipient_name || "—")}${envRow?.recipient_email ? " · " + escapeHtml(envRow.recipient_email) : ""}</div>
       </div>
       ${_docsStatusChip(status)}
@@ -27088,7 +27088,7 @@ async function _docsOpenAudit(envelopeId) {
     ${recordsRow}
     ${securityCard}
     <div class="docs-coc-sectionlabel">Timeline</div>
-    <ul class="docs-timeline">${tl || `<li style="font-size:12px;color:var(--text-subtle);list-style:none">No events recorded.</li>`}</ul>
+    <ul class="docs-timeline">${tl || `<li style="font-size:var(--fs-sm);color:var(--text-subtle);list-style:none">No events recorded.</li>`}</ul>
     <div class="docs-coc-foot">
       This record is append-only and hash-chained — events cannot be altered or removed after the fact. The sealed PDF, the Certificate of Completion, and the cryptographic seal are retained alongside it and can be independently verified at any time via the public verification link. Status: <strong>${escapeHtml(lc.label)}</strong> — ${escapeHtml(lc.blurb)}
     </div>`;
@@ -27750,7 +27750,7 @@ function _wsOpenImport(prefill) {
   m.id = "rr-ws-import-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(11,18,32,.46);z-index:10018;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:42px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 84px)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 84px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add rows from a spreadsheet</div>
@@ -27876,7 +27876,7 @@ function _wsOpenSettings() {
   const head = (txt) => `<div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:11px">${escapeHtml(txt)}</div>`;
   const check = (name, on, txt) => `<label style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--text);cursor:pointer"><input type="checkbox" data-cfg="${name}"${on ? " checked" : ""} style="accent-color:var(--accent);width:15px;height:15px"> ${escapeHtml(txt)}</label>`;
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:520px;width:100%;box-shadow:var(--shadow-lg);max-height:calc(100vh - 96px);display:flex;flex-direction:column">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg);max-height:calc(100vh - 96px);display:flex;flex-direction:column">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Board settings</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">How rows assigned to a driver behave in their app — applies to every row on <strong>${escapeHtml(b.name || "this board")}</strong>.</div></div>
         <button type="button" class="btn btn-sm" data-rr-ws-settings-close>Close</button>
@@ -27966,7 +27966,7 @@ function _wsOpenColumnSettings(colId) {
   const lbl = (t) => `<div style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:5px">${escapeHtml(t)}</div>`;
   const sel = (name, val, opts) => `<select data-col="${name}" class="form-input form-input-block">${opts.map(o => `<option value="${escapeHtml(o[0])}"${o[0] === String(val == null ? "" : val) ? " selected" : ""}>${escapeHtml(o[1])}</option>`).join("")}</select>`;
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:14px;max-width:440px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
+    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:440px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
       <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Column · ${escapeHtml(col.name || col.id)}</div>
         <button type="button" class="btn btn-sm" data-rr-ws-col-close>Close</button>
@@ -28439,7 +28439,7 @@ function _dappTasks(data) {
   const boards = data.boards;
   if (!rows.length) {
     const extra = data.driver.status === "onboarding"
-      ? `<br><span style="font-size:12px;color:var(--text-subtle)">Onboarding steps show on the Profile tab.</span>` : "";
+      ? `<br><span style="font-size:var(--fs-sm);color:var(--text-subtle)">Onboarding steps show on the Profile tab.</span>` : "";
     return `<div class="dapp-empty">No tasks assigned.${extra}</div>`;
   }
   const labelOf = (r) => {
@@ -29806,7 +29806,7 @@ function _rrAnRenderKpi(data) {
   const value = _rrAnEsc(data?.value ?? "—");
   const unit  = data?.unit ? `<span class="rr-an-kpi-unit">${_rrAnEsc(data.unit)}</span>` : "";
   const label = data?.label ? `<div class="rr-an-kpi-label">${_rrAnEsc(data.label)}</div>` : "";
-  const sub   = data?.sublabel ? `<div class="rr-an-kpi-label" style="margin-top:2px;color:var(--text-muted);font-size:11px">${_rrAnEsc(data.sublabel)}</div>` : "";
+  const sub   = data?.sublabel ? `<div class="rr-an-kpi-label" style="margin-top:2px;color:var(--text-muted);font-size:var(--fs-xs)">${_rrAnEsc(data.sublabel)}</div>` : "";
   let delta = "";
   if (Number.isFinite(data?.delta)) {
     const d = data.delta;
@@ -30746,10 +30746,10 @@ function _flRenderIssues() {
     // when none has been opened yet.  Click is captured by document-level
     // handler `data-rr-ro-action` so we don't fight the row-click → drawer.
     const roCell = i.work_order
-      ? `<button type="button" class="btn btn-ghost btn-sm" data-rr-ro-action="manage" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-ro-code="${escapeHtml(i.work_order)}" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;padding:3px 8px">${escapeHtml(i.work_order)}</button>`
+      ? `<button type="button" class="btn btn-ghost btn-sm" data-rr-ro-action="manage" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-ro-code="${escapeHtml(i.work_order)}" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);padding:3px 8px">${escapeHtml(i.work_order)}</button>`
       : (i.status === "completed"
           ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`
-          : `<button type="button" class="btn btn-sm" data-rr-ro-action="open" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" style="font-size:11px;padding:3px 8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Open RO</button>`);
+          : `<button type="button" class="btn btn-sm" data-rr-ro-action="open" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" style="font-size:var(--fs-xs);padding:3px 8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Open RO</button>`);
     return `<tr data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-issue-id="${escapeHtml(i.id)}">
       <td><div class="cell-name">${escapeHtml(i.vehicle_name)}${i.plate ? ` <span style="color:var(--text-subtle);font-weight:500">| ${escapeHtml(i.plate)}</span>` : ""}</div>${i.make || i.model ? `<div class="cell-name-sub">${escapeHtml([i.make, i.model].filter(Boolean).join(" "))}</div>` : ""}</td>
       <td><div style="font-weight:600">${escapeHtml(i.title)}</div>${i.description ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml((i.description || "").slice(0, 80))}${(i.description || "").length > 80 ? "…" : ""}</div>` : ""}</td>
@@ -30937,12 +30937,12 @@ function _roOpenManageModal(ro) {
       #rr-ro-modal .ro-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:560px;max-width:100%;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-xl);display:flex;flex-direction:column}
       #rr-ro-modal .ro-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
       #rr-ro-modal .ro-head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.005em}
-      #rr-ro-modal .ro-head .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--text-subtle);margin-top:2px}
+      #rr-ro-modal .ro-head .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
       #rr-ro-modal .ro-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
-      #rr-ro-modal label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);display:block;margin-bottom:5px}
+      #rr-ro-modal label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);display:block;margin-bottom:5px}
       #rr-ro-modal select,#rr-ro-modal input[type=text],#rr-ro-modal input[type=number],#rr-ro-modal input[type=datetime-local],#rr-ro-modal textarea{
         width:100%;padding:8px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;
-        font-size:13px;color:var(--text);font-family:inherit;line-height:1.4;
+        font-size:var(--fs-md);color:var(--text);font-family:inherit;line-height:1.4;
       }
       #rr-ro-modal select:focus,#rr-ro-modal input:focus,#rr-ro-modal textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
       #rr-ro-modal .ro-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -30999,7 +30999,7 @@ function _roOpenManageModal(ro) {
         </div>
       </div>
       <div class="ro-foot">
-        <span style="font-size:11px;color:var(--text-subtle)">Opened ${escapeHtml(new Date(ro.opened_at).toLocaleString())}</span>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Opened ${escapeHtml(new Date(ro.opened_at).toLocaleString())}</span>
         <div class="right">
           <button class="btn btn-ghost btn-sm" type="button" data-ro-action="complete">Mark complete</button>
           <button class="btn btn-primary btn-sm" type="button" data-ro-action="save">Save</button>
@@ -31412,7 +31412,7 @@ function _fdProfileHtml(v) {
         <label>Operational status</label>
         <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
           ${_flOpStatPill(m.operational_status || "operational")}
-          <span style="font-size:11px;color:var(--text-subtle);font-weight:500">Change from the Fleet roster</span>
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500">Change from the Fleet roster</span>
         </div>
       </div>
     </div>
@@ -31764,15 +31764,15 @@ async function _fdRefreshInspectionsList(vehicleId) {
       ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${photos.slice(0, 6).map((p) => {
           const u = urlMap.get(p);
           return u
-            ? `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="display:block;width:54px;height:54px;border-radius:6px;overflow:hidden;border:1px solid var(--border);background:var(--canvas)" title="Open photo"><img src="${escapeHtml(u)}" alt="" style="width:100%;height:100%;object-fit:cover"></a>`
-            : `<div style="width:54px;height:54px;border-radius:6px;border:1px dashed var(--border);background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:18px" title="${escapeHtml(p)}">📷</div>`;
-        }).join("")}${photos.length > 6 ? `<div style="width:54px;height:54px;border-radius:6px;border:1px solid var(--border);background:var(--canvas);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--text-muted);font-weight:700">+${photos.length - 6}</div>` : ""}</div>`
+            ? `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="display:block;width:54px;height:54px;border-radius:var(--r-md);overflow:hidden;border:1px solid var(--border);background:var(--canvas)" title="Open photo"><img src="${escapeHtml(u)}" alt="" style="width:100%;height:100%;object-fit:cover"></a>`
+            : `<div style="width:54px;height:54px;border-radius:var(--r-md);border:1px dashed var(--border);background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:18px" title="${escapeHtml(p)}">📷</div>`;
+        }).join("")}${photos.length > 6 ? `<div style="width:54px;height:54px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--canvas);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--text-muted);font-weight:700">+${photos.length - 6}</div>` : ""}</div>`
       : "";
     const dvicTag = isDvic
-      ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent-text);margin-left:8px">DVIC FORM</span>`
+      ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);margin-left:8px">DVIC FORM</span>`
       : "";
     const compareBtn = photos.length
-      ? `<button type="button" class="btn btn-ghost btn-sm" data-dvic-open data-dvic-vehicle="${escapeHtml(vehicleId)}" data-dvic-inspection="${escapeHtml(r.id)}" style="margin-left:8px;font-size:11px;padding:3px 8px" title="Compare against the prior inspection">
+      ? `<button type="button" class="btn btn-ghost btn-sm" data-dvic-open data-dvic-vehicle="${escapeHtml(vehicleId)}" data-dvic-inspection="${escapeHtml(r.id)}" style="margin-left:8px;font-size:var(--fs-xs);padding:3px 8px" title="Compare against the prior inspection">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" style="width:11px;height:11px;margin-right:3px;vertical-align:-2px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           Compare
         </button>`
@@ -31852,7 +31852,7 @@ function _dvicAiBlock(cur) {
                  status === "skipped" ? "Review skipped" :
                                         "Review pending";
   const confLine = (status === "flagged" || status === "clean") && conf != null
-    ? `<span style="margin-left:8px;color:var(--text-subtle);font-size:11px">${escapeHtml(String(conf))}% confidence</span>` : "";
+    ? `<span style="margin-left:8px;color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(String(conf))}% confidence</span>` : "";
   const findingsHtml = findings.length
     ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--text);line-height:1.55;display:flex;flex-direction:column;gap:4px">${
         findings.map((f) => `<li><b>${escapeHtml(f.area || "—")}</b>${f.severity ? ` · <span style="text-transform:capitalize;color:var(--text-subtle)">${escapeHtml(f.severity)}</span>` : ""}${f.description ? " — " + escapeHtml(f.description) : ""}${f.confidence != null ? ` <span style="color:var(--text-subtle)">(${escapeHtml(String(f.confidence))}%)</span>` : ""}</li>`).join("")
@@ -31861,7 +31861,7 @@ function _dvicAiBlock(cur) {
     <div class="dvic-ai-h">
       <span class="sev-pill" style="color:${pillFg};background:${pillBg}">${escapeHtml(label)}</span>
       ${confLine}
-      ${cur?.ai_review_at ? `<span style="margin-left:auto;color:var(--text-subtle);font-size:11px">Reviewed ${escapeHtml(_dvicFmtWhen(cur.ai_review_at))}</span>` : ""}
+      ${cur?.ai_review_at ? `<span style="margin-left:auto;color:var(--text-subtle);font-size:var(--fs-xs)">Reviewed ${escapeHtml(_dvicFmtWhen(cur.ai_review_at))}</span>` : ""}
     </div>
     ${summary ? `<p class="dvic-ai-sum">${escapeHtml(summary)}</p>` : status === "pending" ? `<p class="dvic-ai-sum" style="color:var(--text-subtle)">RouteReady will review these photos against the prior inspection. Click "Run AI scan" to start.</p>` : ""}
     ${findingsHtml}
@@ -32209,7 +32209,7 @@ function _stfRenderGrid() {
 
   if (staff.length === 0) {
     grid.innerHTML = `<div class="stf-empty">
-      <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px">No staff members yet</div>
+      <div style="font-size:var(--fs-base);color:var(--text);font-weight:600;margin-bottom:6px">No staff members yet</div>
       <div>Add dispatchers, fleet managers, HR, and other support staff to schedule them.</div>
       <button type="button" class="btn btn-sm btn-primary" data-rr-staff-manage>+ Add staff member</button>
     </div>`;
