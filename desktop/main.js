@@ -24,12 +24,36 @@ const { chromium } = require("playwright");
 const userDataDir = () => app.getPath("userData");
 const sessionFile = () => path.join(userDataDir(), "portal-session.enc");
 const historyFile = () => path.join(userDataDir(), "download-history.json");
+const configFile = () => path.join(userDataDir(), "config.json");
 const defaultDownloadDir = () => app.getPath("downloads");
 const HISTORY_LIMIT = 20;
 
-// Lazy-loaded so we can switch to a different portal URL later
-// without recompiling. Override via the renderer's settings panel.
+// Default Portal URL. Operator can override per-install via the
+// "Portal URL" input in section 1 — useful for testing against any
+// portal (Indeed, Workday, etc.) before pointing at Amazon.
 const DEFAULT_PORTAL_URL = "https://logistics.amazon.com/";
+
+// ─── Config (portal URL + future settings) ──────────────────────────
+// Tiny JSON-on-disk store. electron-store v10 is ESM-only so we
+// hand-roll this — only one or two keys for now.
+
+function readConfig() {
+  try { return JSON.parse(fs.readFileSync(configFile(), "utf8")); } catch { return {}; }
+}
+
+function writeConfig(patch) {
+  const cur = readConfig();
+  const next = { ...cur, ...patch };
+  try { fs.writeFileSync(configFile(), JSON.stringify(next, null, 2)); } catch (e) {
+    console.warn("config write failed:", e);
+  }
+  return next;
+}
+
+function effectivePortalUrl() {
+  const cfg = readConfig();
+  return (cfg.portalUrl && cfg.portalUrl.trim()) || DEFAULT_PORTAL_URL;
+}
 
 let mainWindow = null;
 let portalContext = null; // Playwright BrowserContext, kept alive between actions.
@@ -143,7 +167,7 @@ ipcMain.handle("portal:login", async (_evt, { portalUrl } = {}) => {
     viewport: { width: 1280, height: 800 },
   });
   const page = await portalContext.newPage();
-  const url = portalUrl || DEFAULT_PORTAL_URL;
+  const url = portalUrl || effectivePortalUrl();
   await page.goto(url);
 
   // Wait for the operator to finish logging in. Heuristic:
@@ -179,7 +203,7 @@ ipcMain.handle("portal:probe", async (_evt, { portalUrl } = {}) => {
   const ctx = await ensurePortal({ headed: false });
   const page = await ctx.newPage();
   try {
-    await page.goto(portalUrl || DEFAULT_PORTAL_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.goto(portalUrl || effectivePortalUrl(), { waitUntil: "domcontentloaded", timeout: 30000 });
     const finalUrl = page.url();
     const title = await page.title();
     const isLogin = /signin|ap\/signin|login/i.test(finalUrl);
@@ -189,6 +213,17 @@ ipcMain.handle("portal:probe", async (_evt, { portalUrl } = {}) => {
   } finally {
     await page.close();
   }
+});
+
+ipcMain.handle("config:get", async () => {
+  return { ok: true, portalUrl: effectivePortalUrl(), defaultPortalUrl: DEFAULT_PORTAL_URL };
+});
+
+ipcMain.handle("config:set", async (_evt, { portalUrl } = {}) => {
+  const patch = {};
+  if (typeof portalUrl === "string") patch.portalUrl = portalUrl.trim();
+  writeConfig(patch);
+  return { ok: true, portalUrl: effectivePortalUrl() };
 });
 
 // ─── Report download ────────────────────────────────────────────────

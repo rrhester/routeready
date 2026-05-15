@@ -6,6 +6,7 @@ const $ = (sel) => document.querySelector(sel);
 
 const els = {
   status: $("#session-status"),
+  portalUrl: $("#portal-url"),
   login: $("#btn-login"),
   confirmLogin: $("#btn-confirm-login"),
   logout: $("#btn-logout"),
@@ -29,6 +30,22 @@ function setStatus(text, tone = "neutral") {
   els.status.textContent = text;
   els.status.dataset.tone = tone;
 }
+
+async function loadConfig() {
+  const r = await window.rr.config.get();
+  els.portalUrl.value = r.portalUrl || "";
+  els.portalUrl.placeholder = r.defaultPortalUrl || "https://…";
+}
+
+let portalUrlSaveTimer = null;
+els.portalUrl.addEventListener("input", () => {
+  clearTimeout(portalUrlSaveTimer);
+  portalUrlSaveTimer = setTimeout(async () => {
+    const portalUrl = els.portalUrl.value.trim();
+    await window.rr.config.set({ portalUrl });
+    log(`Portal URL → ${portalUrl || "(default)"}`);
+  }, 600);
+});
 
 async function refreshSessionStatus() {
   const { hasSession } = await window.rr.portal.hasSession();
@@ -173,6 +190,7 @@ els.download.addEventListener("click", async () => {
 });
 
 // Initial state
+loadConfig();
 refreshSessionStatus();
 refreshHistory();
 log("Ready.");

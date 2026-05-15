@@ -6,6 +6,12 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("rr", {
+  config: {
+    /** Read the saved portal URL + defaults. */
+    get: () => ipcRenderer.invoke("config:get"),
+    /** Persist a new portal URL. */
+    set: (opts) => ipcRenderer.invoke("config:set", opts),
+  },
   portal: {
     /** Launch a visible Chromium for the operator to sign in to Amazon. */
     login: (opts) => ipcRenderer.invoke("portal:login", opts),
