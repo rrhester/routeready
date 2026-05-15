@@ -709,6 +709,19 @@ select.field{
   color:var(--accent);
   box-shadow:inset 0 -3px 0 var(--accent);
 }
+/* Tap-to-call link tucked into the right edge of the chat-tabs row.
+   Driver taps it to dial the DSP's office number (dsp_phone, set in
+   session by driver_me). Hidden automatically when the DSP hasn't
+   published a phone number. */
+.chat-call{
+  flex:0 0 auto;
+  display:inline-flex;align-items:center;gap:6px;
+  padding:0 var(--s-3);
+  color:var(--accent);text-decoration:none;font-weight:600;font-size:var(--fs-md);
+  border-left:1px solid var(--border);
+}
+.chat-call:active{ background:var(--canvas) }
+.chat-call svg{ flex:0 0 auto }
 .chat-tabs ~ .chat-msgs,
 .chat-tabs ~ .chat-channel-list{
   top:52px;

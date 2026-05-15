@@ -379,12 +379,14 @@ async function refreshDriverProfile(session, { force } = {}) {
       : null;
     const cur = readSession();
     if (!cur) return;
-    const dspName = data.dsp_name || cur.dsp_name || "";
-    const dspId   = data.dsp_id   || cur.dsp_id   || null;
-    const drvId   = data.id       || cur.driver_id || null;
+    const dspName  = data.dsp_name  || cur.dsp_name  || "";
+    const dspPhone = data.dsp_phone || cur.dsp_phone || "";
+    const dspId    = data.dsp_id    || cur.dsp_id    || null;
+    const drvId    = data.id        || cur.driver_id || null;
     if ((cur.photo_url || null) === (photoUrl || null) &&
         (cur.name || "")        === (data.name || "") &&
         (cur.dsp_name || "")    === dspName &&
+        (cur.dsp_phone || "")   === dspPhone &&
         (cur.dsp_id || null)    === dspId &&
         (cur.driver_id || null) === drvId &&
         (cur.status || null)    === (status || null)) return;
@@ -393,6 +395,7 @@ async function refreshDriverProfile(session, { force } = {}) {
       photo_url:  photoUrl,
       photo_path: data.photo_path,
       dsp_name:   dspName,
+      dsp_phone:  dspPhone,
       dsp_id:     dspId,
       driver_id:  drvId,
       status,
@@ -1299,6 +1302,15 @@ async function renderChat() {
       <div id="chat-tabs" class="chat-tabs">
         <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
         <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
+        ${(() => {
+          const s = readSession();
+          const p = (s?.dsp_phone || "").trim();
+          if (!p) return "";
+          const href = p.replace(/[^0-9+]/g, "");
+          if (!href) return "";
+          const esc = (x) => String(x).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+          return `<a class="chat-call" href="tel:${esc(href)}" aria-label="Call dispatch" title="Call dispatch"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>Call</span></a>`;
+        })()}
       </div>
       <div id="chat-msgs" class="chat-msgs"><div class="loader"></div></div>
       <form class="chat-composer" id="chat-form">
