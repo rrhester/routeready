@@ -31784,7 +31784,7 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
   wrap.innerHTML = `
     <style>
       #rr-dvic-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10050;display:flex;align-items:center;justify-content:center;padding:24px}
-      #rr-dvic-modal .modal{width:920px;max-width:100%;max-height:90vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--shadow-xl);display:flex;flex-direction:column;overflow:hidden}
+      #rr-dvic-modal .modal{width:1200px;max-width:100%;max-height:90vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--shadow-xl);display:flex;flex-direction:column;overflow:hidden}
       #rr-dvic-modal .head{display:flex;align-items:flex-start;gap:14px;padding:18px 22px 16px;border-bottom:1px solid var(--border-subtle)}
       #rr-dvic-modal .head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
       #rr-dvic-modal .head .sub{margin-top:5px;font-size:11.5px;color:var(--text-subtle);font-weight:500}
@@ -31795,11 +31795,11 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
       #rr-dvic-modal .col h4{margin:0 0 4px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
       #rr-dvic-modal .col .when{font-size:12px;color:var(--text);font-weight:600;margin-bottom:2px}
       #rr-dvic-modal .col .who{font-size:11.5px;color:var(--text-subtle);margin-bottom:8px}
-      #rr-dvic-modal .dvic-strip{display:flex;gap:8px;flex-wrap:wrap}
-      #rr-dvic-modal .dvic-thumb{position:relative;display:block;width:110px;height:110px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:var(--canvas)}
+      #rr-dvic-modal .dvic-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+      #rr-dvic-modal .dvic-thumb{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:var(--canvas);cursor:zoom-in}
       #rr-dvic-modal .dvic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-      #rr-dvic-modal .dvic-thumb.missing{display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:20px}
-      #rr-dvic-modal .dvic-thumb .ix{position:absolute;left:4px;bottom:4px;background:rgba(15,23,42,.7);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px}
+      #rr-dvic-modal .dvic-thumb.missing{display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:22px;aspect-ratio:4/3;cursor:default}
+      #rr-dvic-modal .dvic-thumb .ix{position:absolute;left:6px;bottom:6px;background:rgba(15,23,42,.75);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px}
       #rr-dvic-modal .dvic-empty{font-size:12.5px;color:var(--text-subtle);padding:14px 12px;border:1px dashed var(--border);border-radius:8px;background:var(--canvas)}
       #rr-dvic-modal .dvic-ai{border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--canvas)}
       #rr-dvic-modal .dvic-ai-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
