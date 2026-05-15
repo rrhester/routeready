@@ -30128,7 +30128,7 @@ function _rrHdrAskOpenModal(initialState) {
       #rr-hdr-ask-modal .rr-modal-panel{width:900px}
       #rr-hdr-ask-modal .ask-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--s-8) var(--s-4);color:var(--text-subtle);gap:var(--s-3);font-size:var(--fs-md)}
       #rr-hdr-ask-modal .ask-loading .dots{display:inline-flex;gap:5px}
-      #rr-hdr-ask-modal .ask-loading .dots span{width:7px;height:7px;border-radius:50%;background:var(--indigo-bright);opacity:.4;animation:rrHdrDot 1.2s infinite ease-in-out}
+      #rr-hdr-ask-modal .ask-loading .dots span{width:7px;height:7px;border-radius:50%;background:var(--accent);opacity:.4;animation:rrHdrDot 1.2s infinite ease-in-out}
       #rr-hdr-ask-modal .ask-loading .dots span:nth-child(2){animation-delay:.15s}
       #rr-hdr-ask-modal .ask-loading .dots span:nth-child(3){animation-delay:.3s}
       @keyframes rrHdrDot{0%,80%,100%{opacity:.4;transform:scale(1)}40%{opacity:1;transform:scale(1.25)}}
@@ -30137,7 +30137,7 @@ function _rrHdrAskOpenModal(initialState) {
     <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Ask RouteReady">
       <div class="rr-modal-head">
         <div class="rr-modal-head-content">
-          <span class="rr-modal-eyebrow" style="color:var(--indigo-bright)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg> RouteReady AI</span>
+          <span class="rr-modal-eyebrow" style="color:var(--accent-text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg> RouteReady AI</span>
           <p class="rr-modal-title" id="rr-hdr-ask-prompt" style="font-size:15.5px;font-weight:600"></p>
         </div>
         <button class="rr-modal-close" type="button" data-rr-hdr-close aria-label="Close">×</button>
