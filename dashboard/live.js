@@ -32060,56 +32060,178 @@ document.addEventListener("click", async (e) => {
   // shown when the dispatcher clicks the row.  Authoritative source
   // is Amazon's DSP fleet-operations guidance; this dictionary is the
   // operator-facing summary.
+  // ── Date helpers · used by the per-infraction specifics block ─────
+  function _coAddBusinessDays(date, n){
+    const d = new Date(date.getTime());
+    let added = 0;
+    while (added < n) {
+      d.setDate(d.getDate() + 1);
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) added += 1;
+    }
+    return d;
+  }
+  function _coFmtDateTime(d){
+    if (!d) return "—";
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+  function _coFmtDelta(ms){
+    const abs = Math.abs(ms);
+    const days = Math.floor(abs / 86400000);
+    const hours = Math.floor((abs % 86400000) / 3600000);
+    if (days > 0 && hours > 0) return `${days}d ${hours}h`;
+    if (days > 0)              return `${days}d`;
+    if (hours > 0)             return `${hours}h`;
+    const mins = Math.max(1, Math.floor(abs / 60000));
+    return `${mins}m`;
+  }
+
   // ── Rule + cure dictionary ────────────────────────────────────────
-  // Each exception kind carries the standard it violates, the literal
-  // rule quote, RouteReady context, why it matters, and recommended
-  // actions.  Used by the centered modal that opens on row click.
-  // The grounded-vehicle / repair entries use the exact wording from
-  // Amazon Fleet Standards & Requirements — Section J.
-  const _GROUNDED_REPAIR_RULE = {
-    standard: "Amazon Fleet Standards & Requirements — Section J",
-    quote: "Defects or damage scheduled for repairs within 2 business days from the grounding date and repairs completed within 14 business days.",
-    context: "This vehicle has exceeded one or more Amazon operational repair compliance thresholds. RouteReady detected elevated compliance risk due to delayed repair progression, extended grounding duration, missing or inactive Repair Order (RO) visibility, and/or overdue operational readiness restoration.",
-    why: "Amazon may escalate grounded vehicles that do not show active repair progression, proper RO tracking, or timely return-to-service activity. Extended repair delays may contribute to CAPs, operational escalation, grounding risk, or breach actions.",
-    actions: [
-      "Verify active Repair Order (RO) exists",
-      "Confirm vendor repair progression",
-      "Escalate stalled repairs with vendor",
-      "Update repair documentation and operational status",
-      "Return vehicle to operational readiness immediately upon completion"
-    ]
-  };
+  // Each exception kind carries: standard (what policy this aligns
+  // with), rule (paraphrased — we don't quote source documents),
+  // specifics(risk) (per-infraction date/state bullets), why, and
+  // recommended actions tailored to that kind.
   const _CO_RULES = {
-    grounded_no_ro:      _GROUNDED_REPAIR_RULE,
-    repair_14bd_overdue: _GROUNDED_REPAIR_RULE,
-    grounded_vehicle:    _GROUNDED_REPAIR_RULE,
-    cure_deadline: {
-      standard: "Amazon DSP · CAP / Internal corrective-action policy",
-      quote: "Open Corrective Action Plans must be cleared before the cure deadline.  Each cure has a required-evidence checklist tied to the original Amazon citation.",
-      context: "RouteReady detected an open cure approaching its deadline.  The cure's evidence checklist has unsubmitted items.",
-      why: "Cures that lapse past their deadline can convert into formal CAPs, contract breach notices, or station-level escalation.",
+    grounded_no_ro: {
+      standard: "Amazon Fleet Standards & Requirements — Section J",
+      rule: "A grounded vehicle must have an active Repair Order (RO) opened with a vendor within 2 business days of the grounding date. The RO must be documented and tied to the VIN.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const subjects = risk.subjects || [];
+        const unit = (subjects.find(s => (s.lbl||"") === "UNIT") || {}).val || "—";
+        const vin  = (subjects.find(s => (s.lbl||"") === "VIN")  || {}).val || "—";
+        const grounded = m.grounded_at ? new Date(m.grounded_at) : null;
+        const deadline = grounded ? _coAddBusinessDays(grounded, 2) : null;
+        const now = new Date();
+        const overdue = deadline && now > deadline;
+        return [
+          ["Vehicle",            unit],
+          ["VIN",                vin],
+          ["Grounded at",        grounded ? _coFmtDateTime(grounded) : "—"],
+          ["RO must be opened by", deadline ? _coFmtDateTime(deadline) : "—"],
+          ["Status",             overdue
+                                  ? `Overdue by ${_coFmtDelta(now - deadline)} · open RO immediately`
+                                  : (deadline ? `${_coFmtDelta(deadline - now)} remaining` : "—")],
+          ["Active RO",          "None on file"]
+        ];
+      },
+      why: "Vehicles without a documented Repair Order are flagged by Amazon's operational-readiness audits. A missed 2-business-day window can contribute to CAPs, operational escalation, or grounding-rate violations.",
       actions: [
-        "Open Compliance → Cure Actions",
-        "Walk the evidence checklist · upload anything still required",
+        "Open the Fleet workspace → Issues tab",
+        "Find this VIN and click + Open RO",
+        "Pick a vendor (or add a new one inline)",
+        "Save · the RO is tied to the VIN and starts the 14-business-day completion clock"
+      ]
+    },
+
+    repair_14bd_overdue: {
+      standard: "Amazon Fleet Standards & Requirements — Section J",
+      rule: "A grounded vehicle's repair must be completed and the vehicle returned to service within 14 business days of the grounding date.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const subjects = risk.subjects || [];
+        const unit = (subjects.find(s => (s.lbl||"") === "UNIT") || {}).val || "—";
+        const vin  = (subjects.find(s => (s.lbl||"") === "VIN")  || {}).val || "—";
+        const grounded = m.grounded_at ? new Date(m.grounded_at) : null;
+        const deadline = grounded ? _coAddBusinessDays(grounded, 14) : null;
+        const now = new Date();
+        const overdueDelta = deadline ? Math.max(0, now - deadline) : 0;
+        return [
+          ["Vehicle",            unit],
+          ["VIN",                vin],
+          ["Grounded at",        grounded ? _coFmtDateTime(grounded) : "—"],
+          ["Repair due by",      deadline ? _coFmtDateTime(deadline) : "—"],
+          ["Status",             deadline && now > deadline
+                                  ? `Overdue by ${_coFmtDelta(overdueDelta)} · vehicle is not returned to service`
+                                  : (deadline ? `${_coFmtDelta(deadline - now)} remaining` : "—")],
+          ["Active RO",          m.ro_code ? String(m.ro_code) : "None on file"],
+          ["Vendor",             m.vendor || "Unassigned"]
+        ];
+      },
+      why: "Vehicles grounded past 14 business days without return-to-service are flagged by Amazon's operational-readiness audits. Each additional day grounded compounds CAP exposure and may trigger station-level escalation or breach actions.",
+      actions: [
+        "Open Compliance → Vendor Delays · confirm the vendor's accountability score",
+        "If the vendor is stalled, reassign the RO to an alternate vendor",
+        "Update the RO with current status / ETA from Fleet → Issues",
+        "On completion, attach the invoice + photos and mark the RO complete",
+        "Re-inspect the VIN and un-ground it from the Fleet roster pill"
+      ]
+    },
+
+    grounded_vehicle: {
+      // Legacy alias — keep so any pre-0238 cached pages still render.
+      standard: "Amazon Fleet Standards & Requirements — Section J",
+      rule: "A grounded vehicle must have an active RO within 2 business days of grounding and must be returned to service within 14 business days.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const grounded = m.grounded_at ? new Date(m.grounded_at) : null;
+        return [
+          ["Grounded at", grounded ? _coFmtDateTime(grounded) : "—"],
+          ["Days grounded", m.days_grounded != null ? `${m.days_grounded}d (${m.bd_grounded || "—"} BD)` : "—"]
+        ];
+      },
+      why: "Cached row from an older bundle. Refresh the page to see the split exception kinds.",
+      actions: ["Refresh Compliance to re-evaluate."]
+    },
+
+    cure_deadline: {
+      standard: "Amazon DSP · Corrective Action Plan policy",
+      rule: "Open Corrective Action Plans must be cleared before their cure deadline. Each cure has a required-evidence checklist that must be submitted in full.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const dl = m.deadline_at ? new Date(m.deadline_at) : null;
+        const now = new Date();
+        const overdue = dl && now > dl;
+        return [
+          ["Cure code",   ((risk.subjects || [])[0] || {}).val || "—"],
+          ["Deadline",    dl ? _coFmtDateTime(dl) : "—"],
+          ["Status",      overdue ? `Overdue by ${_coFmtDelta(now - dl)}` : (dl ? `${_coFmtDelta(dl - now)} remaining` : "—")],
+          ["Evidence",    `${m.step_done || 0} of ${m.step_total || 0} items submitted`]
+        ];
+      },
+      why: "Cures that lapse past their deadline convert into formal CAPs, contract breach notices, or station-level escalation.",
+      actions: [
+        "Open Compliance → Cure Actions and find this cure",
+        "Upload anything still required on the evidence checklist",
         "Mark the cure submitted once the evidence packet is complete"
       ]
     },
+
     vendor_stall: {
       standard: "Internal vendor-accountability policy",
-      quote: "Vendors below the per-DSP reassignment threshold must be paused from new assignments; vendors below the critical floor (default 60 / 100) should be reassigned to alternates.",
-      context: "RouteReady detected a vendor whose accountability score has fallen below your DSP's reassignment threshold.",
-      why: "Stalled vendors are the leading cause of repair-completion-window misses (Section J), which then cascade into Amazon escalation.",
+      rule: "Vendors below your DSP's reassignment threshold should be paused from new assignments. Vendors below the critical floor (default 60 / 100) should be reassigned to alternates.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        return [
+          ["Vendor",     ((risk.subjects || [])[0] || {}).val || "—"],
+          ["Score",      m.score != null ? `${m.score} / 100` : "—"],
+          ["Threshold",  m.threshold != null ? `${m.threshold} / 100` : "—"],
+          ["Open ROs",   m.open_ros != null ? String(m.open_ros) : "—"]
+        ];
+      },
+      why: "Stalled vendors are the leading driver of 14-business-day completion misses, which cascade into Section J escalation.",
       actions: [
         "Open Compliance → Vendor Delays",
-        "Pause new assignments to the offending vendor",
+        "Pause new assignments to this vendor",
         "Reassign their open ROs to an alternate vendor",
         "Record the reason in the vendor record so accountability is auditable"
       ]
     },
+
     fmcsa_mcs150: {
       standard: "FMCSA · MCS-150 (49 CFR 390.19)",
-      quote: "MCS-150 must be filed biennially and must reflect the carrier's actual CMV operation.  CMV count mismatches and DSP-profile misclassifications must be cured by the deadline Amazon specifies.",
-      context: "RouteReady detected a discrepancy between your MCS-150 declaration and your live fleet roster, or a cure flag from FMCSA / Amazon.",
+      rule: "MCS-150 must be filed biennially and must reflect the carrier's actual CMV operation. CMV-count mismatches and DSP-profile misclassifications must be cured by the deadline.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const dl = m.cure_deadline_at ? new Date(m.cure_deadline_at) : null;
+        const now = new Date();
+        return [
+          ["USDOT",        ((risk.subjects || [])[0] || {}).val || "—"],
+          ["CMV declared", m.mcs150_cmv_declared != null ? String(m.mcs150_cmv_declared) : "—"],
+          ["Cure deadline", dl ? _coFmtDateTime(dl) : "—"],
+          ["Status",        dl && now > dl ? `Overdue by ${_coFmtDelta(now - dl)}` : (dl ? `${_coFmtDelta(dl - now)} remaining` : "—")]
+        ];
+      },
       why: "Inaccurate MCS-150 records expose the DSP to FMCSA enforcement and Amazon contractual penalties tied to operating authority.",
       actions: [
         "Open Compliance → FMCSA / DOT",
@@ -32118,16 +32240,27 @@ document.addEventListener("click", async (e) => {
         "Upload the FMCSA submission receipt as proof"
       ]
     },
+
     driver_no_van: {
       standard: "Internal operational-readiness policy",
-      quote: "Every scheduled driver must have a resolved van before the dispatch cutoff.  Auto-assign fills from the pool when the standing chain does not resolve.",
-      context: "RouteReady detected a scheduled driver with no resolved van and no auto-fillable van in the pool for that day.",
+      rule: "Every scheduled driver must have a resolved van before the dispatch cutoff. Auto-assign fills from the pool when the standing chain does not resolve.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const start = m.starts_at ? new Date(m.starts_at) : null;
+        const now = new Date();
+        return [
+          ["Driver",       ((risk.subjects || []).find(s => (s.lbl||"") === "DRIVER") || {}).val || "—"],
+          ["Date",         ((risk.subjects || []).find(s => (s.lbl||"") === "DATE")   || {}).val || "—"],
+          ["Shift starts", start ? _coFmtDateTime(start) : "—"],
+          ["Time until shift", start ? `${_coFmtDelta(start - now)} ${start > now ? "from now" : "ago"}` : "—"],
+          ["Pool size",    m.pool_size != null ? `${m.pool_size} available` : "—"]
+        ];
+      },
       why: "Drivers without vans cannot run their assigned routes, exposing the DSP to scan-compliance, on-time-departure, and DCR misses.",
       actions: [
-        "Confirm the driver's primary/backup chain on Workspaces → Van assignments",
-        "If the chain is empty and you want the system to auto-fill, keep Fleet settings → Auto-assign on",
+        "Confirm the driver's primary / backup chain on Workspaces → Van assignments",
         "If you want a specific van, open Today's Plan and click the van cell on that driver's row",
-        "Severity is red ≤ 48h before the shift, yellow when there's still time"
+        "Severity flips to red ≤ 48 hours before the shift; act sooner when possible"
       ]
     }
   };
@@ -32289,13 +32422,18 @@ document.addEventListener("click", async (e) => {
     if (existing) existing.remove();
     const rules = _CO_RULES[risk.kind] || {
       standard: "Internal",
-      quote: "No rule text registered for this exception kind.",
-      context: null, why: null, actions: []
+      rule: "No rule registered for this exception kind.",
+      specifics: () => [],
+      why: null, actions: []
     };
     const sevWord = (risk.severity || "low").replace(/^./, c => c.toUpperCase());
-    const sevColor = risk.severity === "critical" ? "#9F1239"
-                   : risk.severity === "high"     ? "var(--amber-dark)"
-                   :                                "var(--accent-text)";
+    const sevPillBg = risk.severity === "critical" ? "rgba(159,18,57,.10)"
+                    : risk.severity === "high"     ? "var(--amber-soft)"
+                    :                                "var(--accent-soft)";
+    const sevPillFg = risk.severity === "critical" ? "#9F1239"
+                    : risk.severity === "high"     ? "var(--amber-dark)"
+                    :                                "var(--accent-text)";
+    const specifics = (typeof rules.specifics === "function" ? rules.specifics(risk) : []) || [];
 
     const wrap = document.createElement("div");
     wrap.id = "rr-co-rule-modal";
@@ -32315,18 +32453,21 @@ document.addEventListener("click", async (e) => {
         #rr-co-rule-modal .head .standard{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text)}
         #rr-co-rule-modal .head h3{margin:4px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
         #rr-co-rule-modal .head .sub{margin-top:5px;font-size:11.5px;color:var(--text-subtle);font-weight:500;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-        #rr-co-rule-modal .head .sev-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(159,18,57,.10)}
+        #rr-co-rule-modal .head .sev-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         #rr-co-rule-modal .head .x{appearance:none;background:transparent;border:0;font-size:24px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto}
         #rr-co-rule-modal .head .x:hover{color:var(--text)}
         #rr-co-rule-modal .body{padding:18px 22px;display:flex;flex-direction:column;gap:18px;overflow-y:auto}
-        #rr-co-rule-modal blockquote{
-          margin:0;padding:14px 16px 14px 18px;
-          background:var(--canvas);border-left:3px solid var(--accent);
-          border-radius:6px;
-          font-size:14px;color:var(--text);line-height:1.55;font-style:italic;
-        }
         #rr-co-rule-modal .sec h4{margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
         #rr-co-rule-modal .sec p{margin:0;font-size:13px;color:var(--text);line-height:1.55}
+        #rr-co-rule-modal .rule-block{font-size:13.5px;color:var(--text);line-height:1.55}
+        #rr-co-rule-modal .specifics{
+          display:grid;grid-template-columns:160px 1fr;gap:8px 16px;
+          background:var(--canvas);border:1px solid var(--border);
+          border-radius:8px;padding:14px 16px;font-size:13px;color:var(--text);
+        }
+        #rr-co-rule-modal .specifics dt{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);align-self:center}
+        #rr-co-rule-modal .specifics dd{margin:0;font-weight:550;font-variant-numeric:tabular-nums}
+        #rr-co-rule-modal .specifics dd.late{color:#9F1239;font-weight:700}
         #rr-co-rule-modal ul.actions{margin:0;padding-left:18px;color:var(--text);font-size:13px;line-height:1.55;display:flex;flex-direction:column;gap:5px}
         #rr-co-rule-modal .foot{padding:12px 22px;border-top:1px solid var(--border-subtle);background:var(--canvas);display:flex;justify-content:flex-end}
         #rr-co-rule-modal .foot .btn-close{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
@@ -32338,21 +32479,25 @@ document.addEventListener("click", async (e) => {
             <div class="standard">${_esc(rules.standard)}</div>
             <h3>${_esc(risk.title || _typeLabel(risk.kind))}</h3>
             <div class="sub">
-              <span class="sev-pill" style="color:${sevColor};background:${risk.severity === 'critical' ? 'rgba(159,18,57,.10)' : risk.severity === 'high' ? 'var(--amber-soft)' : 'var(--accent-soft)'}">${_esc(sevWord)}</span>
+              <span class="sev-pill" style="color:${sevPillFg};background:${sevPillBg}">${_esc(sevWord)}</span>
               <span>${_esc(_typeLabel(risk.kind))}</span>
             </div>
           </div>
           <button class="x" data-co-modal-close type="button" aria-label="Close">×</button>
         </div>
         <div class="body">
-          <div class="sec">
-            <h4>The rule</h4>
-            <blockquote>“${_esc(rules.quote)}”</blockquote>
-          </div>
-          ${rules.context ? `
+          ${rules.rule ? `
             <div class="sec">
-              <h4>RouteReady context</h4>
-              <p>${_esc(rules.context)}</p>
+              <h4>The rule</h4>
+              <p class="rule-block">${_esc(rules.rule)}</p>
+            </div>` : ""}
+          ${specifics.length ? `
+            <div class="sec">
+              <h4>This infraction</h4>
+              <dl class="specifics">${specifics.map(([k,v]) => {
+                const late = typeof v === "string" && /^Overdue\b/i.test(v);
+                return `<dt>${_esc(k)}</dt><dd${late ? ' class="late"' : ''}>${_esc(v)}</dd>`;
+              }).join("")}</dl>
             </div>` : ""}
           ${rules.why ? `
             <div class="sec">
