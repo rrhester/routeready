@@ -32669,10 +32669,10 @@ document.addEventListener("click", async (e) => {
   }
 
   // ── Rules tab · FMCSA setup + monitor table + generic monitor list
-  function _renderRules(host, monitors){
+  function _renderRules(host, bundle){
     if (!host) return;
-    const bundle = window[_coStateKey] || {};
-    const list = Array.isArray(monitors) ? monitors : [];
+    bundle = bundle || {};
+    const list = Array.isArray(bundle.monitors) ? bundle.monitors : [];
     const monitorCards = list.map(m => {
       const stateCls = m.state === "crit" ? "crit" : m.state === "alerting" ? "alerting" : m.state === "paused" ? "paused" : "";
       const capCls = m.automation === "auto" ? "auto" : m.automation === "escalate" ? "escalate" : m.automation === "review" ? "review" : "";
@@ -32924,7 +32924,7 @@ document.addEventListener("click", async (e) => {
       if (error) throw error;
       const bundle = data && !data.error ? data : {};
       _renderExceptions(_coBucket("exceptions-table"), bundle.risks || []);
-      _renderRules(_coBucket("rules-list"), bundle.monitors || []);
+      _renderRules(_coBucket("rules-list"), bundle);
       _setSubnavCounts(bundle);
     } catch (e) {
       console.error("[compliance] failed to load bundle:", e);
