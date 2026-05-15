@@ -1445,13 +1445,22 @@ select.field{
 .team-row-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .team-row-name{font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .team-row-meta{font-size:var(--fs-xs);color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.team-call{
+/* Right-hand action buttons.  Two per row (text + call) when a phone is
+   on file; one disabled slot ("—") otherwise.  Each is its own anchor
+   (sms: / tel:) so the OS can pick the right handler without us trying
+   to disambiguate on tap. */
+.team-action{
   flex:0 0 auto;
   display:inline-flex;align-items:center;justify-content:center;
   width:40px;height:40px;border-radius:50%;
-  background:var(--green-soft);color:var(--green-dark);
+  text-decoration:none;
+  transition:background var(--t-fast),transform var(--t-fast);
 }
-.team-row:active .team-call{background:rgba(16,185,129,.18)}
+.team-action:active{transform:scale(.92)}
+.team-text{ background:var(--accent-soft); color:var(--accent) }
+.team-text:active{ background:rgba(37,99,235,.18) }
+.team-call{ background:var(--green-soft); color:var(--green-dark) }
+.team-call:active{ background:rgba(16,185,129,.18) }
 .team-call-disabled{background:transparent;color:var(--text-subtle);font-weight:600}
 .team-row-noPhone{color:var(--text-muted)}
 .team-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:80px var(--s-4);text-align:center}
