@@ -8806,13 +8806,13 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
     let vanCell;
     if (r.van_name) {
       const plate = r.van_plate ? `<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(r.van_plate)}</span>` : "";
+      // Backup-pick rows still show "Covering for X" because that's
+      // operationally meaningful.  Override + Auto sublabels are gone
+      // per direction; the whole cell is still clickable to open the
+      // van picker for last-minute changes.
       const cover = r.van_via === "backup" && r.covering_for
         ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
-        : (r.van_via === "override"
-            ? (r.van_via_source === "auto"
-                ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Auto · click to change</div>`
-                : `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`)
-            : "");
+        : "";
       vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
       vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:4px 10px;border-radius:999px;background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
@@ -8992,13 +8992,13 @@ function _renderTpVanRoster(data, error) {
     let vanCell;
     if (r.van_name) {
       const plate = r.van_plate ? `<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(r.van_plate)}</span>` : "";
+      // Backup-pick rows still show "Covering for X" because that's
+      // operationally meaningful.  Override + Auto sublabels are gone
+      // per direction; the whole cell is still clickable to open the
+      // van picker for last-minute changes.
       const cover = r.van_via === "backup" && r.covering_for
         ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
-        : (r.van_via === "override"
-            ? (r.van_via_source === "auto"
-                ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Auto · click to change</div>`
-                : `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`)
-            : "");
+        : "";
       vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
       vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:4px 10px;border-radius:999px;background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
