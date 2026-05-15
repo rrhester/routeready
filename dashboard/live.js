@@ -32044,12 +32044,89 @@ document.addEventListener("click", async (e) => {
   }
   function _typeLabel(kind){
     return {
-      grounded_vehicle: "Grounded vehicle",
-      cure_deadline:    "Cure deadline",
-      vendor_stall:     "Vendor delay",
-      fmcsa_mcs150:     "FMCSA / MCS-150"
+      grounded_no_ro:      "No active RO",
+      repair_14bd_overdue: "Repair past 14 BD",
+      grounded_vehicle:    "Grounded vehicle",
+      cure_deadline:       "Cure deadline",
+      vendor_stall:        "Vendor delay",
+      fmcsa_mcs150:        "FMCSA / MCS-150",
+      driver_no_van:       "Driver · no van"
     }[kind] || "Risk";
   }
+
+  // ── Rule + cure dictionary ────────────────────────────────────────
+  // Each exception kind carries the Amazon (or internal) rule it
+  // violates and a short, actionable "how to stay compliant" block
+  // shown when the dispatcher clicks the row.  Authoritative source
+  // is Amazon's DSP fleet-operations guidance; this dictionary is the
+  // operator-facing summary.
+  const _CO_RULES = {
+    grounded_no_ro: {
+      cite: "Amazon DSP · Fleet Operations",
+      rule: "Open a repair order with an approved vendor within 2 business days of any grounding. The RO must be documented and attached to the VIN.",
+      cure: [
+        "Open the Fleet workspace → Issues tab.",
+        "Find the grounded VIN, click + Open RO.",
+        "Pick a vendor (or add a new one inline).",
+        "The system auto-tags source=auto and starts the 14-BD repair clock."
+      ],
+      escalation_note: "Past 2 BD without an RO = red. Open the RO immediately; the audit trail records the late opening."
+    },
+    repair_14bd_overdue: {
+      cite: "Amazon DSP · Fleet Operations",
+      rule: "Complete every repair and return the vehicle to service within 14 business days of grounding. A grounded vehicle past 14 BD is an operational-readiness breach.",
+      cure: [
+        "Open Compliance → Vendor Delays · confirm the vendor accountability score; reassign if stalled.",
+        "From Fleet → Issues, click the RO chip to update status / ETA, or mark complete with invoice + completion evidence.",
+        "Re-inspect the VIN and un-ground it from the Fleet roster pill once work is done.",
+        "If the repair is genuinely going to slip, document the reason in the audit trail and notify Amazon proactively."
+      ],
+      escalation_note: "Always red. Each extra day grounded compounds the operational-readiness exposure."
+    },
+    cure_deadline: {
+      cite: "Amazon DSP · CAP / Internal",
+      rule: "Open Corrective Action Plans (CAPs) must be cleared before the cure deadline. Each cure has a required-evidence checklist.",
+      cure: [
+        "Open Compliance → Cure Actions and find the cure.",
+        "Walk the evidence checklist; upload anything still required.",
+        "Mark the cure submitted once the evidence packet is complete."
+      ],
+      escalation_note: "Inside 3 days = red; 14 days = yellow."
+    },
+    vendor_stall: {
+      cite: "Internal vendor-accountability policy",
+      rule: "Vendors who fall below the per-DSP reassignment threshold should be paused from new assignments; vendors below the critical floor (default 60/100) should be re-assigned to alternates.",
+      cure: [
+        "Open Compliance → Vendor Delays.",
+        "Pause new assignments to the offending vendor.",
+        "Reassign their open ROs to an alternate vendor.",
+        "Record the reason in the vendor record so accountability is auditable."
+      ],
+      escalation_note: "Score < threshold = yellow; score < 60 = red."
+    },
+    fmcsa_mcs150: {
+      cite: "FMCSA · MCS-150 (49 CFR 390.19)",
+      rule: "MCS-150 must be filed biennially and reflect the carrier's actual CMV operation. CMV count mismatches and DSP-profile misclassifications must be cured by the deadline Amazon specifies.",
+      cure: [
+        "Open Compliance → FMCSA / DOT.",
+        "Reconcile CMV count against the fleet roster.",
+        "Re-file MCS-150 with the corrected classifications.",
+        "Upload the FMCSA submission receipt as proof."
+      ],
+      escalation_note: "Past the cure deadline = critical. SAFER re-syncs daily."
+    },
+    driver_no_van: {
+      cite: "Internal operational-readiness policy",
+      rule: "Every scheduled driver must have a resolved van before the dispatch cutoff. Auto-assign fills from the pool when the chain doesn't resolve.",
+      cure: [
+        "Confirm the driver's primary/backup chain on Workspaces → Van assignments.",
+        "If the chain is empty and you want the system to auto-fill, leave Fleet settings → Auto-assign on.",
+        "If you want a specific van, open Today's Plan, click the van cell on that driver's row, and pick.",
+        "Severity is red ≤ 48h before the shift, yellow when there's still time."
+      ],
+      escalation_note: "≤ 48h before shift = red."
+    }
+  };
   function _subjectCell(risk){
     const subjects = Array.isArray(risk.subjects) ? risk.subjects : [];
     const head = _esc(risk.title || "");
@@ -32129,8 +32206,11 @@ document.addEventListener("click", async (e) => {
         </div>`;
       return;
     }
-    const rows = list.map(r => `
-      <tr class="${_sevClass(r.severity || "low")}">
+    // Stash the risks so the row click handler can find the right
+    // object by its array index without round-tripping the bundle.
+    window._coLastRisks = list;
+    const rows = list.map((r, i) => `
+      <tr class="${_sevClass(r.severity || "low")}" data-co-risk-idx="${i}" style="cursor:pointer">
         <td>${_sevPill(r.severity || "low")}</td>
         <td>${_esc(_typeLabel(r.kind))}<span class="dim">${_citeChip(r.cite || "internal")}</span></td>
         <td>${_subjectCell(r)}</td>
@@ -32195,6 +32275,105 @@ document.addEventListener("click", async (e) => {
         </article>`;
     }).join("")}</div>`;
   }
+
+  // ── Row drawer · Amazon rule + cure steps ─────────────────────────
+  // Clicking an exception row opens a side drawer with the rule the
+  // exception is in violation of and a short, ordered list of steps
+  // to clear it.  Backdrop click + Esc close it.
+  function _coOpenRiskDrawer(risk){
+    const existing = document.getElementById("rr-co-risk-drawer");
+    if (existing) existing.remove();
+    const rules = _CO_RULES[risk.kind] || {
+      cite: "Internal",
+      rule: "No rule text registered for this exception kind.",
+      cure: [],
+      escalation_note: null
+    };
+    const subjects = Array.isArray(risk.subjects) ? risk.subjects : [];
+    const meta = risk.meta || {};
+    const sevWord = (risk.severity || "low").replace(/^./, c => c.toUpperCase());
+
+    const wrap = document.createElement("div");
+    wrap.id = "rr-co-risk-drawer";
+    wrap.innerHTML = `
+      <style>
+        #rr-co-risk-drawer{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;justify-content:flex-end}
+        #rr-co-risk-drawer .panel{width:560px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:var(--shadow-xl);display:flex;flex-direction:column}
+        #rr-co-risk-drawer .head{position:sticky;top:0;background:var(--surface);padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:14px;z-index:1}
+        #rr-co-risk-drawer .head .x{appearance:none;background:transparent;border:0;font-size:22px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1}
+        #rr-co-risk-drawer .head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
+        #rr-co-risk-drawer .head .sub{margin-top:4px;font-size:12px;color:var(--text-subtle);font-weight:500}
+        #rr-co-risk-drawer .body{padding:18px 22px;display:flex;flex-direction:column;gap:20px}
+        #rr-co-risk-drawer .sec h4{margin:0 0 7px;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
+        #rr-co-risk-drawer .rule{font-size:13.5px;color:var(--text);line-height:1.55;padding:13px 14px;background:var(--canvas);border:1px solid var(--border);border-radius:8px}
+        #rr-co-risk-drawer .rule .cite{display:block;margin-top:8px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+        #rr-co-risk-drawer ol.cure{margin:0;padding-left:18px;color:var(--text);font-size:13px;line-height:1.55;display:flex;flex-direction:column;gap:6px}
+        #rr-co-risk-drawer .escalation{padding:11px 13px;border-radius:8px;background:rgba(159,18,57,.06);border:1px solid rgba(159,18,57,.18);font-size:12.5px;color:#7F1D3F;line-height:1.5}
+        #rr-co-risk-drawer .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12.5px;color:var(--text)}
+        #rr-co-risk-drawer .meta-grid .lbl{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:1px}
+        #rr-co-risk-drawer .meta-grid .val{font-weight:550}
+      </style>
+      <div class="panel" role="dialog" aria-label="Exception detail">
+        <div class="head">
+          <div style="flex:1;min-width:0">
+            <h3>${_esc(risk.title || _typeLabel(risk.kind))}</h3>
+            <div class="sub">${_esc(_typeLabel(risk.kind))} · ${_esc(sevWord)} · ${_citeChip(risk.cite || "internal").replace(/<[^>]+>/g,"").trim()}</div>
+          </div>
+          <button class="x" data-co-drawer-close type="button" aria-label="Close">×</button>
+        </div>
+        <div class="body">
+          <div class="sec">
+            <h4>Rule</h4>
+            <div class="rule">${_esc(rules.rule)}<span class="cite">Source · ${_esc(rules.cite)}</span></div>
+          </div>
+          ${rules.cure.length ? `
+            <div class="sec">
+              <h4>How to stay compliant</h4>
+              <ol class="cure">${rules.cure.map(s => `<li>${_esc(s)}</li>`).join("")}</ol>
+            </div>` : ""}
+          ${rules.escalation_note ? `
+            <div class="sec">
+              <h4>Escalation</h4>
+              <div class="escalation">${_esc(rules.escalation_note)}</div>
+            </div>` : ""}
+          ${subjects.length ? `
+            <div class="sec">
+              <h4>Subject</h4>
+              <div class="meta-grid">
+                ${subjects.map(s => `<div><div class="lbl">${_esc(s.lbl || "")}</div><div class="val">${_esc(s.val || "")}</div></div>`).join("")}
+              </div>
+            </div>` : ""}
+          ${Object.keys(meta).length ? `
+            <div class="sec">
+              <h4>State</h4>
+              <div class="meta-grid">
+                ${Object.entries(meta).filter(([k,v]) => v != null && v !== "").map(([k,v]) =>
+                  `<div><div class="lbl">${_esc(k.replace(/_/g," "))}</div><div class="val">${_esc(String(v))}</div></div>`
+                ).join("")}
+              </div>
+            </div>` : ""}
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", (e) => {
+      if (e.target === wrap || e.target.closest("[data-co-drawer-close]")) wrap.remove();
+    });
+    const onKey = (e) => { if (e.key === "Escape") { wrap.remove(); document.removeEventListener("keydown", onKey); } };
+    document.addEventListener("keydown", onKey);
+  }
+
+  // Delegate row clicks on the exceptions table to the drawer.
+  document.addEventListener("click", (e) => {
+    const tr = e.target.closest && e.target.closest("[data-co-risk-idx]");
+    if (!tr) return;
+    if (e.target.closest("button, a")) return;  // let row-action buttons do their thing
+    const idx = parseInt(tr.getAttribute("data-co-risk-idx"), 10);
+    if (!Number.isFinite(idx)) return;
+    const list = window._coLastRisks || [];
+    const risk = list[idx];
+    if (!risk) return;
+    _coOpenRiskDrawer(risk);
+  });
 
   function _setSubnavCounts(b){
     const r = _coRoot(); if (!r) return;
