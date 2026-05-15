@@ -6900,6 +6900,81 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-an-range{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer}
 .rr-an-range:hover{color:var(--accent-text)}
 .rr-an-range svg{width:10px;height:10px;stroke-width:2.4}
+
+/* ─── Softphone dock ───────────────────────────────────────────────
+   Bottom-right floating pill.  Idle: a single status pill the
+   operator can ignore.  Loading/ringing/active: expands the
+   controls row so Mute + Hang up are one click away.  Hidden
+   entirely when not-configured (no Twilio env) so it doesn't
+   add visual debt to operators on the free tier. */
+#rr-voice-dock{
+  position:fixed;right:var(--s-5);bottom:var(--s-5);z-index:9000;
+  display:flex;flex-direction:column;align-items:flex-end;gap:var(--s-2);
+  font-family:inherit;
+  pointer-events:none;
+}
+#rr-voice-dock[data-state="idle"],
+#rr-voice-dock[data-state="not-configured"]{display:none}
+#rr-voice-dock .rr-voice-dock-pill{
+  pointer-events:auto;
+  display:inline-flex;align-items:center;gap:var(--s-2);
+  padding:7px 13px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--border);
+  box-shadow:var(--shadow-pop);
+  font-size:var(--fs-sm);color:var(--text);
+}
+#rr-voice-dock .rr-voice-dock-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--text-subtle);
+  flex-shrink:0;
+}
+#rr-voice-dock[data-state="ready"]      .rr-voice-dock-dot{background:var(--green)}
+#rr-voice-dock[data-state="loading"]    .rr-voice-dock-dot,
+#rr-voice-dock[data-state="ringing"]    .rr-voice-dock-dot{background:var(--amber);animation:rr-voice-pulse 1.2s infinite}
+#rr-voice-dock[data-state="active"]     .rr-voice-dock-dot{background:var(--accent);animation:rr-voice-pulse 1.5s infinite}
+#rr-voice-dock[data-state="error"]      .rr-voice-dock-dot{background:var(--red)}
+@keyframes rr-voice-pulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.55;transform:scale(.85)}
+}
+#rr-voice-dock .rr-voice-dock-label{display:inline-flex;flex-direction:column;line-height:1.2}
+#rr-voice-dock #rr-voice-dock-target{font-weight:600;font-size:var(--fs-sm);color:var(--text)}
+#rr-voice-dock #rr-voice-dock-target:empty{display:none}
+#rr-voice-dock #rr-voice-dock-status{font-size:var(--fs-xs);color:var(--text-subtle)}
+#rr-voice-dock .rr-voice-dock-controls{
+  display:none;
+  pointer-events:auto;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-pop);
+  padding:var(--s-2);gap:var(--s-2);align-items:center;
+}
+#rr-voice-dock.open .rr-voice-dock-controls{display:inline-flex}
+#rr-voice-dock .rr-voice-dock-btn{
+  appearance:none;border:1px solid var(--border);background:var(--surface);
+  color:var(--text);font:inherit;font-size:var(--fs-sm);font-weight:600;
+  padding:6px 12px;border-radius:var(--r-md);cursor:pointer;
+  transition:background var(--t-fast),border-color var(--t-fast);
+}
+#rr-voice-dock .rr-voice-dock-btn:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+#rr-voice-dock .rr-voice-dock-btn-danger{
+  background:var(--surface);color:var(--red);border-color:var(--red-border);
+}
+#rr-voice-dock .rr-voice-dock-btn-danger:hover{background:var(--red-soft);border-color:var(--red)}
+
+/* Click-to-call trigger affordance — inherits cursor + color so
+   it doesn't break existing row chrome.  Apply with
+   [data-rr-voice-call] on any element to make it a dial trigger. */
+[data-rr-voice-call],
+[data-rr-voice-phone]{cursor:pointer}
+.rr-call-icon-btn{
+  appearance:none;border:1px solid var(--border);background:var(--surface);
+  color:var(--accent-text);
+  width:26px;height:26px;border-radius:var(--r-md);
+  display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast);
+}
+.rr-call-icon-btn:hover{background:var(--accent-soft);border-color:var(--accent-border)}
+.rr-call-icon-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.rr-call-icon-btn svg{width:13px;height:13px;stroke-width:2.2}
 </style>
 </head>
 <body>
@@ -19953,9 +20028,28 @@ John,Smith,555-0101,john@example.com</code>
   }
 </script>
 
+<!-- ─── Softphone dock ────────────────────────────────────────────────
+     Sits bottom-right, collapses to a status pill when idle and
+     expands to a controls panel when a call is in flight.  Wired
+     by voice.js. ─────────────────────────────────────────────── -->
+<div id="rr-voice-dock" data-state="idle" aria-live="polite">
+  <div class="rr-voice-dock-pill">
+    <span class="rr-voice-dock-dot" aria-hidden="true"></span>
+    <span class="rr-voice-dock-label">
+      <span id="rr-voice-dock-target"></span>
+      <span id="rr-voice-dock-status">Voice</span>
+    </span>
+  </div>
+  <div class="rr-voice-dock-controls">
+    <button type="button" id="rr-voice-dock-mute" class="rr-voice-dock-btn" data-muted="0">Mute</button>
+    <button type="button" id="rr-voice-dock-hangup" class="rr-voice-dock-btn rr-voice-dock-btn-danger">Hang up</button>
+  </div>
+</div>
+
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515bq-ask-modal-azure"></script>
+<script type="module" src="./live.js?v=20260515bt-twilio-call-history"></script>
+<script src="./voice.js?v=20260515bt-twilio-call-history" defer></script>
 
 </body>
 </html>

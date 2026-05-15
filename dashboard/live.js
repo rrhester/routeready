@@ -4626,7 +4626,7 @@ function renderOnboardingRow(d) {
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(display)}</div>
+        <div style="flex:1;min-width:0"><div class="cell-name" style="display:flex;align-items:center;gap:6px">${escapeHtml(display)}${d.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-no-drawer data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(display)}" aria-label="Call ${escapeHtml(display)}" title="Call ${escapeHtml(display)} · ${escapeHtml(d.phone)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${daysCell}</td>
       <td>
@@ -4675,7 +4675,7 @@ function renderDriverRow(d) {
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(display)}</div>
+        <div style="flex:1;min-width:0"><div class="cell-name" style="display:flex;align-items:center;gap:6px">${escapeHtml(display)}${d.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-no-drawer data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(display)}" aria-label="Call ${escapeHtml(display)}" title="Call ${escapeHtml(display)} · ${escapeHtml(d.phone)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
       <td>${_scoreCell(d.score)}</td>
@@ -8819,7 +8819,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
         <div style="display:flex;align-items:center;gap:var(--s-2-5);min-width:0">
           ${av}
           <div style="min-width:0;flex:1">
-            <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}${exTag(r)}</div>
+            <div style="font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}"><span>${escapeHtml(r.driver_name)}</span><button type="button" class="rr-call-icon-btn" data-rr-voice-driver-id="${escapeHtml(r.driver_id)}" data-rr-voice-label="${escapeHtml(r.driver_name)}" aria-label="Call ${escapeHtml(r.driver_name)}" title="Call ${escapeHtml(r.driver_name)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>${tierChip(r.tier)}${exTag(r)}</div>
             ${shiftMeta ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${shiftMeta}</div>` : ""}
           </div>
         </div>
@@ -11073,10 +11073,11 @@ function renderInterviewCard(r) {
       <div class="iv-card-body">
         <div class="iv-card-header">
           <div class="iv-card-avatar tier-b">${initials}</div>
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="iv-card-name">${r.full_name ?? ""}</div>
             <div class="iv-card-meta">${[r.phone, r.email].filter(Boolean).join(" · ")}</div>
           </div>
+          ${r.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(r.phone)}" data-rr-voice-label="${escapeHtml(r.full_name || r.phone)}" aria-label="Call ${escapeHtml(r.full_name || "applicant")}" title="Call ${escapeHtml(r.full_name || r.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}
           ${badge}
         </div>
         ${tags.length ? `<div class="iv-card-tags">${tags.join("")}</div>` : ""}
@@ -12865,7 +12866,9 @@ function renderOverviewTab(body, dd) {
     <div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">At a glance</div></div></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s-4) 14px">
-        ${fact("Phone", d.phone || "—")}
+        ${fact("Phone", d.phone
+          ? `<span>${escapeHtml(d.phone)}</span> <button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(d.name || d.phone)}" aria-label="Call ${escapeHtml(d.name || "driver")}" title="Call ${escapeHtml(d.name || d.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>`
+          : "—")}
         ${fact("Email", d.email || "—")}
         ${fact("Station", stationTxt)}
         ${fact("Hired", d.hire_date ? fmtD(d.hire_date) + (tenureTxt ? " · " + tenureTxt : "") : "—")}
@@ -12879,8 +12882,99 @@ function renderOverviewTab(body, dd) {
     ${recent.length ? `<div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div><button type="button" class="btn btn-sm btn-ghost" data-rr-dd-tab="activity" style="margin-left:auto">View all →</button></div>
       <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:var(--s-3);align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
-    </div>` : ""}`;
+    </div>` : ""}
+
+    <div class="dd-section" data-rr-dd-calls-section data-driver-id="${escapeHtml(d.id)}">
+      <div class="dd-section-head"><div><div class="dd-section-title">Recent calls</div></div></div>
+      <div data-rr-dd-calls-body style="font-size:var(--fs-sm);color:var(--text-subtle)">Loading…</div>
+    </div>`;
 }
+
+// Lazily load the last 10 voice_calls for a driver, render them into
+// the [data-rr-dd-calls-body] container.  Silent no-op if the
+// voice_calls table doesn't exist yet (migration 0249 not applied)
+// so the rest of the drawer keeps working pre-deploy.
+async function _ddLoadDriverCalls(driverId, container) {
+  if (!driverId || !container) return;
+  try {
+    const { data, error } = await window.RR.sb
+      .from("voice_calls")
+      .select("id, direction, status, started_at, ended_at, duration_seconds, to_number, from_number")
+      .eq("driver_id", driverId)
+      .order("started_at", { ascending: false })
+      .limit(10);
+    if (error) {
+      // 42P01 = relation not found.  Pre-migration state.
+      if (String(error.code) === "42P01" || /voice_calls/.test(error.message || "")) {
+        container.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">Voice calling isn't set up for this DSP yet.</div>`;
+        return;
+      }
+      throw error;
+    }
+    if (!data || data.length === 0) {
+      container.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No calls yet.</div>`;
+      return;
+    }
+    const fmtDur = (s) => {
+      if (!s || s < 0) return "—";
+      if (s < 60) return `${s}s`;
+      const m = Math.floor(s / 60), r = s % 60;
+      return r ? `${m}m ${r}s` : `${m}m`;
+    };
+    const labelFor = (c) => ({
+      "completed": { tone: "green", txt: "Completed" },
+      "in-progress": { tone: "accent", txt: "Connected" },
+      "no-answer": { tone: "amber", txt: "No answer" },
+      "busy": { tone: "amber", txt: "Busy" },
+      "failed": { tone: "red", txt: "Failed" },
+      "canceled": { tone: "text-subtle", txt: "Canceled" },
+      "ringing": { tone: "accent", txt: "Ringing" },
+      "initiated": { tone: "text-subtle", txt: "Dialed" },
+    })[c.status] || { tone: "text-subtle", txt: c.status };
+    container.innerHTML = data.map((c, i) => {
+      const lbl = labelFor(c);
+      const dir = c.direction === "outbound" ? "→ Out" : "← In";
+      const toneVar = ({
+        green: "var(--green)", amber: "var(--amber)",
+        red: "var(--red)", accent: "var(--accent-text)",
+        "text-subtle": "var(--text-subtle)",
+      })[lbl.tone] || "var(--text-subtle)";
+      return `<div style="display:grid;grid-template-columns:100px 1fr auto;gap:var(--s-3);align-items:center;padding:8px 0;${i ? "border-top:1px solid var(--border)" : ""};font-size:var(--fs-sm)">
+        <span style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(fmtTs(c.started_at))}</span>
+        <span style="color:var(--text)"><span style="font-weight:600;color:${toneVar}">${lbl.txt}</span> · ${dir} · ${escapeHtml(fmtDur(c.duration_seconds))}</span>
+        <span style="color:var(--text-subtle);font-size:var(--fs-xs);font-variant-numeric:tabular-nums">${escapeHtml(c.direction === "outbound" ? (c.to_number || "") : (c.from_number || ""))}</span>
+      </div>`;
+    }).join("");
+  } catch (_e) {
+    container.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">Couldn't load call history.</div>`;
+  }
+}
+
+// Wire the lazy loader: when a drawer renders a [data-rr-dd-calls-section]
+// element, fetch its calls.  Uses a MutationObserver so we don't
+// have to touch every renderer.
+(() => {
+  if (window.__rrDdCallsObserverInstalled) return;
+  window.__rrDdCallsObserverInstalled = true;
+  const tryLoad = (root) => {
+    const section = root.querySelector?.("[data-rr-dd-calls-section]");
+    if (!section || section.__rrLoaded) return;
+    section.__rrLoaded = true;
+    const id = section.getAttribute("data-driver-id");
+    const body = section.querySelector("[data-rr-dd-calls-body]");
+    _ddLoadDriverCalls(id, body);
+  };
+  const obs = new MutationObserver((muts) => {
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (n.nodeType === 1) tryLoad(n);
+      }
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+  // Catch any already in the DOM at install time.
+  tryLoad(document.body);
+})();
 
 function renderProfileTab(body, d) {
   const showPronouns = window.RR.dsp?.metadata?.drivers?.show_pronouns !== false;
@@ -15591,10 +15685,11 @@ async function refreshDriverChatThread(scrollToBottom) {
             ${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}
             <span class="rr-mc-head-presence"></span>
           </div>
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="rr-mc-name">${escapeHtml(drv.name || "")}</div>
             <div class="rr-mc-sub">Driver chat</div>
           </div>
+          ${drv.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(drv.phone)}" data-rr-voice-label="${escapeHtml(drv.name || drv.phone)}" aria-label="Call ${escapeHtml(drv.name || "driver")}" title="Call ${escapeHtml(drv.name || drv.phone)}" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}
         </div>
         <div class="rr-mc-thread" id="rr-mc-thread" data-rr-anchor="1">
           <div class="rr-msg-skeleton">
@@ -31462,7 +31557,7 @@ function _fdDriversHtml(drivers) {
           ? `<div class="fd-empty">No drivers assigned.  Open Workspaces → Van assignments to build the chain.</div>`
           : list.map((d, i) => `<div class="fd-driver-row">
               <div class="av">${escapeHtml((d.name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
-              <div class="nm">${escapeHtml(d.name)}${d.phone ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(d.phone)}</div>` : ""}</div>
+              <div class="nm" style="flex:1;min-width:0">${escapeHtml(d.name)}${d.phone ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;display:flex;align-items:center;gap:6px"><span>${escapeHtml(d.phone)}</span><button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(d.name || d.phone)}" aria-label="Call ${escapeHtml(d.name || "driver")}" title="Call ${escapeHtml(d.name || d.phone)}" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;stroke-width:2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button></div>` : ""}</div>
               <div class="rk">${i === 0 ? "Primary" : `Backup ${i}`}</div>
             </div>`).join("")
         }
@@ -32367,12 +32462,18 @@ async function _stfRenderManageList() {
   }
   list.innerHTML = members.map(m => {
     const nm = m.preferred_name && m.preferred_name !== m.full_name ? `${escapeHtml(m.preferred_name)} (${escapeHtml(m.full_name)})` : escapeHtml(m.full_name);
-    const meta = [_STF_ROLE_LABEL[m.role] || m.role, m.email, m.phone].filter(Boolean).map(escapeHtml).join(" · ");
+    const metaParts = [_STF_ROLE_LABEL[m.role] || m.role, m.email].filter(Boolean).map(escapeHtml);
+    if (m.phone) metaParts.push(escapeHtml(m.phone));
+    const meta = metaParts.join(" · ");
+    const callBtn = m.phone
+      ? `<button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(m.phone)}" data-rr-voice-label="${escapeHtml(m.full_name || m.phone)}" aria-label="Call ${escapeHtml(m.full_name || "staff member")}" title="Call ${escapeHtml(m.full_name || m.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>`
+      : "";
     return `<div class="stf-row" data-rr-staff-member="${escapeHtml(m.id)}">
       <div>
         <div class="nm">${nm}</div>
         ${meta ? `<div class="sub">${meta}</div>` : ""}
       </div>
+      ${callBtn}
       <button type="button" class="btn btn-sm" data-rr-staff-edit="${escapeHtml(m.id)}">Edit</button>
       <button type="button" class="btn btn-sm" data-rr-staff-archive="${escapeHtml(m.id)}" style="color:var(--red)">Archive</button>
     </div>`;
