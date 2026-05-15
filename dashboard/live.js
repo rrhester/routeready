@@ -22060,7 +22060,7 @@ function _schedShiftChip(sh) {
   const stBadge = (stCode && stCode !== "SP")
     ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
-  const baseStyle = sh.is_cushion ? 'border-color:#FCD34D;' : '';
+  const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   return `<div class="shift-chip" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
@@ -22603,7 +22603,7 @@ async function renderScheduleWeek() {
         const ex = slot.is_cushion
           ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
           : "";
-        const style = slot.is_cushion ? ' style="border-color:#FCD34D"' : "";
+        const style = slot.is_cushion ? ' style="border-color:rgba(245,158,11,.22)"' : "";
         return `<div class="${cls}" ${data}><div class="shift-chip open" draggable="true" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
       }
       const eff = window._rrEffectiveSettings || {};

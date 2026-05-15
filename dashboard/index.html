@@ -5088,9 +5088,9 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--canvas);color:var(--text-muted);cursor:pointer;border:1px solid var(--border);
 }
 .strategy-pill.active.hire{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
-.strategy-pill.active.adw{background:var(--amber-soft);color:var(--amber-dark);border-color:#FCD34D}
-.strategy-pill.active.ot{background:#EDE9FE;color:#6D28D9;border-color:#DDD6FE}
-.strategy-pill.active.seasonal{background:var(--green-soft);color:var(--green);border-color:#86EFAC}
+.strategy-pill.active.adw{background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(245,158,11,.22)}
+.strategy-pill.active.ot{background:#EDE9FE;color:#6D28D9;border-color:rgba(99,102,241,.22)}
+.strategy-pill.active.seasonal{background:var(--green-soft);color:var(--green);border-color:rgba(16,185,129,.22)}
 
 /* Summary cards */
 .okami-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-top:var(--s-4)}
@@ -5100,8 +5100,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .okami-sum-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .okami-sum-value{font-size:var(--fs-xl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.1}
 .okami-sum-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.4}
-.okami-sum.warn{border-color:#FCD34D;background:var(--amber-soft)}
-.okami-sum.bad{border-color:#FCA5A5;background:var(--red-soft)}
+.okami-sum.warn{border-color:rgba(245,158,11,.22);background:var(--amber-soft)}
+.okami-sum.bad{border-color:rgba(225,29,72,.22);background:var(--red-soft)}
 
 /* ─────────────────────────────────────────────────────────────
    SCHEDULE BUILDER — click-to-assign, driver pool, auto-fill
@@ -5865,8 +5865,8 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:var(--s-2-5) var(--s-3-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
   margin-bottom:6px;font-size:var(--fs-sm);
 }
-.recon-line.flagged{background:var(--red-soft);border-color:#FCA5A5}
-.recon-line.flagged-amber{background:var(--amber-soft);border-color:#FCD34D}
+.recon-line.flagged{background:var(--red-soft);border-color:rgba(225,29,72,.22)}
+.recon-line.flagged-amber{background:var(--amber-soft);border-color:rgba(245,158,11,.22)}
 .recon-line-name{font-weight:600;color:var(--text)}
 .recon-line-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
 .recon-line-amazon{font-weight:600;color:var(--text);text-align:right;font-family:'SF Mono',Menlo,monospace}
@@ -11684,7 +11684,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font-variant-numeric:tabular-nums;
           }
           #view-workspaces .ws-veh-down.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(245,158,11,.22)}
-          #view-workspaces .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
+          #view-workspaces .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:var(--red-dark)}
           #view-workspaces .ws-veh-row.is-grounded{background:rgba(225,29,72,.025)}
           #view-workspaces .ws-veh-row.is-grounded:hover td{background:rgba(225,29,72,.05)}
 
@@ -15748,7 +15748,7 @@ John,Smith,555-0101,john@example.com</code>
       </div>
 
       <!-- HR event explainer (rewritten for clarity) -->
-      <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:#FECACA;color:var(--red-dark);margin-top:var(--s-3)">
+      <div class="cd-context" style="display:flex;background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark);margin-top:var(--s-3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
           <strong>Suspending creates a permanent HR record.</strong> The driver is removed from upcoming shifts (which become open and need backfill), hidden from morning check-in, and their app access is revoked. A timestamped, immutable entry is added to their personnel file with reason and supporting evidence — required documentation if you later terminate or fight an unemployment claim.
@@ -19120,7 +19120,7 @@ John,Smith,555-0101,john@example.com</code>
     existing.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'
       + '<div style="flex:1"><strong>' + active.length + ' suspended:</strong> ' + names + ' · <strong>' + releasedShifts + ' shifts</strong> released to Open Shifts pool, need backfill</div>'
-      + '<button class="btn btn-sm" onclick="openSuspendedListModal()" style="background:#fff;color:var(--red-dark);border-color:#FECACA">View</button>';
+      + '<button class="btn btn-sm" onclick="openSuspendedListModal()" style="background:#fff;color:var(--red-dark);border-color:rgba(225,29,72,.22)">View</button>';
     var openBadge = document.querySelector('#view-schedule .subnav-item[data-sub="open"] span');
     if (openBadge) {
       if (openBadge.dataset.origCount === undefined) openBadge.dataset.origCount = parseInt(openBadge.textContent, 10) || 0;
@@ -19775,7 +19775,7 @@ John,Smith,555-0101,john@example.com</code>
     existingBanner.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>'
       + '<div style="flex:1"><strong>' + inWeek.length + ' license(s) expire this week:</strong> ' + names + (RR_LICENSE_POLICY.blockScheduling ? ' · scheduling will be blocked past expiry date' : '') + '</div>'
-      + '<button class="btn btn-sm" onclick="goto(\'drivers\');setTimeout(function(){drSub(\'insights\');document.getElementById(\'lic-renewals-panel\').scrollIntoView({behavior:\'smooth\'});},80)" style="background:#fff;color:var(--amber-dark);border-color:#FCD34D">View renewals</button>';
+      + '<button class="btn btn-sm" onclick="goto(\'drivers\');setTimeout(function(){drSub(\'insights\');document.getElementById(\'lic-renewals-panel\').scrollIntoView({behavior:\'smooth\'});},80)" style="background:#fff;color:var(--amber-dark);border-color:rgba(245,158,11,.22)">View renewals</button>';
   }
 
   // ─── ROSTER INDICATOR (small license pill on rows expiring ≤30d) ──
@@ -20425,7 +20425,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515as-loud-bg-sweep"></script>
+<script type="module" src="./live.js?v=20260515at-border-color-sweep"></script>
 
 </body>
 </html>
