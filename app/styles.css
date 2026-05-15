@@ -1444,7 +1444,11 @@ select.field{
   padding:2px 0;
 }
 .team-search-input::placeholder{ color:var(--text-subtle) }
-.team-empty-nomatch{padding:40px var(--s-4)}
+.team-row-nomatch{
+  padding:var(--s-4);
+  font-size:var(--fs-sm);color:var(--text-subtle);
+  text-align:center;
+}
 .team-list{display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-xl);overflow:hidden;border:1px solid var(--border);margin-top:var(--s-2)}
 .team-row{
   display:flex;align-items:center;gap:var(--s-3);
