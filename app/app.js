@@ -716,7 +716,7 @@ function _coverOfferPaint(slot, offer, token) {
   const timer = `${m}:${String(s).padStart(2, "0")}`;
 
   slot.innerHTML = `
-    <div class="rr-cover-card" style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 4px 18px -8px rgba(15,108,189,.25)">
+    <div class="rr-cover-card" style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 4px 18px -8px rgba(37,99,235,.25)">
       <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)">Dispatch offer</div>
       <div style="margin-top:4px;font-size:18px;font-weight:700;color:var(--text)">Cover ${escapeHtml(offer.route_code || "a route")}</div>
       <div style="margin-top:2px;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(dateLbl)}${time ? " · " + escapeHtml(time) : ""}${offer.station_code ? " · " + escapeHtml(offer.station_code) : ""}</div>
@@ -857,7 +857,7 @@ function _swapInboxPaint(slot, reqs, token) {
     return `${escapeHtml(sh.route_code || "Route")} · ${escapeHtml(dateLbl)}${time ? " · " + escapeHtml(time) : ""}`;
   };
   slot.innerHTML = reqs.map((r) => `
-    <div class="rr-swap-card" data-rr-swap-id="${escapeHtml(r.id)}" style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 4px 18px -8px rgba(15,108,189,.18)">
+    <div class="rr-swap-card" data-rr-swap-id="${escapeHtml(r.id)}" style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 4px 18px -8px rgba(37,99,235,.18)">
       <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)">Swap request</div>
       <div style="margin-top:4px;font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(r.requester_name || "A driver")} wants to swap</div>
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr;gap:8px;font-size:var(--fs-sm);color:var(--text-muted)">
@@ -1011,7 +1011,7 @@ function shiftCardHtml(s, isToday, vanName, opts) {
   const tags = [];
   if (s.status === "completed") tags.push(`<span class="tag" style="background:var(--canvas)">Completed</span>`);
   if (s.type && s.type !== "SP") tags.push(`<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`);
-  if (s.isCushion) tags.push(`<span class="tag" style="background:rgba(217,119,6,.12);color:var(--amber)">EX</span>`);
+  if (s.isCushion) tags.push(`<span class="tag" style="background:rgba(245,158,11,.12);color:var(--amber)">EX</span>`);
   return `
     <div class="shift-card ${isToday ? "is-today" : ""}">
       <div class="date-block">
