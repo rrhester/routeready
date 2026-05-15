@@ -266,6 +266,7 @@ const routes = {
   "/settings/availability": { render: renderAvailability,    tab: "/profile", back: "/settings", title: "Availability" },
   "/settings/attendance":   { render: renderAttendance,      tab: "/profile", back: "/settings", title: "Attendance" },
   "/chat":              { render: renderChat,            tab: "/chat" },
+  "/team":              { render: renderTeam,            tab: "/team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
 };
@@ -543,6 +544,10 @@ function renderShell(session) {
       <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         Chat
+      </button>
+      <button class="tab" data-route="/team" data-c="team" role="tab" aria-label="Team">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        Team
       </button>
     </nav>`;
   document.getElementById("app").innerHTML = `
@@ -2414,6 +2419,82 @@ function channelBubbleHtml(m, pos) {
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
       <div class="chat-time">${escapeHtml(time)}</div>
+    </div>`;
+}
+
+// ── Team · WhatsApp-style directory of everyone at the DSP ──────────
+// Each row is one driver: photo or initial avatar, display name, a
+// small meta line (station / status), and a phone button on the right.
+// Tapping anywhere on the row hands off to the OS dialer via tel:; the
+// button is just the visual affordance. Drivers without a phone on file
+// still appear in the list (so the team is complete) but the dial
+// affordance is replaced with a "—" so the row reads as informational.
+async function renderTeam() {
+  setHeader("Team", "");
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:80px auto"></div>`;
+
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data, error } = await sb.rpc("driver_team_roster", { p_token: session.token });
+  if (currentRoute() !== "/team") return;
+
+  if (error) {
+    main.innerHTML = `<div class="team-empty"><div class="team-empty-title">Couldn't load the team</div><div class="team-empty-sub">${escapeHtml(error.message || "Try again in a moment.")}</div></div>`;
+    return;
+  }
+
+  const list = Array.isArray(data) ? data : [];
+  if (list.length === 0) {
+    main.innerHTML = `
+      <div class="team-empty">
+        <div class="team-empty-title">No teammates yet</div>
+        <div class="team-empty-sub">When dispatch adds other drivers to your DSP, they'll show up here so you can reach them.</div>
+      </div>`;
+    return;
+  }
+
+  const callIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+
+  main.innerHTML = `
+    <div class="team-list" role="list">
+      ${list.map((d) => _teamRowHtml(d, callIcon)).join("")}
+    </div>`;
+}
+
+function _teamRowHtml(d, callIcon) {
+  const name    = d.name || d.full_name || "—";
+  const initials = initialsOf(name);
+  const photo   = d.photo_path ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${d.photo_path}` : null;
+  const avatar  = photo
+    ? `<img class="team-avatar" src="${escapeHtml(photo)}" alt=""/>`
+    : `<span class="team-avatar team-avatar-initials">${escapeHtml(initials)}</span>`;
+  const metaBits = [];
+  if (d.station_code) metaBits.push(escapeHtml(d.station_code));
+  if (d.status === "onboarding") metaBits.push("Onboarding");
+  const meta = metaBits.join(" · ");
+  const phone = (d.phone || "").trim();
+  if (phone) {
+    const href = phone.replace(/[^0-9+]/g, "");
+    return `
+      <a class="team-row" href="tel:${escapeHtml(href)}" role="listitem" aria-label="Call ${escapeHtml(name)}">
+        ${avatar}
+        <div class="team-row-body">
+          <div class="team-row-name">${escapeHtml(name)}</div>
+          <div class="team-row-meta">${meta || escapeHtml(phone)}</div>
+        </div>
+        <span class="team-call" aria-hidden="true">${callIcon}</span>
+      </a>`;
+  }
+  return `
+    <div class="team-row team-row-noPhone" role="listitem">
+      ${avatar}
+      <div class="team-row-body">
+        <div class="team-row-name">${escapeHtml(name)}</div>
+        <div class="team-row-meta">${meta || "No phone on file"}</div>
+      </div>
+      <span class="team-call team-call-disabled" aria-hidden="true">—</span>
     </div>`;
 }
 
