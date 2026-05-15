@@ -265,6 +265,7 @@ const routes = {
   "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
   "/settings/availability": { render: renderAvailability,    tab: "/profile", back: "/settings", title: "Availability" },
   "/settings/attendance":   { render: renderAttendance,      tab: "/profile", back: "/settings", title: "Attendance" },
+  "/settings/time-off":     { render: renderTimeOff,         tab: "/profile", back: "/settings", title: "Time off" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/team":              { render: renderTeam,            tab: "/team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
@@ -2621,6 +2622,7 @@ function renderSettings() {
         ${row("profile",      "/settings/profile",      "Profile",      "Name, pronouns, contact, emergency contact")}
         ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
         ${row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start")}
+        ${row("time-off",     "/settings/time-off",     "Time off",     "Request a day off and see past decisions")}
         ${row("attendance",   "/settings/attendance",   "Attendance",   "Today's status and your DSP's points policy")}
       </section>
 
@@ -4146,6 +4148,150 @@ function _fmtAvailDate(iso) {
     const d = new Date(iso + "T12:00:00");
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   } catch { return iso; }
+}
+
+// ── Settings → Time off: request a day off, see past decisions ─────
+// Driver-side companion to the dashboard's Time off page. The driver
+// picks a start date (and optionally an end date for a multi-day
+// request), drops in an optional reason, and submits. Below the form
+// the existing requests are listed newest-first with a colored status
+// pill and any dispatcher decision note. Pending requests can be
+// cancelled with one tap. Approval / denial pushes a chat message
+// from dispatch so the existing notification pipeline surfaces the
+// outcome — see migration 0252.
+async function renderTimeOff() {
+  setHeader("Time off", "");
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:60px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data, error } = await sb.rpc("driver_time_off_list", { p_token: session.token });
+  if (currentRoute() !== "/settings/time-off") return;
+  if (error) {
+    main.innerHTML = `<div class="settings-section"><div class="settings-section-title">Couldn't load</div><div class="settings-section-sub">${escapeHtml(error.message || "Try again in a moment.")}</div></div>`;
+    return;
+  }
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const minIso = today.toISOString().slice(0, 10);
+
+  main.innerHTML = `
+    <div class="to-form" id="to-form">
+      <div class="to-form-h">Request a day off</div>
+      <div class="to-form-row">
+        <label class="field-label" for="to-start">Start</label>
+        <input class="field" id="to-start" type="date" min="${minIso}"/>
+      </div>
+      <div class="to-form-row">
+        <label class="field-label" for="to-end">End <span style="color:var(--text-subtle);font-weight:400">(leave blank for one day)</span></label>
+        <input class="field" id="to-end" type="date" min="${minIso}"/>
+      </div>
+      <div class="to-form-row">
+        <label class="field-label" for="to-reason">Reason <span style="color:var(--text-subtle);font-weight:400">(optional)</span></label>
+        <textarea class="field" id="to-reason" rows="3" maxlength="500" placeholder="Vacation, doctor's appointment, family event…"></textarea>
+      </div>
+      <div class="to-form-err" id="to-err" hidden></div>
+      <button class="btn btn-block btn-primary" id="to-submit" type="button">Submit request</button>
+    </div>
+    <div class="to-list" id="to-list">${_toListHtml(data || [])}</div>`;
+
+  document.getElementById("to-submit").addEventListener("click", _toSubmit);
+  document.getElementById("to-list").addEventListener("click", _toListClick);
+}
+
+function _toListHtml(rows) {
+  if (!rows.length) {
+    return `<div class="to-empty">No previous requests. Future requests will appear here.</div>`;
+  }
+  return `
+    <div class="to-list-h">Your requests</div>
+    ${rows.map(_toRowHtml).join("")}`;
+}
+
+function _toRowHtml(r) {
+  const lbl = (iso) => {
+    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+    catch { return iso; }
+  };
+  const range = r.start_date === r.end_date
+    ? lbl(r.start_date)
+    : `${lbl(r.start_date)} – ${lbl(r.end_date)}`;
+  const pill = `<span class="to-pill to-pill-${r.status}">${escapeHtml(r.status[0].toUpperCase() + r.status.slice(1))}</span>`;
+  const note = r.decision_notes
+    ? `<div class="to-row-note"><strong>Dispatch:</strong> ${escapeHtml(r.decision_notes)}</div>`
+    : "";
+  const reason = r.reason
+    ? `<div class="to-row-reason">${escapeHtml(r.reason)}</div>`
+    : "";
+  const cancel = r.status === "pending"
+    ? `<button class="to-cancel" type="button" data-rr-to-cancel="${escapeHtml(r.id)}">Cancel request</button>`
+    : "";
+  return `
+    <div class="to-row" data-rr-to-row="${escapeHtml(r.id)}">
+      <div class="to-row-top">
+        <div class="to-row-range">${escapeHtml(range)}</div>
+        ${pill}
+      </div>
+      ${reason}
+      ${note}
+      ${cancel}
+    </div>`;
+}
+
+async function _toSubmit() {
+  const start = document.getElementById("to-start").value;
+  const endRaw = document.getElementById("to-end").value;
+  const reason = document.getElementById("to-reason").value.trim();
+  const err = document.getElementById("to-err");
+  const submit = document.getElementById("to-submit");
+  err.hidden = true; err.textContent = "";
+  if (!start) {
+    err.textContent = "Pick a start date.";
+    err.hidden = false;
+    return;
+  }
+  const end = endRaw || start;
+  if (end < start) {
+    err.textContent = "End date can't be before start date.";
+    err.hidden = false;
+    return;
+  }
+  submit.disabled = true; submit.textContent = "Submitting…";
+  const session = readSession();
+  const { error } = await sb.rpc("driver_time_off_request", {
+    p_token: session.token,
+    p_start_date: start,
+    p_end_date: end,
+    p_reason: reason || null,
+  });
+  submit.disabled = false; submit.textContent = "Submit request";
+  if (error) {
+    const msg = (error.message || "").includes("time_off_overlaps_existing")
+      ? "You already have a request that overlaps these dates."
+      : (error.message || "Something went wrong. Try again.");
+    err.textContent = msg; err.hidden = false;
+    return;
+  }
+  toast("Request submitted", "success");
+  renderTimeOff();
+}
+
+async function _toListClick(e) {
+  const btn = e.target.closest("[data-rr-to-cancel]");
+  if (!btn) return;
+  const id = btn.getAttribute("data-rr-to-cancel");
+  if (!confirm("Cancel this time-off request?")) return;
+  btn.disabled = true; btn.textContent = "Cancelling…";
+  const session = readSession();
+  const { error } = await sb.rpc("driver_time_off_cancel", { p_token: session.token, p_id: id });
+  if (error) {
+    toast(error.message || "Couldn't cancel — try again.", "warn");
+    btn.disabled = false; btn.textContent = "Cancel request";
+    return;
+  }
+  toast("Request cancelled", "success");
+  renderTimeOff();
 }
 
 // ── Documents ───────────────────────────────────────────────────────

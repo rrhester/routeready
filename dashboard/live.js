@@ -965,12 +965,13 @@ window.goto = function (view) {
   }
   if (view === "onboarding-ops") loadOnboardingOps();
   if (view === "checkin")   loadCheckinView();
-  if (view === "dashboard") { loadTodayPlan(); }
+  if (view === "dashboard") { loadTodayPlan(); _toFetchPendingCount(); }
   if (view === "messages")  loadDriverChatInbox();
   if (view === "workspaces") loadWorkspacesView();
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
+  if (view === "time-off")  loadTimeOffView();
   if (view === "fleet" && typeof loadFleetView === "function") loadFleetView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
 };
@@ -33372,3 +33373,153 @@ document.addEventListener("click", async (e) => {
     if (t) { e.preventDefault(); loadComplianceWorkspace(); }
   });
 })();
+
+
+// ── Time off · dispatcher view ─────────────────────────────────────
+// Backed by dispatch_time_off_list / dispatch_time_off_decide (0252).
+// Two sections: pending requests at the top (FIFO so the longest-
+// waiting driver is on top) and an everything-else section below
+// with decided rows so dispatch can audit / re-message.  Each
+// pending row exposes an inline decision-note field plus Approve /
+// Deny buttons.  On decide, the server-side RPC posts a
+// dispatch→driver chat message via the existing driver_messages /
+// trg_driver_messages_fire_push pipeline, so the driver gets a push
+// notification and the outcome shows up in their thread.
+
+let _toRows = [];
+
+async function loadTimeOffView() {
+  const body = document.getElementById("rr-time-off-body");
+  if (!body) return;
+  body.innerHTML = `<div class="loader" style="margin:80px auto"></div>`;
+  const { data, error } = await sb.rpc("dispatch_time_off_list");
+  if (error) {
+    body.innerHTML = `<div style="color:var(--red);font-size:var(--fs-md);padding:24px">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  _toRows = Array.isArray(data) ? data : [];
+  _toRenderView(body);
+  _toRefreshNavBadge();
+}
+
+function _toRefreshNavBadge() {
+  const badge = document.getElementById("rr-nav-time-off-badge");
+  if (!badge) return;
+  const n = _toRows.filter((r) => r.status === "pending").length;
+  if (n > 0) { badge.textContent = String(n); badge.style.display = ""; }
+  else       { badge.style.display = "none"; badge.textContent = ""; }
+}
+
+function _toFmtRange(start, end) {
+  const fmt = (iso) => {
+    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+    catch { return iso; }
+  };
+  return start === end ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+}
+
+function _toRenderView(body) {
+  const pending = _toRows.filter((r) => r.status === "pending");
+  const decided = _toRows.filter((r) => r.status !== "pending");
+
+  const pendingHtml = pending.length
+    ? pending.map(_toPendingRowHtml).join("")
+    : `<div class="to-d-empty">No pending requests.</div>`;
+
+  const decidedHtml = decided.length
+    ? decided.map(_toDecidedRowHtml).join("")
+    : `<div class="to-d-empty" style="margin-top:8px">No decided requests yet.</div>`;
+
+  body.innerHTML = `
+    <div class="to-d-page">
+      <h2 class="to-d-h2">Pending requests</h2>
+      <div class="to-d-list">${pendingHtml}</div>
+
+      <h2 class="to-d-h2" style="margin-top:28px">History</h2>
+      <div class="to-d-list">${decidedHtml}</div>
+    </div>`;
+
+  body.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
+    btn.addEventListener("click", () => _toDecide(btn));
+  });
+}
+
+function _toPendingRowHtml(r) {
+  const stationBit = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
+  const reason = r.reason
+    ? `<div class="to-d-reason">${escapeHtml(r.reason)}</div>`
+    : `<div class="to-d-reason to-d-reason-empty">No reason given</div>`;
+  return `
+    <div class="to-d-row to-d-pending" data-rr-to-row="${escapeHtml(r.id)}">
+      <div class="to-d-row-head">
+        <div>
+          <div class="to-d-name">${escapeHtml(r.driver_name)}${stationBit}</div>
+          <div class="to-d-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
+        </div>
+        <span class="to-d-pill to-d-pill-pending">Pending</span>
+      </div>
+      ${reason}
+      <textarea class="to-d-note" data-rr-to-note="${escapeHtml(r.id)}" rows="2" placeholder="Optional note to send to the driver…" maxlength="500"></textarea>
+      <div class="to-d-actions">
+        <button type="button" class="btn btn-sm to-d-deny" data-rr-to-decide="deny" data-rr-to-id="${escapeHtml(r.id)}">Deny</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-to-decide="approve" data-rr-to-id="${escapeHtml(r.id)}">Approve</button>
+      </div>
+    </div>`;
+}
+
+function _toDecidedRowHtml(r) {
+  const stationBit = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
+  const pillCls = `to-d-pill-${r.status}`;
+  const pillLbl = r.status[0].toUpperCase() + r.status.slice(1);
+  const reason = r.reason ? `<div class="to-d-reason">${escapeHtml(r.reason)}</div>` : "";
+  const note = r.decision_notes
+    ? `<div class="to-d-note-ro"><strong>Dispatcher note:</strong> ${escapeHtml(r.decision_notes)}</div>`
+    : "";
+  return `
+    <div class="to-d-row">
+      <div class="to-d-row-head">
+        <div>
+          <div class="to-d-name">${escapeHtml(r.driver_name)}${stationBit}</div>
+          <div class="to-d-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
+        </div>
+        <span class="to-d-pill ${pillCls}">${escapeHtml(pillLbl)}</span>
+      </div>
+      ${reason}
+      ${note}
+    </div>`;
+}
+
+async function _toDecide(btn) {
+  const id = btn.getAttribute("data-rr-to-id");
+  const approve = btn.getAttribute("data-rr-to-decide") === "approve";
+  const noteEl = document.querySelector(`[data-rr-to-note="${CSS.escape(id)}"]`);
+  const notes = noteEl ? noteEl.value.trim() : "";
+  if (!approve && !notes) {
+    if (!confirm("Deny without a reason? The driver will only see that it was denied.")) return;
+  }
+  btn.disabled = true; btn.textContent = approve ? "Approving…" : "Denying…";
+  const { error } = await sb.rpc("dispatch_time_off_decide", {
+    p_id: id, p_approve: approve, p_notes: notes || null,
+  });
+  if (error) {
+    btn.disabled = false; btn.textContent = approve ? "Approve" : "Deny";
+    toast(error.message || "Couldn't save decision", "warn");
+    return;
+  }
+  toast(approve ? "Request approved" : "Request denied", "success");
+  loadTimeOffView();
+}
+
+// Lightweight pending-count poll on dashboard entry so the sidebar
+// badge updates without forcing the operator to open the Time off
+// page. dispatch_time_off_list is small and tenant-RLS scoped so the
+// extra read is cheap; if it ever grows, drop in a dedicated
+// dispatch_time_off_pending_count() RPC.
+async function _toFetchPendingCount() {
+  try {
+    const { data, error } = await sb.rpc("dispatch_time_off_list");
+    if (error) return;
+    _toRows = Array.isArray(data) ? data : [];
+    _toRefreshNavBadge();
+  } catch {}
+}
