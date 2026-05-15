@@ -628,29 +628,31 @@ a{color:inherit;text-decoration:none}
 .page-icon{
   width:44px;height:44px;border-radius:var(--r-lg);flex-shrink:0;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--pi-bg, rgba(15,108,189,.10));
+  background:var(--pi-bg, rgba(37,99,235,.10));
   color:var(--pi-fg, var(--accent));
-  /* Outer color glow + crisp inset ring — chip lifts off the surface
-     and reads as the dominant brand element on the page. */
-  box-shadow:0 1px 2px rgba(15,23,42,.05),
-             0 8px 24px -8px var(--pi-fg, rgba(15,108,189,.5)),
-             inset 0 0 0 1px var(--pi-ring, rgba(15,108,189,.18));
-  transition:transform var(--t-smooth), box-shadow var(--t-smooth);
+  /* Calm flat treatment — same Fluent-style tile as the sidebar
+     nav-icons, just scaled up.  Single inset 1px ring; no outer
+     glow shadow (which previously read as 'decorative'). */
+  box-shadow:inset 0 0 0 1px var(--pi-ring, rgba(37,99,235,.14));
+  transition:background var(--t-smooth), color var(--t-smooth);
 }
 .page-icon svg{width:22px;height:22px;stroke-width:2}
-.page-header:hover .page-icon{transform:translateY(-1px)}
 
-.page-icon[data-c="dashboard"]{--pi-fg:#0891B2;--pi-bg:rgba(8,145,178,.10);--pi-ring:rgba(8,145,178,.20)}
-.page-icon[data-c="pipeline"] {--pi-fg:#7C3AED;--pi-bg:rgba(124,58,237,.10);--pi-ring:rgba(124,58,237,.20)}
-.page-icon[data-c="drivers"]  {--pi-fg:#0D9488;--pi-bg:rgba(13,148,136,.10);--pi-ring:rgba(13,148,136,.20)}
-.page-icon[data-c="staffing"] {--pi-fg:#DB2777;--pi-bg:rgba(219,39,119,.10);--pi-ring:rgba(219,39,119,.20)}
-.page-icon[data-c="fleet"]    {--pi-fg:#D97706;--pi-bg:rgba(217,119,6,.10);--pi-ring:rgba(217,119,6,.20)}
-.page-icon[data-c="compliance"]{--pi-fg:#334155;--pi-bg:rgba(51,65,85,.08);--pi-ring:rgba(51,65,85,.18)}
-.page-icon[data-c="schedule"] {--pi-fg:#4F46E5;--pi-bg:rgba(79,70,229,.10);--pi-ring:rgba(79,70,229,.20)}
-.page-icon[data-c="messages"] {--pi-fg:#0284C7;--pi-bg:rgba(2,132,199,.10);--pi-ring:rgba(2,132,199,.20)}
-.page-icon[data-c="forms"]    {--pi-fg:#7C3AED;--pi-bg:rgba(124,58,237,.10);--pi-ring:rgba(124,58,237,.20)}
-.page-icon[data-c="finances"] {--pi-fg:#059669;--pi-bg:rgba(5,150,105,.10);--pi-ring:rgba(5,150,105,.20)}
-.page-icon[data-c="admin"]    {--pi-fg:#5B21B6;--pi-bg:rgba(91,33,182,.10);--pi-ring:rgba(91,33,182,.20)}
+/* Per-category palette · mirrors the sidebar nav-icon scale so the
+   header chip and the active sidebar tile read as the same icon
+   system.  Foreground hues match exactly; container alphas match
+   exactly so the surfaces feel like one material. */
+.page-icon[data-c="dashboard"]  {--pi-fg:#3B82F6;--pi-bg:rgba(59,130,246,.10);--pi-ring:rgba(59,130,246,.18)}
+.page-icon[data-c="pipeline"]   {--pi-fg:#8B5CF6;--pi-bg:rgba(139,92,246,.10);--pi-ring:rgba(139,92,246,.18)}
+.page-icon[data-c="drivers"]    {--pi-fg:#14B8A6;--pi-bg:rgba(20,184,166,.10);--pi-ring:rgba(20,184,166,.18)}
+.page-icon[data-c="staffing"]   {--pi-fg:#EC4899;--pi-bg:rgba(236,72,153,.10);--pi-ring:rgba(236,72,153,.18)}
+.page-icon[data-c="fleet"]      {--pi-fg:#F59E0B;--pi-bg:rgba(245,158,11,.10);--pi-ring:rgba(245,158,11,.18)}
+.page-icon[data-c="compliance"] {--pi-fg:#64748B;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
+.page-icon[data-c="schedule"]   {--pi-fg:#3B82F6;--pi-bg:rgba(56,189,248,.10);--pi-ring:rgba(56,189,248,.18)}
+.page-icon[data-c="messages"]   {--pi-fg:#3B82F6;--pi-bg:rgba(96,165,250,.10);--pi-ring:rgba(96,165,250,.18)}
+.page-icon[data-c="forms"]      {--pi-fg:#A855F7;--pi-bg:rgba(168,85,247,.10);--pi-ring:rgba(168,85,247,.18)}
+.page-icon[data-c="finances"]   {--pi-fg:#10B981;--pi-bg:rgba(16,185,129,.10);--pi-ring:rgba(16,185,129,.18)}
+.page-icon[data-c="admin"]      {--pi-fg:#64748B;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
 
 /* ─────────────────────────────────────────────────────────────
    STATUS COLOR DISCIPLINE
@@ -20420,7 +20422,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ad-messages-bubbles-flat"></script>
+<script type="module" src="./live.js?v=20260515ae-page-icon-sidebar-aligned"></script>
 
 </body>
 </html>
