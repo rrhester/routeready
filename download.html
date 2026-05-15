@@ -277,6 +277,13 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   document.querySelectorAll('[data-dl-href]').forEach(a => {
     const os = a.getAttribute('data-dl-href');
     if (URLS[os]) a.href = URLS[os];
+
+    // Open the "Getting started" guide in a new tab as soon as the
+    // visitor clicks Download. The default <a download> behavior
+    // still fires, so the file downloads from the same click.
+    a.addEventListener('click', () => {
+      window.open('/installed', '_blank', 'noopener');
+    });
   });
 })();
 </script>

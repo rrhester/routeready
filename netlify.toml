@@ -48,6 +48,12 @@
   to   = "/download.html"
   status = 200
 
+# Pretty URL for the post-download "getting started" guide.
+[[redirects]]
+  from = "/installed"
+  to   = "/installed.html"
+  status = 200
+
 # Public document-verification page. /verify/<signing_token> and a
 # bare /verify both resolve to verify.html (which also reads ?token=).
 [[redirects]]
