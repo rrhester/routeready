@@ -770,40 +770,37 @@ a{color:inherit;text-decoration:none}
 .btn svg{width:14px;height:14px;stroke-width:2}
 
 .btn-primary{
-  /* Brand gradient + indigo-tinted glow — matches the landing's hero CTA. */
-  background:var(--brand-grad);
+  /* Solid Azure — calm enterprise primary, matches Linear/Azure
+     Portal pattern.  Hover deepens to --accent-hover. */
+  background:var(--accent);
   color:#fff;border-color:transparent;
-  box-shadow:0 1px 2px rgba(15,108,189,.25),
-             0 6px 16px -4px rgba(79,70,229,.35),
-             inset 0 1px 0 rgba(255,255,255,.22);
-  text-shadow:0 1px 0 rgba(0,0,0,.08);
+  box-shadow:0 1px 2px rgba(37,99,235,.18);
 }
 .btn-primary:hover{
-  background:var(--brand-grad);
-  box-shadow:0 1px 2px rgba(15,108,189,.30),
-             0 10px 24px -4px rgba(79,70,229,.45),
+  background:var(--accent-hover);
+  box-shadow:0 1px 2px rgba(37,99,235,.22),
+             0 4px 10px -4px rgba(37,99,235,.30),
              inset 0 1px 0 rgba(255,255,255,.28);
   transform:translateY(-1px);
 }
 .btn-primary:active{
-  background:var(--brand-grad);
-  box-shadow:inset 0 1px 2px rgba(0,0,0,.18);
+  background:var(--accent-hover);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.12);
   transform:translateY(0);
 }
 
 .btn-danger{
-  background:linear-gradient(180deg, #FFFFFF 0%, rgba(220,38,38,.04) 100%);
-  color:var(--red);border-color:rgba(220,38,38,.28);
-  box-shadow:var(--shadow-xs), var(--highlight-top);
+  background:var(--surface);
+  color:var(--red);border-color:rgba(225,29,72,.24);
+  box-shadow:var(--shadow-xs);
 }
 .btn-danger:hover{
-  background:linear-gradient(180deg, rgba(220,38,38,.04) 0%, rgba(220,38,38,.10) 100%);
+  background:var(--red-soft);
   border-color:var(--red);
-  box-shadow:0 1px 2px rgba(220,38,38,.10), var(--highlight-top-strong);
 }
 .btn-danger:active{
-  background:linear-gradient(180deg, rgba(220,38,38,.08) 0%, rgba(220,38,38,.14) 100%);
-  box-shadow:inset 0 1px 2px rgba(220,38,38,.12);
+  background:rgba(225,29,72,.14);
+  box-shadow:inset 0 1px 2px rgba(225,29,72,.12);
 }
 
 .btn-ghost{
@@ -1198,7 +1195,7 @@ a{color:inherit;text-decoration:none}
 .rr-firstrun-banner{
   display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);align-items:center;
   padding:var(--s-4) var(--s-5);
-  background:linear-gradient(120deg, var(--accent-soft) 0%, rgba(79,70,229,.06) 100%);
+  background:linear-gradient(120deg, var(--accent-soft) 0%, rgba(99,102,241,.06) 100%);
   border:1px solid var(--accent-border);
   border-radius:var(--r-lg);
   position:relative;overflow:hidden;
@@ -1254,7 +1251,7 @@ a{color:inherit;text-decoration:none}
 .rr-firstrun-tile:hover{
   background:var(--surface);border-color:var(--accent-border);
   transform:translateY(-1px);
-  box-shadow:0 2px 8px -2px rgba(15,108,189,.12);
+  box-shadow:0 2px 8px -2px rgba(37,99,235,.12);
 }
 .rr-firstrun-tile:active{transform:translateY(0)}
 .rr-firstrun-tile-num{
@@ -2050,7 +2047,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   transition:background .12s,color .12s,border-color .12s,box-shadow .12s;
 }
 .cd-pill:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
-.cd-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(15,108,189,.10)}
+.cd-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(37,99,235,.10)}
 
 .cd-textarea-wrap{position:relative}
 .cd-textarea{
@@ -2616,7 +2613,7 @@ select.form-input{
 .subnav-item.active::after{
   content:"";position:absolute;left:var(--s-3);right:var(--s-3);bottom:3px;height:2px;
   background:var(--brand-grad);border-radius:2px;
-  box-shadow:0 1px 4px -1px rgba(79,70,229,.30);
+  box-shadow:0 1px 4px -1px rgba(99,102,241,.30);
 }
 
 .dr-subview{display:none}
@@ -4596,7 +4593,7 @@ body.rr-cmdk-open{ overflow:hidden }
   transition:background .12s,color .12s,border-color .12s,box-shadow .12s;
 }
 .aud-pill:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
-.aud-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(15,108,189,.10)}
+.aud-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(37,99,235,.10)}
 .aud-count{
   background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:8px;
   padding:10px 12px;font-size:var(--fs-sm);color:var(--accent-text);
@@ -5253,7 +5250,7 @@ body.rr-cmdk-open{ overflow:hidden }
    OKAMI → SCHEDULE link callout
    ───────────────────────────────────────────────────────────── */
 .okami-source{
-  background:linear-gradient(120deg,rgba(15,108,189,.07),rgba(79,70,229,.07));
+  background:linear-gradient(120deg,rgba(37,99,235,.07),rgba(99,102,241,.07));
   border:1px solid var(--accent-border);border-radius:var(--r-md);
   padding:10px 14px;display:flex;align-items:center;gap:12px;margin-bottom:var(--s-3);
   font-size:var(--fs-sm);color:var(--text);
@@ -5629,7 +5626,7 @@ body.rr-cmdk-open{ overflow:hidden }
 @keyframes sdSpin{to{transform:rotate(360deg)}}
 
 .sd-result-banner{
-  background:linear-gradient(120deg,rgba(15,108,189,.07),rgba(79,70,229,.07));
+  background:linear-gradient(120deg,rgba(37,99,235,.07),rgba(99,102,241,.07));
   border:1px solid var(--accent-border);border-radius:var(--r-md);padding:10px 14px;
   display:flex;align-items:center;gap:10px;margin-bottom:var(--s-3);font-size:var(--fs-sm);color:var(--text);
 }
@@ -8230,7 +8227,7 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
           #view-drivers .dr-roster-bar select.dr-filter:focus{ outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
-          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:rgba(15,108,189,.30);background-color:var(--accent-soft); }
+          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:rgba(37,99,235,.30);background-color:var(--accent-soft); }
 
           /* App-presence chip (consistent with the platform's chip rhythm) */
           #view-drivers .dr-app-chip{
@@ -8266,7 +8263,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .dr-empty{ padding:52px 28px;text-align:center; }
           .dr-empty .ic{
             width:46px;height:46px;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;
-            color:var(--accent);background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
+            color:var(--accent);background:var(--accent-soft);border:1px solid rgba(37,99,235,.16);
           }
           .dr-empty .ic svg{ width:22px;height:22px; }
           .dr-empty h3{ margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text); }
@@ -8305,7 +8302,7 @@ body.rr-cmdk-open{ overflow:hidden }
              Documents records table). */
           #view-drivers .dr-bulkbar{
             display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:9px 14px;
-            border-radius:9px;background:var(--accent-soft);border:1px solid rgba(15,108,189,.20);
+            border-radius:9px;background:var(--accent-soft);border:1px solid rgba(37,99,235,.20);
             font-size:12px;color:var(--accent-text);box-shadow:var(--shadow-sm);
           }
           #view-drivers .dr-bulkbar[hidden]{ display:none; }
@@ -10437,7 +10434,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule .stf-grid .day-head.today{color:var(--accent-text);background:var(--accent-soft)}
             #view-schedule .stf-grid .stf-cell{border-left:1px solid var(--border);min-height:54px;cursor:pointer;transition:background .12s;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
             #view-schedule .stf-grid .stf-cell:hover{background:var(--canvas)}
-            #view-schedule .stf-grid .stf-cell.today{background:rgba(15,108,189,.03)}
+            #view-schedule .stf-grid .stf-cell.today{background:rgba(37,99,235,.03)}
             #view-schedule .stf-grid .stf-cell.today:hover{background:var(--accent-soft)}
             #view-schedule .stf-grid .stf-cell .stf-chip{background:var(--accent-soft);color:var(--accent-text);border:1px solid var(--accent-border);border-radius:6px;padding:4px 8px;font-size:var(--fs-xs);font-weight:600;line-height:1.4;width:100%}
             #view-schedule .stf-grid .stf-cell .stf-chip .stf-chip-time{font-variant-numeric:tabular-nums}
@@ -11045,7 +11042,7 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
           #view-fleet .fl-roster-bar select.fl-filter:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-          #view-fleet .fl-roster-bar select.fl-filter.is-set{color:var(--accent-text);border-color:rgba(15,108,189,.30);background-color:var(--accent-soft)}
+          #view-fleet .fl-roster-bar select.fl-filter.is-set{color:var(--accent-text);border-color:rgba(37,99,235,.30);background-color:var(--accent-soft)}
           /* Vehicle photo / fallback icon in roster + drawer */
           #view-fleet .fl-veh-thumb{width:38px;height:38px;border-radius:var(--r-md);background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
           #view-fleet .fl-veh-thumb img{width:100%;height:100%;object-fit:cover}
@@ -11971,7 +11968,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid transparent;white-space:nowrap;
           }
           .docs-chip .dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto; }
-          .docs-chip.is-pending{ background:var(--accent-soft);color:var(--accent-text);border-color:rgba(15,108,189,.18); }
+          .docs-chip.is-pending{ background:var(--accent-soft);color:var(--accent-text);border-color:rgba(37,99,235,.18); }
           .docs-chip.is-pending .dot{ background:var(--accent); }
           .docs-chip.is-viewed{ background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.18); }
           .docs-chip.is-viewed .dot{ background:var(--amber); }
@@ -12014,7 +12011,7 @@ body.rr-cmdk-open{ overflow:hidden }
             width:30px;height:30px;border-radius:50%;flex:0 0 auto;
             display:flex;align-items:center;justify-content:center;
             font-size:11px;font-weight:700;color:var(--accent-text);
-            background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);
+            background:var(--accent-soft);border:1px solid rgba(37,99,235,.18);
           }
           .docs-recipient .nm{ font-weight:650;color:var(--text);line-height:1.3; }
           .docs-recipient .em{ font-size:11px;color:var(--text-subtle);line-height:1.3; }
@@ -12039,7 +12036,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .docs-empty .ic{
             width:46px;height:46px;border-radius:var(--r-xl);margin:0 auto 14px;
             display:flex;align-items:center;justify-content:center;color:var(--accent);
-            background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
+            background:var(--accent-soft);border:1px solid rgba(37,99,235,.16);
           }
           .docs-empty .ic svg{ width:22px;height:22px; }
           .docs-empty h3{ margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text); }
@@ -12171,7 +12168,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .docs-bulkbar{
             display:flex;align-items:center;gap:12px;
             margin-bottom:10px;padding:9px 14px;border-radius:var(--docs-radius-sm);
-            background:var(--accent-soft);border:1px solid rgba(15,108,189,.20);
+            background:var(--accent-soft);border:1px solid rgba(37,99,235,.20);
             font-size:12px;color:var(--accent-text);
             box-shadow:var(--shadow-sm);
           }
@@ -20435,7 +20432,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ah-workspaces-governance"></script>
+<script type="module" src="./live.js?v=20260515ai-system-blue-sweep"></script>
 
 </body>
 </html>
