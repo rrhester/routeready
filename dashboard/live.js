@@ -8808,7 +8808,9 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
       const cover = r.van_via === "backup" && r.covering_for
         ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
         : (r.van_via === "override"
-            ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`
+            ? (r.van_via_source === "auto"
+                ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Auto · click to change</div>`
+                : `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`)
             : "");
       vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
@@ -8992,7 +8994,9 @@ function _renderTpVanRoster(data, error) {
       const cover = r.van_via === "backup" && r.covering_for
         ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
         : (r.van_via === "override"
-            ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`
+            ? (r.van_via_source === "auto"
+                ? `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Auto · click to change</div>`
+                : `<div style="font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Override · click to change</div>`)
             : "");
       vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
