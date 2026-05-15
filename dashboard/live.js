@@ -3416,7 +3416,7 @@ async function openOnboardingSendDocsModal(driverId) {
   const tplTitleById = new Map(list.map(t => [t.id, t.title || "Untitled"]));
   body.innerHTML = `<div style="display:flex;flex-direction:column;gap:var(--s-2)" id="rr-osd-list">${list.map(t => {
     const secure = t.kind !== "informational";
-    return `<label data-search="${escapeHtml(((t.title || "") + " " + (t.description || "")).toLowerCase())}" style="display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:border-color .12s,background .12s">
+    return `<label data-search="${escapeHtml(((t.title || "") + " " + (t.description || "")).toLowerCase())}" style="display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border:1px solid var(--border);border-radius:var(--r-lg);cursor:pointer;transition:border-color .12s,background .12s">
       <input type="checkbox" data-rr-osd-tpl="${escapeHtml(t.id)}" style="margin-top:3px;flex:0 0 auto">
       <span style="flex:1;min-width:0">
         <span style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(t.title || "Untitled")}</span><span class="ob-bld-tier ${secure ? "secure" : "info"}">${secure ? "Secure" : "Informational"}</span></span>
@@ -3684,7 +3684,7 @@ function _obRenderBuilder() {
 // security indicators) or jump straight to building one.
 const _OB_DOC_ICON = (kind) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="${kind === "informational" ? "var(--text-muted)" : "#15803d"}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
 function _obDocRowHTML(t) {
-  return `<button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" data-search="${escapeHtml((t.title || "").toLowerCase())}" style="text-align:left;border:1px solid var(--border);border-radius:9px;padding:11px 13px;cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:var(--s-2-5);transition:border-color .12s,background .12s">
+  return `<button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" data-search="${escapeHtml((t.title || "").toLowerCase())}" style="text-align:left;border:1px solid var(--border);border-radius:var(--r-lg);padding:11px 13px;cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:var(--s-2-5);transition:border-color .12s,background .12s">
       ${_OB_DOC_ICON(t.kind)}
       <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title || "Untitled")}</span><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${t.kind === "informational" ? "Open & acknowledge — no signature" : "Secure — routes through the signing & compliance flow"}</span></span>
       <span class="ob-bld-tier ${t.kind === "informational" ? "info" : "secure"}">${t.kind === "informational" ? "Informational" : "Secure"}</span>
@@ -5489,7 +5489,7 @@ async function _renderAttKpiDetail() {
           <div style="font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1">${pct}%</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">of team</div>
         </div>
-        <div style="width:6px;height:36px;background:${colors[k]};border-radius:3px"></div>
+        <div style="width:6px;height:36px;background:${colors[k]};border-radius:var(--r-sm)"></div>
         <div>
           <div style="font-size:var(--fs-base);font-weight:700;color:var(--text)">${k}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px"><strong style="color:var(--text-muted)">${n} driver${n === 1 ? "" : "s"}</strong> · ${blurbs[k]}</div>
@@ -5502,7 +5502,7 @@ async function _renderAttKpiDetail() {
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Corrective action breakdown</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${total} active driver${total === 1 ? "" : "s"} across the coaching ladder right now.</div>
       </div>
-      <div style="display:flex;height:14px;background:var(--canvas);border:1px solid var(--border);border-radius:7px;overflow:hidden;margin-bottom:var(--s-2)">${stack}</div>
+      <div style="display:flex;height:14px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:var(--s-2)">${stack}</div>
       <div style="display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-3)">
         <span>Lowest accountability</span><span>Highest</span>
       </div>
@@ -5825,7 +5825,7 @@ async function loadDashboardWeather() {
 
     const alertHtml = activeAlerts.length === 0
       ? ""
-      : `<div style="display:flex;flex-direction:column;gap:5px;margin-top:var(--s-2);padding:6px 8px;background:rgba(229,62,62,.06);border-left:2px solid var(--red);border-radius:3px">
+      : `<div style="display:flex;flex-direction:column;gap:5px;margin-top:var(--s-2);padding:6px 8px;background:rgba(229,62,62,.06);border-left:2px solid var(--red);border-radius:var(--r-sm)">
           <div class="task-eyebrow" style="margin-bottom:1px">${activeAlerts.length} active alert${activeAlerts.length > 1 ? "s" : ""}</div>
           ${activeAlerts.map(a => {
             const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : a.severity === "Moderate" ? "var(--amber)" : "var(--text-muted)";
@@ -5942,7 +5942,7 @@ async function loadDashboardWeather() {
         catch { return d.label.slice(0, 3); }
       })();
       const summary = (d.short || "").slice(0, 18);
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 6px;border-radius:5px;min-width:62px;background:var(--canvas)">
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 6px;border-radius:var(--r-md);min-width:62px;background:var(--canvas)">
         <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${escapeHtml(wd)}</div>
         <div style="display:flex;align-items:baseline;gap:3px">
           <span style="font-size:var(--fs-md);font-weight:700;color:${tempColor(d.hi)};font-variant-numeric:tabular-nums;line-height:1">${d.hi}°</span>
@@ -11764,8 +11764,8 @@ async function loadCalBookingsList() {
       const end = r.ends_at ? new Date(r.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
       const a = r.applicants || {};
       const kindBadge = r.kind === "orientation"
-        ? `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(124,58,237,.12);color:#7C3AED;letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
-        : `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent-text);letter-spacing:.04em;text-transform:uppercase">Interview</span>`;
+        ? `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-md);background:rgba(124,58,237,.12);color:#7C3AED;letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
+        : `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);letter-spacing:.04em;text-transform:uppercase">Interview</span>`;
       const statusBadge = r.status === "rescheduled"
         ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--amber-dark);margin-left:6px">rescheduled</span>`
         : "";
@@ -12231,7 +12231,7 @@ async function openCoachingPrintView(driverId) {
   .rec-meta>div{display:flex;gap:var(--s-2);font-size:var(--fs-sm)}
   .lbl{display:inline-block;min-width:120px;color:var(--text-disabled);font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase}
   .rec-summary{font-size:var(--fs-lg);font-weight:600;line-height:1.4;margin:6px 0}
-  .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:var(--s-2-5) var(--s-3);border-left:3px solid #cbd5e1;border-radius:3px;margin:8px 0}
+  .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:var(--s-2-5) var(--s-3);border-left:3px solid #cbd5e1;border-radius:var(--r-sm);margin:8px 0}
   .rec-fields>div{display:flex;gap:var(--s-2);font-size:var(--fs-sm);margin-bottom:4px}
   .hr-only{color:var(--red);font-weight:700}
   .sig{margin-top:var(--s-3);border:1px solid #e2e8f0;padding:var(--s-2-5) var(--s-3);border-radius:var(--r-sm);background:#fafafa}
@@ -12308,7 +12308,7 @@ async function openDriverDrawer(driverId, opts) {
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
-      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:9px;margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
+      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:var(--r-lg);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
       .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:var(--s-2) 14px;border-radius:var(--r-md);cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
@@ -13515,7 +13515,7 @@ async function openI9Section1Modal(driverId) {
   const s1 = i9 && i9.section1 && typeof i9.section1 === "object" ? i9.section1 : {};
   const g = (k, fb = "") => escapeHtml(s1[k] != null && s1[k] !== "" ? String(s1[k]) : fb);
   const cs = s1.citizen_status || "";
-  const fld = (id, label, opts = {}) => `<label style="display:flex;flex-direction:column;gap:3px;${opts.flex ? `flex:${opts.flex};` : ""}min-width:0"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(label)}${opts.req ? ' *' : ''}</span><input type="${opts.type || 'text'}" id="${id}" ${opts.attrs || ''} value="${opts.value || ''}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>`;
+  const fld = (id, label, opts = {}) => `<label style="display:flex;flex-direction:column;gap:3px;${opts.flex ? `flex:${opts.flex};` : ""}min-width:0"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(label)}${opts.req ? ' *' : ''}</span><input type="${opts.type || 'text'}" id="${id}" ${opts.attrs || ''} value="${opts.value || ''}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>`;
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
       <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Enter Section 1 exactly as the employee provided it. The employee should review and sign Section 1 — ideally in the RouteReady app. Recording it here is a bridge for employees who can't use the app.</div>
@@ -13603,18 +13603,18 @@ function _i9DocRowHtml(idx, listLetter, existing) {
   const opts = _I9_DOC_OPTIONS[listLetter] || [];
   const sel = ex.title && opts.includes(ex.title) ? ex.title : (ex.title ? "__other__" : "");
   return `
-    <div class="i9-doc-row" data-i9-doc="${idx}" data-i9-list="${listLetter}" style="border:1px solid var(--border);border-radius:9px;padding:var(--s-3);display:flex;flex-direction:column;gap:var(--s-2)">
+    <div class="i9-doc-row" data-i9-doc="${idx}" data-i9-list="${listLetter}" style="border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3);display:flex;flex-direction:column;gap:var(--s-2)">
       <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)">List ${listLetter} document</div>
-      <select data-i9-f="title" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
+      <select data-i9-f="title" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)">
         <option value="">— Select a document —</option>
         ${opts.map(o => `<option value="${escapeHtml(o)}" ${sel === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
         <option value="__other__" ${sel === "__other__" ? "selected" : ""}>Other (type below)</option>
       </select>
-      <input type="text" data-i9-f="title_other" placeholder="Document title" value="${sel === "__other__" ? escapeHtml(ex.title) : ""}" style="display:${sel === "__other__" ? "block" : "none"};padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
+      <input type="text" data-i9-f="title_other" placeholder="Document title" value="${sel === "__other__" ? escapeHtml(ex.title) : ""}" style="display:${sel === "__other__" ? "block" : "none"};padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)">
       <div style="display:flex;gap:var(--s-2);flex-wrap:wrap">
-        <input type="text" data-i9-f="issuing_authority" placeholder="Issuing authority" value="${escapeHtml(ex.issuing_authority || "")}" style="flex:1 1 160px;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
-        <input type="text" data-i9-f="number" placeholder="Document number" value="${escapeHtml(ex.number || "")}" style="flex:1 1 160px;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)">
-        <label style="display:flex;flex-direction:column;gap:2px;flex:0 1 150px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Expiration (if any)</span><input type="date" data-i9-f="expires_on" value="${escapeHtml(ex.expires_on || "")}" style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>
+        <input type="text" data-i9-f="issuing_authority" placeholder="Issuing authority" value="${escapeHtml(ex.issuing_authority || "")}" style="flex:1 1 160px;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)">
+        <input type="text" data-i9-f="number" placeholder="Document number" value="${escapeHtml(ex.number || "")}" style="flex:1 1 160px;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)">
+        <label style="display:flex;flex-direction:column;gap:2px;flex:0 1 150px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Expiration (if any)</span><input type="date" data-i9-f="expires_on" value="${escapeHtml(ex.expires_on || "")}" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>
       </div>
     </div>`;
 }
@@ -13651,7 +13651,7 @@ async function openI9Section2Modal(driverId) {
           <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-sm);padding:3px 0;cursor:pointer"><input type="radio" name="i9-list" value="BC" ${list==="BC"?"checked":""}> One from <strong>List B</strong> (identity) and one from <strong>List C</strong> (work authorization)</label>
         </div>
         <div id="i9-doc-rows" style="display:flex;flex-direction:column;gap:var(--s-2-5)"></div>
-        <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Additional information (reverification, extensions, delay reason, etc.)</span><textarea id="i9-s2-addl" rows="2" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);resize:vertical">${escapeHtml(s2.additional_info || "")}</textarea></label>
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Additional information (reverification, extensions, delay reason, etc.)</span><textarea id="i9-s2-addl" rows="2" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);resize:vertical">${escapeHtml(s2.additional_info || "")}</textarea></label>
         <div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:4px">Document copies (optional — required for the remote alternative procedure):</div>
           <input type="file" id="i9-s2-files" multiple accept="image/*,application/pdf" style="font:inherit;font-size:var(--fs-sm)">
@@ -13659,7 +13659,7 @@ async function openI9Section2Modal(driverId) {
         </div>`)}
 
       ${step(3, "Attest", "Under penalty of perjury.", `
-        <label style="display:flex;flex-direction:column;gap:3px;max-width:320px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Your title</span><input type="text" id="i9-s2-title" placeholder="e.g. Owner / Operations Manager" value="${escapeHtml(rec?.section2_completed_by_title || "")}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas)"></label>
+        <label style="display:flex;flex-direction:column;gap:3px;max-width:320px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Your title</span><input type="text" id="i9-s2-title" placeholder="e.g. Owner / Operations Manager" value="${escapeHtml(rec?.section2_completed_by_title || "")}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>
         <label style="display:flex;align-items:flex-start;gap:var(--s-2);cursor:pointer;font-size:var(--fs-sm);line-height:1.55"><input type="checkbox" id="i9-s2-attest" style="margin-top:3px"> <span id="i9-s2-attest-text">${escapeHtml(_I9_S2_ATTEST_BASE)}</span></label>`)}
 
       ${step(4, "Sign", "Your electronic signature is recorded with your name and a timestamp.", `
@@ -13668,7 +13668,7 @@ async function openI9Section2Modal(driverId) {
           <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:var(--canvas);border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
           <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--text-disabled);font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
         </div>
-        <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:var(--s-2);padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);width:100%">`)}
+        <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:var(--s-2);padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);width:100%">`)}
     </div>`;
   const foot = `<button type="button" class="btn" data-rr-i9-close>Cancel</button><button type="button" class="btn btn-primary" id="i9-s2-submit">Complete &amp; attest Section 2</button>`;
   const m = _i9ModalShell("Complete Section 2", "Employer Review and Attestation · Form I-9", body, foot);
@@ -14407,7 +14407,7 @@ function _erEmpStylesOnce() {
     #rr-emp-report-modal .er-kv dt{ color:var(--text-subtle);font-weight:600; }
     #rr-emp-report-modal .er-kv dd{ margin:0;color:var(--text);font-weight:600; }
     #rr-emp-report-modal .er-stats{ display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2-5);margin:8px 0 16px; }
-    #rr-emp-report-modal .er-stat{ background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:11px 13px; }
+    #rr-emp-report-modal .er-stat{ background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:11px 13px; }
     #rr-emp-report-modal .er-stat .v{ font-size:19px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1; }
     #rr-emp-report-modal .er-stat .l{ font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-top:3px; }
     #rr-emp-report-modal .er-tl{ margin:0;padding:0;list-style:none; }
@@ -15612,7 +15612,7 @@ async function refreshDriverChatThread(scrollToBottom) {
         <form class="rr-mc-composer" id="rr-mc-form">
           <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
           <button type="button" id="rr-mc-attach" title="Attach photo or document"
-                  style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center">
+                  style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
@@ -16445,7 +16445,7 @@ async function refreshChannelThread(scrollToBottom) {
         <form class="rr-cc-composer" id="rr-cc-form" style="${meta.archived_at ? "opacity:.5;pointer-events:none" : ""}">
           <input type="file" id="rr-cc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
           <button type="button" id="rr-cc-attach" title="Attach photo or document"
-                  style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center">
+                  style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
@@ -17710,7 +17710,7 @@ function _availDaysHtml(days, dim) {
     const bg = on ? "var(--accent)" : "var(--canvas)";
     const fg = on ? "#fff" : "var(--text-subtle)";
     const op = dim ? .55 : 1;
-    return `<span style="display:inline-block;min-width:32px;text-align:center;padding:3px 6px;border-radius:5px;background:${bg};color:${fg};font-size:var(--fs-xs);font-weight:600;opacity:${op}">${_AVAIL_DAY_LABELS[k]}</span>`;
+    return `<span style="display:inline-block;min-width:32px;text-align:center;padding:3px 6px;border-radius:var(--r-md);background:${bg};color:${fg};font-size:var(--fs-xs);font-weight:600;opacity:${op}">${_AVAIL_DAY_LABELS[k]}</span>`;
   }).join(" ");
 }
 
@@ -18085,7 +18085,7 @@ function _renderAvailKpiDetail() {
       return `
         <div style="display:grid;grid-template-columns:48px 1fr 90px 130px;align-items:center;gap:var(--s-3);padding:6px 0">
           <div style="font-size:var(--fs-sm);font-weight:600;color:${isMin ? "var(--red)" : "var(--text)"}">${_AVAIL_DOW_LABEL[d]}</div>
-          <div style="background:var(--accent-soft);height:10px;border-radius:5px;overflow:hidden">
+          <div style="background:var(--accent-soft);height:10px;border-radius:var(--r-md);overflow:hidden">
             <div style="background:${isMin ? "var(--red)" : "var(--accent)"};height:100%;width:${pct}%;transition:width .3s"></div>
           </div>
           <div style="font-size:var(--fs-md);font-weight:700;color:${isMin ? "var(--red)" : "var(--text)"};text-align:right;font-variant-numeric:tabular-nums">${pct}%</div>
@@ -18527,7 +18527,7 @@ function _renderAvailabilityRows() {
     if (reqCount > 1) {
       const prevAgo = r.prev_submitted_at ? _fmtRel(r.prev_submitted_at) : null;
       historyLine = `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="display:inline-flex;align-items:center;gap:var(--s-1);background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:1px 7px;font-weight:600">
+        <span style="display:inline-flex;align-items:center;gap:var(--s-1);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:1px 7px;font-weight:600">
           ${reqCount >= 5 ? `<span style="color:var(--amber)">●</span>` : ""}${ordinal(reqCount)} request
         </span>
         ${prevAgo ? `<span>· previous change ${escapeHtml(prevAgo)}</span>` : ""}
@@ -21286,7 +21286,7 @@ async function loadScheduleInsights(scope) {
     return `
       <div style="display:grid;grid-template-columns:60px 1fr 90px 110px;align-items:center;gap:var(--s-3);padding:6px 0">
         <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${DOW_LABEL[day]}</div>
-        <div style="background:var(--canvas);height:14px;border-radius:7px;overflow:hidden">
+        <div style="background:var(--canvas);height:14px;border-radius:var(--r-md);overflow:hidden">
           <div style="background:${color};height:100%;width:${widthPct}%;transition:width .3s"></div>
         </div>
         <div style="font-size:var(--fs-md);color:var(--text);font-variant-numeric:tabular-nums"><strong>${widthPct}%</strong> <span style="color:var(--text-subtle);font-size:var(--fs-xs)">${avail}/${totalDrivers}</span></div>
@@ -22050,7 +22050,7 @@ function _schedShiftChip(sh) {
   const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
   const ex = sh.is_cushion
-    ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+    ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
   // Service-type badge — shown for any non-SP shift so an XL/HUB/ASU
   // shift is visually distinguishable. SP shifts (the default) get no
@@ -22058,7 +22058,7 @@ function _schedShiftChip(sh) {
   const stCode = sh.service_type_code;
   const stColor = sh.service_type_color || "#0F6CBD";
   const stBadge = (stCode && stCode !== "SP")
-    ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
+    ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   return `<div class="shift-chip" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
@@ -22528,7 +22528,7 @@ async function renderScheduleWeek() {
     const todayIsoForDL = fmtIsoDate(new Date());
     const dlExpired = d.dl_expires_on && d.dl_expires_on < todayIsoForDL;
     const dlFlag = dlExpired
-      ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:var(--red);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
+      ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:var(--red);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
       : "";
     const prefSet = _prefByDriver.get(d.id) || null;
     const cells = days.map(iso => {
@@ -22551,7 +22551,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
@@ -22601,7 +22601,7 @@ async function renderScheduleWeek() {
         const endLbl   = slot.ends_at   ? fmtTimeShort(slot.ends_at)   : "";
         const label = startLbl && endLbl ? `${startLbl} – ${endLbl}` : (startLbl || slot.route_code || "open");
         const ex = slot.is_cushion
-          ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+          ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
           : "";
         const style = slot.is_cushion ? ' style="border-color:rgba(245,158,11,.22)"' : "";
         return `<div class="${cls}" ${data}><div class="shift-chip open" draggable="true" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
@@ -22731,15 +22731,15 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     const showDayLabel = !opts || opts.includeDay !== false;
     const time = fmtVirtualTime(sh);
     const ex = !sh.virtual && sh.is_cushion
-      ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
+      ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
     const stCode = sh.service_type_code;
     const stColor = sh.service_type_color || "#0F6CBD";
     const stBadge = (!sh.virtual && stCode && stCode !== "SP")
-      ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
+      ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
       : "";
     const newTag = sh.virtual
-      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.04em" title="From route plan · open Route planning → Save to build">From plan</span>`
+      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="From route plan · open Route planning → Save to build">From plan</span>`
       : "";
     const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
@@ -24443,7 +24443,7 @@ async function loadStaffingOutlook() {
   const fp0 = firstPeakOf(h0);
   const v0  = pipelineVerdict(h0);
   const funnelChips = pcRows.length
-    ? pcRows.map(r => `<span style="display:inline-block;background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:2px 8px;margin:2px 4px 2px 0;font-size:var(--fs-xs)"><strong>${Number(r.count) || 0}</strong> ${escapeHtml(String(r.stage).replace(/_/g, " "))}</span>`).join("")
+    ? pcRows.map(r => `<span style="display:inline-block;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:2px 8px;margin:2px 4px 2px 0;font-size:var(--fs-xs)"><strong>${Number(r.count) || 0}</strong> ${escapeHtml(String(r.stage).replace(/_/g, " "))}</span>`).join("")
     : `<span style="color:var(--text-subtle);font-size:var(--fs-sm)">no applicants in the funnel</span>`;
 
   body.innerHTML = `
@@ -26123,7 +26123,7 @@ async function _renderDocsI9() {
   const list = document.getElementById("docs-i9-list");
   if (!list) return;
   _i9DashStylesOnce();
-  const skelCard = `<div style="display:flex;gap:var(--s-3-5);align-items:center;padding:var(--s-3-5) 0;border-top:1px solid var(--border)"><div class="i9-skel" style="width:40px;height:40px;border-radius:9px;flex:0 0 auto"></div><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="i9-skel" style="height:14px;width:46%"></div><div class="i9-skel" style="height:11px;width:70%"></div></div><div class="i9-skel" style="height:28px;width:90px"></div></div>`;
+  const skelCard = `<div style="display:flex;gap:var(--s-3-5);align-items:center;padding:var(--s-3-5) 0;border-top:1px solid var(--border)"><div class="i9-skel" style="width:40px;height:40px;border-radius:var(--r-lg);flex:0 0 auto"></div><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="i9-skel" style="height:14px;width:46%"></div><div class="i9-skel" style="height:11px;width:70%"></div></div><div class="i9-skel" style="height:28px;width:90px"></div></div>`;
   list.innerHTML = `<div class="i9-skel" style="height:16px;width:34%;margin-bottom:var(--s-3)"></div>${skelCard}${skelCard}${skelCard}`;
   const { data, error } = await sb.from("i9_records")
     .select("id, driver_id, status, first_day_of_employment, section1_completed_at, section1_completed_via, section2_completed_at, section2_completed_by_name, needs_correction_note, pdf_path, pdf_certificate_path, pdf_seal_path, pdf_sealed_at, updated_at, drivers(full_name, preferred_name)")
@@ -26455,7 +26455,7 @@ function _docsAskKind(file) {
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   const opt = (kind, iconBg, iconColor, iconSvg, title, body) => `
     <button type="button" class="rr-kind-opt" data-kind="${kind}" style="text-align:left;border:1.5px solid var(--border);border-radius:11px;padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface);display:flex;gap:var(--s-3);align-items:flex-start;transition:border-color .12s,box-shadow .12s">
-      <span style="flex:0 0 auto;width:34px;height:34px;border-radius:9px;background:${iconBg};color:${iconColor};display:flex;align-items:center;justify-content:center">${iconSvg}</span>
+      <span style="flex:0 0 auto;width:34px;height:34px;border-radius:var(--r-lg);background:${iconBg};color:${iconColor};display:flex;align-items:center;justify-content:center">${iconSvg}</span>
       <span style="min-width:0"><span style="font-size:var(--fs-md);font-weight:700;color:var(--text);display:block">${escapeHtml(title)}</span><span style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45;display:block;margin-top:3px">${escapeHtml(body)}</span></span>
     </button>`;
   m.innerHTML = `
@@ -26581,7 +26581,7 @@ async function _docsOpenFieldEditor(templateId) {
         </div>
         <div style="display:flex;align-items:center;gap:var(--s-2)">
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap">
-            ${["signature","initials","name","date","text","checkbox"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 9px;border-radius:5px;cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${({signature:"Signature",initials:"Initials",name:"Name",date:"Date",text:"Text",checkbox:"Checkbox"})[k]}</button>`).join("")}
+            ${["signature","initials","name","date","text","checkbox"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 9px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${({signature:"Signature",initials:"Initials",name:"Name",date:"Date",text:"Text",checkbox:"Checkbox"})[k]}</button>`).join("")}
           </div>
           <button class="btn btn-sm" id="docs-fe-close">Close</button>
         </div>
@@ -27019,7 +27019,7 @@ async function _docsOpenAudit(envelopeId) {
       ${reSealBtn}
     </div>` : `
     <div class="docs-coc-sectionlabel">Records</div>
-    <div style="font-size:11.5px;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:var(--s-2-5) var(--s-3);line-height:1.55">
+    <div style="font-size:11.5px;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-2-5) var(--s-3);line-height:1.55">
       The sealed PDF and Certificate of Completion are generated automatically once the signer completes — usually within a minute. ${reSealBtn ? `If they haven't appeared, you can ${reSealBtn}` : ""}
     </div>`;
 
