@@ -11211,6 +11211,50 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-compliance .co-empty p{margin:0 auto;max-width:520px;font-size:13px;color:var(--text-muted)}
 
+          /* ── FMCSA setup card + monitor table (Rules tab) ────────── */
+          #view-compliance .co-fmcsa{
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);
+            padding:18px 20px;margin-bottom:16px;
+          }
+          #view-compliance .co-fmcsa-h{
+            display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;
+            margin-bottom:14px;
+          }
+          #view-compliance .co-fmcsa-eyebrow{
+            font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text);
+          }
+          #view-compliance .co-fmcsa-t{
+            margin:3px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.005em;
+          }
+          #view-compliance .co-fmcsa-sub{
+            margin:6px 0 0;font-size:12.5px;color:var(--text-muted);max-width:680px;line-height:1.5;
+          }
+          #view-compliance .co-fmcsa-meta{display:flex;gap:18px;font-size:11px;color:var(--text-subtle)}
+          #view-compliance .co-fmcsa-meta div{display:flex;flex-direction:column;line-height:1.3}
+          #view-compliance .co-fmcsa-meta b{color:var(--text);font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+          #view-compliance .co-fmcsa-form{
+            display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px 14px;align-items:end;
+          }
+          #view-compliance .co-fmcsa-form label{display:flex;flex-direction:column;gap:5px}
+          #view-compliance .co-fmcsa-form label span{
+            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);
+          }
+          #view-compliance .co-fmcsa-form label span em{font-style:normal;color:var(--text-subtle);opacity:.7;text-transform:none;letter-spacing:0}
+          #view-compliance .co-fmcsa-form input{
+            height:34px;padding:0 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);
+            font-size:13px;color:var(--text);
+          }
+          #view-compliance .co-fmcsa-form input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-compliance .co-fmcsa-form-foot{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+          #view-compliance .co-fmcsa-mons{margin-bottom:18px}
+          #view-compliance .co-fmcsa-mons-h{
+            margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
+          }
+          #view-compliance .co-disclaimer{
+            margin:24px 0 4px;font-size:11px;color:var(--text-subtle);line-height:1.55;
+            padding:10px 14px;background:var(--canvas);border:1px solid var(--border-subtle);border-radius:8px;
+          }
+
           /* ── Rules tab · monitor cards ───────────────────────────── */
           .co-rules-list{
             display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;
@@ -20159,7 +20203,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515i-dismiss-14d"></script>
+<script type="module" src="./live.js?v=20260515j-fmcsa-mcs150"></script>
 
 </body>
 </html>
