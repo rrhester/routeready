@@ -2483,28 +2483,29 @@ async function renderTeam() {
     </div>
     <div class="team-list" id="team-list" role="list">
       ${list.map((d) => _teamRowHtml(d, callIcon, textIcon)).join("")}
-    </div>
-    <div class="team-empty team-empty-nomatch" id="team-nomatch" hidden>
-      <div class="team-empty-title">No matches</div>
-      <div class="team-empty-sub">Try part of a name, station code, or phone number.</div>
     </div>`;
 
   const input = document.getElementById("team-search-input");
   const listEl = document.getElementById("team-list");
-  const noMatch = document.getElementById("team-nomatch");
+
+  // Re-render the list on every keystroke so only matching rows sit in
+  // the DOM, stacked directly under the search box. When the query is
+  // empty we paint the full roster; when it filters everything out we
+  // drop a single inline "No matches" row in place of the list so the
+  // result is always immediately under the search bar (no floating box
+  // at the bottom of the page).
   input.addEventListener("input", () => {
-    const tokens = input.value.toLowerCase().split(/\s+/).filter(Boolean);
-    let shown = 0;
-    indexed.forEach((row, i) => {
-      const hit = tokens.length === 0
-        || tokens.every((t) => row.words.some((w) => w.startsWith(t)));
-      const node = listEl.children[i];
-      if (!node) return;
-      node.hidden = !hit;
-      if (hit) shown++;
-    });
-    listEl.hidden = shown === 0;
-    noMatch.hidden = shown !== 0;
+    const q = input.value;
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const hits = tokens.length === 0
+      ? list
+      : indexed.filter((r) => tokens.every((t) => r.words.some((w) => w.startsWith(t))))
+               .map((r) => r.d);
+    if (hits.length === 0) {
+      listEl.innerHTML = `<div class="team-row team-row-nomatch" role="listitem">No teammates match "${escapeHtml(q)}"</div>`;
+    } else {
+      listEl.innerHTML = hits.map((d) => _teamRowHtml(d, callIcon, textIcon)).join("");
+    }
   });
 }
 
