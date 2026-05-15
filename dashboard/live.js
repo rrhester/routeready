@@ -4433,7 +4433,7 @@ function _onbChatStylesOnce() {
     ".onb-chat-row.mine{align-self:flex-end;align-items:flex-end}" +
     ".onb-chat-row.theirs{align-self:flex-start;align-items:flex-start}" +
     ".onb-chat-bubble{padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;box-shadow:var(--shadow-xs,0 1px 2px rgba(15,23,42,.04))}" +
-    ".onb-chat-row.mine .onb-chat-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:5px}" +
+    ".onb-chat-row.mine .onb-chat-bubble{background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px}" +
     ".onb-chat-row.theirs .onb-chat-bubble{background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px}" +
     ".onb-chat-time{font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px}" +
     ".onb-chat-read{align-self:flex-end;font-size:10px;color:var(--text-subtle);margin-top:-3px;padding-right:4px}" +
@@ -15263,7 +15263,7 @@ function _supBubblesHTML(msgs) {
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
     const body = m.body ? escapeHtml(m.body) : "";
     const author = mine ? "" : `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-text);margin-bottom:3px">RouteReady Support</div>`;
-    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
+    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
   return out;
 }
@@ -15529,7 +15529,7 @@ function _supAdmBubblesHTML(msgs) {
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
     const body = m.body ? escapeHtml(m.body) : "";
     const author = `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml((m.sender_name || (mine ? "RouteReady Support" : "DSP")))}${m.sender_role && !mine ? ` · ${escapeHtml(m.sender_role)}` : ""}</div>`;
-    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
+    out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
   return out;
 }
