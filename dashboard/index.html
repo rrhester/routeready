@@ -11042,19 +11042,19 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-veh-thumb{width:38px;height:38px;border-radius:var(--r-md);background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
           #view-fleet .fl-veh-thumb img{width:100%;height:100%;object-fit:cover}
           #view-fleet .fl-veh-thumb svg{width:18px;height:18px}
-          /* Roster table tightening — matches Drivers page rhythm */
-          #view-fleet .table tbody td{padding-top:11px;padding-bottom:11px}
-          #view-fleet .table tbody tr{cursor:pointer}
-          #view-fleet .table tbody tr:hover{background:var(--canvas)}
+          /* Roster table tightening — matches the global table governance */
+          #view-fleet .table tbody td{padding-top:var(--s-2-5);padding-bottom:var(--s-2-5)}
+          #view-fleet .table tbody tr{cursor:pointer;transition:background var(--t-fast)}
+          #view-fleet .table tbody tr:hover{background:var(--surface-hover)}
           #view-fleet .table thead th{letter-spacing:.04em}
           /* Empty state */
-          #view-fleet .fl-empty{padding:52px 28px;text-align:center}
-          #view-fleet .fl-empty .ic{width:46px;height:46px;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(15,108,189,.16)}
+          #view-fleet .fl-empty{padding:var(--s-10) var(--s-6);text-align:center}
+          #view-fleet .fl-empty .ic{width:44px;height:44px;border-radius:var(--r-lg);margin:0 auto var(--s-3-5);display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border)}
           #view-fleet .fl-empty .ic svg{width:22px;height:22px}
-          #view-fleet .fl-empty h3{margin:0 0 4px;font-size:14px;font-weight:700;color:var(--text)}
-          #view-fleet .fl-empty p{margin:0 auto 14px;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55}
+          #view-fleet .fl-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+          #view-fleet .fl-empty p{margin:0 auto var(--s-3-5);max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55}
           /* Skeleton */
-          #view-fleet .fl-skel-cell{height:13px;border-radius:5px;background:var(--canvas);position:relative;overflow:hidden}
+          #view-fleet .fl-skel-cell{height:13px;border-radius:var(--r-sm);background:var(--canvas);position:relative;overflow:hidden}
           #view-fleet .fl-skel-cell::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.25s ease-in-out infinite}
           #view-fleet .fl-skel-thumb{width:38px;height:38px;border-radius:var(--r-md);background:var(--canvas);position:relative;overflow:hidden}
           #view-fleet .fl-skel-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.25s ease-in-out infinite}
@@ -11082,13 +11082,13 @@ body.rr-cmdk-open{ overflow:hidden }
              that flips status without opening the per-van drawer. */
           #view-fleet .fl-opstat-btn{
             display:inline-flex;align-items:center;gap:6px;
-            padding:2px 6px 2px 4px;border-radius:6px;
+            padding:2px 6px 2px 4px;border-radius:var(--r-md);
             background:transparent;border:1px solid transparent;
             color:inherit;cursor:pointer;font:inherit;line-height:1.4;
-            transition:background .12s ease, border-color .12s ease;
+            transition:background var(--t-fast), border-color var(--t-fast);
           }
           #view-fleet .fl-opstat-btn:hover{background:var(--canvas);border-color:var(--border)}
-          #view-fleet .fl-opstat-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-fleet .fl-opstat-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
           #view-fleet .fl-opstat-row{display:inline-flex;align-items:center;gap:6px}
           #view-fleet .fl-opstat-chev{width:11px;height:11px;color:var(--text-subtle);flex:0 0 auto}
 
@@ -11097,42 +11097,43 @@ body.rr-cmdk-open{ overflow:hidden }
              ramps against Amazon's 7d / 14d repair-completion thresholds. */
           #view-fleet .fl-down-badge{
             display:inline-flex;align-items:center;justify-content:center;
-            min-width:34px;padding:2px 8px;
-            border-radius:5px;
-            font-size:11px;font-weight:700;letter-spacing:.02em;line-height:1.4;
+            min-width:34px;padding:2px var(--s-2);
+            border-radius:var(--r-sm);
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;line-height:1.4;
             background:var(--red-soft);color:var(--red);
             border:1px solid rgba(225,29,72,.18);
             font-variant-numeric:tabular-nums;
           }
-          #view-fleet .fl-down-badge.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.22)}
-          #view-fleet .fl-down-badge.crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
+          #view-fleet .fl-down-badge.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(245,158,11,.22)}
+          #view-fleet .fl-down-badge.crit{background:var(--red-dark);color:#fff;border-color:var(--red-dark)}
 
           /* Repair-status cell · two labelled clocks + RO entry box.
              Stacked rows so each clock has its own label header. */
           #view-fleet .fl-repair-status{display:flex;flex-direction:column;gap:5px;min-width:200px}
-          #view-fleet .fl-rs-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center}
+          #view-fleet .fl-rs-row{display:grid;grid-template-columns:120px 1fr;gap:var(--s-2);align-items:center}
           #view-fleet .fl-rs-label{
-            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
             color:var(--text-subtle);
           }
           #view-fleet .fl-rs-ro-input{
             width:100%;height:24px;padding:2px 7px;
-            border:1px solid var(--border);border-radius:5px;
+            border:1px solid var(--border);border-radius:var(--r-sm);
             background:var(--surface);color:var(--text);
             font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-            font-size:11.5px;letter-spacing:.02em;
+            font-size:var(--fs-sm);letter-spacing:.02em;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
-          #view-fleet .fl-rs-ro-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-fleet .fl-rs-ro-input:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
           #view-fleet .fl-clock{
             display:inline-flex;align-items:center;justify-content:flex-start;
-            padding:1px 7px;border-radius:5px;
-            font-size:10.5px;font-weight:700;letter-spacing:.02em;line-height:1.5;
+            padding:1px 7px;border-radius:var(--r-sm);
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;line-height:1.5;
             font-variant-numeric:tabular-nums;white-space:nowrap;
             background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
           }
           #view-fleet .fl-clock.fl-clock-ok{background:var(--green-soft);color:var(--green);border-color:transparent}
           #view-fleet .fl-clock.fl-clock-warn{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
-          #view-fleet .fl-clock.fl-clock-crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
+          #view-fleet .fl-clock.fl-clock-crit{background:var(--red-dark);color:#fff;border-color:var(--red-dark)}
           #view-fleet .fl-clock.fl-clock-met{background:var(--green-soft);color:var(--green);border-color:transparent}
           #view-fleet .fl-clock.fl-clock-dim{background:transparent;color:var(--text-subtle);border-color:transparent}
 
@@ -11141,14 +11142,15 @@ body.rr-cmdk-open{ overflow:hidden }
           .fl-opstat-menu{
             position:absolute;z-index:9000;
             background:var(--surface);border:1px solid var(--border);
-            border-radius:10px;box-shadow:var(--shadow-lg);
-            padding:6px;min-width:200px;
+            border-radius:var(--r-lg);box-shadow:var(--shadow-lg);
+            padding:var(--s-2);min-width:200px;
           }
           .fl-opstat-menu .row{
-            display:flex;align-items:center;gap:10px;width:100%;
-            padding:8px 10px;border-radius:7px;
+            display:flex;align-items:center;gap:var(--s-2-5);width:100%;
+            padding:var(--s-2) var(--s-2-5);border-radius:var(--r-md);
             background:transparent;border:none;cursor:pointer;text-align:left;
-            font-size:13px;color:var(--text);font-weight:550;
+            font-size:var(--fs-md);color:var(--text);font-weight:550;
+            transition:background var(--t-fast);
           }
           .fl-opstat-menu .row:hover{background:var(--canvas)}
           .fl-opstat-menu .row[disabled]{opacity:.55;cursor:default}
@@ -11157,13 +11159,13 @@ body.rr-cmdk-open{ overflow:hidden }
           .fl-opstat-menu .pip.green{background:var(--green)}
           .fl-opstat-menu .pip.red{background:var(--red)}
           .fl-opstat-menu .row .sub{
-            margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.05em;
+            margin-left:auto;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
             text-transform:uppercase;color:var(--text-subtle);
           }
           .fl-opstat-menu .row.is-active .sub{color:var(--green)}
 
           /* Issue severity chip */
-          #view-fleet .fl-sev{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
+          #view-fleet .fl-sev{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:999px;white-space:nowrap}
           #view-fleet .fl-sev.low{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
           #view-fleet .fl-sev.medium{background:var(--accent-soft);color:var(--accent-text)}
           #view-fleet .fl-sev.high{background:var(--amber-soft);color:var(--amber-dark)}
@@ -20420,7 +20422,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515z-schedule-governance"></script>
+<script type="module" src="./live.js?v=20260515aa-fleet-governance"></script>
 
 </body>
 </html>
