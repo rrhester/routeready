@@ -12865,7 +12865,9 @@ function renderOverviewTab(body, dd) {
     <div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">At a glance</div></div></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s-4) 14px">
-        ${fact("Phone", d.phone || "—")}
+        ${fact("Phone", d.phone
+          ? `<span>${escapeHtml(d.phone)}</span> <button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(d.phone)}" data-rr-voice-label="${escapeHtml(d.name || d.phone)}" aria-label="Call ${escapeHtml(d.name || "driver")}" title="Call ${escapeHtml(d.name || d.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>`
+          : "—")}
         ${fact("Email", d.email || "—")}
         ${fact("Station", stationTxt)}
         ${fact("Hired", d.hire_date ? fmtD(d.hire_date) + (tenureTxt ? " · " + tenureTxt : "") : "—")}
@@ -15591,10 +15593,11 @@ async function refreshDriverChatThread(scrollToBottom) {
             ${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}
             <span class="rr-mc-head-presence"></span>
           </div>
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="rr-mc-name">${escapeHtml(drv.name || "")}</div>
             <div class="rr-mc-sub">Driver chat</div>
           </div>
+          ${drv.phone ? `<button type="button" class="rr-call-icon-btn" data-rr-voice-call="${escapeHtml(drv.phone)}" data-rr-voice-label="${escapeHtml(drv.name || drv.phone)}" aria-label="Call ${escapeHtml(drv.name || "driver")}" title="Call ${escapeHtml(drv.name || drv.phone)}" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>` : ""}
         </div>
         <div class="rr-mc-thread" id="rr-mc-thread" data-rr-anchor="1">
           <div class="rr-msg-skeleton">
