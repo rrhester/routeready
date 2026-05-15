@@ -13873,13 +13873,13 @@ function _i9FormPrintStylesOnce() {
     #rr-i9form-modal .i9f-doc{background:#fff;color:var(--text);width:8.5in;min-height:11in;padding:0.6in 0.7in;box-shadow:0 4px 24px rgba(0,0,0,.18);font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;line-height:1.4}
     .i9f-doc h1{font-size:var(--fs-base);margin:0 0 2px;letter-spacing:.01em}
     .i9f-doc .i9f-sub{font-size:10px;color:var(--text-muted);margin-bottom:2px}
-    .i9f-doc .i9f-note{font-size:9px;color:#6b7280;margin-bottom:14px;border-bottom:2px solid #111827;padding-bottom:8px}
+    .i9f-doc .i9f-note{font-size:9px;color:var(--text-muted);margin-bottom:14px;border-bottom:2px solid #111827;padding-bottom:8px}
     .i9f-doc h2{font-size:11.5px;background:#1f2937;color:#fff;padding:var(--s-1) 8px;margin:18px 0 8px;letter-spacing:.02em}
     .i9f-doc h3{font-size:10.5px;margin:12px 0 4px;color:#1f2937;text-transform:uppercase;letter-spacing:.04em}
     .i9f-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-bottom:var(--s-2)}
     .i9f-grid.c3{grid-template-columns:1fr 1fr 1fr}
     .i9f-f{border-bottom:1px solid #9ca3af;padding:2px 2px 1px;min-height:18px}
-    .i9f-f .lab{display:block;font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}
+    .i9f-f .lab{display:block;font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
     .i9f-f .val{font-size:var(--fs-xs);color:var(--text)}
     .i9f-attest{font-size:9.5px;color:#1f2937;border:1px solid #9ca3af;background:#f9fafb;padding:var(--s-2);margin:8px 0}
     .i9f-cit{margin:6px 0}
@@ -13889,9 +13889,9 @@ function _i9FormPrintStylesOnce() {
     .i9f-sig .sigbox{border:1px solid #9ca3af;height:46px;display:flex;align-items:center;justify-content:flex-start;padding:2px 6px;background:#fff}
     .i9f-sig .sigbox img{max-height:42px;max-width:100%}
     .i9f-sig .sigbox .typed{font-family:"Brush Script MT","Segoe Script",cursive;font-size:20px;color:var(--text)}
-    .i9f-sig .lab{font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;display:block}
-    .i9f-foot{margin-top:22px;border-top:2px solid #111827;padding-top:8px;font-size:8.5px;color:#6b7280;line-height:1.45}
-    .i9f-empty{font-size:10px;color:#9ca3af;font-style:italic;padding:6px 0}
+    .i9f-sig .lab{font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:3px;display:block}
+    .i9f-foot{margin-top:22px;border-top:2px solid #111827;padding-top:8px;font-size:8.5px;color:var(--text-muted);line-height:1.45}
+    .i9f-empty{font-size:10px;color:var(--text-subtle);font-style:italic;padding:6px 0}
     @media print {
       body * { visibility: hidden !important; }
       #rr-i9form-modal, #rr-i9form-modal * { visibility: visible !important; }
@@ -13908,7 +13908,7 @@ function _i9SigBoxHtml(sig, fallbackName) {
   if (s && s.method === "drawn" && s.data) return `<img src="${escapeHtml(s.data)}" alt="signature">`;
   const typed = (s && (s.data || s.signer_name)) || fallbackName || "";
   if (typed) return `<span class="typed">${escapeHtml(typed)}</span>`;
-  return `<span style="color:#9ca3af;font-size:10px;font-style:italic">— not signed —</span>`;
+  return `<span style="color:var(--text-subtle);font-size:10px;font-style:italic">— not signed —</span>`;
 }
 async function openI9FormPrint(driverId) {
   let rec = (_ddDriver && _ddDriver.i9 && _ddDriver.i9.record && _ddDriver.driver && _ddDriver.driver.id === driverId) ? _ddDriver.i9.record : null;
@@ -13976,7 +13976,7 @@ async function openI9FormPrint(driverId) {
         <div><div class="sigbox">${_i9SigBoxHtml(rec.section1_signature, empName)}</div><span class="lab">Signature of employee</span></div>
         <div>${F("Date", rec.section1_completed_at ? fmtD(rec.section1_completed_at) : "")}</div>
       </div>
-      <div style="font-size:8.5px;color:#6b7280;margin-top:4px">Completed ${rec.section1_completed_at ? escapeHtml(new Date(rec.section1_completed_at).toLocaleString()) : "—"}${rec.section1_completed_via ? " · " + (rec.section1_completed_via === "driver_app" ? "signed electronically by the employee in the RouteReady app" : "recorded by the employer on the employee's behalf") : ""}.${s1.preparer_used ? " A preparer or translator assisted the employee (see Supplement A — collect their information separately)." : ""}</div>
+      <div style="font-size:8.5px;color:var(--text-muted);margin-top:4px">Completed ${rec.section1_completed_at ? escapeHtml(new Date(rec.section1_completed_at).toLocaleString()) : "—"}${rec.section1_completed_via ? " · " + (rec.section1_completed_via === "driver_app" ? "signed electronically by the employee in the RouteReady app" : "recorded by the employer on the employee's behalf") : ""}.${s1.preparer_used ? " A preparer or translator assisted the employee (see Supplement A — collect their information separately)." : ""}</div>
 
       <h2>Section 2. Employer Review and Verification</h2>
       <div class="i9f-grid c3">${F("Employee's first day of employment (mm/dd/yyyy)", rec.first_day_of_employment ? fmtD(rec.first_day_of_employment) : "")}${F("Examination method", s2.exam_method === "remote_alternative" ? "DHS-authorized alternative procedure (remote)" : rec.section2_completed_at ? "Physical, in-person examination" : "")}${F("Documents presented", s2.list_used === "A" ? "List A" : rec.section2_completed_at ? "List B + List C" : "")}</div>
@@ -13988,7 +13988,7 @@ async function openI9FormPrint(driverId) {
         <div>${F("Date", rec.section2_completed_at ? fmtD(rec.section2_completed_at) : "")}</div>
       </div>
       <div class="i9f-grid c3">${F("Name of employer representative", rec.section2_completed_by_name)}${F("Title", rec.section2_completed_by_title)}${F("Business or organization name", dspName)}</div>
-      ${Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length ? `<div style="font-size:8.5px;color:#6b7280;margin-top:4px">${rec.section2_document_paths.length} document image(s) retained on the employee's record in RouteReady.</div>` : ""}
+      ${Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length ? `<div style="font-size:8.5px;color:var(--text-muted);margin-top:4px">${rec.section2_document_paths.length} document image(s) retained on the employee's record in RouteReady.</div>` : ""}
 
       <div class="i9f-foot">
         Form I-9 status: <strong>${escapeHtml(_i9DerivedLabel(rec))}</strong>.
