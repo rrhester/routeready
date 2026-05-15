@@ -1596,12 +1596,7 @@ select.field{
 .to-pill-cancelled{ background:var(--canvas);        color:var(--text-subtle) }
 .to-cancel{appearance:none;margin-top:10px;background:transparent;border:0;color:var(--red);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;padding:0}
 
-/* ── Offline indicator ───────────────────────────────────────
-   A slim pill that slides down from under the header when the
-   driver loses network. Operationally critical — a delivery
-   driver needs to know at a glance whether their actions are
-   queued or live. Sits BELOW the header (z below tabbar) so it
-   never blocks navigation. */
+/* ── Offline indicator ─────────────────────────────────────── */
 .rr-offline{
   position:absolute;
   top:calc(76px + env(safe-area-inset-top, 0px));
@@ -1675,3 +1670,265 @@ select.field{
   transition:opacity 140ms var(--ease-out);
 }
 .rr-text-link:active{ opacity:.6 }
+
+/* ════════════════════════════════════════════════════════════════
+   INTERACTION PRIMITIVES
+   ────────────────────────────────────────────────────────────────
+   Native-quality patterns layered on top of the design system —
+   bottom sheets with drag-to-dismiss, pull-to-refresh, scroll-
+   aware header elevation, directional page transitions.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Bottom sheet ─────────────────────────────────────────────
+   Single-instance overlay that slides up from the bottom edge
+   with spring physics. Backdrop fades; sheet body can be dragged
+   down to dismiss (handled in app.js). Used for confirms,
+   contextual menus, and any "decide between options" moment that
+   previously fell through to a system confirm(). */
+.rr-sheet-root{
+  position:fixed;inset:0;z-index:60;
+  pointer-events:none;
+  /* Sheet root stays mounted but inert until .open is set, so the
+     same element can serve every sheet the app needs over its
+     lifetime without re-mounting + re-binding listeners. */
+}
+.rr-sheet-root.open{ pointer-events:auto }
+.rr-sheet-backdrop{
+  position:absolute;inset:0;
+  background:rgba(15,23,42,.42);
+  opacity:0;
+  transition:opacity 220ms var(--ease-out);
+  -webkit-backdrop-filter:blur(2px);
+  backdrop-filter:blur(2px);
+}
+.rr-sheet-root.open .rr-sheet-backdrop{ opacity:1 }
+.rr-sheet{
+  position:absolute;left:0;right:0;bottom:0;
+  background:var(--surface);
+  border-top-left-radius:20px;border-top-right-radius:20px;
+  padding:8px 0 calc(env(safe-area-inset-bottom, 0px) + 12px);
+  box-shadow:0 -12px 40px -8px rgba(15,23,42,.22),
+             0 -2px 6px rgba(15,23,42,.06);
+  max-height:88dvh;
+  display:flex;flex-direction:column;
+  transform:translateY(100%);
+  transition:transform 320ms cubic-bezier(.22,1,.36,1);
+  touch-action:none;
+  /* Pin the bottom edge below the safe-area so the action buttons
+     never hide under the home-indicator on iOS. */
+}
+.rr-sheet-root.open .rr-sheet{ transform:translateY(0) }
+.rr-sheet-root.dragging .rr-sheet{ transition:none }
+.rr-sheet-root.dragging .rr-sheet-backdrop{ transition:opacity 80ms linear }
+.rr-sheet-handle{
+  width:36px;height:4px;border-radius:2px;
+  background:var(--border-strong);
+  margin:6px auto 8px;
+  flex:0 0 auto;
+}
+.rr-sheet-body{
+  padding:8px 22px 6px;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  /* Touch panning inside the body should drive scroll, not the
+     drag-to-dismiss handler — that's wired in JS to only respond
+     to gestures that start on the handle or above scrollTop=0. */
+  touch-action:pan-y;
+}
+.rr-sheet-title{
+  font-size:18px;font-weight:700;letter-spacing:-.018em;
+  color:var(--text);line-height:1.25;
+  margin:6px 0 6px;
+}
+.rr-sheet-msg{
+  font-size:var(--fs-base);color:var(--text-muted);line-height:1.5;
+  margin:0 0 var(--s-3);
+}
+.rr-sheet-actions{
+  display:flex;flex-direction:column;gap:8px;
+  padding:6px 18px 6px;
+  flex:0 0 auto;
+}
+.rr-sheet-actions .btn{ width:100%;min-height:50px }
+.rr-sheet-actions .btn-ghost{
+  min-height:46px;background:transparent;border-color:transparent;
+  box-shadow:none;color:var(--text-muted);
+}
+.rr-sheet-actions .btn-ghost:active{ background:var(--canvas) }
+
+@media (prefers-reduced-motion: reduce){
+  .rr-sheet{ transition:transform 120ms linear }
+  .rr-sheet-backdrop{ transition:opacity 120ms linear }
+}
+
+/* ── Pull-to-refresh ──────────────────────────────────────────
+   Driver pulls the top of any list-screen down to refresh. The
+   indicator sits above the content; the content itself shifts
+   down briefly via translate3d on #main during the gesture so
+   the motion reads as physical instead of "a loader appeared". */
+.rr-ptr{
+  position:absolute;top:calc(76px + env(safe-area-inset-top, 0px));
+  left:50%;transform:translate(-50%,-32px);
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;border-radius:50%;
+  background:var(--surface);color:var(--accent);
+  box-shadow:0 4px 14px -4px rgba(15,23,42,.18),
+             0 1px 3px rgba(15,23,42,.08);
+  z-index:8;
+  opacity:0;pointer-events:none;
+  transition:opacity 160ms var(--ease-out);
+}
+.rr-ptr.visible{ opacity:1 }
+.rr-ptr svg{
+  width:16px;height:16px;
+  transition:transform 140ms var(--ease-out);
+}
+.rr-ptr.armed svg{ transform:rotate(180deg);color:var(--accent) }
+.rr-ptr.refreshing svg{
+  animation:rrspin .7s linear infinite;
+}
+/* When PTR is dragging, #main slides down a bit so the motion
+   reads as the content itself moving. JS sets --rr-ptr-y. */
+#main[data-ptr-active]{
+  transform:translate3d(0, var(--rr-ptr-y, 0), 0);
+  transition:transform 260ms cubic-bezier(.22,1,.36,1);
+}
+#main[data-ptr-active="dragging"]{ transition:none }
+
+/* ── Scroll-aware header ──────────────────────────────────────
+   Header is normally hairline-soft; once the content scrolls
+   under it, it gains a subtle elevation shadow so the layering
+   reads correctly. Mirrors iOS large-title behaviour without
+   the title swap. */
+.app-head.scrolled{
+  box-shadow:0 1px 0 rgba(15,23,42,.05),
+             0 8px 20px -16px rgba(15,23,42,.20);
+  border-bottom-color:var(--border);
+}
+
+/* ── Directional page transitions ─────────────────────────────
+   Drilling deeper (forward) slides right→left; going back
+   slides left→right. Set via [data-nav-dir] on #main. The
+   page-enter keyframes above stay as the default for tab
+   switches; these override for sub-route entry/exit. */
+main[data-page-enter][data-nav-dir="forward"] > *{
+  animation: rrPageEnterForward 260ms var(--ease-out) both;
+}
+main[data-page-enter][data-nav-dir="back"] > *{
+  animation: rrPageEnterBack 260ms var(--ease-out) both;
+}
+@keyframes rrPageEnterForward{
+  from{ opacity:0; transform:translateX(14px); }
+  to  { opacity:1; transform:translateX(0); }
+}
+@keyframes rrPageEnterBack{
+  from{ opacity:0; transform:translateX(-14px); }
+  to  { opacity:1; transform:translateX(0); }
+}
+@media (prefers-reduced-motion: reduce){
+  main[data-page-enter][data-nav-dir] > *{ animation:none }
+}
+
+/* ── Smart hero (Profile page) ────────────────────────────────
+   When there's an operationally-relevant action — a shift
+   starting soon, an in-progress check-in, an unacknowledged
+   urgent message — the profile page elevates that into a hero
+   card with a single clear primary action. Reads as a "next
+   thing" instead of a generic dashboard. */
+.rr-hero{
+  background:var(--surface);
+  background-image:linear-gradient(180deg, var(--surface) 0%, var(--canvas) 100%);
+  border:1px solid var(--border);
+  border-radius:var(--r-xl);
+  padding:18px 18px 16px;
+  margin:0 0 14px;
+  display:flex;flex-direction:column;gap:10px;
+  box-shadow:var(--shadow-sm), var(--highlight-top);
+  position:relative;
+}
+.rr-hero.is-now{
+  background-image:linear-gradient(180deg, rgba(37,99,235,.04) 0%, var(--surface) 100%);
+  border-color:var(--accent-border);
+  box-shadow:0 1px 2px rgba(37,99,235,.10),
+             0 8px 24px -10px rgba(37,99,235,.18),
+             var(--highlight-top);
+}
+.rr-hero-eyebrow{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:10px;font-weight:700;letter-spacing:.085em;text-transform:uppercase;
+  color:var(--accent-text);
+}
+.rr-hero.is-future .rr-hero-eyebrow{ color:var(--text-subtle) }
+.rr-hero-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--accent);
+  animation:rrPulse 1.8s ease-in-out infinite;
+}
+.rr-hero.is-future .rr-hero-dot{ background:var(--text-disabled);animation:none }
+@keyframes rrPulse{
+  0%,100%{ opacity:.5;transform:scale(.85) }
+  50%    { opacity:1; transform:scale(1) }
+}
+.rr-hero-title{
+  font-size:20px;font-weight:700;letter-spacing:-.018em;
+  color:var(--text);line-height:1.2;
+}
+.rr-hero-meta{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  font-size:var(--fs-sm);color:var(--text-muted);font-weight:500;
+}
+.rr-hero-meta b{ color:var(--text);font-weight:600;font-variant-numeric:tabular-nums }
+.rr-hero-cta{
+  margin-top:4px;width:100%;min-height:54px;
+  font-size:var(--fs-lg);font-weight:700;letter-spacing:-.005em;
+  background:var(--accent-grad);color:#fff;
+  border:1px solid var(--accent-strong);border-radius:var(--r-lg);
+  box-shadow:0 1px 2px rgba(37,99,235,.18),
+             0 10px 24px -8px rgba(37,99,235,.34),
+             inset 0 1px 0 rgba(255,255,255,.20);
+  text-shadow:0 1px 0 rgba(0,0,0,.06);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:transform 120ms var(--ease-spring), box-shadow 140ms var(--ease-out);
+}
+.rr-hero-cta:active{
+  transform:translateY(1px) scale(.992);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.18), 0 1px 2px rgba(37,99,235,.18);
+}
+.rr-hero-cta.muted{
+  background:var(--canvas);color:var(--text-muted);
+  border-color:var(--border-strong);text-shadow:none;
+  box-shadow:var(--shadow-xs);
+}
+
+/* ── Inline confirmation (non-blocking) ───────────────────────
+   For low-stakes destructive actions inside a list. Shows a
+   slide-in confirm row in-place of the row, dismissed by tap
+   anywhere else. Used by Time-off cancel, attachment remove,
+   etc. */
+.rr-inline-confirm{
+  display:flex;align-items:center;gap:var(--s-3);
+  padding:var(--s-3) var(--s-4);
+  background:var(--red-soft);
+  border:1px solid rgba(225,29,72,.20);
+  border-radius:var(--r-lg);
+  color:var(--text);
+  font-size:var(--fs-sm);
+  animation: rrInlineSlide 180ms var(--ease-out) both;
+}
+@keyframes rrInlineSlide{
+  from{ opacity:0;transform:translateY(-4px) }
+  to  { opacity:1;transform:translateY(0) }
+}
+
+/* ── Toggle (premium iOS-style with spring) ───────────────────
+   Used for availability and any other on/off control. The
+   thumb's translate animation gets the spring curve so it
+   "settles" with a tiny overshoot on the way to on. */
+.avail-toggle-thumb{
+  transition:transform 260ms var(--ease-spring),
+             box-shadow 180ms var(--ease-out) !important;
+}
+.avail-toggle-track{
+  transition:background 220ms var(--ease-out),
+             border-color 220ms var(--ease-out) !important;
+}
