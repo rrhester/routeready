@@ -240,6 +240,37 @@ function toast(msg, kind = "default") {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
+// Skeleton placeholders — used in place of a bare spinner whenever a
+// screen has a stable layout we can hint at while data loads. The
+// shimmer rhythm matches .chat-skeleton-bubble so the whole app
+// breathes together. n controls how many rows the skeleton stamps.
+function shiftSkeletonHtml(n = 3){
+  let out = "";
+  for (let i = 0; i < n; i++){
+    out += `<div class="skel-shift">
+      <span class="skel skel-date"></span>
+      <div class="skel-body">
+        <span class="skel skel-line-lg" style="width:55%"></span>
+        <span class="skel skel-line" style="width:35%"></span>
+      </div>
+    </div>`;
+  }
+  return out;
+}
+function taskSkeletonHtml(n = 3){
+  let out = "";
+  for (let i = 0; i < n; i++){
+    out += `<div class="skel-task">
+      <span class="skel skel-square"></span>
+      <div class="skel-body">
+        <span class="skel skel-line-lg" style="width:60%"></span>
+        <span class="skel skel-line-sm" style="width:40%"></span>
+      </div>
+    </div>`;
+  }
+  return out;
+}
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
 }
@@ -336,6 +367,17 @@ function render() {
   if (back && backTarget) back.onclick = () => navigate(backTarget);
   if (r.title) setHeader(r.title, "");
   r.render();
+  // Premium page-enter — toggle [data-page-enter] on #main so each top-
+  // level child fades + lifts in. Reset on every render so the animation
+  // re-fires when a route is re-entered. Cheap (CSS-only) and skipped
+  // automatically under prefers-reduced-motion.
+  const _main = document.getElementById("main");
+  if (_main) {
+    _main.removeAttribute("data-page-enter");
+    // Force reflow so the re-added attribute restarts the animation.
+    void _main.offsetWidth;
+    _main.setAttribute("data-page-enter", "1");
+  }
   document.querySelectorAll(".tab").forEach((t) => {
     // In onboarding the Onboarding tab points directly at
     // /tasks/onboarding; in the normal tabbar the Tasks tab uses /tasks.
@@ -564,6 +606,10 @@ function renderShell(session) {
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </button>
     </header>
+    <div id="rr-offline" class="rr-offline" aria-live="polite" role="status">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12" y2="20"/></svg>
+      <span id="rr-offline-text">Offline — changes will sync when you're back</span>
+    </div>
     <main id="main"><div class="loader"></div></main>
     ${isOnboarding ? onboardingTabs : activeTabs}`;
 
@@ -571,13 +617,49 @@ function renderShell(session) {
     t.addEventListener("click", () => navigate(t.dataset.route));
   });
   document.getElementById("head-gear").addEventListener("click", () => navigate("/settings"));
+
+  // Wire the offline pill — flips on `offline`, briefly shows a green
+  // "back online" confirmation on `online`. Idempotent; safe to call
+  // on every shell re-render.
+  _wireOfflineBanner();
+}
+
+// Module-scoped so the listeners attach exactly once across re-renders.
+let _rrOfflineWired = false;
+function _wireOfflineBanner(){
+  const set = (state) => {
+    const el = document.getElementById("rr-offline");
+    const tx = document.getElementById("rr-offline-text");
+    if (!el || !tx) return;
+    if (state === "offline") {
+      el.classList.remove("ok");
+      tx.textContent = "Offline — changes will sync when you're back";
+      el.classList.add("show");
+    } else if (state === "online-briefly") {
+      el.classList.add("ok");
+      tx.textContent = "Back online";
+      el.classList.add("show");
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove("show"), 1800);
+    } else {
+      el.classList.remove("show");
+    }
+  };
+  // Paint the initial state.
+  if (!navigator.onLine) set("offline");
+  if (_rrOfflineWired) return;
+  _rrOfflineWired = true;
+  window.addEventListener("offline", () => set("offline"));
+  window.addEventListener("online",  () => set("online-briefly"));
 }
 
 // ── Schedule ────────────────────────────────────────────────────────
 async function renderSchedule() {
   setHeader("Schedule", "");
   const main = document.getElementById("main");
-  main.innerHTML = `<div class="loader"></div>`;
+  // Skeleton instead of a bare spinner — communicates "shifts loading"
+  // and reserves the layout so the real cards swap in without a jump.
+  main.innerHTML = shiftSkeletonHtml(3);
 
   // Reset any leftover Cover-offer poller from a previous schedule view.
   _coverOfferTeardown();
@@ -1074,7 +1156,26 @@ function renderTasksHub() {
   // icon) — they're things the driver checks/sets infrequently, not
   // daily tasks.  The Tasks hub is for onboarding steps + assigned forms.
   const baseCards = [];
-  main.innerHTML = `<div id="rr-tasks-onboarding-slot"></div><div id="rr-tasks-assignments-slot"></div>${baseCards.map(taskCardHtml).join("")}<div id="rr-tasks-forms-slot"></div><div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Nothing to do right now — you're all set.</div>`;
+  // A short shimmer above the real slots so the page never paints empty
+  // for the half-second between mount and the first RPC landing. The
+  // skeleton auto-clears on a timer — fast enough that drivers on
+  // good connections never see it stick, slow enough that flaky
+  // networks don't flash a "you're all caught up" message that's
+  // about to be replaced by real content.
+  main.innerHTML = `
+    <div id="rr-tasks-skel">${taskSkeletonHtml(2)}</div>
+    <div id="rr-tasks-onboarding-slot"></div>
+    <div id="rr-tasks-assignments-slot"></div>
+    ${baseCards.map(taskCardHtml).join("")}
+    <div id="rr-tasks-forms-slot"></div>
+    <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Nothing to do right now — you're all set.</div>`;
+  // Clear the shimmer once the RPCs have had time to settle (most
+  // return in well under 600ms). Premium-feeling: never a blank flash
+  // before content, never a stuck shimmer after.
+  setTimeout(() => {
+    if (currentRoute() !== "/tasks") return;
+    document.getElementById("rr-tasks-skel")?.remove();
+  }, 800);
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
@@ -2433,7 +2534,23 @@ function channelBubbleHtml(m, pos) {
 async function renderTeam() {
   setHeader("Team", "");
   const main = document.getElementById("main");
-  main.innerHTML = `<div class="loader" style="margin:80px auto"></div>`;
+  // Skeleton roster — hints at the row layout (avatar circle + two lines
+  // of text + action chip) so the real list swaps in without a jump.
+  let _skel = `<div class="team-search" style="opacity:.5;pointer-events:none">
+    <svg class="team-search-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span style="color:var(--text-subtle);font-size:var(--fs-md)">Search teammates</span>
+  </div><div class="team-list">`;
+  for (let i = 0; i < 6; i++){
+    _skel += `<div class="team-row">
+      <span class="skel skel-circle" style="width:44px;height:44px"></span>
+      <div class="team-row-body">
+        <span class="skel skel-line" style="width:${55 - i*4}%"></span>
+        <span class="skel skel-line-sm" style="width:${35 - i*3}%"></span>
+      </div>
+    </div>`;
+  }
+  _skel += `</div>`;
+  main.innerHTML = _skel;
 
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
