@@ -3922,7 +3922,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--surface);color:var(--text);
   border:1px solid var(--border);
   border-bottom-left-radius:5px;
-  box-shadow:0 1px 2px rgba(15,23,42,.04);
+  box-shadow:var(--shadow-xs);
 }
 .rr-mc-bubble.dispatch, .rr-cc-bubble.dispatch{
   align-self:flex-end;
@@ -6803,8 +6803,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-an-section-title .rr-an-section-count{font-weight:600;color:var(--text-subtle);letter-spacing:0;text-transform:none;background:var(--surface-hover,#F1F5F9);padding:2px 7px;border-radius:999px;font-size:var(--fs-xs)}
 
 /* Result card — both for live result and pinned items */
-.rr-an-result{background:#fff;border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-5);box-shadow:0 1px 2px rgba(15,23,42,.03);position:relative;transition:box-shadow var(--t-spring)}
-.rr-an-result:hover{box-shadow:0 4px 18px -10px rgba(15,23,42,.18),0 1px 2px rgba(15,23,42,.04)}
+.rr-an-result{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-5);box-shadow:var(--shadow-xs);position:relative;transition:box-shadow var(--t-spring)}
+.rr-an-result:hover{box-shadow:var(--shadow-md)}
 .rr-an-result-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-4);margin-bottom:var(--s-3)}
 .rr-an-result-title{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.005em;margin:0;line-height:1.3}
 .rr-an-result-subtitle{font-size:var(--fs-sm);color:var(--text-subtle);margin:3px 0 0;line-height:1.45}
@@ -19949,7 +19949,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515bj-tp-vp-pop-app-overlay"></script>
+<script type="module" src="./live.js?v=20260515bk-bubble-shadow-an-result"></script>
 
 </body>
 </html>
