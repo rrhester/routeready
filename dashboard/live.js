@@ -971,7 +971,6 @@ window.goto = function (view) {
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
-  if (view === "time-off")  loadTimeOffView();
   if (view === "fleet" && typeof loadFleetView === "function") loadFleetView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
 };
@@ -33403,12 +33402,38 @@ async function loadTimeOffView() {
 }
 
 function _toRefreshNavBadge() {
-  const badge = document.getElementById("rr-nav-time-off-badge");
+  const badge = document.getElementById("rr-sched-time-off-badge");
   if (!badge) return;
   const n = _toRows.filter((r) => r.status === "pending").length;
-  if (n > 0) { badge.textContent = String(n); badge.style.display = ""; }
-  else       { badge.style.display = "none"; badge.textContent = ""; }
+  if (n > 0) { badge.textContent = String(n); badge.style.display = "inline-block"; }
+  else       { badge.style.display = "none"; badge.textContent = "0"; }
 }
+
+// Hook the Schedule view's sub-tab router so opening Time off loads
+// the panel fresh (and refreshes the badge). Wrapping in-place
+// preserves the existing schedSub behavior for week / staff /
+// templates and the later wrappers stacked on top of it (see
+// schedSub re-wraps in index.html for the mockup wiring).
+(function () {
+  if (typeof window === "undefined") return;
+  function install() {
+    const prev = window.schedSub;
+    if (typeof prev !== "function" || prev._wrappedForTimeOff) return false;
+    window.schedSub = function (sub) {
+      prev(sub);
+      if (sub === "time-off") loadTimeOffView();
+    };
+    window.schedSub._wrappedForTimeOff = true;
+    return true;
+  }
+  if (!install()) {
+    // schedSub may be re-defined later in the boot order; retry briefly.
+    let tries = 0;
+    const t = setInterval(() => {
+      if (install() || ++tries > 40) clearInterval(t);
+    }, 50);
+  }
+})();
 
 function _toFmtRange(start, end) {
   const fmt = (iso) => {
