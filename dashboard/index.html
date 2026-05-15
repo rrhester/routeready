@@ -491,34 +491,32 @@ a{color:inherit;text-decoration:none}
 }
 .hdr-ask:hover{border-color:var(--accent-text)}
 .hdr-ask:focus-within{
-  border-color:transparent;
-  background:linear-gradient(var(--surface),var(--surface)) padding-box,
-             linear-gradient(135deg,#6366F1 0%,#22D3EE 100%) border-box;
-  box-shadow:0 0 0 3px rgba(99,102,241,.12);
+  border-color:var(--accent);
+  box-shadow:var(--ring-focus);
 }
 .hdr-ask-icon{
   display:inline-flex;align-items:center;justify-content:center;
-  width:26px;height:26px;border-radius:8px;flex:0 0 auto;
-  background:linear-gradient(135deg,#6366F1 0%,#22D3EE 100%);
-  color:#fff;
+  width:26px;height:26px;border-radius:var(--r-md);flex:0 0 auto;
+  background:var(--accent-soft);
+  color:var(--accent-text);
 }
 .hdr-ask-icon svg{width:14px;height:14px;stroke-width:2}
 .hdr-ask-input{
   flex:1;min-width:0;appearance:none;
   background:transparent;border:0;outline:0;
-  font:inherit;font-size:13.5px;color:var(--text);
+  font:inherit;font-size:var(--fs-sm);color:var(--text);
 }
 .hdr-ask-input::placeholder{color:var(--text-subtle)}
 .hdr-ask-submit{
   display:inline-flex;align-items:center;gap:5px;
-  height:30px;padding:0 14px;border-radius:999px;border:0;cursor:pointer;
-  font:inherit;font-size:12.5px;font-weight:700;letter-spacing:.005em;
-  background:linear-gradient(135deg,#6366F1 0%,#22D3EE 100%);
+  height:30px;padding:0 var(--s-3-5);border-radius:999px;border:0;cursor:pointer;
+  font:inherit;font-size:var(--fs-sm);font-weight:600;letter-spacing:.005em;
+  background:var(--accent);
   color:#fff;
-  transition:transform var(--t-fast), filter var(--t-fast);
+  transition:background var(--t-fast);
 }
-.hdr-ask-submit:hover{filter:brightness(1.05)}
-.hdr-ask-submit:active{transform:translateY(.5px)}
+.hdr-ask-submit:hover{background:var(--accent-hover)}
+.hdr-ask-submit:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .hdr-ask-submit:disabled{opacity:.6;cursor:not-allowed}
 .hdr-ask-submit svg{width:12px;height:12px;stroke-width:2.4}
 @media (max-width:780px){
@@ -3928,13 +3926,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-mc-bubble.dispatch, .rr-cc-bubble.dispatch{
   align-self:flex-end;
-  /* Solid Azure — same calm tone as primary buttons elsewhere.
-     Linear/Slack/Teams pattern: dispatch bubble is one flat
-     enterprise blue, not a saturated gradient. */
-  background:var(--accent);
+  /* Deeper Azure — the bright --accent reads too saturated on the
+     bubble's large fill area; --accent-hover (Azure-700) holds the
+     same brand tone but lands calmer on big surfaces. */
+  background:var(--accent-hover);
   color:#fff;
   border-bottom-right-radius:5px;
-  box-shadow:0 1px 2px rgba(37,99,235,.14);
+  box-shadow:0 1px 2px rgba(29,78,216,.14);
 }
 /* Group spacing — 6px between sender groups, 2px between bubbles in
    the same group. Driven by data-group-pos which the renderer sets. */
@@ -6968,30 +6966,17 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-badge" style="background:var(--green)">$2.4k</span>
       </button>
 
-      <button class="nav-item" data-view="settings" data-c="settings" style="margin-top:auto" onclick="goto('settings')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
-        Settings
-      </button>
-
       <!-- Platform admin · cross-tenant DSP management.  Hidden by
            default; live.js reveals it for users with role='platform_admin'
            after the auth gate completes (see _revealPlatformAdminNav). -->
       <button class="nav-item" data-view="admin" data-c="admin"
               data-rr-platform-admin-only="1"
-              style="display:none"
+              style="display:none;margin-top:auto"
               onclick="goto('admin')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span>
         Admin
       </button>
     </nav>
-
-    <div class="workspace-chip">
-      <div class="workspace-chip-avatar" id="rr-workspace-chip-avatar">CL</div>
-      <div>
-        <div class="workspace-chip-name" id="rr-workspace-chip-name">Cardinal Logistics</div>
-        <div class="workspace-chip-sub" id="rr-workspace-chip-sub">DSP · KMO1</div>
-      </div>
-    </div>
   </aside>
 
   <!-- ═══════════════════════════════════════════════════════════
@@ -20432,7 +20417,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ai-system-blue-sweep"></script>
+<script type="module" src="./live.js?v=20260515aj-multi-cleanup"></script>
 
 </body>
 </html>

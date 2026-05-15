@@ -22292,23 +22292,12 @@ async function renderScheduleWeek() {
     pageSub.innerHTML = `Week of ${wkRange} · ${drivers.length} active driver${drivers.length === 1 ? "" : "s"} · ${hrsW.toLocaleString()}h scheduled${openBit}${finalPill}`;
   }
 
-  // Finalized banner — full-width strip above the toolbar that drivers
-  // can see this week's schedule. Only renders when _rrWeekFinalized.
+  // The full-width "schedule is LIVE" banner was retired —
+  // the existing LIVE chip in the page sub-header (rendered via
+  // finalPill above) is enough signal.  If a stale banner is in
+  // the DOM (cached frame, etc.), remove it.
   let banner = sub.querySelector("#rr-sched-finalize-banner");
-  if (window._rrWeekFinalized) {
-    if (!banner) {
-      banner = document.createElement("div");
-      banner.id = "rr-sched-finalize-banner";
-      banner.style.cssText = "display:flex;align-items:center;gap:10px;background:rgba(34,197,94,.10);border:1px solid var(--green);border-left-width:4px;color:var(--green);font-weight:600;font-size:var(--fs-md);padding:10px 14px;border-radius:8px;margin-bottom:var(--s-3)";
-      banner.innerHTML = `
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <span>This week is <strong>LIVE</strong> — drivers can see this schedule. Edits notify the affected drivers.</span>`;
-      const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
-      if (toolbar) toolbar.parentNode.insertBefore(banner, toolbar);
-    }
-  } else if (banner) {
-    banner.remove();
-  }
+  if (banner) banner.remove();
 
   // ── KPI strip (hours, coverage, open shifts, violations) + per-day status
   // computed from the same data as the grid below.
@@ -22802,7 +22791,9 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:var(--fs-xs)">${countLabel}</span>
     </div>
     <button type="button" id="rr-unassign-week"
-      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:var(--fs-xs);font-weight:600;color:var(--red);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer">
+      style="width:100%;margin-bottom:8px;padding:6px 10px;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);background:transparent;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast)"
+      onmouseover="this.style.borderColor='var(--border-strong)';this.style.background='var(--canvas)';this.style.color='var(--text)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent';this.style.color='var(--text-muted)'">
       Unassign all shifts this week
     </button>
     <div style="display:flex;gap:4px;background:var(--canvas);padding:3px;border-radius:6px;margin-bottom:8px">
