@@ -3300,7 +3300,7 @@ function _obMxStylesOnce() {
     ".ob-mx-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.3}" +
     ".ob-mxdot{appearance:none;background:transparent;border:1.5px solid var(--border-strong);width:14px;height:14px;border-radius:50%;cursor:pointer;padding:0;transition:background .12s,border-color .12s,transform .1s}" +
     ".ob-mxdot:hover{transform:scale(1.18)}" +
-    ".ob-mxdot.done{background:#16a34a;border-color:#16a34a}" +
+    ".ob-mxdot.done{background:#16a34a;border-color:var(--green)}" +
     ".ob-mxdot.readonly{cursor:default;opacity:.7}" +
     ".ob-mxdot.readonly:hover{transform:none}" +
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
@@ -13639,7 +13639,7 @@ async function openI9Section2Modal(driverId) {
 
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
-      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:#fecaca;color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:#fde68a;color:var(--amber-dark)" : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:#eff6ff;border-color:rgba(37,99,235,.22);color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
 
       ${step(1, "Examine the documents", "How did you review the employee's original documents?", `
         <label style="display:flex;align-items:flex-start;gap:var(--s-2);font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
@@ -14272,7 +14272,7 @@ function _i9SetRosterBanner(t) {
   if (!el) return;
   if (!t || !t.attention) { el.style.display = "none"; el.innerHTML = ""; return; }
   const urgent = t.s2_overdue || t.needs_correction;
-  const tone = urgent ? "background:#fef2f2;border-color:#fecaca;color:var(--red-dark)" : "background:#fffbeb;border-color:#fde68a;color:var(--amber-dark)";
+  const tone = urgent ? "background:#fef2f2;border-color:rgba(225,29,72,.22);color:var(--red-dark)" : "background:#fffbeb;border-color:rgba(245,158,11,.22);color:var(--amber-dark)";
   const parts = [];
   if (t.s2_overdue) parts.push(`${t.s2_overdue} overdue`);
   if (t.needs_correction) parts.push(`${t.needs_correction} need correction`);
@@ -15108,7 +15108,7 @@ async function refreshDriverChatList(autoSelect) {
   _msgSupportData = (supRes && supRes.data) || null;
   if (error) {
     if (_isAuthError(error)) {
-      list.innerHTML = `<div style="padding:var(--s-8) 20px;text-align:center"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load your conversations.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+      list.innerHTML = `<div style="padding:var(--s-8) 20px;text-align:center"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load your conversations.</div><button type="button" data-rr-relogin style="background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
       list.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired"));
       return;
     }
@@ -15273,7 +15273,7 @@ async function refreshSupportThread(scrollToBottom) {
   if (!conv) return;
   const { data, error } = await sb.rpc("support_thread");
   if (error) {
-    if (_isAuthError(error)) { conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to open this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+    if (_isAuthError(error)) { conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to open this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
       conv.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired")); return; }
     conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message || "Couldn't load support conversation")}</div>`;
     return;
@@ -15568,7 +15568,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
   if (error) {
     if (_isAuthError(error)) {
-      conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent,#3b5bdb);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
+      conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
       conv.querySelector("[data-rr-relogin]")?.addEventListener("click", () => _forceRelogin("session_expired"));
       return;
     }
