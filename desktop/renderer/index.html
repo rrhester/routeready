@@ -21,12 +21,18 @@
 
   <main>
     <section class="card">
-      <h2>1 · Sign in to your DSP portal</h2>
+      <h2>1 · Sign in to your portal</h2>
       <p class="muted">
-        Open Amazon's DSP portal in a managed browser window, sign in with your
-        usual SSO + MFA, then click <em>I'm signed in</em>. Your session stays
-        on this machine — encrypted in the OS keychain.
+        Open the portal in a managed browser window, sign in with your
+        usual login + MFA, then click <em>I'm signed in</em>. Your session
+        stays on this machine — encrypted in the OS keychain.
       </p>
+      <div class="form">
+        <label class="field">
+          <span>Portal URL</span>
+          <input id="portal-url" type="url" placeholder="https://logistics.amazon.com/" />
+        </label>
+      </div>
       <div class="row">
         <button id="btn-login" class="btn btn-primary">Open portal &amp; sign in</button>
         <button id="btn-confirm-login" class="btn" disabled>I'm signed in</button>
