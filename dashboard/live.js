@@ -33447,21 +33447,30 @@ function _toRenderView(body) {
   const pending = _toRows.filter((r) => r.status === "pending");
   const decided = _toRows.filter((r) => r.status !== "pending");
 
-  const pendingHtml = pending.length
+  const pendingBody = pending.length
     ? pending.map(_toPendingRowHtml).join("")
-    : `<div class="to-d-empty">No pending requests.</div>`;
+    : `<div class="rr-empty-inline">No pending requests.</div>`;
 
-  const decidedHtml = decided.length
+  const decidedBody = decided.length
     ? decided.map(_toDecidedRowHtml).join("")
-    : `<div class="to-d-empty" style="margin-top:8px">No decided requests yet.</div>`;
+    : `<div class="rr-empty-inline">No decided requests yet.</div>`;
 
   body.innerHTML = `
-    <div class="to-d-page">
-      <h2 class="to-d-h2">Pending requests</h2>
-      <div class="to-d-list">${pendingHtml}</div>
-
-      <h2 class="to-d-h2" style="margin-top:28px">History</h2>
-      <div class="to-d-list">${decidedHtml}</div>
+    <div class="to-page">
+      <section class="to-card">
+        <header class="to-card-head">
+          <div class="to-card-head-title">Pending requests</div>
+          <div class="to-card-head-count">${pending.length} awaiting review</div>
+        </header>
+        ${pendingBody}
+      </section>
+      <section class="to-card">
+        <header class="to-card-head">
+          <div class="to-card-head-title">History</div>
+          <div class="to-card-head-count">${decided.length} decided</div>
+        </header>
+        ${decidedBody}
+      </section>
     </div>`;
 
   body.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
@@ -33472,21 +33481,21 @@ function _toRenderView(body) {
 function _toPendingRowHtml(r) {
   const stationBit = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
   const reason = r.reason
-    ? `<div class="to-d-reason">${escapeHtml(r.reason)}</div>`
-    : `<div class="to-d-reason to-d-reason-empty">No reason given</div>`;
+    ? `<div class="to-row-reason">${escapeHtml(r.reason)}</div>`
+    : `<div class="to-row-reason to-row-reason-empty">No reason given</div>`;
   return `
-    <div class="to-d-row to-d-pending" data-rr-to-row="${escapeHtml(r.id)}">
-      <div class="to-d-row-head">
+    <div class="to-row" data-rr-to-row="${escapeHtml(r.id)}">
+      <div class="to-row-head">
         <div>
-          <div class="to-d-name">${escapeHtml(r.driver_name)}${stationBit}</div>
-          <div class="to-d-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
+          <div class="to-row-name">${escapeHtml(r.driver_name)}${stationBit}</div>
+          <div class="to-row-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
         </div>
-        <span class="to-d-pill to-d-pill-pending">Pending</span>
+        <span class="status-pill status-pill-pending">Pending</span>
       </div>
       ${reason}
-      <textarea class="to-d-note" data-rr-to-note="${escapeHtml(r.id)}" rows="2" placeholder="Optional note to send to the driver…" maxlength="500"></textarea>
-      <div class="to-d-actions">
-        <button type="button" class="btn btn-sm to-d-deny" data-rr-to-decide="deny" data-rr-to-id="${escapeHtml(r.id)}">Deny</button>
+      <textarea class="form-input" data-rr-to-note="${escapeHtml(r.id)}" rows="2" placeholder="Optional note to send to the driver…" maxlength="500"></textarea>
+      <div class="to-row-actions">
+        <button type="button" class="btn btn-sm btn-danger" data-rr-to-decide="deny" data-rr-to-id="${escapeHtml(r.id)}">Deny</button>
         <button type="button" class="btn btn-sm btn-primary" data-rr-to-decide="approve" data-rr-to-id="${escapeHtml(r.id)}">Approve</button>
       </div>
     </div>`;
@@ -33494,20 +33503,23 @@ function _toPendingRowHtml(r) {
 
 function _toDecidedRowHtml(r) {
   const stationBit = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
-  const pillCls = `to-d-pill-${r.status}`;
+  const pillCls = r.status === "approved"  ? "status-pill-approved"
+                : r.status === "denied"    ? "status-pill-denied"
+                : r.status === "cancelled" ? "status-pill-neutral"
+                : "status-pill-neutral";
   const pillLbl = r.status[0].toUpperCase() + r.status.slice(1);
-  const reason = r.reason ? `<div class="to-d-reason">${escapeHtml(r.reason)}</div>` : "";
+  const reason = r.reason ? `<div class="to-row-reason">${escapeHtml(r.reason)}</div>` : "";
   const note = r.decision_notes
-    ? `<div class="to-d-note-ro"><strong>Dispatcher note:</strong> ${escapeHtml(r.decision_notes)}</div>`
+    ? `<div class="to-row-note-ro"><strong>Dispatcher note:</strong> ${escapeHtml(r.decision_notes)}</div>`
     : "";
   return `
-    <div class="to-d-row">
-      <div class="to-d-row-head">
+    <div class="to-row">
+      <div class="to-row-head">
         <div>
-          <div class="to-d-name">${escapeHtml(r.driver_name)}${stationBit}</div>
-          <div class="to-d-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
+          <div class="to-row-name">${escapeHtml(r.driver_name)}${stationBit}</div>
+          <div class="to-row-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
         </div>
-        <span class="to-d-pill ${pillCls}">${escapeHtml(pillLbl)}</span>
+        <span class="status-pill ${pillCls}">${escapeHtml(pillLbl)}</span>
       </div>
       ${reason}
       ${note}
