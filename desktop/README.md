@@ -140,17 +140,20 @@ chmod +x RouteReady\ Desktop-*.AppImage
 - Manual login flow (button → headed browser → operator signs in → save).
 - Encrypted session persistence (safeStorage with plaintext fallback).
 - Headless probe to detect expired sessions.
-- IPC scaffolding for future report endpoints.
+- **Generic report download** — paste a URL (and optional click selector),
+  the app navigates with the saved session and saves the file. Works on
+  any benign target for shake-down before pointing it at Amazon.
+- Per-download history (last 20) with "show in folder" reveal.
 
 ## What's next
 
-- **MIDWAY route plan scrape** — `routes:pullToday` IPC handler currently
-  returns `not_implemented`. Hook up Playwright to read the route table for
-  today's date.
+- **Pre-baked Amazon report shortcuts** — replace the freeform URL with a
+  picker of named reports (Route Plan, Driver Performance, Cycle 1 pick
+  sheets…) each carrying its own URL + selector.
 - **Driver assignment write-back** — POST RouteReady's planned assignments
   to MIDWAY.
-- **Pick sheet download** — trigger the portal's print/export flow, save
-  PDFs to disk and to Supabase storage.
+- **Supabase upload** — ship the downloaded report into RouteReady storage
+  + parse rows into Postgres.
 - **Scheduled background sync** — `node-cron` style scheduler in the main
   process, configurable from settings.
 - **Supabase auth** — link the Electron client to a RouteReady DSP account
