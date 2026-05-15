@@ -71,12 +71,19 @@
   --t-spring: 200ms cubic-bezier(.34,1.4,.64,1);
 
   /* ── Spacing scale (8px) — same as the dashboard ─────────── */
-  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
-  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-1: 4px;  --s-2: 8px;  --s-2-5: 10px; --s-3: 12px;
+  --s-3-5: 14px; --s-4: 16px; --s-5: 20px; --s-6: 24px;
+  --s-7: 28px; --s-8: 32px; --s-9: 36px; --s-10: 40px;
 
   /* ── Type scale — same as the dashboard ──────────────────── */
   --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-base: 14px;
   --fs-lg: 16px; --fs-xl: 22px; --fs-xxl: 24px;
+
+  /* ── Premium motion — calm, intentional easing ─────────── */
+  --ease-out: cubic-bezier(.22,.61,.36,1);    /* page enter, content swap */
+  --ease-in-out: cubic-bezier(.45,0,.15,1);   /* state toggles */
+  --ease-spring: cubic-bezier(.34,1.4,.64,1); /* press → release */
+  --t-page: 220ms var(--ease-out);            /* full-screen transitions */
 
   /* On-screen keyboard height — set by the visualViewport listener
      in app.js so layouts can subtract it and keep inputs in view. */
@@ -188,16 +195,16 @@ a{color:var(--accent);text-decoration:none}
 /* ── Header (clean white control surface) ─────────────────── */
 .app-head{
   background:var(--surface);
-  border-bottom:1px solid var(--border);
-  padding:calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
+  border-bottom:1px solid var(--border-subtle);
+  padding:calc(12px + env(safe-area-inset-top, 0px)) 18px 12px;
   display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
   position:absolute;top:0;left:0;right:0;z-index:10;
-  box-shadow:0 1px 0 rgba(15,23,42,.04);
+  box-shadow:0 1px 0 rgba(15,23,42,.025);
   transform:translateZ(0);
   -webkit-transform:translateZ(0);
 }
-.app-head .title{font-size:18px;font-weight:700;letter-spacing:-.015em;color:var(--text);line-height:1.2}
-.app-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:var(--s-1);font-weight:500;line-height:1.3;letter-spacing:.005em}
+.app-head .title{font-size:17px;font-weight:700;letter-spacing:-.018em;color:var(--text);line-height:1.2}
+.app-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px;font-weight:500;line-height:1.3;letter-spacing:.005em}
 .app-head .driver-chip{
   display:flex;align-items:center;gap:var(--s-2);
   background:var(--canvas);border-radius:999px;padding:4px 10px 4px 4px;
@@ -240,10 +247,27 @@ main{
 }
 main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 
+/* Premium page-enter — subtle fade + lift on every route render.
+   Applied via JS by toggling [data-page-enter] on #main, which uses a
+   class hook on every direct child so the choreography lines up no
+   matter what the screen renders. Honors prefers-reduced-motion. */
+main[data-page-enter] > *{
+  animation: rrPageEnter 240ms var(--ease-out) both;
+}
+@keyframes rrPageEnter{
+  from{ opacity:0; transform:translateY(6px); }
+  to  { opacity:1; transform:translateY(0); }
+}
+@media (prefers-reduced-motion: reduce){
+  main[data-page-enter] > *{ animation:none }
+}
+
 .section-title{
-  font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);
-  letter-spacing:.08em;text-transform:uppercase;
-  margin:20px 4px 10px;
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
+  letter-spacing:.09em;text-transform:uppercase;
+  margin:22px 4px 10px;
+  /* Slimmer than before — pure label, no visual weight competing
+     with the content cards below it. */
 }
 
 /* ── Status pill + dot ───────────────────────────────────────
@@ -252,9 +276,9 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
    Use the semantic variant for state, not the color. */
 .status-pill{
   display:inline-flex;align-items:center;gap:var(--s-1);
-  padding:2px 8px;border-radius:var(--r-lg);
-  font-size:var(--fs-xs);font-weight:700;line-height:1.5;
-  letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 9px;border-radius:999px;
+  font-size:10px;font-weight:700;line-height:1.4;
+  letter-spacing:.045em;text-transform:uppercase;
   background:var(--canvas);color:var(--text-muted);
   border:1px solid transparent;white-space:nowrap;
 }
@@ -308,6 +332,7 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-3-5) var(--s-4);margin-bottom:12px;
   box-shadow:var(--shadow-sm), var(--highlight-top);
+  transition:transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
 }
 .card-strong{box-shadow:var(--shadow-lg), var(--highlight-top-strong)}
 .empty-state{
@@ -329,27 +354,30 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
    dashboard names so the same class strings work on both surfaces. */
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  min-height:50px;padding:12px 18px;
-  background:linear-gradient(180deg, #FFFFFF 0%, #F6F8FB 100%);
+  min-height:48px;padding:12px 18px;
+  background:linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
   color:var(--text);
-  border:1px solid var(--border-strong);border-radius:var(--r-md);
+  border:1px solid var(--border-strong);border-radius:var(--r-lg);
   font-size:var(--fs-base);font-weight:600;cursor:pointer;
+  letter-spacing:-.005em;
   box-shadow:var(--shadow-xs), var(--highlight-top);
-  transition:transform var(--t-fast), box-shadow var(--t-fast),
-             background var(--t-fast), border-color var(--t-fast);
+  transition:transform 120ms var(--ease-spring), box-shadow 140ms var(--ease-out),
+             background 140ms var(--ease-out), border-color 140ms var(--ease-out);
 }
 .btn:active{
-  transform:scale(.98);
+  transform:scale(.985);
   box-shadow:var(--inset-pressed);
 }
 .btn:disabled,.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
 
 .btn-primary{
   background:var(--accent-grad);color:#fff;border-color:var(--accent-strong);
-  box-shadow:0 1px 2px rgba(37,99,235,.20),
-             0 6px 16px -4px rgba(37,99,235,.36),
-             inset 0 1px 0 rgba(255,255,255,.18);
+  border-radius:var(--r-lg);
+  box-shadow:0 1px 2px rgba(37,99,235,.18),
+             0 8px 20px -6px rgba(37,99,235,.32),
+             inset 0 1px 0 rgba(255,255,255,.20);
   text-shadow:0 1px 0 rgba(0,0,0,.06);
+  letter-spacing:.005em;
 }
 .btn-primary:active{
   background:var(--accent-grad-pressed);border-color:var(--accent-strong);
@@ -450,28 +478,38 @@ select.field{
 /* ── Schedule list ──────────────────────────────────────────── */
 .shift-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:16px;margin-bottom:12px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3-5);
+  padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);
   align-items:center;
-  box-shadow:var(--shadow-sm);
+  box-shadow:var(--shadow-xs);
+  transition:transform 140ms var(--ease-out), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out);
 }
-.shift-card.is-today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft), var(--shadow-sm)}
+.shift-card:active{ transform:scale(.995) }
+/* Today's shift — soft accent rail on the left instead of a full
+   border + double-ring. Reads operationally ("this is now") without
+   shouting. */
+.shift-card.is-today{
+  border-color:var(--border);
+  box-shadow:inset 3px 0 0 var(--accent), var(--shadow-sm);
+}
 .shift-card .date-block{
-  text-align:center;min-width:54px;
+  text-align:center;min-width:48px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
 }
-.shift-card .date-dow{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase}
-.shift-card .date-day{font-size:var(--fs-xxl);font-weight:700;line-height:1;letter-spacing:-.02em;margin-top:2px}
-.shift-card .date-month{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+.shift-card .date-dow{font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.08em;text-transform:uppercase;line-height:1}
+.shift-card .date-day{font-size:26px;font-weight:700;line-height:1;letter-spacing:-.025em;margin-top:4px;color:var(--text);font-variant-numeric:tabular-nums}
+.shift-card.is-today .date-day{color:var(--accent)}
+.shift-card .date-month{font-size:10px;color:var(--text-subtle);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .shift-card .meta-time-row{
   display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap;
 }
-.shift-card .meta-time{font-size:var(--fs-lg);font-weight:600;font-variant-numeric:tabular-nums}
+.shift-card .meta-time{font-size:var(--fs-lg);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.005em;color:var(--text)}
 .shift-card .meta-wave-tag{
-  font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);
+  font-size:11px;font-weight:600;color:var(--text-muted);
   background:var(--canvas);padding:2px 8px;border-radius:var(--r-md);
   white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:.01em;
 }
-.shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px}
-.shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:6px;flex-wrap:wrap}
+.shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;font-weight:500}
+.shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:8px;flex-wrap:wrap}
 .shift-card .tag{
   font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   padding:2px 6px;border-radius:var(--r-sm);background:var(--canvas);color:var(--text-muted);
@@ -483,21 +521,21 @@ select.field{
 .task-card{
   display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:var(--s-3-5) var(--s-4);margin-bottom:12px;
-  cursor:pointer;transition:transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+  padding:14px var(--s-4);margin-bottom:10px;
+  cursor:pointer;transition:transform 140ms var(--ease-out), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out);
   box-shadow:var(--shadow-xs);
 }
-.task-card:active{transform:scale(.99);box-shadow:var(--shadow-sm)}
+.task-card:active{transform:scale(.992);box-shadow:var(--shadow-sm)}
 .task-icon{
-  width:36px;height:36px;border-radius:var(--r-md);
+  width:38px;height:38px;border-radius:var(--r-md);
   background:var(--accent-soft);color:var(--accent);
   display:inline-flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
-.task-icon svg{width:18px;height:18px;stroke-width:2}
+.task-icon svg{width:19px;height:19px;stroke-width:2}
 .task-text{min-width:0}
-.task-title{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
-.task-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px;line-height:1.4}
+.task-title{font-size:var(--fs-base);font-weight:600;letter-spacing:-.005em;color:var(--text)}
+.task-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.4;font-weight:500}
 .task-pill{
   font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   padding:3px 7px;border-radius:var(--r-sm);background:var(--canvas);color:var(--text-muted);
@@ -553,45 +591,47 @@ select.field{
 .tabbar{
   position:absolute;bottom:0;left:0;right:0;z-index:20;
   background:var(--surface);
-  border-top:1px solid var(--border);
+  border-top:1px solid var(--border-subtle);
   padding-bottom:env(safe-area-inset-bottom, 0px);
   display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
   height:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
-  box-shadow:0 -1px 0 rgba(15,23,42,.04),
-             0 -4px 16px -8px rgba(15,23,42,.08);
+  box-shadow:0 -1px 0 rgba(15,23,42,.025),
+             0 -8px 24px -16px rgba(15,23,42,.10);
   transform:translateZ(0);
   -webkit-transform:translateZ(0);
 }
 .tab{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;padding:var(--s-2) 0 var(--s-1);color:var(--text-muted);
-  cursor:pointer;font-size:var(--fs-xs);font-weight:600;
-  letter-spacing:.005em;
+  gap:4px;padding:var(--s-2) 0 var(--s-1);color:var(--text-subtle);
+  cursor:pointer;font-size:10px;font-weight:600;
+  letter-spacing:.015em;
   position:relative;
-  transition:color var(--t-fast), transform var(--t-fast);
+  transition:color 160ms var(--ease-out);
 }
-.tab:active{transform:scale(.94)}
-/* Each tab carries the dashboard's per-section accent — when active,
-   the icon sits in a soft chip of that colour and the label + the top
-   indicator pick it up too (matches the dashboard's coloured nav). */
-.tab[data-c="profile"]  { --tc:#0D9488; --tc-bg:rgba(13,148,136,.14) }
-.tab[data-c="schedule"] { --tc:#4F46E5; --tc-bg:rgba(99,102,241,.14) }
-.tab[data-c="tasks"]    { --tc:#7C3AED; --tc-bg:rgba(124,58,237,.14) }
-.tab[data-c="chat"]     { --tc:#0284C7; --tc-bg:rgba(2,132,199,.14) }
-.tab[data-c="team"]     { --tc:#059669; --tc-bg:rgba(16,185,129,.14) }
+.tab:active .tab-ic{ transform:scale(.92) }
+/* Single quiet accent — drops the five-color tabbar palette in favor
+   of one azure highlight so the chrome reads as one product, not a
+   color-coded console. The previous colors were the dashboard's
+   per-section accent; on a phone they competed with the content. */
 .tab .tab-ic{
   display:inline-flex;align-items:center;justify-content:center;
-  width:36px;height:28px;border-radius:var(--r-lg);
-  transition:background var(--t-fast);
+  width:40px;height:30px;border-radius:var(--r-xl);
+  transition:background 180ms var(--ease-out), transform 140ms var(--ease-spring), color 160ms var(--ease-out);
 }
 .tab svg{width:22px;height:22px;stroke-width:2;transition:transform var(--t-fast)}
-.tab.active{color:var(--tc, var(--accent));font-weight:700}
-.tab.active .tab-ic{background:var(--tc-bg, var(--accent-soft))}
+.tab.active{color:var(--accent);font-weight:700;letter-spacing:.01em}
+.tab.active .tab-ic{
+  background:var(--accent-soft);
+  color:var(--accent);
+}
+/* Active indicator — a soft 2px hairline at the top of the tab.
+   Slim, restrained — reads as a status marker, not a banner. */
 .tab.active::before{
   content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
-  width:30px;height:3px;
-  background:var(--tc, var(--accent));
-  border-radius:0 0 4px 4px;
+  width:22px;height:2px;
+  background:var(--accent);
+  border-radius:0 0 3px 3px;
+  opacity:.85;
 }
 .tab .badge{
   position:absolute;top:6px;right:50%;transform:translateX(18px);
@@ -604,14 +644,48 @@ select.field{
 
 /* ── Loader ─────────────────────────────────────────────────── */
 .loader{
-  display:flex;justify-content:center;padding:60px 0;
+  display:flex;justify-content:center;padding:48px 0;
 }
 .loader::after{
-  content:"";display:block;width:24px;height:24px;
+  content:"";display:block;width:22px;height:22px;
   border:2px solid var(--border);border-top-color:var(--accent);
   border-radius:50%;animation:rrspin .7s linear infinite;
 }
 @keyframes rrspin{to{transform:rotate(360deg)}}
+
+/* ── Skeleton primitives ─────────────────────────────────────
+   Premium "alive" loading state — replaces bare spinners on every
+   screen that has a stable layout to fill. Same shimmer rhythm as
+   the chat-skeleton-bubble so the whole product breathes together. */
+.skel{
+  background:linear-gradient(
+    90deg,
+    var(--surface-hover, #F4F6FA) 0%,
+    var(--surface-pressed, #ECF0F5) 50%,
+    var(--surface-hover, #F4F6FA) 100%);
+  background-size:200% 100%;
+  animation: rrSkel 1.2s ease-in-out infinite;
+  border-radius:var(--r-sm);
+  display:block;
+}
+.skel-line{ height:12px;border-radius:6px;margin-bottom:8px }
+.skel-line-lg{ height:16px;border-radius:6px;margin-bottom:10px }
+.skel-line-sm{ height:10px;border-radius:5px;margin-bottom:6px }
+.skel-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);
+  padding:16px;
+  margin-bottom:12px;
+  box-shadow:var(--shadow-xs);
+}
+.skel-card-row{ display:flex;align-items:center;gap:var(--s-3) }
+.skel-circle{ width:44px;height:44px;border-radius:50%;flex:0 0 auto }
+.skel-square{ width:54px;height:54px;border-radius:var(--r-md);flex:0 0 auto }
+@keyframes rrSkel{ 0%{background-position:0% 50%} 100%{background-position:-200% 50%} }
+@media (prefers-reduced-motion: reduce){
+  .skel{ animation:none }
+}
 
 /* ── Canonical loading + empty primitives ─────────────────────
    Same shape and proportions as the dashboard.  Use these for
@@ -1261,18 +1335,20 @@ select.field{
 .checkin-row.missed .checkin-title{color:var(--red-dark)}
 .checkin-row.missed .checkin-sub{color:var(--red)}
 
-/* Header gear — 44x44 minimum touch target.  Always-visible
-   border + canvas bg makes it scannable in bright light. */
+/* Header gear — 40x40 borderless icon button. Drops the always-on
+   canvas chip + border; press feedback comes from a soft hover/press
+   tint. Quieter than the v1 treatment, still 44+ tap target with the
+   surrounding padding from .app-head. */
 .app-head .head-gear{
-  width:44px;height:44px;border-radius:50%;
-  background:var(--canvas);color:var(--text-muted);
+  width:40px;height:40px;border-radius:var(--r-xl);
+  background:transparent;color:var(--text-muted);
   display:inline-flex;align-items:center;justify-content:center;
-  border:1px solid var(--border);
+  border:0;
   cursor:pointer;flex-shrink:0;
-  transition:background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+  transition:background 140ms var(--ease-out), color 140ms var(--ease-out), transform 140ms var(--ease-spring);
 }
-.app-head .head-gear:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft)}
-.app-head .head-gear:active{transform:scale(.95);background:var(--accent-soft)}
+.app-head .head-gear:hover{ background:var(--canvas);color:var(--text) }
+.app-head .head-gear:active{ transform:scale(.92);background:var(--surface-pressed) }
 
 /* ── Settings page ──────────────────────────────────────────── */
 .settings-page{display:flex;flex-direction:column;gap:var(--s-3-5)}
@@ -1519,3 +1595,83 @@ select.field{
 .to-pill-denied   { background:rgba(220,38,38,.12);  color:#991B1B }
 .to-pill-cancelled{ background:var(--canvas);        color:var(--text-subtle) }
 .to-cancel{appearance:none;margin-top:10px;background:transparent;border:0;color:var(--red);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;padding:0}
+
+/* ── Offline indicator ───────────────────────────────────────
+   A slim pill that slides down from under the header when the
+   driver loses network. Operationally critical — a delivery
+   driver needs to know at a glance whether their actions are
+   queued or live. Sits BELOW the header (z below tabbar) so it
+   never blocks navigation. */
+.rr-offline{
+  position:absolute;
+  top:calc(76px + env(safe-area-inset-top, 0px));
+  left:50%;transform:translate(-50%,-12px);
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;
+  font-size:11px;font-weight:700;letter-spacing:.02em;
+  color:#fff;background:var(--amber);
+  border-radius:999px;
+  box-shadow:0 6px 18px -6px rgba(15,23,42,.28),
+             0 2px 4px rgba(15,23,42,.10);
+  z-index:9;
+  opacity:0;pointer-events:none;
+  transition:opacity 200ms var(--ease-out), transform 220ms var(--ease-out);
+}
+.rr-offline.show{
+  opacity:1;transform:translate(-50%,0);
+}
+.rr-offline svg{width:11px;height:11px;flex:0 0 auto}
+.rr-offline.ok{ background:var(--green) }
+
+/* ── Section-head with action (premium section header) ──────
+   For screens where a section needs both a label and a side
+   action ("See all", count badge, etc). Refined hierarchy:
+   the label sits at section-title weight, the action sits
+   one notch quieter. */
+.rr-section-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin:22px 4px 10px;gap:var(--s-3);
+}
+.rr-section-head .rr-section-title{
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
+  letter-spacing:.09em;text-transform:uppercase;
+}
+.rr-section-head .rr-section-action{
+  font-size:var(--fs-sm);font-weight:600;color:var(--accent);
+  letter-spacing:-.005em;
+}
+.rr-section-head .rr-section-count{
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
+  background:var(--canvas);
+  padding:2px 8px;border-radius:999px;
+  font-variant-numeric:tabular-nums;
+  border:1px solid var(--border-subtle);
+}
+
+/* ── Schedule skeleton ───────────────────────────────────── */
+.skel-shift{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:14px 16px;margin-bottom:10px;
+  display:grid;grid-template-columns:auto 1fr;gap:var(--s-4);align-items:center;
+  box-shadow:var(--shadow-xs);
+}
+.skel-shift .skel-date{ width:42px;height:54px;border-radius:var(--r-md) }
+.skel-shift .skel-body{ display:flex;flex-direction:column;gap:8px;flex:1;min-width:0 }
+
+/* ── Task skeleton row ───────────────────────────────────── */
+.skel-task{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:14px 16px;margin-bottom:10px;
+  display:flex;align-items:center;gap:var(--s-3);
+  box-shadow:var(--shadow-xs);
+}
+.skel-task .skel-body{ flex:1;min-width:0;display:flex;flex-direction:column;gap:7px }
+
+/* ── Refined link buttons (text-only inline actions) ─────── */
+.rr-text-link{
+  background:transparent;border:0;
+  color:var(--accent);font-weight:600;font-size:var(--fs-sm);
+  letter-spacing:-.005em;cursor:pointer;padding:0;
+  transition:opacity 140ms var(--ease-out);
+}
+.rr-text-link:active{ opacity:.6 }
