@@ -660,7 +660,12 @@ function readSession() {
 function writeSession(s) {
   if (PREVIEW) { _previewSession = s || null; return; }
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-  else localStorage.removeItem(SESSION_KEY);
+  else {
+    localStorage.removeItem(SESSION_KEY);
+    // Reset activation state so the next login screen recalibrates
+    // from URL + LAST_PHONE_KEY instead of replaying stale state.
+    try { _loginState = null; } catch {}
+  }
 }
 
 // ── Toast ───────────────────────────────────────────────────────────
@@ -939,66 +944,334 @@ if (typeof window !== "undefined") {
   });
 }
 
-// ── Login ───────────────────────────────────────────────────────────
-function renderLogin(errorMsg) {
-  // Pre-fill the invite code from ?code=… (or ?invite=…) so a hired
-  // driver tapping the deep-link in their welcome SMS lands one tap
-  // from signed in. We only pre-fill, not auto-submit, so a wrong /
-  // expired code can be edited before sending.
-  let prefill = "";
-  try {
-    const qs = new URLSearchParams(location.search);
-    prefill = (qs.get("code") || qs.get("invite") || "").trim().toUpperCase();
-  } catch (_) { /* malformed URL — ignore */ }
+// ── Activation / login ───────────────────────────────────────────────
+// One screen, three modes:
+//
+//   activate  — first-tap landing from the welcome SMS (?code=...).
+//               We look the code up server-side, render the driver's
+//               name + masked phone, ask them to confirm the phone and
+//               pick a 4-digit PIN.  Phone becomes their long-term
+//               sign-in identity; the PIN replaces the one-shot code.
+//
+//   signin    — returning driver.  Phone + PIN.  We remember the last
+//               phone they activated with so it's pre-filled on every
+//               subsequent return.
+//
+//   chooser   — neither a code in the URL nor a remembered phone.  Two
+//               quiet buttons: "I have an activation code" / "Sign in".
+//
+// Mode is held in module-scoped state so the screen can transition
+// without unwinding through the hash router.
+const LAST_PHONE_KEY = "rr.driver.last_phone";
+let _loginState = null;   // { mode, code?, lookup?, phoneInput?, pinInput?, errorMsg?, busy }
 
-  document.getElementById("app").innerHTML = `
-    <div class="login-screen">
-      <div class="brand">
-        <div class="brand-icon">
-          <img src="Icon.png" alt="RouteReady">
-        </div>
-      </div>
-      <form class="form" id="login-form">
-        ${errorMsg ? `<div class="err">${escapeHtml(errorMsg)}</div>` : ""}
-        <label class="field-label">Invite code</label>
-        <input class="field" id="login-code" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="ABCD-1234" required value="${escapeHtml(prefill)}" />
-        <div style="margin-top:18px">
-          <button class="btn btn-primary btn-block" type="submit">Sign in</button>
-        </div>
-      </form>
-    </div>`;
-  document.getElementById("login-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const code = (document.getElementById("login-code").value || "").trim().toUpperCase();
-    if (!code) return;
-    if (code.length < 4) { renderLogin("That code looks too short."); return; }
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Signing in…"; }
-    const { data, error } = await sb.rpc("redeem_driver_invite", { p_code: code, p_user_agent: navigator.userAgent || null });
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Sign in"; }
-    if (error || !data?.token) {
-      const m = error?.message || "";
-      const msg = m.includes("invalid_or_expired_code")
-        ? "Code not recognized. Ask dispatch for a new one."
-        : m.includes("driver_inactive")
-        ? "This account isn't active. Contact dispatch."
-        : "Couldn't sign you in. Try again.";
-      renderLogin(msg);
-      return;
+function _readLastPhone() {
+  try { return localStorage.getItem(LAST_PHONE_KEY) || ""; } catch { return ""; }
+}
+function _writeLastPhone(p) {
+  try { if (p) localStorage.setItem(LAST_PHONE_KEY, p); else localStorage.removeItem(LAST_PHONE_KEY); } catch {}
+}
+
+// Display "(555) 123-4567" from a 10-digit string.
+function _formatPhone(p) {
+  const d = String(p || "").replace(/\D/g, "");
+  if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  if (d.length === 11 && d[0] === "1") return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+  return p || "";
+}
+
+function _commitSession(data) {
+  const newSession = {
+    token:      data.token,
+    driver_id:  data.driver?.id || null,
+    dsp_id:     data.driver?.dsp_id || data.dsp?.id || null,
+    name:       data.driver?.name || "Driver",
+    station_id: data.driver?.station_id || null,
+    status:     data.driver?.status || null,
+    dsp_name:   data.driver?.dsp_name || data.dsp?.name || "",
+  };
+  writeSession(newSession);
+  syncSwSession(newSession);
+  return newSession;
+}
+
+function renderLogin(errorMsg) {
+  // First call: figure out which mode we land in.
+  if (!_loginState) {
+    let code = "";
+    try {
+      const qs = new URLSearchParams(location.search);
+      code = (qs.get("code") || qs.get("invite") || "").trim().toUpperCase();
+    } catch (_) { /* malformed URL — ignore */ }
+    if (code) {
+      _loginState = { mode: "activate-loading", code, errorMsg: null, busy: false };
+    } else if (_readLastPhone()) {
+      _loginState = { mode: "signin", phoneInput: _readLastPhone(), pinInput: "", errorMsg: null, busy: false };
+    } else {
+      _loginState = { mode: "chooser", errorMsg: null, busy: false };
     }
-    const newSession = {
-      token:      data.token,
-      driver_id:  data.driver?.id || null,
-      dsp_id:     data.driver?.dsp_id || data.dsp?.id || null,
-      name:       data.driver?.name || "Driver",
-      station_id: data.driver?.station_id || null,
-      dsp_name:   data.driver?.dsp_name || data.dsp?.name || "",
-    };
-    writeSession(newSession);
-    syncSwSession(newSession);
-    toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
-    navigate("/profile");
-  });
+  }
+  if (errorMsg) _loginState.errorMsg = errorMsg;
+
+  // Kick off the activation lookup once when we land here with a code.
+  if (_loginState.mode === "activate-loading" && !_loginState._lookupStarted) {
+    _loginState._lookupStarted = true;
+    sb.rpc("driver_activation_lookup", { p_code: _loginState.code }).then(({ data, error }) => {
+      if (error || !data) {
+        // Fall back to chooser with a clear error.
+        const m = error?.message || "";
+        const msg = m.includes("invalid_or_expired_code")
+          ? "That activation link has expired. Ask dispatch for a new one."
+          : "Couldn't open that activation link. Try the new one from dispatch.";
+        _loginState = { mode: "chooser", errorMsg: msg, busy: false };
+      } else {
+        _loginState = {
+          mode: "activate",
+          code: _loginState.code,
+          lookup: data,
+          phoneInput: data.phone_hint ? "" : "",  // user types it; hint shows what we have on file
+          pinInput: "",
+          pinConfirm: "",
+          errorMsg: null,
+          busy: false,
+        };
+      }
+      renderLogin();
+    });
+  }
+
+  const root = document.getElementById("app");
+  if (_loginState.mode === "activate-loading") {
+    root.innerHTML = `
+      <div class="login-screen">
+        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div style="text-align:center;color:var(--text-subtle);margin-top:8px">Opening your activation…</div>
+        <div class="loader" style="margin:40px auto"></div>
+      </div>`;
+    return;
+  }
+
+  if (_loginState.mode === "chooser") {
+    root.innerHTML = `
+      <div class="login-screen">
+        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div style="text-align:center;margin-bottom:32px">
+          <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">RouteReady</div>
+          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:6px">Your driver hub.</div>
+        </div>
+        <div class="form">
+          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          <button class="btn btn-primary btn-block" type="button" id="rr-login-signin">Sign in</button>
+          <button class="btn btn-block" type="button" id="rr-login-activate" style="margin-top:10px;background:transparent;border:1px solid var(--border)">I have an activation code</button>
+        </div>
+      </div>`;
+    document.getElementById("rr-login-signin").addEventListener("click", () => {
+      _loginState = { mode: "signin", phoneInput: _readLastPhone(), pinInput: "", errorMsg: null, busy: false };
+      renderLogin();
+    });
+    document.getElementById("rr-login-activate").addEventListener("click", () => {
+      _loginState = { mode: "code-entry", codeInput: "", errorMsg: null, busy: false };
+      renderLogin();
+    });
+    return;
+  }
+
+  if (_loginState.mode === "code-entry") {
+    root.innerHTML = `
+      <div class="login-screen">
+        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="font-size:20px;font-weight:700;letter-spacing:-.02em">Activate your driver profile</div>
+          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:6px;line-height:1.5">Enter the activation code from your welcome message.</div>
+        </div>
+        <form class="form" id="rr-code-form">
+          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          <label class="field-label">Activation code</label>
+          <input class="field" id="rr-code-input" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="ABCD1234" required value="${escapeHtml(_loginState.codeInput || "")}" />
+          <div style="margin-top:18px">
+            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Checking…" : "Continue"}</button>
+          </div>
+          <div style="text-align:center;margin-top:14px">
+            <button type="button" class="btn" id="rr-code-back" style="background:transparent;border:0;color:var(--text-subtle);font-size:var(--fs-sm)">Back</button>
+          </div>
+        </form>
+      </div>`;
+    document.getElementById("rr-code-back").addEventListener("click", () => {
+      _loginState = { mode: "chooser", errorMsg: null, busy: false };
+      renderLogin();
+    });
+    document.getElementById("rr-code-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const code = (document.getElementById("rr-code-input").value || "").trim().toUpperCase();
+      if (code.length < 4) { _loginState.errorMsg = "That code looks too short."; renderLogin(); return; }
+      _loginState.busy = true; renderLogin();
+      const { data, error } = await sb.rpc("driver_activation_lookup", { p_code: code });
+      if (error || !data) {
+        _loginState.busy = false;
+        _loginState.codeInput = code;
+        _loginState.errorMsg = "Code not recognized. Check the message from dispatch.";
+        renderLogin();
+        return;
+      }
+      _loginState = { mode: "activate", code, lookup: data, phoneInput: "", pinInput: "", pinConfirm: "", errorMsg: null, busy: false };
+      renderLogin();
+    });
+    return;
+  }
+
+  if (_loginState.mode === "activate") {
+    const lk = _loginState.lookup || {};
+    const phoneHint = lk.phone_hint || "";
+    const greet = `Welcome${lk.name ? `, ${lk.name}` : ""}`;
+    root.innerHTML = `
+      <div class="login-screen">
+        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div style="text-align:center;margin-bottom:22px">
+          <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">Activate your driver profile</div>
+          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">${escapeHtml(greet)}. We found your info from your ${lk.dsp_name ? escapeHtml(lk.dsp_name) + " " : ""}onboarding invite. Your phone number will become your RouteReady login.</div>
+        </div>
+        <form class="form" id="rr-activate-form" style="margin-top:8px">
+          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          <label class="field-label">Mobile number</label>
+          <input class="field" id="rr-activate-phone" type="tel" inputmode="tel" autocomplete="tel" autocapitalize="off" maxlength="20" placeholder="${escapeHtml(phoneHint || "(555) 123-4567")}" style="letter-spacing:0;text-align:left;text-transform:none" value="${escapeHtml(_loginState.phoneInput || "")}" />
+          ${phoneHint ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">We have ${escapeHtml(phoneHint)} on file. Tap to edit if it's changed.</div>` : ""}
+
+          <label class="field-label" style="margin-top:20px">Create a 4-digit PIN</label>
+          <input class="field" id="rr-activate-pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinInput || "")}" />
+
+          <label class="field-label" style="margin-top:14px">Confirm PIN</label>
+          <input class="field" id="rr-activate-pin2" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinConfirm || "")}" />
+
+          <div style="margin-top:20px">
+            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Activating…" : "Activate"}</button>
+          </div>
+          <div class="help" style="margin-top:14px;line-height:1.5">Your PIN signs you in next time. Keep it private.</div>
+        </form>
+      </div>`;
+    // Auto-format phone as user types.
+    const phEl = document.getElementById("rr-activate-phone");
+    phEl.addEventListener("input", () => {
+      const raw = phEl.value.replace(/\D/g, "").slice(0, 11);
+      phEl.value = _formatPhone(raw);
+    });
+    document.getElementById("rr-activate-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const phone = document.getElementById("rr-activate-phone").value.trim();
+      const pin   = document.getElementById("rr-activate-pin").value.trim();
+      const pin2  = document.getElementById("rr-activate-pin2").value.trim();
+      const phoneDigits = phone.replace(/\D/g, "");
+      _loginState.phoneInput = phone; _loginState.pinInput = pin; _loginState.pinConfirm = pin2;
+      if (phoneDigits.length === 0 && !lk.has_phone) {
+        _loginState.errorMsg = "Enter a valid 10-digit mobile number."; renderLogin(); return;
+      }
+      if (phoneDigits.length > 0 && phoneDigits.length < 10) {
+        _loginState.errorMsg = "Enter a valid 10-digit mobile number."; renderLogin(); return;
+      }
+      if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+        _loginState.errorMsg = "PIN must be 4 to 6 digits."; renderLogin(); return;
+      }
+      if (pin !== pin2) {
+        _loginState.errorMsg = "PINs don't match. Try again."; renderLogin(); return;
+      }
+      _loginState.busy = true; _loginState.errorMsg = null; renderLogin();
+      // Empty phone tells the server "keep what we have on file" —
+      // this is the common case where the driver taps Activate without
+      // editing the prefilled hint.
+      const { data, error } = await sb.rpc("driver_activate", {
+        p_code: _loginState.code,
+        p_phone: phoneDigits || "",
+        p_pin: pin,
+        p_user_agent: navigator.userAgent || null,
+      });
+      if (error || !data?.token) {
+        _loginState.busy = false;
+        const m = error?.message || "";
+        _loginState.errorMsg =
+          m.includes("invalid_or_expired_code") ? "Activation link expired. Ask dispatch for a new one." :
+          m.includes("driver_inactive")          ? "This profile isn't active. Contact dispatch." :
+          m.includes("phone_already_in_use")     ? "That number is already linked to another driver here. Use a different number or contact dispatch." :
+          m.includes("phone_required")           ? "Enter a valid mobile number." :
+          m.includes("pin_must_be")              ? "PIN must be 4 to 6 digits." :
+          "Couldn't activate. Please try again.";
+        renderLogin();
+        return;
+      }
+      _writeLastPhone(phoneDigits || data.driver?.phone_normalized || "");
+      const sess = _commitSession(data);
+      // Clear the ?code= from the URL so refreshes don't try to re-activate.
+      try { history.replaceState({}, "", location.pathname); } catch {}
+      _loginState = null;
+      toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
+      navigate(sess.status === "onboarding" ? "/tasks/onboarding" : "/profile");
+    });
+    return;
+  }
+
+  if (_loginState.mode === "signin") {
+    root.innerHTML = `
+      <div class="login-screen">
+        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">Welcome back</div>
+          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px">Sign in with your number and PIN.</div>
+        </div>
+        <form class="form" id="rr-signin-form">
+          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          <label class="field-label">Mobile number</label>
+          <input class="field" id="rr-signin-phone" type="tel" inputmode="tel" autocomplete="tel" autocapitalize="off" maxlength="20" placeholder="(555) 123-4567" style="letter-spacing:0;text-align:left;text-transform:none" value="${escapeHtml(_formatPhone(_loginState.phoneInput || ""))}" />
+
+          <label class="field-label" style="margin-top:18px">PIN</label>
+          <input class="field" id="rr-signin-pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinInput || "")}" />
+
+          <div style="margin-top:20px">
+            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Signing in…" : "Sign in"}</button>
+          </div>
+          <div style="text-align:center;margin-top:14px">
+            <button type="button" class="btn" id="rr-signin-have-code" style="background:transparent;border:0;color:var(--text-subtle);font-size:var(--fs-sm)">I have an activation code</button>
+          </div>
+        </form>
+      </div>`;
+    const phEl2 = document.getElementById("rr-signin-phone");
+    phEl2.addEventListener("input", () => {
+      const raw = phEl2.value.replace(/\D/g, "").slice(0, 11);
+      phEl2.value = _formatPhone(raw);
+    });
+    document.getElementById("rr-signin-have-code").addEventListener("click", () => {
+      _loginState = { mode: "code-entry", codeInput: "", errorMsg: null, busy: false };
+      renderLogin();
+    });
+    document.getElementById("rr-signin-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const phone = document.getElementById("rr-signin-phone").value.trim();
+      const pin   = document.getElementById("rr-signin-pin").value.trim();
+      _loginState.phoneInput = phone; _loginState.pinInput = pin;
+      const phoneDigits = phone.replace(/\D/g, "");
+      if (phoneDigits.length < 10) { _loginState.errorMsg = "Enter your mobile number."; renderLogin(); return; }
+      if (pin.length < 4) { _loginState.errorMsg = "Enter your PIN."; renderLogin(); return; }
+      _loginState.busy = true; _loginState.errorMsg = null; renderLogin();
+      const { data, error } = await sb.rpc("driver_signin_with_phone", {
+        p_phone: phoneDigits,
+        p_pin: pin,
+        p_user_agent: navigator.userAgent || null,
+      });
+      if (error || !data?.token) {
+        _loginState.busy = false;
+        const m = error?.message || "";
+        _loginState.errorMsg =
+          m.includes("too_many_attempts")     ? "Too many tries. Wait 15 minutes or contact dispatch." :
+          m.includes("invalid_phone_or_pin")  ? "Number or PIN didn't match. Try again." :
+          "Sign-in failed. Try again.";
+        renderLogin();
+        return;
+      }
+      _writeLastPhone(phoneDigits);
+      const sess = _commitSession(data);
+      _loginState = null;
+      toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
+      navigate(sess.status === "onboarding" ? "/tasks/onboarding" : "/profile");
+    });
+    return;
+  }
 }
 
 // Shown instead of the login screen when a dispatcher's preview token has

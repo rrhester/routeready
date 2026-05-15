@@ -13059,14 +13059,17 @@ async function renderEmploymentTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Driver app access</div>
-          <div class="dd-section-sub">Issue an invite code so the driver can sign into the RouteReady app.</div>
+          <div class="dd-section-sub">Send the activation link (re-sends the welcome message with a fresh code), or just mint a code to share manually.</div>
         </div>
         <span class="dd-badge dsp">DSP only</span>
       </div>
       <div class="dd-row" style="grid-template-columns:1fr;gap:var(--s-2-5)">
         <div>
-          <button type="button" class="btn btn-sm" data-rr-issue-invite>Generate invite code</button>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Driver enters this on the RouteReady app at <strong>gorouteready.com/app/</strong>. One active code at a time · expires in 14 days.</div>
+          <div style="display:flex;gap:var(--s-2-5);flex-wrap:wrap">
+            <button type="button" class="btn btn-primary btn-sm" data-rr-send-invite>Send activation link</button>
+            <button type="button" class="btn btn-sm" data-rr-issue-invite>Just mint a code</button>
+          </div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Activation link uses the welcome SMS/email and pre-fills the code in the app. One active code at a time · expires in 14 days.</div>
           <div data-rr-invite-display style="margin-top:10px;display:none"></div>
         </div>
       </div>
@@ -17121,6 +17124,39 @@ document.addEventListener("click", async (e) => {
     toast("Availability saved", "success");
     const drawer3 = document.getElementById("rr-dd-drawer");
     if (drawer3) drawer3.remove();
+    return;
+  }
+
+  // Send activation link (welcome SMS/email with a fresh code).
+  if (e.target.closest("[data-rr-send-invite]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const driverId = _ddDriver?.driver?.id;
+    if (!driverId) { toast("Save the driver first, then send the activation link", "warn"); return; }
+    const btn = e.target.closest("[data-rr-send-invite]");
+    btn.disabled = true; const prev = btn.textContent; btn.textContent = "Sending…";
+    const { data, error } = await sb.rpc("send_onboarding_invite", { p_driver_id: driverId });
+    btn.disabled = false; btn.textContent = prev;
+    if (error) { toast("Send failed: " + error.message, "warn"); return; }
+    const channel = data?.message_channel;
+    const target  = data?.sent_to || "";
+    const code    = data?.code || "";
+    const display = document.querySelector("#rr-dd-drawer [data-rr-invite-display]");
+    if (display) {
+      display.style.display = "block";
+      const chanLabel = channel === "sms" ? "SMS" : channel === "email" ? "email" : "(no contact on file)";
+      display.innerHTML = `
+        <div style="display:flex;align-items:center;gap:var(--s-2-5);background:var(--green-soft);padding:var(--s-2-5) var(--s-3-5);border-radius:8px;border:1px solid rgba(34,197,94,.2)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:var(--green);flex:0 0 auto"><polyline points="20 6 9 17 4 12"/></svg>
+          <div style="min-width:0;flex:1">
+            <div style="font-size:var(--fs-sm);font-weight:600">Activation link queued via ${escapeHtml(chanLabel)}</div>
+            ${target ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(target)}</div>` : ""}
+          </div>
+          ${code ? `<button type="button" class="btn btn-sm" data-rr-copy-code="${escapeHtml(code)}">Copy code</button>` : ""}
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Code <strong>${escapeHtml(code)}</strong> · expires in 14 days. Sending again revokes this one.</div>`;
+    }
+    toast(channel ? "Activation link sent" : "Code minted (no contact on file)", "success");
     return;
   }
 
