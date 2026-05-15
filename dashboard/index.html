@@ -35,11 +35,14 @@
   --surface-grad:linear-gradient(180deg, #FFFFFF 0%, #FCFCFC 100%);
   --surface-hover:#F5F6F8;
   --surface-pressed:#EDEEF1;
-  /* Sidebar — dark mica panel, slightly warmer than pure black */
-  --sidebar:#1F2433;
-  --sidebar-grad:linear-gradient(180deg, #232838 0%, #1B2030 100%);
-  --sidebar-hover:rgba(255,255,255,.06);
-  --sidebar-active:linear-gradient(90deg, rgba(15,108,189,.24) 0%, rgba(15,108,189,.06) 100%);
+  /* Sidebar — calm graphite/navy operational surface.  Tuned to
+     support the white workspace rather than dominate it.  Active
+     state is a soft translucent layer, not a saturated glow. */
+  --sidebar:#131A2A;
+  --sidebar-grad:linear-gradient(180deg, #172033 0%, #111827 100%);
+  --sidebar-hover:rgba(255,255,255,.04);
+  --sidebar-active:linear-gradient(90deg, rgba(59,130,246,.14) 0%, rgba(59,130,246,.04) 100%);
+  --sidebar-divider:rgba(255,255,255,.06);
   --glass:rgba(255,255,255,.80);
   --glass-strong:rgba(255,255,255,.90);
 
@@ -350,108 +353,81 @@ a{color:inherit;text-decoration:none}
   display:flex;flex-direction:column;
   padding:var(--s-5) var(--s-3);
   position:sticky;top:0;height:100vh;
-  border-right:1px solid var(--border-inverse);
-  box-shadow:inset -1px 0 0 rgba(255,255,255,.02);
+  border-right:1px solid var(--sidebar-divider);
 }
 .brand{
   position:relative;
   display:flex;align-items:center;gap:10px;
   padding:0 var(--s-3) var(--s-6) var(--s-3);
 }
-/* Subtle gradient wash behind the brand area, echoing the
-   marketing site's hero gradient (blue → indigo → violet).
-   Sits behind the logo + wordmark; fades down toward the nav. */
-.brand::before{
-  content:"";
-  position:absolute;inset:-12px -12px 0 -12px;
-  background:radial-gradient(ellipse 90% 80% at 50% 30%,
-    rgba(30,136,229,.18) 0%,
-    rgba(79,70,229,.14) 35%,
-    rgba(124,58,237,.08) 65%,
-    transparent 100%);
-  pointer-events:none;z-index:0;
-  border-radius:0 0 var(--r-lg) var(--r-lg);
-}
-.brand > *{position:relative;z-index:1}
 .brand-mark{
-  width:32px;height:32px;border-radius:8px;
+  width:30px;height:30px;border-radius:var(--r-md);
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 12px rgba(15,108,189,.35);
   overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
 }
 .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
-.brand-name{font-weight:700;font-size:var(--fs-lg);letter-spacing:-.01em}
+.brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--text-inverse)}
 .brand-name em{font-style:normal;font-weight:400;color:var(--text-inverse-muted)}
 
-.nav{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;overflow-y:auto}
+.nav{display:flex;flex-direction:column;gap:1px;flex:1;min-height:0;overflow-y:auto}
 .nav-item{
   position:relative;
-  display:flex;align-items:center;gap:10px;
-  padding:8px 12px;border-radius:var(--r-md);
-  color:var(--text-inverse-muted);
-  font-size:var(--fs-md);font-weight:500;
+  display:flex;align-items:center;gap:var(--s-2-5);
+  padding:7px var(--s-3);border-radius:var(--r-md);
+  color:rgba(226,232,240,.78);
+  font-size:var(--fs-md);font-weight:500;letter-spacing:0;
   cursor:pointer;
-  transition:background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+  transition:background var(--t-smooth), color var(--t-smooth);
   border:none;background:transparent;text-align:left;width:100%;
 }
 .nav-item:hover{
   background:var(--sidebar-hover);
   color:var(--text-inverse);
 }
-.nav-item:hover svg{stroke-width:2}
-.nav-item:active{transform:translateY(.5px)}
+.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(59,130,246,.5)}
 .nav-item.active{
   background:var(--sidebar-active);
   color:#fff;font-weight:600;
-  box-shadow:inset 2px 0 0 var(--accent), inset 0 1px 0 rgba(255,255,255,.06);
+  box-shadow:inset 2px 0 0 rgba(59,130,246,.85), inset 0 1px 0 rgba(255,255,255,.03);
 }
-.nav-item.active svg{
-  stroke-width:2.2;
-  filter:drop-shadow(0 1px 2px rgba(15,108,189,.40));
-}
-/* Sidebar icons — Fluent weight: bigger, heavier stroke, soft
-   drop-shadow on active state for the "filled" Microsoft feel
-   without redrawing every glyph. */
+.nav-item.active svg{stroke-width:2}
+/* Icon strokes — calm operational weight; no glow / drop-shadow */
 .nav-item svg{
-  width:16px;height:16px;flex-shrink:0;stroke-width:2.2;
-  transition:stroke-width var(--t-fast), color var(--t-fast),
-             filter var(--t-fast), transform var(--t-fast);
+  width:15px;height:15px;flex-shrink:0;stroke-width:2;
+  transition:color var(--t-smooth);
 }
 .nav-badge{ display:none }
 
-/* Per-item colored icon treatment — borrowed from the marketing
-   site's feature-card aesthetic. Each nav-item declares a color
-   via data-c=""; the svg sits inside a small tinted square that
-   always shows that color regardless of which view is active.
-   Active state strengthens the tint a touch. */
+/* Tinted icon container — Fluent-style soft tile.  Saturation
+   dialed down ~10-15%; container brightness matches the calm
+   sidebar atmosphere instead of competing with it. */
 .nav-icon{
   display:inline-flex;align-items:center;justify-content:center;
-  width:26px;height:26px;border-radius:7px;flex-shrink:0;
-  background:var(--ni-bg, rgba(255,255,255,.06));
+  width:26px;height:26px;border-radius:var(--r-md);flex-shrink:0;
+  background:var(--ni-bg, rgba(255,255,255,.04));
   color:var(--ni-fg, var(--text-inverse-muted));
-  transition:background var(--t-fast), color var(--t-fast),
-             box-shadow var(--t-fast);
+  transition:background var(--t-smooth), color var(--t-smooth);
 }
-.nav-item:hover .nav-icon{box-shadow:0 0 0 1px rgba(255,255,255,.08) inset}
 .nav-item.active .nav-icon{
-  background:var(--ni-bg-strong, var(--ni-bg, rgba(255,255,255,.1)));
-  box-shadow:0 0 0 1px rgba(255,255,255,.12) inset, 0 4px 12px var(--ni-glow, rgba(0,0,0,.18));
+  background:var(--ni-bg-strong, rgba(255,255,255,.08));
 }
-.nav-item.active svg{filter:none}
 
-.nav-item[data-c="dashboard"]{--ni-fg:#67E8F9;--ni-bg:rgba(34,211,238,.14);--ni-bg-strong:rgba(34,211,238,.22);--ni-glow:rgba(34,211,238,.20)}
-.nav-item[data-c="pipeline"] {--ni-fg:#A78BFA;--ni-bg:rgba(124,58,237,.16);--ni-bg-strong:rgba(124,58,237,.26);--ni-glow:rgba(124,58,237,.22)}
-.nav-item[data-c="drivers"]  {--ni-fg:#5EEAD4;--ni-bg:rgba(13,148,136,.18);--ni-bg-strong:rgba(13,148,136,.28);--ni-glow:rgba(13,148,136,.22)}
-.nav-item[data-c="staffing"] {--ni-fg:#F9A8D4;--ni-bg:rgba(219,39,119,.16);--ni-bg-strong:rgba(219,39,119,.26);--ni-glow:rgba(219,39,119,.22)}
-.nav-item[data-c="fleet"]    {--ni-fg:#FCD34D;--ni-bg:rgba(217,119,6,.16);--ni-bg-strong:rgba(217,119,6,.26);--ni-glow:rgba(217,119,6,.22)}
-.nav-item[data-c="compliance"]{--ni-fg:#CBD5E1;--ni-bg:rgba(100,116,139,.22);--ni-bg-strong:rgba(100,116,139,.34);--ni-glow:rgba(148,163,184,.22)}
-.nav-item[data-c="schedule"] {--ni-fg:#818CF8;--ni-bg:rgba(79,70,229,.18);--ni-bg-strong:rgba(79,70,229,.28);--ni-glow:rgba(79,70,229,.22)}
-.nav-item[data-c="outlook"]  {--ni-fg:#FBBF24;--ni-bg:rgba(245,158,11,.16);--ni-bg-strong:rgba(245,158,11,.26);--ni-glow:rgba(245,158,11,.22)}
-.nav-item[data-c="analytics"]{--ni-fg:#C7D2FE;--ni-bg:rgba(99,102,241,.18);--ni-bg-strong:rgba(99,102,241,.28);--ni-glow:rgba(99,102,241,.22)}
-.nav-item[data-c="messages"] {--ni-fg:#7DD3FC;--ni-bg:rgba(2,132,199,.18);--ni-bg-strong:rgba(2,132,199,.28);--ni-glow:rgba(2,132,199,.22)}
-.nav-item[data-c="forms"]    {--ni-fg:#C4B5FD;--ni-bg:rgba(124,58,237,.14);--ni-bg-strong:rgba(124,58,237,.24);--ni-glow:rgba(124,58,237,.22)}
-.nav-item[data-c="finances"] {--ni-fg:#6EE7B7;--ni-bg:rgba(5,150,105,.18);--ni-bg-strong:rgba(5,150,105,.28);--ni-glow:rgba(5,150,105,.22)}
-.nav-item[data-c="settings"] {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.16);--ni-bg-strong:rgba(148,163,184,.26);--ni-glow:rgba(148,163,184,.20)}
+/* Calibrated category palette · 10-15% less saturated than the
+   previous neon-leaning set.  Container alphas trimmed so the
+   icon tile blends with the graphite/navy sidebar atmosphere. */
+.nav-item[data-c="dashboard"]  {--ni-fg:#60A5FA;--ni-bg:rgba(59,130,246,.10);--ni-bg-strong:rgba(59,130,246,.18)}
+.nav-item[data-c="pipeline"]   {--ni-fg:#A78BFA;--ni-bg:rgba(139,92,246,.10);--ni-bg-strong:rgba(139,92,246,.18)}
+.nav-item[data-c="drivers"]    {--ni-fg:#2DD4BF;--ni-bg:rgba(20,184,166,.10);--ni-bg-strong:rgba(20,184,166,.18)}
+.nav-item[data-c="staffing"]   {--ni-fg:#F472B6;--ni-bg:rgba(236,72,153,.10);--ni-bg-strong:rgba(236,72,153,.18)}
+.nav-item[data-c="fleet"]      {--ni-fg:#FBBF24;--ni-bg:rgba(245,158,11,.10);--ni-bg-strong:rgba(245,158,11,.18)}
+.nav-item[data-c="compliance"] {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
+.nav-item[data-c="schedule"]   {--ni-fg:#60A5FA;--ni-bg:rgba(56,189,248,.10);--ni-bg-strong:rgba(56,189,248,.18)}
+.nav-item[data-c="messages"]   {--ni-fg:#60A5FA;--ni-bg:rgba(96,165,250,.10);--ni-bg-strong:rgba(96,165,250,.18)}
+.nav-item[data-c="forms"]      {--ni-fg:#C084FC;--ni-bg:rgba(168,85,247,.10);--ni-bg-strong:rgba(168,85,247,.18)}
+.nav-item[data-c="finances"]   {--ni-fg:#34D399;--ni-bg:rgba(16,185,129,.10);--ni-bg-strong:rgba(16,185,129,.18)}
+.nav-item[data-c="settings"]   {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
+.nav-item[data-c="admin"]      {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
 
 .nav-section-label{
   font-size:var(--fs-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;
@@ -20346,7 +20322,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515v-polish-wave-4"></script>
+<script type="module" src="./live.js?v=20260515w-sidebar-fluent-refactor"></script>
 
 </body>
 </html>
