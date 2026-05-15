@@ -294,11 +294,16 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     const os = a.getAttribute('data-dl-href');
     if (URLS[os]) a.href = URLS[os];
 
-    // Open the "Getting started" guide in a new tab as soon as the
-    // visitor clicks Download. The default <a download> behavior
-    // still fires, so the file downloads from the same click.
-    a.addEventListener('click', () => {
-      window.open('/installed', '_blank', 'noopener');
+    // Intercept the click — instead of triggering the download from
+    // this page (which leaves the visitor on /download with only an
+    // OS-level "download finished" toast), navigate them to the
+    // Getting Started page and let *that* page kick off the file
+    // download via JS. They land on the instructions, the installer
+    // arrives while they read.
+    a.addEventListener('click', (evt) => {
+      evt.preventDefault();
+      const target = (os === 'linux' && isChromeOS) ? 'chromeos' : os;
+      window.location.href = `/installed?dl=${encodeURIComponent(target)}`;
     });
   });
 })();
