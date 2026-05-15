@@ -105,6 +105,18 @@ nav{position:sticky;top:0;z-index:300;background:rgba(248,250,252,.85);backdrop-
 .os-block{display:none}
 .os-block.active{display:block}
 
+/* DOWNLOAD BANNER (shown when arriving here from a Download click) */
+.dl-banner{position:relative;max-width:var(--max);margin:0 auto 1.25rem;padding:0 1.5rem}
+@media(min-width:768px){.dl-banner{padding:0 2.5rem}}
+.dl-banner-card{display:none;align-items:center;gap:14px;background:linear-gradient(180deg,rgba(15,108,189,.06) 0%,rgba(15,108,189,.10) 100%);border:1px solid rgba(15,108,189,.20);border-radius:var(--r-lg);padding:14px 18px;font-size:14px;color:var(--blue-dark)}
+.dl-banner.show .dl-banner-card{display:flex}
+.dl-banner-icon{width:34px;height:34px;border-radius:9px;background:var(--blue);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.dl-banner-icon svg{width:18px;height:18px}
+.dl-banner-text{flex:1;line-height:1.45}
+.dl-banner-text strong{color:var(--text);font-weight:600}
+.dl-banner-retry{font-family:inherit;font-size:13px;font-weight:600;color:var(--blue);background:transparent;border:0;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+.dl-banner-retry:hover{color:var(--blue-dark)}
+
 /* CTA */
 .cta-section{padding:0 0 60px;text-align:center}
 .cta-card{background:linear-gradient(135deg,rgba(15,108,189,.04) 0%,rgba(124,58,237,.04) 100%);border:1px solid var(--border);border-radius:var(--r-xl);padding:32px 28px}
@@ -151,6 +163,18 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-si
   <h1 class="hero-h fu d2">Five quick steps and you're <span class="grad">pulling data</span>.</h1>
   <p class="hero-sub fu d3">Run the installer you just downloaded, point RouteReady at the portal you're syncing, and pull your first report. Takes about three minutes.</p>
 </header>
+
+<div class="dl-banner" id="dl-banner" aria-live="polite">
+  <div class="dl-banner-card">
+    <div class="dl-banner-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </div>
+    <div class="dl-banner-text">
+      <strong>Your download is starting</strong><span id="dl-banner-detail"> — check your browser's download bar.</span>
+    </div>
+    <button class="dl-banner-retry" id="dl-banner-retry">Re-trigger</button>
+  </div>
+</div>
 
 <section class="steps-section">
   <div class="wrap">
@@ -317,6 +341,57 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   document.querySelectorAll('.os-switch button').forEach(b => {
     b.addEventListener('click', () => setOs(b.dataset.os));
   });
+
+  // ─── Auto-download when ?dl= is set ───────────────────────────────
+  // download.html navigates here with ?dl=<os> when the visitor clicks
+  // a Download button. We pop the installer download immediately so the
+  // file arrives while they're reading the instructions — and surface
+  // a banner so they know to check the download bar.
+  const BASE = 'https://github.com/rrhester/routeready/releases/latest/download';
+  const DL_URLS = {
+    windows:  `${BASE}/RouteReady-Desktop.exe`,
+    mac:      `${BASE}/RouteReady-Desktop.dmg`,
+    linux:    `${BASE}/RouteReady-Desktop.AppImage`,
+    chromeos: `${BASE}/RouteReady-Desktop.deb`,
+  };
+  const OS_NAMES = {
+    windows: 'Windows installer (.exe)',
+    mac: 'macOS installer (.dmg)',
+    linux: 'Linux AppImage',
+    chromeos: 'ChromeOS .deb package',
+  };
+
+  function triggerDownload(dlKey) {
+    const url = DL_URLS[dlKey];
+    if (!url) return false;
+    const link = document.createElement('a');
+    link.href = url;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => link.remove(), 0);
+    return true;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const dl = params.get('dl');
+  if (dl && DL_URLS[dl]) {
+    const banner = document.getElementById('dl-banner');
+    const detail = document.getElementById('dl-banner-detail');
+    if (detail && OS_NAMES[dl]) detail.textContent = ` — ${OS_NAMES[dl]}. Check your browser's download bar.`;
+    if (banner) banner.classList.add('show');
+    // Defer to give the page a paint pass so the banner is visible
+    // before the browser's download UI fires.
+    setTimeout(() => triggerDownload(dl), 200);
+    // Manual re-trigger if the download was blocked or missed.
+    const retry = document.getElementById('dl-banner-retry');
+    if (retry) retry.addEventListener('click', () => triggerDownload(dl));
+    // Also: pre-select the matching OS tab in step 1 so the install
+    // instructions match what they just downloaded.
+    const osTab = dl === 'chromeos' ? 'chromeos' : dl;
+    setOs(osTab);
+  }
 
   // Copy-to-clipboard for portal URL chips.
   document.querySelectorAll('.copy-btn').forEach(btn => {
