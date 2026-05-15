@@ -908,7 +908,7 @@ async function openSwapModal(myShiftId, token) {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-swap-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:flex-end;justify-content:center";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:200;display:flex;align-items:flex-end;justify-content:center";
   m.innerHTML = `
     <div style="background:var(--surface);width:100%;max-width:480px;max-height:85vh;border-top-left-radius:18px;border-top-right-radius:18px;display:flex;flex-direction:column;overflow:hidden">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
