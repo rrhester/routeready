@@ -176,6 +176,19 @@ body{
 button{font-family:inherit;cursor:pointer}
 a{color:inherit;text-decoration:none}
 
+/* Respect the OS-level "reduce motion" preference.  Enterprise
+   accessibility staple: collapse all transitions / keyframes to
+   near-zero so users who get motion-sick aren't subjected to the
+   rise / fade / spring animations baked into the system. */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────
    CANONICAL LOADING + EMPTY PRIMITIVES
    Cohesive between dashboard and driver app — same shape, same
@@ -188,9 +201,9 @@ a{color:inherit;text-decoration:none}
   color:var(--text-subtle);font-size:var(--fs-md);line-height:1.4;
 }
 .rr-loading::before{
-  content:"";display:block;width:18px;height:18px;
-  border:2px solid var(--border);border-top-color:var(--accent);
-  border-radius:50%;animation:rr-spin .7s linear infinite;
+  content:"";display:block;width:20px;height:20px;
+  border:1.5px solid var(--border-subtle);border-top-color:var(--accent);
+  border-radius:50%;animation:rr-spin .6s linear infinite;
 }
 @keyframes rr-spin{to{transform:rotate(360deg)}}
 .rr-empty{
@@ -198,8 +211,8 @@ a{color:inherit;text-decoration:none}
   gap:var(--s-2);padding:var(--s-8) var(--s-5);text-align:center;
 }
 .rr-empty-icon{
-  width:36px;height:36px;border-radius:50%;
-  background:var(--canvas);
+  width:40px;height:40px;border-radius:var(--r-lg);
+  background:var(--canvas);border:1px solid var(--border-subtle);
   display:flex;align-items:center;justify-content:center;
   margin-bottom:var(--s-2);
 }
@@ -846,17 +859,14 @@ a{color:inherit;text-decoration:none}
    chrome.  Notion / Stripe pattern: brand-stripe is a deliberate
    UI element, not a hairline. */
 .kpi-card::before{
-  content:"";position:absolute;top:0;left:0;right:0;height:4px;
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
   background:var(--brand-grad);
   border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg);
   pointer-events:none;
-  box-shadow:0 1px 4px -1px rgba(79,70,229,.30);
 }
 .kpi-card:hover{
-  border-color:rgba(15,108,189,.20);
-  box-shadow:0 4px 12px -2px rgba(15,108,189,.10),
-             0 8px 24px -4px rgba(79,70,229,.10),
-             var(--highlight-top);
+  border-color:var(--accent-border);
+  box-shadow:var(--shadow-md-hover), var(--highlight-top);
   transform:translateY(-1px);
 }
 /* Label-to-value rhythm — token-aligned (--s-3 = 12px) replaces the
@@ -1093,8 +1103,8 @@ a{color:inherit;text-decoration:none}
 .table thead th{
   text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
   letter-spacing:.04em;text-transform:uppercase;
-  padding:10px var(--s-4);
-  background:linear-gradient(180deg, var(--canvas) 0%, rgba(244,246,251,.6) 100%);
+  padding:var(--s-2-5) var(--s-4);
+  background:var(--canvas);
   border-bottom:1px solid var(--border-subtle);
   white-space:nowrap;
 }
@@ -3024,8 +3034,8 @@ select.form-input{
    TOAST SYSTEM (interaction feedback)
    ───────────────────────────────────────────────────────────── */
 .toast-stack{
-  position:fixed;bottom:24px;right:24px;z-index:200;
-  display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+  position:fixed;bottom:var(--s-6);right:var(--s-6);z-index:200;
+  display:flex;flex-direction:column;gap:var(--s-2);align-items:flex-end;
   pointer-events:none;
 }
 /* Toast — dark slate with brand-tinted accent border (left stripe). */
@@ -20336,7 +20346,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515u-polish-wave-3"></script>
+<script type="module" src="./live.js?v=20260515v-polish-wave-4"></script>
 
 </body>
 </html>
