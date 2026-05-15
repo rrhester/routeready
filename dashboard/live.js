@@ -1173,7 +1173,7 @@ function _renderAdminRow(d) {
     ? `<a href="mailto:${escapeHtml(d.owner_email)}" style="color:inherit;text-decoration:none">${escapeHtml(d.owner_email)}</a>`
     : `<span class="rr-admin-cell-muted">—</span>`;
   const phoneLine = d.phone
-    ? escapeHtml(d.phone)
+    ? phoneCell(d.phone)
     : `<span class="rr-admin-cell-muted">—</span>`;
 
   // Suspend vs Reactivate based on current status.
@@ -2482,7 +2482,7 @@ function _renderBulkDriversPreview() {
         <td>${dot}</td>
         <td>${escapeHtml(r.first_name)}</td>
         <td>${escapeHtml(r.last_name)}</td>
-        <td>${escapeHtml(r.phone)}</td>
+        <td>${phoneCell(r.phone)}</td>
         <td>${escapeHtml(r.email)}</td>
       </tr>`;
     }).join("") + (normalized.length > 50
@@ -6575,7 +6575,7 @@ async function loadCheckinView() {
           <div class="avatar-sm ${tier}">${initials}</div>
           <div>
             <div class="checkin-driver-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}</div>
-            <div class="checkin-driver-meta">${escapeHtml(d.phone || "")}</div>
+            <div class="checkin-driver-meta">${phoneCell(d.phone || "")}</div>
           </div>
         </div>
         <div class="checkin-station">${escapeHtml(station)}</div>
@@ -11075,7 +11075,7 @@ function renderInterviewCard(r) {
           <div class="iv-card-avatar tier-b">${initials}</div>
           <div>
             <div class="iv-card-name">${r.full_name ?? ""}</div>
-            <div class="iv-card-meta">${[r.phone, r.email].filter(Boolean).join(" · ")}</div>
+            <div class="iv-card-meta">${[r.phone ? phoneCell(r.phone) : "", r.email ? escapeHtml(r.email) : ""].filter(Boolean).join(" · ")}</div>
           </div>
           ${badge}
         </div>
@@ -11775,7 +11775,7 @@ async function loadCalBookingsList() {
           <div style="font-variant-numeric:tabular-nums;font-size:var(--fs-md);font-weight:600">${start}<div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${end}</div></div>
           <div>
             <div style="font-size:var(--fs-md);font-weight:600;margin-bottom:2px">${escapeHtml(rrTitleCaseName(a.full_name) || "Unknown")}</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${[a.phone, a.email].filter(Boolean).join(" · ") || "no contact on file"}</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${[a.phone ? phoneCell(a.phone) : "", a.email ? escapeHtml(a.email) : ""].filter(Boolean).join(" · ") || "no contact on file"}</div>
             <div style="margin-top:6px">${kindBadge}${statusBadge}</div>
           </div>
           <div>${r.meeting_url ? `<a class="btn btn-sm" href="${r.meeting_url}" target="_blank" rel="noreferrer">Join</a>` : ""}</div>
@@ -11841,6 +11841,18 @@ function renderScreeningQuestionRow(q) {
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Renders a small phone-icon `tel:` link followed by the formatted number.
+// `phone` may be a raw or pretty number; we only keep digits + leading `+` for
+// the href so the device dialer accepts it. Mirrors the worksheet-board phone
+// column at _wsCellHtml so the visual is consistent across the dashboard.
+function phoneCell(phone) {
+  const raw = String(phone ?? "").trim();
+  if (!raw) return "";
+  const href = raw.replace(/[^0-9+]/g, "");
+  if (!href) return escapeHtml(raw);
+  return `<a class="rr-call-link" href="tel:${escapeHtml(href)}" title="Call ${escapeHtml(raw)}" aria-label="Call ${escapeHtml(raw)}"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a><span class="rr-call-text">${escapeHtml(raw)}</span>`;
 }
 
 function openQuestionEditor(question) {
@@ -12865,7 +12877,9 @@ function renderOverviewTab(body, dd) {
     <div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">At a glance</div></div></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s-4) 14px">
-        ${fact("Phone", d.phone || "—")}
+        ${d.phone
+          ? `<div><div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">Phone</div><div style="font-size:var(--fs-sm);color:var(--text)">${phoneCell(d.phone)}</div></div>`
+          : fact("Phone", "—")}
         ${fact("Email", d.email || "—")}
         ${fact("Station", stationTxt)}
         ${fact("Hired", d.hire_date ? fmtD(d.hire_date) + (tenureTxt ? " · " + tenureTxt : "") : "—")}
@@ -28504,7 +28518,7 @@ function _dappProfile(data) {
   </div>`;
   h += `<div class="dapp-sec">Contact</div>`;
   h += `<div class="dapp-card" style="flex-direction:column;align-items:stretch;gap:var(--s-2)">`
-    + `<div class="dapp-row"><span class="k">Phone</span><span class="v">${d.phone ? escapeHtml(d.phone) : "—"}</span></div>`
+    + `<div class="dapp-row"><span class="k">Phone</span><span class="v">${d.phone ? phoneCell(d.phone) : "—"}</span></div>`
     + `<div class="dapp-row"><span class="k">Email</span><span class="v">${d.email ? escapeHtml(d.email) : "—"}</span></div>`
     + `<div class="dapp-row"><span class="k">Hired</span><span class="v">${d.hire_date ? escapeHtml(_dappFmtDate(d.hire_date)) : "—"}</span></div>`
     + `</div>`;
@@ -31462,7 +31476,7 @@ function _fdDriversHtml(drivers) {
           ? `<div class="fd-empty">No drivers assigned.  Open Workspaces → Van assignments to build the chain.</div>`
           : list.map((d, i) => `<div class="fd-driver-row">
               <div class="av">${escapeHtml((d.name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
-              <div class="nm">${escapeHtml(d.name)}${d.phone ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(d.phone)}</div>` : ""}</div>
+              <div class="nm">${escapeHtml(d.name)}${d.phone ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${phoneCell(d.phone)}</div>` : ""}</div>
               <div class="rk">${i === 0 ? "Primary" : `Backup ${i}`}</div>
             </div>`).join("")
         }
@@ -32367,7 +32381,12 @@ async function _stfRenderManageList() {
   }
   list.innerHTML = members.map(m => {
     const nm = m.preferred_name && m.preferred_name !== m.full_name ? `${escapeHtml(m.preferred_name)} (${escapeHtml(m.full_name)})` : escapeHtml(m.full_name);
-    const meta = [_STF_ROLE_LABEL[m.role] || m.role, m.email, m.phone].filter(Boolean).map(escapeHtml).join(" · ");
+    const metaParts = [
+      (_STF_ROLE_LABEL[m.role] || m.role) ? escapeHtml(_STF_ROLE_LABEL[m.role] || m.role) : "",
+      m.email ? escapeHtml(m.email) : "",
+      m.phone ? phoneCell(m.phone) : "",
+    ].filter(Boolean);
+    const meta = metaParts.join(" · ");
     return `<div class="stf-row" data-rr-staff-member="${escapeHtml(m.id)}">
       <div>
         <div class="nm">${nm}</div>

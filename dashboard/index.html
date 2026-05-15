@@ -6900,6 +6900,12 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-an-range{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer}
 .rr-an-range:hover{color:var(--accent-text)}
 .rr-an-range svg{width:10px;height:10px;stroke-width:2.4}
+
+/* Tap-to-call icon + number — rendered everywhere we show a phone number
+   so dispatchers can dial straight from any list, drawer, or report. */
+.rr-call-link{display:inline-flex;align-items:center;justify-content:center;color:var(--accent-text);border-radius:var(--r-md);padding:3px;margin:-3px 4px -3px -3px;flex:0 0 auto;text-decoration:none;transition:background var(--t-fast)}
+.rr-call-link:hover{background:var(--accent-soft)}
+.rr-call-text{color:inherit}
 </style>
 </head>
 <body>
