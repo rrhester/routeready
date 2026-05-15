@@ -6907,29 +6907,71 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-call-link:hover{background:var(--accent-soft)}
 .rr-call-text{color:inherit}
 
-/* Time off · dispatcher review surface (loadTimeOffView in live.js). */
-#view-time-off .to-d-page{max-width:780px;margin:0 auto}
-#view-time-off .to-d-h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.005em;color:var(--text);margin:0 0 12px}
-#view-time-off .to-d-list{display:flex;flex-direction:column;gap:10px}
-#view-time-off .to-d-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:14px 18px}
-#view-time-off .to-d-pending{border-color:rgba(217,119,6,.32)}
-#view-time-off .to-d-row-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-#view-time-off .to-d-name{font-size:var(--fs-md);font-weight:600;color:var(--text)}
-#view-time-off .to-d-range{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
-#view-time-off .to-d-reason{font-size:var(--fs-sm);color:var(--text-muted);margin-top:8px;line-height:1.45}
-#view-time-off .to-d-reason-empty{font-style:italic;color:var(--text-subtle)}
-#view-time-off .to-d-note{width:100%;margin-top:10px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);resize:vertical;min-height:46px}
-#view-time-off .to-d-note:focus{outline:0;border-color:var(--accent);background:var(--surface)}
-#view-time-off .to-d-note-ro{margin-top:10px;background:var(--canvas);border-radius:var(--r-md);padding:8px 12px;font-size:var(--fs-sm);color:var(--text);line-height:1.45}
-#view-time-off .to-d-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
-#view-time-off .to-d-deny{color:var(--red);border-color:rgba(220,38,38,.32)}
-#view-time-off .to-d-deny:hover{background:rgba(220,38,38,.06)}
-#view-time-off .to-d-empty{font-size:var(--fs-sm);color:var(--text-subtle);padding:14px 18px;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);text-align:center}
-#view-time-off .to-d-pill{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:3px 10px;border-radius:999px;letter-spacing:.02em}
-#view-time-off .to-d-pill-pending  { background:rgba(217,119,6,.12);  color:#92400E }
-#view-time-off .to-d-pill-approved { background:var(--green-soft);    color:var(--green-dark) }
-#view-time-off .to-d-pill-denied   { background:rgba(220,38,38,.12);  color:#991B1B }
-#view-time-off .to-d-pill-cancelled{ background:var(--canvas);        color:var(--text-subtle) }
+/* Time off · Schedule sub-tab (loadTimeOffView in live.js).
+   Uses the dashboard's section-head + card pattern so the layout
+   matches Templates / Staff: a section banner across the top of a
+   surface card, soft-canvas inset rows separated by --border-subtle,
+   shared .status-pill / .btn / .form-input tokens for everything
+   inside. No hardcoded colours — everything resolves through the
+   palette tokens defined in :root. */
+#sched-sub-time-off .to-page{display:flex;flex-direction:column;gap:var(--s-4)}
+#sched-sub-time-off .to-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-xl);
+  overflow:hidden;
+}
+#sched-sub-time-off .to-card-head{
+  padding:var(--s-3) var(--s-5);
+  background:var(--canvas);
+  border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+}
+#sched-sub-time-off .to-card-head-title{
+  font-size:var(--fs-md);font-weight:700;color:var(--text);
+  line-height:1.25;letter-spacing:-.005em;
+}
+#sched-sub-time-off .to-card-head-count{
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+}
+#sched-sub-time-off .to-row{
+  padding:var(--s-4) var(--s-5);
+  border-top:1px solid var(--border-subtle);
+}
+#sched-sub-time-off .to-row:first-child{border-top:0}
+#sched-sub-time-off .to-row-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);
+}
+#sched-sub-time-off .to-row-name{
+  font-size:var(--fs-md);font-weight:600;color:var(--text);
+  line-height:1.3;
+}
+#sched-sub-time-off .to-row-range{
+  font-size:var(--fs-sm);color:var(--text-subtle);
+  margin-top:2px;
+}
+#sched-sub-time-off .to-row-reason{
+  font-size:var(--fs-sm);color:var(--text-muted);
+  margin-top:var(--s-2);line-height:1.45;
+}
+#sched-sub-time-off .to-row-reason-empty{
+  color:var(--text-subtle);font-style:italic;
+}
+#sched-sub-time-off .to-row-note-ro{
+  margin-top:var(--s-2-5);
+  background:var(--canvas);border-radius:var(--r-md);
+  padding:var(--s-2) var(--s-3);
+  font-size:var(--fs-sm);color:var(--text);line-height:1.45;
+}
+#sched-sub-time-off .to-row-note-ro strong{color:var(--text-muted);font-weight:600}
+#sched-sub-time-off textarea.form-input{
+  margin-top:var(--s-2-5);
+  max-width:none;min-height:64px;
+}
+#sched-sub-time-off .to-row-actions{
+  display:flex;justify-content:flex-end;gap:var(--s-2);
+  margin-top:var(--s-2-5);
+}
 </style>
 </head>
 <body>
@@ -19994,7 +20036,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515bt-time-off-subtab"></script>
+<script type="module" src="./live.js?v=20260515bu-time-off-tokens"></script>
 
 </body>
 </html>
