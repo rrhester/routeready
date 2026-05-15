@@ -2278,7 +2278,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
    States:    :focus-visible · :disabled · .form-input-error
    ───────────────────────────────────────────────────────────── */
 .form-row{display:grid;grid-template-columns:200px 1fr;gap:var(--s-5);padding:var(--s-3) 0;align-items:start}
-.form-row + .form-row{border-top:1px solid var(--border)}
+.form-row + .form-row{border-top:1px solid var(--border-subtle)}
 .form-label{font-size:var(--fs-md);font-weight:500;color:var(--text)}
 .form-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5}
 .form-input{
@@ -2298,14 +2298,14 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .form-input:focus,
 .form-input:focus-visible{
   outline:none;border-color:var(--accent);
-  box-shadow:var(--accent-glow), inset 0 1px 2px rgba(37,99,235,.04);
+  box-shadow:var(--ring-focus);
   background:var(--surface);
 }
 .form-input:disabled{
   background:var(--canvas);color:var(--text-subtle);cursor:not-allowed;
   box-shadow:none;
 }
-.form-input.form-input-sm{padding:5px 10px;font-size:var(--fs-sm)}
+.form-input.form-input-sm{padding:5px var(--s-2-5);font-size:var(--fs-sm)}
 .form-input.form-input-block{max-width:none}
 .form-input.form-input-error{
   border-color:var(--red);
@@ -2329,8 +2329,9 @@ select.form-input{
 }
 .toggle input{opacity:0;width:0;height:0}
 .toggle-slider{
-  position:absolute;cursor:pointer;inset:0;background:#CBD5E1;border-radius:20px;transition:background var(--t-smooth);
+  position:absolute;cursor:pointer;inset:0;background:var(--border-strong);border-radius:var(--r-2xl);transition:background var(--t-smooth);
 }
+.toggle input:focus-visible + .toggle-slider{box-shadow:var(--ring-focus)}
 .toggle-slider::before{
   content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;
   background:#fff;border-radius:50%;transition:transform var(--t-smooth);box-shadow:0 1px 2px rgba(0,0,0,.15);
@@ -2341,7 +2342,7 @@ select.form-input{
 .integration-row{
   display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3) 0;
 }
-.integration-row + .integration-row{border-top:1px solid var(--border)}
+.integration-row + .integration-row{border-top:1px solid var(--border-subtle)}
 .integration-logo{
   width:36px;height:36px;border-radius:var(--r-md);background:var(--canvas);
   display:flex;align-items:center;justify-content:center;font-size:var(--fs-sm);font-weight:700;color:var(--text-muted);
@@ -3131,22 +3132,19 @@ select.form-input{
 /* Generic modal overlay (for the new mockup-style modals) */
 .modal-backdrop{
   position:fixed;inset:0;
-  background:rgba(15,23,42,.32);
-  backdrop-filter:saturate(140%) blur(var(--blur-sm));
-  -webkit-backdrop-filter:saturate(140%) blur(var(--blur-sm));
-  z-index:80;
+  background:var(--overlay);
+  z-index:var(--z-modal);
   display:none;align-items:center;justify-content:center;padding:var(--s-5);
   animation:fadeIn var(--t-smooth);
 }
 .modal-backdrop.open{display:flex}
 .modal-card{
   background:var(--surface);
-  background-image:var(--surface-grad);
   border:1px solid var(--border);
   border-radius:var(--r-xl);
   width:100%;max-width:480px;max-height:88vh;overflow-y:auto;
-  box-shadow:var(--shadow-xl), var(--highlight-top-strong);
-  animation:modalUp .22s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:var(--shadow-xl);
+  animation:modalUp var(--t-spring);
 }
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes modalUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -19949,7 +19947,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515bb-btn-flatten"></script>
+<script type="module" src="./live.js?v=20260515bc-forms-toggle-modal"></script>
 
 </body>
 </html>
