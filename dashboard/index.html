@@ -957,10 +957,83 @@ a{color:inherit;text-decoration:none}
 .rr-tp-section-head,
 .card-section-head{
   padding:var(--s-3) var(--s-5);
-  background:linear-gradient(180deg, var(--canvas) 0%, rgba(244,246,251,.6) 100%);
+  background:var(--canvas);
   border-bottom:1px solid var(--border-subtle);
   font-size:var(--fs-md);font-weight:700;color:var(--text);
   line-height:1.25;letter-spacing:-.005em;
+}
+
+/* ── Today's Plan · roster table governance ─────────────────────
+   Calm operational density.  Single source of truth for the
+   roster table cells, wave headers, and inline action buttons
+   so the JS renderer can compose with classes instead of inline
+   style strings. */
+.tp-roster-table{width:100%;border-collapse:collapse}
+.tp-roster-table th{
+  text-align:left;padding:var(--s-2) var(--s-3-5);
+  background:var(--canvas);font-size:var(--fs-xs);font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);
+  white-space:nowrap;
+}
+.tp-roster-table th:last-child{text-align:right}
+.tp-roster-table td{
+  padding:var(--s-2-5) var(--s-3-5);
+  border-top:1px solid var(--border-subtle);
+  font-size:var(--fs-sm);color:var(--text);vertical-align:middle;
+}
+.tp-roster-table tbody tr{transition:background var(--t-fast)}
+.tp-roster-table tbody tr:hover{background:var(--surface-hover)}
+.tp-wave-head{
+  display:flex;align-items:center;gap:var(--s-2);
+  padding:var(--s-3-5) var(--s-4) var(--s-2);
+  background:var(--canvas);
+  border-top:1px solid var(--border-subtle);
+}
+.tp-wave-head:first-child{border-top:0}
+.tp-wave-head-label{
+  font-size:var(--fs-xs);font-weight:700;color:var(--text);
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.tp-driver-avatar{
+  width:32px;height:32px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);color:var(--accent-text);
+  font-size:var(--fs-xs);font-weight:700;
+  object-fit:cover;
+}
+.tp-van-cell{
+  display:inline-flex;align-items:center;gap:6px;
+  cursor:pointer;border-radius:var(--r-md);
+  padding:3px 6px;margin:-3px -6px;
+  transition:background var(--t-fast);
+}
+.tp-van-cell:hover{background:var(--canvas)}
+.tp-van-name{font-weight:600}
+.tp-van-plate{color:var(--text-subtle);font-size:var(--fs-xs)}
+.tp-van-cover{
+  font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px;
+}
+.tp-assign-van{
+  appearance:none;border:0;cursor:pointer;font-family:inherit;
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:inherit;
+  padding:4px var(--s-2-5);border-radius:999px;
+  background:var(--red-soft);color:var(--red);
+  transition:background var(--t-fast);
+}
+.tp-assign-van:hover{background:rgba(225,29,72,.16)}
+.tp-assign-van:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.tp-assign-van .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.tp-ex-chip{
+  display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;
+  padding:2px var(--s-2);border-radius:var(--r-sm);
+  background:var(--amber-soft);color:var(--amber-dark);
+  letter-spacing:.04em;margin-left:6px;
+}
+.tp-tier-chip{
+  display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;
+  padding:2px var(--s-2);border-radius:var(--r-md);
+  margin-left:6px;
 }
 /* Card head — title + optional right-aligned action.  --s-4 bottom
    gap matches the section header rhythm so card-internal vertical
@@ -7227,21 +7300,24 @@ body.rr-cmdk-open{ overflow:hidden }
                the boundaries; "Today" snaps back to current date. -->
           <div class="page-actions" id="rr-tp-datenav" style="display:none">
             <style>
-              #rr-tp-datenav{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px}
+              #rr-tp-datenav{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:3px}
               #rr-tp-datenav .nav-btn{
                 appearance:none;background:transparent;border:0;cursor:pointer;color:var(--text-muted);
-                width:30px;height:30px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;
-                transition:background .12s, color .12s;
+                width:30px;height:30px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;
+                transition:background var(--t-fast), color var(--t-fast);
               }
               #rr-tp-datenav .nav-btn:hover{background:var(--canvas);color:var(--text)}
+              #rr-tp-datenav .nav-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
               #rr-tp-datenav .nav-btn:disabled{opacity:.35;cursor:not-allowed}
               #rr-tp-datenav .nav-btn svg{width:14px;height:14px}
               #rr-tp-datenav .nav-today{
-                font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-                color:var(--accent-text);padding:0 10px;border-radius:6px;cursor:pointer;height:26px;
+                font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+                color:var(--accent-text);padding:0 var(--s-2-5);border-radius:var(--r-md);cursor:pointer;height:26px;
                 background:transparent;border:0;display:inline-flex;align-items:center;
+                transition:background var(--t-fast);
               }
               #rr-tp-datenav .nav-today:hover{background:var(--accent-soft)}
+              #rr-tp-datenav .nav-today:focus-visible{outline:none;box-shadow:var(--ring-focus)}
               #rr-tp-datenav .nav-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
             </style>
             <button type="button" class="nav-btn" id="rr-tp-prev" title="Previous day" aria-label="Previous day">
@@ -20337,7 +20413,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515x-system-governance-tokens"></script>
+<script type="module" src="./live.js?v=20260515y-todays-plan-governance"></script>
 
 </body>
 </html>
