@@ -84,9 +84,6 @@ create policy voice_calls_tenant_select
     and (
       private.is_staff(dsp_id, 'dispatcher')
       or operator_user_id = private.current_user_id()
-      or driver_id in (
-        select id from public.drivers where app_user_id = private.current_user_id()
-      )
     )
   );
 
