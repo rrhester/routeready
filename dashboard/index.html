@@ -5185,6 +5185,31 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ─────────────────────────────────────────────────────────────
    CHECKLISTS — recurring task lists (Open / Close / Vehicle)
    ───────────────────────────────────────────────────────────── */
+
+/* Sub-tab row inside the Checklists view (All / Today's status / Templates) */
+.cl-subtabs{
+  display:flex;align-items:center;gap:4px;
+  margin:6px 0 var(--s-4);padding:4px;
+  background:var(--canvas);border:1px solid var(--border);
+  border-radius:var(--r-md);width:fit-content;
+}
+.cl-subtab{
+  appearance:none;background:transparent;border:0;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);
+  padding:6px 12px;border-radius:6px;
+  transition:background var(--t-fast), color var(--t-fast);
+}
+.cl-subtab:hover{color:var(--text)}
+.cl-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-xs)}
+.cl-subtab-badge{
+  display:inline-flex;align-items:center;justify-content:center;min-width:18px;
+  height:16px;padding:0 5px;border-radius:8px;font-size:10px;font-weight:700;
+  background:var(--canvas);color:var(--text-subtle);border:1px solid var(--border);
+}
+.cl-subtab.active .cl-subtab-badge{background:var(--canvas);color:var(--text-subtle)}
+.cl-subtab-badge.warn{background:var(--amber);color:#fff;border-color:transparent}
+
 .cl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
 .cl-card{
   position:relative;
@@ -11562,9 +11587,13 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="subnav" data-rr-tabbar="checklists">
           <button class="subnav-item" data-sub="forms" onclick="goto('forms')">Forms</button>
           <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
-          <button class="subnav-item active" data-sub="my" onclick="checklistSub('my')">Checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
-          <button class="subnav-item" data-sub="status" onclick="checklistSub('status')">Today's status <span style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">4</span></button>
-          <button class="subnav-item" data-sub="templates" onclick="checklistSub('templates')">Templates <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">9</span></button>
+          <button class="subnav-item active" data-sub="checklists" onclick="checklistSub('my')">Checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
+        </div>
+
+        <div class="cl-subtabs" role="tablist" aria-label="Checklist sections">
+          <button class="cl-subtab active" data-sub="my" onclick="checklistSub('my')">All checklists</button>
+          <button class="cl-subtab" data-sub="status" onclick="checklistSub('status')">Today's status <span class="cl-subtab-badge warn">4</span></button>
+          <button class="cl-subtab" data-sub="templates" onclick="checklistSub('templates')">Templates <span class="cl-subtab-badge">9</span></button>
         </div>
 
         <!-- MY CHECKLISTS -->
@@ -16878,11 +16907,16 @@ John,Smith,555-0101,john@example.com</code>
   }
 
   // ─── CHECKLISTS ───────────────────────────────────────────
+  // Top tabs (Forms / Workflows / Checklists) keep the Checklists button
+  // active whenever we're inside this view.  Inner cl-subtab row toggles
+  // between All / Today's status / Templates.
   function checklistSub(sub){
-    document.querySelectorAll('#view-checklists .subnav-item').forEach(function(b){ b.classList.remove('active'); });
-    document.querySelector('#view-checklists .subnav-item[data-sub="' + sub + '"]').classList.add('active');
+    document.querySelectorAll('#view-checklists .cl-subtab').forEach(function(b){ b.classList.remove('active'); });
+    var btn = document.querySelector('#view-checklists .cl-subtab[data-sub="' + sub + '"]');
+    if (btn) btn.classList.add('active');
     document.querySelectorAll('.checklist-tab').forEach(function(v){ v.style.display = 'none'; });
-    document.getElementById('checklist-tab-' + sub).style.display = 'block';
+    var pane = document.getElementById('checklist-tab-' + sub);
+    if (pane) pane.style.display = 'block';
   }
 
   // ─── FORMS ─────────────────────────────────────────────────
@@ -20186,7 +20220,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515p-remove-staffing-outlook"></script>
+<script type="module" src="./live.js?v=20260515q-checklists-subtabs"></script>
 
 </body>
 </html>
