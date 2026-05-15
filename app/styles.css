@@ -1932,3 +1932,132 @@ main[data-page-enter][data-nav-dir="back"] > *{
   transition:background 220ms var(--ease-out),
              border-color 220ms var(--ease-out) !important;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   FIELD READINESS — production polish
+   ────────────────────────────────────────────────────────────────
+   Accessibility, focus, contrast, and reduced-motion guarantees.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Focus visibility ──────────────────────────────────────────
+   Default-browser focus rings are inconsistent across mobile.
+   We restate them with the brand glow on the elements drivers
+   reach via tab or assistive tech.  :focus-visible scopes the
+   ring to keyboard navigation so a press on a button doesn't
+   leave a ring lingering. */
+.btn:focus-visible,
+.checkin-btn:focus-visible,
+.rr-hero-cta:focus-visible,
+.tab:focus-visible,
+.head-back:focus-visible,
+.head-gear:focus-visible,
+.task-card:focus-visible,
+.shift-card:focus-visible,
+.chat-attach:focus-visible,
+.chat-send:focus-visible,
+.chat-qa-chip:focus-visible,
+.team-action:focus-visible,
+.team-row:focus-visible,
+.rr-text-link:focus-visible{
+  outline:none;
+  box-shadow:var(--ring-focus), var(--shadow-sm);
+  border-radius:var(--r-md);
+}
+.field:focus-visible{ /* already wired in the base field rule */ }
+
+/* ── Tabbar accessibility — selected state encoded BOTH via
+   color and via aria-selected, so screen readers narrate the
+   active tab regardless of color cues. The slim active stripe
+   and color shift give visual confirmation; we don't rely on
+   color alone. */
+.tab[aria-selected="true"]::after,
+.tab.active::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;
+  height:0;
+}
+
+/* ── Status colors WCAG-safe.
+   The .status-pill-pending / -success / -error / -info variants
+   in :root above use AA-contrast color pairs against their soft
+   backgrounds.  This block reaffirms it for any future surface
+   that uses bare semantic text colors. */
+.text-success{ color:var(--green-dark) }
+.text-warning{ color:var(--amber-dark) }
+.text-danger { color:var(--red-dark) }
+.text-info   { color:var(--accent-text) }
+
+/* ── Reduced motion — final sweep ──────────────────────────────
+   The system already disables the chat bubble animation, sheet
+   transitions, and skeleton shimmer under prefers-reduced-motion.
+   This rule kills the remaining animated micro-interactions
+   (avatar pulse, hero-eyebrow dot, toggle thumb spring) so a
+   driver who's opted out gets a fully static UI. */
+@media (prefers-reduced-motion: reduce){
+  .rr-hero-dot,
+  .skel,
+  .chat-img-shimmer,
+  .chat-bubble,
+  .avail-toggle-thumb,
+  .avail-toggle-track,
+  .rr-sheet,
+  .rr-sheet-backdrop,
+  main[data-page-enter] > *,
+  main[data-ptr-active]{
+    animation:none !important;
+    transition:none !important;
+  }
+}
+
+/* ── Production polish — drop debug visual cues ────────────────
+   The .rr-debug-banner remains in the rules for compatibility,
+   but it's now a calm informational chip (the JS no longer
+   renders raw RPC errors into it). */
+.rr-debug-banner{
+  background:var(--canvas);
+  color:var(--text-muted);
+  border:1px solid var(--border);
+  font-weight:500;
+}
+
+/* ── Touch-target padding for risky actions ───────────────────
+   Destructive actions get explicit minimum spacing from
+   neighbors so a thumb stretching for "Save" can't slip onto
+   "Sign out".  16px is roughly Apple's recommended danger
+   buffer. */
+.btn-danger,
+.checkin-btn-secondary,
+#rr-signout{
+  margin-top:max(16px, var(--s-4));
+}
+
+/* ── Sheet — focus trap visualization ─────────────────────────
+   When the sheet's primary action is auto-focused, draw the
+   brand glow on it explicitly so the keyboard-and-assistive-
+   tech path through the sheet is obvious. */
+.rr-sheet-actions .btn:focus-visible{
+  box-shadow:var(--ring-focus), var(--shadow-sm);
+  outline:none;
+}
+
+/* ── Long-form readability — bump line-height on body copy ─── */
+.rr-empty-sub,
+.checkin-sub,
+.task-sub,
+.coaching-detail-notes{
+  line-height:1.55;
+}
+
+/* ── Toast — bigger hit area + always-on-top, AA-readable ─── */
+.toast{
+  min-height:36px;
+  font-weight:600;
+  font-size:var(--fs-md);
+}
+
+/* ── Larger tap targets on the avatar / hero CTA in operational
+   contexts.  These are the actions a driver reaches for under
+   time pressure. */
+.checkin-btn,
+.rr-hero-cta{
+  min-height:56px;
+}

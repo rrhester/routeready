@@ -329,17 +329,25 @@ function _ensureSheetRoot() {
   sheet.addEventListener("touchcancel", onUp);
   return _sheetRoot;
 }
+let _sheetReturnFocus = null;
 function _closeSheet(value) {
   if (!_sheetRoot) { if (_sheetResolve) { _sheetResolve(value); _sheetResolve = null; } return; }
   _sheetRoot.classList.remove("open");
   const resolver = _sheetResolve;
+  const returnTo = _sheetReturnFocus;
   _sheetResolve = null;
+  _sheetReturnFocus = null;
   setTimeout(() => {
     if (_sheetRoot && !_sheetRoot.classList.contains("open")) {
       _sheetRoot.querySelector(".rr-sheet-body").innerHTML = "";
       _sheetRoot.querySelector(".rr-sheet-actions").innerHTML = "";
     }
     if (resolver) resolver(value);
+    // Return focus to the element that opened the sheet so keyboard
+    // / assistive users don't lose their place.
+    if (returnTo && document.contains(returnTo)) {
+      try { returnTo.focus({ preventScroll: true }); } catch {}
+    }
   }, 320);
 }
 function openSheet({ title = "", body = "", actions = [] } = {}) {
@@ -361,6 +369,7 @@ function openSheet({ title = "", body = "", actions = [] } = {}) {
   if (typeof body !== "string" && body instanceof Node) bodyEl.appendChild(body);
   return new Promise((resolve) => {
     _sheetResolve = resolve;
+    _sheetReturnFocus = document.activeElement;
     actEl.querySelectorAll("[data-rr-sheet-idx]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const a = actions[+btn.dataset.rrSheetIdx];
@@ -508,7 +517,6 @@ function _trackNav(path) {
   if (_navStack[_navStack.length - 1] === path) return;
   const i = _navStack.lastIndexOf(path);
   if (i >= 0) {
-    // Going back to a prior path
     _navStack = _navStack.slice(0, i + 1);
     _navDir = "back";
   } else {
@@ -516,6 +524,133 @@ function _trackNav(path) {
     if (_navStack.length > 1) _navDir = "forward";
     else _navDir = null;
   }
+}
+
+// ── Field-readiness helpers ─────────────────────────────────────
+// Calm, specific error messaging.  Maps the raw Postgres / RPC /
+// network errors that bubble out of supabase-js into a user-facing
+// sentence that tells the driver what happened, what was saved (if
+// anything), and what they can do next.  Falls back to a calm
+// generic when we don't recognize the shape — never exposes the
+// raw error text in the UI.
+function _friendlyError(err, fallback) {
+  const raw = (typeof err === "string" ? err : (err?.message || err?.error_description || ""));
+  const m = String(raw).toLowerCase();
+  if (!m) return fallback || "Something went wrong. Try again in a moment.";
+  // Network-layer signals from fetch / supabase-js.
+  if (/networkerror|failed to fetch|load failed|err_network|err_internet/.test(m)
+      || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+    return "You're offline. We'll try this again when you're back online.";
+  }
+  if (/aborted|timeout/.test(m)) {
+    return "That took too long. Check your signal and try again.";
+  }
+  // Driver-session signals — caller usually handles sign-out elsewhere,
+  // but the toast that surfaces should still read human.
+  if (/unauthorized|revoked|inactive|session/.test(m)) {
+    return "Your session ended. Sign in again to continue.";
+  }
+  // Known RPC error codes the dashboard / driver RPCs throw.
+  if (/preview_read_only/.test(m))          return "This is a read-only preview — actions are disabled.";
+  if (/shift_already_taken/.test(m))        return "Someone got there first. The shift's taken.";
+  if (/already_submitted/.test(m))          return "You've already submitted this.";
+  if (/already_checked_in/.test(m))         return "You're already checked in.";
+  if (/no_shift_today/.test(m))             return "No shift scheduled today.";
+  if (/out_of_geofence/.test(m))            return "You're not close enough to the station yet.";
+  if (/too_early_to_checkin/.test(m))       return "Check-in window isn't open yet.";
+  if (/geofence_not_configured/.test(m))    return "Your dispatcher hasn't set the station's geofence yet.";
+  if (/invalid_or_expired_code/.test(m))    return "Code not recognized. Ask dispatch for a new one.";
+  if (/driver_inactive/.test(m))            return "This account isn't active. Contact dispatch.";
+  // Storage / upload errors.
+  if (/payload too large|file too large|413/.test(m)) return "That file's too large. Try a smaller image.";
+  if (/storage|bucket/.test(m))             return "Upload couldn't finish. Try again in a moment.";
+  // Generic Postgres signals — we don't expose them.
+  if (/^pgrst|^pg_|duplicate key|violates|denied|permission/.test(m)) {
+    return fallback || "Action couldn't complete. Try again.";
+  }
+  // When supabase returns its own human-ish messages ("Network error",
+  // "JWT expired", etc.) capitalize the first letter and use it as-is.
+  if (m.length > 0 && m.length < 90 && !/[{}]/.test(m)) {
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+  return fallback || "Something went wrong. Try again in a moment.";
+}
+
+// ── Drafts ───────────────────────────────────────────────────────
+// Lightweight per-key persistence for in-flight composition (form
+// answers, chat composer body, etc.).  Lives in localStorage so it
+// survives an app restart on the home screen, a tab navigation, or
+// a forced reload after a poor-signal moment.  Stale entries (>14d)
+// are reaped on next read.
+const DRAFT_PREFIX = "rr.draft.";
+const DRAFT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+function _draftKey(k) { return DRAFT_PREFIX + k; }
+function getDraft(k) {
+  try {
+    const raw = localStorage.getItem(_draftKey(k));
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return null;
+    if (Date.now() - (obj.t || 0) > DRAFT_MAX_AGE_MS) {
+      try { localStorage.removeItem(_draftKey(k)); } catch {}
+      return null;
+    }
+    return obj.v;
+  } catch { return null; }
+}
+function setDraft(k, v) {
+  try {
+    if (v == null || v === "" || (typeof v === "object" && Object.keys(v).length === 0)) {
+      localStorage.removeItem(_draftKey(k));
+      return;
+    }
+    localStorage.setItem(_draftKey(k), JSON.stringify({ t: Date.now(), v }));
+  } catch { /* quota / private-mode — drafts just don't persist */ }
+}
+function clearDraft(k) {
+  try { localStorage.removeItem(_draftKey(k)); } catch {}
+}
+
+// ── Scroll-position preservation ─────────────────────────────────
+// Save #main.scrollTop on every nav-away; restore on render.  Lives
+// in memory only (sessionStorage would also work; in-memory matches
+// the implicit lifetime of an installed PWA session).
+const _scrollPositions = new Map();
+let _scrollSaveTimer = null;
+function _wireScrollSave() {
+  const main = document.getElementById("main");
+  if (!main || main._rrScrollSaveWired) return;
+  main._rrScrollSaveWired = true;
+  main.addEventListener("scroll", () => {
+    clearTimeout(_scrollSaveTimer);
+    _scrollSaveTimer = setTimeout(() => {
+      const path = currentRoute();
+      _scrollPositions.set(path, main.scrollTop);
+    }, 120);
+  }, { passive: true });
+}
+function _restoreScroll(path) {
+  const main = document.getElementById("main");
+  if (!main) return;
+  const y = _scrollPositions.get(path) || 0;
+  // Restore on next frame so the new content has laid out.
+  requestAnimationFrame(() => {
+    main.scrollTop = y;
+  });
+}
+
+// ── Calm error states ───────────────────────────────────────────
+// Replaces every "Couldn't load X." inline banner with a single
+// premium empty-state pattern: alert icon + plain-language title +
+// the friendly mapping of the raw error.  Used by every screen
+// that has a "couldn't load" branch.
+function errorStateHtml(title, err) {
+  const sub = escapeHtml(_friendlyError(err, "Pull down to retry."));
+  return `<div class="rr-empty">
+    <div class="rr-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+    <div class="rr-empty-title">${escapeHtml(title)}</div>
+    <div class="rr-empty-sub">${sub}</div>
+  </div>`;
 }
 
 function readSession() {
@@ -531,11 +666,24 @@ function writeSession(s) {
 // ── Toast ───────────────────────────────────────────────────────────
 function toast(msg, kind = "default") {
   let el = document.getElementById("rr-toast");
-  if (!el) { el = document.createElement("div"); el.id = "rr-toast"; el.className = "toast"; document.body.appendChild(el); }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "rr-toast";
+    el.className = "toast";
+    // aria-live so screen readers announce status changes without
+    // hijacking focus. "polite" for ok/info, "assertive" for warn.
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    el.setAttribute("aria-atomic", "true");
+    document.body.appendChild(el);
+  }
+  el.setAttribute("aria-live", kind === "warn" ? "assertive" : "polite");
   el.textContent = msg;
   el.className = `toast show ${kind === "warn" ? "warn" : kind === "ok" ? "ok" : ""}`.trim();
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove("show"), 2400);
+  // Errors / warnings stay on screen ~3.5s so drivers in motion have
+  // time to read them; confirmations clear faster at ~2.2s.
+  el._t = setTimeout(() => el.classList.remove("show"), kind === "warn" ? 3500 : 2200);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -668,6 +816,12 @@ function render() {
   // Reset per-route side-channels so a stale refresh callback from a
   // previous screen can't fire under the new one's pull-to-refresh.
   setRefresh(null);
+  // Save scroll position of the route we're leaving (if any).
+  const _leavingMain = document.getElementById("main");
+  if (_leavingMain && _navStack.length > 0) {
+    const _leaving = _navStack[_navStack.length - 1];
+    if (_leaving && _leaving !== path) _scrollPositions.set(_leaving, _leavingMain.scrollTop);
+  }
   // Track nav direction for directional page transitions.
   _trackNav(path);
   r.render();
@@ -689,6 +843,10 @@ function render() {
     document.querySelector(".app-head")?.classList.remove("scrolled");
     _wireScrollAwareHeader();
     _wirePullToRefresh();
+    _wireScrollSave();
+    // Restore scroll on back-navigation — drilling forward starts at
+    // the top, returning to a list lands you where you left off.
+    if (_navDir === "back") _restoreScroll(path);
   }
   document.querySelectorAll(".tab").forEach((t) => {
     // In onboarding the Onboarding tab points directly at
@@ -696,7 +854,11 @@ function render() {
     // Match either by exact data-route or by the route definition's
     // declared `tab` so both shells highlight correctly.
     const route = t.dataset.route;
-    t.classList.toggle("active", route === r.tab || route === currentRoute());
+    const isActive = route === r.tab || route === currentRoute();
+    t.classList.toggle("active", isActive);
+    // aria-selected so screen readers narrate which tab is current,
+    // independent of color cues.
+    t.setAttribute("aria-selected", isActive ? "true" : "false");
   });
   // Refresh the cached photo URL from the server in the background.
   // Cheap way to pick up a photo set on another device without forcing
@@ -1002,7 +1164,7 @@ async function renderSchedule() {
         return;
       }
       _clearSkel();
-      main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load schedule.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
+      main.innerHTML = `<div class="rr-empty"><div class="rr-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="rr-empty-title">Couldn't load your schedule</div><div class="rr-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div></div>`;
       return;
     }
 
@@ -1087,7 +1249,7 @@ async function renderSchedule() {
     // render and leave main empty.  Surface it instead.
     console.error("renderSchedule failed:", err);
     _clearSkel();
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Schedule failed to render.<br><small>${escapeHtml(err?.message || String(err))}</small></div>`;
+    main.innerHTML = errorStateHtml("Schedule couldn't load", err);
   }
 }
 
@@ -1156,7 +1318,7 @@ async function _coverOfferRespond(offerId, accept, token) {
   });
   if (error) {
     btns.forEach((b) => (b.disabled = false));
-    toast(error.message || "Couldn't send response", "warn");
+    toast(_friendlyError(error, "Couldn't send response. Try again."), "warn");
     return;
   }
   toast(accept ? "Shift accepted" : "Passed", accept ? "success" : "warn");
@@ -1305,7 +1467,7 @@ async function _swapRespond(reqId, accept, token) {
   });
   if (error) {
     if (card) card.querySelectorAll("button").forEach((b) => (b.disabled = false));
-    toast(error.message || "Couldn't respond", "warn");
+    toast(_friendlyError(error, "Couldn't respond. Try again."), "warn");
     return;
   }
   if (data?.status === "blocked") {
@@ -1393,7 +1555,7 @@ async function _swapSubmit(myShiftId, targetShiftId, token, modal) {
     p_token: token, p_my_shift_id: myShiftId, p_target_shift_id: targetShiftId, p_message: null,
   });
   if (error) {
-    toast(error.message || "Couldn't send", "warn");
+    toast(_friendlyError(error, "Couldn't send. Try again."), "warn");
     return;
   }
   toast("Swap request sent", "success");
@@ -1586,12 +1748,13 @@ function renderTasksHub() {
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
     if (error) {
-      slot.innerHTML = `<div class="rr-debug-banner">Forms RPC failed: ${escapeHtml(error.message || "unknown")}</div>`;
       console.warn("driver_list_forms error:", error);
+      // Surface nothing in the UI — the Tasks hub already has its
+      // "Nothing to do" inline state; a transient forms-fetch failure
+      // shouldn't shout at the driver. The next render re-tries.
       return;
     }
     const forms = Array.isArray(data) ? data : [];
-    console.info("driver_list_forms returned", forms.length, "forms", forms);
     if (forms.length === 0) return;
     document.getElementById("rr-tasks-empty")?.remove();
     slot.innerHTML = forms.map(f => {
@@ -1608,8 +1771,8 @@ function renderTasksHub() {
     }).join("");
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
   }).catch((err) => {
-    const slot = document.getElementById("rr-tasks-forms-slot");
-    if (slot) slot.innerHTML = `<div class="rr-debug-banner">Forms request rejected: ${escapeHtml(String(err))}</div>`;
+    // Network / runtime failure — log and stay silent in the UI.
+    // The Tasks hub still shows what loaded; pull-to-refresh re-tries.
     console.warn("driver_list_forms rejected:", err);
   });
 
@@ -1792,13 +1955,30 @@ async function renderChat() {
     const cf = document.getElementById("chat-form"); if (cf) cf.style.opacity = ".55";
   }
 
-  // Auto-grow textarea
+  // Auto-grow textarea + persistent composer draft. The draft restore
+  // means a driver who started typing, got pulled to another tab, or
+  // hit a flaky network can come back and pick up exactly where they
+  // left off — nothing is lost on nav, focus loss, or app suspend.
   const ta = document.getElementById("chat-input");
+  const _chatDraftKey = "chat:dispatch";
+  const _restoredChat = getDraft(_chatDraftKey);
+  if (typeof _restoredChat === "string" && _restoredChat) {
+    ta.value = _restoredChat;
+    // Resize textarea to fit the restored content.
+    requestAnimationFrame(() => {
+      ta.style.height = "auto";
+      ta.style.height = Math.min(120, ta.scrollHeight) + "px";
+    });
+  }
+  let _chatDraftTimer = null;
   ta.addEventListener("input", () => {
     ta.style.height = "auto";
     ta.style.height = Math.min(120, ta.scrollHeight) + "px";
     // Throttled typing broadcast so dispatch sees the live indicator.
     _drvBroadcastTyping();
+    // Debounced draft save.
+    clearTimeout(_chatDraftTimer);
+    _chatDraftTimer = setTimeout(() => setDraft(_chatDraftKey, ta.value), 250);
   });
   ta.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer:fine)").matches) {
@@ -1831,7 +2011,7 @@ async function renderChat() {
     const cur = readSession();
     const { error } = await sb.rpc("driver_ack_message", { p_token: cur?.token, p_message_id: id });
     if (error) {
-      toast("Couldn't acknowledge: " + (error.message || "try again"), "warn");
+      toast(_friendlyError(error, "Couldn't acknowledge. Try again."), "warn");
       btn.disabled = false; btn.textContent = "Acknowledge";
       return;
     }
@@ -1926,6 +2106,7 @@ async function renderChat() {
     const savedBody = body;
     ta.value = "";
     ta.style.height = "auto";
+    clearDraft(_chatDraftKey);
     if (file) {
       window._rrChatPending = null;
       fileInput.value = "";
@@ -1982,7 +2163,7 @@ async function renderChat() {
         if (sendBtn) sendBtn.disabled = false;
         markStubFailed("upload failed · tap to retry");
         ta.value = savedBody;
-        toast("Upload failed: " + upErr.message, "warn");
+        toast(_friendlyError(upErr, "Couldn't attach that file. Try again."), "warn");
         return;
       }
       attachment = { path, mime: file.type, name: file.name, size: file.size };
@@ -2001,10 +2182,12 @@ async function renderChat() {
       _haptic("warn");
       markStubFailed("send failed · tap to retry");
       ta.value = savedBody;
-      toast("Couldn't send: " + error.message, "warn");
+      setDraft(_chatDraftKey, savedBody);
+      toast(_friendlyError(error, "Couldn't send. Your message is saved — tap retry to try again."), "warn");
       return;
     }
     _haptic("tap");
+    clearDraft(_chatDraftKey);
     // The smart-scroll logic in refreshChat will keep us pinned at
     // bottom (the optimistic stub already scrolled us there).
     await refreshChat(false);
@@ -2192,7 +2375,7 @@ async function refreshChat(scrollToBottom) {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
     }
-    wrap.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load messages.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
+    wrap.innerHTML = `<div class="empty-state" style="color:var(--text-muted)">Couldn't load messages. Pull down to retry.</div>`;
     return;
   }
   const messages = data?.messages || [];
@@ -2532,7 +2715,7 @@ async function refreshChannelList() {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
     }
-    list.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load channels.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
+    list.innerHTML = `<div class="empty-state" style="color:var(--text-muted)">Couldn't load channels. Pull down to retry.</div>`;
     return;
   }
   const channels = data?.channels || [];
@@ -2695,7 +2878,7 @@ async function renderChatChannelThread() {
       const path = `${dspId}/${driverId}/channels/${_chatChannelId}/${Date.now()}-${safe}`;
       const { error: upErr } = await sb.storage
         .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
-      if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+      if (upErr) { toast(_friendlyError(upErr, "Couldn't attach that file. Try again."), "warn"); return; }
       attachment = { path, mime: file.type, name: file.name, size: file.size };
     }
 
@@ -2716,7 +2899,7 @@ async function renderChatChannelThread() {
       p_attachment_name:       attachment?.name || null,
       p_attachment_size_bytes: attachment?.size || null,
     });
-    if (error) { toast("Couldn't post: " + error.message, "warn"); return; }
+    if (error) { toast(_friendlyError(error, "Couldn't post. Try again."), "warn"); return; }
     await refreshChannelThread(true);
   });
 
@@ -2767,7 +2950,7 @@ async function refreshChannelThread(scrollToBottom) {
       writeSession(null); render(); return;
     }
     if (wrap) {
-      wrap.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load channel.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
+      wrap.innerHTML = `<div class="empty-state" style="color:var(--text-muted)">Couldn't load channel. Pull down to retry.</div>`;
     }
     return;
   }
@@ -3130,7 +3313,7 @@ async function renderSettingsProfile() {
     if (/unauthorized|revoked|inactive/i.test(error.message || "")) {
       writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return;
     }
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load profile.<br><small>${escapeHtml(error.message)}</small></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load your profile", error);
     return;
   }
   const v = (s) => escapeHtml(s ?? "");
@@ -3194,7 +3377,7 @@ async function renderSettingsProfile() {
       p_token: session.token, p_payload: payload,
     });
     btn.disabled = false; btn.textContent = "Save";
-    if (upErr) { toast("Save failed: " + upErr.message, "warn"); return; }
+    if (upErr) { toast(_friendlyError(upErr, "Couldn't save. Your changes are still on screen."), "warn"); return; }
     toast("Saved", "ok");
     refreshDriverProfile(session, { force: true });
     navigate("/settings");
@@ -3210,7 +3393,7 @@ async function renderSettingsLicense() {
 
   const { data: prof, error } = await sb.rpc("driver_get_profile", { p_token: session.token });
   if (error) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load.<br><small>${escapeHtml(error.message)}</small></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load this page", error);
     return;
   }
   const v = (s) => escapeHtml(s ?? "");
@@ -3263,7 +3446,7 @@ async function renderSettingsLicense() {
       p_payload: { dl_number: document.getElementById("rr-prof-dl").value.trim() },
     });
     btn.disabled = false; btn.textContent = "Save";
-    if (upErr) { toast("Save failed: " + upErr.message, "warn"); return; }
+    if (upErr) { toast(_friendlyError(upErr, "Couldn't save. Try again."), "warn"); return; }
     toast("Saved", "ok");
     navigate("/settings");
   });
@@ -3289,7 +3472,7 @@ async function renderSettingsLicense() {
     });
     if (upErr) {
       pickBtn.disabled = false; pickBtn.textContent = "Upload license image";
-      toast("Upload failed: " + upErr.message, "warn");
+      toast(_friendlyError(upErr, "Couldn't upload. Try again."), "warn");
       return;
     }
     const { error: setErr } = await sb.rpc("driver_set_dl_image", {
@@ -3297,7 +3480,7 @@ async function renderSettingsLicense() {
     });
     if (setErr) {
       pickBtn.disabled = false; pickBtn.textContent = "Upload license image";
-      toast("Save failed: " + setErr.message, "warn");
+      toast(_friendlyError(setErr, "Couldn't save the image. Try again."), "warn");
       return;
     }
     toast("License image saved", "ok");
@@ -3317,7 +3500,7 @@ async function renderSettingsLicense() {
       rmBtn.disabled = true;
       const { error: rmErr } = await sb.rpc("driver_clear_dl_image", { p_token: session.token });
       rmBtn.disabled = false;
-      if (rmErr) { toast("Remove failed: " + rmErr.message, "warn"); return; }
+      if (rmErr) { toast(_friendlyError(rmErr, "Couldn't remove the image. Try again."), "warn"); return; }
       toast("Image removed", "ok");
       renderSettingsLicense();
     });
@@ -3434,7 +3617,7 @@ async function renderOnboarding(opts) {
       writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return;
     }
     if (silent) { _obSchedulePoll(); return; }                   // transient — try again on the next poll
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load onboarding.<br><small>${escapeHtml(error.message)}</small></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load onboarding", error);
     return;
   }
   // First successful render — wire up the realtime channel for this
@@ -3572,7 +3755,7 @@ async function renderOnboardingStep() {
   const { data, error } = await sb.rpc("driver_onboarding_steps", { p_token: session.token });
   if (error) {
     if (/unauthorized|revoked|inactive/i.test(error.message || "")) { writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return; }
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load this step.<br><small>${escapeHtml(error.message)}</small></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load this step", error);
     return;
   }
   const step = (Array.isArray(data) ? data : []).find(s => s && s.key === key);
@@ -3621,7 +3804,7 @@ async function renderOnboardingStep() {
     const { error: e2 } = await sb.rpc("driver_onboarding_step_ack", { p_token: session.token, p_step_key: key });
     if (e2) {
       if (/unauthorized|revoked|inactive/i.test(e2.message || "")) { writeSession(null); render(); return; }
-      btn.disabled = false; btn.textContent = orig; toast("Couldn't save — " + (e2.message || "try again"), "warn"); return;
+      btn.disabled = false; btn.textContent = orig; toast(_friendlyError(e2, "Couldn't save. Try again."), "warn"); return;
     }
     toast("Done — nice work ✓", "success");
     navigate("/tasks/onboarding");
@@ -3646,7 +3829,7 @@ async function renderFormFill() {
 
   const { data: form, error } = await sb.rpc("driver_get_form", { p_token: session.token, p_id: id });
   if (error || !form) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load form.<br><small>${escapeHtml(error?.message || "Form not found")}</small></div>`;
+    main.innerHTML = errorStateHtml(error ? "Couldn't load this form" : "Form not found", error);
     return;
   }
 
@@ -3664,7 +3847,56 @@ async function renderFormFill() {
       </form>
     </div>`;
 
-  document.getElementById("rr-form-fill").addEventListener("submit", async (e) => {
+  // Restore any previously-typed answers and wire incremental saving.
+  // Drivers can be interrupted mid-form by a phone call, a dropped
+  // signal, or a navigation; this guarantees their work isn't lost
+  // until the form is submitted (success path explicitly clears it).
+  const DRAFT_KEY = `form:${id}`;
+  const _formEl = document.getElementById("rr-form-fill");
+  const _restored = getDraft(DRAFT_KEY);
+  if (_restored && typeof _restored === "object") {
+    for (const [fid, val] of Object.entries(_restored)) {
+      const root = _formEl.querySelector(`[data-rr-field="${CSS.escape(fid)}"]`);
+      if (!root) continue;
+      const t = root.getAttribute("data-rr-type");
+      if (t === "yes_no" || t === "single_choice" || t === "rating") {
+        root.querySelectorAll("input[type=radio]").forEach(r => {
+          r.checked = String(r.value) === String(val);
+        });
+      } else if (t === "multi_choice") {
+        const set = new Set(Array.isArray(val) ? val.map(String) : []);
+        root.querySelectorAll("input[type=checkbox]").forEach(c => {
+          c.checked = set.has(c.value);
+        });
+      } else if (t === "photo" || t === "file") {
+        // Skip — files can't be programmatically refilled, and the
+        // draft only carries metadata anyway.
+      } else if (t === "dropdown") {
+        root.value = val ?? "";
+      } else {
+        // short_text / long_text / number / date / time / signature
+        if ("value" in root) root.value = val ?? "";
+      }
+    }
+    if (Object.keys(_restored).length > 0) {
+      toast("Restored your in-progress answers", "ok");
+    }
+  }
+  // Debounced save on any text change.
+  let _formDraftTimer = null;
+  const _saveFormDraft = () => {
+    clearTimeout(_formDraftTimer);
+    _formDraftTimer = setTimeout(async () => {
+      try {
+        const cur = await _collectFormAnswers(fields, { skipUploads: true });
+        setDraft(DRAFT_KEY, cur);
+      } catch { /* swallow — drafts are best-effort */ }
+    }, 400);
+  };
+  _formEl.addEventListener("input",  _saveFormDraft);
+  _formEl.addEventListener("change", _saveFormDraft);
+
+  _formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btnEarly = e.target.querySelector("button[type=submit]");
     if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = "Uploading…"; }
@@ -3689,13 +3921,11 @@ async function renderFormFill() {
     });
     if (subErr) {
       if (btn) { btn.disabled = false; btn.textContent = "Submit"; }
-      if ((subErr.message || "").includes("already_submitted")) {
-        toast("You've already submitted this form", "warn");
-      } else {
-        toast("Submit failed: " + subErr.message, "warn");
-      }
+      toast(_friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
       return;
     }
+    clearDraft(DRAFT_KEY);
+    _haptic("success");
     toast("Submitted", "ok");
     navigate("/tasks");
   });
@@ -3768,7 +3998,7 @@ function _formFieldHtml(f) {
   }
 }
 
-async function _collectFormAnswers(fields) {
+async function _collectFormAnswers(fields, opts = {}) {
   const out = {};
   const session = readSession();
   const driverId = session?.driver_id || null;
@@ -3776,7 +4006,10 @@ async function _collectFormAnswers(fields) {
   // Walk the inputs and collect; photos upload to storage in parallel
   // so their path ends up in answers when we submit (downstream DVIC
   // flow extracts paths from these to populate the inspection's
-  // photos array).
+  // photos array). When `opts.skipUploads` is set (auto-save / draft
+  // pass), we record whatever text-ish state exists and skip the
+  // storage round-trip — drafts never spend bandwidth.
+  const skipUploads = !!opts.skipUploads;
   const photoUploads = [];
   document.querySelectorAll("#rr-form-fill [data-rr-field]").forEach((el) => {
     const fid = el.getAttribute("data-rr-field");
@@ -3787,6 +4020,7 @@ async function _collectFormAnswers(fields) {
     } else if (t === "multi_choice") {
       out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
     } else if (t === "photo") {
+      if (skipUploads) return;  // skip in draft mode
       // Upload the captured photo to driver-documents under a path
       // gated by the existing DSP-tenant SELECT policy (0021): the
       // FIRST folder MUST be the DSP id so dispatchers on that DSP
@@ -3857,7 +4091,7 @@ async function renderCoachingFeed() {
 
   const { data, error } = await sb.rpc("driver_list_coachings", { p_token: session.token });
   if (error) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load coaching.<br><small>${escapeHtml(error.message)}</small></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load coaching", error);
     return;
   }
   const list = Array.isArray(data) ? data : [];
@@ -3914,7 +4148,7 @@ async function renderCoachingDetail() {
   if (!coaching) {
     main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
     const { data, error } = await sb.rpc("driver_list_coachings", { p_token: session.token });
-    if (error) { main.innerHTML = `<div class="empty-state" style="color:var(--red)">${escapeHtml(error.message)}</div>`; return; }
+    if (error) { main.innerHTML = errorStateHtml("Couldn't open this", error); return; }
     coaching = (data || []).find(c => c.id === id);
     window._rrCoachings = data || [];
   }
@@ -3991,7 +4225,7 @@ async function _submitCoachingAck(coaching, needsSign) {
   });
   if (error) {
     if (ackBtn) { ackBtn.disabled = false; ackBtn.textContent = needsSign ? "Sign & Acknowledge" : "I understand"; }
-    toast("Save failed: " + error.message, "warn");
+    toast(_friendlyError(error, "Couldn't save your acknowledgement. Try again."), "warn");
     return;
   }
   // Drop the cached list so the next feed load is fresh.
@@ -4225,7 +4459,7 @@ async function doCheckin(session) {
     btn.innerHTML = orig;
     _haptic("warn");
     if (err.code === err.PERMISSION_DENIED) toast("Allow location to check in", "warn");
-    else toast("Couldn't get location: " + err.message, "warn");
+    else toast("Couldn't get your location. Move outside and try again.", "warn");
   }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 }
 
@@ -4245,7 +4479,7 @@ async function doCheckout(session) {
       p_token: session.token, p_lat: lat ?? null, p_lng: lng ?? null,
     });
     if (btn) btn.disabled = false;
-    if (error) { _haptic("warn"); toast("Check-out failed: " + error.message, "warn"); return; }
+    if (error) { _haptic("warn"); toast(_friendlyError(error, "Couldn't check out. You're still on the clock — try again."), "warn"); return; }
     _haptic("strong");
     toast("Checked out ✓", "ok");
     renderCheckinCard(session);
@@ -4272,7 +4506,7 @@ async function doUndoCheckout(session) {
     } else if ((error.message || "").includes("no_checkout_to_undo")) {
       toast("Nothing to undo", "warn");
     } else {
-      toast("Couldn't undo: " + error.message, "warn");
+      toast(_friendlyError(error, "Couldn't undo. Try again."), "warn");
     }
     return;
   }
@@ -4296,7 +4530,7 @@ async function doMissedDay(session) {
     } else if ((error.message || "").includes("no_shift_today")) {
       toast("No shift scheduled today", "warn");
     } else {
-      toast("Couldn't report: " + error.message, "warn");
+      toast(_friendlyError(error, "Couldn't report. Try again or message dispatch."), "warn");
     }
     return;
   }
@@ -4333,7 +4567,7 @@ async function uploadDriverPhoto(file) {
     toast("Photo updated", "ok");
     render(); // re-render so header chip + profile avatar pick up the new URL
   } catch (err) {
-    toast("Upload failed: " + (err?.message || err), "warn");
+    toast(_friendlyError(err, "Couldn't upload your photo. Try a smaller image."), "warn");
   }
 }
 
@@ -4404,7 +4638,7 @@ async function renderAvailability() {
     if (/unauthorized|revoked|inactive/i.test(error.message || "")) {
       writeSession(null); toast("Signed out — please sign in again", "warn"); render(); return;
     }
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load availability.<br><small>${escapeHtml(error.message)}</small></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load availability", error);
     return;
   }
 
@@ -4625,7 +4859,7 @@ async function renderAvailability() {
         const reason = serr.message.replace(/^.*availability_blackout:\s*/, "");
         toast("Submissions paused: " + reason, "warn");
       } else {
-        toast("Submit failed: " + serr.message, "warn");
+        toast(_friendlyError(serr, "Couldn't submit. Try again."), "warn");
       }
       return;
     }
@@ -4808,7 +5042,7 @@ async function _toListClick(e) {
   const session = readSession();
   const { error } = await sb.rpc("driver_time_off_cancel", { p_token: session.token, p_id: id });
   if (error) {
-    toast(error.message || "Couldn't cancel — try again.", "warn");
+    toast(_friendlyError(error, "Couldn't cancel. Try again."), "warn");
     btn.disabled = false; btn.textContent = "Cancel request";
     return;
   }
@@ -4832,7 +5066,7 @@ async function renderAttendance() {
     { p_token: session.token });
 
   if (error) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load attendance.<br><small>${escapeHtml(error.message)}</small></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load attendance", error);
     return;
   }
 
@@ -5034,7 +5268,7 @@ async function renderDocumentsList() {
   const { data, error } = await sb.rpc("driver_envelopes_list", { p_token: session.token });
   if (error) {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) { writeSession(null); render(); return; }
-    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">${escapeHtml(error.message || "Couldn't load documents.")}</div>`;
+    main.innerHTML = errorStateHtml("Couldn't load documents", error);
     return;
   }
   const pending   = Array.isArray(data?.pending)   ? data.pending   : [];
@@ -5079,7 +5313,7 @@ async function renderDocumentSign() {
   const q = routeQuery();
   const signingToken = q.get("st");
   if (!signingToken) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Missing document reference.</div>`;
+    main.innerHTML = errorStateHtml("Document not found", null);
     return;
   }
 
@@ -5118,14 +5352,14 @@ async function renderDocumentSign() {
     fetchErrDetail = (e && e.message) || "network_error";
   }
   if (fetchErrDetail) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Couldn't open document: ${escapeHtml(fetchErrDetail)}.</div>`;
+    main.innerHTML = errorStateHtml("Couldn't open document", fetchErrDetail);
     return;
   }
   const env = fetched?.envelope;
   const tpl = fetched?.template;
   const url = fetched?.signed_url;
   if (!env || !tpl || !url) {
-    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Document not available.</div>`;
+    main.innerHTML = errorStateHtml("Document isn't available", null);
     return;
   }
   const isInfo = (tpl.kind === "informational");
@@ -5249,7 +5483,7 @@ async function renderDocumentSign() {
       const { error: err } = await sb.rpc("driver_envelope_decline", {
         p_token: session.token, p_signing_token: signingToken, p_reason: reason || null,
       });
-      if (err) { toast("Couldn't decline: " + err.message, "warn"); return; }
+      if (err) { toast(_friendlyError(err, "Couldn't decline. Try again."), "warn"); return; }
       toast("Declined", "warn");
       navigate("/tasks/documents");
     });
@@ -5297,7 +5531,7 @@ async function renderDocumentSign() {
     }
     if (err) {
       btn.disabled = false; btn.textContent = origLabel;
-      toast((isInfo ? "Couldn't acknowledge: " : "Couldn't sign: ") + err.message, "warn"); return;
+      toast(_friendlyError(err, isInfo ? "Couldn't acknowledge. Try again." : "Couldn't sign. Try again."), "warn"); return;
     }
     toast(isInfo ? "Acknowledged ✓" : "Signed ✓", "success");
     navigate("/tasks/documents");
@@ -5462,7 +5696,7 @@ async function renderI9Section1() {
   const { data, error } = await sb.rpc("driver_i9_get", { p_token: session.token });
   if (error) {
     if (/unauthorized|revoked|inactive/i.test(error.message || "")) { writeSession(null); render(); return; }
-    main.innerHTML = `<div class="empty-state" style="color:var(--red);padding:48px">Couldn't load Form I-9: ${escapeHtml(error.message || "")}.</div>`;
+    main.innerHTML = errorStateHtml("Couldn't load Form I-9", error);
     return;
   }
   const rec = data?.record || {};
@@ -5724,7 +5958,7 @@ async function renderI9Section1() {
     btn.disabled = true; btn.textContent = "Saving…";
     const { error: err } = await sb.rpc("driver_i9_save_section1", { p_token: session.token, p_section1: collect() });
     btn.disabled = false; btn.textContent = "Save draft";
-    if (err) { toast("Couldn't save: " + err.message, "warn"); return; }
+    if (err) { toast(_friendlyError(err, "Couldn't save. Try again."), "warn"); return; }
     toast("Draft saved", "ok");
   });
 
@@ -5755,7 +5989,7 @@ async function renderI9Section1() {
     });
     if (err) {
       btn.disabled = false; btn.textContent = "Submit & sign";
-      toast("Couldn't submit: " + err.message, "warn"); return;
+      toast(_friendlyError(err, "Couldn't submit. Try again."), "warn"); return;
     }
     if (navigator.vibrate) { try { navigator.vibrate([10, 40, 10]); } catch {} }
     _i9RenderCompletion(main, { ...rec, status: "section1_complete", section1_completed_at: new Date().toISOString() }, session);
@@ -5864,7 +6098,7 @@ async function _wtSubmit(card, opts) {
   if (error) {
     if (/unauthorized|revoked|inactive/i.test(error.message || "")) { writeSession(null); render(); return; }
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = String(cfg.completion_label || "Mark done"); }
-    toast("Couldn't complete: " + (error.message || "try again"), "warn"); return;
+    toast(_friendlyError(error, "Couldn't complete. Try again."), "warn"); return;
   }
   if (navigator.vibrate) { try { navigator.vibrate(15); } catch {} }
   toast("Done — nice work ✓", "success");
