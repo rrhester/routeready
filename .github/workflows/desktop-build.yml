@@ -114,4 +114,9 @@ jobs:
           files: artifacts/**/*
           draft: false
           prerelease: false
+          # Force latest=true. Without this, GitHub's "latest" detection
+          # tries to semver-parse the tag — and our `desktop-v*` prefix
+          # doesn't parse, so the API's /releases/latest endpoint 404s.
+          # That breaks the static download links on gorouteready.com.
+          make_latest: 'true'
           generate_release_notes: true
