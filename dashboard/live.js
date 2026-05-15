@@ -29744,9 +29744,11 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// Sub-tab navigation — refresh the right tab content
+// Sub-tab navigation — refresh the right tab content.  Listens on both
+// the top tab strip (.subnav-item) and the inner pill row (.cl-subtab)
+// since Today's status + Templates moved into the inner row.
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest?.("#view-checklists .subnav-item");
+  const btn = e.target.closest?.("#view-checklists .subnav-item, #view-checklists .cl-subtab");
   if (!btn) return;
   const sub = btn.getAttribute("data-sub");
   setTimeout(() => {
