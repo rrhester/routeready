@@ -30459,19 +30459,86 @@ function _flApplyRosterFilters(rows) {
   return out;
 }
 
+// ── Repair-status cell · two clocks + RO entry ────────────────────
+// Shown only for grounded vans.  Renders:
+//   · RO #          — inline editable input; saves to a draft RO
+//                     for this vehicle via vehicle_quick_set_ro_code
+//   · RO due        — countdown to grounded + 2 business days
+//   · Repair due    — countdown to grounded + 14 business days
+// Operational rows render an em-dash.
+function _flAddBusinessDays(date, n){
+  const d = new Date(date.getTime());
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added += 1;
+  }
+  return d;
+}
+function _flClockChip(deadline, hasRO) {
+  if (!deadline) return `<span class="fl-clock fl-clock-dim">—</span>`;
+  const now = new Date();
+  const overdue = now > deadline;
+  const ms = Math.abs(deadline - now);
+  const days = Math.floor(ms / 86400000);
+  const hours = Math.floor((ms % 86400000) / 3600000);
+  const txt = (days > 0 && hours > 0) ? `${days}d ${hours}h`
+            : days > 0                ? `${days}d`
+            : hours > 0               ? `${hours}h`
+            :                           `${Math.max(1, Math.floor(ms / 60000))}m`;
+  // For the RO clock, "Met" means an RO already exists.
+  if (hasRO === true) {
+    return `<span class="fl-clock fl-clock-met" title="${escapeHtml('Closed by RO on ' + deadline.toLocaleString())}">Met</span>`;
+  }
+  if (overdue) {
+    return `<span class="fl-clock fl-clock-crit" title="${escapeHtml('Was due ' + deadline.toLocaleString())}">Overdue ${txt}</span>`;
+  }
+  // Within 25% of the window remaining → warn.
+  const winMs = Math.max(1, deadline - now);
+  return `<span class="fl-clock ${winMs < 1.5 * 86400000 ? 'fl-clock-warn' : 'fl-clock-ok'}" title="${escapeHtml('Due ' + deadline.toLocaleString())}">${txt} left</span>`;
+}
+function _flRepairStatusCell(v) {
+  if ((v.operational_status || "operational") === "operational") {
+    return `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`;
+  }
+  const grounded = v.grounded_since ? new Date(v.grounded_since) : null;
+  const ro2bd  = grounded ? _flAddBusinessDays(grounded, 2)  : null;
+  const ro14bd = grounded ? _flAddBusinessDays(grounded, 14) : null;
+  const hasRO  = !!v.active_ro_code;
+  const roVal  = escapeHtml(v.active_ro_code || "");
+  return `
+    <div class="fl-repair-status">
+      <div class="fl-rs-row">
+        <div class="fl-rs-label">RO #</div>
+        <input type="text" class="fl-rs-ro-input" data-rr-ro-code-vehicle="${escapeHtml(v.id)}"
+               value="${roVal}" placeholder="Enter RO" maxlength="40"
+               data-rr-ro-code-prev="${roVal}">
+      </div>
+      <div class="fl-rs-row">
+        <div class="fl-rs-label">RO due (2 BD)</div>
+        ${_flClockChip(ro2bd, hasRO)}
+      </div>
+      <div class="fl-rs-row">
+        <div class="fl-rs-label">Repair due (14 BD)</div>
+        ${_flClockChip(ro14bd, false)}
+      </div>
+    </div>`;
+}
+
 function _flRenderRoster() {
   const tbody = document.getElementById("fleet-tbody");
   if (!tbody) return;
   const rows = _flApplyRosterFilters(_fleetRows);
   if (rows.length === 0) {
     tbody.innerHTML = _fleetRows.length === 0
-      ? `<tr><td colspan="4"><div class="fl-empty">
+      ? `<tr><td colspan="5"><div class="fl-empty">
           <div class="ic">${_flVanIconSvg()}</div>
           <h3>No vans yet</h3>
           <p>Add your first van to start tracking service, inspections, and driver assignments.</p>
           <button class="btn btn-primary" data-rr-fleet-add-empty><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
         </div></td></tr>`
-      : `<tr><td colspan="4" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
+      : `<tr><td colspan="5" style="padding:32px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((v) => {
@@ -30485,10 +30552,41 @@ function _flRenderRoster() {
       </div></div></td>
       <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
       <td>${_flOpStatCell(v)}</td>
+      <td>${_flRepairStatusCell(v)}</td>
       <td><span class="fl-date${v.last_route_completed_at ? "" : " dim"}">${v.last_route_completed_at ? escapeHtml(_flRelative(v.last_route_completed_at)) : "—"}</span></td>
     </tr>`;
   }).join("");
 }
+
+// Save the RO code on blur or Enter.  Empty → leave alone (no destructive default).
+async function _flSaveRoCode(input) {
+  const vid = input.getAttribute("data-rr-ro-code-vehicle");
+  const prev = input.getAttribute("data-rr-ro-code-prev") || "";
+  const next = (input.value || "").trim();
+  if (next === prev) return;
+  if (!next) { input.value = prev; return; }
+  input.disabled = true;
+  const { error } = await sb.rpc("vehicle_quick_set_ro_code", { p_vehicle_id: vid, p_code: next });
+  input.disabled = false;
+  if (error) {
+    toast("Couldn't save the RO number: " + (error.message || "try again"), "warn");
+    input.value = prev;
+    return;
+  }
+  input.setAttribute("data-rr-ro-code-prev", next);
+  toast(`RO ${next} saved`);
+  // Re-fetch the roster so the clocks pick up "Met" on the 2-BD chip.
+  if (typeof loadFleetView === "function") loadFleetView();
+}
+document.addEventListener("blur", (e) => {
+  if (e.target && e.target.matches && e.target.matches(".fl-rs-ro-input")) _flSaveRoCode(e.target);
+}, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target && e.target.matches && e.target.matches(".fl-rs-ro-input")) {
+    e.preventDefault();
+    e.target.blur();
+  }
+});
 
 // ─── Issues sub-tab ──────────────────────────────────────────────────
 async function _flLoadIssues() {

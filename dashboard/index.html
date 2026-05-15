@@ -10899,6 +10899,35 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-down-badge.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(217,119,6,.22)}
           #view-fleet .fl-down-badge.crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
 
+          /* Repair-status cell · two labelled clocks + RO entry box.
+             Stacked rows so each clock has its own label header. */
+          #view-fleet .fl-repair-status{display:flex;flex-direction:column;gap:5px;min-width:200px}
+          #view-fleet .fl-rs-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center}
+          #view-fleet .fl-rs-label{
+            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text-subtle);
+          }
+          #view-fleet .fl-rs-ro-input{
+            width:100%;height:24px;padding:2px 7px;
+            border:1px solid var(--border);border-radius:5px;
+            background:var(--surface);color:var(--text);
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+            font-size:11.5px;letter-spacing:.02em;
+          }
+          #view-fleet .fl-rs-ro-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-fleet .fl-clock{
+            display:inline-flex;align-items:center;justify-content:flex-start;
+            padding:1px 7px;border-radius:5px;
+            font-size:10.5px;font-weight:700;letter-spacing:.02em;line-height:1.5;
+            font-variant-numeric:tabular-nums;white-space:nowrap;
+            background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
+          }
+          #view-fleet .fl-clock.fl-clock-ok{background:var(--green-soft);color:var(--green);border-color:transparent}
+          #view-fleet .fl-clock.fl-clock-warn{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
+          #view-fleet .fl-clock.fl-clock-crit{background:#9F1239;color:#fff;border-color:#7F1D3F}
+          #view-fleet .fl-clock.fl-clock-met{background:var(--green-soft);color:var(--green);border-color:transparent}
+          #view-fleet .fl-clock.fl-clock-dim{background:transparent;color:var(--text-subtle);border-color:transparent}
+
           /* Floating inline status menu — appended to <body> so it
              escapes table-cell overflow.  Positioned in JS. */
           .fl-opstat-menu{
@@ -10960,6 +10989,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <th>Vehicle</th>
                 <th>Ownership &amp; type</th>
                 <th>Operational status</th>
+                <th>Repair status</th>
                 <th>Last route</th>
               </tr>
             </thead>
@@ -20122,7 +20152,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515f-rule-modal-specifics"></script>
+<script type="module" src="./live.js?v=20260515g-fleet-repair-clocks"></script>
 
 </body>
 </html>
