@@ -8764,19 +8764,17 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
   const tierChip = (t) => {
     if (!t) return "";
     const map = {
-      "Fantastic+": ["#0e7c3a", "#dcfce7"],
-      "Fantastic":  ["var(--green)", "var(--green-soft)"],
-      "Great":      ["var(--accent-text)", "var(--accent-soft)"],
+      "Fantastic+": ["var(--green-dark)", "var(--green-soft)"],
+      "Fantastic":  ["var(--green)",      "var(--green-soft)"],
+      "Great":      ["var(--accent-text)","var(--accent-soft)"],
       "Fair":       ["var(--amber-dark)", "var(--amber-soft)"],
-      "Poor":       ["var(--red)", "var(--red-soft)"],
+      "Poor":       ["var(--red)",        "var(--red-soft)"],
     };
     const [fg, bg] = map[t] || ["var(--text-muted)", "var(--canvas)"];
-    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${bg};color:${fg};margin-left:6px">${escapeHtml(t)}</span>`;
+    return `<span class="tp-tier-chip" style="background:${bg};color:${fg}">${escapeHtml(t)}</span>`;
   };
 
-  const exTag = (r) => r.is_cushion
-    ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;background:#fef3c7;color:#92400e;letter-spacing:.04em;margin-left:6px">EX</span>`
-    : "";
+  const exTag = (r) => r.is_cushion ? `<span class="tp-ex-chip">EX</span>` : "";
 
   const noVan = rows.filter(r => r.gap_kind === "no_van").length;
   const headRight = (() => {
@@ -8793,8 +8791,8 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
 
   const renderRow = (r) => {
     const av = r.driver_photo_path
-      ? `<img src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
-      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto">${escapeHtml(initials(r.driver_name))}</div>`;
+      ? `<img class="tp-driver-avatar" src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="">`
+      : `<div class="tp-driver-avatar">${escapeHtml(initials(r.driver_name))}</div>`;
 
     const timeStr = (r.starts_at || r.ends_at)
       ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
@@ -8805,24 +8803,20 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
     const pickAttrs = `data-rr-tp-pick-van="${escapeHtml(r.driver_id)}" data-rr-tp-pick-via="${escapeHtml(r.van_via || "")}" data-rr-tp-pick-current="${escapeHtml(r.van_id || "")}" data-rr-tp-pick-driver-name="${escapeHtml(r.driver_name)}"`;
     let vanCell;
     if (r.van_name) {
-      const plate = r.van_plate ? `<span style="color:var(--text-subtle);font-weight:500"> · ${escapeHtml(r.van_plate)}</span>` : "";
-      // Backup-pick rows still show "Covering for X" because that's
-      // operationally meaningful.  Override + Auto sublabels are gone
-      // per direction; the whole cell is still clickable to open the
-      // van picker for last-minute changes.
+      const plate = r.van_plate ? `<span class="tp-van-plate"> · ${escapeHtml(r.van_plate)}</span>` : "";
       const cover = r.van_via === "backup" && r.covering_for
-        ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px">Covering for ${escapeHtml(r.covering_for)}</div>`
+        ? `<div class="tp-van-cover">Covering for ${escapeHtml(r.covering_for)}</div>`
         : "";
-      vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:6px;padding:3px 6px;margin:-3px -6px;transition:background .12s" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
+      vanCell = `<div class="tp-van-cell" ${pickAttrs}><span class="tp-van-name">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
-      vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:4px 10px;border-radius:999px;background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
+      vanCell = `<button type="button" class="tp-assign-van" ${pickAttrs}><span class="dot"></span>Assign van</button>`;
     }
 
     const actions = _tpRowActions(r);
 
     return `<tr class="rr-tp-tool-row" data-driver-id="${escapeHtml(r.driver_id)}">
-      <td style="padding:11px 14px;border-top:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+      <td>
+        <div style="display:flex;align-items:center;gap:var(--s-2-5);min-width:0">
           ${av}
           <div style="min-width:0;flex:1">
             <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}${exTag(r)}</div>
@@ -8830,10 +8824,10 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
           </div>
         </div>
       </td>
-      <td style="padding:11px 14px;border-top:1px solid var(--border);white-space:nowrap;font-size:var(--fs-sm)">${timeStr}</td>
-      <td style="padding:11px 14px;border-top:1px solid var(--border);font-size:var(--fs-sm)">${vanCell}</td>
-      <td style="padding:11px 14px;border-top:1px solid var(--border)">${_tpStatusPill(r)}</td>
-      <td style="padding:11px 14px;border-top:1px solid var(--border);text-align:right">${actions || ""}</td>
+      <td style="white-space:nowrap">${timeStr}</td>
+      <td>${vanCell}</td>
+      <td>${_tpStatusPill(r)}</td>
+      <td style="text-align:right">${actions || ""}</td>
     </tr>`;
   };
 
@@ -8857,8 +8851,8 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
     const extraSuffix = extraCount > 0 ? ` <span style="font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-left:6px">${extraCount} ex</span>` : "";
 
     const header = showWaveHeaders
-      ? `<div style="display:flex;align-items:center;gap:8px;padding:14px 18px 8px;border-top:${idx === 0 ? "0" : "1px solid var(--border)"};background:var(--canvas)">
-           <span style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:.06em;text-transform:uppercase">Wave ${w}${escapeHtml(timeLabel)}</span>
+      ? `<div class="tp-wave-head"${idx === 0 ? ' style="border-top:0"' : ""}>
+           <span class="tp-wave-head-label">Wave ${w}${escapeHtml(timeLabel)}</span>
            <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${rs.length} scheduled</span>
            ${extraSuffix}
          </div>`
@@ -8877,15 +8871,15 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
     </colgroup>`;
 
     return `${header}
-      <table style="width:100%;border-collapse:collapse;font-size:var(--fs-md);table-layout:fixed">
+      <table class="tp-roster-table" style="table-layout:fixed">
         ${colgroup}
         ${idx === 0 || showWaveHeaders ? `<thead>
           <tr>
-            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Driver</th>
-            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Shift</th>
-            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Van</th>
-            <th style="text-align:left;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Status</th>
-            <th style="text-align:right;padding:9px 14px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)">Action</th>
+            <th>Driver</th>
+            <th>Shift</th>
+            <th>Van</th>
+            <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>` : ""}
         <tbody>${rs.map(renderRow).join("")}</tbody>
