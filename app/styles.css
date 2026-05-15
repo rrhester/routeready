@@ -13,34 +13,40 @@
   --bg-grad: none;
   --surface: #FFFFFF;
   --surface-grad: linear-gradient(180deg, #FFFFFF 0%, #FCFCFC 100%);
-  --surface-hover: #F5F6F8;
-  --surface-pressed: #EDEEF1;
-  --canvas: #F5F5F5;
-  --border: rgba(15,23,42,.10);
-  --border-strong: rgba(15,23,42,.13);
-  --border-subtle: rgba(15,23,42,.05);
+  --surface-hover: rgba(15,23,42,.03);
+  --surface-pressed: rgba(15,23,42,.05);
+  --canvas: #F8FAFC;
+  --border: rgba(15,23,42,.06);
+  --border-strong: rgba(15,23,42,.10);
+  --border-subtle: rgba(15,23,42,.04);
   --glass: rgba(255,255,255,.96);
-  --text: #0B1220;
+  --text: #0F172A;
   --text-muted: #475569;
-  --text-subtle: #6E7B8C;
+  --text-subtle: #64748B;
+  --text-disabled: #94A3B8;
 
-  /* ── Accent — the dashboard's brand blue ─────────────────── */
-  --accent: #0F6CBD;
-  --accent-hover: #0B5BA1;
-  --accent-strong: #0B5BA1;          /* legacy alias used in app.css */
-  --accent-text: #0B5BA1;
-  --accent-soft: rgba(15,108,189,.10);
-  --accent-soft-strong: rgba(15,108,189,.16);
-  --accent-border: rgba(15,108,189,.20);
-  --accent-grad: linear-gradient(180deg, #1A7AC9 0%, #0F6CBD 100%);
-  --accent-grad-hover: linear-gradient(180deg, #2587D6 0%, #1372C2 100%);
-  --accent-grad-pressed: linear-gradient(180deg, #0B5BA1 0%, #094F8C 100%);
-  --accent-glow: 0 0 0 3px rgba(15,108,189,.20);
+  /* ── Accent — Primary Azure (matches dashboard --accent) ───── */
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-strong: #1D4ED8;          /* legacy alias used in app.css */
+  --accent-text: #1D4ED8;
+  --accent-soft: rgba(37,99,235,.10);
+  --accent-soft-strong: rgba(37,99,235,.14);
+  --accent-border: rgba(37,99,235,.18);
+  --accent-grad: linear-gradient(180deg, #3B82F6 0%, #2563EB 100%);
+  --accent-grad-hover: linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%);
+  --accent-grad-pressed: linear-gradient(180deg, #1D4ED8 0%, #1E40AF 100%);
+  --accent-glow: 0 0 0 3px rgba(37,99,235,.18);
 
   /* ── Semantic — emerald / amber / rose, same as the dashboard ── */
-  --green: #059669; --green-bright: #10B981; --green-dark: #047857; --green-soft: rgba(5,150,105,.10);
-  --amber: #D97706; --amber-bright: #F59E0B; --amber-dark: #B45309; --amber-soft: rgba(217,119,6,.10);
+  --green: #10B981; --green-bright: #34D399; --green-dark: #059669; --green-soft: rgba(16,185,129,.10);
+  --amber: #F59E0B; --amber-bright: #FBBF24; --amber-dark: #B45309; --amber-soft: rgba(245,158,11,.10);
   --red:   #E11D48; --red-bright:   #F43F5E; --red-dark:   #9F1239; --red-soft:   rgba(225,29,72,.10);
+  --info:  #6366F1; --info-bright:  #818CF8; --info-dark:  #4338CA; --info-soft:  rgba(99,102,241,.10);
+
+  /* ── System surfaces (modal overlay + focus ring tokens) ──── */
+  --overlay: rgba(15,23,42,.55);
+  --ring-focus: 0 0 0 3px rgba(37,99,235,.18);
 
   /* ── Shadows — soft daylight: low, diffuse, cards float lightly ─ */
   --shadow-xs: 0 1px 2px rgba(15,23,42,.05);
@@ -91,12 +97,19 @@
     --text: #F4F7FB;
     --text-muted: #D2DAE8;
     --text-subtle: #8C9BB2;
-    --accent: #3F92D9;
-    --accent-strong: #5DAFEC;
-    --accent-soft: #1A3956;
-    --accent-grad: linear-gradient(180deg, #4FA0E5 0%, #3F92D9 100%);
-    --accent-grad-pressed: linear-gradient(180deg, #2E81C8 0%, #2474BB 100%);
-    --accent-glow: 0 0 0 3px rgba(63,146,217,.30);
+    --accent: #3B82F6;
+    --accent-hover: #60A5FA;
+    --accent-strong: #60A5FA;
+    --accent-text: #93C5FD;
+    --accent-soft: rgba(59,130,246,.18);
+    --accent-soft-strong: rgba(59,130,246,.24);
+    --accent-border: rgba(59,130,246,.28);
+    --accent-grad: linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%);
+    --accent-grad-hover: linear-gradient(180deg, #93C5FD 0%, #60A5FA 100%);
+    --accent-grad-pressed: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+    --accent-glow: 0 0 0 3px rgba(59,130,246,.30);
+    --ring-focus: 0 0 0 3px rgba(59,130,246,.32);
+    --overlay: rgba(0,0,0,.65);
     --shadow-xs: 0 1px 2px rgba(0,0,0,.30);
     --shadow-sm: 0 1px 2px rgba(0,0,0,.40);
     --shadow-md: 0 1px 2px rgba(0,0,0,.30),
