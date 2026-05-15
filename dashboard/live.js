@@ -30243,12 +30243,14 @@ function _flDaysGroundedBadge(v) {
 // inside `button` so the drawer doesn't also pop.
 function _flOpStatCell(v) {
   const pill   = _flOpStatPill(v.operational_status);
-  const badge  = _flDaysGroundedBadge(v);
+  // The days-grounded chip used to sit here too; it's now superseded
+  // by the labelled "RO due / Repair due" clocks in the Repair status
+  // column, so the operational pill stands alone.
   const issue  = v.open_issue_count
     ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
     : "";
   return `<button type="button" class="fl-opstat-btn" data-rr-opstat-id="${escapeHtml(v.id)}" data-rr-opstat-now="${escapeHtml(v.operational_status || "operational")}" data-rr-opstat-name="${escapeHtml(v.nickname || v.name || "")}">
-    <span class="fl-opstat-row">${pill}${badge}</span>
+    <span class="fl-opstat-row">${pill}</span>
     <svg class="fl-opstat-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>${issue}`;
 }
@@ -30701,7 +30703,7 @@ document.addEventListener("click", (e) => {
   if (row && !e.target.closest("button, a")) {
     e.preventDefault();
     const issueId = row.getAttribute("data-rr-issue-id");
-    openFleetDrawer(row.getAttribute("data-rr-vehicle-id"), { tab: issueId ? "overview" : "overview" });
+    openFleetDrawer(row.getAttribute("data-rr-vehicle-id"), { tab: "profile" });
     return;
   }
   // Generic — any element marked with [data-rr-vehicle-id] (e.g. the
@@ -30980,13 +30982,13 @@ document.addEventListener("click", (e) => {
 // history.  Open via openFleetDrawer(vehicleId) — pass null to create.
 // ═════════════════════════════════════════════════════════════════════
 
-let _fdTab     = "overview";
+let _fdTab     = "profile";
 let _fdVehicle = null;   // { vehicle, drivers, logs } from vehicle_record
 let _fdHistory = null;   // lazy-loaded vehicle_history payload
 let _fdPending = {};     // dirty edits keyed by field
 
 async function openFleetDrawer(vehicleId, opts) {
-  const initialTab = (opts && opts.tab) || "overview";
+  const initialTab = (opts && opts.tab) || "profile";
   let drawer = document.getElementById("rr-fd-drawer");
   if (drawer) drawer.remove();
   drawer = document.createElement("div");
@@ -31079,11 +31081,8 @@ async function openFleetDrawer(vehicleId, opts) {
           </div>
         </div>
         <div class="fd-tabs">
-          <button type="button" class="fd-tab active" data-rr-fd-tab="overview">Overview</button>
-          <button type="button" class="fd-tab" data-rr-fd-tab="profile">Profile</button>
-          <button type="button" class="fd-tab" data-rr-fd-tab="drivers">Drivers</button>
+          <button type="button" class="fd-tab active" data-rr-fd-tab="profile">Profile</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="inspections">Inspections</button>
-          <button type="button" class="fd-tab" data-rr-fd-tab="service">Service history</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="mileage">Mileage history</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="history">Vehicle history</button>
         </div>
@@ -31098,7 +31097,10 @@ async function openFleetDrawer(vehicleId, opts) {
     if (e.target === drawer || e.target.id === "rr-fd-close" || e.target.id === "rr-fd-cancel") { drawer.remove(); return; }
   });
 
-  _fdTab = initialTab;
+  // Normalize legacy tab ids (overview / drivers / service) to "profile"
+  // so the tab bar highlights a tab that actually exists.
+  const validTabs = new Set(["profile", "inspections", "mileage", "history"]);
+  _fdTab = validTabs.has(initialTab) ? initialTab : "profile";
   _fdHistory = null;
   _fdPending = {};
 
@@ -31219,13 +31221,12 @@ function _fdRenderTab() {
   const v = _fdVehicle.vehicle || {};
   const hasId = !!v.id;
 
-  if (_fdTab === "overview")        body.innerHTML = _fdOverviewHtml(v, _fdVehicle.drivers, _fdVehicle.logs);
-  else if (_fdTab === "profile")    body.innerHTML = _fdProfileHtml(v);
-  else if (_fdTab === "drivers")    body.innerHTML = _fdDriversHtml(_fdVehicle.drivers);
-  else if (_fdTab === "inspections")body.innerHTML = _fdInspectionsHtml();
-  else if (_fdTab === "service")    body.innerHTML = _fdServiceHtml(_fdVehicle.logs);
+  // Tabs: Profile · Inspections · Mileage history · Vehicle history.
+  // Any legacy tab id (overview / drivers / service) falls back to Profile.
+  if (_fdTab === "inspections")     body.innerHTML = _fdInspectionsHtml();
   else if (_fdTab === "mileage")    body.innerHTML = _fdMileageHtml();
   else if (_fdTab === "history")    body.innerHTML = _fdHistoryHtml();
+  else                              body.innerHTML = _fdProfileHtml(v);
 
   const saveBtn = (_fdTab === "profile")
     ? `<button class="btn btn-primary" data-rr-fd-save="profile">${hasId ? "Save changes" : "Create van"}</button>`
