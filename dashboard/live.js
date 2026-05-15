@@ -9068,7 +9068,7 @@ async function _tpOpenVanPicker(anchorEl) {
   pop.id = "rr-tp-vp-pop";
   pop.innerHTML = `
     <style>
-      #rr-tp-vp-pop{position:fixed;z-index:9998;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(0,0,0,.18);width:340px;max-height:420px;display:flex;flex-direction:column;overflow:hidden;font-size:var(--fs-md)}
+      #rr-tp-vp-pop{position:fixed;z-index:9998;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);width:340px;max-height:420px;display:flex;flex-direction:column;overflow:hidden;font-size:var(--fs-md)}
       #rr-tp-vp-pop .vp-h{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       #rr-tp-vp-pop .vp-h .t{font-weight:600;font-size:var(--fs-sm);color:var(--text);min-width:0;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
       #rr-tp-vp-pop .vp-h .s{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
