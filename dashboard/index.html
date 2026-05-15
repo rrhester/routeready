@@ -153,6 +153,10 @@
                      0 6px 16px rgba(15,23,42,.05);
   --shadow-md-hover: 0 4px 12px rgba(15,23,42,.08),
                      0 12px 28px rgba(15,23,42,.07);
+  /* Popovers + dropdown menus — sit above the page, no second layer */
+  --shadow-pop: 0 12px 32px rgba(15,23,42,.12);
+  /* Subtle inner recess for inputs / sunken surfaces */
+  --inset-input: inset 0 1px 2px rgba(15,23,42,.04);
   /* Top sheen kept subtle — Fluent doesn't lean on highlights */
   --highlight-top: inset 0 1px 0 rgba(255,255,255,.5);
   --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.7);
@@ -2587,7 +2591,7 @@ select.form-input{
   border:1px solid var(--border);border-radius:var(--r-md);
   padding:var(--s-1);
   margin-bottom:var(--s-6);
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
+  box-shadow:var(--inset-input);
 }
 .subnav-item{
   padding:var(--s-2) var(--s-3);
@@ -3362,7 +3366,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .popover{
   position:absolute;top:calc(100% + 6px);right:0;min-width:240px;max-width:340px;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
-  box-shadow:0 12px 32px rgba(15,23,42,.12);z-index:90;
+  box-shadow:var(--shadow-pop);z-index:90;
   display:none;animation:fadeIn var(--t-fast);
 }
 .popover.open{display:block}
@@ -3403,7 +3407,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .search-results{
   position:absolute;top:calc(100% + 4px);left:0;right:0;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
-  box-shadow:0 12px 32px rgba(15,23,42,.12);z-index:90;
+  box-shadow:var(--shadow-pop);z-index:90;
   display:none;max-height:400px;overflow-y:auto;
 }
 .search-results.open{display:block}
@@ -4097,12 +4101,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   color:var(--text);
   background:var(--canvas);
   border:1px solid var(--border-strong);border-radius:var(--r-md);
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
+  box-shadow:var(--inset-input);
   outline:none;
   transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
 .rr-mc-edit-ta:focus{
-  border-color:var(--accent);box-shadow:inset 0 1px 2px rgba(15,23,42,.04), var(--ring-focus);
+  border-color:var(--accent);box-shadow:var(--inset-input), var(--ring-focus);
 }
 .rr-mc-edit-actions{
   display:flex;justify-content:flex-end;gap:var(--s-2);
@@ -4235,7 +4239,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   color:var(--text);
   border:1px solid var(--border-strong);
   border-radius:var(--r-md);
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
+  box-shadow:var(--inset-input);
   resize:none;font-family:inherit;
   overflow-y:auto;
   transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
@@ -4250,7 +4254,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-composer textarea:focus-visible, .rr-cc-composer textarea:focus-visible{
   outline:none;
   border-color:var(--accent);
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.04), var(--ring-focus);
+  box-shadow:var(--inset-input), var(--ring-focus);
 }
 .rr-mc-send, .rr-cc-send{
   background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);
@@ -5163,7 +5167,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Driver picker popover (when clicking empty cell) */
 .driver-picker{
   position:absolute;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-md);box-shadow:0 12px 32px rgba(15,23,42,.12);
+  border-radius:var(--r-md);box-shadow:var(--shadow-pop);
   min-width:220px;z-index:90;padding:6px;display:none;max-height:320px;overflow-y:auto;
 }
 .driver-picker.open{display:block}
@@ -5542,7 +5546,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Row action popover */
 .row-menu{
   position:absolute;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-md);box-shadow:0 12px 32px rgba(15,23,42,.12);
+  border-radius:var(--r-md);box-shadow:var(--shadow-pop);
   min-width:160px;padding:6px;display:none;z-index:90;
 }
 .row-menu.open{display:block}
@@ -19945,7 +19949,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515be-icon-modal-overlay-sweep"></script>
+<script type="module" src="./live.js?v=20260515bf-shadow-pop-inset-input"></script>
 
 </body>
 </html>
