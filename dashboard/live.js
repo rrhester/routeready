@@ -12882,8 +12882,99 @@ function renderOverviewTab(body, dd) {
     ${recent.length ? `<div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div><button type="button" class="btn btn-sm btn-ghost" data-rr-dd-tab="activity" style="margin-left:auto">View all →</button></div>
       <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:var(--s-3);align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
-    </div>` : ""}`;
+    </div>` : ""}
+
+    <div class="dd-section" data-rr-dd-calls-section data-driver-id="${escapeHtml(d.id)}">
+      <div class="dd-section-head"><div><div class="dd-section-title">Recent calls</div></div></div>
+      <div data-rr-dd-calls-body style="font-size:var(--fs-sm);color:var(--text-subtle)">Loading…</div>
+    </div>`;
 }
+
+// Lazily load the last 10 voice_calls for a driver, render them into
+// the [data-rr-dd-calls-body] container.  Silent no-op if the
+// voice_calls table doesn't exist yet (migration 0249 not applied)
+// so the rest of the drawer keeps working pre-deploy.
+async function _ddLoadDriverCalls(driverId, container) {
+  if (!driverId || !container) return;
+  try {
+    const { data, error } = await window.RR.sb
+      .from("voice_calls")
+      .select("id, direction, status, started_at, ended_at, duration_seconds, to_number, from_number")
+      .eq("driver_id", driverId)
+      .order("started_at", { ascending: false })
+      .limit(10);
+    if (error) {
+      // 42P01 = relation not found.  Pre-migration state.
+      if (String(error.code) === "42P01" || /voice_calls/.test(error.message || "")) {
+        container.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">Voice calling isn't set up for this DSP yet.</div>`;
+        return;
+      }
+      throw error;
+    }
+    if (!data || data.length === 0) {
+      container.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No calls yet.</div>`;
+      return;
+    }
+    const fmtDur = (s) => {
+      if (!s || s < 0) return "—";
+      if (s < 60) return `${s}s`;
+      const m = Math.floor(s / 60), r = s % 60;
+      return r ? `${m}m ${r}s` : `${m}m`;
+    };
+    const labelFor = (c) => ({
+      "completed": { tone: "green", txt: "Completed" },
+      "in-progress": { tone: "accent", txt: "Connected" },
+      "no-answer": { tone: "amber", txt: "No answer" },
+      "busy": { tone: "amber", txt: "Busy" },
+      "failed": { tone: "red", txt: "Failed" },
+      "canceled": { tone: "text-subtle", txt: "Canceled" },
+      "ringing": { tone: "accent", txt: "Ringing" },
+      "initiated": { tone: "text-subtle", txt: "Dialed" },
+    })[c.status] || { tone: "text-subtle", txt: c.status };
+    container.innerHTML = data.map((c, i) => {
+      const lbl = labelFor(c);
+      const dir = c.direction === "outbound" ? "→ Out" : "← In";
+      const toneVar = ({
+        green: "var(--green)", amber: "var(--amber)",
+        red: "var(--red)", accent: "var(--accent-text)",
+        "text-subtle": "var(--text-subtle)",
+      })[lbl.tone] || "var(--text-subtle)";
+      return `<div style="display:grid;grid-template-columns:100px 1fr auto;gap:var(--s-3);align-items:center;padding:8px 0;${i ? "border-top:1px solid var(--border)" : ""};font-size:var(--fs-sm)">
+        <span style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(fmtTs(c.started_at))}</span>
+        <span style="color:var(--text)"><span style="font-weight:600;color:${toneVar}">${lbl.txt}</span> · ${dir} · ${escapeHtml(fmtDur(c.duration_seconds))}</span>
+        <span style="color:var(--text-subtle);font-size:var(--fs-xs);font-variant-numeric:tabular-nums">${escapeHtml(c.direction === "outbound" ? (c.to_number || "") : (c.from_number || ""))}</span>
+      </div>`;
+    }).join("");
+  } catch (_e) {
+    container.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">Couldn't load call history.</div>`;
+  }
+}
+
+// Wire the lazy loader: when a drawer renders a [data-rr-dd-calls-section]
+// element, fetch its calls.  Uses a MutationObserver so we don't
+// have to touch every renderer.
+(() => {
+  if (window.__rrDdCallsObserverInstalled) return;
+  window.__rrDdCallsObserverInstalled = true;
+  const tryLoad = (root) => {
+    const section = root.querySelector?.("[data-rr-dd-calls-section]");
+    if (!section || section.__rrLoaded) return;
+    section.__rrLoaded = true;
+    const id = section.getAttribute("data-driver-id");
+    const body = section.querySelector("[data-rr-dd-calls-body]");
+    _ddLoadDriverCalls(id, body);
+  };
+  const obs = new MutationObserver((muts) => {
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (n.nodeType === 1) tryLoad(n);
+      }
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+  // Catch any already in the DOM at install time.
+  tryLoad(document.body);
+})();
 
 function renderProfileTab(body, d) {
   const showPronouns = window.RR.dsp?.metadata?.drivers?.show_pronouns !== false;
