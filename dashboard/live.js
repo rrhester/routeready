@@ -32412,17 +32412,11 @@ document.addEventListener("click", async (e) => {
     }
     return `<span class="co-age" style="color:var(--text-subtle)">—</span>`;
   }
+  // Row action · single neutral "Dismiss" button that snoozes the
+  // exception for 14 days.  No stoplight color, no destructive
+  // wording.  When the snooze expires the exception will return.
   function _rowAction(risk){
-    if (risk.kind === "grounded_vehicle") {
-      const m = risk.meta || {};
-      const dg = Number(m.days_grounded || 0);
-      if (dg > 14 || !m.ro_code) return `<button class="co-row-action danger" type="button">Reassign</button>`;
-      return `<button class="co-row-action" type="button">Open</button>`;
-    }
-    if (risk.kind === "cure_deadline") return `<button class="co-row-action" type="button">Open cure</button>`;
-    if (risk.kind === "vendor_stall")  return `<button class="co-row-action" type="button">Vendor</button>`;
-    if (risk.kind === "fmcsa_mcs150")  return `<button class="co-row-action" type="button">File</button>`;
-    return "";
+    return `<button class="co-row-action co-dismiss-btn" type="button" data-co-dismiss-kind="${_esc(risk.kind || "")}" data-co-dismiss-obj="${_esc(risk.object_id || "")}" title="Hide this exception for 14 days. It returns if the underlying state still warrants it.">Dismiss · 14d</button>`;
   }
 
   // ── Exceptions table ────────────────────────────────────────────
@@ -32448,7 +32442,6 @@ document.addEventListener("click", async (e) => {
     const rows = list.map((r, i) => `
       <tr class="${_sevClass(r.severity || "low")}" data-co-risk-idx="${i}" style="cursor:pointer">
         <td>${_sevPill(r.severity || "low")}</td>
-        <td>${_esc(_typeLabel(r.kind))}<span class="dim">${_citeChip(r.cite || "internal")}</span></td>
         <td>${_subjectCell(r)}</td>
         <td>${_detailCell(r)}</td>
         <td>${_detectedCell(r)}</td>
@@ -32460,12 +32453,11 @@ document.addEventListener("click", async (e) => {
         <table class="co-table">
           <thead><tr>
             <th>Severity</th>
-            <th>Type</th>
             <th>Subject</th>
             <th>Detail</th>
             <th>Age / deadline</th>
             <th>Status</th>
-            <th style="text-align:right">Action</th>
+            <th></th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -32621,11 +32613,38 @@ document.addEventListener("click", async (e) => {
     document.addEventListener("keydown", onKey);
   }
 
-  // Delegate row clicks on the exceptions table to the drawer.
+  // Dismiss · 14d button.  Calls compliance_dismiss, then refreshes
+  // the workspace so the row disappears.  Handled in the same click
+  // listener as the row → modal so we can short-circuit the modal.
+  async function _coDismissException(btn){
+    const kind = btn.getAttribute("data-co-dismiss-kind") || "";
+    const obj  = btn.getAttribute("data-co-dismiss-obj")  || "";
+    if (!kind) return;
+    btn.disabled = true;
+    btn.textContent = "Dismissing…";
+    const { error } = await sb.rpc("compliance_dismiss", { p_kind: kind, p_object_id: obj });
+    if (error) {
+      btn.disabled = false;
+      btn.textContent = "Dismiss · 14d";
+      toast("Couldn't dismiss: " + (error.message || "try again"), "warn");
+      return;
+    }
+    toast("Dismissed for 14 days. Will return if the issue persists.");
+    if (typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
+  }
+
+  // Delegate row clicks on the exceptions table.  Dismiss button has
+  // priority over the row-click → modal.
   document.addEventListener("click", (e) => {
+    const dismissBtn = e.target.closest && e.target.closest(".co-dismiss-btn");
+    if (dismissBtn) {
+      e.preventDefault(); e.stopPropagation();
+      _coDismissException(dismissBtn);
+      return;
+    }
     const tr = e.target.closest && e.target.closest("[data-co-risk-idx]");
     if (!tr) return;
-    if (e.target.closest("button, a")) return;  // let row-action buttons do their thing
+    if (e.target.closest("button, a")) return;  // let any other row-action button do its thing
     const idx = parseInt(tr.getAttribute("data-co-risk-idx"), 10);
     if (!Number.isFinite(idx)) return;
     const list = window._coLastRisks || [];

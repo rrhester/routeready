@@ -11182,6 +11182,13 @@ body.rr-cmdk-open{ overflow:hidden }
           .co-row-action:hover{border-color:var(--border-strong);background:var(--canvas)}
           .co-row-action.danger{background:var(--co-crit);border-color:transparent;color:#fff}
           .co-row-action.danger:hover{background:#7F1D3F;color:#fff}
+          /* Dismiss · neutral ghost button.  Explicitly NOT colored
+             with severity to make clear it isn't an escalation. */
+          .co-row-action.co-dismiss-btn{
+            background:var(--surface);border:1px solid var(--border);color:var(--text-muted);
+            font-weight:550;
+          }
+          .co-row-action.co-dismiss-btn:hover{background:var(--canvas);color:var(--text);border-color:var(--border-strong)}
 
           /* ── Empty state · table-native ──────────────────────────── */
           #view-compliance .co-empty{
@@ -20152,7 +20159,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515h-fleet-drawer-trim"></script>
+<script type="module" src="./live.js?v=20260515i-dismiss-14d"></script>
 
 </body>
 </html>
