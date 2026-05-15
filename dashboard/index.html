@@ -6083,25 +6083,25 @@ body.rr-cmdk-open{ overflow:hidden }
   overflow:hidden;
 }
 .bb-tool-head{
-  background:linear-gradient(180deg,#FAFBFC,var(--surface));
-  padding:18px 20px;border-bottom:1px solid var(--border);
+  background:var(--canvas);
+  padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border-subtle);
 }
 .bb-tool-tag{
-  display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;
-  letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text);margin-bottom:6px;
+  display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);margin-bottom:6px;
 }
 .bb-tool-tag svg{width:10px;height:10px;stroke-width:2.5}
-.bb-tool-title{font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0}
+.bb-tool-title{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0}
 .bb-tool-desc{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.55;margin:0}
-.bb-tool-body{padding:18px 20px}
+.bb-tool-body{padding:var(--s-4) var(--s-5)}
 
-.bb-tool-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:var(--s-4)}
+.bb-tool-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-2-5);margin-bottom:var(--s-4)}
 .bb-tool-card{
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:12px 14px;
+  padding:var(--s-3) var(--s-3-5);
 }
 .bb-tool-card-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
-.bb-tool-card-value{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1.1}
+.bb-tool-card-value{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1.1}
 .bb-tool-card-value.warn{color:var(--amber)}
 .bb-tool-card-value.bad{color:var(--red)}
 .bb-tool-card-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
@@ -6111,41 +6111,44 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--surface);font-size:var(--fs-sm);
 }
 .bb-tool-table thead th{
-  text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
-  letter-spacing:.04em;text-transform:uppercase;padding:8px 12px;
-  background:var(--canvas);border-bottom:1px solid var(--border);
+  text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+  letter-spacing:.04em;text-transform:uppercase;padding:var(--s-2) var(--s-3);
+  background:var(--canvas);border-bottom:1px solid var(--border-subtle);
 }
-.bb-tool-table tbody td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+.bb-tool-table tbody td{padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border-subtle);color:var(--text)}
 .bb-tool-table tbody tr:last-child td{border-bottom:none}
-.bb-risk-pill{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px;display:inline-block}
+.bb-risk-pill{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md);display:inline-block}
 .bb-risk-pill.high{background:var(--red-soft);color:var(--red)}
 .bb-risk-pill.med{background:var(--amber-soft);color:var(--amber)}
 .bb-risk-pill.low{background:var(--green-soft);color:var(--green)}
 
 .bb-logic{
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:12px 14px;margin-top:var(--s-3);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.6;
+  padding:var(--s-3) var(--s-3-5);margin-top:var(--s-3);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.6;
 }
 .bb-logic strong{color:var(--text);font-weight:600}
 
 .bb-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s-3)}
 .bb-action-chip{
   display:inline-flex;align-items:center;gap:5px;
-  padding:6px 11px;border-radius:8px;background:var(--accent-soft);
+  padding:6px var(--s-3);border-radius:var(--r-md);background:var(--accent-soft);
   border:1px solid var(--accent-border);color:var(--accent-text);
   font-size:var(--fs-xs);font-weight:600;cursor:pointer;font-family:inherit;
+  transition:background var(--t-fast);
 }
-.bb-action-chip:hover{background:var(--accent-soft)}
+.bb-action-chip:hover{background:var(--accent-soft-strong)}
+.bb-action-chip:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .bb-action-chip svg{width:11px;height:11px;stroke-width:2.5}
 
 /* Blueprint JSON */
 .bb-blueprint-toggle{
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:10px 14px;font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer;
+  padding:var(--s-2-5) var(--s-3-5);font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer;
   display:flex;justify-content:space-between;align-items:center;font-family:inherit;width:100%;
+  transition:background var(--t-fast);
 }
 .bb-blueprint-toggle:hover{background:var(--surface-hover)}
-.bb-blueprint-toggle svg{transition:transform .15s}
+.bb-blueprint-toggle svg{transition:transform var(--t-smooth)}
 .bb-blueprint.open .bb-blueprint-toggle svg{transform:rotate(180deg)}
 .bb-blueprint-body{
   display:none;background:#0F172A;border-radius:var(--r-md);padding:16px;margin-top:8px;
@@ -6164,13 +6167,13 @@ body.rr-cmdk-open{ overflow:hidden }
 @media (max-width:680px){.bb-saved-grid{grid-template-columns:1fr}}
 .bb-saved-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:18px 20px;display:flex;flex-direction:column;gap:10px;
-  transition:border-color .12s,box-shadow .12s;
+  padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-2-5);
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
 .bb-saved-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-.bb-saved-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.bb-saved-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-2-5)}
 .bb-saved-icon{
-  width:34px;height:34px;border-radius:9px;color:#fff;
+  width:34px;height:34px;border-radius:var(--r-md);color:#fff;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .bb-saved-icon svg{width:15px;height:15px;stroke-width:2}
@@ -6180,7 +6183,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .bb-saved-icon.finder{background:var(--amber-grad)}
 .bb-saved-icon.review{background:linear-gradient(135deg,var(--red),var(--red-bright))}
 .bb-saved-type{
-  font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);
 }
 .bb-saved-name{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0;line-height:1.3}
 .bb-saved-meta{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5;margin:0}
@@ -6188,7 +6191,7 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex;flex-wrap:wrap;gap:4px;
 }
 .bb-saved-data-pill{
-  font-size:9px;font-weight:600;padding:2px 7px;border-radius:6px;
+  font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md);
   background:var(--canvas);color:var(--text-muted);letter-spacing:.02em;
 }
 .bb-saved-foot{
@@ -20417,7 +20420,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515aj-multi-cleanup"></script>
+<script type="module" src="./live.js?v=20260515ak-coaching-governance"></script>
 
 </body>
 </html>
