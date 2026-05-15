@@ -7385,18 +7385,18 @@ body.rr-cmdk-open{ overflow:hidden }
           .hp-stats-banner{
             position:relative;
             display:grid;grid-template-columns:repeat(6,1fr);
-            background:var(--surface);border:1px solid var(--border);border-radius:12px;
-            padding:18px 0;margin-bottom:var(--s-3);overflow:hidden;
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+            padding:var(--s-4) 0;margin-bottom:var(--s-3);overflow:hidden;
           }
           @media (max-width:1100px){.hp-stats-banner{grid-template-columns:repeat(3,1fr)}}
           @media (max-width:760px){.hp-stats-banner{grid-template-columns:repeat(2,1fr)}}
-          .hp-stat{padding:0 16px;border-right:1px solid var(--border);position:relative}
+          .hp-stat{padding:0 var(--s-4);border-right:1px solid var(--border-subtle);position:relative}
           .hp-stat:last-child{border-right:none}
           .hp-stat-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);margin-bottom:6px}
           .hp-stat-value{font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
           .hp-stat-value .frac{font-size:var(--fs-md);font-weight:600;color:var(--text-subtle);margin-left:4px}
           .hp-stat-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;display:flex;align-items:center;gap:5px}
-          .hp-stat-delta{display:inline-flex;align-items:center;gap:3px;font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:5px;font-variant-numeric:tabular-nums}
+          .hp-stat-delta{display:inline-flex;align-items:center;gap:3px;font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-sm);font-variant-numeric:tabular-nums}
           .hp-stat-delta.ok{background:var(--green-soft);color:var(--green)}
           .hp-stat-delta.warn{background:var(--amber-soft);color:var(--amber)}
           .hp-stat-delta.bad{background:var(--red-soft);color:var(--red)}
@@ -7416,12 +7416,12 @@ body.rr-cmdk-open{ overflow:hidden }
             letter-spacing:.06em;text-transform:uppercase;
           }
           .hp-weeks-row{
-            display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;
+            display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--s-2);
           }
           .hp-week-cell{
             display:flex;flex-direction:column;gap:4px;
-            background:var(--surface);border:1px solid var(--border);border-radius:10px;
-            padding:10px 14px;min-width:0;
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+            padding:var(--s-2-5) var(--s-3-5);min-width:0;
           }
           .hp-week-cell .wk{
             font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
@@ -7522,7 +7522,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .pa-card:hover{border-color:var(--text-subtle);box-shadow:0 2px 8px rgba(0,0,0,.04)}
           .pa-card.expanded{border-color:var(--accent);box-shadow:0 0 0 1px rgba(59,130,246,.2)}
-          .pa-row{display:grid;grid-template-columns:160px 1fr auto;gap:var(--s-3);align-items:center;padding:14px 16px}
+          .pa-row{display:grid;grid-template-columns:160px 1fr auto;gap:var(--s-3);align-items:center;padding:var(--s-3-5) var(--s-4)}
           /* Match the rest of the dashboard's name treatment so the
              Pipeline applicant names don't read as a different weight
              from .cell-name (Drivers roster) or .pa-card-name. */
@@ -7531,7 +7531,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-stage{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
           .pa-stage-pill{
             display:inline-flex;align-items:center;gap:6px;
-            padding:3px 9px;border-radius:6px;
+            padding:3px var(--s-2-5);border-radius:var(--r-md);
             font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em;
             background:var(--canvas);color:var(--text-muted);
             border:1px solid var(--border);
@@ -7553,25 +7553,26 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-name{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.25}
           .pa-card-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
           .pa-card-tags{display:flex;gap:6px;flex-wrap:wrap}
-          .pa-card-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-size:var(--fs-xs);background:var(--canvas);color:var(--text-muted);font-weight:500}
+          .pa-card-tag{display:inline-flex;align-items:center;gap:4px;padding:2px var(--s-2);border-radius:var(--r-sm);font-size:var(--fs-xs);background:var(--canvas);color:var(--text-muted);font-weight:500}
           .pa-card-tag.score{background:var(--canvas);color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--border)}
-          .pa-card-tag.score-low{color:var(--red);border-color:rgba(220,38,38,.25)}
-          .pa-card-tag.score-mid{color:var(--amber);border-color:rgba(245,158,11,.3)}
+          .pa-card-tag.score-low{color:var(--red);border-color:rgba(225,29,72,.22)}
+          .pa-card-tag.score-mid{color:var(--amber);border-color:rgba(245,158,11,.22)}
           .pa-card-actions{display:flex;gap:6px;flex-shrink:0}
           .pa-view-btn{
             display:inline-flex;align-items:center;gap:4px;
-            padding:7px 14px;background:transparent;color:var(--text);
-            border:1px solid var(--border);border-radius:7px;
+            padding:7px var(--s-3-5);background:transparent;color:var(--text);
+            border:1px solid var(--border);border-radius:var(--r-md);
             font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
-            transition:all .12s;
+            transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
           }
           .pa-view-btn:hover{background:var(--text);color:#fff;border-color:var(--text)}
-          .pa-view-btn svg{width:11px;height:11px;transition:transform .15s}
+          .pa-view-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          .pa-view-btn svg{width:11px;height:11px;transition:transform var(--t-smooth)}
           .pa-card.expanded .pa-view-btn svg{transform:rotate(180deg)}
 
           /* Expanded detail panel */
-          .pa-detail{display:none;border-top:1px solid var(--border);padding:22px 24px 20px;background:var(--canvas)}
-          .pa-detail-section + .pa-detail-section{margin-top:22px}
+          .pa-detail{display:none;border-top:1px solid var(--border-subtle);padding:var(--s-5) var(--s-6) var(--s-5);background:var(--canvas)}
+          .pa-detail-section + .pa-detail-section{margin-top:var(--s-5)}
           .pa-detail-section-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;font-variant-numeric:tabular-nums}
           .pa-card.expanded .pa-detail{display:block}
           .pa-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
@@ -7594,7 +7595,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Video player placeholder */
           .pa-video{
             position:relative;aspect-ratio:16/9;
-            background:linear-gradient(135deg,#1F2937,#0F172A);border-radius:8px;
+            background:linear-gradient(135deg,#1F2937,#0F172A);border-radius:var(--r-md);
             display:flex;align-items:center;justify-content:center;
             color:#fff;cursor:pointer;overflow:hidden;
           }
@@ -7604,7 +7605,7 @@ body.rr-cmdk-open{ overflow:hidden }
             width:48px;height:48px;border-radius:50%;
             background:rgba(255,255,255,.95);color:var(--text);
             display:flex;align-items:center;justify-content:center;
-            transition:transform .12s;
+            transition:transform var(--t-fast);
           }
           .pa-video:hover .pa-video-play{transform:scale(1.05)}
           .pa-video-play svg{width:18px;height:18px;margin-left:2px}
@@ -7651,22 +7652,24 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* Disposition action bar */
           .pa-actions-bar{
-            display:flex;gap:8px;justify-content:flex-end;
-            margin-top:22px;padding-top:16px;border-top:1px solid var(--border);
+            display:flex;gap:var(--s-2);justify-content:flex-end;
+            margin-top:var(--s-5);padding-top:var(--s-4);border-top:1px solid var(--border-subtle);
             flex-wrap:wrap;
           }
           .pa-disp-btn{
             display:inline-flex;align-items:center;gap:6px;
-            padding:9px 16px;border-radius:8px;
+            padding:var(--s-2-5) var(--s-4);border-radius:var(--r-md);
             font:inherit;font-size:var(--fs-md);font-weight:600;cursor:pointer;
-            border:1px solid transparent;transition:all .12s;
+            border:1px solid transparent;
+            transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
           }
+          .pa-disp-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           .pa-disp-btn svg{width:13px;height:13px}
           .pa-disp-btn.primary{background:var(--text);color:#fff;border-color:var(--text)}
           .pa-disp-btn.primary:hover{background:#000}
           .pa-disp-btn.ghost{background:transparent;color:var(--text);border-color:var(--border)}
           .pa-disp-btn.ghost:hover{background:var(--canvas);border-color:var(--text-subtle)}
-          .pa-disp-btn.danger{background:transparent;color:var(--red);border-color:rgba(220,38,38,.3)}
+          .pa-disp-btn.danger{background:transparent;color:var(--red);border-color:rgba(225,29,72,.22)}
           .pa-disp-btn.danger:hover{background:var(--red-soft)}
         </style>
 
@@ -20422,7 +20425,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515aa-fleet-governance"></script>
+<script type="module" src="./live.js?v=20260515ab-pipeline-governance"></script>
 
 </body>
 </html>
