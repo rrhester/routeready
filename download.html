@@ -152,7 +152,7 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-si
     <div class="hero-glow-3"></div>
   </div>
 
-  <span class="eyebrow fu d1"><span class="dot"></span>Desktop sync · v0.1.1</span>
+  <span class="eyebrow fu d1"><span class="dot"></span>Desktop sync · v0.1.2</span>
   <h1 class="hero-h fu d2">Pull DSP-portal data <span class="grad">straight into RouteReady</span>.</h1>
   <p class="hero-sub fu d3">Install once. Sign into your DSP portal once. RouteReady stays in sync — route plans, pick sheets, and reports — without manual exports.</p>
 </header>
@@ -262,42 +262,22 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     if (card) card.classList.add('recommended');
   }
 
-  // Wire each Download button to the matching installer in the latest
-  // GitHub Release. We hit the public API once on load and rewrite the
-  // href to the asset's browser_download_url. GitHub responds to that
-  // URL with Content-Disposition: attachment, so the click triggers a
-  // direct file download — the user never sees a GitHub page.
-  //
-  // Fallback (release missing / API rate-limit): point at the release
-  // page so they can still grab the file manually.
-  const RELEASE_PAGE = 'https://github.com/rrhester/routeready/releases/latest';
-  const API = 'https://api.github.com/repos/rrhester/routeready/releases/latest';
-
-  // Asset matchers — first regex to match a release-asset filename wins.
-  // electron-builder produces e.g. "RouteReady Desktop Setup 0.1.1.exe",
-  // "RouteReady Desktop-0.1.1.dmg", "RouteReady Desktop-0.1.1.AppImage".
-  const MATCHERS = {
-    windows: /\.exe$/i,
-    mac:     /\.dmg$/i,
-    linux:   /\.AppImage$/i,
+  // Each Download button points at a static "latest release / known
+  // filename" URL. electron-builder is configured to produce
+  // version-less artifact names (see desktop/package.json build.*),
+  // so these URLs work for every release we publish. GitHub serves
+  // them with Content-Disposition: attachment — visitor's click
+  // triggers a real download, no GitHub page in the flow.
+  const BASE = 'https://github.com/rrhester/routeready/releases/latest/download';
+  const URLS = {
+    windows: `${BASE}/RouteReady-Desktop.exe`,
+    mac:     `${BASE}/RouteReady-Desktop.dmg`,
+    linux:   `${BASE}/RouteReady-Desktop.AppImage`,
   };
-
-  const buttons = document.querySelectorAll('[data-dl-href]');
-  // Default to the release page until the API resolves.
-  buttons.forEach(a => { a.href = RELEASE_PAGE; });
-
-  fetch(API, { headers: { 'Accept': 'application/vnd.github+json' } })
-    .then(r => r.ok ? r.json() : Promise.reject(new Error('release_fetch_' + r.status)))
-    .then(rel => {
-      const assets = rel.assets || [];
-      buttons.forEach(a => {
-        const os = a.getAttribute('data-dl-href');
-        const matcher = MATCHERS[os];
-        const asset = matcher && assets.find(x => matcher.test(x.name));
-        if (asset && asset.browser_download_url) a.href = asset.browser_download_url;
-      });
-    })
-    .catch(() => { /* leave the release-page fallback in place */ });
+  document.querySelectorAll('[data-dl-href]').forEach(a => {
+    const os = a.getAttribute('data-dl-href');
+    if (URLS[os]) a.href = URLS[os];
+  });
 })();
 </script>
 
