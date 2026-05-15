@@ -423,7 +423,7 @@ select.field{
   margin:48px 0 40px;gap:var(--s-2);
 }
 .login-screen .brand-icon{
-  width:64px;height:64px;border-radius:16px;
+  width:64px;height:64px;border-radius:var(--r-2xl);
   display:inline-flex;align-items:center;justify-content:center;
   box-shadow:0 6px 20px rgba(37,99,235,.35);
   overflow:hidden;
@@ -470,7 +470,7 @@ select.field{
 .shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:6px;flex-wrap:wrap}
 .shift-card .tag{
   font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  padding:2px 6px;border-radius:3px;background:var(--canvas);color:var(--text-muted);
+  padding:2px 6px;border-radius:var(--r-sm);background:var(--canvas);color:var(--text-muted);
 }
 .shift-card .tag-status-confirmed{background:rgba(16,185,129,.12);color:var(--green)}
 .shift-card .chev{color:var(--text-subtle)}
@@ -576,7 +576,7 @@ select.field{
 .tab[data-c="chat"]     { --tc:#0284C7; --tc-bg:rgba(2,132,199,.14) }
 .tab .tab-ic{
   display:inline-flex;align-items:center;justify-content:center;
-  width:36px;height:28px;border-radius:9px;
+  width:36px;height:28px;border-radius:var(--r-lg);
   transition:background var(--t-fast);
 }
 .tab svg{width:22px;height:22px;stroke-width:2;transition:transform var(--t-fast)}
@@ -915,7 +915,7 @@ select.field{
      uniformly cap below the available width — keeps a comfortable
      reading measure even on wide screens. */
   max-width:78%;
-  padding:var(--s-2) var(--s-4);border-radius:18px;
+  padding:var(--s-2) var(--s-4);border-radius:var(--r-2xl);
   font-size:var(--fs-lg);line-height:1.42;
   word-wrap:break-word;
   animation:chat-bubble-in 150ms cubic-bezier(.16,1,.3,1) both;
@@ -1068,7 +1068,7 @@ select.field{
 .chat-skeleton-row{display:flex}
 .chat-skeleton-row.right{justify-content:flex-end}
 .chat-skeleton-bubble{
-  height:36px;border-radius:18px;
+  height:36px;border-radius:var(--r-2xl);
   background:linear-gradient(90deg, var(--surface-hover, #F4F6FA) 0%, var(--surface-pressed, #ECF0F5) 50%, var(--surface-hover, #F4F6FA) 100%);
   background-size:200% 100%;
   animation:chat-shimmer 1.2s ease-in-out infinite;
