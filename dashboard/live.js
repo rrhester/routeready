@@ -8733,6 +8733,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
       van_name:        ro.van_name,
       van_plate:       ro.van_plate,
       van_via:         ro.van_via,
+      van_via_source:  ro.van_via_source,
       covering_for:    ro.covering_for,
       gap_kind:        ro.gap_kind,
       computed_outcome:att.computed_outcome,
