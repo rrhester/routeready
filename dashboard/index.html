@@ -450,7 +450,7 @@ a{color:inherit;text-decoration:none}
 }
 
 .workspace-chip{
-  margin-top:var(--s-3);padding:10px 12px;border-radius:var(--r-md);
+  margin-top:var(--s-3);padding:var(--s-2-5) var(--s-3);border-radius:var(--r-md);
   background:#1E293B;display:flex;align-items:center;gap:10px;
 }
 .workspace-chip-avatar{
@@ -1404,7 +1404,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   background:var(--red-soft);color:var(--red);
   border:1px solid rgba(225,29,72,.20);
   border-radius:var(--r-md);
-  padding:8px 12px;font-size:var(--fs-sm);line-height:1.4;
+  padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);line-height:1.4;
 }
 .rr-onb-error[hidden]{display:none}
 
@@ -1670,7 +1670,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   color:var(--red);
   border:1px solid rgba(225,29,72,.20);
   border-radius:var(--r-md);
-  padding:8px 12px;
+  padding:var(--s-2) var(--s-3);
   font-size:var(--fs-sm);font-weight:500;
   line-height:1.4;
 }
@@ -1935,7 +1935,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-drawer-service-types{display:flex;flex-direction:column;gap:6px}
 .rr-drawer-st-row{
   display:flex;align-items:center;gap:10px;
-  padding:8px 10px;background:var(--canvas);border-radius:var(--r-md);
+  padding:var(--s-2) var(--s-2-5);background:var(--canvas);border-radius:var(--r-md);
   border:1px solid transparent;transition:border-color var(--t-fast);
 }
 .rr-drawer-st-row:has([data-rr-st-active]:checked){border-color:var(--border)}
@@ -2049,7 +2049,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 
 .cd-textarea-wrap{position:relative}
 .cd-textarea{
-  width:100%;min-height:120px;padding:10px 12px;
+  width:100%;min-height:120px;padding:var(--s-2-5) var(--s-3);
   border:1px solid var(--border-strong);border-radius:var(--r-md);
   font-size:var(--fs-md);font-family:inherit;color:var(--text);background:var(--surface);
   resize:vertical;line-height:1.55;
@@ -2095,7 +2095,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 /* In-person 1:1 specific */
 .cd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
 .cd-input{
-  width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--r-sm);
+  width:100%;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border-strong);border-radius:var(--r-sm);
   font-size:var(--fs-md);font-family:inherit;background:var(--surface);color:var(--text);
 }
 .cd-input:focus{outline:none;border-color:var(--accent)}
@@ -2286,7 +2286,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .form-label{font-size:var(--fs-md);font-weight:500;color:var(--text)}
 .form-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5}
 .form-input{
-  width:100%;max-width:380px;padding:8px 12px;
+  width:100%;max-width:380px;padding:var(--s-2) var(--s-3);
   border:1px solid var(--border-strong);border-radius:var(--r-md);
   font-size:var(--fs-md);font-family:inherit;line-height:1.4;
   background:var(--surface);color:var(--text);
@@ -2978,7 +2978,7 @@ select.form-input{
   display:flex;align-items:center;justify-content:center;
 }
 .phone-card{
-  background:var(--canvas);border-radius:var(--r-lg);padding:10px 12px;
+  background:var(--canvas);border-radius:var(--r-lg);padding:var(--s-2-5) var(--s-3);
   font-size:var(--fs-xs);line-height:1.4;
 }
 .phone-card-label{font-size:9px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
@@ -3030,7 +3030,7 @@ select.form-input{
 .dapp-topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 18px 12px;border-bottom:1px solid var(--border);flex:0 0 auto}
 .dapp-topbar .ttl{font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.01em}
 .dapp-topbar .who{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.3}
-.dapp-scroll{flex:1;overflow-y:auto;padding:14px 16px 18px;display:flex;flex-direction:column;gap:10px;background:var(--canvas)}
+.dapp-scroll{flex:1;overflow-y:auto;padding:var(--s-3-5) var(--s-4) 18px;display:flex;flex-direction:column;gap:10px;background:var(--canvas)}
 .dapp-bottomnav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:#fff;flex:0 0 auto;padding:6px 4px 18px}
 .dapp-tab{appearance:none;background:transparent;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0 5px;font-size:10px;font-weight:600;color:var(--text-subtle);cursor:pointer}
 .dapp-tab.active{color:var(--accent-text)}
@@ -3294,7 +3294,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .blackout-list{display:flex;flex-direction:column;gap:6px}
 .blackout-item{
   display:grid;grid-template-columns:1fr auto auto;gap:var(--s-3);align-items:center;
-  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 12px;
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);
 }
 .blackout-item-name{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
 .blackout-item-dates{font-size:var(--fs-xs);color:var(--text-subtle)}
@@ -3315,7 +3315,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .ai-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .ai-detail{
   font-size:var(--fs-xs);background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-md);padding:8px 10px;
+  border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);
 }
 .ai-detail-label{font-size:9px;color:var(--text-subtle);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
 .ai-detail-value{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
@@ -3326,7 +3326,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .avail-legend{
   display:flex;gap:var(--s-4);align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:10px 14px;margin-bottom:var(--s-3);font-size:var(--fs-xs);
+  padding:var(--s-2-5) var(--s-3-5);margin-bottom:var(--s-3);font-size:var(--fs-xs);
 }
 .avail-legend-item{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted)}
 .avail-legend-swatch{width:14px;height:14px;border-radius:var(--r-sm);border:1px solid var(--border)}
@@ -3374,7 +3374,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .popover-section{padding:6px}
 .popover-section + .popover-section{border-top:1px solid var(--border)}
 .popover-item{
-  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);
+  display:flex;align-items:center;gap:10px;padding:var(--s-2) var(--s-2-5);border-radius:var(--r-md);
   font-size:var(--fs-md);color:var(--text);cursor:pointer;background:transparent;border:none;width:100%;text-align:left;
   font-family:inherit;
 }
@@ -3385,12 +3385,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .popover-item .check{margin-left:auto;color:var(--accent);opacity:0;font-weight:700}
 .popover-item.active .check{opacity:1}
 .popover-head{
-  padding:10px 14px;border-bottom:1px solid var(--border);
+  padding:var(--s-2-5) var(--s-3-5);border-bottom:1px solid var(--border);
   font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;
 }
 .popover-empty{padding:24px;text-align:center;font-size:var(--fs-sm);color:var(--text-subtle)}
 .notif-item{
-  display:grid;grid-template-columns:24px 1fr;gap:10px;padding:10px 14px;
+  display:grid;grid-template-columns:24px 1fr;gap:10px;padding:var(--s-2-5) var(--s-3-5);
   border-bottom:1px solid var(--border);cursor:pointer;
 }
 .notif-item:hover{background:var(--canvas)}
@@ -3413,7 +3413,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .search-results.open{display:block}
 .search-result{
-  display:grid;grid-template-columns:32px 1fr auto;gap:10px;padding:10px 14px;
+  display:grid;grid-template-columns:32px 1fr auto;gap:10px;padding:var(--s-2-5) var(--s-3-5);
   border-bottom:1px solid var(--border);cursor:pointer;align-items:center;
 }
 .search-result:hover{background:var(--canvas)}
@@ -3533,7 +3533,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .cc-action{
   display:grid;grid-template-columns:1fr auto;gap:var(--s-3);align-items:center;
   background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);
-  padding:10px 14px;margin-bottom:6px;
+  padding:var(--s-2-5) var(--s-3-5);margin-bottom:6px;
 }
 .cc-action-text{font-size:var(--fs-sm);color:var(--text);line-height:1.4}
 .cc-action-text strong{color:var(--accent-text)}
@@ -4376,7 +4376,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-cmdk-search{
   display:flex;align-items:center;gap:10px;
-  padding:14px 16px;
+  padding:var(--s-3-5) var(--s-4);
   border-bottom:1px solid var(--border);
 }
 .rr-cmdk-search svg{
@@ -4401,7 +4401,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-cmdk-row{
   display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;
-  padding:8px 10px;
+  padding:var(--s-2) var(--s-2-5);
   border-radius:8px;
   cursor:pointer;
   transition:background 80ms ease;
@@ -4503,7 +4503,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .msg-bubble-wrap.from-me{align-self:flex-end;align-items:flex-end}
 .msg-bubble-wrap.from-them{align-self:flex-start;align-items:flex-start}
 .msg-bubble{
-  padding:8px 12px;border-radius:var(--r-xl);font-size:12.5px;line-height:1.45;color:var(--text);
+  padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:12.5px;line-height:1.45;color:var(--text);
 }
 .from-me .msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
 .from-them .msg-bubble{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
@@ -4514,7 +4514,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .msg-meta-row{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;display:flex;align-items:center;gap:5px}
 .msg-meta-row .read-tick{color:var(--accent);font-weight:700}
 .msg-typing{
-  display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--surface);
+  display:flex;align-items:center;gap:6px;padding:var(--s-2) var(--s-3);background:var(--surface);
   border:1px solid var(--border);border-radius:var(--r-xl);border-bottom-left-radius:4px;
   align-self:flex-start;font-size:var(--fs-xs);color:var(--text-subtle);
 }
@@ -4595,7 +4595,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .aud-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(37,99,235,.10)}
 .aud-count{
   background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:8px;
-  padding:10px 12px;font-size:var(--fs-sm);color:var(--accent-text);
+  padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);color:var(--accent-text);
   display:flex;align-items:center;gap:8px;
 }
 .aud-count strong{font-weight:700}
@@ -4614,7 +4614,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .forms-side-section{padding:var(--s-3) var(--s-3) 4px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle)}
 .forms-side-item{
-  padding:8px 12px;border-radius:var(--r-md);font-size:var(--fs-md);color:var(--text-muted);font-weight:500;
+  padding:var(--s-2) var(--s-3);border-radius:var(--r-md);font-size:var(--fs-md);color:var(--text-muted);font-weight:500;
   cursor:pointer;border:none;background:transparent;text-align:left;
   display:flex;align-items:center;gap:8px;
 }
@@ -4681,7 +4681,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-form-desc{font-size:var(--fs-sm);color:var(--text-muted);border:none;background:transparent;width:100%;outline:none;resize:none;font-family:inherit;line-height:1.5}
 .builder-field{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:14px 16px;margin-top:var(--s-3);position:relative;cursor:move;
+  padding:var(--s-3-5) var(--s-4);margin-top:var(--s-3);position:relative;cursor:move;
 }
 .builder-field.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .rr-field-remove{
@@ -4717,7 +4717,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .builder-field-label .req{color:var(--red);margin-left:3px}
 .builder-field-input{
-  width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--r-md);
+  width:100%;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border-strong);border-radius:var(--r-md);
   font-size:var(--fs-md);background:var(--canvas);color:var(--text-subtle);font-family:inherit;
 }
 .builder-field-radio-row{display:flex;flex-direction:column;gap:6px;margin-top:6px}
@@ -4941,7 +4941,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .plan-table{width:100%;border-collapse:collapse}
 .plan-table thead th{
   text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
-  letter-spacing:.06em;text-transform:uppercase;padding:12px 14px;
+  letter-spacing:.06em;text-transform:uppercase;padding:var(--s-3) var(--s-3-5);
   background:var(--canvas);border-bottom:1px solid var(--border);
 }
 .plan-table thead th.center{text-align:center}
@@ -5010,7 +5010,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .plan-pipe-value.bad{color:var(--red)}
 .plan-pipe-formula{
   font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);
-  border-radius:var(--r-md);padding:8px 10px;font-family:'SF Mono',Menlo,monospace;line-height:1.5;
+  border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);font-family:'SF Mono',Menlo,monospace;line-height:1.5;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -5044,7 +5044,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .okami-insights-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
 .okami-insight{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
-  border-radius:var(--r-md);padding:12px 14px;
+  border-radius:var(--r-md);padding:var(--s-3) var(--s-3-5);
 }
 .okami-insight-icon{
   width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.12);
@@ -5063,7 +5063,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .okami-table{width:100%;border-collapse:collapse}
 .okami-table thead th{
   text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
-  letter-spacing:.06em;text-transform:uppercase;padding:10px 12px;
+  letter-spacing:.06em;text-transform:uppercase;padding:var(--s-2-5) var(--s-3);
   background:var(--canvas);border-bottom:1px solid var(--border);
 }
 .okami-table thead th.center{text-align:center}
@@ -5210,7 +5210,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Review modal — large summary view */
 .review-modal{max-width:760px;width:96vw}
 .review-section{
-  background:var(--canvas);border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--s-3);
+  background:var(--canvas);border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);margin-bottom:var(--s-3);
 }
 .review-section-head{
   display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
@@ -5227,7 +5227,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .review-stat-val.bad{color:var(--red)}
 .review-conflict{
   display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
-  padding:8px 10px;background:var(--surface);border-radius:var(--r-md);border-left:3px solid var(--amber);
+  padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md);border-left:3px solid var(--amber);
   font-size:var(--fs-sm);margin-top:6px;
 }
 .review-conflict.bad{border-left-color:var(--red)}
@@ -5243,7 +5243,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Posted state — celebratory */
 .posted-banner{
   background:linear-gradient(120deg,var(--green),var(--green-bright));color:#fff;
-  border-radius:var(--r-md);padding:10px 14px;display:flex;align-items:center;gap:10px;
+  border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3-5);display:flex;align-items:center;gap:10px;
   font-size:var(--fs-sm);font-weight:500;
 }
 .posted-banner svg{width:16px;height:16px;flex-shrink:0;stroke-width:2.5}
@@ -5255,7 +5255,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .okami-source{
   background:linear-gradient(120deg,rgba(37,99,235,.07),rgba(99,102,241,.07));
   border:1px solid var(--accent-border);border-radius:var(--r-md);
-  padding:10px 14px;display:flex;align-items:center;gap:12px;margin-bottom:var(--s-3);
+  padding:var(--s-2-5) var(--s-3-5);display:flex;align-items:center;gap:12px;margin-bottom:var(--s-3);
   font-size:var(--fs-sm);color:var(--text);
 }
 .okami-source-icon{
@@ -5579,7 +5579,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .sd-modal{max-width:780px;width:96vw;max-height:88vh}
 .sd-stages{
-  display:flex;align-items:center;padding:10px 14px;background:var(--canvas);
+  display:flex;align-items:center;padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);
   border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:var(--fs-xs);
 }
 .sd-stage{
@@ -5630,7 +5630,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .sd-result-banner{
   background:linear-gradient(120deg,rgba(37,99,235,.07),rgba(99,102,241,.07));
-  border:1px solid var(--accent-border);border-radius:var(--r-md);padding:10px 14px;
+  border:1px solid var(--accent-border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3-5);
   display:flex;align-items:center;gap:10px;margin-bottom:var(--s-3);font-size:var(--fs-sm);color:var(--text);
 }
 .sd-result-banner-icon{
@@ -5646,7 +5646,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .sd-extraction.skipped{opacity:.5}
 .sd-extraction-head{
-  display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--canvas);
+  display:flex;align-items:center;gap:10px;padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);
   border-bottom:1px solid var(--border);
 }
 .sd-extraction-toggle{
@@ -5687,7 +5687,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .ti-title-icon svg{width:13px;height:13px;stroke-width:2.5}
 .ti-summary{
   background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid #FCD34D;
-  border-radius:var(--r-md);padding:14px 16px;font-size:var(--fs-md);color:#78350F;line-height:1.55;
+  border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);color:#78350F;line-height:1.55;
   margin-bottom:var(--s-3);
 }
 .ti-summary strong{font-weight:700}
@@ -5862,7 +5862,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .recon-section{margin-bottom:var(--s-4)}
 .recon-line{
   display:grid;grid-template-columns:1fr auto auto auto;gap:var(--s-3);align-items:center;
-  padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--s-2-5) var(--s-3-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
   margin-bottom:6px;font-size:var(--fs-sm);
 }
 .recon-line.flagged{background:var(--red-soft);border-color:#FCA5A5}
@@ -5876,14 +5876,14 @@ body.rr-cmdk-open{ overflow:hidden }
 .recon-line-delta.ok{color:var(--green)}
 
 .recon-evidence{
-  background:#FFFBEB;border:1px solid #FCD34D;border-radius:var(--r-md);padding:10px 12px;
+  background:#FFFBEB;border:1px solid #FCD34D;border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);
   margin-top:6px;font-size:var(--fs-xs);color:#78350F;line-height:1.5;
 }
 .recon-evidence strong{color:#78350F;font-weight:700}
 
 .dispute-letter{
   background:var(--canvas);border:1px solid var(--border);border-radius:8px;
-  padding:14px 16px;font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-xs);
+  padding:var(--s-3-5) var(--s-4);font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-xs);
   line-height:1.6;color:var(--text);max-height:240px;overflow-y:auto;white-space:pre-wrap;
 }
 
@@ -5896,7 +5896,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .rp-summary{
   background:linear-gradient(135deg,#FEE2E2,#FEF3C7);border:1px solid #FCA5A5;
-  border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--s-3);
+  border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);margin-bottom:var(--s-3);
   font-size:var(--fs-md);color:var(--red-dark);line-height:1.55;
 }
 .rp-summary strong{font-weight:700}
@@ -5922,7 +5922,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rp-prob-fill.ok{background:var(--green)}
 .rp-rec{
   background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);
-  padding:8px 10px;font-size:var(--fs-xs);color:var(--accent-text);line-height:1.45;
+  padding:var(--s-2) var(--s-2-5);font-size:var(--fs-xs);color:var(--accent-text);line-height:1.45;
 }
 .rp-rec strong{font-weight:700}
 
@@ -5930,7 +5930,7 @@ body.rr-cmdk-open{ overflow:hidden }
    TIME INTEGRITY upgrades — drill-in detail + variance chart
    ───────────────────────────────────────────────────────────── */
 .ti-detail{
-  display:none;padding:14px 16px;background:var(--canvas);
+  display:none;padding:var(--s-3-5) var(--s-4);background:var(--canvas);
   border-top:1px solid var(--border);
 }
 .ti-detail.open{display:block}
@@ -5943,7 +5943,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .ti-bar.bad{background:var(--red)}
 .ti-bar-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace;white-space:nowrap}
 .ti-cluster-alert{
-  background:#FEE2E2;border:1px solid #FCA5A5;border-radius:var(--r-md);padding:10px 12px;
+  background:#FEE2E2;border:1px solid #FCA5A5;border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);
   display:flex;gap:10px;align-items:flex-start;font-size:var(--fs-sm);color:var(--red-dark);line-height:1.5;
   margin-bottom:var(--s-3);
 }
@@ -6012,7 +6012,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Prompt box */
 .bb-prompt{
-  width:100%;min-height:96px;padding:14px 16px;
+  width:100%;min-height:96px;padding:var(--s-3-5) var(--s-4);
   border:1px solid var(--border-strong);border-radius:var(--r-md);
   font-size:var(--fs-base);line-height:1.55;font-family:inherit;color:var(--text);
   background:var(--surface);resize:vertical;
@@ -6254,7 +6254,7 @@ body.rr-cmdk-open{ overflow:hidden }
 @media (max-width:680px){.staffing-cards{grid-template-columns:1fr}}
 .staffing-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:14px 16px;display:flex;flex-direction:column;gap:6px;
+  padding:var(--s-3-5) var(--s-4);display:flex;flex-direction:column;gap:6px;
   transition:border-color .12s,box-shadow .12s;
 }
 .staffing-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
@@ -6310,7 +6310,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .staffing-math{
   border:1px dashed var(--border);border-radius:var(--r-lg);
-  padding:14px 16px;background:var(--canvas);
+  padding:var(--s-3-5) var(--s-4);background:var(--canvas);
   font-size:var(--fs-xs);color:var(--text-muted);
 }
 .staffing-math-title{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
@@ -6414,7 +6414,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .iv-card-actions{display:flex;gap:8px;flex-shrink:0}
 .iv-action-btn{
   display:inline-flex;align-items:center;gap:6px;
-  padding:10px 14px;border-radius:var(--r-lg);border:1px solid var(--border);
+  padding:var(--s-2-5) var(--s-3-5);border-radius:var(--r-lg);border:1px solid var(--border);
   background:var(--surface);color:var(--text);
   font:inherit;font-size:var(--fs-md);font-weight:600;cursor:pointer;
   transition:all .12s;
@@ -6446,7 +6446,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Pipeline throughput KPIs */
 .pipeline-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)}
 @media (max-width:1080px){.pipeline-kpis{grid-template-columns:repeat(2,1fr)}}
-.pipeline-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px}
+.pipeline-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4)}
 .pipeline-kpi-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);margin-bottom:4px}
 .pipeline-kpi-value{font-size:var(--fs-xl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
 .pipeline-kpi-value .frac{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500}
@@ -6459,7 +6459,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .health-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
 .health-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:14px 16px;display:flex;align-items:center;gap:12px;
+  padding:var(--s-3-5) var(--s-4);display:flex;align-items:center;gap:12px;
   transition:border-color .12s,box-shadow .12s;cursor:pointer;
 }
 .health-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
@@ -6733,7 +6733,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Sections + items */
 #rr-cb-root .cb-sections{display:flex;flex-direction:column;gap:14px}
-#rr-cb-root .cb-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:14px 16px 8px;transition:border-color .12s,box-shadow .12s,opacity .12s}
+#rr-cb-root .cb-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4) 8px;transition:border-color .12s,box-shadow .12s,opacity .12s}
 #rr-cb-root .cb-section.dragging{opacity:.55;border-color:var(--accent)}
 #rr-cb-root .cb-section.drop-target{box-shadow:0 0 0 2px var(--accent-soft)}
 #rr-cb-root .cb-section-head{display:flex;align-items:center;gap:8px}
@@ -6843,10 +6843,10 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Table rendering */
 .rr-an-table-wrap{overflow-x:auto;margin-top:8px}
 .rr-an-table{width:100%;border-collapse:collapse;font-size:var(--fs-md);color:var(--text)}
-.rr-an-table thead th{text-align:left;font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:10px 12px;border-bottom:1px solid var(--border);background:#FAFBFC;position:sticky;top:0}
+.rr-an-table thead th{text-align:left;font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border);background:#FAFBFC;position:sticky;top:0}
 .rr-an-table thead th:first-child{border-top-left-radius:8px}
 .rr-an-table thead th:last-child{border-top-right-radius:8px}
-.rr-an-table tbody td{padding:10px 12px;border-bottom:1px solid var(--border-subtle,#F1F5F9);vertical-align:middle}
+.rr-an-table tbody td{padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border-subtle,#F1F5F9);vertical-align:middle}
 .rr-an-table tbody tr:last-child td{border-bottom:0}
 .rr-an-table tbody tr:hover{background:#FAFBFC}
 .rr-an-table td.num{text-align:right;font-variant-numeric:tabular-nums}
@@ -8067,7 +8067,7 @@ body.rr-cmdk-open{ overflow:hidden }
             .cal-edit-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
             .cal-edit-row{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}
             .cal-edit-row + .cal-edit-row{margin-top:10px}
-            .cal-day-row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:start;padding:10px 12px;border-radius:8px}
+            .cal-day-row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:start;padding:var(--s-2-5) var(--s-3);border-radius:8px}
             .cal-day-row + .cal-day-row{margin-top:4px;border-top:1px solid var(--border)}
             .cal-day-row.off{opacity:.55}
             .cal-day-row label{display:flex;align-items:center;gap:8px;font-size:var(--fs-md);font-weight:500;cursor:pointer;padding-top:6px}
@@ -8082,7 +8082,7 @@ body.rr-cmdk-open{ overflow:hidden }
             .cal-add-window[disabled]{opacity:.35;cursor:not-allowed}
             .cal-remove-window{background:transparent;border:0;color:var(--text-subtle);font-size:18px;line-height:1;width:24px;height:24px;border-radius:var(--r-sm);cursor:pointer;padding:0}
             .cal-remove-window:hover{background:var(--canvas);color:var(--red)}
-            .cal-edit-input{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;font-size:var(--fs-md);color:var(--text)}
+            .cal-edit-input{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:var(--s-2) var(--s-3);font:inherit;font-size:var(--fs-md);color:var(--text)}
             .cal-edit-input:focus{outline:none;border-color:var(--accent)}
             .cal-loc-detail{margin-top:8px}
             .cal-edit-foot{margin-top:var(--s-4);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
@@ -8312,7 +8312,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border-bottom:1px solid var(--border);margin-bottom:var(--s-3);
           }
           #view-drivers .stage-tab{
-            padding:8px 12px;border-radius:0;border-bottom:2px solid transparent;
+            padding:var(--s-2) var(--s-3);border-radius:0;border-bottom:2px solid transparent;
             font-weight:500;color:var(--text-subtle);
             margin-bottom:-1px;transition:color .12s,border-color .12s,background .12s;
           }
@@ -8473,7 +8473,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .att-num.ok{color:var(--green)}
 
           .pol-mode-row{display:flex;gap:8px;margin-bottom:var(--s-4)}
-          .pol-mode-btn{flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;cursor:pointer;text-align:left;font:inherit}
+          .pol-mode-btn{flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);cursor:pointer;text-align:left;font:inherit}
           .pol-mode-btn .pol-mode-title{font-weight:600;color:var(--text);font-size:var(--fs-base);margin-bottom:3px}
           .pol-mode-btn .pol-mode-help{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
           .pol-mode-btn.active{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft-strong)}
@@ -8483,14 +8483,14 @@ body.rr-cmdk-open{ overflow:hidden }
           .pol-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin:0 0 var(--s-3) 0;line-height:1.4}
           /* Attendance · driver-drawer Attendance tab */
           .att-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:10px}
-          .att-stat{background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+          .att-stat{background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:var(--s-2-5) var(--s-3)}
           .att-stat-label{font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase}
           .att-stat-value{font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-top:2px}
           .att-tl-row{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:var(--fs-sm)}
           .att-tl-row:first-of-type{border-top:0}
           .att-tl-date{color:var(--text-subtle);font-weight:600}
           /* Attendance Report · overview redesign */
-          .att-snapshot{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:12px}
+          .att-snapshot{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);margin-bottom:12px}
           .att-snapshot-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
           .att-snapshot-title{font-size:var(--fs-sm);color:var(--text-subtle);margin-right:4px}
           .att-snapshot-pip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm)}
@@ -8524,7 +8524,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-pol-toggle-row input[type=checkbox]{margin-top:3px}
           .rr-pol-rungs{display:flex;flex-direction:column;gap:10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:14px}
           .rr-pol-empty-rungs{font-size:var(--fs-sm);color:var(--text-subtle);text-align:center;padding:14px}
-          .rr-pol-rung{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+          .rr-pol-rung{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:var(--s-3) var(--s-3-5);display:flex;flex-direction:column;gap:8px}
           .rr-pol-rung-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
           .rr-pol-rung-head select{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;font-size:var(--fs-md);color:var(--text);font-weight:600}
           .rr-pol-rung-head input[type=number]{padding:6px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;font-size:var(--fs-md);color:var(--text);width:80px}
@@ -9431,7 +9431,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   </div>
                   <button class="ref-action-btn" data-rr-copy-master-ref>Copy link</button>
                 </div>
-                <div id="ref-master-link" style="font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-sm);color:var(--text-muted);background:var(--canvas);border:1px dashed var(--border);border-radius:var(--r-md);padding:10px 12px">…</div>
+                <div id="ref-master-link" style="font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-sm);color:var(--text-muted);background:var(--canvas);border:1px dashed var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3)">…</div>
               </div>
 
               <!-- Milestone payouts (existing settings) -->
@@ -9493,7 +9493,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
               </div>
 
-              <div style="margin-top:var(--s-4);background:var(--canvas);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;display:flex;align-items:flex-start;gap:10px">
+              <div style="margin-top:var(--s-4);background:var(--canvas);border-radius:8px;padding:var(--s-3) var(--s-3-5);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;display:flex;align-items:flex-start;gap:10px">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;color:var(--accent);flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                 <div>
                   <strong style="color:var(--text)">Total per successful referral: <span id="ref-total">$1,500</span></strong>
@@ -9583,7 +9583,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-5) 0 8px 0">Payment method</h4>
-              <div style="background:var(--canvas);border-radius:var(--r-md);padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+              <div style="background:var(--canvas);border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);display:flex;justify-content:space-between;align-items:center">
                 <div style="display:flex;align-items:center;gap:10px;font-size:var(--fs-md)"><span style="background:#1A1F2E;color:#fff;padding:4px 8px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:700">VISA</span>•••• 4242</div>
                 <button class="btn btn-sm">Update</button>
               </div>
@@ -9685,7 +9685,7 @@ body.rr-cmdk-open{ overflow:hidden }
             display:grid;grid-template-columns:200px repeat(7,1fr);border-bottom:1px solid var(--border);
           }
           #view-schedule .cal-skel .cal-skel-label{
-            padding:14px 16px;display:flex;align-items:center;gap:10px;border-right:1px solid var(--border);
+            padding:var(--s-3-5) var(--s-4);display:flex;align-items:center;gap:10px;border-right:1px solid var(--border);
           }
           #view-schedule .cal-skel .av{ width:32px;height:32px;border-radius:50%;background:var(--canvas);position:relative;overflow:hidden;flex:0 0 auto; }
           #view-schedule .cal-skel .bar{ height:12px;border-radius:5px;background:var(--canvas);position:relative;overflow:hidden; }
@@ -10417,7 +10417,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule .stf-bar-spacer{flex:1}
             #view-schedule .stf-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}
             #view-schedule .stf-grid{display:grid;grid-template-columns:240px repeat(7, minmax(140px, 1fr));font-size:var(--fs-sm)}
-            #view-schedule .stf-grid > div{padding:10px 12px;border-top:1px solid var(--border)}
+            #view-schedule .stf-grid > div{padding:var(--s-2-5) var(--s-3);border-top:1px solid var(--border)}
             #view-schedule .stf-grid > .head{border-top:0;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:11px 12px}
             #view-schedule .stf-grid .stf-name{position:sticky;left:0;z-index:1;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center}
             #view-schedule .stf-grid .stf-name.head{background:var(--canvas)}
@@ -10460,7 +10460,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-staff-shift-modal .h button{background:none;border:0;font-size:22px;color:var(--text-subtle);cursor:pointer;line-height:1;padding:0 4px}
             #rr-staff-shift-modal .b{padding:18px 24px;display:flex;flex-direction:column;gap:12px}
             #rr-staff-shift-modal .b label{display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm);color:var(--text-muted);font-weight:600}
-            #rr-staff-shift-modal .b label input,#rr-staff-shift-modal .b label select,#rr-staff-shift-modal .b label textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);color:var(--text)}
+            #rr-staff-shift-modal .b label input,#rr-staff-shift-modal .b label select,#rr-staff-shift-modal .b label textarea{width:100%;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);color:var(--text)}
             #rr-staff-shift-modal .b label input:focus,#rr-staff-shift-modal .b label select:focus,#rr-staff-shift-modal .b label textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
             #rr-staff-shift-modal .b .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
             #rr-staff-shift-modal .f{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between}
@@ -11580,7 +11580,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-workspaces .ws-grid th.ws-act,#view-workspaces .ws-grid td.ws-act{width:34px;padding-left:4px;padding-right:10px}
           #view-workspaces .ws-grid th.ws-addcol{width:44px;text-align:center;cursor:pointer}
           #view-workspaces .ws-grid th.ws-addcol:hover{color:var(--accent-text)}
-          #view-workspaces .ws-grid td{padding:8px 12px;border-top:1px solid var(--border);color:var(--text);vertical-align:middle}
+          #view-workspaces .ws-grid td{padding:var(--s-2) var(--s-3);border-top:1px solid var(--border);color:var(--text);vertical-align:middle}
           #view-workspaces .ws-grid tbody tr:first-child td{border-top:none}
           #view-workspaces .ws-grid tbody tr:hover td{background:var(--canvas)}
           #view-workspaces .ws-cell{cursor:text;display:inline-block;min-width:24px;border-radius:var(--r-md);padding:3px 6px;margin:-3px -6px;transition:background .1s;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
@@ -12078,7 +12078,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Security record card */
           .docs-secrec{
             background:linear-gradient(165deg, var(--surface) 0%, var(--canvas) 130%);
-            border:1px solid var(--border-strong);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow-sm);
+            border:1px solid var(--border-strong);border-radius:12px;padding:var(--s-3-5) var(--s-4);box-shadow:var(--shadow-sm);
           }
           .docs-secrec-checks{ display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px; }
           .docs-secrec-check{
@@ -12144,7 +12144,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .docs-send-list{ flex:1;overflow-y:auto;padding:6px 14px; }
           .docs-send-row{
-            display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background var(--t-fast);
+            display:flex;align-items:center;gap:11px;padding:var(--s-2) var(--s-2-5);border-radius:9px;cursor:pointer;transition:background var(--t-fast);
           }
           .docs-send-row:hover{ background:var(--canvas); }
           .docs-send-row input[type=checkbox]{ width:16px;height:16px;accent-color:var(--accent);flex:0 0 auto; }
@@ -13301,11 +13301,11 @@ Evidence attached:
     <div class="detail-section">
       <div class="detail-section-label">This week's shifts</div>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm)">
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md)"><span><strong>Tue May 1</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md)"><span><strong>Wed May 2</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md)"><span><strong>Thu May 3</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md)"><span><strong>Fri May 4</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md)"><span><strong>Sat May 5</strong> · KMO1-22A</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md)"><span><strong>Tue May 1</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md)"><span><strong>Wed May 2</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md)"><span><strong>Thu May 3</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md)"><span><strong>Fri May 4</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md)"><span><strong>Sat May 5</strong> · KMO1-22A</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
       </div>
     </div>
 
@@ -13397,10 +13397,10 @@ Evidence attached:
     <div class="detail-section">
       <div class="detail-section-label">Recent submissions · click any to view</div>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm)">
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Marcus Davidson','complete')"><span><strong>Marcus Davidson</strong> · 7:02 AM</span><span class="subm-status complete">Complete</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Tasha Reyes','flagged')"><span><strong>Tasha Reyes</strong> · 7:14 AM</span><span class="subm-status flagged">Action needed</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Camille Foster','complete')"><span><strong>Camille Foster</strong> · 7:21 AM</span><span class="subm-status complete">Complete</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Devon Patterson','complete')"><span><strong>Devon Patterson</strong> · 7:28 AM</span><span class="subm-status complete">Complete</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Marcus Davidson','complete')"><span><strong>Marcus Davidson</strong> · 7:02 AM</span><span class="subm-status complete">Complete</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Tasha Reyes','flagged')"><span><strong>Tasha Reyes</strong> · 7:14 AM</span><span class="subm-status flagged">Action needed</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Camille Foster','complete')"><span><strong>Camille Foster</strong> · 7:21 AM</span><span class="subm-status complete">Complete</span></div>
+        <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-2-5);background:var(--surface);border-radius:var(--r-md);cursor:pointer" onclick="closeFormEdit();openSubmission('Devon Patterson','complete')"><span><strong>Devon Patterson</strong> · 7:28 AM</span><span class="subm-status complete">Complete</span></div>
       </div>
     </div>
     <div class="detail-section">
@@ -13623,7 +13623,7 @@ Evidence attached:
       <button class="modal-close" onclick="closeModal('modal-new-dm')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body" style="padding:0">
-      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--canvas)">
+      <div style="padding:var(--s-2-5) var(--s-3-5);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--canvas)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-subtle)"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="new-dm-search" placeholder="Search drivers…" style="border:none;background:transparent;outline:none;font:inherit;color:var(--text);flex:1" oninput="filterNewDm(this.value)" />
       </div>
@@ -13958,7 +13958,7 @@ Evidence attached:
         <div><label class="modal-field-label">Estimated cost</label><input class="cd-input" placeholder="$" value="89" /></div>
       </div>
       <div><label class="modal-field-label">Notes</label><textarea class="cd-textarea" placeholder="Any notes for the vendor or for your records..." style="min-height:60px"></textarea></div>
-      <div style="background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;font-size:var(--fs-sm);color:var(--accent-text)">
+      <div style="background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:8px;padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);color:var(--accent-text)">
         Vehicle will be marked <strong>In maintenance</strong> on the scheduled date · driver will be notified · backup pool flagged for coverage.
       </div>
     </div>
@@ -14287,7 +14287,7 @@ Evidence attached:
       <button class="modal-close" onclick="closeModal('modal-schedule-post')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
-      <div style="background:var(--canvas);border-radius:var(--r-md);padding:14px 16px;font-size:var(--fs-md);line-height:1.6;color:var(--text)">
+      <div style="background:var(--canvas);border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);line-height:1.6;color:var(--text)">
         <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">What happens when you post</div>
         <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm);color:var(--text-muted)">
           <div style="display:flex;align-items:center;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span><strong style="color:var(--text)">78 drivers</strong> get SMS + push notification with their week</span></div>
@@ -14465,7 +14465,7 @@ Evidence attached:
             <span class="sd-extraction-route" style="background:var(--canvas);color:var(--text-subtle)">— skipped</span>
             <span class="sd-extraction-conf">Below threshold</span>
           </div>
-          <div style="padding:10px 14px;font-size:var(--fs-sm);color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace">L29 · "Department code: KMO1-DLV-23 · ref-2487-A"</div>
+          <div style="padding:var(--s-2-5) var(--s-3-5);font-size:var(--fs-sm);color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace">L29 · "Department code: KMO1-DLV-23 · ref-2487-A"</div>
         </div>
 
       </div>
@@ -15061,11 +15061,11 @@ Evidence attached:
       <div class="detail-section">
         <h3 class="dr-section-title">This week's shifts</h3>
         <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm)">
-          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:var(--r-md)"><span><strong>Tue May 1</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:var(--r-md)"><span><strong>Wed May 2</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:var(--r-md)"><span><strong>Thu May 3</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:var(--r-md)"><span><strong>Fri May 4</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
-          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--canvas);border-radius:var(--r-md)"><span><strong>Sat May 5</strong> · KMO1-22A</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-3);background:var(--canvas);border-radius:var(--r-md)"><span><strong>Tue May 1</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-3);background:var(--canvas);border-radius:var(--r-md)"><span><strong>Wed May 2</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-3);background:var(--canvas);border-radius:var(--r-md)"><span><strong>Thu May 3</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-3);background:var(--canvas);border-radius:var(--r-md)"><span><strong>Fri May 4</strong> · KMO1-14B</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
+          <div style="display:flex;justify-content:space-between;padding:var(--s-2) var(--s-3);background:var(--canvas);border-radius:var(--r-md)"><span><strong>Sat May 5</strong> · KMO1-22A</span><span style="color:var(--text-subtle)">7:00a–6:00p</span></div>
         </div>
       </div>
 
@@ -15390,7 +15390,7 @@ John,Smith,555-0101,john@example.com</code>
         <div><label class="modal-field-label">Vehicle assignment</label><select id="ad-vehicle" class="form-input form-input-block" style="margin-top:4px"><option value="">Unassigned</option><option>VAN-04</option><option>VAN-08</option><option>VAN-12</option><option>VAN-14</option><option>VAN-16</option></select></div>
         <div><label class="modal-field-label">Status</label><select id="ad-status" class="form-input form-input-block" style="margin-top:4px"><option value="active">Active</option><option value="onboarding">Onboarding</option><option value="inactive">Inactive</option></select></div>
       </div>
-      <div style="margin-top:14px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:8px">
+      <div style="margin-top:14px;padding:var(--s-2-5) var(--s-3);background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:8px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         Welcome SMS auto-sends with portal link · driver record created instantly
       </div>
@@ -15417,8 +15417,8 @@ John,Smith,555-0101,john@example.com</code>
         Paste rows from your payroll export, ADP, Gusto, or any spreadsheet. RouteReady auto-detects columns: <strong>name · phone · station · hire date · pay rate</strong>.
       </div>
       <textarea id="bd-paste" placeholder="First Last,+1 417 555 0123,KMO1,2024-08-12,$22.50&#10;Marcus Davidson,+1 417 555 0142,KMO1,2023-11-04,$22.00&#10;Camille Foster,+1 417 555 0341,KMO1,2022-12-15,$24.00" style="width:100%;min-height:160px;padding:12px;border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
-      <div id="bd-preview" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;font-size:var(--fs-sm);color:var(--green);font-weight:500"></div>
-      <div style="margin-top:14px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:8px">
+      <div id="bd-preview" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;font-size:var(--fs-sm);color:var(--green);font-weight:500"></div>
+      <div style="margin-top:14px;padding:var(--s-2-5) var(--s-3);background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:8px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
         Smart Drop also accepts messy formats — paste your raw payroll export and we'll extract what we need
       </div>
@@ -15801,12 +15801,12 @@ John,Smith,555-0101,john@example.com</code>
 
       <div style="margin-top:var(--s-3)">
         <label class="cd-field-label">Attach evidence (auto-suggested from this driver's records)</label>
-        <div id="cd-sus-evidence" style="background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:var(--fs-sm);display:grid;gap:6px;border:1px solid var(--border)">
+        <div id="cd-sus-evidence" style="background:var(--canvas);border-radius:8px;padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);display:grid;gap:6px;border:1px solid var(--border)">
           <div style="color:var(--text-subtle);font-style:italic">Open the drawer for a specific driver to load suggested evidence.</div>
         </div>
       </div>
 
-      <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:var(--fs-sm);border:1px solid var(--border)">
+      <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);border:1px solid var(--border)">
         <div style="font-weight:600;color:var(--text-muted);font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">When you click Suspend driver</div>
         <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="cd-sus-notify-driver" checked /><label for="cd-sus-notify-driver" style="cursor:pointer">SMS the driver with suspension notice + return date</label></div>
         <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="cd-sus-notify-owner" checked /><label for="cd-sus-notify-owner" style="cursor:pointer">Notify owner / leadership in dashboard queue</label></div>
@@ -15842,10 +15842,10 @@ John,Smith,555-0101,john@example.com</code>
       <button class="modal-close" onclick="closeModal('modal-reinstate')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div style="padding:0 var(--s-4) var(--s-4)">
-      <div id="reinstate-summary" style="background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:var(--fs-sm);margin-bottom:var(--s-3);line-height:1.5"></div>
+      <div id="reinstate-summary" style="background:var(--canvas);border-radius:8px;padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);margin-bottom:var(--s-3);line-height:1.5"></div>
       <label class="cd-field-label">Reason for reinstating</label>
       <textarea class="cd-textarea" id="reinstate-reason" placeholder="e.g. Suspension period completed · driver acknowledged policy · returns to schedule."></textarea>
-      <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:10px 12px;font-size:var(--fs-sm);border:1px solid var(--border)">
+      <div style="margin-top:var(--s-3);background:var(--canvas);border-radius:8px;padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);border:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="reinstate-notify" checked /><label for="reinstate-notify" style="cursor:pointer">SMS the driver: welcome back, return date, expectations</label></div>
         <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="reinstate-restore-app" checked /><label for="reinstate-restore-app" style="cursor:pointer">Restore driver app access</label></div>
         <div style="display:flex;align-items:center;gap:8px;padding:3px 0"><input type="checkbox" id="reinstate-add-schedule" checked /><label for="reinstate-add-schedule" style="cursor:pointer">Re-add to upcoming schedule (next published week)</label></div>
@@ -15913,7 +15913,7 @@ John,Smith,555-0101,john@example.com</code>
   .hr-event-dot.pending_term{background:var(--red-dark)}
   .hr-event-summary{font-weight:600;font-size:var(--fs-md);color:var(--text)}
   .hr-event-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-  .hr-event-detail{font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;line-height:1.5;background:var(--canvas);border-radius:var(--r-md);padding:8px 10px;white-space:pre-wrap}
+  .hr-event-detail{font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;line-height:1.5;background:var(--canvas);border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);white-space:pre-wrap}
 </style>
 
 <script>
@@ -16321,7 +16321,7 @@ John,Smith,555-0101,john@example.com</code>
     var matches = MOCK_DRIVERS.filter(function(d){ return d.name.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
     results.style.display = matches.length ? 'block' : 'none';
     results.innerHTML = matches.slice(0,5).map(function(d){
-      return '<div style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background=\'var(--canvas)\'" onmouseout="this.style.background=\'\'" onclick="cdSelectDriver(\'' + d.name + '\')"><div style="font-weight:600;color:var(--text)">' + d.name + '</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">' + d.meta + '</div></div>';
+      return '<div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background=\'var(--canvas)\'" onmouseout="this.style.background=\'\'" onclick="cdSelectDriver(\'' + d.name + '\')"><div style="font-weight:600;color:var(--text)">' + d.name + '</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">' + d.meta + '</div></div>';
     }).join('');
   }
   function cdSetSegment(seg){
@@ -17066,7 +17066,7 @@ John,Smith,555-0101,john@example.com</code>
     (typeof MOCK_DRIVERS !== 'undefined' ? MOCK_DRIVERS : []).forEach(function(d){
       if (q && d.name.toLowerCase().indexOf(q) === -1 && d.meta.toLowerCase().indexOf(q) === -1) return;
       var initials = d.name.split(' ').map(function(p){return p[0];}).join('').slice(0,2);
-      html += '<button class="popover-item" style="width:100%;justify-content:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)" onclick="closeModal(\'modal-new-dm\');toast(\'Conversation opened with ' + d.name + '\')">' +
+      html += '<button class="popover-item" style="width:100%;justify-content:flex-start;gap:10px;padding:var(--s-2-5) var(--s-3-5);border-bottom:1px solid var(--border)" onclick="closeModal(\'modal-new-dm\');toast(\'Conversation opened with ' + d.name + '\')">' +
         '<div style="width:28px;height:28px;border-radius:50%;background:var(--canvas);display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted)">' + initials + '</div>' +
         '<div style="text-align:left"><div style="font-weight:600;font-size:var(--fs-md);color:var(--text)">' + d.name + '</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">' + d.meta + '</div></div>' +
         '</button>';
@@ -19112,7 +19112,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!existing) {
       existing = document.createElement('div');
       existing.id = 'sched-suspended-banner';
-      existing.style.cssText = 'background:#FEE2E2;border:1px solid #FECACA;color:var(--red-dark);border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
+      existing.style.cssText = 'background:#FEE2E2;border:1px solid #FECACA;color:var(--red-dark);border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
       anchor.insertBefore(existing, anchor.firstChild);
     }
     var names = active.map(function(s){ var d = _findDriver(s.driverId); return d ? d.name : '?'; }).join(', ');
@@ -19210,7 +19210,7 @@ John,Smith,555-0101,john@example.com</code>
       body.innerHTML = '<div style="padding:var(--s-4);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No HR events on file. Suspensions, written warnings, and termination actions appear here.</div>';
     } else {
       body.innerHTML =
-        '<div style="font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);padding:8px 12px;border-radius:var(--r-md);margin-bottom:var(--s-3);line-height:1.5"><strong style="color:var(--text)">About this file:</strong> Every entry below is timestamped and immutable. This is the documentation a court, unemployment officer, or HR vendor will request if termination is challenged.</div>'
+        '<div style="font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);padding:var(--s-2) var(--s-3);border-radius:var(--r-md);margin-bottom:var(--s-3);line-height:1.5"><strong style="color:var(--text)">About this file:</strong> Every entry below is timestamped and immutable. This is the documentation a court, unemployment officer, or HR vendor will request if termination is challenged.</div>'
         + events.map(function(e){
           var typeLabel = ({ suspension:'Suspension', reinstate:'Reinstatement', warning:'Written warning', pending_term:'Pending termination' })[e.type] || e.type;
           var evidenceTxt = '';
@@ -19669,7 +19669,7 @@ John,Smith,555-0101,john@example.com</code>
           : sentReminders.map(function(rem){
               return '<span style="font-size:var(--fs-xs);color:var(--text-muted)" title="Sent ' + _fmtRel(rem.sentDate) + '">' + rem.threshold + 'd ✓</span>';
             }).join(' · ');
-        return '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr auto;gap:12px;padding:10px 14px;border-top:1px solid var(--border);align-items:center;background:' + bg + '">'
+        return '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr auto;gap:12px;padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);align-items:center;background:' + bg + '">'
           + '<div style="display:flex;align-items:center;gap:8px"><div class="avatar-sm ' + d.tier + '">' + d.id + '</div><div><div style="font-weight:600;font-size:var(--fs-md)">' + d.name + '</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">' + d.station + '</div></div></div>'
           + '<div style="font-size:var(--fs-md);color:var(--text);font-variant-numeric:tabular-nums">' + _fmtDate(d.licenseExpiry) + '</div>'
           + '<div style="font-weight:600;font-size:var(--fs-md);color:' + color + '">' + _expiryLabel(r.days) + '</div>'
@@ -19765,7 +19765,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!existingBanner) {
       existingBanner = document.createElement('div');
       existingBanner.id = 'sched-license-banner';
-      existingBanner.style.cssText = 'background:#FEF3C7;border:1px solid #FCD34D;color:var(--amber-dark);border-radius:8px;padding:10px 14px;margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
+      existingBanner.style.cssText = 'background:#FEF3C7;border:1px solid #FCD34D;color:var(--amber-dark);border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:10px';
       // Insert AFTER suspended banner if present, else at top
       var susBanner = document.getElementById('sched-suspended-banner');
       if (susBanner) susBanner.parentNode.insertBefore(existingBanner, susBanner.nextSibling);
@@ -19859,7 +19859,7 @@ John,Smith,555-0101,john@example.com</code>
       + '.okami-daily-grid-head > div:first-child{text-align:left;padding-left:14px}'
       + '.okami-daily-row{display:grid;grid-template-columns:120px repeat(7,1fr);border-top:1px solid var(--border);align-items:center}'
       + '.okami-daily-row:first-child{border-top:0}'
-      + '.okami-daily-row .okami-daily-label{padding:10px 14px;font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}'
+      + '.okami-daily-row .okami-daily-label{padding:var(--s-2-5) var(--s-3-5);font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}'
       + '.okami-daily-cell{padding:8px 6px;text-align:center;border-left:1px solid var(--border)}'
       + '.okami-daily-cell input{width:100%;max-width:60px;padding:6px 4px;border:1px solid var(--border);border-radius:5px;background:var(--surface);text-align:center;font:inherit;font-size:var(--fs-md);font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}'
       + '.okami-daily-cell input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft-strong)}'
@@ -19872,10 +19872,10 @@ John,Smith,555-0101,john@example.com</code>
       + '.okami-cushion-mode button{flex:1;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);padding:6px 8px;border-radius:var(--r-sm);cursor:pointer}'
       + '.okami-cushion-mode button.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}'
       + '.okami-cushion-input-row{display:flex;align-items:center;gap:8px}'
-      + '.okami-cushion-input-row input{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;font-size:var(--fs-base);font-weight:600;font-variant-numeric:tabular-nums;text-align:center}'
+      + '.okami-cushion-input-row input{flex:1;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;font-size:var(--fs-base);font-weight:600;font-variant-numeric:tabular-nums;text-align:center}'
       + '.okami-cushion-input-row input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft-strong)}'
       + '.okami-cushion-input-row .unit{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500;min-width:54px}'
-      + '.okami-recommend{background:var(--accent-soft);color:var(--accent-text);border-radius:var(--r-md);padding:8px 10px;font-size:var(--fs-xs);line-height:1.5}'
+      + '.okami-recommend{background:var(--accent-soft);color:var(--accent-text);border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);font-size:var(--fs-xs);line-height:1.5}'
       + '.okami-recommend strong{color:var(--accent-text);font-weight:700}'
       + '.okami-recommend .apply-link{display:inline-block;margin-top:6px;font-size:var(--fs-xs);font-weight:600;color:#fff;background:var(--accent);padding:4px 10px;border-radius:5px;cursor:pointer;border:0;font-family:inherit}'
       + '.okami-recommend .apply-link:hover{background:var(--indigo)}'
@@ -19903,7 +19903,7 @@ John,Smith,555-0101,john@example.com</code>
       + '.pool-sort-btn.active{background:var(--surface);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft-strong)}'
       + '.pool-driver .pool-driver-score{display:inline-block;font-size:var(--fs-xs);font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;font-variant-numeric:tabular-nums}'
       // VTO suggestion banner in check-in
-      + '#ci-vto-suggest{background:#F0F9FF;border:1px solid #BAE6FD;color:#0C4A6E;border-radius:8px;padding:10px 14px;margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:10px}'
+      + '#ci-vto-suggest{background:#F0F9FF;border:1px solid #BAE6FD;color:#0C4A6E;border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:10px}'
       + '#ci-vto-suggest .vto-chips{display:flex;gap:4px;flex-wrap:wrap}'
       + '#ci-vto-suggest .vto-chip{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #BAE6FD;color:#0369A1;padding:2px 8px;border-radius:5px;font-size:var(--fs-xs);font-weight:600;cursor:pointer}'
       + '#ci-vto-suggest .vto-chip:hover{background:#E0F2FE}'
@@ -20425,7 +20425,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ap-text-color-token-sweep"></script>
+<script type="module" src="./live.js?v=20260515aq-padding-pairs-sweep"></script>
 
 </body>
 </html>
