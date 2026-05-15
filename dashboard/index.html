@@ -6725,10 +6725,6 @@ body.rr-cmdk-open{ overflow:hidden }
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
-      <button class="nav-item" data-view="outlook" data-c="outlook" onclick="goto('outlook')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="20" x2="3" y2="10"/><line x1="9" y1="20" x2="9" y2="4"/><line x1="15" y1="20" x2="15" y2="13"/><line x1="21" y1="20" x2="21" y2="8"/><polyline points="9 4 13 9 17 6"/></svg></span>
-        Staffing outlook
-      </button>
       <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
         Workspaces
@@ -10757,27 +10753,6 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════
-         STAFFING OUTLOOK — can the roster cover upcoming weeks?
-         ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-outlook">
-      <div class="page">
-        <div class="page-header">
-          <div class="page-header-l">
-            <div class="page-icon" data-c="outlook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="20" x2="3" y2="10"/><line x1="9" y1="20" x2="9" y2="4"/><line x1="15" y1="20" x2="15" y2="13"/><line x1="21" y1="20" x2="21" y2="8"/><polyline points="9 4 13 9 17 6"/></svg></div>
-            <div>
-              <h1 class="page-title">Staffing outlook</h1>
-              <p class="page-sub">Enter your busiest-day route count for each of the next 9 weeks — see exactly how many drivers you need to hire.</p>
-            </div>
-          </div>
-          <div class="page-actions">
-            <button class="btn btn-sm" id="rr-outlook-refresh" type="button">Refresh</button>
-          </div>
-        </div>
-        <div id="rr-outlook-body"><div class="loader" style="margin:80px auto"></div></div>
       </div>
     </div>
 
@@ -20211,7 +20186,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515o-broadcast-scheduled-today"></script>
+<script type="module" src="./live.js?v=20260515p-remove-staffing-outlook"></script>
 
 </body>
 </html>
