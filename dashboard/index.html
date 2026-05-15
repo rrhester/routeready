@@ -622,7 +622,7 @@ a{color:inherit;text-decoration:none}
    (~10% alpha) + saturated brand-color icon. */
 .page-header-l{display:flex;align-items:center;gap:var(--s-4);min-width:0}
 .page-icon{
-  width:48px;height:48px;border-radius:12px;flex-shrink:0;
+  width:44px;height:44px;border-radius:var(--r-lg);flex-shrink:0;
   display:inline-flex;align-items:center;justify-content:center;
   background:var(--pi-bg, rgba(15,108,189,.10));
   color:var(--pi-fg, var(--accent));
@@ -631,9 +631,9 @@ a{color:inherit;text-decoration:none}
   box-shadow:0 1px 2px rgba(15,23,42,.05),
              0 8px 24px -8px var(--pi-fg, rgba(15,108,189,.5)),
              inset 0 0 0 1px var(--pi-ring, rgba(15,108,189,.18));
-  transition:transform .15s ease, box-shadow .15s ease;
+  transition:transform var(--t-smooth), box-shadow var(--t-smooth);
 }
-.page-icon svg{width:24px;height:24px;stroke-width:2}
+.page-icon svg{width:22px;height:22px;stroke-width:2}
 .page-header:hover .page-icon{transform:translateY(-1px)}
 
 .page-icon[data-c="dashboard"]{--pi-fg:#0891B2;--pi-bg:rgba(8,145,178,.10);--pi-ring:rgba(8,145,178,.20)}
@@ -643,7 +643,6 @@ a{color:inherit;text-decoration:none}
 .page-icon[data-c="fleet"]    {--pi-fg:#D97706;--pi-bg:rgba(217,119,6,.10);--pi-ring:rgba(217,119,6,.20)}
 .page-icon[data-c="compliance"]{--pi-fg:#334155;--pi-bg:rgba(51,65,85,.08);--pi-ring:rgba(51,65,85,.18)}
 .page-icon[data-c="schedule"] {--pi-fg:#4F46E5;--pi-bg:rgba(79,70,229,.10);--pi-ring:rgba(79,70,229,.20)}
-.page-icon[data-c="outlook"]  {--pi-fg:#D97706;--pi-bg:rgba(245,158,11,.10);--pi-ring:rgba(245,158,11,.20)}
 .page-icon[data-c="messages"] {--pi-fg:#0284C7;--pi-bg:rgba(2,132,199,.10);--pi-ring:rgba(2,132,199,.20)}
 .page-icon[data-c="forms"]    {--pi-fg:#7C3AED;--pi-bg:rgba(124,58,237,.10);--pi-ring:rgba(124,58,237,.20)}
 .page-icon[data-c="finances"] {--pi-fg:#059669;--pi-bg:rgba(5,150,105,.10);--pi-ring:rgba(5,150,105,.20)}
@@ -2001,12 +2000,12 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .cd-ai-btn svg{width:12px;height:12px}
 
 .cd-context{
-  background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r-md);
-  padding:10px 12px;font-size:var(--fs-sm);color:var(--amber-dark);line-height:1.5;
-  display:flex;gap:8px;align-items:flex-start;
+  background:var(--amber-soft);border:1px solid var(--amber-soft);border-radius:var(--r-md);
+  padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);color:var(--amber-dark);line-height:1.5;
+  display:flex;gap:var(--s-2);align-items:flex-start;
 }
 .cd-context svg{width:14px;height:14px;flex-shrink:0;margin-top:1px}
-.cd-context strong{font-weight:600;color:#78350F}
+.cd-context strong{font-weight:600;color:var(--amber-dark)}
 
 .cd-attach{
   border:1px dashed var(--border-strong);border-radius:var(--r-md);
@@ -4470,11 +4469,11 @@ body.rr-cmdk-open{ overflow:hidden }
 .msg-attach-chip svg{width:11px;height:11px}
 
 .msg-pinned{
-  background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;
-  font-size:var(--fs-xs);color:#78350F;margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;
+  background:var(--amber-soft);border:1px solid var(--amber-soft);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);
+  font-size:var(--fs-xs);color:var(--amber-dark);margin-bottom:var(--s-2);display:flex;align-items:flex-start;gap:var(--s-2);
 }
 .msg-pinned svg{width:13px;height:13px;flex-shrink:0;margin-top:1px;color:var(--amber-dark)}
-.msg-pinned strong{color:#78350F;font-weight:700}
+.msg-pinned strong{color:var(--amber-dark);font-weight:700}
 
 .msg-composer{
   border-top:1px solid var(--border);padding:12px 18px;background:var(--surface);
@@ -20337,7 +20336,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515s-system-polish-pass"></script>
+<script type="module" src="./live.js?v=20260515t-polish-wave-2"></script>
 
 </body>
 </html>

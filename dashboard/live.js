@@ -33199,55 +33199,37 @@ document.addEventListener("click", async (e) => {
 
     const wrap = document.createElement("div");
     wrap.id = "rr-co-rule-modal";
+    wrap.className = "rr-modal-backdrop";
     wrap.innerHTML = `
       <style>
-        #rr-co-rule-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px}
-        #rr-co-rule-modal .modal{
-          width:640px;max-width:100%;max-height:88vh;
-          background:var(--surface);border:1px solid var(--border);
-          border-radius:var(--r-xl);box-shadow:var(--shadow-xl);
-          display:flex;flex-direction:column;overflow:hidden;
-        }
-        #rr-co-rule-modal .head{
-          display:flex;align-items:flex-start;gap:14px;
-          padding:18px 22px 16px;border-bottom:1px solid var(--border-subtle);
-        }
-        #rr-co-rule-modal .head .standard{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text)}
-        #rr-co-rule-modal .head h3{margin:4px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
-        #rr-co-rule-modal .head .sub{margin-top:5px;font-size:11.5px;color:var(--text-subtle);font-weight:500;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-        #rr-co-rule-modal .head .sev-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-        #rr-co-rule-modal .head .x{appearance:none;background:transparent;border:0;font-size:24px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto}
-        #rr-co-rule-modal .head .x:hover{color:var(--text)}
-        #rr-co-rule-modal .body{padding:18px 22px;display:flex;flex-direction:column;gap:18px;overflow-y:auto}
+        #rr-co-rule-modal .rr-modal-panel{width:640px}
+        #rr-co-rule-modal .sev-pill{display:inline-flex;align-items:center;gap:5px;padding:2px var(--s-2-5);border-radius:999px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         #rr-co-rule-modal .sec h4{margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
-        #rr-co-rule-modal .sec p{margin:0;font-size:13px;color:var(--text);line-height:1.55}
+        #rr-co-rule-modal .sec p{margin:0;font-size:var(--fs-md);color:var(--text);line-height:1.55}
         #rr-co-rule-modal .rule-block{font-size:13.5px;color:var(--text);line-height:1.55}
         #rr-co-rule-modal .specifics{
-          display:grid;grid-template-columns:160px 1fr;gap:8px 16px;
+          display:grid;grid-template-columns:160px 1fr;gap:var(--s-2) var(--s-4);
           background:var(--canvas);border:1px solid var(--border);
-          border-radius:8px;padding:14px 16px;font-size:13px;color:var(--text);
+          border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);color:var(--text);
         }
         #rr-co-rule-modal .specifics dt{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);align-self:center}
         #rr-co-rule-modal .specifics dd{margin:0;font-weight:550;font-variant-numeric:tabular-nums}
-        #rr-co-rule-modal .specifics dd.late{color:#9F1239;font-weight:700}
-        #rr-co-rule-modal ul.actions{margin:0;padding-left:18px;color:var(--text);font-size:13px;line-height:1.55;display:flex;flex-direction:column;gap:5px}
-        #rr-co-rule-modal .foot{padding:12px 22px;border-top:1px solid var(--border-subtle);background:var(--canvas);display:flex;justify-content:flex-end}
-        #rr-co-rule-modal .foot .btn-close{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
-        #rr-co-rule-modal .foot .btn-close:hover{background:var(--canvas)}
+        #rr-co-rule-modal .specifics dd.late{color:var(--red-dark);font-weight:700}
+        #rr-co-rule-modal ul.actions{margin:0;padding-left:18px;color:var(--text);font-size:var(--fs-md);line-height:1.55;display:flex;flex-direction:column;gap:5px}
       </style>
-      <div class="modal" role="dialog" aria-modal="true" aria-label="Compliance rule detail">
-        <div class="head">
-          <div style="min-width:0;flex:1">
-            <div class="standard">${_esc(rules.standard)}</div>
-            <h3>${_esc(risk.title || _typeLabel(risk.kind))}</h3>
-            <div class="sub">
+      <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Compliance rule detail">
+        <div class="rr-modal-head">
+          <div class="rr-modal-head-content">
+            <span class="rr-modal-eyebrow">${_esc(rules.standard)}</span>
+            <h3 class="rr-modal-title">${_esc(risk.title || _typeLabel(risk.kind))}</h3>
+            <div class="rr-modal-sub">
               <span class="sev-pill" style="color:${sevPillFg};background:${sevPillBg}">${_esc(sevWord)}</span>
               <span>${_esc(_typeLabel(risk.kind))}</span>
             </div>
           </div>
-          <button class="x" data-co-modal-close type="button" aria-label="Close">×</button>
+          <button class="rr-modal-close" data-co-modal-close type="button" aria-label="Close">×</button>
         </div>
-        <div class="body">
+        <div class="rr-modal-body">
           ${rules.rule ? `
             <div class="sec">
               <h4>The rule</h4>
@@ -33272,8 +33254,8 @@ document.addEventListener("click", async (e) => {
               <ul class="actions">${rules.actions.map(a => `<li>${_esc(a)}</li>`).join("")}</ul>
             </div>` : ""}
         </div>
-        <div class="foot">
-          <button class="btn-close" type="button" data-co-modal-close>Close</button>
+        <div class="rr-modal-foot">
+          <button class="rr-modal-btn" type="button" data-co-modal-close>Close</button>
         </div>
       </div>`;
     document.body.appendChild(wrap);
