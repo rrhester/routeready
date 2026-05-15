@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Getting started · RouteReady Desktop</title>
-<meta name="description" content="Install the file you just downloaded, sign into Indeed or Amazon DSP, and pull your first report.">
+<title>Almost there · RouteReady Desktop</title>
+<meta name="description" content="Your RouteReady Desktop installer is downloading. One click to install, then sign in.">
 <link rel="icon" type="image/png" href="/app/Icon.png">
 <link rel="apple-touch-icon" href="/app/Icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,17 +31,21 @@ svg{display:block}
   --indigo:#4F46E5;
   --violet:#7C3AED;
   --teal:#0D9488;
+  --emerald:#059669;
   --amber:#D97706;
   --r-md:8px;
   --r-lg:14px;
   --r-xl:20px;
-  --max:920px;
+  --max:880px;
   --shadow-sm:0 1px 2px rgba(15,23,42,.04);
   --shadow-md:0 2px 4px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
+  --shadow-lg:0 8px 16px rgba(15,108,189,.10),0 24px 64px rgba(15,108,189,.14);
 }
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+@keyframes bounce-down{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:calc(200px + 100%) 0}}
 .fu{animation:fadeUp .8s cubic-bezier(.16,1,.3,1) both}
 .d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.28s}
 
@@ -60,69 +64,78 @@ nav{position:sticky;top:0;z-index:300;background:rgba(248,250,252,.85);backdrop-
 .nav-link{display:none;font-size:14px;color:var(--text-muted);font-weight:500;padding:8px 14px;border-radius:7px;transition:color .15s,background .15s}
 @media(min-width:768px){.nav-link{display:inline-flex}}
 .nav-link:hover{color:var(--text);background:var(--surface-soft)}
-.btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s ease;text-decoration:none;white-space:nowrap}
-.btn-primary{background:linear-gradient(180deg,var(--blue-bright) 0%,var(--blue) 100%);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(15,108,189,.35)}
-.btn-primary:hover{background:linear-gradient(180deg,var(--blue) 0%,var(--blue-dark) 100%);transform:translateY(-1px)}
 
-/* HERO */
-.hero{position:relative;padding:60px 1.5rem 30px;text-align:center;overflow:hidden}
-@media(min-width:768px){.hero{padding:80px 2.5rem 40px}}
+/* HERO — compact, action-focused */
+.hero{position:relative;padding:48px 1.5rem 24px;text-align:center;overflow:hidden}
+@media(min-width:768px){.hero{padding:64px 2.5rem 30px}}
 .hero-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(15,108,189,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(15,108,189,.05) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 30%,transparent 80%);-webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 30%,transparent 80%)}
-.hero-glow{position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1000px;height:500px;background:radial-gradient(ellipse at 50% 30%,rgba(15,108,189,.15) 0%,transparent 60%);pointer-events:none}
+.hero-glow{position:absolute;top:-180px;left:50%;transform:translateX(-50%);width:900px;height:480px;background:radial-gradient(ellipse at 50% 30%,rgba(15,108,189,.18) 0%,transparent 60%);pointer-events:none}
 .eyebrow{position:relative;display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(255,255,255,.7);border:1px solid rgba(15,108,189,.15);border-radius:999px;font-size:12px;font-weight:600;color:var(--blue-dark);letter-spacing:.04em;margin-bottom:1.25rem;backdrop-filter:blur(8px);box-shadow:var(--shadow-sm)}
 .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px rgba(15,108,189,.6);animation:pulse 2.4s ease-in-out infinite}
-.hero-h{position:relative;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:clamp(28px,4.5vw,44px);line-height:1.1;letter-spacing:-1.4px;color:var(--text);max-width:720px;margin:0 auto .75rem}
+.hero-h{position:relative;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.05;letter-spacing:-1.6px;color:var(--text);max-width:680px;margin:0 auto .65rem}
 .hero-h .grad{background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 60%,var(--violet) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
-.hero-sub{position:relative;font-size:clamp(15px,1.6vw,16.5px);color:var(--text-muted);max-width:560px;margin:0 auto;font-weight:400;line-height:1.6}
+.hero-sub{position:relative;font-size:clamp(14.5px,1.6vw,16.5px);color:var(--text-muted);max-width:520px;margin:0 auto;font-weight:400;line-height:1.55}
 
-/* STEPS */
-.steps-section{padding:30px 0 60px}
-.step{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px 26px;margin-bottom:1rem;display:grid;grid-template-columns:48px 1fr;gap:20px;align-items:start;box-shadow:var(--shadow-sm)}
-.step-num{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%);color:#fff;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:18px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(15,108,189,.25)}
-.step-body h2{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:.5rem;letter-spacing:-.4px}
-.step-body p{font-size:14.5px;color:var(--text-muted);line-height:1.65;margin-bottom:.75rem}
-.step-body p:last-child{margin-bottom:0}
-.step-body code{font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-soft);border:1px solid var(--border);padding:1.5px 7px;border-radius:5px;color:var(--text);word-break:break-all}
-.step-body strong{color:var(--text);font-weight:600}
-.step-body ul{margin:.5rem 0 .75rem 1.1rem;padding:0;color:var(--text-muted);font-size:14.5px}
-.step-body ul li{margin-bottom:.35rem;line-height:1.55}
+/* THE ONE-CLICK CARD — this is the whole page */
+.action-section{padding:24px 0 36px}
+.action-card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 26px;box-shadow:var(--shadow-lg);overflow:hidden}
+.action-card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--blue) 0%,var(--indigo) 60%,var(--violet) 100%)}
 
-/* PORTAL CHIPS */
-.portal-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:.5rem 0 .25rem 0}
-.portal-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);font-weight:500;font-family:'SF Mono',Menlo,Consolas,monospace}
-.portal-chip strong{color:var(--text);font-weight:600;font-family:'Inter Tight',sans-serif;font-size:13px;margin-right:4px}
-.portal-chip[data-portal="indeed"]{background:rgba(13,148,136,.08);border-color:rgba(13,148,136,.20);color:#0F766E}
-.portal-chip[data-portal="amazon"]{background:rgba(15,108,189,.08);border-color:rgba(15,108,189,.20);color:var(--blue-dark)}
-.copy-btn{font-family:inherit;font-size:11px;font-weight:500;color:var(--text-subtle);background:transparent;border:0;cursor:pointer;padding:0;margin-left:6px;text-decoration:underline;text-underline-offset:2px}
-.copy-btn:hover{color:var(--blue)}
-.copy-btn.copied{color:var(--blue);text-decoration:none}
+.action-row{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.action-icon{width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 8px 24px rgba(15,108,189,.30);animation:bounce-down 2.2s ease-in-out infinite}
+.action-icon svg{width:34px;height:34px}
+.action-title{font-family:'Inter Tight',sans-serif;font-size:clamp(22px,3vw,28px);font-weight:700;letter-spacing:-.7px;color:var(--text);line-height:1.15;margin-bottom:.35rem}
+.action-sub{font-size:15px;color:var(--text-muted);line-height:1.55}
+.action-sub code{font-family:'SF Mono',Menlo,Consolas,monospace;font-size:13.5px;background:var(--surface-soft);border:1px solid var(--border);padding:1.5px 7px;border-radius:5px;color:var(--text);word-break:break-all}
+.action-sub strong{color:var(--text);font-weight:600}
 
-/* OS-SWITCH */
-.os-switch{display:flex;gap:.4rem;padding:4px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;margin-bottom:.85rem;width:fit-content}
+/* Progress shimmer indicating "downloading" */
+.dl-progress{margin-top:18px;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--surface-soft) 0%,rgba(15,108,189,.16) 50%,var(--surface-soft) 100%);background-size:200px 100%;animation:shimmer 1.6s linear infinite;border:1px solid var(--border)}
+.dl-progress.done{animation:none;background:var(--emerald);height:6px;opacity:.35}
+
+.dl-status{margin-top:10px;font-size:13px;color:var(--text-muted);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dl-status strong{color:var(--text);font-weight:600}
+.retry-btn{font-family:inherit;font-size:13px;font-weight:500;color:var(--blue);background:transparent;border:0;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+.retry-btn:hover{color:var(--blue-dark)}
+
+/* OS-SWITCH (per-OS install hints inside the card) */
+.os-switch{display:flex;gap:.4rem;padding:4px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;margin:18px 0 12px;width:fit-content;flex-wrap:wrap}
 .os-switch button{font-family:inherit;font-size:12.5px;font-weight:600;padding:6px 14px;border-radius:7px;border:0;background:transparent;color:var(--text-muted);cursor:pointer;transition:all .15s ease}
 .os-switch button.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
-.os-block{display:none}
+.os-block{display:none;font-size:14px;color:var(--text-muted);line-height:1.6}
 .os-block.active{display:block}
+.os-block strong{color:var(--text);font-weight:600}
+.os-block code{font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-soft);border:1px solid var(--border);padding:1.5px 7px;border-radius:5px;color:var(--text)}
 
-/* DOWNLOAD BANNER (shown when arriving here from a Download click) */
-.dl-banner{position:relative;max-width:var(--max);margin:0 auto 1.25rem;padding:0 1.5rem}
-@media(min-width:768px){.dl-banner{padding:0 2.5rem}}
-.dl-banner-card{display:none;align-items:center;gap:14px;background:linear-gradient(180deg,rgba(15,108,189,.06) 0%,rgba(15,108,189,.10) 100%);border:1px solid rgba(15,108,189,.20);border-radius:var(--r-lg);padding:14px 18px;font-size:14px;color:var(--blue-dark)}
-.dl-banner.show .dl-banner-card{display:flex}
-.dl-banner-icon{width:34px;height:34px;border-radius:9px;background:var(--blue);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.dl-banner-icon svg{width:18px;height:18px}
-.dl-banner-text{flex:1;line-height:1.45}
-.dl-banner-text strong{color:var(--text);font-weight:600}
-.dl-banner-retry{font-family:inherit;font-size:13px;font-weight:600;color:var(--blue);background:transparent;border:0;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
-.dl-banner-retry:hover{color:var(--blue-dark)}
+/* PREVIEW: what the user sees once installed */
+.preview-section{padding:0 0 60px}
+.preview-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px 22px}
+.preview-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.85rem}
+.preview-head svg{width:14px;height:14px}
+.preview-h{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:.4rem}
+.preview-p{font-size:14.5px;color:var(--text-muted);margin-bottom:1.1rem;line-height:1.55}
+
+/* Wireframe of the app's welcome panel */
+.app-mock{background:linear-gradient(180deg,rgba(15,108,189,.04) 0%,rgba(15,108,189,.10) 100%);border:1px dashed rgba(15,108,189,.30);border-radius:var(--r-lg);padding:18px 18px 16px;max-width:520px;margin:0 auto}
+.app-mock-title{font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px}
+.app-mock-sub{font-size:12.5px;color:var(--text-muted);margin-bottom:12px;line-height:1.5}
+.app-mock-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:540px){.app-mock-grid{grid-template-columns:1fr}}
+.app-mock-btn{background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:11px 13px;text-align:left}
+.app-mock-btn-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
+.app-mock-btn-sub{font-size:11px;color:var(--text-muted);font-family:'SF Mono',Menlo,Consolas,monospace}
 
 /* CTA */
 .cta-section{padding:0 0 60px;text-align:center}
-.cta-card{background:linear-gradient(135deg,rgba(15,108,189,.04) 0%,rgba(124,58,237,.04) 100%);border:1px solid var(--border);border-radius:var(--r-xl);padding:32px 28px}
-.cta-h{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.3px;color:var(--text);margin-bottom:.5rem}
-.cta-p{font-size:14px;color:var(--text-muted);margin-bottom:1rem;max-width:480px;margin-left:auto;margin-right:auto}
+.cta-card{background:linear-gradient(135deg,rgba(15,108,189,.04) 0%,rgba(124,58,237,.04) 100%);border:1px solid var(--border);border-radius:var(--r-xl);padding:26px 24px}
+.cta-h{font-family:'Inter Tight',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.3px;color:var(--text);margin-bottom:.4rem}
+.cta-p{font-size:13.5px;color:var(--text-muted);margin-bottom:.9rem;max-width:460px;margin-left:auto;margin-right:auto}
 .cta-row{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s ease;text-decoration:none;white-space:nowrap}
+.btn-primary{background:linear-gradient(180deg,var(--blue-bright) 0%,var(--blue) 100%);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(15,108,189,.35)}
+.btn-primary:hover{background:linear-gradient(180deg,var(--blue) 0%,var(--blue-dark) 100%);transform:translateY(-1px)}
+.btn-secondary{background:var(--surface);border-color:var(--border-strong);color:var(--text)}
+.btn-secondary:hover{background:var(--canvas);border-color:var(--text-muted)}
 
 /* FOOTER */
 footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-size:14px}
@@ -149,148 +162,98 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-si
       <a class="nav-link" href="/#features">Product</a>
       <a class="nav-link" href="/download">Download</a>
       <a class="nav-link" href="/dashboard/login.html">Sign in</a>
-      <a class="btn btn-primary" href="/#cta">Book a demo</a>
     </div>
   </div>
 </nav>
 
 <header class="hero">
-  <div class="hero-bg" aria-hidden="true">
-    <div class="hero-grid"></div>
-    <div class="hero-glow"></div>
-  </div>
-  <span class="eyebrow fu d1"><span class="dot"></span>Getting started</span>
-  <h1 class="hero-h fu d2">Five quick steps and you're <span class="grad">pulling data</span>.</h1>
-  <p class="hero-sub fu d3">Run the installer you just downloaded, point RouteReady at the portal you're syncing, and pull your first report. Takes about three minutes.</p>
+  <div class="hero-bg" aria-hidden="true"><div class="hero-glow"></div></div>
+  <span class="eyebrow fu d1"><span class="dot"></span>Almost there</span>
+  <h1 class="hero-h fu d2">One click left — <span class="grad">open the file</span> your browser just downloaded.</h1>
+  <p class="hero-sub fu d3">RouteReady Desktop installs in a few seconds. When it opens, click your portal — that's it.</p>
 </header>
 
-<div class="dl-banner" id="dl-banner" aria-live="polite">
-  <div class="dl-banner-card">
-    <div class="dl-banner-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-    </div>
-    <div class="dl-banner-text">
-      <strong>Your download is starting</strong><span id="dl-banner-detail"> — check your browser's download bar.</span>
-    </div>
-    <button class="dl-banner-retry" id="dl-banner-retry">Re-trigger</button>
-  </div>
-</div>
-
-<section class="steps-section">
+<section class="action-section">
   <div class="wrap">
-
-    <div class="step fu d1">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <h2>Run the installer</h2>
-        <p>Open the file your browser just downloaded — pick your OS for the exact steps.</p>
-
-        <div class="os-switch" role="tablist">
-          <button data-os="windows" class="active">Windows</button>
-          <button data-os="mac">macOS</button>
-          <button data-os="chromeos">ChromeOS</button>
-          <button data-os="linux">Linux</button>
+    <div class="action-card fu d2">
+      <div class="action-row">
+        <div class="action-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </div>
-
-        <div class="os-block active" data-os="windows">
-          <p>Double-click <code>RouteReady-Desktop.exe</code> in your Downloads folder. Windows will show a blue <strong>"Windows protected your PC"</strong> warning because the installer isn't code-signed yet.</p>
-          <ul>
-            <li>Click <strong>More info</strong> (small link under the warning text).</li>
-            <li>Click <strong>Run anyway</strong>.</li>
-            <li>The installer finishes silently and launches the app.</li>
-          </ul>
+        <div>
+          <div class="action-title" id="action-title">Click the installer your browser just downloaded</div>
+          <div class="action-sub" id="action-sub">Your installer will land in your browser's download bar within a few seconds — click it to install.</div>
         </div>
+      </div>
 
-        <div class="os-block" data-os="mac">
-          <p>Open <code>RouteReady-Desktop.dmg</code>, then drag <strong>RouteReady Desktop</strong> into the <strong>Applications</strong> folder. The first time you launch it, macOS will say <strong>"Apple cannot check it for malicious software"</strong>.</p>
-          <ul>
-            <li>Open <strong>System Settings → Privacy &amp; Security</strong>.</li>
-            <li>Scroll to the bottom — you'll see a note about <em>RouteReady Desktop was blocked</em>.</li>
-            <li>Click <strong>Open Anyway</strong>, then confirm with your password / Touch ID.</li>
-          </ul>
-          <p>Note: this build is for Apple Silicon (M1/M2/M3/M4) only. If you're on an Intel Mac, let us know — we'll cut an x64 build.</p>
-        </div>
+      <div class="dl-progress" id="dl-progress" aria-hidden="true"></div>
+      <div class="dl-status">
+        <div><strong id="dl-status-label">Downloading…</strong> <span id="dl-status-detail">— check your browser's download bar in a moment.</span></div>
+        <button class="retry-btn" id="dl-retry">Restart download</button>
+      </div>
 
-        <div class="os-block" data-os="chromeos">
-          <p>Open the <strong>ChromeOS Files</strong> app, double-click <code>RouteReady-Desktop.deb</code> in your Downloads folder. The Linux installer GUI opens — click <strong>Install</strong>, wait ~30 seconds, and "RouteReady Desktop" shows up in your launcher.</p>
-          <ul>
-            <li>First time only: you'll need <strong>Crostini</strong> (the ChromeOS Linux environment) turned on. <strong>Settings → About ChromeOS → Developers → Linux development environment → Set up</strong> if you haven't.</li>
-            <li>If double-click doesn't work, right-click the .deb and choose <strong>Install with Linux</strong>.</li>
-          </ul>
-        </div>
+      <div class="os-switch" role="tablist">
+        <button data-os="chromeos">ChromeOS</button>
+        <button data-os="windows">Windows</button>
+        <button data-os="mac">macOS</button>
+        <button data-os="linux">Linux</button>
+      </div>
 
-        <div class="os-block" data-os="linux">
-          <p>Make the AppImage executable and run it:</p>
-          <ul>
-            <li>Open a terminal in the folder where the file landed.</li>
-            <li><code>chmod +x RouteReady-Desktop.AppImage</code></li>
-            <li><code>./RouteReady-Desktop.AppImage</code></li>
-          </ul>
+      <div class="os-block" data-os="chromeos">
+        <p><strong>Open the ChromeOS Files app.</strong> Double-click <code>RouteReady-Desktop.deb</code> in your Downloads folder — the Linux installer GUI opens, click <strong>Install</strong>, and RouteReady Desktop appears in your launcher within ~30 seconds. (First time: Crostini must be enabled — Settings → About ChromeOS → Developers → Linux.)</p>
+      </div>
+
+      <div class="os-block" data-os="windows">
+        <p>The installer shows at the bottom of your browser. <strong>Click it.</strong> When Windows says "Windows protected your PC", click <strong>More info → Run anyway</strong>. Setup finishes silently and RouteReady Desktop opens.</p>
+      </div>
+
+      <div class="os-block" data-os="mac">
+        <p>Open <code>RouteReady-Desktop.dmg</code> from your Downloads. Drag <strong>RouteReady Desktop</strong> to Applications, then <strong>right-click → Open</strong> the first time (Gatekeeper). The app launches.</p>
+      </div>
+
+      <div class="os-block" data-os="linux">
+        <p>Run <code>chmod +x RouteReady-Desktop.AppImage</code> and double-click the AppImage.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="preview-section">
+  <div class="wrap">
+    <div class="preview-card fu d3">
+      <div class="preview-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Next, when the app opens
+      </div>
+      <div class="preview-h">You'll see two big buttons. Click your portal.</div>
+      <p class="preview-p">No URL to type, no settings to configure. Pick Indeed or Amazon DSP, sign in like normal, and you're done.</p>
+      <div class="app-mock" aria-hidden="true">
+        <div class="app-mock-title">Welcome — let's sign you in</div>
+        <div class="app-mock-sub">Pick the portal you're syncing. RouteReady opens a secure browser window. You sign in like normal — your password stays with you.</div>
+        <div class="app-mock-grid">
+          <div class="app-mock-btn">
+            <div class="app-mock-btn-title">Sign in to Indeed</div>
+            <div class="app-mock-btn-sub">employers.indeed.com</div>
+          </div>
+          <div class="app-mock-btn">
+            <div class="app-mock-btn-title">Sign in to Amazon DSP</div>
+            <div class="app-mock-btn-sub">logistics.amazon.com</div>
+          </div>
         </div>
       </div>
     </div>
-
-    <div class="step fu d2">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <h2>Tell RouteReady which portal you're using</h2>
-        <p>The app opens to three numbered cards. In <strong>section 1</strong>, paste the Portal URL for whatever you're syncing — the field saves automatically as you type.</p>
-        <div class="portal-chips">
-          <span class="portal-chip" data-portal="indeed">
-            <strong>Indeed</strong> https://employers.indeed.com/
-            <button class="copy-btn" data-copy="https://employers.indeed.com/">Copy</button>
-          </span>
-          <span class="portal-chip" data-portal="amazon">
-            <strong>Amazon DSP</strong> https://logistics.amazon.com/
-            <button class="copy-btn" data-copy="https://logistics.amazon.com/">Copy</button>
-          </span>
-        </div>
-        <p>Using something else? Paste any portal URL — the app's portal-agnostic.</p>
-      </div>
-    </div>
-
-    <div class="step fu d2">
-      <div class="step-num">3</div>
-      <div class="step-body">
-        <h2>Sign in once</h2>
-        <p>Click <strong>Open portal &amp; sign in</strong>. A second browser window opens at the portal you configured. Sign in with your normal credentials and MFA — RouteReady never sees or stores your password.</p>
-        <p>Back in RouteReady Desktop, click <strong>I'm signed in</strong>. The status pill in the top-right flips to <strong>Session saved</strong> and your session is encrypted to disk via the OS keychain.</p>
-        <p>Optional: hit <strong>Probe portal</strong> in section 2 to confirm the cached session is working.</p>
-      </div>
-    </div>
-
-    <div class="step fu d3">
-      <div class="step-num">4</div>
-      <div class="step-body">
-        <h2>Download a report</h2>
-        <p>In <strong>section 3</strong>, paste the URL of the report or file you want to grab. Two flavors:</p>
-        <ul>
-          <li><strong>Direct file URL</strong> — leave the click selector blank. The app navigates with your saved session, the file downloads automatically.</li>
-          <li><strong>Page URL + click selector</strong> — useful when the file sits behind an Export button. In <strong>Click selector</strong>, paste a CSS selector for the button (e.g. <code>button[aria-label="Export"]</code>).</li>
-        </ul>
-        <p>Click <strong>Download</strong>. The file lands in your OS Downloads folder (or wherever you picked) and shows up in the Recent downloads list with a <strong>Show in folder</strong> link.</p>
-      </div>
-    </div>
-
-    <div class="step fu d3">
-      <div class="step-num">5</div>
-      <div class="step-body">
-        <h2>That's it</h2>
-        <p>From now on, the app reuses the saved session — no re-signing in unless it expires. Run a sync whenever you want fresh data. Coming soon: scheduled syncs, automatic upload into RouteReady, and named report shortcuts.</p>
-      </div>
-    </div>
-
   </div>
 </section>
 
 <section class="cta-section">
   <div class="wrap">
     <div class="cta-card">
-      <div class="cta-h">Stuck?</div>
-      <p class="cta-p">If the installer won't run, the portal won't sign in, or a download fails — let us know exactly what you see and we'll get you unstuck.</p>
+      <div class="cta-h">Don't see the download?</div>
+      <p class="cta-p">If your browser blocked it or it never appeared, restart the download or grab the installer from the download page.</p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="mailto:support@gorouteready.com?subject=RouteReady%20Desktop%20setup">Email support</a>
-        <a class="btn" style="background:var(--surface);border-color:var(--border-strong);color:var(--text)" href="/download">Re-download installer</a>
+        <button class="btn btn-primary" id="cta-retry">Restart download</button>
+        <a class="btn btn-secondary" href="/download">Back to download</a>
+        <a class="btn btn-secondary" href="mailto:support@gorouteready.com?subject=RouteReady%20Desktop%20setup">Email support</a>
       </div>
     </div>
   </div>
@@ -320,45 +283,38 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-si
 document.getElementById('yr').textContent = new Date().getFullYear();
 
 (function () {
-  // Auto-pick the right OS tab based on the visitor's UA.
+  // ─── UA-driven OS tab ─────────────────────────────────────────────
   const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
   const ua = navigator.userAgent.toLowerCase();
   let os = 'windows';
   if (platform.includes('mac') || ua.includes('mac os')) os = 'mac';
   else if (ua.includes('cros')) os = 'chromeos';
   else if (platform.includes('linux') || ua.includes('linux')) os = 'linux';
-  setOs(os);
 
   function setOs(target) {
-    document.querySelectorAll('.os-switch button').forEach(b => {
-      b.classList.toggle('active', b.dataset.os === target);
-    });
-    document.querySelectorAll('.os-block').forEach(blk => {
-      blk.classList.toggle('active', blk.dataset.os === target);
-    });
+    document.querySelectorAll('.os-switch button').forEach(b => b.classList.toggle('active', b.dataset.os === target));
+    document.querySelectorAll('.os-block').forEach(b => b.classList.toggle('active', b.dataset.os === target));
   }
-
+  setOs(os);
   document.querySelectorAll('.os-switch button').forEach(b => {
     b.addEventListener('click', () => setOs(b.dataset.os));
   });
 
-  // ─── Auto-download when ?dl= is set ───────────────────────────────
-  // download.html navigates here with ?dl=<os> when the visitor clicks
-  // a Download button. We pop the installer download immediately so the
-  // file arrives while they're reading the instructions — and surface
-  // a banner so they know to check the download bar.
+  // ─── Per-OS file-name labels ──────────────────────────────────────
+  const FILE_NAMES = {
+    windows: 'RouteReady-Desktop.exe',
+    mac: 'RouteReady-Desktop.dmg',
+    linux: 'RouteReady-Desktop.AppImage',
+    chromeos: 'RouteReady-Desktop.deb',
+  };
+
+  // ─── Trigger the actual installer download ────────────────────────
   const BASE = 'https://github.com/rrhester/routeready/releases/latest/download';
   const DL_URLS = {
-    windows:  `${BASE}/RouteReady-Desktop.exe`,
-    mac:      `${BASE}/RouteReady-Desktop.dmg`,
-    linux:    `${BASE}/RouteReady-Desktop.AppImage`,
+    windows: `${BASE}/RouteReady-Desktop.exe`,
+    mac: `${BASE}/RouteReady-Desktop.dmg`,
+    linux: `${BASE}/RouteReady-Desktop.AppImage`,
     chromeos: `${BASE}/RouteReady-Desktop.deb`,
-  };
-  const OS_NAMES = {
-    windows: 'Windows installer (.exe)',
-    mac: 'macOS installer (.dmg)',
-    linux: 'Linux AppImage',
-    chromeos: 'ChromeOS .deb package',
   };
 
   function triggerDownload(dlKey) {
@@ -374,40 +330,45 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     return true;
   }
 
+  // ─── Read ?dl= from URL; fall back to detected OS ─────────────────
   const params = new URLSearchParams(window.location.search);
-  const dl = params.get('dl');
-  if (dl && DL_URLS[dl]) {
-    const banner = document.getElementById('dl-banner');
-    const detail = document.getElementById('dl-banner-detail');
-    if (detail && OS_NAMES[dl]) detail.textContent = ` — ${OS_NAMES[dl]}. Check your browser's download bar.`;
-    if (banner) banner.classList.add('show');
-    // Defer to give the page a paint pass so the banner is visible
-    // before the browser's download UI fires.
-    setTimeout(() => triggerDownload(dl), 200);
-    // Manual re-trigger if the download was blocked or missed.
-    const retry = document.getElementById('dl-banner-retry');
-    if (retry) retry.addEventListener('click', () => triggerDownload(dl));
-    // Also: pre-select the matching OS tab in step 1 so the install
-    // instructions match what they just downloaded.
-    const osTab = dl === 'chromeos' ? 'chromeos' : dl;
-    setOs(osTab);
-  }
+  const dl = (params.get('dl') || os);
+  const fname = FILE_NAMES[dl] || FILE_NAMES.windows;
 
-  // Copy-to-clipboard for portal URL chips.
-  document.querySelectorAll('.copy-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const val = btn.getAttribute('data-copy');
-      try {
-        await navigator.clipboard.writeText(val);
-        const orig = btn.textContent;
-        btn.textContent = 'Copied';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1400);
-      } catch {
-        btn.textContent = 'Copy failed';
-      }
-    });
-  });
+  // Personalize the headline + status with the actual filename
+  const subEl = document.getElementById('action-sub');
+  if (subEl) {
+    subEl.innerHTML = `Look for <code>${fname}</code> in your browser's download bar in a few seconds. <strong>Click it</strong> to install — RouteReady opens automatically when it's done.`;
+  }
+  const statusDetail = document.getElementById('dl-status-detail');
+  if (statusDetail) statusDetail.textContent = `— ${fname}`;
+
+  // Make sure the right OS tab is on for the chosen download
+  if (FILE_NAMES[dl]) setOs(dl);
+
+  // Kick off the download itself with a tiny delay so the page paints first
+  let downloaded = false;
+  function doTrigger() {
+    if (triggerDownload(dl)) {
+      downloaded = true;
+      // After ~25s, mark the progress bar "complete" so the page reflects
+      // that the file is most likely ready.  We can't actually detect
+      // the browser's download progress, but this gives a sense of completion.
+      setTimeout(() => {
+        const bar = document.getElementById('dl-progress');
+        if (bar) bar.classList.add('done');
+        const label = document.getElementById('dl-status-label');
+        if (label) label.textContent = 'Ready to install';
+        const detail = document.getElementById('dl-status-detail');
+        if (detail) detail.textContent = `— click ${fname} in your download bar.`;
+      }, 25000);
+    }
+  }
+  setTimeout(doTrigger, 200);
+
+  // Re-trigger buttons (banner + CTA)
+  document.getElementById('dl-retry')?.addEventListener('click', () => triggerDownload(dl));
+  document.getElementById('cta-retry')?.addEventListener('click', () => triggerDownload(dl));
 })();
 </script>
 
