@@ -2458,10 +2458,48 @@ async function renderTeam() {
   const callIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
   const textIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
+  // Pre-compute a lowercased search index per driver so each keystroke
+  // is just a substring match — fine for the few-hundred drivers a
+  // single DSP runs. Phone digits are stripped so a query like "555"
+  // still matches "(417) 555-0100".
+  const indexed = list.map((d) => ({
+    d,
+    s: [
+      (d.name || ""), (d.full_name || ""),
+      (d.phone || "").replace(/[^0-9+]/g, ""),
+      (d.station_code || ""),
+    ].join(" ").toLowerCase(),
+  }));
+
   main.innerHTML = `
-    <div class="team-list" role="list">
+    <div class="team-search">
+      <svg class="team-search-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="team-search-input" class="team-search-input" type="search" placeholder="Search ${list.length} teammates…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="search" />
+    </div>
+    <div class="team-list" id="team-list" role="list">
       ${list.map((d) => _teamRowHtml(d, callIcon, textIcon)).join("")}
+    </div>
+    <div class="team-empty team-empty-nomatch" id="team-nomatch" hidden>
+      <div class="team-empty-title">No matches</div>
+      <div class="team-empty-sub">Try part of a name, station code, or phone number.</div>
     </div>`;
+
+  const input = document.getElementById("team-search-input");
+  const listEl = document.getElementById("team-list");
+  const noMatch = document.getElementById("team-nomatch");
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    indexed.forEach((row, i) => {
+      const hit = !q || row.s.includes(q);
+      const node = listEl.children[i];
+      if (!node) return;
+      node.hidden = !hit;
+      if (hit) shown++;
+    });
+    listEl.hidden = shown === 0;
+    noMatch.hidden = shown !== 0;
+  });
 }
 
 function _teamRowHtml(d, callIcon, textIcon) {

@@ -1423,6 +1423,28 @@ select.field{
    The whole row is the tel: hit target so the call button is more of a
    visual affordance than a separate control.  Rows with no phone on
    file render as informational (no link, dimmed button slot). */
+/* Sticky search bar at the top of the Team tab. Sits inside #main's
+   scroll container so it pins to the top of the visible list as the
+   driver scrolls a long roster. Uses the same iOS-style "search field
+   in a soft pill" treatment as native contacts. */
+.team-search{
+  position:sticky;top:0;z-index:2;
+  display:flex;align-items:center;gap:8px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:8px 14px;
+  margin-bottom:var(--s-2);
+}
+.team-search-ic{ color:var(--text-subtle); flex:0 0 auto }
+.team-search-input{
+  flex:1;min-width:0;
+  appearance:none;background:transparent;border:0;outline:0;
+  font:inherit;font-size:var(--fs-md);color:var(--text);
+  padding:2px 0;
+}
+.team-search-input::placeholder{ color:var(--text-subtle) }
+.team-empty-nomatch{padding:40px var(--s-4)}
 .team-list{display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-xl);overflow:hidden;border:1px solid var(--border);margin-top:var(--s-2)}
 .team-row{
   display:flex;align-items:center;gap:var(--s-3);
