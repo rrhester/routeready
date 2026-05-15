@@ -2456,14 +2456,15 @@ async function renderTeam() {
   }
 
   const callIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+  const textIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
   main.innerHTML = `
     <div class="team-list" role="list">
-      ${list.map((d) => _teamRowHtml(d, callIcon)).join("")}
+      ${list.map((d) => _teamRowHtml(d, callIcon, textIcon)).join("")}
     </div>`;
 }
 
-function _teamRowHtml(d, callIcon) {
+function _teamRowHtml(d, callIcon, textIcon) {
   const name    = d.name || d.full_name || "—";
   const initials = initialsOf(name);
   const photo   = d.photo_path ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${d.photo_path}` : null;
@@ -2477,15 +2478,17 @@ function _teamRowHtml(d, callIcon) {
   const phone = (d.phone || "").trim();
   if (phone) {
     const href = phone.replace(/[^0-9+]/g, "");
+    const safe = escapeHtml(name);
     return `
-      <a class="team-row" href="tel:${escapeHtml(href)}" role="listitem" aria-label="Call ${escapeHtml(name)}">
+      <div class="team-row" role="listitem">
         ${avatar}
         <div class="team-row-body">
-          <div class="team-row-name">${escapeHtml(name)}</div>
+          <div class="team-row-name">${safe}</div>
           <div class="team-row-meta">${meta || escapeHtml(phone)}</div>
         </div>
-        <span class="team-call" aria-hidden="true">${callIcon}</span>
-      </a>`;
+        <a class="team-action team-text" href="sms:${escapeHtml(href)}" aria-label="Text ${safe}" title="Text ${safe}">${textIcon}</a>
+        <a class="team-action team-call" href="tel:${escapeHtml(href)}" aria-label="Call ${safe}" title="Call ${safe}">${callIcon}</a>
+      </div>`;
   }
   return `
     <div class="team-row team-row-noPhone" role="listitem">
@@ -2494,7 +2497,7 @@ function _teamRowHtml(d, callIcon) {
         <div class="team-row-name">${escapeHtml(name)}</div>
         <div class="team-row-meta">${meta || "No phone on file"}</div>
       </div>
-      <span class="team-call team-call-disabled" aria-hidden="true">—</span>
+      <span class="team-action team-call-disabled" aria-hidden="true">—</span>
     </div>`;
 }
 
