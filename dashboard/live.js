@@ -32143,13 +32143,18 @@ document.addEventListener("click", async (e) => {
   }
   function _typeLabel(kind){
     return {
-      grounded_no_ro:      "No active RO",
-      repair_14bd_overdue: "Repair past 14 BD",
-      grounded_vehicle:    "Grounded vehicle",
-      cure_deadline:       "Cure deadline",
-      vendor_stall:        "Vendor delay",
-      fmcsa_mcs150:        "FMCSA / MCS-150",
-      driver_no_van:       "Driver · no van"
+      grounded_no_ro:              "No active RO",
+      repair_14bd_overdue:         "Repair past 14 BD",
+      grounded_vehicle:            "Grounded vehicle",
+      cure_deadline:               "Cure deadline",
+      vendor_stall:                "Vendor delay",
+      fmcsa_mcs150:                "FMCSA / MCS-150",
+      fmcsa_mcs150_overdue:        "MCS-150 overdue",
+      fmcsa_mcs150_upcoming:       "MCS-150 approaching",
+      fmcsa_cmv_classification:    "Vehicle classification",
+      fmcsa_operating_status:      "FMCSA operating status",
+      fmcsa_fleet_count_mismatch:  "Fleet count mismatch",
+      driver_no_van:               "Driver · no van"
     }[kind] || "Risk";
   }
 
@@ -32361,6 +32366,119 @@ document.addEventListener("click", async (e) => {
         "If you want a specific van, open Today's Plan and click the van cell on that driver's row",
         "Severity flips to red ≤ 48 hours before the shift; act sooner when possible"
       ]
+    },
+
+    // ── FMCSA · MCS-150 monitoring (migration 0241) ────────────────
+    // Language is deliberately non-authoritative: "RouteReady
+    // detected", "review recommended", etc.  The recommended actions
+    // point at FMCSA's portal — RouteReady is not the system of
+    // record for filings.
+    fmcsa_mcs150_overdue: {
+      standard: "FMCSA · MCS-150 biennial filing",
+      rule: "MCS-150 must be filed biennially.  The next filing month is determined by the last digit of the USDOT; the year (odd/even) is determined by the second-to-last digit.  Once that date has passed without a recorded update, RouteReady considers the public record overdue.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const due = m.next_due_at ? new Date(m.next_due_at) : null;
+        const days = (typeof m.days_until_due === "number") ? m.days_until_due : null;
+        return [
+          ["USDOT",          m.usdot || "—"],
+          ["Next due",       due ? _coFmtDateTime(due) : "—"],
+          ["Status",         days != null && days < 0 ? `Overdue by ${Math.abs(days)} day${Math.abs(days)===1?"":"s"}` : "—"],
+          ["Source",         m.source || "FMCSA SAFER"],
+          ["Detected",       m.detected_at ? _coFmtDateTime(new Date(m.detected_at)) : "—"]
+        ];
+      },
+      why: m => "RouteReady detected that the calculated MCS-150 biennial deadline has passed without a recorded SAFER update.  Lapsed filings can compound into operating-authority issues and Amazon-DSP contractual exposure.",
+      actions: [
+        "Open the FMCSA Portal (https://portal.fmcsa.dot.gov) and review the MCS-150 record",
+        "File or update MCS-150 with current operations data",
+        "Confirm the update appears on the public SAFER profile",
+        "Mark this exception dismissed once the public record reflects the new filing"
+      ]
+    },
+
+    fmcsa_mcs150_upcoming: {
+      standard: "FMCSA · MCS-150 biennial filing",
+      rule: "RouteReady calculates the next MCS-150 biennial filing window from the USDOT digits and surfaces it inside 60 days so the DSP has time to prepare.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        const due = m.next_due_at ? new Date(m.next_due_at) : null;
+        return [
+          ["USDOT",          m.usdot || "—"],
+          ["Next due",       due ? _coFmtDateTime(due) : "—"],
+          ["Days remaining", m.days_until_due != null ? `${m.days_until_due} day${m.days_until_due===1?"":"s"}` : "—"],
+          ["Source",         m.source || "FMCSA SAFER"]
+        ];
+      },
+      why: "RouteReady detected that the next MCS-150 filing falls within the next 60 days.  Filing early avoids overdue exposure if anything else is mid-flight.",
+      actions: [
+        "Open the FMCSA Portal and review the MCS-150 record",
+        "Reconcile the declared CMV vs Non-CMV counts against your live fleet roster",
+        "File or update MCS-150 ahead of the deadline",
+        "Confirm the update appears on SAFER"
+      ]
+    },
+
+    fmcsa_cmv_classification: {
+      standard: "FMCSA · MCS-150 · vehicle classification",
+      rule: "MCS-150 separates Commercial Motor Vehicles (CMVs) from Non-CMVs.  Amazon-DSP cargo-van operations are typically Non-CMV; a CMV count > 0 on a Non-CMV profile may indicate a filing classification mismatch.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        return [
+          ["USDOT",                 m.usdot || "—"],
+          ["Public CMV count",      m.public_cmv_count != null ? String(m.public_cmv_count) : "—"],
+          ["Expected (Amazon DSP)", "0"],
+          ["Source",                m.source || "FMCSA SAFER / MCS-150"]
+        ];
+      },
+      why: "RouteReady detected that the DSP's public FMCSA registration lists one or more CMVs.  This is a possible classification mismatch that can attract FMCSA-side scrutiny and ripple into Amazon's operational audits.",
+      actions: [
+        "Review the MCS-150 filing on the FMCSA portal",
+        "Confirm vehicle classification accuracy against official FMCSA records",
+        "If the count is incorrect, file an MCS-150 correction"
+      ]
+    },
+
+    fmcsa_operating_status: {
+      standard: "FMCSA · SAFER operating authority",
+      rule: "An active FMCSA operating status is required to operate.  Any deviation from \"Active\" (out-of-service, de-authorized, rating change) is a critical-severity signal.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        return [
+          ["USDOT",         m.usdot || "—"],
+          ["Public status", m.public_operating_status || "—"],
+          ["Expected",      "Active"],
+          ["Source",        m.source || "FMCSA SAFER"]
+        ];
+      },
+      why: "RouteReady observed that the public FMCSA operating status is not \"Active\".  This can block dispatch immediately and should be confirmed against the FMCSA portal before continuing operations.",
+      actions: [
+        "Open the SAFER public profile and confirm the status",
+        "If the status is incorrect, contact FMCSA to address the discrepancy",
+        "If correct, pause schedule publishing until authority is restored"
+      ]
+    },
+
+    fmcsa_fleet_count_mismatch: {
+      standard: "FMCSA · MCS-150 fleet declaration",
+      rule: "The fleet size declared on MCS-150 should reflect the carrier's actual operating fleet.  Significant differences between the FMCSA-public count and the DSP's live RouteReady roster may indicate stale filing data.",
+      specifics: (risk) => {
+        const m = risk.meta || {};
+        return [
+          ["USDOT",                  m.usdot || "—"],
+          ["Public fleet (SAFER)",   m.public_fleet_total != null ? String(m.public_fleet_total) : "—"],
+          ["RouteReady fleet",       m.routeready_fleet_count != null ? String(m.routeready_fleet_count) : "—"],
+          ["Expected",               m.expected_fleet_count != null ? String(m.expected_fleet_count) : "—"],
+          ["Delta",                  m.pct_delta != null ? `${m.pct_delta}%` : "—"],
+          ["Source",                 m.source || "FMCSA SAFER · RouteReady fleet roster"]
+        ];
+      },
+      why: "RouteReady detected a possible mismatch between the FMCSA-public fleet count and the live RouteReady roster.  This may indicate that the MCS-150 needs an update; review before it draws audit attention.",
+      actions: [
+        "Open the FMCSA Portal and review the MCS-150 fleet count",
+        "Reconcile against the active RouteReady fleet roster",
+        "File a MCS-150 update if the public count is stale"
+      ]
     }
   };
   function _subjectCell(risk){
@@ -32464,19 +32582,98 @@ document.addEventListener("click", async (e) => {
       </div>`;
   }
 
-  // ── Rules tab · monitor registry ─────────────────────────────────
+  // ── FMCSA · setup form + monitor table (within the Rules tab) ────
+  // Renders the operator-entered DSP identification fields and the
+  // five-monitor table that maps directly to the bundle's
+  // fmcsa_monitors array.  Language is deliberately non-authoritative
+  // and a disclaimer is rendered at the bottom.
+  function _coFmcsaSetupCard(bundle){
+    const f = bundle.fmcsa || {};
+    const legal      = _esc(f.legal_name           || "");
+    const usdot      = _esc(f.usdot                || "");
+    const mc         = _esc(f.mc_number            || "");
+    const expected   = f.expected_fleet_count != null ? String(f.expected_fleet_count) : "";
+    const lastChk    = f.last_checked_at ? _ago(f.last_checked_at) : "never";
+    const safer      = f.safer_last_sync_at ? _ago(f.safer_last_sync_at) : "never";
+    return `
+      <section class="co-fmcsa">
+        <header class="co-fmcsa-h">
+          <div>
+            <div class="co-fmcsa-eyebrow">FMCSA · MCS-150 monitoring</div>
+            <h3 class="co-fmcsa-t">DSP identification</h3>
+            <p class="co-fmcsa-sub">Used by RouteReady to monitor public FMCSA / SAFER data for this DSP. RouteReady does not file on your behalf — confirm everything against the FMCSA portal.</p>
+          </div>
+          <div class="co-fmcsa-meta">
+            <div><span>Last SAFER sync</span><b>${_esc(safer)}</b></div>
+            <div><span>Last RouteReady check</span><b>${_esc(lastChk)}</b></div>
+          </div>
+        </header>
+        <form class="co-fmcsa-form" data-co-fmcsa-form>
+          <label><span>DSP legal name</span><input name="legal_name" type="text" value="${legal}" maxlength="200" placeholder="Cardinal Logistics, LLC"></label>
+          <label><span>USDOT number</span><input name="usdot" type="text" value="${usdot}" maxlength="20" placeholder="3819442" inputmode="numeric"></label>
+          <label><span>MC number <em>(optional)</em></span><input name="mc_number" type="text" value="${mc}" maxlength="20" placeholder="MC-—"></label>
+          <label><span>Expected RouteReady fleet count</span><input name="expected_fleet_count" type="number" min="0" step="1" value="${expected}" placeholder="0"></label>
+          <div class="co-fmcsa-form-foot">
+            <button type="submit" class="co-action">Save</button>
+            <button type="button" class="co-action" data-co-fmcsa-refresh>Refresh from SAFER</button>
+          </div>
+        </form>
+      </section>`;
+  }
+
+  function _coFmcsaMonitorTable(bundle){
+    const rows = Array.isArray(bundle.fmcsa_monitors) ? bundle.fmcsa_monitors : [];
+    if (!rows.length) {
+      return `<section class="co-fmcsa-mons"><h4 class="co-fmcsa-mons-h">FMCSA monitoring</h4>
+        <div class="co-empty" style="min-height:120px;padding:24px 16px"><p>Enter your USDOT number above to begin FMCSA / SAFER monitoring.</p></div></section>`;
+    }
+    const statePill = (s) => {
+      if (s === "crit")     return '<span class="co-pill crit"><span class="dot"></span>Alerting</span>';
+      if (s === "alerting") return '<span class="co-pill high"><span class="dot"></span>Alerting</span>';
+      if (s === "watching") return '<span class="co-pill med"><span class="dot"></span>Watching</span>';
+      if (s === "unknown")  return '<span class="co-pill"><span class="dot"></span>Unknown</span>';
+      return '<span class="co-pill good"><span class="dot"></span>Healthy</span>';
+    };
+    return `
+      <section class="co-fmcsa-mons">
+        <h4 class="co-fmcsa-mons-h">FMCSA monitoring</h4>
+        <div class="co-table-wrap">
+          <table class="co-table">
+            <thead><tr>
+              <th>Check</th>
+              <th>Status</th>
+              <th>Current public value</th>
+              <th>Expected</th>
+              <th>Next due</th>
+              <th>Last checked</th>
+              <th>Automation</th>
+            </tr></thead>
+            <tbody>${rows.map(m => `
+              <tr>
+                <td><b>${_esc(m.check || "")}</b></td>
+                <td>${statePill(m.status)}</td>
+                <td>${_esc(m.current_value || "—")}</td>
+                <td>${_esc(m.expected_value || "—")}</td>
+                <td>${m.next_due_at ? _esc(new Date(m.next_due_at).toLocaleDateString()) : "—"}</td>
+                <td>${m.last_checked_at ? _esc(_ago(m.last_checked_at)) : "—"}</td>
+                <td><span class="co-cap auto">${_esc(m.automation || "auto-review")}</span></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function _coComplianceDisclaimer(){
+    return `<p class="co-disclaimer">RouteReady monitors public FMCSA data to help identify potential operational compliance risks. DSPs should confirm all information against official FMCSA records.</p>`;
+  }
+
+  // ── Rules tab · FMCSA setup + monitor table + generic monitor list
   function _renderRules(host, monitors){
     if (!host) return;
+    const bundle = window[_coStateKey] || {};
     const list = Array.isArray(monitors) ? monitors : [];
-    if (!list.length) {
-      host.innerHTML = `
-        <div class="co-empty">
-          <h3>No monitors configured</h3>
-          <p>The default monitor pack hasn't been seeded for this DSP yet. Run a compliance sweep to populate it.</p>
-        </div>`;
-      return;
-    }
-    host.innerHTML = `<div class="co-rules-list">${list.map(m => {
+    const monitorCards = list.map(m => {
       const stateCls = m.state === "crit" ? "crit" : m.state === "alerting" ? "alerting" : m.state === "paused" ? "paused" : "";
       const capCls = m.automation === "auto" ? "auto" : m.automation === "escalate" ? "escalate" : m.automation === "review" ? "review" : "";
       const statePill =
@@ -32501,8 +32698,61 @@ document.addEventListener("click", async (e) => {
             ${m.automation ? `<span class="co-cap ${capCls}">${_esc(m.automation)}</span>` : ""}
           </div>
         </article>`;
-    }).join("")}</div>`;
+    }).join("");
+
+    host.innerHTML = `
+      ${_coFmcsaSetupCard(bundle)}
+      ${_coFmcsaMonitorTable(bundle)}
+      ${list.length ? `<section class="co-fmcsa-mons" style="margin-top:24px">
+        <h4 class="co-fmcsa-mons-h">All monitors</h4>
+        <div class="co-rules-list">${monitorCards}</div>
+      </section>` : ""}
+      ${_coComplianceDisclaimer()}
+    `;
   }
+
+  // ── FMCSA form save + manual SAFER refresh ───────────────────────
+  document.addEventListener("submit", async (e) => {
+    const f = e.target && e.target.closest && e.target.closest("[data-co-fmcsa-form]");
+    if (!f) return;
+    e.preventDefault();
+    const fd = new FormData(f);
+    const expected = fd.get("expected_fleet_count");
+    const args = {
+      p_legal_name:           (fd.get("legal_name") || "").toString().trim() || null,
+      p_usdot:                (fd.get("usdot") || "").toString().trim() || null,
+      p_mc_number:            (fd.get("mc_number") || "").toString().trim() || null,
+      p_expected_fleet_count: expected !== "" && expected != null ? parseInt(expected, 10) : null
+    };
+    const { error } = await sb.rpc("fmcsa_record_save", args);
+    if (error) { toast("Couldn't save FMCSA record: " + (error.message || "try again"), "warn"); return; }
+    toast("FMCSA record saved");
+    if (typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
+  });
+  document.addEventListener("click", async (e) => {
+    const btn = e.target && e.target.closest && e.target.closest("[data-co-fmcsa-refresh]");
+    if (!btn) return;
+    e.preventDefault();
+    // Placeholder for the future auto-fetcher (Supabase Edge Function
+    // on pg_cron).  For now, prompt the operator for the latest SAFER
+    // values they looked up manually.
+    const cmv     = prompt("CMV count (from SAFER)");
+    if (cmv === null) return;
+    const nonCmv  = prompt("Non-CMV count (from SAFER)") || "";
+    const total   = prompt("Total fleet (from SAFER)")   || "";
+    const status  = prompt("Operating status (e.g. ACTIVE)") || "";
+    const last    = prompt("MCS-150 last update date · YYYY-MM-DD") || "";
+    const { error } = await sb.rpc("fmcsa_safer_record_observation", {
+      p_operating_status:   status ? status.trim() : null,
+      p_cmv_count:          cmv    ? parseInt(cmv, 10)    : null,
+      p_non_cmv_count:      nonCmv ? parseInt(nonCmv, 10) : null,
+      p_fleet_total:        total  ? parseInt(total, 10)  : null,
+      p_mcs150_last_update: last && /^\d{4}-\d{2}-\d{2}$/.test(last) ? last : null
+    });
+    if (error) { toast("Couldn't record SAFER values: " + (error.message || "try again"), "warn"); return; }
+    toast("SAFER observation recorded");
+    if (typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
+  });
 
   // ── Row modal · Amazon rule + cure steps ──────────────────────────
   // Centered modal (NOT a side drawer) that opens on row click.  Shows
