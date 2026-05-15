@@ -2545,7 +2545,7 @@ async function _submitBulkDrivers() {
   if (resEl) {
     const failedRows = rows.filter((r) => !r.ok);
     resEl.innerHTML = `
-      <div style="background:${inserted > 0 ? "var(--green-soft)" : "var(--canvas)"};border:1px solid ${inserted > 0 ? "rgba(5,150,105,.20)" : "var(--border)"};border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--fs-sm);line-height:1.5">
+      <div style="background:${inserted > 0 ? "var(--green-soft)" : "var(--canvas)"};border:1px solid ${inserted > 0 ? "rgba(16,185,129,.20)" : "var(--border)"};border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--fs-sm);line-height:1.5">
         <div style="font-weight:700;color:${inserted > 0 ? "var(--green-dark)" : "var(--text)"};margin-bottom:6px">Import complete</div>
         <div style="color:var(--text-muted)">
           ✅ ${inserted} created
@@ -9088,7 +9088,7 @@ async function _tpOpenVanPicker(anchorEl) {
       #rr-tp-vp-pop .vp-row .nm .s{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
       #rr-tp-vp-pop .vp-tag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:var(--r-md);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
       #rr-tp-vp-pop .vp-tag.current{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
-      #rr-tp-vp-pop .vp-tag.taken{background:var(--amber-soft);color:var(--amber-dark);border:1px solid rgba(217,119,6,.18)}
+      #rr-tp-vp-pop .vp-tag.taken{background:var(--amber-soft);color:var(--amber-dark);border:1px solid rgba(245,158,11,.18)}
       #rr-tp-vp-pop .vp-foot{padding:9px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between}
       #rr-tp-vp-pop .vp-foot .btn{font-size:var(--fs-sm)}
     </style>
@@ -12636,7 +12636,7 @@ function renderAvailabilityTab(body, d, record) {
   let stateBanner = "";
   if (pending) {
     stateBanner = `
-      <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--amber-soft);border:1px solid rgba(217,119,6,.2);font-size:var(--fs-sm);color:var(--amber);line-height:1.5">
+      <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--amber-soft);border:1px solid rgba(245,158,11,.2);font-size:var(--fs-sm);color:var(--amber);line-height:1.5">
         <strong>Driver requested a change</strong> — ${escapeHtml(fmtDays(pending.days))}${pendStart}.
         Awaiting your decision in Drivers → Availability.
       </div>`;
@@ -12652,7 +12652,7 @@ function renderAvailabilityTab(body, d, record) {
   } else if (latest && latest.status === "approved" && latest.effective_until && latest.effective_until >= todayIso) {
     // Currently in effect.
     stateBanner = `
-      <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--green-soft);border:1px solid rgba(5,150,105,.2);font-size:var(--fs-sm);color:var(--green);line-height:1.5">
+      <div style="margin-bottom:var(--s-3);padding:8px 12px;border-radius:var(--r-md);background:var(--green-soft);border:1px solid rgba(16,185,129,.2);font-size:var(--fs-sm);color:var(--green);line-height:1.5">
         Current availability is from an approved request, in effect through ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}.
       </div>`;
   }
@@ -23674,7 +23674,7 @@ function _rrRiskPill(driverId) {
   if (!r || (r.label !== "high" && r.label !== "moderate")) return "";
   const tone = r.label === "high"
     ? { fg: "var(--red)",        bg: "var(--red-soft)",   border: "rgba(225,29,72,.20)" }
-    : { fg: "var(--amber-dark)", bg: "var(--amber-soft)", border: "rgba(217,119,6,.20)" };
+    : { fg: "var(--amber-dark)", bg: "var(--amber-soft)", border: "rgba(245,158,11,.20)" };
   const label = r.label === "high" ? "High no-show risk" : "Watch list";
   const title = `${r.incidents} incident${r.incidents === 1 ? "" : "s"} in last ${r.total} shifts (${r.rate_pct}%)`;
   return `<span title="${escapeHtml(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:var(--r-lg);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${tone.bg};color:${tone.fg};border:1px solid ${tone.border};white-space:nowrap"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${escapeHtml(label)}</span>`;
@@ -24059,7 +24059,7 @@ function _coverHandleOutcome(outcome) {
 
   if (outcome === "accepted") {
     body.innerHTML = `
-      <div style="padding:28px 24px;background:var(--green-soft);border:1px solid rgba(5,150,105,.20);border-radius:12px;text-align:center">
+      <div style="padding:28px 24px;background:var(--green-soft);border:1px solid rgba(16,185,129,.20);border-radius:12px;text-align:center">
         <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:var(--r-xl);background:var(--green);color:#fff;margin-bottom:10px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);margin-bottom:4px">Shift covered</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);max-width:380px;margin:0 auto;line-height:1.55">The schedule has been updated. The driver received a confirmation push with their route details.</div>
@@ -26543,8 +26543,8 @@ async function _docsUploadTemplate(file, kind) {
 const _DOCS_FIELD_META = {
   signature: { label: "Signature",      tint: "rgba(96,165,250,.20)",  border: "#2563eb", text: "#1d4ed8", auto: false, fill: false, hint: "Recipient draws or types their signature." },
   initials:  { label: "Initials (auto)", tint: "rgba(124,58,237,.16)", border: "#7c3aed", text: "#6d28d9", auto: true,  fill: false, hint: "Auto-filled with the recipient's initials." },
-  name:      { label: "Name (auto)",     tint: "rgba(217,119,6,.16)",  border: "#b45309", text: "#92400e", auto: true,  fill: false, hint: "Auto-filled with the recipient's full name." },
-  date:      { label: "Date (auto)",     tint: "rgba(5,150,105,.18)",  border: "#059669", text: "#047857", auto: true,  fill: false, hint: "Auto-filled with the signing date." },
+  name:      { label: "Name (auto)",     tint: "rgba(245,158,11,.16)",  border: "#b45309", text: "#92400e", auto: true,  fill: false, hint: "Auto-filled with the recipient's full name." },
+  date:      { label: "Date (auto)",     tint: "rgba(16,185,129,.18)",  border: "#059669", text: "#047857", auto: true,  fill: false, hint: "Auto-filled with the signing date." },
   text:      { label: "Text",            tint: "rgba(100,116,139,.16)", border: "#475569", text: "#334155", auto: false, fill: true,  hint: "Recipient types a value (with a label you set)." },
   checkbox:  { label: "Checkbox",        tint: "rgba(100,116,139,.16)", border: "#475569", text: "#334155", auto: false, fill: true,  hint: "Recipient checks a box (with a label you set)." },
 };
@@ -31839,7 +31839,7 @@ function _dvicAiBlock(cur) {
   const summary = cur?.ai_review_summary || "";
   const findings = Array.isArray(cur?.ai_review_findings) ? cur.ai_review_findings : [];
   const pillBg = status === "flagged" ? "rgba(159,18,57,.10)"
-               : status === "clean"   ? "rgba(34,197,94,.10)"
+               : status === "clean"   ? "rgba(16,185,129,.10)"
                : status === "error"   ? "var(--amber-soft)"
                :                        "var(--accent-soft)";
   const pillFg = status === "flagged" ? "#9F1239"
