@@ -3899,7 +3899,7 @@ function _openHelpPopup(key) {
   document.getElementById("rr-help-popup")?.remove();
   const m = document.createElement("div");
   m.id = "rr-help-popup";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.30);z-index:10020;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:64px 16px";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay-soft);z-index:10020;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:64px 16px";
   m.innerHTML = `<div role="dialog" aria-label="${escapeHtml(c.title)}" style="background:var(--surface);border-radius:var(--r-xl);max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column">
     <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:var(--s-2-5)">
       <div style="flex:1;font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(c.title)}</div>
@@ -4117,7 +4117,7 @@ function _onbNotesStylesOnce() {
   const s = document.createElement("style");
   s.id = "rr-onb-notes-styles";
   s.textContent =
-    ".onb-notes-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.30);opacity:0;pointer-events:none;transition:opacity var(--t-spring) ease;z-index:10010}" +
+    ".onb-notes-backdrop{position:fixed;inset:0;background:var(--overlay-soft);opacity:0;pointer-events:none;transition:opacity var(--t-spring) ease;z-index:10010}" +
     ".onb-notes-backdrop.open{opacity:1;pointer-events:auto}" +
     ".onb-notes-drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,94vw);background:var(--surface);display:flex;flex-direction:column;z-index:10011;transform:translateX(102%);box-shadow:none;transition:transform var(--t-spring),box-shadow var(--t-spring) ease;will-change:transform}" +
     ".onb-notes-drawer.open{transform:translateX(0);box-shadow:-22px 0 60px -20px rgba(15,23,42,.28)}" +
@@ -4417,7 +4417,7 @@ function _onbChatStylesOnce() {
     ".onb-msg-btn .onb-msg-dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--surface);opacity:0;transform:scale(.4);transition:opacity var(--t-smooth),transform var(--t-smooth)}" +
     ".onb-msg-btn.has-unread .onb-msg-dot{opacity:1;transform:none}" +
     ".onb-msg-btn.has-unread{color:var(--accent-text)}" +
-    ".onb-chat-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.30);opacity:0;pointer-events:none;transition:opacity var(--t-spring) ease;z-index:10012}" +
+    ".onb-chat-backdrop{position:fixed;inset:0;background:var(--overlay-soft);opacity:0;pointer-events:none;transition:opacity var(--t-spring) ease;z-index:10012}" +
     ".onb-chat-backdrop.open{opacity:1;pointer-events:auto}" +
     ".onb-chat-drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,94vw);background:var(--surface);display:flex;flex-direction:column;z-index:10013;transform:translateX(102%);box-shadow:none;transition:transform var(--t-spring),box-shadow var(--t-spring) ease;will-change:transform}" +
     ".onb-chat-drawer.open{transform:translateX(0);box-shadow:-22px 0 60px -20px rgba(15,23,42,.28)}" +
@@ -13865,7 +13865,7 @@ function _i9FormPrintStylesOnce() {
   const s = document.createElement("style");
   s.id = "rr-i9form-styles";
   s.textContent = `
-    #rr-i9form-modal{position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10002;display:flex;flex-direction:column}
+    #rr-i9form-modal{position:fixed;inset:0;background:var(--overlay);z-index:10002;display:flex;flex-direction:column}
     #rr-i9form-modal .i9f-toolbar{display:flex;justify-content:space-between;align-items:center;padding:var(--s-3) 18px;background:var(--surface);border-bottom:1px solid var(--border)}
     #rr-i9form-modal .i9f-toolbar .t{font-weight:700;color:var(--text)}
     #rr-i9form-modal .i9f-toolbar .t small{display:block;font-weight:500;color:var(--text-subtle);font-size:var(--fs-xs)}
@@ -14055,7 +14055,7 @@ async function _i9OpenChainModal(driverId) {
   document.getElementById("rr-i9-chain-modal")?.remove();
   const m = document.createElement("div");
   m.id = "rr-i9-chain-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
@@ -23775,7 +23775,7 @@ async function _tplOpenApply(templateId, name) {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-tpl-apply-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:200;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
@@ -23858,7 +23858,7 @@ function openCoverShiftDrawer(shiftId) {
 
   const drawer = document.createElement("div");
   drawer.id = "rr-cover-drawer";
-  drawer.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;display:flex;justify-content:flex-end";
+  drawer.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:200;display:flex;justify-content:flex-end";
   drawer.innerHTML = `
     <div style="width:min(640px,100vw);height:100%;background:var(--surface);box-shadow:-8px 0 32px -8px rgba(15,23,42,.18);display:flex;flex-direction:column" data-rr-cover-panel>
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:start;justify-content:space-between;gap:var(--s-4)">
