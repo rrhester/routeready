@@ -172,6 +172,7 @@
   /* Single source of truth for modal backdrops + focus rings so
      every dialog and interactive surface reads the same. */
   --overlay: rgba(15,23,42,.55);
+  --overlay-soft: rgba(15,23,42,.32);
   --ring-focus: 0 0 0 3px rgba(37,99,235,.18);
   --z-modal: 10000;
 }
@@ -1790,7 +1791,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .coach-row-btn svg{width:12px;height:12px;stroke-width:2}
 
 .coach-backdrop{
-  position:fixed;inset:0;background:rgba(15,23,42,.32);
+  position:fixed;inset:0;background:var(--overlay-soft);
   opacity:0;pointer-events:none;transition:opacity var(--t-smooth);z-index:50;
 }
 .coach-backdrop.open{opacity:1;pointer-events:auto}
@@ -1800,7 +1801,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
    one week's daily route planning; the card is sized to its content
    (capped) rather than the viewport. */
 .rr-okami-backdrop{
-  position:fixed;inset:0;background:rgba(15,23,42,.32);
+  position:fixed;inset:0;background:var(--overlay-soft);
   opacity:0;pointer-events:none;transition:opacity var(--t-smooth);z-index:55;
 }
 .rr-okami-backdrop.open{opacity:1;pointer-events:auto}
@@ -1812,7 +1813,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   z-index:70;
   background:var(--surface);
   border:1px solid var(--border);border-radius:var(--r-lg);
-  box-shadow:0 20px 60px rgba(15,23,42,.18), 0 4px 16px rgba(15,23,42,.08);
+  box-shadow:var(--shadow-xl);
   overflow:hidden;
 }
 #view-okami.rr-okami-overlay > .page{
@@ -1847,7 +1848,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
    .coach-drawer's behavior so the schedule settings can slide in
    alongside the calendar instead of taking a whole sub-tab. */
 .rr-drawer-backdrop{
-  position:fixed;inset:0;background:rgba(15,23,42,.32);
+  position:fixed;inset:0;background:var(--overlay-soft);
   opacity:0;pointer-events:none;transition:opacity var(--t-smooth);z-index:55;
 }
 .rr-drawer-backdrop.open{opacity:1;pointer-events:auto}
@@ -19947,7 +19948,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515bc-forms-toggle-modal"></script>
+<script type="module" src="./live.js?v=20260515bd-overlay-soft"></script>
 
 </body>
 </html>
