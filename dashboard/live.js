@@ -768,7 +768,7 @@ function _stripQuotedReply(text) {
 function _renderEmailRow(r) {
   const inbound = r.direction === "inbound";
   const align = inbound ? "flex-start" : "flex-end";
-  const bg    = inbound ? "var(--surface-pressed)" : "rgba(15,108,189,.10)";
+  const bg    = inbound ? "var(--surface-pressed)" : "rgba(37,99,235,.10)";
   const sender = inbound ? "Applicant" : "You";
   const when   = r.created_at ? new Date(r.created_at).toLocaleString() : "";
   const status = inbound ? "" : ` · ${r.status}`;
@@ -9334,7 +9334,7 @@ const _RR_OUTCOME_TONE = {
   checked_out:      { bg: "rgba(22,163,74,.10)",      fg: "var(--green)" },
   missed_reported:  { bg: "rgba(180,83,9,.15)",       fg: "var(--amber)" },
   tardy:            { bg: "rgba(180,83,9,.20)",       fg: "var(--amber)" },
-  ncns:             { bg: "rgba(220,38,38,.15)",      fg: "var(--red)" },
+  ncns:             { bg: "rgba(225,29,72,.15)",      fg: "var(--red)" },
 };
 
 let _todayAttPollTimer = null;
@@ -11048,7 +11048,7 @@ function renderInterviewCard(r) {
   const outcome = r.outcome;
   const sourceColors = {
     hired:   "background:rgba(22,163,74,.12);color:var(--green)",
-    no_hire: "background:rgba(220,38,38,.12);color:var(--red)",
+    no_hire: "background:rgba(225,29,72,.12);color:var(--red)",
     no_show: "background:rgba(245,158,11,.18);color:var(--amber-dark)",
   };
   const badge = outcome
@@ -18491,7 +18491,7 @@ function _renderAvailabilityRows() {
         const dropChips = im.drops.map(d => {
           const before = (d.after + 1); // pre-change supply
           const tight  = d.tight;
-          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:600">
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(225,29,72,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(225,29,72,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:600">
             <span>−${escapeHtml(d.label)}</span>
             <span style="font-weight:500">${arrow(before, d.after)}</span>
           </span>`;
@@ -18532,7 +18532,7 @@ function _renderAvailabilityRows() {
         </span>
         ${prevAgo ? `<span>· previous change ${escapeHtml(prevAgo)}</span>` : ""}
         <button type="button" data-rr-avail-history="${escapeHtml(r.driver_id)}" data-rr-avail-history-name="${escapeHtml(r.driver_name || "")}"
-                style="font:inherit;font-size:var(--fs-xs);background:none;border:0;color:var(--accent-text);cursor:pointer;text-decoration:underline;text-decoration-color:rgba(15,108,189,.3);padding:0">
+                style="font:inherit;font-size:var(--fs-xs);background:none;border:0;color:var(--accent-text);cursor:pointer;text-decoration:underline;text-decoration-color:rgba(37,99,235,.3);padding:0">
           view history
         </button>
       </div>`;
@@ -21937,7 +21937,7 @@ async function openShiftEditModal(shiftId) {
         </details>
       </div>
       <div style="display:flex;justify-content:space-between;gap:var(--s-2);padding:var(--s-3-5) 22px;border-top:1px solid var(--border);background:var(--canvas)">
-        <button class="btn btn-sm" data-rr-shift-edit-remove style="color:var(--red);border-color:rgba(220,38,38,.3)">Remove shift</button>
+        <button class="btn btn-sm" data-rr-shift-edit-remove style="color:var(--red);border-color:rgba(225,29,72,.3)">Remove shift</button>
         <div style="display:flex;gap:var(--s-2)">
           <button class="btn btn-sm" data-rr-shift-edit-cancel>Cancel</button>
           <button class="btn btn-sm btn-primary" data-rr-shift-edit-save>Save</button>
@@ -23993,7 +23993,7 @@ function _coverRenderWaiting(offer, driverId) {
   const driverName = (body.querySelector(`[data-rr-cover-offer="${driverId}"]`)
     ?.closest("div")?.parentElement?.querySelector("div div")?.textContent) || "the driver";
   body.innerHTML = `
-    <div style="padding:18px 18px 14px;background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);border-radius:12px">
+    <div style="padding:18px 18px 14px;background:var(--accent-soft);border:1px solid rgba(37,99,235,.18);border-radius:12px">
       <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)">Offer sent</div>
       <div style="margin-top:4px;font-size:var(--fs-md);font-weight:600;color:var(--text)">Waiting on ${escapeHtml(driverName)}</div>
       <div style="margin-top:6px;font-size:var(--fs-sm);color:var(--text-muted)">They'll see an Accept / Pass card on their phone. If they pass or time runs out, you can pick another driver.</div>

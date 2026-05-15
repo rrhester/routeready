@@ -2477,7 +2477,7 @@ select.form-input{
 
 /* Compact summary version (after check-in is done) */
 .checkin-summary{
-  background:var(--green-soft);border:1px solid #BBF7D0;
+  background:var(--green-soft);border:1px solid rgba(16,185,129,.22);
   border-radius:var(--r-lg);padding:var(--s-3) var(--s-5);
   display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-6);
 }
@@ -5686,7 +5686,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .ti-title-icon svg{width:13px;height:13px;stroke-width:2.5}
 .ti-summary{
-  background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid #FCD34D;
+  background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid rgba(245,158,11,.22);
   border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);color:#78350F;line-height:1.55;
   margin-bottom:var(--s-3);
 }
@@ -5876,7 +5876,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .recon-line-delta.ok{color:var(--green)}
 
 .recon-evidence{
-  background:var(--amber-soft);border:1px solid #FCD34D;border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);
+  background:var(--amber-soft);border:1px solid rgba(245,158,11,.22);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);
   margin-top:6px;font-size:var(--fs-xs);color:#78350F;line-height:1.5;
 }
 .recon-evidence strong{color:#78350F;font-weight:700}
@@ -5895,7 +5895,7 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:var(--s-5);margin-bottom:var(--s-3);
 }
 .rp-summary{
-  background:linear-gradient(135deg,#FEE2E2,#FEF3C7);border:1px solid #FCA5A5;
+  background:linear-gradient(135deg,#FEE2E2,#FEF3C7);border:1px solid rgba(225,29,72,.22);
   border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);margin-bottom:var(--s-3);
   font-size:var(--fs-md);color:var(--red-dark);line-height:1.55;
 }
@@ -5943,7 +5943,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .ti-bar.bad{background:var(--red)}
 .ti-bar-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text-subtle);font-family:'SF Mono',Menlo,monospace;white-space:nowrap}
 .ti-cluster-alert{
-  background:var(--red-soft);border:1px solid #FCA5A5;border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);
+  background:var(--red-soft);border:1px solid rgba(225,29,72,.22);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);
   display:flex;gap:var(--s-2-5);align-items:flex-start;font-size:var(--fs-sm);color:var(--red-dark);line-height:1.5;
   margin-bottom:var(--s-3);
 }
@@ -6430,7 +6430,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .iv-done{
   background:linear-gradient(135deg,#F0FDF4,#FFFFFF);
-  border:1px solid #86EFAC;border-radius:var(--r-xl);
+  border:1px solid rgba(16,185,129,.22);border-radius:var(--r-xl);
   padding:36px 32px;text-align:center;
 }
 .iv-done-icon{
@@ -6555,7 +6555,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .all-clear{
   display:none;
   background:linear-gradient(135deg,#F0FDF4,#FFFFFF);
-  border:1px solid #86EFAC;border-radius:var(--r-xl);
+  border:1px solid rgba(16,185,129,.22);border-radius:var(--r-xl);
   padding:36px 32px;text-align:center;
   margin-bottom:var(--s-5);
 }
@@ -15566,7 +15566,7 @@ John,Smith,555-0101,john@example.com</code>
         </div>
       </div>
 
-      <div class="ai-modal-section" style="background:var(--amber-soft);border:1px solid #FCD34D">
+      <div class="ai-modal-section" style="background:var(--amber-soft);border:1px solid rgba(245,158,11,.22)">
         <div class="ai-modal-section-icon" style="background:var(--amber-soft);color:var(--amber-dark)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
         <div class="ai-modal-section-body" style="color:#78350F">
           <strong>2 items need your input</strong> — Saturday May 14 needs a driver for KMO3-19D (no qualified backup available). Friday May 13 has Davidson on a route that historically has issues for him (consider reassign).
@@ -19112,7 +19112,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!existing) {
       existing = document.createElement('div');
       existing.id = 'sched-suspended-banner';
-      existing.style.cssText = 'background:var(--red-soft);border:1px solid #FECACA;color:var(--red-dark);border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)';
+      existing.style.cssText = 'background:var(--red-soft);border:1px solid rgba(225,29,72,.22);color:var(--red-dark);border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)';
       anchor.insertBefore(existing, anchor.firstChild);
     }
     var names = active.map(function(s){ var d = _findDriver(s.driverId); return d ? d.name : '?'; }).join(', ');
@@ -19765,7 +19765,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!existingBanner) {
       existingBanner = document.createElement('div');
       existingBanner.id = 'sched-license-banner';
-      existingBanner.style.cssText = 'background:var(--amber-soft);border:1px solid #FCD34D;color:var(--amber-dark);border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)';
+      existingBanner.style.cssText = 'background:var(--amber-soft);border:1px solid rgba(245,158,11,.22);color:var(--amber-dark);border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin-bottom:var(--s-3);font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)';
       // Insert AFTER suspended banner if present, else at top
       var susBanner = document.getElementById('sched-suspended-banner');
       if (susBanner) susBanner.parentNode.insertBefore(existingBanner, susBanner.nextSibling);
@@ -19903,9 +19903,9 @@ John,Smith,555-0101,john@example.com</code>
       + '.pool-sort-btn.active{background:var(--surface);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft-strong)}'
       + '.pool-driver .pool-driver-score{display:inline-block;font-size:var(--fs-xs);font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;font-variant-numeric:tabular-nums}'
       // VTO suggestion banner in check-in
-      + '#ci-vto-suggest{background:#F0F9FF;border:1px solid #BAE6FD;color:#0C4A6E;border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)}'
+      + '#ci-vto-suggest{background:#F0F9FF;border:1px solid rgba(37,99,235,.22);color:#0C4A6E;border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)}'
       + '#ci-vto-suggest .vto-chips{display:flex;gap:var(--s-1);flex-wrap:wrap}'
-      + '#ci-vto-suggest .vto-chip{display:inline-flex;align-items:center;gap:var(--s-1);background:#fff;border:1px solid #BAE6FD;color:#0369A1;padding:2px 8px;border-radius:5px;font-size:var(--fs-xs);font-weight:600;cursor:pointer}'
+      + '#ci-vto-suggest .vto-chip{display:inline-flex;align-items:center;gap:var(--s-1);background:#fff;border:1px solid rgba(37,99,235,.22);color:#0369A1;padding:2px 8px;border-radius:5px;font-size:var(--fs-xs);font-weight:600;cursor:pointer}'
       + '#ci-vto-suggest .vto-chip:hover{background:#E0F2FE}'
       + '.checkin-row.vto-suggested{box-shadow:inset 4px 0 0 var(--sky)}';
     var s = document.createElement('style');
@@ -20425,7 +20425,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515au-final-literal-sweep"></script>
+<script type="module" src="./live.js?v=20260515av-rgba-mop-up"></script>
 
 </body>
 </html>
