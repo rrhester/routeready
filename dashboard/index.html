@@ -5702,14 +5702,16 @@ body.rr-cmdk-open{ overflow:hidden }
    ───────────────────────────────────────────────────────────── */
 .dr-tabs{
   display:flex;gap:0;padding:0 var(--s-5);background:var(--surface);
-  border-bottom:1px solid var(--border);overflow-x:auto;
+  border-bottom:1px solid var(--border-subtle);overflow-x:auto;
 }
 .dr-tab{
-  padding:10px 14px;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);
+  padding:var(--s-2-5) var(--s-3-5);font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);
   background:transparent;border:none;border-bottom:2px solid transparent;
   cursor:pointer;font-family:inherit;white-space:nowrap;margin-bottom:-1px;
+  transition:color var(--t-fast), border-color var(--t-fast);
 }
 .dr-tab:hover{color:var(--text)}
+.dr-tab:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .dr-tab.active{color:var(--text);font-weight:700;border-bottom-color:var(--accent)}
 
 .dr-tabview{display:none}
@@ -5720,7 +5722,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .dr-field-row{
   display:grid;grid-template-columns:140px 1fr;gap:var(--s-3);align-items:center;
-  padding:8px 0;border-bottom:1px solid var(--border);font-size:var(--fs-md);
+  padding:var(--s-2) 0;border-bottom:1px solid var(--border-subtle);font-size:var(--fs-md);
 }
 .dr-field-row:last-child{border-bottom:none}
 .dr-field-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);letter-spacing:.02em}
@@ -5731,7 +5733,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .dr-pay-history{display:flex;flex-direction:column}
 .dr-pay-row{
   display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
-  padding:10px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm);
+  padding:var(--s-2-5) 0;border-bottom:1px solid var(--border-subtle);font-size:var(--fs-sm);
 }
 .dr-pay-row:last-child{border-bottom:none}
 .dr-pay-period{font-weight:600;color:var(--text)}
@@ -5739,23 +5741,23 @@ body.rr-cmdk-open{ overflow:hidden }
 .dr-pay-amount{font-weight:600;color:var(--text);text-align:right}
 
 .dr-cycle-card{
-  background:var(--canvas);border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px;
+  background:var(--canvas);border-radius:var(--r-md);padding:var(--s-3) var(--s-3-5);margin-bottom:var(--s-2);
 }
 .dr-cycle-head{
-  display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-2);
   font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;
 }
-.dr-cycle-score{font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1}
+.dr-cycle-score{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;line-height:1}
 .dr-cycle-score.green{color:var(--green)}
 .dr-cycle-score.amber{color:var(--amber)}
 .dr-cycle-score.red{color:var(--red)}
-.dr-cycle-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:var(--fs-xs)}
+.dr-cycle-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2);font-size:var(--fs-xs)}
 .dr-cycle-stat-label{color:var(--text-subtle);font-weight:500}
 .dr-cycle-stat-val{color:var(--text);font-weight:600;font-size:var(--fs-sm);margin-top:1px}
 
 .dr-asset-row{
   display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
-  padding:10px 0;border-bottom:1px solid var(--border);font-size:var(--fs-md);
+  padding:var(--s-2-5) 0;border-bottom:1px solid var(--border-subtle);font-size:var(--fs-md);
 }
 .dr-asset-row:last-child{border-bottom:none}
 .dr-asset-icon{
@@ -5766,31 +5768,33 @@ body.rr-cmdk-open{ overflow:hidden }
 .dr-asset-name{font-weight:600;color:var(--text)}
 .dr-asset-id{font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
 .dr-asset-since{font-size:var(--fs-xs);color:var(--text-subtle)}
-.dr-asset-status{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px;background:var(--green-soft);color:var(--green)}
+.dr-asset-status{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md);background:var(--green-soft);color:var(--green)}
 
 .dr-doc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-2)}
 .dr-doc-card{
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:12px;cursor:pointer;
+  padding:var(--s-3);cursor:pointer;
+  transition:border-color var(--t-fast), background var(--t-fast);
 }
 .dr-doc-card:hover{border-color:var(--border-strong)}
+.dr-doc-card:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .dr-doc-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-bottom:2px}
 .dr-doc-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
-.dr-doc-status{font-size:var(--fs-xs);font-weight:600;padding:1px 6px;border-radius:6px;display:inline-block;margin-top:6px}
+.dr-doc-status{font-size:var(--fs-xs);font-weight:600;padding:1px 6px;border-radius:var(--r-md);display:inline-block;margin-top:6px}
 .dr-doc-status.signed{background:var(--green-soft);color:var(--green)}
 .dr-doc-status.pending{background:var(--amber-soft);color:var(--amber)}
 .dr-doc-status.expired{background:var(--red-soft);color:var(--red)}
 
 .dr-note{
-  background:var(--canvas);border-radius:var(--r-md);padding:10px 12px;margin-bottom:6px;
+  background:var(--canvas);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);margin-bottom:6px;
   font-size:var(--fs-sm);line-height:1.5;
 }
 .dr-note-head{display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:4px}
 .dr-note-head strong{color:var(--text);font-weight:600}
 
 .dr-milestone{
-  display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
-  padding:8px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm);
+  display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-2-5);align-items:center;
+  padding:var(--s-2) 0;border-bottom:1px solid var(--border-subtle);font-size:var(--fs-sm);
 }
 .dr-milestone:last-child{border-bottom:none}
 .dr-milestone-icon{
@@ -20427,7 +20431,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515af-compliance-governance"></script>
+<script type="module" src="./live.js?v=20260515ag-drivers-governance"></script>
 
 </body>
 </html>
