@@ -2458,18 +2458,23 @@ async function renderTeam() {
   const callIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
   const textIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
-  // Pre-compute a lowercased search index per driver so each keystroke
-  // is just a substring match — fine for the few-hundred drivers a
-  // single DSP runs. Phone digits are stripped so a query like "555"
-  // still matches "(417) 555-0100".
-  const indexed = list.map((d) => ({
-    d,
-    s: [
-      (d.name || ""), (d.full_name || ""),
+  // Pre-compute a per-row list of lowercased "words" we'll prefix-match
+  // against. Each query token must match the *start* of at least one of
+  // these words, so as the driver types more letters the list narrows
+  // toward a single row (like iOS Contacts). Phone numbers are added
+  // both as the digit-stripped form ("4175550100") and as their loose
+  // segments so a partial "555" still hits "(417) 555-0100".
+  const indexed = list.map((d) => {
+    const raw = [
+      d.name || "",
+      d.full_name || "",
+      d.station_code || "",
       (d.phone || "").replace(/[^0-9+]/g, ""),
-      (d.station_code || ""),
-    ].join(" ").toLowerCase(),
-  }));
+      (d.phone || ""),
+    ].join(" ").toLowerCase();
+    const words = raw.split(/[^a-z0-9+]+/).filter(Boolean);
+    return { d, words };
+  });
 
   main.innerHTML = `
     <div class="team-search">
@@ -2488,10 +2493,11 @@ async function renderTeam() {
   const listEl = document.getElementById("team-list");
   const noMatch = document.getElementById("team-nomatch");
   input.addEventListener("input", () => {
-    const q = input.value.trim().toLowerCase();
+    const tokens = input.value.toLowerCase().split(/\s+/).filter(Boolean);
     let shown = 0;
     indexed.forEach((row, i) => {
-      const hit = !q || row.s.includes(q);
+      const hit = tokens.length === 0
+        || tokens.every((t) => row.words.some((w) => w.startsWith(t)));
       const node = listEl.children[i];
       if (!node) return;
       node.hidden = !hit;
