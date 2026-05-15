@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Getting started · RouteReady Desktop</title>
+<meta name="description" content="Install the file you just downloaded, sign into Indeed or Amazon DSP, and pull your first report.">
+<link rel="icon" type="image/png" href="/app/Icon.png">
+<link rel="apple-touch-icon" href="/app/Icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0B1220;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+a{text-decoration:none;color:inherit}
+svg{display:block}
+
+:root{
+  --canvas:#F8FAFC;
+  --surface:#FFFFFF;
+  --surface-soft:#F1F5F9;
+  --border:#E2E8F0;
+  --border-strong:#CBD5E1;
+  --text:#0B1220;
+  --text-muted:#475569;
+  --text-subtle:#64748B;
+  --blue:#0F6CBD;
+  --blue-bright:#1E88E5;
+  --blue-dark:#094F8C;
+  --indigo:#4F46E5;
+  --violet:#7C3AED;
+  --teal:#0D9488;
+  --amber:#D97706;
+  --r-md:8px;
+  --r-lg:14px;
+  --r-xl:20px;
+  --max:920px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+  --shadow-md:0 2px 4px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
+}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+.fu{animation:fadeUp .8s cubic-bezier(.16,1,.3,1) both}
+.d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.28s}
+
+.wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 1.5rem}
+@media(min-width:768px){.wrap{padding:0 2.5rem}}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:300;background:rgba(248,250,252,.85);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid rgba(226,232,240,.6)}
+.nav-in{height:64px;max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between}
+@media(min-width:768px){.nav-in{padding:0 2.5rem}}
+.nav-logo{display:flex;align-items:center;gap:10px}
+.bolt{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(15,108,189,.25)}
+.bolt svg{width:16px;height:16px}
+.nav-name{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.4px;color:var(--text)}
+.nav-r{display:flex;align-items:center;gap:8px}
+.nav-link{display:none;font-size:14px;color:var(--text-muted);font-weight:500;padding:8px 14px;border-radius:7px;transition:color .15s,background .15s}
+@media(min-width:768px){.nav-link{display:inline-flex}}
+.nav-link:hover{color:var(--text);background:var(--surface-soft)}
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s ease;text-decoration:none;white-space:nowrap}
+.btn-primary{background:linear-gradient(180deg,var(--blue-bright) 0%,var(--blue) 100%);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(15,108,189,.35)}
+.btn-primary:hover{background:linear-gradient(180deg,var(--blue) 0%,var(--blue-dark) 100%);transform:translateY(-1px)}
+
+/* HERO */
+.hero{position:relative;padding:60px 1.5rem 30px;text-align:center;overflow:hidden}
+@media(min-width:768px){.hero{padding:80px 2.5rem 40px}}
+.hero-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(15,108,189,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(15,108,189,.05) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 30%,transparent 80%);-webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 30%,transparent 80%)}
+.hero-glow{position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1000px;height:500px;background:radial-gradient(ellipse at 50% 30%,rgba(15,108,189,.15) 0%,transparent 60%);pointer-events:none}
+.eyebrow{position:relative;display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(255,255,255,.7);border:1px solid rgba(15,108,189,.15);border-radius:999px;font-size:12px;font-weight:600;color:var(--blue-dark);letter-spacing:.04em;margin-bottom:1.25rem;backdrop-filter:blur(8px);box-shadow:var(--shadow-sm)}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px rgba(15,108,189,.6);animation:pulse 2.4s ease-in-out infinite}
+.hero-h{position:relative;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:clamp(28px,4.5vw,44px);line-height:1.1;letter-spacing:-1.4px;color:var(--text);max-width:720px;margin:0 auto .75rem}
+.hero-h .grad{background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 60%,var(--violet) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.hero-sub{position:relative;font-size:clamp(15px,1.6vw,16.5px);color:var(--text-muted);max-width:560px;margin:0 auto;font-weight:400;line-height:1.6}
+
+/* STEPS */
+.steps-section{padding:30px 0 60px}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px 26px;margin-bottom:1rem;display:grid;grid-template-columns:48px 1fr;gap:20px;align-items:start;box-shadow:var(--shadow-sm)}
+.step-num{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--blue) 0%,var(--indigo) 100%);color:#fff;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:18px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(15,108,189,.25)}
+.step-body h2{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:.5rem;letter-spacing:-.4px}
+.step-body p{font-size:14.5px;color:var(--text-muted);line-height:1.65;margin-bottom:.75rem}
+.step-body p:last-child{margin-bottom:0}
+.step-body code{font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-soft);border:1px solid var(--border);padding:1.5px 7px;border-radius:5px;color:var(--text);word-break:break-all}
+.step-body strong{color:var(--text);font-weight:600}
+.step-body ul{margin:.5rem 0 .75rem 1.1rem;padding:0;color:var(--text-muted);font-size:14.5px}
+.step-body ul li{margin-bottom:.35rem;line-height:1.55}
+
+/* PORTAL CHIPS */
+.portal-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:.5rem 0 .25rem 0}
+.portal-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);font-weight:500;font-family:'SF Mono',Menlo,Consolas,monospace}
+.portal-chip strong{color:var(--text);font-weight:600;font-family:'Inter Tight',sans-serif;font-size:13px;margin-right:4px}
+.portal-chip[data-portal="indeed"]{background:rgba(13,148,136,.08);border-color:rgba(13,148,136,.20);color:#0F766E}
+.portal-chip[data-portal="amazon"]{background:rgba(15,108,189,.08);border-color:rgba(15,108,189,.20);color:var(--blue-dark)}
+.copy-btn{font-family:inherit;font-size:11px;font-weight:500;color:var(--text-subtle);background:transparent;border:0;cursor:pointer;padding:0;margin-left:6px;text-decoration:underline;text-underline-offset:2px}
+.copy-btn:hover{color:var(--blue)}
+.copy-btn.copied{color:var(--blue);text-decoration:none}
+
+/* OS-SWITCH */
+.os-switch{display:flex;gap:.4rem;padding:4px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;margin-bottom:.85rem;width:fit-content}
+.os-switch button{font-family:inherit;font-size:12.5px;font-weight:600;padding:6px 14px;border-radius:7px;border:0;background:transparent;color:var(--text-muted);cursor:pointer;transition:all .15s ease}
+.os-switch button.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+.os-block{display:none}
+.os-block.active{display:block}
+
+/* CTA */
+.cta-section{padding:0 0 60px;text-align:center}
+.cta-card{background:linear-gradient(135deg,rgba(15,108,189,.04) 0%,rgba(124,58,237,.04) 100%);border:1px solid var(--border);border-radius:var(--r-xl);padding:32px 28px}
+.cta-h{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.3px;color:var(--text);margin-bottom:.5rem}
+.cta-p{font-size:14px;color:var(--text-muted);margin-bottom:1rem;max-width:480px;margin-left:auto;margin-right:auto}
+.cta-row{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap}
+
+/* FOOTER */
+footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-size:14px}
+.footer-in{max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+@media(min-width:768px){.footer-in{padding:0 2.5rem}}
+.footer-logo{display:flex;align-items:center;gap:10px}
+.footer-logo .nav-name{color:#fff}
+.footer-links{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap}
+.footer-links a{color:rgba(255,255,255,.55);font-size:13px;transition:color .15s}
+.footer-links a:hover{color:#fff}
+.footer-bottom{max-width:var(--max);margin:24px auto 0;padding:18px 1.5rem 0;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:rgba(255,255,255,.4)}
+@media(min-width:768px){.footer-bottom{padding:18px 2.5rem 0}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-in">
+    <a href="/" class="nav-logo" aria-label="RouteReady home">
+      <span class="bolt"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
+      <span class="nav-name">RouteReady</span>
+    </a>
+    <div class="nav-r">
+      <a class="nav-link" href="/#features">Product</a>
+      <a class="nav-link" href="/download">Download</a>
+      <a class="nav-link" href="/dashboard/login.html">Sign in</a>
+      <a class="btn btn-primary" href="/#cta">Book a demo</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-grid"></div>
+    <div class="hero-glow"></div>
+  </div>
+  <span class="eyebrow fu d1"><span class="dot"></span>Getting started</span>
+  <h1 class="hero-h fu d2">Five quick steps and you're <span class="grad">pulling data</span>.</h1>
+  <p class="hero-sub fu d3">Run the installer you just downloaded, point RouteReady at the portal you're syncing, and pull your first report. Takes about three minutes.</p>
+</header>
+
+<section class="steps-section">
+  <div class="wrap">
+
+    <div class="step fu d1">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h2>Run the installer</h2>
+        <p>Open the file your browser just downloaded — pick your OS for the exact steps.</p>
+
+        <div class="os-switch" role="tablist">
+          <button data-os="windows" class="active">Windows</button>
+          <button data-os="mac">macOS</button>
+          <button data-os="linux">Linux</button>
+        </div>
+
+        <div class="os-block active" data-os="windows">
+          <p>Double-click <code>RouteReady-Desktop.exe</code> in your Downloads folder. Windows will show a blue <strong>"Windows protected your PC"</strong> warning because the installer isn't code-signed yet.</p>
+          <ul>
+            <li>Click <strong>More info</strong> (small link under the warning text).</li>
+            <li>Click <strong>Run anyway</strong>.</li>
+            <li>The installer finishes silently and launches the app.</li>
+          </ul>
+        </div>
+
+        <div class="os-block" data-os="mac">
+          <p>Open <code>RouteReady-Desktop.dmg</code>, then drag <strong>RouteReady Desktop</strong> into the <strong>Applications</strong> folder. The first time you launch it, macOS will say <strong>"Apple cannot check it for malicious software"</strong>.</p>
+          <ul>
+            <li>Open <strong>System Settings → Privacy &amp; Security</strong>.</li>
+            <li>Scroll to the bottom — you'll see a note about <em>RouteReady Desktop was blocked</em>.</li>
+            <li>Click <strong>Open Anyway</strong>, then confirm with your password / Touch ID.</li>
+          </ul>
+          <p>Note: this build is for Apple Silicon (M1/M2/M3/M4) only. If you're on an Intel Mac, let us know — we'll cut an x64 build.</p>
+        </div>
+
+        <div class="os-block" data-os="linux">
+          <p>Make the AppImage executable and run it:</p>
+          <ul>
+            <li>Open a terminal in the folder where the file landed.</li>
+            <li><code>chmod +x RouteReady-Desktop.AppImage</code></li>
+            <li><code>./RouteReady-Desktop.AppImage</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="step fu d2">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h2>Tell RouteReady which portal you're using</h2>
+        <p>The app opens to three numbered cards. In <strong>section 1</strong>, paste the Portal URL for whatever you're syncing — the field saves automatically as you type.</p>
+        <div class="portal-chips">
+          <span class="portal-chip" data-portal="indeed">
+            <strong>Indeed</strong> https://employers.indeed.com/
+            <button class="copy-btn" data-copy="https://employers.indeed.com/">Copy</button>
+          </span>
+          <span class="portal-chip" data-portal="amazon">
+            <strong>Amazon DSP</strong> https://logistics.amazon.com/
+            <button class="copy-btn" data-copy="https://logistics.amazon.com/">Copy</button>
+          </span>
+        </div>
+        <p>Using something else? Paste any portal URL — the app's portal-agnostic.</p>
+      </div>
+    </div>
+
+    <div class="step fu d2">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h2>Sign in once</h2>
+        <p>Click <strong>Open portal &amp; sign in</strong>. A second browser window opens at the portal you configured. Sign in with your normal credentials and MFA — RouteReady never sees or stores your password.</p>
+        <p>Back in RouteReady Desktop, click <strong>I'm signed in</strong>. The status pill in the top-right flips to <strong>Session saved</strong> and your session is encrypted to disk via the OS keychain.</p>
+        <p>Optional: hit <strong>Probe portal</strong> in section 2 to confirm the cached session is working.</p>
+      </div>
+    </div>
+
+    <div class="step fu d3">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h2>Download a report</h2>
+        <p>In <strong>section 3</strong>, paste the URL of the report or file you want to grab. Two flavors:</p>
+        <ul>
+          <li><strong>Direct file URL</strong> — leave the click selector blank. The app navigates with your saved session, the file downloads automatically.</li>
+          <li><strong>Page URL + click selector</strong> — useful when the file sits behind an Export button. In <strong>Click selector</strong>, paste a CSS selector for the button (e.g. <code>button[aria-label="Export"]</code>).</li>
+        </ul>
+        <p>Click <strong>Download</strong>. The file lands in your OS Downloads folder (or wherever you picked) and shows up in the Recent downloads list with a <strong>Show in folder</strong> link.</p>
+      </div>
+    </div>
+
+    <div class="step fu d3">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h2>That's it</h2>
+        <p>From now on, the app reuses the saved session — no re-signing in unless it expires. Run a sync whenever you want fresh data. Coming soon: scheduled syncs, automatic upload into RouteReady, and named report shortcuts.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="cta-section">
+  <div class="wrap">
+    <div class="cta-card">
+      <div class="cta-h">Stuck?</div>
+      <p class="cta-p">If the installer won't run, the portal won't sign in, or a download fails — let us know exactly what you see and we'll get you unstuck.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="mailto:support@gorouteready.com?subject=RouteReady%20Desktop%20setup">Email support</a>
+        <a class="btn" style="background:var(--surface);border-color:var(--border-strong);color:var(--text)" href="/download">Re-download installer</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-in">
+    <div class="footer-logo">
+      <span class="bolt"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
+      <span class="nav-name">RouteReady</span>
+    </div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/download">Download</a>
+      <a href="/dashboard/login.html">Sign in</a>
+      <a href="/terms.html">Terms</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="mailto:support@gorouteready.com">Support</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    © <span id="yr"></span> RouteReady. Not affiliated with Amazon.com, Inc.
+  </div>
+</footer>
+
+<script>
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+(function () {
+  // Auto-pick the right OS tab based on the visitor's UA.
+  const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+  const ua = navigator.userAgent.toLowerCase();
+  let os = 'windows';
+  if (platform.includes('mac') || ua.includes('mac os')) os = 'mac';
+  else if (platform.includes('linux') || ua.includes('linux') || ua.includes('cros')) os = 'linux';
+  setOs(os);
+
+  function setOs(target) {
+    document.querySelectorAll('.os-switch button').forEach(b => {
+      b.classList.toggle('active', b.dataset.os === target);
+    });
+    document.querySelectorAll('.os-block').forEach(blk => {
+      blk.classList.toggle('active', blk.dataset.os === target);
+    });
+  }
+
+  document.querySelectorAll('.os-switch button').forEach(b => {
+    b.addEventListener('click', () => setOs(b.dataset.os));
+  });
+
+  // Copy-to-clipboard for portal URL chips.
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const val = btn.getAttribute('data-copy');
+      try {
+        await navigator.clipboard.writeText(val);
+        const orig = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1400);
+      } catch {
+        btn.textContent = 'Copy failed';
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
