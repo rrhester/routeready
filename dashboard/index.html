@@ -2631,26 +2631,29 @@ select.form-input{
 .sg-toolbar-actions{display:flex;gap:var(--s-2)}
 .schedule-table{width:100%;border-collapse:collapse}
 .schedule-table thead th{
-  text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
-  letter-spacing:.06em;text-transform:uppercase;
-  padding:10px 8px;border-bottom:1px solid var(--border);background:var(--surface);
+  text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+  letter-spacing:.04em;text-transform:uppercase;
+  padding:var(--s-2-5) var(--s-2);border-bottom:1px solid var(--border-subtle);background:var(--canvas);
 }
 .schedule-table thead th.day{text-align:center;width:54px}
 .schedule-table tbody td{
-  padding:10px 8px;font-size:var(--fs-md);border-bottom:1px solid var(--border);vertical-align:middle;
+  padding:var(--s-2-5) var(--s-2);font-size:var(--fs-md);border-bottom:1px solid var(--border-subtle);vertical-align:middle;
 }
 .schedule-table tbody tr:last-child td{border-bottom:none}
-.schedule-table tbody tr:hover{background:var(--canvas)}
-.schedule-table .driver-cell{padding-left:16px;display:flex;align-items:center;gap:10px;min-width:240px}
+.schedule-table tbody tr{transition:background var(--t-fast)}
+.schedule-table tbody tr:hover{background:var(--surface-hover)}
+.schedule-table .driver-cell{padding-left:var(--s-4);display:flex;align-items:center;gap:var(--s-2-5);min-width:240px}
 .schedule-table .day-cell{text-align:center}
 .day-toggle{
-  width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
+  width:30px;height:30px;border-radius:var(--r-md);border:1px solid var(--border);
   background:var(--surface);display:inline-flex;align-items:center;justify-content:center;
-  cursor:pointer;color:var(--text-subtle);transition:all .12s;
+  cursor:pointer;color:var(--text-subtle);
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
   font-family:inherit;padding:0;
+  transition:background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
 }
-.day-toggle:hover{background:var(--canvas);border-color:var(--border-strong)}
+.day-toggle:hover{background:var(--canvas);border-color:var(--border-strong);color:var(--text)}
+.day-toggle:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .day-toggle.on{
   background:var(--accent);border-color:var(--accent);color:#fff;
 }
@@ -2662,7 +2665,7 @@ select.form-input{
 .schedule-table .timeoff-cell .has-off{
   color:var(--amber);font-weight:600;
 }
-.schedule-table .actions-cell{padding-right:16px;text-align:right}
+.schedule-table .actions-cell{padding-right:var(--s-4);text-align:right}
 
 /* Time-off page */
 .timeoff-section{margin-bottom:var(--s-6)}
@@ -2688,11 +2691,13 @@ select.form-input{
   display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:6px;
 }
 .sched-draw-day{
-  padding:10px 0;border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--s-2-5) 0;border:1px solid var(--border);border-radius:var(--r-md);
   background:var(--surface);text-align:center;cursor:pointer;
   font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);
+  transition:background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
 }
-.sched-draw-day:hover{background:var(--canvas)}
+.sched-draw-day:hover{background:var(--canvas);border-color:var(--border-strong);color:var(--text)}
+.sched-draw-day:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .sched-draw-day.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 .sched-draw-day-letter{display:block;font-size:var(--fs-base);font-weight:600}
 
@@ -2706,11 +2711,13 @@ select.form-input{
 }
 .sched-week-nav{display:flex;align-items:center;gap:var(--s-3)}
 .sched-week-arrow{
-  width:30px;height:30px;border-radius:8px;background:var(--canvas);
+  width:30px;height:30px;border-radius:var(--r-md);background:var(--canvas);
   border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
   cursor:pointer;color:var(--text-muted);
+  transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
-.sched-week-arrow:hover{background:var(--surface-hover);color:var(--text)}
+.sched-week-arrow:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
+.sched-week-arrow:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .sched-week-arrow svg{width:14px;height:14px;stroke-width:2}
 .sched-week-label{font-size:var(--fs-base);font-weight:600;color:var(--text)}
 .sched-week-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
@@ -2793,9 +2800,9 @@ select.form-input{
   position:sticky;top:0;z-index:2;
 }
 .cal-cell-head{
-  padding:12px 8px 10px;text-align:center;font-size:11px;color:var(--text-muted);
-  font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  border-right:1px solid var(--border);
+  padding:var(--s-3) var(--s-2) var(--s-2-5);text-align:center;font-size:var(--fs-xs);color:var(--text-subtle);
+  font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  border-right:1px solid var(--border-subtle);
   position:relative;
 }
 .cal-cell-head:last-child{border-right:none}
@@ -2812,8 +2819,8 @@ select.form-input{
 }
 .cal-cell-head.today .day-num{color:var(--accent-text)}
 .cal-row-label{
-  padding:12px 16px;display:flex;align-items:center;gap:10px;
-  border-right:1px solid var(--border);background:var(--surface);
+  padding:var(--s-3) var(--s-4);display:flex;align-items:center;gap:var(--s-2-5);
+  border-right:1px solid var(--border-subtle);background:var(--surface);
   position:sticky;left:0;z-index:1;
   transition:background .12s ease;
 }
@@ -20413,7 +20420,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515y-todays-plan-governance"></script>
+<script type="module" src="./live.js?v=20260515z-schedule-governance"></script>
 
 </body>
 </html>
