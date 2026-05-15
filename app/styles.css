@@ -551,7 +551,7 @@ select.field{
   background:var(--surface);
   border-top:1px solid var(--border);
   padding-bottom:env(safe-area-inset-bottom, 0px);
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
   height:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
   box-shadow:0 -1px 0 rgba(15,23,42,.04),
              0 -4px 16px -8px rgba(15,23,42,.08);
@@ -574,6 +574,7 @@ select.field{
 .tab[data-c="schedule"] { --tc:#4F46E5; --tc-bg:rgba(99,102,241,.14) }
 .tab[data-c="tasks"]    { --tc:#7C3AED; --tc-bg:rgba(124,58,237,.14) }
 .tab[data-c="chat"]     { --tc:#0284C7; --tc-bg:rgba(2,132,199,.14) }
+.tab[data-c="team"]     { --tc:#059669; --tc-bg:rgba(16,185,129,.14) }
 .tab .tab-ic{
   display:inline-flex;align-items:center;justify-content:center;
   width:36px;height:28px;border-radius:var(--r-lg);
@@ -1415,3 +1416,44 @@ select.field{
 .wt-photo-state{font-size:var(--fs-xs);color:var(--text-subtle)}
 .wt-note{font-size:var(--fs-sm);min-height:54px;resize:vertical}
 .wt-form-actions{display:flex;justify-content:flex-end;gap:var(--s-2)}
+
+/* ── Team · WhatsApp-style driver directory (renderTeam in app.js) ── */
+/* Single full-bleed list of rows with a 44px avatar on the left, name +
+   meta in the middle, and a circular green call button on the right.
+   The whole row is the tel: hit target so the call button is more of a
+   visual affordance than a separate control.  Rows with no phone on
+   file render as informational (no link, dimmed button slot). */
+.team-list{display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-xl);overflow:hidden;border:1px solid var(--border);margin-top:var(--s-2)}
+.team-row{
+  display:flex;align-items:center;gap:var(--s-3);
+  padding:var(--s-3) var(--s-4);
+  color:inherit;text-decoration:none;
+  border-bottom:1px solid var(--border);
+  transition:background var(--t-fast);
+}
+.team-row:last-child{border-bottom:0}
+.team-row:active{background:var(--canvas)}
+.team-avatar{
+  width:44px;height:44px;border-radius:50%;flex:0 0 auto;
+  object-fit:cover;background:var(--canvas);
+}
+.team-avatar-initials{
+  display:inline-flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:var(--fs-md);
+  background:var(--accent-soft);color:var(--accent);
+}
+.team-row-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.team-row-name{font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.team-row-meta{font-size:var(--fs-xs);color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.team-call{
+  flex:0 0 auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:40px;height:40px;border-radius:50%;
+  background:var(--green-soft);color:var(--green-dark);
+}
+.team-row:active .team-call{background:rgba(16,185,129,.18)}
+.team-call-disabled{background:transparent;color:var(--text-subtle);font-weight:600}
+.team-row-noPhone{color:var(--text-muted)}
+.team-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:80px var(--s-4);text-align:center}
+.team-empty-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+.team-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:280px;line-height:1.45}
