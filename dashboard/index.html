@@ -2261,6 +2261,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   transition:background var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
 }
 .settings-nav-item:hover{background:var(--surface-hover);color:var(--text)}
+.settings-nav-item:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .settings-nav-item.active{
   background:var(--accent-soft);color:var(--accent-text);font-weight:600;
   box-shadow:inset 0 0 0 1px var(--accent-border);
@@ -2270,7 +2271,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-6);margin-bottom:var(--s-4);
 }
-.settings-section-head{margin-bottom:var(--s-5);padding-bottom:var(--s-4);border-bottom:1px solid var(--border)}
+.settings-section-head{margin-bottom:var(--s-5);padding-bottom:var(--s-4);border-bottom:1px solid var(--border-subtle)}
 .settings-section-title{font-size:var(--fs-lg);font-weight:600;color:var(--text);margin:0 0 4px 0}
 .settings-section-sub{font-size:var(--fs-sm);color:var(--text-muted);margin:0}
 
@@ -4808,16 +4809,18 @@ body.rr-cmdk-open{ overflow:hidden }
 .doc-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
   padding:var(--s-4);cursor:pointer;
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
-.doc-card:hover{border-color:var(--border-strong)}
+.doc-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-xs)}
+.doc-card:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .doc-card-icon{
   width:32px;height:32px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);
-  display:flex;align-items:center;justify-content:center;margin-bottom:8px;
+  display:flex;align-items:center;justify-content:center;margin-bottom:var(--s-2);
 }
 .doc-card-icon svg{width:16px;height:16px;stroke-width:2}
 .doc-card-name{font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:3px}
 .doc-card-meta{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
-.doc-card-expiry{font-size:var(--fs-xs);color:var(--text-muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.doc-card-expiry{font-size:var(--fs-xs);color:var(--text-muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle)}
 .doc-card-expiry.warn{color:var(--amber);font-weight:500}
 .doc-card-expiry.urgent{color:var(--red);font-weight:600}
 
@@ -4826,8 +4829,8 @@ body.rr-cmdk-open{ overflow:hidden }
    ───────────────────────────────────────────────────────────── */
 .briefing{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:24px 28px;margin-bottom:var(--s-5);
-  display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:flex-start;
+  padding:var(--s-6) var(--s-6);margin-bottom:var(--s-5);
+  display:grid;grid-template-columns:auto 1fr;gap:var(--s-5);align-items:flex-start;
   box-shadow:var(--shadow-sm);
 }
 .briefing-icon{
@@ -4848,16 +4851,17 @@ body.rr-cmdk-open{ overflow:hidden }
 .briefing-text em.warn{background:linear-gradient(180deg,transparent 60%,var(--amber-soft) 60%)}
 .briefing-text em.bad{background:linear-gradient(180deg,transparent 60%,var(--red-soft) 60%)}
 .briefing-actions{
-  display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;
+  display:flex;flex-wrap:wrap;gap:var(--s-2);margin-top:var(--s-3-5);
 }
 .briefing-action{
   display:inline-flex;align-items:center;gap:6px;
-  padding:7px 12px;border-radius:8px;
+  padding:var(--s-2) var(--s-3);border-radius:var(--r-md);
   background:var(--accent-soft);color:var(--accent-text);
   border:1px solid var(--accent-border);font-size:var(--fs-sm);font-weight:600;cursor:pointer;
   font-family:inherit;transition:background var(--t-fast);
 }
-.briefing-action:hover{background:var(--accent-soft)}
+.briefing-action:hover{background:var(--accent-soft-strong)}
+.briefing-action:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .briefing-action svg{width:12px;height:12px;stroke-width:2.5}
 .briefing-action.urgent{background:var(--red-soft);color:var(--red);border-color:rgba(225,29,72,.22)}
 .briefing-action.urgent:hover{background:rgba(225,29,72,.16)}
@@ -4866,11 +4870,11 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Snapshot strip — demoted from full KPI grid */
 .snapshot{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:var(--s-5);
+  display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2-5);margin-bottom:var(--s-5);
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:14px 18px;
+  padding:var(--s-3-5) var(--s-4);
 }
-.snap-item{padding:0 6px;border-right:1px solid var(--border)}
+.snap-item{padding:0 6px;border-right:1px solid var(--border-subtle)}
 .snap-item:last-child{border-right:none}
 .snap-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:3px}
 .snap-value{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1.1}
@@ -4881,15 +4885,16 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Topbar Coverage pill — persistent thesis */
 .cov-pill{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:5px 12px;border-radius:var(--r-xl);
-  background:var(--green-soft);border:1px solid #BBF7D0;
+  display:inline-flex;align-items:center;gap:var(--s-2);
+  padding:5px var(--s-3);border-radius:var(--r-xl);
+  background:var(--green-soft);border:1px solid rgba(16,185,129,.22);
   font-size:var(--fs-sm);font-weight:600;color:var(--green);
   cursor:pointer;font-family:inherit;
+  transition:background var(--t-fast);
 }
-.cov-pill:hover{background:var(--green)22}
-.cov-pill.warn{background:var(--amber-soft);border-color:#FCD34D;color:var(--amber)}
-.cov-pill.bad{background:var(--red-soft);border-color:#FCA5A5;color:var(--red)}
+.cov-pill:hover{background:rgba(16,185,129,.16)}
+.cov-pill.warn{background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber)}
+.cov-pill.bad{background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red)}
 .cov-pill-ring{width:14px;height:14px;flex-shrink:0}
 .cov-pill-ring svg{transform:rotate(-90deg)}
 .cov-pill-ring .ring-bg{fill:none;stroke:currentColor;stroke-width:3;opacity:.25}
@@ -20420,7 +20425,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515am-live-js-token-sweep"></script>
+<script type="module" src="./live.js?v=20260515an-settings-docs-briefing"></script>
 
 </body>
 </html>
