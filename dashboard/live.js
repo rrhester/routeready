@@ -658,7 +658,7 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
   _closeEmailThreadChannel();
   m = document.createElement("div");
   m.id = "rr-email-thread-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
@@ -3379,7 +3379,7 @@ async function openOnboardingSendDocsModal(driverId) {
   document.getElementById("rr-osd-modal")?.remove();
   const m = document.createElement("div");
   m.id = "rr-osd-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10002;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:560px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
@@ -3695,7 +3695,7 @@ function _obAttachDocPicker(stepIndex) {
   document.getElementById("rr-ob-tplpick")?.remove();
   const m = document.createElement("div");
   m.id = "rr-ob-tplpick";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   const hasDocs = _obTemplates.length > 0;
   const rows = hasDocs ? _obTemplates.map(_obDocRowHTML).join("")
     : `<div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Nothing in your Documents workspace yet. Build one in <strong>Documents → Templates</strong>, then come back here to attach it.</div>`;
@@ -3749,7 +3749,7 @@ function _obAddStepPicker() {
   document.getElementById("rr-ob-addstep")?.remove();
   const m = document.createElement("div");
   m.id = "rr-ob-addstep";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
@@ -7436,7 +7436,7 @@ function _openSendCoachingModal(ctx) {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-send-coach-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
 
   const fromReport  = ctx.source === "report";
   const dateStr     = ctx.event_date ? new Date(ctx.event_date + "T12:00:00").toLocaleDateString() : "";
@@ -9624,7 +9624,7 @@ async function openCoachDriverPicker() {
 
   const m = document.createElement("div");
   m.id = "rr-coach-picker";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:18px 18px 14px;max-width:440px;width:100%;max-height:80vh;display:flex;flex-direction:column">
       <h3 style="margin:0 0 10px;font-size:var(--fs-lg);font-weight:600">Coach a driver</h3>
@@ -9699,7 +9699,7 @@ document.addEventListener("click", (e) => {
   }).join("");
   const pop = document.createElement("div");
   pop.id = "rr-di-dow-popover";
-  pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  pop.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   pop.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:520px;width:100%;font-size:var(--fs-md);line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
       <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Day-of-week absence · the math</h3>
@@ -11857,7 +11857,7 @@ function openQuestionEditor(question) {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-question-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -12040,7 +12040,7 @@ async function openCoachingDrawer(driverId) {
   drawer.id = "rr-cd-drawer";
   drawer.innerHTML = `
     <style>
-      #rr-cd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
+      #rr-cd-drawer{position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;justify-content:flex-end}
       #rr-cd-drawer .cd-panel{background:var(--surface);width:min(720px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.18)}
       #rr-cd-drawer .cd-head{padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)}
       #rr-cd-drawer .cd-title{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0}
@@ -12302,7 +12302,7 @@ async function openDriverDrawer(driverId, opts) {
   drawer.id = "rr-dd-drawer";
   drawer.innerHTML = `
     <style>
-      #rr-dd-drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;justify-content:flex-end}
+      #rr-dd-drawer{position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;justify-content:flex-end}
       #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
@@ -13491,7 +13491,7 @@ function _i9ModalShell(title, sub, bodyHtml, footHtml) {
   document.getElementById("rr-i9-modal")?.remove();
   const m = document.createElement("div");
   m.id = "rr-i9-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:var(--s-8) 16px";
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:680px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
@@ -17342,7 +17342,7 @@ async function openCoachingForm(driverId) {
 
   m = document.createElement("div");
   m.id = "rr-coach-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6);overflow-y:auto";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6);overflow-y:auto";
   const today = new Date().toISOString().slice(0, 10);
 
   m.innerHTML = `
@@ -17681,7 +17681,7 @@ document.addEventListener("click", async (e) => {
          <div><strong>${escapeHtml(ed.field_name)}</strong> · "${escapeHtml(ed.old_value || "")}" → "${escapeHtml(ed.new_value || "")}"</div>
        </div>`).join("") || `<div style="color:var(--text-subtle);font-size:var(--fs-md)">No edits.</div>`;
     const w = document.createElement("div");
-    w.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+    w.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     w.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto">
       <h3 style="margin:0 0 12px">Edit history</h3>
       ${rows}
@@ -19016,7 +19016,7 @@ function openMessageEditor(template) {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-msg-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
 
   function attachmentsHtml() {
     if (attachments.length === 0) {
@@ -21351,7 +21351,7 @@ document.addEventListener("click", (e) => {
   }).join("");
   const pop = document.createElement("div");
   pop.id = "rr-avail-popover";
-  pop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  pop.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   pop.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:560px;width:100%;font-size:var(--fs-md);line-height:1.55;color:var(--text);max-height:80vh;overflow-y:auto">
       <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Availability insight · the math</h3>
@@ -21914,7 +21914,7 @@ async function openShiftEditModal(shiftId) {
 
   m = document.createElement("div");
   m.id = "rr-shift-edit-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
@@ -22897,7 +22897,7 @@ function bindSchedWeekNav() {
     if (m) m.remove();
     m = document.createElement("div");
     m.id = "rr-violations-modal";
-    m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+    m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     const list = v.length === 0
       ? '<div class="rr-empty-inline">No rule violations this week ✓</div>'
       : v.map(x => `<div style="padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;gap:var(--s-3);align-items:center"><div style="flex:1"><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(x.driver)}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(x.note)}</div></div><span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
@@ -22925,7 +22925,7 @@ function bindSchedWeekNav() {
     document.getElementById("rr-pref-modal")?.remove();
     const m = document.createElement("div");
     m.id = "rr-pref-modal";
-    m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+    m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     const list = misses.length === 0
       ? '<div class="rr-empty-inline">Everyone with a preference is on a preferred day ✓</div>'
       : misses.map(x => `<div style="padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border)"><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(x.name)}</div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px">Scheduled <strong>${escapeHtml((x.scheduled||[]).join(", "))}</strong>; prefers <strong>${escapeHtml((x.pref||[]).join("/"))}</strong>.</div><div style="font-size:var(--fs-xs);color:var(--red);margin-top:2px">Didn't get a preferred day on: ${escapeHtml((x.off||[]).join(", "))}</div></div>`).join("");
@@ -23421,7 +23421,7 @@ function openAddShiftModal(date, stationId, prefDriverId) {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-shift-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:440px;width:100%">
       <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Add shift</h3>
@@ -23575,7 +23575,7 @@ function openTimeOffModal() {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-shift-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:440px;width:100%">
       <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Time off request</h3>
@@ -26452,7 +26452,7 @@ function _docsAskKind(file) {
   document.getElementById("rr-docs-kind-modal")?.remove();
   const m = document.createElement("div");
   m.id = "rr-docs-kind-modal";
-  m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   const opt = (kind, iconBg, iconColor, iconSvg, title, body) => `
     <button type="button" class="rr-kind-opt" data-kind="${kind}" style="text-align:left;border:1.5px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface);display:flex;gap:var(--s-3);align-items:flex-start;transition:border-color var(--t-fast),box-shadow var(--t-fast)">
       <span style="flex:0 0 auto;width:34px;height:34px;border-radius:var(--r-lg);background:${iconBg};color:${iconColor};display:flex;align-items:center;justify-content:center">${iconSvg}</span>
@@ -26571,7 +26571,7 @@ async function _docsOpenFieldEditor(templateId) {
 
   const m = document.createElement("div");
   m.className = "modal-backdrop";
-  m.style.cssText = "display:flex;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:stretch;justify-content:center;padding:18px";
+  m.style.cssText = "display:flex;position:fixed;inset:0;background:var(--overlay);z-index:9999;align-items:stretch;justify-content:center;padding:18px";
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:920px;display:flex;flex-direction:column;overflow:hidden">
       <div style="padding:var(--s-3-5) 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap">
@@ -30933,7 +30933,7 @@ function _roOpenManageModal(ro) {
   wrap.id = "rr-ro-modal";
   wrap.innerHTML = `
     <style>
-      #rr-ro-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-5)}
+      #rr-ro-modal{position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-5)}
       #rr-ro-modal .ro-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:560px;max-width:100%;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-xl);display:flex;flex-direction:column}
       #rr-ro-modal .ro-head{display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)}
       #rr-ro-modal .ro-head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.005em}
