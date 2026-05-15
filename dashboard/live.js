@@ -30137,38 +30137,28 @@ function _rrHdrAskOpenModal(initialState) {
   if (wrap) wrap.remove();
   wrap = document.createElement("div");
   wrap.id = "rr-hdr-ask-modal";
+  wrap.className = "rr-modal-backdrop";
   wrap.innerHTML = `
     <style>
-      #rr-hdr-ask-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10080;display:flex;align-items:center;justify-content:center;padding:24px}
-      #rr-hdr-ask-modal .modal{width:900px;max-width:100%;max-height:88vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--shadow-xl);display:flex;flex-direction:column;overflow:hidden}
-      #rr-hdr-ask-modal .head{display:flex;align-items:flex-start;gap:14px;padding:16px 22px 14px;border-bottom:1px solid var(--border-subtle)}
-      #rr-hdr-ask-modal .head .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#6366F1}
-      #rr-hdr-ask-modal .head .eyebrow svg{width:12px;height:12px;stroke-width:2}
-      #rr-hdr-ask-modal .head h3{margin:3px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:15.5px;font-weight:600;color:var(--text);line-height:1.35}
-      #rr-hdr-ask-modal .head .x{appearance:none;background:transparent;border:0;font-size:24px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto}
-      #rr-hdr-ask-modal .head .x:hover{color:var(--text)}
-      #rr-hdr-ask-modal .body{padding:18px 22px;overflow-y:auto}
-      #rr-hdr-ask-modal .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 16px;color:var(--text-subtle);gap:12px;font-size:13px}
-      #rr-hdr-ask-modal .loading .dots{display:inline-flex;gap:5px}
-      #rr-hdr-ask-modal .loading .dots span{width:7px;height:7px;border-radius:50%;background:#6366F1;opacity:.4;animation:rrHdrDot 1.2s infinite ease-in-out}
-      #rr-hdr-ask-modal .loading .dots span:nth-child(2){animation-delay:.15s}
-      #rr-hdr-ask-modal .loading .dots span:nth-child(3){animation-delay:.3s}
+      #rr-hdr-ask-modal .rr-modal-panel{width:900px}
+      #rr-hdr-ask-modal .ask-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--s-8) var(--s-4);color:var(--text-subtle);gap:var(--s-3);font-size:var(--fs-md)}
+      #rr-hdr-ask-modal .ask-loading .dots{display:inline-flex;gap:5px}
+      #rr-hdr-ask-modal .ask-loading .dots span{width:7px;height:7px;border-radius:50%;background:var(--indigo-bright);opacity:.4;animation:rrHdrDot 1.2s infinite ease-in-out}
+      #rr-hdr-ask-modal .ask-loading .dots span:nth-child(2){animation-delay:.15s}
+      #rr-hdr-ask-modal .ask-loading .dots span:nth-child(3){animation-delay:.3s}
       @keyframes rrHdrDot{0%,80%,100%{opacity:.4;transform:scale(1)}40%{opacity:1;transform:scale(1.25)}}
-      #rr-hdr-ask-modal .err{padding:12px 14px;border:1px solid var(--red);border-radius:8px;background:rgba(239,68,68,.08);color:#9F1239;font-size:12.5px;line-height:1.5}
-      #rr-hdr-ask-modal .foot{padding:12px 22px;border-top:1px solid var(--border-subtle);background:var(--canvas);display:flex;justify-content:flex-end}
-      #rr-hdr-ask-modal .foot button{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
-      #rr-hdr-ask-modal .foot button:hover{background:var(--canvas)}
+      #rr-hdr-ask-modal .ask-err{padding:var(--s-3) var(--s-3-5);border:1px solid var(--red);border-radius:var(--r-md);background:var(--red-soft);color:var(--red-dark);font-size:var(--fs-sm);line-height:1.5}
     </style>
-    <div class="modal" role="dialog" aria-modal="true" aria-label="Ask RouteReady">
-      <div class="head">
-        <div style="min-width:0;flex:1">
-          <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg> RouteReady AI</span>
-          <h3 id="rr-hdr-ask-prompt"></h3>
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Ask RouteReady">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content">
+          <span class="rr-modal-eyebrow" style="color:var(--indigo-bright)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg> RouteReady AI</span>
+          <p class="rr-modal-title" id="rr-hdr-ask-prompt" style="font-size:15.5px;font-weight:600"></p>
         </div>
-        <button class="x" type="button" data-rr-hdr-close aria-label="Close">×</button>
+        <button class="rr-modal-close" type="button" data-rr-hdr-close aria-label="Close">×</button>
       </div>
-      <div class="body" id="rr-hdr-ask-body"></div>
-      <div class="foot"><button type="button" data-rr-hdr-close>Close</button></div>
+      <div class="rr-modal-body" id="rr-hdr-ask-body"></div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-rr-hdr-close>Close</button></div>
     </div>`;
   document.body.appendChild(wrap);
   wrap.addEventListener("click", (e) => {
@@ -30187,11 +30177,11 @@ function _rrHdrAskSetState(state) {
   const body = document.getElementById("rr-hdr-ask-body");
   if (!body) return;
   if (state.loading) {
-    body.innerHTML = `<div class="loading"><div class="dots"><span></span><span></span><span></span></div>RouteReady is looking that up…</div>`;
+    body.innerHTML = `<div class="ask-loading"><div class="dots"><span></span><span></span><span></span></div>RouteReady is looking that up…</div>`;
     return;
   }
   if (state.error) {
-    body.innerHTML = `<div class="err">${_rrAnEsc(state.error)}</div>`;
+    body.innerHTML = `<div class="ask-err">${_rrAnEsc(state.error)}</div>`;
     return;
   }
   if (state.result && typeof _rrAnRenderResultBody === "function") {
@@ -31911,53 +31901,43 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
   if (wrap) wrap.remove();
   wrap = document.createElement("div");
   wrap.id = "rr-dvic-modal";
+  wrap.className = "rr-modal-backdrop";
   wrap.innerHTML = `
     <style>
-      #rr-dvic-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10050;display:flex;align-items:center;justify-content:center;padding:24px}
-      #rr-dvic-modal .modal{width:1200px;max-width:100%;max-height:90vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--shadow-xl);display:flex;flex-direction:column;overflow:hidden}
-      #rr-dvic-modal .head{display:flex;align-items:flex-start;gap:14px;padding:18px 22px 16px;border-bottom:1px solid var(--border-subtle)}
-      #rr-dvic-modal .head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
-      #rr-dvic-modal .head .sub{margin-top:5px;font-size:11.5px;color:var(--text-subtle);font-weight:500}
-      #rr-dvic-modal .head .x{appearance:none;background:transparent;border:0;font-size:24px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto}
-      #rr-dvic-modal .head .x:hover{color:var(--text)}
-      #rr-dvic-modal .body{padding:18px 22px;display:flex;flex-direction:column;gap:18px;overflow-y:auto}
-      #rr-dvic-modal .pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+      #rr-dvic-modal .rr-modal-panel{width:1200px;max-height:90vh}
+      #rr-dvic-modal .pair{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4)}
       #rr-dvic-modal .col h4{margin:0 0 4px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
-      #rr-dvic-modal .col .when{font-size:12px;color:var(--text);font-weight:600;margin-bottom:2px}
-      #rr-dvic-modal .col .who{font-size:11.5px;color:var(--text-subtle);margin-bottom:8px}
-      #rr-dvic-modal .dvic-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-      #rr-dvic-modal .dvic-thumb{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:var(--canvas);cursor:zoom-in}
+      #rr-dvic-modal .col .when{font-size:var(--fs-sm);color:var(--text);font-weight:600;margin-bottom:2px}
+      #rr-dvic-modal .col .who{font-size:11.5px;color:var(--text-subtle);margin-bottom:var(--s-2)}
+      #rr-dvic-modal .dvic-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-2-5)}
+      #rr-dvic-modal .dvic-thumb{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:var(--r-md);overflow:hidden;border:1px solid var(--border);background:var(--canvas);cursor:zoom-in;transition:border-color var(--t-fast), transform var(--t-fast)}
+      #rr-dvic-modal .dvic-thumb:hover{border-color:var(--border-strong);transform:translateY(-1px)}
       #rr-dvic-modal .dvic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
       #rr-dvic-modal .dvic-thumb.missing{display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:22px;aspect-ratio:4/3;cursor:default}
-      #rr-dvic-modal .dvic-thumb .ix{position:absolute;left:6px;bottom:6px;background:rgba(15,23,42,.75);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px}
-      #rr-dvic-modal .dvic-empty{font-size:12.5px;color:var(--text-subtle);padding:14px 12px;border:1px dashed var(--border);border-radius:8px;background:var(--canvas)}
-      #rr-dvic-modal .dvic-ai{border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--canvas)}
-      #rr-dvic-modal .dvic-ai-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
-      #rr-dvic-modal .sev-pill{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
-      #rr-dvic-modal .dvic-ai-sum{margin:8px 0 0;font-size:13px;color:var(--text);line-height:1.55}
-      #rr-dvic-modal .review{border-top:1px dashed var(--border);padding-top:14px;display:flex;flex-direction:column;gap:8px}
-      #rr-dvic-modal .review textarea{width:100%;min-height:64px;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);resize:vertical}
+      #rr-dvic-modal .dvic-thumb.missing:hover{transform:none;border-color:var(--border)}
+      #rr-dvic-modal .dvic-thumb .ix{position:absolute;left:6px;bottom:6px;background:rgba(15,23,42,.75);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--r-sm)}
+      #rr-dvic-modal .dvic-empty{font-size:var(--fs-sm);color:var(--text-subtle);padding:var(--s-3-5) var(--s-3);border:1px dashed var(--border);border-radius:var(--r-md);background:var(--canvas)}
+      #rr-dvic-modal .dvic-ai{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);background:var(--canvas)}
+      #rr-dvic-modal .dvic-ai-h{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;font-size:11.5px}
+      #rr-dvic-modal .sev-pill{display:inline-flex;align-items:center;padding:2px var(--s-2-5);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+      #rr-dvic-modal .dvic-ai-sum{margin:var(--s-2) 0 0;font-size:var(--fs-md);color:var(--text);line-height:1.55}
+      #rr-dvic-modal .review{border-top:1px dashed var(--border);padding-top:var(--s-3-5);display:flex;flex-direction:column;gap:var(--s-2)}
+      #rr-dvic-modal .review textarea{width:100%;min-height:64px;font:inherit;font-size:var(--fs-sm);padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);resize:vertical;transition:border-color var(--t-fast), box-shadow var(--t-fast)}
+      #rr-dvic-modal .review textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
       #rr-dvic-modal .review-state{font-size:11.5px;color:var(--text-subtle)}
-      #rr-dvic-modal .foot{padding:12px 22px;border-top:1px solid var(--border-subtle);background:var(--canvas);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
-      #rr-dvic-modal .foot button{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
-      #rr-dvic-modal .foot button:hover{background:var(--canvas)}
-      #rr-dvic-modal .foot button.primary{border-color:transparent;background:#15803D;color:#fff}
-      #rr-dvic-modal .foot button.primary:hover{background:#166534}
-      #rr-dvic-modal .foot button.danger{border-color:transparent;background:#9F1239;color:#fff}
-      #rr-dvic-modal .foot button.danger:hover{background:#881337}
     </style>
-    <div class="modal" role="dialog" aria-modal="true" aria-label="DVIC photo review">
-      <div class="head">
-        <div style="min-width:0;flex:1">
-          <h3 id="dvic-modal-title">DVIC photo review</h3>
-          <div class="sub" id="dvic-modal-sub">Loading…</div>
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="DVIC photo review">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content">
+          <h3 class="rr-modal-title" id="dvic-modal-title">DVIC photo review</h3>
+          <div class="rr-modal-sub" id="dvic-modal-sub">Loading…</div>
         </div>
-        <button class="x" data-dvic-close type="button" aria-label="Close">×</button>
+        <button class="rr-modal-close" data-dvic-close type="button" aria-label="Close">×</button>
       </div>
-      <div class="body" id="dvic-modal-body">
-        <div style="padding:32px 8px;text-align:center;color:var(--text-subtle)">Loading photos…</div>
+      <div class="rr-modal-body" id="dvic-modal-body">
+        <div style="padding:var(--s-8) var(--s-2);text-align:center;color:var(--text-subtle)">Loading photos…</div>
       </div>
-      <div class="foot" id="dvic-modal-foot"></div>
+      <div class="rr-modal-foot" id="dvic-modal-foot"></div>
     </div>`;
   document.body.appendChild(wrap);
   wrap.addEventListener("click", (e) => {
@@ -31991,7 +31971,7 @@ async function _dvicRenderModal(wrap, data) {
 
   if (!cur) {
     document.getElementById("dvic-modal-body").innerHTML = `<div class="dvic-empty">No DVIC photos have been submitted for this van yet.</div>`;
-    document.getElementById("dvic-modal-foot").innerHTML = `<button data-dvic-close>Close</button>`;
+    document.getElementById("dvic-modal-foot").innerHTML = `<button class="rr-modal-btn" data-dvic-close>Close</button>`;
     return;
   }
 
@@ -32033,10 +32013,10 @@ async function _dvicRenderModal(wrap, data) {
   const isReviewed = !!cur.reviewer_disposition;
   const isPending  = cur.ai_review_status === "pending" || cur.ai_review_status === "error";
   document.getElementById("dvic-modal-foot").innerHTML = `
-    ${isPending ? `<button data-dvic-run-ai data-dvic-inspection="${escapeHtml(cur.id)}">Run AI scan</button>` : ""}
-    ${isReviewed ? "" : `<button class="primary" data-dvic-mark="clean" data-dvic-inspection="${escapeHtml(cur.id)}" data-dvic-vehicle="${escapeHtml(v.id)}">Mark clean</button>`}
-    ${isReviewed ? "" : `<button class="danger" data-dvic-mark="damage_filed" data-dvic-inspection="${escapeHtml(cur.id)}" data-dvic-vehicle="${escapeHtml(v.id)}">File damage</button>`}
-    <button data-dvic-close>Close</button>
+    ${isPending ? `<button class="rr-modal-btn" data-dvic-run-ai data-dvic-inspection="${escapeHtml(cur.id)}">Run AI scan</button>` : ""}
+    ${isReviewed ? "" : `<button class="rr-modal-btn primary" data-dvic-mark="clean" data-dvic-inspection="${escapeHtml(cur.id)}" data-dvic-vehicle="${escapeHtml(v.id)}">Mark clean</button>`}
+    ${isReviewed ? "" : `<button class="rr-modal-btn danger" data-dvic-mark="damage_filed" data-dvic-inspection="${escapeHtml(cur.id)}" data-dvic-vehicle="${escapeHtml(v.id)}">File damage</button>`}
+    <button class="rr-modal-btn" data-dvic-close>Close</button>
   `;
 }
 
