@@ -30551,6 +30551,7 @@ function _flRenderRoster() {
       <td><div style="display:flex;align-items:center;gap:10px">${_flVehThumb(v)}<div>
         <div class="cell-name">${escapeHtml(v.name)}</div>
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
+        ${_dvicChipHtml(v)}
       </div></div></td>
       <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
       <td>${_flOpStatCell(v)}</td>
@@ -31664,9 +31665,15 @@ async function _fdRefreshInspectionsList(vehicleId) {
     const dvicTag = isDvic
       ? `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent-text);margin-left:8px">DVIC FORM</span>`
       : "";
+    const compareBtn = photos.length
+      ? `<button type="button" class="btn btn-ghost btn-sm" data-dvic-open data-dvic-vehicle="${escapeHtml(vehicleId)}" data-dvic-inspection="${escapeHtml(r.id)}" style="margin-left:8px;font-size:11px;padding:3px 8px" title="Compare against the prior inspection">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" style="width:11px;height:11px;margin-right:3px;vertical-align:-2px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Compare
+        </button>`
+      : "";
     return `<div class="fd-list-row">
       <div style="min-width:0;flex:1">
-        <div class="fd-list-title" style="text-transform:capitalize;display:flex;align-items:center;flex-wrap:wrap">${escapeHtml((r.kind || "").replace(/_/g, " "))} inspection${dvicTag}</div>
+        <div class="fd-list-title" style="text-transform:capitalize;display:flex;align-items:center;flex-wrap:wrap">${escapeHtml((r.kind || "").replace(/_/g, " "))} inspection${dvicTag}${compareBtn}</div>
         <div class="fd-list-sub">
           <span style="color:${resColor};font-weight:600;text-transform:capitalize">${escapeHtml((r.result || "").replace(/_/g, " "))}</span>
           ${r.inspector_name ? " · " + escapeHtml(r.inspector_name) : ""}
@@ -31680,6 +31687,309 @@ async function _fdRefreshInspectionsList(vehicleId) {
     </div>`;
   }).join("");
 }
+
+// ─── DVIC compare modal ──────────────────────────────────────────────
+// Side-by-side view of today's DVIC photos vs the prior inspection's,
+// plus the AI verdict block and Mark clean / File damage actions.
+// Opens from: camera chip on the fleet roster row, the Inspections card
+// on the Van Record, and the compliance "AI flagged possible damage"
+// exception row.
+const _DVIC_BUCKET = "driver-documents";
+const _dvicSignCache = new Map();   // path → { url, expires }
+
+async function _dvicSignPaths(paths) {
+  const out = new Map();
+  const need = [];
+  const now = Date.now();
+  for (const p of paths) {
+    const hit = _dvicSignCache.get(p);
+    if (hit && hit.expires > now + 60_000) { out.set(p, hit.url); }
+    else { need.push(p); }
+  }
+  if (need.length) {
+    try {
+      const { data, error } = await sb.storage.from(_DVIC_BUCKET).createSignedUrls(need, 3600);
+      if (error) console.warn("DVIC sign error:", error);
+      (data || []).forEach((s) => {
+        if (s?.signedUrl) {
+          _dvicSignCache.set(s.path, { url: s.signedUrl, expires: now + 3600_000 });
+          out.set(s.path, s.signedUrl);
+        }
+      });
+    } catch (e) { console.warn("DVIC sign exception:", e); }
+  }
+  return out;
+}
+
+function _dvicFmtWhen(s) {
+  if (!s) return "—";
+  try { return new Date(s).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }); }
+  catch { return String(s); }
+}
+
+function _dvicAiBlock(cur) {
+  const status = cur?.ai_review_status || "pending";
+  const conf   = cur?.ai_review_confidence;
+  const summary = cur?.ai_review_summary || "";
+  const findings = Array.isArray(cur?.ai_review_findings) ? cur.ai_review_findings : [];
+  const pillBg = status === "flagged" ? "rgba(159,18,57,.10)"
+               : status === "clean"   ? "rgba(34,197,94,.10)"
+               : status === "error"   ? "var(--amber-soft)"
+               :                        "var(--accent-soft)";
+  const pillFg = status === "flagged" ? "#9F1239"
+               : status === "clean"   ? "#15803D"
+               : status === "error"   ? "var(--amber-dark)"
+               :                        "var(--accent-text)";
+  const label  = status === "flagged" ? "Possible damage" :
+                 status === "clean"   ? "No damage detected" :
+                 status === "error"   ? "Review unavailable" :
+                 status === "skipped" ? "Review skipped" :
+                                        "Review pending";
+  const confLine = (status === "flagged" || status === "clean") && conf != null
+    ? `<span style="margin-left:8px;color:var(--text-subtle);font-size:11px">${escapeHtml(String(conf))}% confidence</span>` : "";
+  const findingsHtml = findings.length
+    ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--text);line-height:1.55;display:flex;flex-direction:column;gap:4px">${
+        findings.map((f) => `<li><b>${escapeHtml(f.area || "—")}</b>${f.severity ? ` · <span style="text-transform:capitalize;color:var(--text-subtle)">${escapeHtml(f.severity)}</span>` : ""}${f.description ? " — " + escapeHtml(f.description) : ""}${f.confidence != null ? ` <span style="color:var(--text-subtle)">(${escapeHtml(String(f.confidence))}%)</span>` : ""}</li>`).join("")
+      }</ul>` : "";
+  return `<div class="dvic-ai">
+    <div class="dvic-ai-h">
+      <span class="sev-pill" style="color:${pillFg};background:${pillBg}">${escapeHtml(label)}</span>
+      ${confLine}
+      ${cur?.ai_review_at ? `<span style="margin-left:auto;color:var(--text-subtle);font-size:11px">Reviewed ${escapeHtml(_dvicFmtWhen(cur.ai_review_at))}</span>` : ""}
+    </div>
+    ${summary ? `<p class="dvic-ai-sum">${escapeHtml(summary)}</p>` : status === "pending" ? `<p class="dvic-ai-sum" style="color:var(--text-subtle)">RouteReady will review these photos against the prior inspection. Click "Run AI scan" to start.</p>` : ""}
+    ${findingsHtml}
+  </div>`;
+}
+
+function _dvicPhotoStrip(photos, urlMap, side) {
+  if (!photos || !photos.length) {
+    return `<div class="dvic-empty">No photos${side === "previous" ? " from the prior inspection." : "."}</div>`;
+  }
+  return `<div class="dvic-strip">${photos.map((p, i) => {
+    const u = urlMap.get(p);
+    return u
+      ? `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" class="dvic-thumb"><img src="${escapeHtml(u)}" alt=""><span class="ix">${i}</span></a>`
+      : `<div class="dvic-thumb missing" title="${escapeHtml(p)}">📷</div>`;
+  }).join("")}</div>`;
+}
+
+async function _dvicOpenCompare(vehicleId, inspectionId) {
+  if (!vehicleId) return;
+  // Reuse a single modal node so re-opens don't stack.
+  let wrap = document.getElementById("rr-dvic-modal");
+  if (wrap) wrap.remove();
+  wrap = document.createElement("div");
+  wrap.id = "rr-dvic-modal";
+  wrap.innerHTML = `
+    <style>
+      #rr-dvic-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10050;display:flex;align-items:center;justify-content:center;padding:24px}
+      #rr-dvic-modal .modal{width:920px;max-width:100%;max-height:90vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--shadow-xl);display:flex;flex-direction:column;overflow:hidden}
+      #rr-dvic-modal .head{display:flex;align-items:flex-start;gap:14px;padding:18px 22px 16px;border-bottom:1px solid var(--border-subtle)}
+      #rr-dvic-modal .head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
+      #rr-dvic-modal .head .sub{margin-top:5px;font-size:11.5px;color:var(--text-subtle);font-weight:500}
+      #rr-dvic-modal .head .x{appearance:none;background:transparent;border:0;font-size:24px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto}
+      #rr-dvic-modal .head .x:hover{color:var(--text)}
+      #rr-dvic-modal .body{padding:18px 22px;display:flex;flex-direction:column;gap:18px;overflow-y:auto}
+      #rr-dvic-modal .pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+      #rr-dvic-modal .col h4{margin:0 0 4px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
+      #rr-dvic-modal .col .when{font-size:12px;color:var(--text);font-weight:600;margin-bottom:2px}
+      #rr-dvic-modal .col .who{font-size:11.5px;color:var(--text-subtle);margin-bottom:8px}
+      #rr-dvic-modal .dvic-strip{display:flex;gap:8px;flex-wrap:wrap}
+      #rr-dvic-modal .dvic-thumb{position:relative;display:block;width:110px;height:110px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:var(--canvas)}
+      #rr-dvic-modal .dvic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+      #rr-dvic-modal .dvic-thumb.missing{display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:20px}
+      #rr-dvic-modal .dvic-thumb .ix{position:absolute;left:4px;bottom:4px;background:rgba(15,23,42,.7);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px}
+      #rr-dvic-modal .dvic-empty{font-size:12.5px;color:var(--text-subtle);padding:14px 12px;border:1px dashed var(--border);border-radius:8px;background:var(--canvas)}
+      #rr-dvic-modal .dvic-ai{border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--canvas)}
+      #rr-dvic-modal .dvic-ai-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
+      #rr-dvic-modal .sev-pill{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+      #rr-dvic-modal .dvic-ai-sum{margin:8px 0 0;font-size:13px;color:var(--text);line-height:1.55}
+      #rr-dvic-modal .review{border-top:1px dashed var(--border);padding-top:14px;display:flex;flex-direction:column;gap:8px}
+      #rr-dvic-modal .review textarea{width:100%;min-height:64px;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--canvas);resize:vertical}
+      #rr-dvic-modal .review-state{font-size:11.5px;color:var(--text-subtle)}
+      #rr-dvic-modal .foot{padding:12px 22px;border-top:1px solid var(--border-subtle);background:var(--canvas);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+      #rr-dvic-modal .foot button{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
+      #rr-dvic-modal .foot button:hover{background:var(--canvas)}
+      #rr-dvic-modal .foot button.primary{border-color:transparent;background:#15803D;color:#fff}
+      #rr-dvic-modal .foot button.primary:hover{background:#166534}
+      #rr-dvic-modal .foot button.danger{border-color:transparent;background:#9F1239;color:#fff}
+      #rr-dvic-modal .foot button.danger:hover{background:#881337}
+    </style>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="DVIC photo review">
+      <div class="head">
+        <div style="min-width:0;flex:1">
+          <h3 id="dvic-modal-title">DVIC photo review</h3>
+          <div class="sub" id="dvic-modal-sub">Loading…</div>
+        </div>
+        <button class="x" data-dvic-close type="button" aria-label="Close">×</button>
+      </div>
+      <div class="body" id="dvic-modal-body">
+        <div style="padding:32px 8px;text-align:center;color:var(--text-subtle)">Loading photos…</div>
+      </div>
+      <div class="foot" id="dvic-modal-foot"></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-dvic-close]")) wrap.remove();
+  });
+  const onKey = (e) => { if (e.key === "Escape") { wrap.remove(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+
+  // Fetch the pair from the RPC.
+  const { data, error } = await sb.rpc("vehicle_dvic_compare_pair", { p_vehicle_id: vehicleId, p_inspection_id: inspectionId || null });
+  if (error || !data) {
+    document.getElementById("dvic-modal-body").innerHTML = `<div class="dvic-empty">Couldn't load: ${escapeHtml((error && error.message) || "no data")}</div>`;
+    return;
+  }
+  if (data.error) {
+    document.getElementById("dvic-modal-body").innerHTML = `<div class="dvic-empty">${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  await _dvicRenderModal(wrap, data);
+}
+
+async function _dvicRenderModal(wrap, data) {
+  const v = data.vehicle || {};
+  const cur = data.current;
+  const prev = data.previous;
+  document.getElementById("dvic-modal-title").textContent = `DVIC review · ${v.label || "Vehicle"}`;
+  const subParts = [];
+  if (v.vin) subParts.push(`VIN ${v.vin}`);
+  if (cur?.inspected_at) subParts.push(`Today · ${_dvicFmtWhen(cur.inspected_at)}`);
+  document.getElementById("dvic-modal-sub").textContent = subParts.join(" · ");
+
+  if (!cur) {
+    document.getElementById("dvic-modal-body").innerHTML = `<div class="dvic-empty">No DVIC photos have been submitted for this van yet.</div>`;
+    document.getElementById("dvic-modal-foot").innerHTML = `<button data-dvic-close>Close</button>`;
+    return;
+  }
+
+  // Collect paths and sign.
+  const allPaths = [
+    ...(Array.isArray(cur.photos) ? cur.photos : []),
+    ...(prev && Array.isArray(prev.photos) ? prev.photos : []),
+  ].filter(Boolean);
+  const urlMap = await _dvicSignPaths(allPaths);
+
+  const reviewBlock = cur.reviewer_disposition
+    ? `<div class="review-state">Reviewed ${escapeHtml(_dvicFmtWhen(cur.reviewed_at))} · <b style="text-transform:capitalize">${escapeHtml((cur.reviewer_disposition || "").replace(/_/g, " "))}</b>${cur.reviewer_notes ? " · " + escapeHtml(cur.reviewer_notes) : ""}</div>`
+    : `<div class="review">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-subtle)">Notes (optional)</label>
+        <textarea id="dvic-modal-notes" placeholder="What did you observe?"></textarea>
+      </div>`;
+
+  document.getElementById("dvic-modal-body").innerHTML = `
+    <div class="pair">
+      <div class="col">
+        <h4>Previous inspection</h4>
+        ${prev ? `
+          <div class="when">${escapeHtml(_dvicFmtWhen(prev.inspected_at))}</div>
+          <div class="who">${escapeHtml(prev.inspector_name || "—")}${prev.result ? ` · ${escapeHtml((prev.result || "").replace(/_/g, " "))}` : ""}</div>
+        ` : `<div class="who">No prior inspection on file.</div>`}
+        ${_dvicPhotoStrip(prev?.photos || [], urlMap, "previous")}
+      </div>
+      <div class="col">
+        <h4>Current inspection</h4>
+        <div class="when">${escapeHtml(_dvicFmtWhen(cur.inspected_at))}</div>
+        <div class="who">${escapeHtml(cur.inspector_name || "—")}${cur.result ? ` · ${escapeHtml((cur.result || "").replace(/_/g, " "))}` : ""}${cur.mileage != null ? ` · ${Number(cur.mileage).toLocaleString()} mi` : ""}</div>
+        ${_dvicPhotoStrip(cur.photos || [], urlMap, "current")}
+      </div>
+    </div>
+    ${_dvicAiBlock(cur)}
+    ${reviewBlock}
+  `;
+
+  const isReviewed = !!cur.reviewer_disposition;
+  const isPending  = cur.ai_review_status === "pending" || cur.ai_review_status === "error";
+  document.getElementById("dvic-modal-foot").innerHTML = `
+    ${isPending ? `<button data-dvic-run-ai data-dvic-inspection="${escapeHtml(cur.id)}">Run AI scan</button>` : ""}
+    ${isReviewed ? "" : `<button class="primary" data-dvic-mark="clean" data-dvic-inspection="${escapeHtml(cur.id)}" data-dvic-vehicle="${escapeHtml(v.id)}">Mark clean</button>`}
+    ${isReviewed ? "" : `<button class="danger" data-dvic-mark="damage_filed" data-dvic-inspection="${escapeHtml(cur.id)}" data-dvic-vehicle="${escapeHtml(v.id)}">File damage</button>`}
+    <button data-dvic-close>Close</button>
+  `;
+}
+
+// Delegated actions inside the DVIC modal.
+document.addEventListener("click", async (e) => {
+  const runBtn = e.target.closest && e.target.closest("[data-dvic-run-ai]");
+  if (runBtn) {
+    e.preventDefault();
+    const id = runBtn.getAttribute("data-dvic-inspection");
+    runBtn.disabled = true;
+    runBtn.textContent = "Scanning…";
+    try {
+      const { error } = await sb.rpc("vehicle_dvic_request_ai", { p_inspection_id: id });
+      if (error) throw error;
+      // Re-fetch + re-render after a short delay so Claude has time to land.
+      setTimeout(async () => {
+        const wrap = document.getElementById("rr-dvic-modal");
+        if (!wrap) return;
+        const { data } = await sb.rpc("vehicle_dvic_compare_pair", { p_vehicle_id: runBtn.getAttribute("data-dvic-vehicle") || null, p_inspection_id: id });
+        if (data && !data.error) _dvicRenderModal(wrap, data);
+        else if (typeof toast === "function") toast("AI scan requested — refresh in a moment.");
+      }, 6000);
+      if (typeof toast === "function") toast("AI scan requested.");
+    } catch (err) {
+      runBtn.disabled = false;
+      runBtn.textContent = "Run AI scan";
+      if (typeof toast === "function") toast("Couldn't start AI scan: " + ((err && err.message) || "try again"), "warn");
+    }
+    return;
+  }
+  const markBtn = e.target.closest && e.target.closest("[data-dvic-mark]");
+  if (markBtn) {
+    e.preventDefault();
+    const disposition = markBtn.getAttribute("data-dvic-mark");
+    const id = markBtn.getAttribute("data-dvic-inspection");
+    const notesEl = document.getElementById("dvic-modal-notes");
+    const notes = notesEl ? notesEl.value.trim() : null;
+    markBtn.disabled = true;
+    markBtn.textContent = "Saving…";
+    try {
+      const { error } = await sb.rpc("vehicle_dvic_review_save", {
+        p_inspection_id: id, p_disposition: disposition, p_notes: notes
+      });
+      if (error) throw error;
+      if (typeof toast === "function") toast(disposition === "clean" ? "Marked clean." : "Damage filed. Open an Issue / RO from Fleet.");
+      const wrap = document.getElementById("rr-dvic-modal");
+      if (wrap) wrap.remove();
+      // Refresh anything that might be showing the chip / exception.
+      if (typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
+      if (typeof loadFleetView === "function") loadFleetView();
+    } catch (err) {
+      markBtn.disabled = false;
+      markBtn.textContent = disposition === "clean" ? "Mark clean" : "File damage";
+      if (typeof toast === "function") toast("Couldn't save: " + ((err && err.message) || "try again"), "warn");
+    }
+    return;
+  }
+});
+
+// Camera chip used on fleet roster rows + Inspections list.
+function _dvicChipHtml(v) {
+  if (!v) return "";
+  const state = v.latest_dvic_state || "none";
+  if (state === "none") return "";
+  const tone = state === "flagged" ? "flag" : state === "pending" ? "pend" : state === "reviewed" ? "rev" : "ok";
+  const label = state === "flagged" ? "AI flagged" :
+                state === "pending" ? "DVIC pending" :
+                state === "reviewed" ? "DVIC reviewed" :
+                                       "DVIC clean";
+  return `<button type="button" class="dvic-chip ${tone}" data-dvic-open data-dvic-vehicle="${escapeHtml(v.id)}"${v.latest_inspection_id ? ` data-dvic-inspection="${escapeHtml(v.latest_inspection_id)}"` : ""} title="${escapeHtml(label)}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" style="width:12px;height:12px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    <span>${escapeHtml(label)}</span>
+  </button>`;
+}
+
+// Open compare modal from any [data-dvic-open] trigger.
+document.addEventListener("click", (e) => {
+  const t = e.target.closest && e.target.closest("[data-dvic-open]");
+  if (!t) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _dvicOpenCompare(t.getAttribute("data-dvic-vehicle"), t.getAttribute("data-dvic-inspection") || null);
+});
 
 // Auto-refresh the per-tab lists when the user lands on Inspections /
 // Mileage so the drawer feels alive without an explicit reload.
@@ -32154,7 +32464,8 @@ document.addEventListener("click", async (e) => {
       fmcsa_cmv_classification:    "Vehicle classification",
       fmcsa_operating_status:      "FMCSA operating status",
       fmcsa_fleet_count_mismatch:  "Fleet count mismatch",
-      driver_no_van:               "Driver · no van"
+      driver_no_van:               "Driver · no van",
+      dvic_ai_damage:              "AI flagged possible damage"
     }[kind] || "Risk";
   }
 
@@ -32900,6 +33211,10 @@ document.addEventListener("click", async (e) => {
     const list = window._coLastRisks || [];
     const risk = list[idx];
     if (!risk) return;
+    if (risk.kind === "dvic_ai_damage" && risk.meta && risk.meta.vehicle_id) {
+      _dvicOpenCompare(risk.meta.vehicle_id, risk.meta.inspection_id || null);
+      return;
+    }
     _coOpenRiskDrawer(risk);
   });
 
