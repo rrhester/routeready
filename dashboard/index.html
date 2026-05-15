@@ -1474,6 +1474,20 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 }
 .cell-name{font-weight:600}
 .cell-name-sub{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400;margin-top:2px}
+
+/* DVIC chip · camera indicator on Fleet rows + Van Record */
+.dvic-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  padding:3px 9px;border-radius:999px;cursor:pointer;
+  border:1px solid transparent;background:transparent;color:var(--text);
+  margin-top:4px;line-height:1.2;
+}
+.dvic-chip:hover{filter:brightness(.96)}
+.dvic-chip.pend{background:var(--accent-soft);color:var(--accent-text)}
+.dvic-chip.flag{background:rgba(159,18,57,.10);color:#9F1239}
+.dvic-chip.ok  {background:rgba(34,197,94,.10);color:#15803D}
+.dvic-chip.rev {background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
 .cell-contact{color:var(--text-muted);font-size:var(--fs-sm);line-height:1.4}
 .cell-score{
   display:inline-flex;align-items:center;justify-content:center;
@@ -20203,7 +20217,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515k-fmcsa-rules-fix"></script>
+<script type="module" src="./live.js?v=20260515l-dvic-ai-damage"></script>
 
 </body>
 </html>
