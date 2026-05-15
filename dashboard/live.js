@@ -3184,7 +3184,7 @@ function _obPill(label, tone) {
     : tone === "red"   ? "background:#fee2e2;color:#991b1b"
     : tone === "amber" ? "background:#fef3c7;color:#92400e"
     : tone === "blue"  ? "background:#e0f2fe;color:#075985"
-    : "background:#f1f5f9;color:#475569";
+    : "background:#f1f5f9;color:var(--text-muted)";
   return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
 }
 // The "N onboarding · X ready · Y blocked · biggest bottleneck …" strip
@@ -12211,39 +12211,39 @@ async function openCoachingPrintView(driverId) {
 <title>Coaching record · ${escape(displayDriverName(drv))}</title>
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;background:#f5f5f5;color:#0f172a;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:var(--fs-md);line-height:1.55}
+  html,body{margin:0;background:#f5f5f5;color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:var(--fs-md);line-height:1.55}
   .toolbar{position:sticky;top:0;background:#0f172a;color:#fff;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm);z-index:5}
-  .toolbar button{background:#fff;color:#0f172a;border:0;border-radius:var(--r-md);font:inherit;font-weight:600;padding:6px 12px;cursor:pointer}
+  .toolbar button{background:#fff;color:var(--text);border:0;border-radius:var(--r-md);font:inherit;font-weight:600;padding:6px 12px;cursor:pointer}
   .page{max-width:780px;margin:18px auto 80px;background:#fff;padding:34px 44px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-radius:var(--r-md)}
   header{border-bottom:2px solid #0f172a;padding-bottom:14px;margin-bottom:18px}
-  .brand{font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569}
+  .brand{font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
   h1{margin:4px 0 2px;font-size:var(--fs-xxl);letter-spacing:-.01em}
-  .meta-line{font-size:var(--fs-sm);color:#475569}
-  .totals{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 0;font-size:var(--fs-sm);color:#475569}
-  .totals strong{color:#0f172a;font-weight:700}
+  .meta-line{font-size:var(--fs-sm);color:var(--text-muted)}
+  .totals{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 0;font-size:var(--fs-sm);color:var(--text-muted)}
+  .totals strong{color:var(--text);font-weight:700}
   .rec{padding:18px 0;border-bottom:1px solid #e2e8f0;page-break-inside:avoid;break-inside:avoid}
   .rec:last-child{border-bottom:0}
   .rec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
   .sev{display:inline-block;color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-lg);margin-right:8px}
-  .rec-num{font-size:var(--fs-xs);color:#94a3b8}
-  .rec-occurred{font-size:var(--fs-sm);color:#475569;font-variant-numeric:tabular-nums}
+  .rec-num{font-size:var(--fs-xs);color:var(--text-disabled)}
+  .rec-occurred{font-size:var(--fs-sm);color:var(--text-muted);font-variant-numeric:tabular-nums}
   .rec-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 18px;margin-bottom:10px}
   .rec-meta>div{display:flex;gap:8px;font-size:var(--fs-sm)}
-  .lbl{display:inline-block;min-width:120px;color:#94a3b8;font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase}
+  .lbl{display:inline-block;min-width:120px;color:var(--text-disabled);font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase}
   .rec-summary{font-size:var(--fs-lg);font-weight:600;line-height:1.4;margin:6px 0}
   .rec-notes{white-space:pre-wrap;color:#334155;background:#f8fafc;padding:10px 12px;border-left:3px solid #cbd5e1;border-radius:3px;margin:8px 0}
   .rec-fields>div{display:flex;gap:8px;font-size:var(--fs-sm);margin-bottom:4px}
   .hr-only{color:var(--red);font-weight:700}
   .sig{margin-top:12px;border:1px solid #e2e8f0;padding:10px 12px;border-radius:var(--r-sm);background:#fafafa}
-  .sig-label{font-size:var(--fs-xs);font-weight:600;color:#94a3b8;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
+  .sig-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-disabled);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
   .sig img{max-width:300px;max-height:120px;display:block}
   .audit{margin-top:10px}
-  .audit summary{cursor:pointer;font-size:var(--fs-xs);color:#475569;font-weight:600}
+  .audit summary{cursor:pointer;font-size:var(--fs-xs);color:var(--text-muted);font-weight:600}
   .audit table{width:100%;border-collapse:collapse;font-size:var(--fs-xs);margin-top:8px}
   .audit th,.audit td{text-align:left;padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top}
-  .audit th{background:#f8fafc;color:#475569;font-weight:600}
-  .empty{padding:60px 0;text-align:center;color:#94a3b8;font-size:var(--fs-md)}
-  footer{margin-top:30px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:var(--fs-xs);color:#94a3b8;line-height:1.5}
+  .audit th{background:#f8fafc;color:var(--text-muted);font-weight:600}
+  .empty{padding:60px 0;text-align:center;color:var(--text-disabled);font-size:var(--fs-md)}
+  footer{margin-top:30px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:var(--fs-xs);color:var(--text-disabled);line-height:1.5}
   @media print {
     .toolbar{display:none}
     body{background:#fff}
@@ -13665,8 +13665,8 @@ async function openI9Section2Modal(driverId) {
       ${step(4, "Sign", "Your electronic signature is recorded with your name and a timestamp.", `
         <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
           <canvas id="i9-s2-canvas" style="display:block;width:100%;height:160px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
-          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:#475569;cursor:pointer">Clear</button>
-          <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
+          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
+          <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--text-disabled);font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
         </div>
         <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);width:100%">`)}
     </div>`;
@@ -13870,7 +13870,7 @@ function _i9FormPrintStylesOnce() {
     #rr-i9form-modal .i9f-toolbar .t{font-weight:700;color:var(--text)}
     #rr-i9form-modal .i9f-toolbar .t small{display:block;font-weight:500;color:var(--text-subtle);font-size:var(--fs-xs)}
     #rr-i9form-modal .i9f-scroll{flex:1;overflow:auto;padding:24px;display:flex;justify-content:center;background:#e5e7eb}
-    #rr-i9form-modal .i9f-doc{background:#fff;color:#111827;width:8.5in;min-height:11in;padding:0.6in 0.7in;box-shadow:0 4px 24px rgba(0,0,0,.18);font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;line-height:1.4}
+    #rr-i9form-modal .i9f-doc{background:#fff;color:var(--text);width:8.5in;min-height:11in;padding:0.6in 0.7in;box-shadow:0 4px 24px rgba(0,0,0,.18);font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;line-height:1.4}
     .i9f-doc h1{font-size:var(--fs-base);margin:0 0 2px;letter-spacing:.01em}
     .i9f-doc .i9f-sub{font-size:10px;color:#374151;margin-bottom:2px}
     .i9f-doc .i9f-note{font-size:9px;color:#6b7280;margin-bottom:14px;border-bottom:2px solid #111827;padding-bottom:8px}
@@ -13880,7 +13880,7 @@ function _i9FormPrintStylesOnce() {
     .i9f-grid.c3{grid-template-columns:1fr 1fr 1fr}
     .i9f-f{border-bottom:1px solid #9ca3af;padding:2px 2px 1px;min-height:18px}
     .i9f-f .lab{display:block;font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}
-    .i9f-f .val{font-size:var(--fs-xs);color:#111827}
+    .i9f-f .val{font-size:var(--fs-xs);color:var(--text)}
     .i9f-attest{font-size:9.5px;color:#1f2937;border:1px solid #9ca3af;background:#f9fafb;padding:8px;margin:8px 0}
     .i9f-cit{margin:6px 0}
     .i9f-cit .opt{display:flex;align-items:flex-start;gap:6px;padding:1px 0;font-size:10px}
@@ -13888,7 +13888,7 @@ function _i9FormPrintStylesOnce() {
     .i9f-sig{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:10px;align-items:end}
     .i9f-sig .sigbox{border:1px solid #9ca3af;height:46px;display:flex;align-items:center;justify-content:flex-start;padding:2px 6px;background:#fff}
     .i9f-sig .sigbox img{max-height:42px;max-width:100%}
-    .i9f-sig .sigbox .typed{font-family:"Brush Script MT","Segoe Script",cursive;font-size:20px;color:#111827}
+    .i9f-sig .sigbox .typed{font-family:"Brush Script MT","Segoe Script",cursive;font-size:20px;color:var(--text)}
     .i9f-sig .lab{font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;display:block}
     .i9f-foot{margin-top:22px;border-top:2px solid #111827;padding-top:8px;font-size:8.5px;color:#6b7280;line-height:1.45}
     .i9f-empty{font-size:10px;color:#9ca3af;font-style:italic;padding:6px 0}
@@ -14112,7 +14112,7 @@ const _I9_BUCKETS = [
   { key: "s2_overdue",        label: "Section 2 overdue",      tone: "background:#fee2e2;color:#991b1b" },
   { key: "s2_due",            label: "Section 2 due soon",     tone: "background:#fef3c7;color:#92400e" },
   { key: "needs_correction",  label: "Needs correction",       tone: "background:#fee2e2;color:#991b1b" },
-  { key: "awaiting_employee", label: "Awaiting employee",      tone: "background:#f1f5f9;color:#475569" },
+  { key: "awaiting_employee", label: "Awaiting employee",      tone: "background:#f1f5f9;color:var(--text-muted)" },
   { key: "s2_needed",         label: "Section 2 needed",       tone: "background:#e0f2fe;color:#0369a1" },
   { key: "reverification",    label: "Reverification due",     tone: "background:#fffbeb;color:#b45309" },
   { key: "verified",          label: "Verified",               tone: "background:#dcfce7;color:#166534" },
